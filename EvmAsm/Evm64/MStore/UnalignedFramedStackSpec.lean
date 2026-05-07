@@ -966,4 +966,145 @@ theorem evm_mstore_unaligned_one_limb_q3_spec_within_framed_public_code
       loAddr hiAddr loVal hiVal start base F hF
       h_byte_ne_x0 h_acc_ne_x0 h_window)
 
+/--
+Concrete public-code composition of the four unaligned MSTORE quarter specs.
+
+The theorem instantiates q0..q3 with sibling frames that thread the remaining
+source limbs and memory windows, then uses `sep_perm` at each midpoint.
+
+Distinctive token: evm_mstore_unaligned_full_stack_spec_within_public #53.
+-/
+theorem evm_mstore_unaligned_full_stack_spec_within_public
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase byteOld accOld : Word)
+    (limb0 limb1 limb2 limb3 : Word)
+    (loAddr0 hiAddr0 loVal0 hiVal0 : Word)
+    (loAddr1 hiAddr1 loVal1 hiVal1 : Word)
+    (loAddr2 hiAddr2 loVal2 hiVal2 : Word)
+    (loAddr3 hiAddr3 loVal3 hiVal3 : Word)
+    (start : Nat) (base : Word)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0)
+    (h_byte_ne_x0 : byteReg ≠ .x0)
+    (h_acc_ne_x0 : accReg ≠ .x0)
+    (h_window0 : mstoreLimbWindowOk (memBase + offset) loAddr0 hiAddr0 start
+                  24 25 26 27 28 29 30 31)
+    (h_window1 : mstoreLimbWindowOk (memBase + offset) loAddr1 hiAddr1 start
+                  16 17 18 19 20 21 22 23)
+    (h_window2 : mstoreLimbWindowOk (memBase + offset) loAddr2 hiAddr2 start
+                  8 9 10 11 12 13 14 15)
+    (h_window3 : mstoreLimbWindowOk (memBase + offset) loAddr3 hiAddr3 start
+                  0 1 2 3 4 5 6 7) :
+    let stored0 := MStore.mstoreDwordPairStoreLimb loVal0 hiVal0 limb0 start
+    let stored1 := MStore.mstoreDwordPairStoreLimb loVal1 hiVal1 limb1 start
+    let stored2 := MStore.mstoreDwordPairStoreLimb loVal2 hiVal2 limb2 start
+    let stored3 := MStore.mstoreDwordPairStoreLimb loVal3 hiVal3 limb3 start
+    cpsTripleWithin (2 + (17 + 17 + 17 + 17)) base (base + 280)
+      (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base)
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+        (sp ↦ₘ offset)) **
+       ((byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+        (loAddr0 ↦ₘ loVal0) ** (hiAddr0 ↦ₘ hiVal0) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb0) **
+        (loAddr1 ↦ₘ loVal1) ** (hiAddr1 ↦ₘ hiVal1) **
+        ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb1) **
+        (loAddr2 ↦ₘ loVal2) ** (hiAddr2 ↦ₘ hiVal2) **
+        ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb2) **
+        (loAddr3 ↦ₘ loVal3) ** (hiAddr3 ↦ₘ hiVal3) **
+        ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb3)))
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+        (sp ↦ₘ offset) **
+        ((byteReg ↦ᵣ limb3) ** (accReg ↦ᵣ limb3) **
+         (loAddr3 ↦ₘ stored3.1) ** (hiAddr3 ↦ₘ stored3.2) **
+         ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb3))) **
+       ((loAddr0 ↦ₘ stored0.1) ** (hiAddr0 ↦ₘ stored0.2) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb0) **
+        (loAddr1 ↦ₘ stored1.1) ** (hiAddr1 ↦ₘ stored1.2) **
+        ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb1) **
+        (loAddr2 ↦ₘ stored2.1) ** (hiAddr2 ↦ₘ stored2.2) **
+        ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb2))) := by
+  let Fpre : Assertion :=
+    (byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+    (loAddr0 ↦ₘ loVal0) ** (hiAddr0 ↦ₘ hiVal0) **
+    ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb0) **
+    (loAddr1 ↦ₘ loVal1) ** (hiAddr1 ↦ₘ hiVal1) **
+    ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb1) **
+    (loAddr2 ↦ₘ loVal2) ** (hiAddr2 ↦ₘ hiVal2) **
+    ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb2) **
+    (loAddr3 ↦ₘ loVal3) ** (hiAddr3 ↦ₘ hiVal3) **
+    ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb3)
+  let stored0 := MStore.mstoreDwordPairStoreLimb loVal0 hiVal0 limb0 start
+  let stored1 := MStore.mstoreDwordPairStoreLimb loVal1 hiVal1 limb1 start
+  let stored2 := MStore.mstoreDwordPairStoreLimb loVal2 hiVal2 limb2 start
+  let F0 : Assertion :=
+    (loAddr1 ↦ₘ loVal1) ** (hiAddr1 ↦ₘ hiVal1) **
+    ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb1) **
+    (loAddr2 ↦ₘ loVal2) ** (hiAddr2 ↦ₘ hiVal2) **
+    ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb2) **
+    (loAddr3 ↦ₘ loVal3) ** (hiAddr3 ↦ₘ hiVal3) **
+    ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb3)
+  let F1 : Assertion :=
+    (loAddr0 ↦ₘ stored0.1) ** (hiAddr0 ↦ₘ stored0.2) **
+    ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb0) **
+    (loAddr2 ↦ₘ loVal2) ** (hiAddr2 ↦ₘ hiVal2) **
+    ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb2) **
+    (loAddr3 ↦ₘ loVal3) ** (hiAddr3 ↦ₘ hiVal3) **
+    ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb3)
+  let F2 : Assertion :=
+    (loAddr0 ↦ₘ stored0.1) ** (hiAddr0 ↦ₘ stored0.2) **
+    ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb0) **
+    (loAddr1 ↦ₘ stored1.1) ** (hiAddr1 ↦ₘ stored1.2) **
+    ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb1) **
+    (loAddr3 ↦ₘ loVal3) ** (hiAddr3 ↦ₘ hiVal3) **
+    ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb3)
+  let F3 : Assertion :=
+    (loAddr0 ↦ₘ stored0.1) ** (hiAddr0 ↦ₘ stored0.2) **
+    ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb0) **
+    (loAddr1 ↦ₘ stored1.1) ** (hiAddr1 ↦ₘ stored1.2) **
+    ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb1) **
+    (loAddr2 ↦ₘ stored2.1) ** (hiAddr2 ↦ₘ stored2.2) **
+    ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb2)
+  dsimp only
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      dsimp only [Fpre, F0] at hp ⊢
+      sep_perm hp)
+    (evm_mstore_prologue_stack_spec_within_framed
+      offReg valReg byteReg accReg addrReg memBaseReg
+      sp offset offOld addrOld memBase base Fpre (by pcFree)
+      h_off_ne_x0 h_addr_ne_x0)
+    (evm_mstore_public_one_limb_sequence_spec_within_perm
+      offReg valReg byteReg accReg addrReg memBaseReg base
+      (evm_mstore_unaligned_one_limb_q0_spec_within_framed_public_code
+        offReg valReg byteReg accReg addrReg memBaseReg
+        sp offset memBase byteOld accOld limb0
+        loAddr0 hiAddr0 loVal0 hiVal0 start base F0 (by pcFree)
+        h_byte_ne_x0 h_acc_ne_x0 h_window0)
+      (fun _ hp => by
+        dsimp only [F0, F1, stored0] at hp ⊢
+        sep_perm hp)
+      (evm_mstore_unaligned_one_limb_q1_spec_within_framed_public_code
+        offReg valReg byteReg accReg addrReg memBaseReg
+        sp offset memBase limb0 limb0 limb1
+        loAddr1 hiAddr1 loVal1 hiVal1 start base F1 (by pcFree)
+        h_byte_ne_x0 h_acc_ne_x0 h_window1)
+      (fun _ hp => by
+        dsimp only [F1, F2, stored1] at hp ⊢
+        sep_perm hp)
+      (evm_mstore_unaligned_one_limb_q2_spec_within_framed_public_code
+        offReg valReg byteReg accReg addrReg memBaseReg
+        sp offset memBase limb1 limb1 limb2
+        loAddr2 hiAddr2 loVal2 hiVal2 start base F2 (by pcFree)
+        h_byte_ne_x0 h_acc_ne_x0 h_window2)
+      (fun _ hp => by
+        dsimp only [F2, F3, stored2] at hp ⊢
+        sep_perm hp)
+      (evm_mstore_unaligned_one_limb_q3_spec_within_framed_public_code
+        offReg valReg byteReg accReg addrReg memBaseReg
+        sp offset memBase limb2 limb2 limb3
+        loAddr3 hiAddr3 loVal3 hiVal3 start base F3 (by pcFree)
+        h_byte_ne_x0 h_acc_ne_x0 h_window3))
+
 end EvmAsm.Evm64
