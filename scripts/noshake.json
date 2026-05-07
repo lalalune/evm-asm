@@ -122,6 +122,8 @@
   ["EvmAsm.Rv64.ByteOps"],
  "EvmAsm.Evm64.MStore.ByteAlg":
   ["Std.Tactic.BVDecide", "Mathlib.Tactic.IntervalCases"],
+ "EvmAsm.Evm64.MStore.StackSpec":
+  ["EvmAsm.Evm64.MStore.CombinedSequenceSpec"],
  "EvmAsm.Evm64.MLoad.ByteAlg":
   ["EvmAsm.Rv64.Basic", "Std.Tactic.BVDecide"],
  "EvmAsm.Evm64.SpAddr":
