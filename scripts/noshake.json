@@ -291,6 +291,12 @@
   ["EvmAsm.Evm64.EvmWordArith.Div128KB6Composition"],
   "EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.QuotientBounds":
   ["EvmAsm.Evm64.EvmWordArith.Div128KnuthLower"],
+  "EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Un21Bridge":
+  ["EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.QuotientBounds"],
+  "EvmAsm.Evm64.DivMod.Compose.ModPhaseBn3":
+  ["EvmAsm.Evm64.DivMod.Compose.ModPhaseB"],
+  "EvmAsm.Evm64.DivMod.LoopBody.TrialMax":
+  ["EvmAsm.Evm64.DivMod.LoopBody"],
   "EvmAsm.Evm64.Shift.ShlCompose":
   ["EvmAsm.Evm64.Shift.ComposeBase"],
   "EvmAsm.Evm64.Shift.SarCompose":
