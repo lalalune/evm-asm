@@ -6,7 +6,7 @@
 -/
 
 import EvmAsm.Evm64.Accelerators.Status
-import EvmAsm.EL.Bls12MapFpToG1InputBridge
+import EvmAsm.EL.WorldState
 
 namespace EvmAsm.EL
 
