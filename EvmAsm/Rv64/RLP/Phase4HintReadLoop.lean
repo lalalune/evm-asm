@@ -206,4 +206,88 @@ theorem rlp_phase4_hint_read_loop_ecall_step_lift_spec_within
     (hmono := ?_) (h := h)
   exact CodeReq.singleton_mono (rlp_phase4_hint_read_loop_ecall_get base)
 
+/-- Bundled body-step spec for one iteration of the multi-dword
+    HINT_READ loop, covering the four straight-line instructions
+    (`LI ;; ECALL ;; ADDI x10 +8 ;; ADDI x11 -8`) at offsets 0..16.
+    The fifth instruction (the back-branch BNE at offset 16) is the
+    loop-control step composed in a follow-up slice.
+
+    Composition of the four step-lift helpers above via three
+    applications of `cpsTripleWithin_seq_perm_same_cr`. Authored by
+    @pirapira; implemented by Hermes-bot (evm-hermes) for beads
+    `evm-asm-yccms` (#120 Phase4HintReadLoop slice 2). -/
+theorem rlp_phase4_hint_read_loop_body_step_spec_within
+    (buf nbytes oldWord : Word) (input : List (BitVec 8)) (base : Word)
+    (h_pos : 0 < nbytes.toNat) (h_le8 : nbytes.toNat ≤ 8)
+    (h_suff : nbytes.toNat ≤ input.length) :
+    cpsTripleWithin 4 base (base + 16)
+      (CodeReq.ofProg base rlp_phase4_hint_read_loop_prog)
+      ((base + 4 ↦ᵢ .ECALL) ** regOwn .x5 ** (.x10 ↦ᵣ buf) **
+        (.x11 ↦ᵣ nbytes) ** (buf ↦ₘ oldWord) ** privateInputIs input)
+      ((base + 4 ↦ᵢ .ECALL) **
+        (.x10 ↦ᵣ (buf + signExtend12 (8 : BitVec 12))) **
+        (.x11 ↦ᵣ (nbytes + signExtend12 (-8 : BitVec 12))) **
+        (buf ↦ₘ bytesToWordLE (input.take nbytes.toNat)) **
+        (.x5 ↦ᵣ (BitVec.ofNat 64 0xF1)) **
+        privateInputIs (input.drop nbytes.toNat)) := by
+  -- Step 1: LI .x5 0xF1 at offset 0, framed by the rest.
+  have hli := rlp_phase4_hint_read_loop_li_step_lift_spec_within base
+  have hli_framed := cpsTripleWithin_frameR
+    ((base + 4 ↦ᵢ .ECALL) ** (.x10 ↦ᵣ buf) ** (.x11 ↦ᵣ nbytes) **
+      (buf ↦ₘ oldWord) ** privateInputIs input)
+    (by pcFree) hli
+  -- Step 2: ECALL HINT_READ at offset 4. Normalize exit to `base + 8`.
+  have hecall0 := rlp_phase4_hint_read_loop_ecall_step_lift_spec_within
+    buf nbytes oldWord input base h_pos h_le8 h_suff
+  have h_e0 : (base + 4 : Word) + 4 = base + 8 := by bv_addr
+  rw [h_e0] at hecall0
+  set hecall := hecall0
+  -- Step 3: ADDI .x10 .x10 8 at offset 8.
+  have haddi10 := rlp_phase4_hint_read_loop_addi_advance_step_lift_spec_within
+    base buf
+  -- Step 4: ADDI .x11 .x11 -8 at offset 12.
+  have haddi11 := rlp_phase4_hint_read_loop_addi_dec_step_lift_spec_within
+    base nbytes
+  -- Compose step 1 ;; step 2.
+  have h12 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by xperm_hyp hp) hli_framed hecall
+  -- Frame ADDI .x10 step with the remaining post-step-2 atoms (everything
+  -- except `.x10 ↦ᵣ buf` which is the active register cell).
+  have haddi10_framed := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ nbytes) **
+      (buf ↦ₘ bytesToWordLE (input.take nbytes.toNat)) **
+      (base + 4 ↦ᵢ .ECALL) ** (.x5 ↦ᵣ (BitVec.ofNat 64 0xF1)) **
+      privateInputIs (input.drop nbytes.toNat))
+    (by pcFree) haddi10
+  -- (base + 8) + 4 = base + 12 to align endpoints.
+  have h_e1 : (base + 8 : Word) + 4 = base + 12 := by bv_addr
+  rw [h_e1] at haddi10_framed
+  -- Compose step1+2 ;; step 3.
+  have h123 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by xperm_hyp hp) h12 haddi10_framed
+  -- Frame ADDI .x11 step with the remaining atoms (everything except `.x11`).
+  have haddi11_framed := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (buf + signExtend12 (8 : BitVec 12))) **
+      (buf ↦ₘ bytesToWordLE (input.take nbytes.toNat)) **
+      (base + 4 ↦ᵢ .ECALL) ** (.x5 ↦ᵣ (BitVec.ofNat 64 0xF1)) **
+      privateInputIs (input.drop nbytes.toNat))
+    (by pcFree) haddi11
+  have h_e2 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
+  rw [h_e2] at haddi11_framed
+  -- Compose step1+2+3 ;; step 4.
+  have h1234 :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by xperm_hyp hp) h123 haddi11_framed
+  -- Normalize step count `1 + 1 + 1 + 1` to `4`.
+  have h1234' : cpsTripleWithin 4 base (base + 16)
+      (CodeReq.ofProg base rlp_phase4_hint_read_loop_prog) _ _ := h1234
+  -- Final cleanup: rearrange to match the stated postcondition shape and
+  -- the goal's preferred pre permutation (`(base + 4 ↦ᵢ .ECALL)` first).
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp)
+    h1234'
+
 end EvmAsm.Rv64.RLP
