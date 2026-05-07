@@ -454,6 +454,49 @@ theorem evm_mload_unaligned_one_limb_q1_stack_spec_within_framed
     framed
 
 /--
+Public-code q1 framed MLOAD spec: transports
+`evm_mload_unaligned_one_limb_q1_stack_spec_within_framed` from the q1
+one-limb block to the full `evm_mload_code` code requirement.
+
+Distinctive token:
+evm_mload_unaligned_one_limb_q1_spec_within_framed_public_code #53.
+-/
+theorem evm_mload_unaligned_one_limb_q1_spec_within_framed_public_code
+    (offReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset memBase byteOld accOld : Word)
+    (q0Old : Word)
+    (loAddr1 hiAddr1 loVal1 hiVal1 : Word) (start : Nat)
+    (dstOld : Word)
+    (base : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (h_byte_ne_x0 : byteReg ≠ .x0) (h_acc_ne_x0 : accReg ≠ .x0)
+    (h_window : mloadLimbWindowOk (memBase + offset) loAddr1 hiAddr1 start
+                  16 17 18 19 20 21 22 23) :
+    cpsTripleWithin 23 (base + 100) (base + 192)
+      (evm_mload_code offReg byteReg accReg addrReg memBaseReg base)
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+        (sp ↦ₘ q0Old) **
+        (sp + 8 ↦ₘ dstOld) **
+        ((byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+         (loAddr1 ↦ₘ loVal1) ** (hiAddr1 ↦ₘ hiVal1))) ** F)
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+        (sp ↦ₘ q0Old) **
+        (sp + 8 ↦ₘ mloadPackedLimbFromDwordPair loVal1 hiVal1 start) **
+        ((byteReg ↦ᵣ
+           (mloadByteFromDwordPair loVal1 hiVal1 start 7).zeroExtend 64) **
+         (accReg ↦ᵣ mloadPackedLimbFromDwordPair loVal1 hiVal1 start) **
+         (loAddr1 ↦ₘ loVal1) ** (hiAddr1 ↦ₘ hiVal1))) ** F) := by
+  exact cpsTripleWithin_evm_mload_of_one_limb_q1
+    offReg byteReg accReg addrReg memBaseReg base
+    (evm_mload_unaligned_one_limb_q1_stack_spec_within_framed
+      offReg byteReg accReg addrReg memBaseReg
+      sp offset memBase byteOld accOld q0Old
+      loAddr1 hiAddr1 loVal1 hiVal1 start dstOld base F hF
+      h_byte_ne_x0 h_acc_ne_x0 h_window)
+
+/--
 Sibling-framed q2 stack spec: `evm_mload_unaligned_one_limb_q2_stack_spec_within`
 with an arbitrary `pcFree` assertion `F` framed on both pre and post.
 
