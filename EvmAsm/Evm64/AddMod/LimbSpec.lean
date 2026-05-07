@@ -13,6 +13,7 @@ import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.Add.Spec
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Evm64.Stack
 
 namespace EvmAsm.Evm64
 
