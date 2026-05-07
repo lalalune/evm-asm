@@ -81,6 +81,10 @@
   ["EvmAsm.Evm64.DivMod.Spec.CallAddbackMod"],
  "EvmAsm.Evm64.DivMod.Spec.CallAddbackPost1Wrappers":
   ["EvmAsm.Evm64.DivMod.Spec.CallAddbackSubStubs"],
+ "EvmAsm.Evm64.DivMod.Spec.CallAddbackSubStubs":
+  ["EvmAsm.Evm64.DivMod.Spec.CallAddbackPureNat",
+   "EvmAsm.Evm64.DivMod.SpecCallAddbackBeq.AlgEuclideans",
+   "EvmAsm.Evm64.DivMod.Shift0Dispatcher"],
  "EvmAsm.Evm64.DivMod.Spec.CallAddbackMod":
   ["EvmAsm.Evm64.DivMod.Spec.CallAddbackSubStubs",
    "EvmAsm.Evm64.DivMod.Spec.CallAddbackPost1Wrappers"],
