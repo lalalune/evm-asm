@@ -96,4 +96,69 @@ theorem evm_mstore_unaligned_one_limb_q0_stack_spec_within
     (fun _ hp => by sep_perm hp)
     framed
 
+/--
+MSTORE q1 framed per-quarter stack spec: thin frame around
+`mstore_one_limb_spec_within` for the second-most-significant limb of the
+big-endian MSTORE write (source offset `40`, byte offsets `16..23`).
+
+Pre/post are stated in the same shape as `h1` of
+`evm_mstore_combined_one_limb_sequence_stack_spec_within`
+(`EvmAsm/Evm64/MStore/StackSpec.lean`), so subsequent compose slices
+can plug this in directly.
+
+Sub-slice toward `evm_mstore_stack_spec_within` (evm-asm-eyin6 / parent
+evm-asm-ln8t5 / GH #53 follow-up): together with q0/q2/q3 siblings, feeds
+`evm_mstore_combined_one_limb_sequence_stack_spec_within` to land the
+topmost stack-level MSTORE theorem.
+
+Distinctive token: evm_mstore_unaligned_one_limb_q1_stack_spec_within #53.
+-/
+theorem evm_mstore_unaligned_one_limb_q1_stack_spec_within
+    (offReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset memBase byteOld accOld limbVal : Word)
+    (loAddr hiAddr loVal hiVal : Word) (start : Nat)
+    (base : Word)
+    (h_byte_ne_x0 : byteReg ≠ .x0)
+    (h_acc_ne_x0 : accReg ≠ .x0)
+    (h_window : mstoreLimbWindowOk (memBase + offset) loAddr hiAddr start
+                  16 17 18 19 20 21 22 23) :
+    cpsTripleWithin 17 (base + 76) (base + 144)
+      (mstoreOneLimbCode addrReg byteReg accReg
+        40 16 17 18 19 20 21 22 23 (base + 76))
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+       (sp ↦ₘ offset) **
+       ((byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+        (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal) **
+        ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limbVal)))
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+       (sp ↦ₘ offset) **
+       (let stored :=
+         MStore.mstoreDwordPairStoreLimb loVal hiVal limbVal start
+        (byteReg ↦ᵣ limbVal) ** (accReg ↦ᵣ limbVal) **
+        (loAddr ↦ₘ stored.1) ** (hiAddr ↦ₘ stored.2) **
+        ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limbVal))) := by
+  -- Underlying one-limb MSTORE spec at q1 (srcOff = 40, dst byte offsets 16..23).
+  have core := mstore_one_limb_spec_within addrReg byteReg accReg
+    (memBase + offset) byteOld accOld loVal hiVal loAddr hiAddr sp limbVal
+    start
+    (40 : BitVec 12) 16 17 18 19 20 21 22 23 (base + 76)
+    h_byte_ne_x0 h_acc_ne_x0 h_window
+  rw [mstoreOneLimbPre_unfold, mstoreOneLimbPost_unfold] at core
+  dsimp only [] at core
+  -- Normalize endpoint: `base + 76 + 68 = base + 144`.
+  have hpc : ((base + 76) + 68 : Word) = base + 144 := by bv_omega
+  rw [show ((base + 76) + 68 : Word) = base + 144 from hpc] at core
+  -- Frame the prologue-threaded cells:
+  --   (offReg ↦ᵣ offset) ** (memBaseReg ↦ᵣ memBase) ** (sp ↦ₘ offset).
+  have framed := cpsTripleWithin_frameL
+    (F := (offReg ↦ᵣ offset) ** (memBaseReg ↦ᵣ memBase) ** (sp ↦ₘ offset))
+    (by pcFree) core
+  -- Permute pre/post into the goal's grouping.
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by sep_perm hp)
+    (fun _ hp => by sep_perm hp)
+    framed
+
 end EvmAsm.Evm64
