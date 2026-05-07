@@ -39,6 +39,15 @@ import EvmAsm.EL.KeccakStackExecutionBridge
 import EvmAsm.EL.Bls12G1AddInputBridge
 import EvmAsm.EL.Bls12G1AddResultBridge
 import EvmAsm.EL.Bls12G1AddEcallBridge
+import EvmAsm.EL.KzgPointEvalInputBridge
+import EvmAsm.EL.KzgPointEvalResultBridge
+import EvmAsm.EL.KzgPointEvalEcallBridge
+import EvmAsm.EL.Bls12MapFpToG1InputBridge
+import EvmAsm.EL.Bls12MapFpToG1ResultBridge
+import EvmAsm.EL.Bls12MapFpToG1EcallBridge
+import EvmAsm.EL.Bn254PairingInputBridge
+import EvmAsm.EL.Bn254PairingResultBridge
+import EvmAsm.EL.Bn254PairingEcallBridge
 import EvmAsm.EL.ModexpInputBridge
 import EvmAsm.EL.ModexpResultBridge
 import EvmAsm.EL.ModexpEcallBridge
