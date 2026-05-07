@@ -354,6 +354,54 @@ theorem evm_mstore_public_one_limb_sequence_spec_within
     h3
 
 /--
+Compose the framed MSTORE prologue with four public-code one-limb quarter
+triples.
+
+This is useful once q0..q3 have already been transported to `evm_mstore_code`;
+the theorem supplies the prologue step and sequences the public body in one
+call.
+
+Distinctive token:
+evm_mstore_public_one_limb_sequence_with_prologue_framed #53.
+-/
+theorem evm_mstore_public_one_limb_sequence_with_prologue_framed
+    {n0 n1 n2 n3 : Nat} {P1 P2 P3 Q : Assertion}
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0)
+    (h0 :
+      cpsTripleWithin n0 (base + 8) (base + 76)
+        (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base)
+        ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+          (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+          (sp ↦ₘ offset)) ** F)
+        P1)
+    (h1 :
+      cpsTripleWithin n1 (base + 76) (base + 144)
+        (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base) P1 P2)
+    (h2 :
+      cpsTripleWithin n2 (base + 144) (base + 212)
+        (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base) P2 P3)
+    (h3 :
+      cpsTripleWithin n3 (base + 212) (base + 280)
+        (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base) P3 Q) :
+    cpsTripleWithin (2 + (n0 + n1 + n2 + n3)) base (base + 280)
+      (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base)
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+        (sp ↦ₘ offset)) ** F)
+      Q := by
+  exact cpsTripleWithin_seq_same_cr
+    (evm_mstore_prologue_stack_spec_within_framed
+      offReg valReg byteReg accReg addrReg memBaseReg
+      sp offset offOld addrOld memBase base F hF
+      h_off_ne_x0 h_addr_ne_x0)
+    (evm_mstore_public_one_limb_sequence_spec_within
+      offReg valReg byteReg accReg addrReg memBaseReg base h0 h1 h2 h3)
+
+/--
 Sibling-framed q0 stack spec: `evm_mstore_unaligned_one_limb_q0_stack_spec_within`
 with an arbitrary `pcFree` assertion `F` framed on both pre and post.
 
