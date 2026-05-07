@@ -7,4 +7,5 @@ import EvmAsm.Evm64.MLoad.UnalignedSpec
 import EvmAsm.Evm64.MLoad.ByteWindow
 import EvmAsm.Evm64.MLoad.StackSpec
 import EvmAsm.Evm64.MLoad.UnalignedStackSpec
+import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MLoad.Expansion
