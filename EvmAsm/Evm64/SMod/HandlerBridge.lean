@@ -10,6 +10,13 @@ import EvmAsm.Evm64.SMod.StackExecutionBridge
 namespace EvmAsm.Evm64
 namespace SModStackExecutionBridge
 
+theorem smodHandler_pc
+    (state : EvmState) :
+    (ArithmeticHandlers.smodHandler state).pc = state.pc := by
+  cases h_stack : ArithmeticHandlers.binaryStack? EvmWord.smod state.stack <;>
+    simp [ArithmeticHandlers.smodHandler, ArithmeticHandlers.binaryHandler,
+      EvmState.withStack, EvmState.invalid, EvmState.withStatus, h_stack]
+
 theorem smodHandler_stack_of_runSModStack?_some
     {state : EvmState} {out : SModStackResult}
     (h_run : runSModStack? { stack := state.stack } = some out) :

@@ -10,6 +10,13 @@ import EvmAsm.Evm64.SDiv.StackExecutionBridge
 namespace EvmAsm.Evm64
 namespace SDivStackExecutionBridge
 
+theorem sdivHandler_pc
+    (state : EvmState) :
+    (ArithmeticHandlers.sdivHandler state).pc = state.pc := by
+  cases h_stack : ArithmeticHandlers.binaryStack? EvmWord.sdiv state.stack <;>
+    simp [ArithmeticHandlers.sdivHandler, ArithmeticHandlers.binaryHandler,
+      EvmState.withStack, EvmState.invalid, EvmState.withStatus, h_stack]
+
 theorem sdivHandler_stack_of_runSDivStack?_some
     {state : EvmState} {out : SDivStackResult}
     (h_run : runSDivStack? { stack := state.stack } = some out) :
