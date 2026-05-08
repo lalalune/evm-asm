@@ -98,6 +98,16 @@ def singletonPrivateInput (vals : List (BitVec 8)) : PartialState where
   privateInput := some vals
   inputBufBase := none
 
+/-- A partial state owning just the private input buffer base pointer. -/
+def singletonInputBufBase (v : Word) : PartialState where
+  regs := fun _ => none
+  mem  := fun _ => none
+  code := fun _ => none
+  pc   := none
+  publicValues := none
+  privateInput := none
+  inputBufBase := some v
+
 /-- Two partial states are disjoint if they don't own the same resources. -/
 def Disjoint (h1 h2 : PartialState) : Prop :=
   (∀ r, h1.regs r = none ∨ h2.regs r = none) ∧
@@ -1203,6 +1213,87 @@ theorem holdsFor_sepConj_regIs_privateInputIs {r : Reg} {v : Word}
     exact ⟨_, (PartialState.CompatibleWith_union hd).mpr
       ⟨PartialState.CompatibleWith_singletonReg.mpr h1,
        PartialState.CompatibleWith_singletonPrivateInput.mpr h2⟩,
+      _, _, hd, rfl, rfl, rfl⟩
+
+-- ============================================================================
+-- inputBufBaseIs assertion
+-- ============================================================================
+
+/-- Private input buffer base pointer equals a given address. -/
+def inputBufBaseIs (v : Word) : Assertion :=
+  fun h => h = PartialState.singletonInputBufBase v
+
+-- ============================================================================
+-- CompatibleWith / holdsFor for inputBufBaseIs
+-- ============================================================================
+
+namespace PartialState
+
+theorem CompatibleWith_singletonInputBufBase {v : Word} {s : MachineState} :
+    (singletonInputBufBase v).CompatibleWith s ↔ s.inputBufBase = v := by
+  constructor
+  · intro ⟨_, _, _, _, _, _, hib⟩
+    exact hib v rfl
+  · intro heq
+    exact ⟨fun _ _ h => by simp [singletonInputBufBase] at h,
+           fun _ _ h => by simp [singletonInputBufBase] at h,
+           fun _ _ h => by simp [singletonInputBufBase] at h,
+           fun _ h => by simp [singletonInputBufBase] at h,
+           fun _ h => by simp [singletonInputBufBase] at h,
+           fun _ h => by simp [singletonInputBufBase] at h,
+           fun v' h => by simp [singletonInputBufBase] at h; rw [← h]; exact heq⟩
+
+end PartialState
+
+@[simp]
+theorem holdsFor_inputBufBaseIs {v : Word} {s : MachineState} :
+    (inputBufBaseIs v).holdsFor s ↔ s.inputBufBase = v := by
+  simp only [Assertion.holdsFor, inputBufBaseIs]
+  constructor
+  · rintro ⟨h, hcompat, rfl⟩
+    exact PartialState.CompatibleWith_singletonInputBufBase.mp hcompat
+  · intro heq
+    exact ⟨_, PartialState.CompatibleWith_singletonInputBufBase.mpr heq, rfl⟩
+
+-- ============================================================================
+-- pcFree for inputBufBaseIs
+-- ============================================================================
+
+theorem pcFree_inputBufBaseIs {v : Word} : (inputBufBaseIs v).pcFree := by
+  intro h hp; rw [inputBufBaseIs] at hp; subst hp; rfl
+
+instance (v : Word) : Assertion.PCFree (inputBufBaseIs v) :=
+  ⟨pcFree_inputBufBaseIs⟩
+
+-- ============================================================================
+-- Disjointness lemmas for inputBufBaseIs composition
+-- ============================================================================
+
+private theorem singletonReg_disjoint_singletonInputBufBase (r : Reg) (rv v : Word) :
+    (PartialState.singletonReg r rv).Disjoint (PartialState.singletonInputBufBase v) := by
+  exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+-- ============================================================================
+-- holdsFor_sepConj convenience lemmas for inputBufBaseIs
+-- ============================================================================
+
+theorem holdsFor_sepConj_regIs_inputBufBaseIs {r : Reg} {rv v : Word}
+    {s : MachineState} :
+    ((regIs r rv) ** (inputBufBaseIs v)).holdsFor s ↔
+      s.getReg r = rv ∧ s.inputBufBase = v := by
+  constructor
+  · rintro ⟨h, hcompat, h1, h2, hd, hunion, hp1, hp2⟩
+    rw [regIs] at hp1; rw [inputBufBaseIs] at hp2; subst hp1; subst hp2
+    rw [← hunion] at hcompat
+    rw [PartialState.CompatibleWith_union hd] at hcompat
+    exact ⟨PartialState.CompatibleWith_singletonReg.mp hcompat.1,
+           PartialState.CompatibleWith_singletonInputBufBase.mp hcompat.2⟩
+  · intro ⟨h1, h2⟩
+    have hd := singletonReg_disjoint_singletonInputBufBase r rv v
+    exact ⟨_, (PartialState.CompatibleWith_union hd).mpr
+      ⟨PartialState.CompatibleWith_singletonReg.mpr h1,
+       PartialState.CompatibleWith_singletonInputBufBase.mpr h2⟩,
       _, _, hd, rfl, rfl, rfl⟩
 
 -- ============================================================================
