@@ -178,5 +178,19 @@ theorem runSDivStack?_intMin_neg_one
   rw [runSDivStack?_cons]
   rw [SDivArgs.sdivResultFromArgs_intMin_neg_one]
 
+theorem runSDivStack?_neg_one_two
+    (rest : List EvmWord) :
+    runSDivStack? { stack := (-1 : EvmWord) :: 2 :: rest } =
+      some { effects := { stackWords := [0] }, stack := rest } := by
+  rw [runSDivStack?_cons]
+  rw [SDivArgs.sdivResultFromArgs_neg_one_two]
+
+theorem runSDivStack?_pos_neg_trunc
+    (rest : List EvmWord) :
+    runSDivStack? { stack := (7 : EvmWord) :: (-2 : EvmWord) :: rest } =
+      some { effects := { stackWords := [(-3 : EvmWord)] }, stack := rest } := by
+  rw [runSDivStack?_cons]
+  rw [SDivArgs.sdivResultFromArgs_pos_neg_trunc]
+
 end SDivStackExecutionBridge
 end EvmAsm.Evm64
