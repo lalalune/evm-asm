@@ -455,6 +455,48 @@ theorem runCalldataStack?_eq_none_iff
       simp [argumentCount, EvmAsm.Evm64.CallDataCopyArgs.stackArgumentCount]
     rw [h_arg, runCalldataStack?_copy_eq_none_iff]
 
+/--
+Successful calldata stack execution exposes exactly the opcode's stack-result
+arity as visible stack words.
+
+Distinctive token:
+CalldataStackExecutionBridge.runCalldataStack?_effects_stackWords_length #104 #107.
+-/
+theorem runCalldataStack?_effects_stackWords_length
+    {kind : Kind} {state : CalldataStackState} {out : CalldataStackResult}
+    (h_run : runCalldataStack? kind state = some out) :
+    out.effects.stackWords.length = resultCount kind := by
+  cases state with
+  | mk data stack =>
+      cases kind
+      · cases stack with
+        | nil =>
+            simp [runCalldataStack?,
+              EvmAsm.Evm64.CallDataLoadArgsStackDecode.decodeCallDataLoadStack?]
+              at h_run
+        | cons offset rest =>
+            simp [runCalldataStack?, stackRestAfterCalldata?] at h_run
+            cases h_run
+            simp [resultCount, EvmAsm.Evm64.CallDataLoadArgs.resultCount]
+      · simp [runCalldataStack?] at h_run
+        cases h_run
+        simp [resultCount]
+      · cases stack with
+        | nil =>
+            simp [runCalldataStack?,
+              EvmAsm.Evm64.CallDataCopyArgsStackDecode.decodeCallDataCopyStack?]
+              at h_run
+        | cons destOffset tail =>
+            cases tail with
+            | nil => simp [runCalldataStack?, stackRestAfterCalldata?] at h_run
+            | cons dataOffset tail =>
+                cases tail with
+                | nil => simp [runCalldataStack?, stackRestAfterCalldata?] at h_run
+                | cons size rest =>
+                    simp [runCalldataStack?, stackRestAfterCalldata?] at h_run
+                    cases h_run
+                    simp [resultCount, EvmAsm.Evm64.CallDataCopyArgs.resultCount]
+
 theorem runCalldataStack?_stack_length
     {kind : Kind} {state : CalldataStackState} {out : CalldataStackResult}
     (h_run : runCalldataStack? kind state = some out) :
