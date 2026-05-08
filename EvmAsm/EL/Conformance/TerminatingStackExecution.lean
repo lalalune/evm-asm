@@ -63,6 +63,30 @@ def terminatingReturnVector :
           gasRemaining := 123
           stack := [(99 : EvmWord)] } }
 
+/-- Terminating stack conformance inputs as reusable test vectors.
+    Distinctive token:
+    TerminatingStackExecutionConformance.terminatingStackConformanceTestVectors #113 #125. -/
+def terminatingStackConformanceTestVectors :
+    List (TestVector TerminatingStackInput TerminatingVisibleResult) :=
+  [terminatingReturnVector]
+
+def terminatingStackConformanceVectorIds : List String :=
+  terminatingStackConformanceTestVectors.map TestVector.id
+
+theorem terminatingStackConformanceTestVectors_length :
+    terminatingStackConformanceTestVectors.length = 1 := rfl
+
+theorem terminatingStackConformanceVectorIds_eq :
+    terminatingStackConformanceVectorIds =
+      ["terminating-stack-return"] := rfl
+
+theorem terminatingStackConformanceVectorIds_length :
+    terminatingStackConformanceVectorIds.length = 1 := rfl
+
+theorem terminatingStackConformanceVectorIds_nodup :
+    terminatingStackConformanceVectorIds.Nodup := by
+  decide
+
 theorem runTerminatingStackVisible?_return :
     runTerminatingStackVisible?
       { kind := .return_
@@ -94,11 +118,12 @@ theorem terminatingReturnVector_passed :
     Distinctive token:
     TerminatingStackExecutionConformance.terminatingStackConformanceVectors #113 #125. -/
 def terminatingStackConformanceVectors : List CheckResult :=
-  [checkVector? runTerminatingStackVisible? terminatingReturnVector]
+  checkBatch? runTerminatingStackVisible? terminatingStackConformanceTestVectors
 
 theorem terminatingStackConformanceVectors_passed :
     terminatingStackConformanceVectors = [.passed] := by
-  simp [terminatingStackConformanceVectors, terminatingReturnVector_passed]
+  simp [terminatingStackConformanceVectors, terminatingStackConformanceTestVectors,
+    terminatingReturnVector_passed]
 
 end TerminatingStackExecution
 end Conformance
