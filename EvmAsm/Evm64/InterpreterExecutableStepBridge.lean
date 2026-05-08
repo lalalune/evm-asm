@@ -190,6 +190,78 @@ theorem loopFuel_one_supported_execSpec_SMOD_gas
   rw [loopFuel_one_supported_execSpec_SMOD h_status h_pc h_code]
   exact SModStackExecutionBridge.smodHandler_gas state
 
+theorem loopFuel_one_supported_execSpec_SDIV_code
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).code = state.code := by
+  rw [loopFuel_one_supported_execSpec_SDIV h_status h_pc h_code]
+  exact SDivStackExecutionBridge.sdivHandler_code state
+
+theorem loopFuel_one_supported_execSpec_SMOD_code
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).code = state.code := by
+  rw [loopFuel_one_supported_execSpec_SMOD h_status h_pc h_code]
+  exact SModStackExecutionBridge.smodHandler_code state
+
+theorem loopFuel_one_supported_execSpec_SDIV_codeLen
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).codeLen = state.codeLen := by
+  rw [loopFuel_one_supported_execSpec_SDIV h_status h_pc h_code]
+  exact SDivStackExecutionBridge.sdivHandler_codeLen state
+
+theorem loopFuel_one_supported_execSpec_SMOD_codeLen
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).codeLen = state.codeLen := by
+  rw [loopFuel_one_supported_execSpec_SMOD h_status h_pc h_code]
+  exact SModStackExecutionBridge.smodHandler_codeLen state
+
+theorem loopFuel_one_supported_execSpec_SDIV_env
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).env = state.env := by
+  rw [loopFuel_one_supported_execSpec_SDIV h_status h_pc h_code]
+  exact SDivStackExecutionBridge.sdivHandler_env state
+
+theorem loopFuel_one_supported_execSpec_SMOD_env
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).env = state.env := by
+  rw [loopFuel_one_supported_execSpec_SMOD h_status h_pc h_code]
+  exact SModStackExecutionBridge.smodHandler_env state
+
 theorem loopFuel_one_supported_execSpec_SDIV_memoryCells
     {state : EvmState}
     (h_status : state.status = .running)
