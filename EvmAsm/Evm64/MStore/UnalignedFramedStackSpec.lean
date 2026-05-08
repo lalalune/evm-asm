@@ -402,6 +402,41 @@ theorem evm_mstore_public_one_limb_sequence_with_prologue_framed
       offReg valReg byteReg accReg addrReg memBaseReg base h0 h1 h2 h3)
 
 /--
+Generic public-code MSTORE prologue/body composition with a framed prologue.
+
+This lets callers plug in any body triple over `evm_mstore_code` that starts
+from the framed prologue postcondition, not just the q0..q3 one-limb sequence.
+
+Distinctive token: evm_mstore_public_body_with_prologue_framed #53.
+-/
+theorem evm_mstore_public_body_with_prologue_framed
+    {n : Nat} {Q : Assertion}
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base pcEnd : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0)
+    (hbody :
+      cpsTripleWithin n (base + 8) pcEnd
+        (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base)
+        ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+          (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+          (sp ↦ₘ offset)) ** F)
+        Q) :
+    cpsTripleWithin (2 + n) base pcEnd
+      (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base)
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+        (sp ↦ₘ offset)) ** F)
+      Q := by
+  exact cpsTripleWithin_seq_same_cr
+    (evm_mstore_prologue_stack_spec_within_framed
+      offReg valReg byteReg accReg addrReg memBaseReg
+      sp offset offOld addrOld memBase base F hF
+      h_off_ne_x0 h_addr_ne_x0)
+    hbody
+
+/--
 Sibling-framed q0 stack spec: `evm_mstore_unaligned_one_limb_q0_stack_spec_within`
 with an arbitrary `pcFree` assertion `F` framed on both pre and post.
 
