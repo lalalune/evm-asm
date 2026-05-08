@@ -106,6 +106,43 @@ theorem evm_mstore_combined_one_limb_sequence_stack_spec_within
       h0 h1 h2 h3)
 
 /--
+MSTORE evm_mstore_code lift of `mstore_combined_stack_spec_within`: the same
+combined prologue + single caller-supplied body triple, transported from
+`mstoreStackCode` to `evm_mstore_code` via `cpsTripleWithin_evm_mstore_of_stack`.
+
+This is the coarse-granularity counterpart of
+`evm_mstore_combined_one_limb_sequence_stack_spec_within`: callers that already
+assemble the whole four-limbs body as one triple can land the public-code
+prologue/body composition without bundling it into quarter hypotheses.
+
+Distinctive token: evm_mstore_combined_stack_spec_within #53.
+-/
+theorem evm_mstore_combined_stack_spec_within
+    {n : Nat} {Q : Assertion}
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base : Word)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0)
+    (h4 :
+      cpsTripleWithin n (base + 8) (base + 280)
+        (mstoreStackCode offReg byteReg accReg addrReg memBaseReg base)
+        (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+         (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+         (sp ↦ₘ offset))
+        Q) :
+    cpsTripleWithin (2 + n) base (base + 280)
+      (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base)
+      (((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+       (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+       (sp ↦ₘ offset))
+      Q :=
+  cpsTripleWithin_evm_mstore_of_stack
+    offReg valReg byteReg accReg addrReg memBaseReg base (base + 280)
+    (mstore_combined_stack_spec_within
+      offReg byteReg accReg addrReg memBaseReg
+      sp offset offOld addrOld memBase base h_off_ne_x0 h_addr_ne_x0 h4)
+
+/--
 MSTORE evm_mstore_code lift of `mstore_full_stack_spec_within`: the same
 prologue + caller-supplied four-limbs core triple + framed epilogue
 composition, transported from `mstoreStackCode` to `evm_mstore_code` via
