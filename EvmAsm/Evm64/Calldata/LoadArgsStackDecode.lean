@@ -43,6 +43,25 @@ theorem decodeCallDataLoadStack?_eq_some_iff
   · rintro ⟨offset, rest, rfl, rfl⟩
     rfl
 
+theorem decodeCallDataLoadStack?_offset_of_some
+    {stack : List EvmWord} {args : CallDataLoadArgs.Args}
+    (h : decodeCallDataLoadStack? stack = some args) :
+    ∃ rest, stack = args.offset :: rest := by
+  obtain ⟨offset, rest, h_stack, h_args⟩ :=
+    decodeCallDataLoadStack?_eq_some_iff.mp h
+  subst h_args
+  exact ⟨rest, h_stack⟩
+
+theorem decodeCallDataLoadStack?_offsetNat_of_some
+    {stack : List EvmWord} {args : CallDataLoadArgs.Args}
+    (h : decodeCallDataLoadStack? stack = some args) :
+    ∃ offset rest,
+      stack = offset :: rest ∧ CallDataLoadArgs.offsetNat args = offset.toNat := by
+  obtain ⟨offset, rest, h_stack, h_args⟩ :=
+    decodeCallDataLoadStack?_eq_some_iff.mp h
+  subst h_args
+  exact ⟨offset, rest, h_stack, rfl⟩
+
 /--
 CALLDATALOAD stack decoding fails exactly when the stack is empty.
 
