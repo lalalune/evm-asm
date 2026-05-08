@@ -178,5 +178,19 @@ theorem runSModStack?_neg_pos_sign
   rw [runSModStack?_cons]
   rw [SModArgs.smodResultFromArgs_neg_pos_sign]
 
+theorem runSModStack?_pos_neg_sign
+    (rest : List EvmWord) :
+    runSModStack? { stack := (3 : EvmWord) :: (-2 : EvmWord) :: rest } =
+      some { effects := { stackWords := [(1 : EvmWord)] }, stack := rest } := by
+  rw [runSModStack?_cons]
+  rw [SModArgs.smodResultFromArgs_pos_neg_sign]
+
+theorem runSModStack?_neg_neg_sign
+    (rest : List EvmWord) :
+    runSModStack? { stack := (-3 : EvmWord) :: (-2 : EvmWord) :: rest } =
+      some { effects := { stackWords := [(-1 : EvmWord)] }, stack := rest } := by
+  rw [runSModStack?_cons]
+  rw [SModArgs.smodResultFromArgs_neg_neg_sign]
+
 end SModStackExecutionBridge
 end EvmAsm.Evm64
