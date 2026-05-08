@@ -177,6 +177,102 @@ theorem stepWithSupportedHandler_SMOD_stack_of_runSModStack?_some
   exact SModStackExecutionBridge.smodHandler_stack_of_runSModStack?_some
     h_run
 
+theorem stepWithSupportedHandler_SDIV_stack_zero_divisor
+    {state : EvmState} (dividend : EvmWord) (rest : List EvmWord)
+    (h_decode :
+      InterpreterLoop.decodeCurrentOpcode?
+        { state with stack := dividend :: 0 :: rest } = some .SDIV)
+    :
+    (InterpreterLoop.stepWithHandler supportedLoopHandler
+      { state with stack := dividend :: 0 :: rest }).stack =
+        0 :: rest := by
+  rw [stepWithSupportedHandler_SDIV h_decode]
+  exact SDivStackExecutionBridge.sdivHandler_stack_zero_divisor state
+    dividend rest
+
+theorem stepWithSupportedHandler_SDIV_stack_intMin_neg_one
+    {state : EvmState}
+    (h_decode : InterpreterLoop.decodeCurrentOpcode?
+      { state with stack := BitVec.intMin 256 :: (-1 : EvmWord) :: state.stack } =
+        some .SDIV) :
+    (InterpreterLoop.stepWithHandler supportedLoopHandler
+      { state with stack := BitVec.intMin 256 :: (-1 : EvmWord) :: state.stack }).stack =
+        BitVec.intMin 256 :: state.stack := by
+  rw [stepWithSupportedHandler_SDIV h_decode]
+  exact SDivStackExecutionBridge.sdivHandler_stack_intMin_neg_one state
+    state.stack
+
+theorem stepWithSupportedHandler_SDIV_stack_neg_one_two
+    {state : EvmState}
+    (h_decode : InterpreterLoop.decodeCurrentOpcode?
+      { state with stack := (-1 : EvmWord) :: 2 :: state.stack } = some .SDIV) :
+    (InterpreterLoop.stepWithHandler supportedLoopHandler
+      { state with stack := (-1 : EvmWord) :: 2 :: state.stack }).stack =
+        0 :: state.stack := by
+  rw [stepWithSupportedHandler_SDIV h_decode]
+  exact SDivStackExecutionBridge.sdivHandler_stack_neg_one_two state
+    state.stack
+
+theorem stepWithSupportedHandler_SDIV_stack_pos_neg_trunc
+    {state : EvmState}
+    (h_decode : InterpreterLoop.decodeCurrentOpcode?
+      { state with stack := (7 : EvmWord) :: (-2 : EvmWord) :: state.stack } =
+        some .SDIV) :
+    (InterpreterLoop.stepWithHandler supportedLoopHandler
+      { state with stack := (7 : EvmWord) :: (-2 : EvmWord) :: state.stack }).stack =
+        (-3 : EvmWord) :: state.stack := by
+  rw [stepWithSupportedHandler_SDIV h_decode]
+  exact SDivStackExecutionBridge.sdivHandler_stack_pos_neg_trunc state
+    state.stack
+
+theorem stepWithSupportedHandler_SMOD_stack_zero_divisor
+    {state : EvmState} (dividend : EvmWord) (rest : List EvmWord)
+    (h_decode :
+      InterpreterLoop.decodeCurrentOpcode?
+        { state with stack := dividend :: 0 :: rest } = some .SMOD)
+    :
+    (InterpreterLoop.stepWithHandler supportedLoopHandler
+      { state with stack := dividend :: 0 :: rest }).stack =
+        0 :: rest := by
+  rw [stepWithSupportedHandler_SMOD h_decode]
+  exact SModStackExecutionBridge.smodHandler_stack_zero_divisor state
+    dividend rest
+
+theorem stepWithSupportedHandler_SMOD_stack_neg_pos_sign
+    {state : EvmState}
+    (h_decode : InterpreterLoop.decodeCurrentOpcode?
+      { state with stack := (-3 : EvmWord) :: 2 :: state.stack } = some .SMOD) :
+    (InterpreterLoop.stepWithHandler supportedLoopHandler
+      { state with stack := (-3 : EvmWord) :: 2 :: state.stack }).stack =
+        (-1 : EvmWord) :: state.stack := by
+  rw [stepWithSupportedHandler_SMOD h_decode]
+  exact SModStackExecutionBridge.smodHandler_stack_neg_pos_sign state
+    state.stack
+
+theorem stepWithSupportedHandler_SMOD_stack_pos_neg_sign
+    {state : EvmState}
+    (h_decode : InterpreterLoop.decodeCurrentOpcode?
+      { state with stack := (3 : EvmWord) :: (-2 : EvmWord) :: state.stack } =
+        some .SMOD) :
+    (InterpreterLoop.stepWithHandler supportedLoopHandler
+      { state with stack := (3 : EvmWord) :: (-2 : EvmWord) :: state.stack }).stack =
+        (1 : EvmWord) :: state.stack := by
+  rw [stepWithSupportedHandler_SMOD h_decode]
+  exact SModStackExecutionBridge.smodHandler_stack_pos_neg_sign state
+    state.stack
+
+theorem stepWithSupportedHandler_SMOD_stack_neg_neg_sign
+    {state : EvmState}
+    (h_decode : InterpreterLoop.decodeCurrentOpcode?
+      { state with stack := (-3 : EvmWord) :: (-2 : EvmWord) :: state.stack } =
+        some .SMOD) :
+    (InterpreterLoop.stepWithHandler supportedLoopHandler
+      { state with stack := (-3 : EvmWord) :: (-2 : EvmWord) :: state.stack }).stack =
+        (-1 : EvmWord) :: state.stack := by
+  rw [stepWithSupportedHandler_SMOD h_decode]
+  exact SModStackExecutionBridge.smodHandler_stack_neg_neg_sign state
+    state.stack
+
 /--
 When the combined supported loop decodes STOP, one interpreter step terminates
 successfully.
