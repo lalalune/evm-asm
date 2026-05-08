@@ -43,7 +43,7 @@ In short: function set + argument layout + status framing come from
 also uses; concrete syscall IDs are handler-side and tracked
 separately.
 
-## Coverage audit table
+## Coverage table
 
 The header declares 19 entry points. Each one is (or will be) bridged by
 a Lean payload type, a syscall-ID constant tying the ECALL handler to
@@ -81,7 +81,7 @@ Selector constants live in
 | secp256r1 verify `0x100` | `zkvm_secp256r1_verify` | `secp256r1_verify` / `0x112` | `EvmAsm/EL/Secp256r1VerifyInputBridge.lean`, `EvmAsm/EL/Secp256r1VerifyResultBridge.lean` | `EvmAsm/EL/Secp256r1VerifyEcallBridge.lean` |
 
 The table is intentionally path-based: if a bridge module is renamed or split,
-this audit should be updated in the same PR so downstream readers can trace
+this table should be updated in the same PR so downstream readers can trace
 from the C symbol to the Lean payload and ECALL surface.
 
 ## Calling convention
