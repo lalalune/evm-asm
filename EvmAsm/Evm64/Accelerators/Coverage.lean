@@ -115,6 +115,18 @@ theorem acceleratorCoverageSelectors_eq_dispatch :
   rw [acceleratorCoverageSelectors_eq]
   rfl
 
+/-- Every selector row in the coverage table is routed by accelerator dispatch. -/
+theorem acceleratorCoverageSelectors_are_accelerators :
+    ∀ id ∈ acceleratorCoverageSelectors, isAccelerator id := by
+  intro id h_id
+  rw [acceleratorCoverageSelectors_eq_dispatch] at h_id
+  exact h_id
+
+/-- Every coverage-table row has a selector recognised by accelerator dispatch. -/
+theorem acceleratorCoverageTable_selectors_are_accelerators :
+    ∀ row ∈ acceleratorCoverageTable, isAccelerator row.selector := by
+  decide
+
 /-- The coverage table does not assign the same selector twice. -/
 theorem acceleratorCoverageSelectors_nodup :
     acceleratorCoverageSelectors.Nodup := by
