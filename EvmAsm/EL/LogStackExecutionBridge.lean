@@ -403,6 +403,24 @@ theorem runLogStack?_eq_some_iff
       · rintro ⟨args, rest, h_decode, h_rest, rfl⟩
         simp [runLogStack?, h_decode, h_rest]
 
+/--
+Successful LOG stack execution appends exactly one log entry to the current
+side-effect log list.
+
+Distinctive token:
+LogStackExecutionBridge.runLogStack?_log_entries_length #112 #107.
+-/
+theorem runLogStack?_log_entries_length
+    {kind : LogKind} {emitter : Address} {readByte : MemoryReader}
+    {state out : LogStackState}
+    (h_run : runLogStack? kind emitter readByte state = some out) :
+    out.effects.logs.entries.length = state.effects.logs.entries.length + 1 := by
+  rcases (runLogStack?_eq_some_iff kind emitter readByte state out).mp h_run with
+    ⟨args, rest, _h_decode, _h_rest, h_out⟩
+  subst h_out
+  exact LogExecutionBridge.appendLogFromMemory_log_length
+    state.effects emitter readByte args
+
 theorem runLogStack?_stack_length
     {kind : LogKind} {emitter : Address} {readByte : MemoryReader}
     {state out : LogStackState}
