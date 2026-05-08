@@ -190,6 +190,78 @@ theorem loopFuel_one_supported_execSpec_SMOD_gas
   rw [loopFuel_one_supported_execSpec_SMOD h_status h_pc h_code]
   exact SModStackExecutionBridge.smodHandler_gas state
 
+theorem loopFuel_one_supported_execSpec_SDIV_memoryCells
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).memoryCells = state.memoryCells := by
+  rw [loopFuel_one_supported_execSpec_SDIV h_status h_pc h_code]
+  exact SDivStackExecutionBridge.sdivHandler_memoryCells state
+
+theorem loopFuel_one_supported_execSpec_SDIV_memory
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).memory = state.memory := by
+  rw [loopFuel_one_supported_execSpec_SDIV h_status h_pc h_code]
+  exact SDivStackExecutionBridge.sdivHandler_memory state
+
+theorem loopFuel_one_supported_execSpec_SDIV_memSize
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).memSize = state.memSize := by
+  rw [loopFuel_one_supported_execSpec_SDIV h_status h_pc h_code]
+  exact SDivStackExecutionBridge.sdivHandler_memSize state
+
+theorem loopFuel_one_supported_execSpec_SMOD_memoryCells
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).memoryCells = state.memoryCells := by
+  rw [loopFuel_one_supported_execSpec_SMOD h_status h_pc h_code]
+  exact SModStackExecutionBridge.smodHandler_memoryCells state
+
+theorem loopFuel_one_supported_execSpec_SMOD_memory
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).memory = state.memory := by
+  rw [loopFuel_one_supported_execSpec_SMOD h_status h_pc h_code]
+  exact SModStackExecutionBridge.smodHandler_memory state
+
+theorem loopFuel_one_supported_execSpec_SMOD_memSize
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).memSize = state.memSize := by
+  rw [loopFuel_one_supported_execSpec_SMOD h_status h_pc h_code]
+  exact SModStackExecutionBridge.smodHandler_memSize state
+
 theorem loopFuel_one_supported_execSpec_SDIV_status_of_some
     {state : EvmState} {stack' : List EvmWord}
     (h_status : state.status = .running)
