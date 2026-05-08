@@ -350,5 +350,59 @@ theorem acceleratorClassifiedSymbols_nodup :
   rw [acceleratorClassifiedSymbols_eq_coverage]
   exact acceleratorCoverageSymbols_nodup
 
+/-- Accelerator selectors used by EVM opcodes rather than precompile surfaces. -/
+def acceleratorOpcodeSelectors : List Nat :=
+  acceleratorCoverageTable.filterMap fun row =>
+    match row.surface with
+    | .opcode _ => some row.selector
+    | _ => none
+
+/-- Accelerator selectors used outside the precompile table. -/
+def acceleratorNonPrecompileSelectors : List Nat :=
+  acceleratorCoverageTable.filterMap fun row =>
+    match row.surface with
+    | .nonPrecompile _ => some row.selector
+    | _ => none
+
+/-- Accelerator selectors used by Ethereum precompile entry points. -/
+def acceleratorPrecompileSelectors : List Nat :=
+  acceleratorCoverageTable.filterMap fun row =>
+    match row.surface with
+    | .precompile _ _ => some row.selector
+    | _ => none
+
+theorem acceleratorOpcodeSelectors_eq :
+    acceleratorOpcodeSelectors = [keccak256] := by
+  decide
+
+theorem acceleratorNonPrecompileSelectors_eq :
+    acceleratorNonPrecompileSelectors = [secp256k1_verify] := by
+  decide
+
+theorem acceleratorPrecompileSelectors_eq :
+    acceleratorPrecompileSelectors =
+      [secp256k1_ecrecover, sha256, ripemd160, modexp,
+       bn254_g1_add, bn254_g1_mul, bn254_pairing,
+       blake2f, kzg_point_eval,
+       bls12_g1_add, bls12_g1_msm, bls12_g2_add, bls12_g2_msm,
+       bls12_pairing, bls12_map_fp_to_g1, bls12_map_fp2_to_g2,
+       secp256r1_verify] := by
+  decide
+
+theorem acceleratorPrecompileSelectors_length :
+    acceleratorPrecompileSelectors.length = 17 := by
+  rw [acceleratorPrecompileSelectors_eq]
+  decide
+
+theorem acceleratorPrecompileSelectors_nodup :
+    acceleratorPrecompileSelectors.Nodup := by
+  rw [acceleratorPrecompileSelectors_eq]
+  decide
+
+theorem acceleratorPrecompileSelectors_are_accelerators :
+    ∀ id ∈ acceleratorPrecompileSelectors, isAccelerator id := by
+  rw [acceleratorPrecompileSelectors_eq]
+  decide
+
 end Accelerators
 end EvmAsm
