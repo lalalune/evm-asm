@@ -99,6 +99,38 @@ def smodUnderflowVector : TestVector SModStackState SModStackResult :=
     input := { stack := [] }
     expected := .error "stack-underflow" }
 
+/-- SDIV stack conformance inputs as reusable test vectors.
+    Distinctive token:
+    SignedArithmeticStackExecutionConformance.sdivStackConformanceTestVectors #90 #125. -/
+def sdivStackConformanceTestVectors : List (TestVector SDivStackState SDivStackResult) :=
+  [ sdivZeroDivisorVector
+  , sdivIntMinNegOneVector
+  , sdivPosNegTruncVector
+  , sdivUnderflowVector
+  ]
+
+/-- SMOD stack conformance inputs as reusable test vectors.
+    Distinctive token:
+    SignedArithmeticStackExecutionConformance.smodStackConformanceTestVectors #90 #125. -/
+def smodStackConformanceTestVectors : List (TestVector SModStackState SModStackResult) :=
+  [ smodZeroDivisorVector
+  , smodNegPosSignVector
+  , smodPosNegSignVector
+  , smodUnderflowVector
+  ]
+
+theorem sdivStackConformanceTestVectors_length :
+    sdivStackConformanceTestVectors.length = 4 := rfl
+
+theorem smodStackConformanceTestVectors_length :
+    smodStackConformanceTestVectors.length = 4 := rfl
+
+def signedArithmeticConformanceTestVectorCount : Nat :=
+  sdivStackConformanceTestVectors.length + smodStackConformanceTestVectors.length
+
+theorem signedArithmeticConformanceTestVectorCount_eq :
+    signedArithmeticConformanceTestVectorCount = 8 := rfl
+
 theorem runSDivStack?_zero_divisor_vector :
     runSDivStack? { stack := [(9 : EvmWord), 0, 42] } =
       some { effects := { stackWords := [0] }, stack := [42] } := by
@@ -217,15 +249,8 @@ theorem smodUnderflowVector_passed :
     Distinctive token:
     SignedArithmeticStackExecutionConformance.signedArithmeticConformanceVectors #90 #125. -/
 def signedArithmeticConformanceVectors : List CheckResult :=
-  [ checkVector? runSDivStack? sdivZeroDivisorVector
-  , checkVector? runSDivStack? sdivIntMinNegOneVector
-  , checkVector? runSDivStack? sdivPosNegTruncVector
-  , checkVector? runSDivStack? sdivUnderflowVector
-  , checkVector? runSModStack? smodZeroDivisorVector
-  , checkVector? runSModStack? smodNegPosSignVector
-  , checkVector? runSModStack? smodPosNegSignVector
-  , checkVector? runSModStack? smodUnderflowVector
-  ]
+  checkBatch? runSDivStack? sdivStackConformanceTestVectors ++
+    checkBatch? runSModStack? smodStackConformanceTestVectors
 
 theorem signedArithmeticConformanceVectors_passed :
     signedArithmeticConformanceVectors =
@@ -239,6 +264,7 @@ theorem signedArithmeticConformanceVectors_passed :
       , .errored "smod-stack-underflow" "stack-underflow"
       ] := by
   simp [signedArithmeticConformanceVectors, sdivZeroDivisorVector_passed,
+    sdivStackConformanceTestVectors, smodStackConformanceTestVectors,
     sdivIntMinNegOneVector_passed, sdivPosNegTruncVector_passed,
     sdivUnderflowVector_passed, smodZeroDivisorVector_passed,
     smodNegPosSignVector_passed, smodPosNegSignVector_passed,
