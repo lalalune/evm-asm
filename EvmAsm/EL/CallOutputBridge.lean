@@ -52,6 +52,18 @@ theorem callResultSuccessFlag_eq_one_iff (result : CallResult) :
   | mk status state output gasRemaining =>
       cases status <;> simp [callResultSuccessFlag]
 
+theorem callResultSuccessFlag_eq_zero_iff (result : CallResult) :
+    callResultSuccessFlag result = 0 ↔ result.status ≠ .success := by
+  cases result with
+  | mk status state output gasRemaining =>
+      cases status <;> simp [callResultSuccessFlag]
+
+theorem callResultSuccessFlag_ne_zero_iff (result : CallResult) :
+    callResultSuccessFlag result ≠ 0 ↔ result.status = .success := by
+  cases result with
+  | mk status state output gasRemaining =>
+      cases status <;> simp [callResultSuccessFlag]
+
 theorem copiedOutputForRange_success
     (state : WorldState) (output : List Byte) (gasRemaining : Nat) (range : MemoryRange) :
     copiedOutputForRange
@@ -73,6 +85,25 @@ theorem copiedOutputForRange_failure
         range =
       [] := by
   simp [copiedOutputForRange, MessageCallExecution.propagatedOutput]
+
+theorem copiedOutputForRange_zero_size
+    (result : CallResult) (offset : EvmAsm.Evm64.EvmWord) :
+    copiedOutputForRange result { offset := offset, size := 0 } = [] := by
+  simp [copiedOutputForRange]
+
+theorem copiedOutputForRange_length_zero_size
+    (result : CallResult) (offset : EvmAsm.Evm64.EvmWord) :
+    (copiedOutputForRange result { offset := offset, size := 0 }).length = 0 := by
+  rw [copiedOutputForRange_zero_size]
+  rfl
+
+theorem copiedOutputForRange_failure_length
+    (state : WorldState) (output : List Byte) (gasRemaining : Nat) (range : MemoryRange) :
+    (copiedOutputForRange
+        { status := .failure, state := state, output := output, gasRemaining := gasRemaining }
+        range).length =
+      0 := by
+  simp [copiedOutputForRange_failure]
 
 theorem copiedOutputForRange_length_eq_min (result : CallResult) (range : MemoryRange) :
     (copiedOutputForRange result range).length =
