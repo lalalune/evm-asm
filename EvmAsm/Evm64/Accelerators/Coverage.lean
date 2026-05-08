@@ -321,5 +321,34 @@ theorem acceleratorPrecompileSymbols_subset_coverage :
   rw [acceleratorPrecompileSymbols_eq, acceleratorCoverageSymbols_eq]
   decide
 
+def acceleratorClassifiedSymbols : List String :=
+  acceleratorOpcodeSymbols ++ acceleratorNonPrecompileSymbols ++
+    acceleratorPrecompileSymbols
+
+theorem acceleratorClassifiedSymbols_eq_coverage :
+    acceleratorClassifiedSymbols = acceleratorCoverageSymbols := by
+  rw [acceleratorClassifiedSymbols, acceleratorOpcodeSymbols_eq,
+    acceleratorNonPrecompileSymbols_eq, acceleratorPrecompileSymbols_eq,
+    acceleratorCoverageSymbols_eq]
+  decide
+
+def acceleratorClassifiedSymbolCount : Nat :=
+  acceleratorOpcodeSymbols.length + acceleratorNonPrecompileSymbols.length +
+    acceleratorPrecompileSymbols.length
+
+theorem acceleratorClassifiedSymbolCount_eq :
+    acceleratorClassifiedSymbolCount = 19 := by
+  rw [acceleratorClassifiedSymbolCount, acceleratorOpcodeSymbols_length,
+    acceleratorNonPrecompileSymbols_length, acceleratorPrecompileSymbols_length]
+
+theorem acceleratorClassifiedSymbols_length :
+    acceleratorClassifiedSymbols.length = acceleratorCoverageSymbols.length := by
+  rw [acceleratorClassifiedSymbols_eq_coverage]
+
+theorem acceleratorClassifiedSymbols_nodup :
+    acceleratorClassifiedSymbols.Nodup := by
+  rw [acceleratorClassifiedSymbols_eq_coverage]
+  exact acceleratorCoverageSymbols_nodup
+
 end Accelerators
 end EvmAsm
