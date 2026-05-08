@@ -120,5 +120,13 @@ theorem expTotalGasFromArgs_256_exponent (base : EvmWord) :
     expTotalGasFromArgs (expArgs base 256) = 110 := by
   exact ExpGas.expTotalGasFromExponent_256
 
+theorem expDynamicCostFromArgs_max_exponent (base : EvmWord) :
+    expDynamicCostFromArgs (expArgs base (-1)) = 1600 := by
+  exact ExpGas.expDynamicCostFromExponent_max
+
+theorem expTotalGasFromArgs_max_exponent (base : EvmWord) :
+    expTotalGasFromArgs (expArgs base (-1)) = 1610 := by
+  exact ExpGas.expTotalGasFromExponent_max
+
 end ExpArgs
 end EvmAsm.Evm64
