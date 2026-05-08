@@ -78,6 +78,14 @@ theorem exp_loop_next_iter_byte_off (mulOff : BitVec 21) (skipOff backOff : BitV
     4 * (EvmAsm.Evm64.exp_loop mulOff skipOff backOff).length = 32 := by
   exact exp_loop_byte_len mulOff skipOff backOff
 
+theorem exp_squaring_call_block_len (mulOff : BitVec 21) :
+    (EvmAsm.Evm64.exp_squaring_call_block mulOff).length = 26 := by
+  exact EvmAsm.Evm64.exp_squaring_call_block_length mulOff
+
+theorem exp_squaring_call_block_byte_len (mulOff : BitVec 21) :
+    4 * (EvmAsm.Evm64.exp_squaring_call_block mulOff).length = 104 := by
+  exact EvmAsm.Evm64.exp_squaring_call_block_byte_length mulOff
+
 /-- Bundled byte offsets for the blocks within one EXP loop iteration. -/
 theorem exp_loop_block_byte_offsets (mulOff : BitVec 21) (skipOff backOff : BitVec 13) :
     4 * (EvmAsm.Evm64.exp_bit_test_block).length = 12 ∧
@@ -387,6 +395,158 @@ theorem expBoundaryCode_spec_within
   rw [expBoundaryCode_eq_programCode]
   exact expBoundaryProgram_spec_within
     sp evmSp cOld tOld m0 m1 m2 m3 d0 d1 d2 d3 base
+
+/-- CodeReq decomposition for one EXP squaring call: marshal factor 1, marshal
+    the current result into factor 2, call `mul_callable`, then unmarshal the
+    multiplication result back into the EXP scratch frame. -/
+abbrev exp_squaring_call_block_code (base : Word) (mulOff : BitVec 21) : CodeReq :=
+  CodeReq.unionAll [
+    CodeReq.ofProg base EvmAsm.Evm64.exp_loop_marshal_factor1,
+    CodeReq.ofProg (base + 32) EvmAsm.Evm64.exp_loop_marshal_result_to_factor2,
+    CodeReq.ofProg (base + 64) (EvmAsm.Evm64.exp_square_block mulOff),
+    CodeReq.ofProg (base + 68) EvmAsm.Evm64.exp_loop_un_marshal_and_restore
+  ]
+
+theorem exp_squaring_call_block_code_eq_ofProg
+    (base : Word) (mulOff : BitVec 21) :
+    exp_squaring_call_block_code base mulOff =
+      CodeReq.ofProg base (EvmAsm.Evm64.exp_squaring_call_block mulOff) := by
+  unfold exp_squaring_call_block_code
+  unfold EvmAsm.Evm64.exp_squaring_call_block
+  simp only [EvmAsm.Rv64.seq]
+  unfold Program
+  rw [CodeReq.ofProg_append]
+  have h32 :
+      base + BitVec.ofNat 64 (4 *
+        (EvmAsm.Evm64.exp_loop_marshal_factor1).length) = base + 32 := by
+    rw [EvmAsm.Evm64.exp_loop_marshal_factor1_length]
+    rfl
+  rw [h32]
+  rw [CodeReq.ofProg_append]
+  have h64 :
+      (base + 32 : Word) + BitVec.ofNat 64 (4 *
+        (EvmAsm.Evm64.exp_loop_marshal_result_to_factor2).length) =
+        base + 64 := by
+    rw [EvmAsm.Evm64.exp_loop_marshal_result_to_factor2_length]
+    bv_addr
+  rw [h64]
+  rw [CodeReq.ofProg_append]
+  have h68 :
+      (base + 64 : Word) + BitVec.ofNat 64 (4 *
+        (EvmAsm.Evm64.exp_square_block mulOff).length) = base + 68 := by
+    rw [EvmAsm.Evm64.exp_square_block_length]
+    bv_addr
+  rw [h68]
+  simp only [CodeReq.unionAll_cons, CodeReq.unionAll_nil]
+  rw [CodeReq.union_empty_right]
+
+theorem exp_squaring_call_block_code_marshal_factor1_sub {base : Word}
+    {mulOff : BitVec 21} :
+    ∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_loop_marshal_factor1) a = some i →
+      (exp_squaring_call_block_code base mulOff) a = some i := by
+  rw [exp_squaring_call_block_code_eq_ofProg]
+  exact CodeReq.ofProg_mono_sub base base
+    (EvmAsm.Evm64.exp_squaring_call_block mulOff)
+    EvmAsm.Evm64.exp_loop_marshal_factor1 0
+    (by bv_omega)
+    (by
+      unfold EvmAsm.Evm64.exp_squaring_call_block
+      simp only [EvmAsm.Rv64.seq]
+      unfold Program
+      rfl)
+    (by
+      simp only [exp_squaring_call_block_len,
+        EvmAsm.Evm64.exp_loop_marshal_factor1_length]
+      omega)
+    (by
+      simp only [exp_squaring_call_block_len]
+      norm_num)
+
+theorem exp_squaring_call_block_code_marshal_result_to_factor2_sub {base : Word}
+    {mulOff : BitVec 21} :
+    ∀ a i, (CodeReq.ofProg (base + 32)
+      EvmAsm.Evm64.exp_loop_marshal_result_to_factor2) a = some i →
+      (exp_squaring_call_block_code base mulOff) a = some i := by
+  rw [exp_squaring_call_block_code_eq_ofProg]
+  exact CodeReq.ofProg_mono_sub base (base + 32)
+    (EvmAsm.Evm64.exp_squaring_call_block mulOff)
+    EvmAsm.Evm64.exp_loop_marshal_result_to_factor2 8
+    (by bv_omega)
+    (by
+      unfold EvmAsm.Evm64.exp_squaring_call_block
+      simp only [EvmAsm.Rv64.seq]
+      unfold Program
+      rfl)
+    (by
+      simp only [exp_squaring_call_block_len,
+        EvmAsm.Evm64.exp_loop_marshal_result_to_factor2_length]
+      omega)
+    (by
+      simp only [exp_squaring_call_block_len]
+      norm_num)
+
+theorem exp_squaring_call_block_code_square_sub {base : Word}
+    {mulOff : BitVec 21} :
+    ∀ a i, (CodeReq.ofProg (base + 64)
+      (EvmAsm.Evm64.exp_square_block mulOff)) a = some i →
+      (exp_squaring_call_block_code base mulOff) a = some i := by
+  rw [exp_squaring_call_block_code_eq_ofProg]
+  exact CodeReq.ofProg_mono_sub base (base + 64)
+    (EvmAsm.Evm64.exp_squaring_call_block mulOff)
+    (EvmAsm.Evm64.exp_square_block mulOff) 16
+    (by bv_omega)
+    (by
+      unfold EvmAsm.Evm64.exp_squaring_call_block
+      simp only [EvmAsm.Rv64.seq]
+      unfold Program
+      rfl)
+    (by
+      simp only [exp_squaring_call_block_len, exp_square_block_len]
+      omega)
+    (by
+      simp only [exp_squaring_call_block_len]
+      norm_num)
+
+theorem exp_squaring_call_block_code_un_marshal_and_restore_sub {base : Word}
+    {mulOff : BitVec 21} :
+    ∀ a i, (CodeReq.ofProg (base + 68)
+      EvmAsm.Evm64.exp_loop_un_marshal_and_restore) a = some i →
+      (exp_squaring_call_block_code base mulOff) a = some i := by
+  rw [exp_squaring_call_block_code_eq_ofProg]
+  exact CodeReq.ofProg_mono_sub base (base + 68)
+    (EvmAsm.Evm64.exp_squaring_call_block mulOff)
+    EvmAsm.Evm64.exp_loop_un_marshal_and_restore 17
+    (by bv_omega)
+    (by
+      unfold EvmAsm.Evm64.exp_squaring_call_block
+      simp only [EvmAsm.Rv64.seq]
+      unfold Program
+      rfl)
+    (by
+      simp only [exp_squaring_call_block_len,
+        EvmAsm.Evm64.exp_loop_un_marshal_and_restore_length]
+      omega)
+    (by
+      simp only [exp_squaring_call_block_len]
+      norm_num)
+
+theorem exp_squaring_call_block_code_block_subs {base : Word}
+    {mulOff : BitVec 21} :
+    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_loop_marshal_factor1) a = some i →
+      (exp_squaring_call_block_code base mulOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 32)
+      EvmAsm.Evm64.exp_loop_marshal_result_to_factor2) a = some i →
+      (exp_squaring_call_block_code base mulOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 64)
+      (EvmAsm.Evm64.exp_square_block mulOff)) a = some i →
+      (exp_squaring_call_block_code base mulOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 68)
+      EvmAsm.Evm64.exp_loop_un_marshal_and_restore) a = some i →
+      (exp_squaring_call_block_code base mulOff) a = some i) := by
+  exact ⟨exp_squaring_call_block_code_marshal_factor1_sub,
+    exp_squaring_call_block_code_marshal_result_to_factor2_sub,
+    exp_squaring_call_block_code_square_sub,
+    exp_squaring_call_block_code_un_marshal_and_restore_sub⟩
 
 /-- CodeReq decomposition for one EXP loop iteration. This mirrors
     `exp_loop`: bit-test (3 instructions), square call (1), conditional
