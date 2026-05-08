@@ -45,6 +45,12 @@ def decodedUsesSalt (decoded : Decoded) : Bool :=
 def decodedArgumentCount (decoded : Decoded) : Nat :=
   argumentCount (decodedKind decoded)
 
+def decodedResultCount (decoded : Decoded) : Nat :=
+  resultCount (decodedKind decoded)
+
+def decodedInitcodeRangeCount (decoded : Decoded) : Nat :=
+  initcodeRangeCount (decodedKind decoded)
+
 /--
 Decode CREATE-family stack arguments from the top-of-stack list order:
 `value, offset, size` for CREATE and `value, offset, size, salt` for CREATE2.
@@ -152,6 +158,18 @@ theorem decodeCreateStack?_argumentCount_of_some
     decodedArgumentCount decoded = argumentCount kind := by
   rw [decodedArgumentCount, decodeCreateStack?_kind_of_some h_decode]
 
+theorem decodeCreateStack?_resultCount_of_some
+    {kind : Kind} {stack : List EvmWord} {decoded : Decoded}
+    (h_decode : decodeCreateStack? kind stack = some decoded) :
+    decodedResultCount decoded = resultCount kind := by
+  rw [decodedResultCount, decodeCreateStack?_kind_of_some h_decode]
+
+theorem decodeCreateStack?_initcodeRangeCount_of_some
+    {kind : Kind} {stack : List EvmWord} {decoded : Decoded}
+    (h_decode : decodeCreateStack? kind stack = some decoded) :
+    decodedInitcodeRangeCount decoded = initcodeRangeCount kind := by
+  rw [decodedInitcodeRangeCount, decodeCreateStack?_kind_of_some h_decode]
+
 theorem decodeCreateStack?_create_eq_none_iff (stack : List EvmWord) :
     decodeCreateStack? .create stack = none ↔ stack.length < argumentCount .create := by
   constructor
@@ -257,6 +275,18 @@ theorem decodedArgumentCount_create (value offset size : EvmWord) :
 
 theorem decodedArgumentCount_create2 (value offset size salt : EvmWord) :
     decodedArgumentCount (.create2 (mkCreate2 value offset size salt)) = 4 := rfl
+
+theorem decodedResultCount_create (value offset size : EvmWord) :
+    decodedResultCount (.create (mkCreate value offset size)) = 1 := rfl
+
+theorem decodedResultCount_create2 (value offset size salt : EvmWord) :
+    decodedResultCount (.create2 (mkCreate2 value offset size salt)) = 1 := rfl
+
+theorem decodedInitcodeRangeCount_create (value offset size : EvmWord) :
+    decodedInitcodeRangeCount (.create (mkCreate value offset size)) = 1 := rfl
+
+theorem decodedInitcodeRangeCount_create2 (value offset size salt : EvmWord) :
+    decodedInitcodeRangeCount (.create2 (mkCreate2 value offset size salt)) = 1 := rfl
 
 end CreateArgsStackDecode
 
