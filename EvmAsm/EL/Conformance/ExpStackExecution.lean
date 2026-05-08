@@ -46,6 +46,51 @@ def expStackUnderflowVector : TestVector ExpStackState ExpStackResult :=
     input := { stack := [2] }
     expected := .error "stack-underflow" }
 
+/-- EXP stack conformance inputs as reusable test vectors.
+    Distinctive token:
+    ExpStackExecutionConformance.expStackConformanceTestVectors #92 #125. -/
+def expStackConformanceTestVectors : List (TestVector ExpStackState ExpStackResult) :=
+  [ expStackValueVector
+  , expStackUnderflowVector
+  ]
+
+def expStackConformanceVectorIds : List String :=
+  expStackConformanceTestVectors.map TestVector.id
+
+theorem expStackConformanceTestVectors_length :
+    expStackConformanceTestVectors.length = 2 := rfl
+
+theorem expStackConformanceVectorIds_eq :
+    expStackConformanceVectorIds =
+      [ "exp-stack-value"
+      , "exp-stack-underflow"
+      ] := rfl
+
+theorem expStackConformanceVectorIds_length :
+    expStackConformanceVectorIds.length = 2 := rfl
+
+theorem expStackConformanceVectorIds_nodup :
+    expStackConformanceVectorIds.Nodup := by
+  decide
+
+def expStackValueVectorIds : List String :=
+  ["exp-stack-value"]
+
+def expStackErrorVectorIds : List String :=
+  ["exp-stack-underflow"]
+
+theorem expStackValueVectorIds_subset_all :
+    ∀ id ∈ expStackValueVectorIds, id ∈ expStackConformanceVectorIds := by
+  decide
+
+theorem expStackErrorVectorIds_subset_all :
+    ∀ id ∈ expStackErrorVectorIds, id ∈ expStackConformanceVectorIds := by
+  decide
+
+theorem expStackValueVectorIds_no_error :
+    ∀ id ∈ expStackValueVectorIds, id ∉ expStackErrorVectorIds := by
+  decide
+
 theorem runExpStack?_value :
     runExpStack? { stack := [(2 : EvmWord), (8 : EvmWord), (99 : EvmWord)] } =
       some
@@ -83,15 +128,13 @@ theorem expStackUnderflowVector_passed :
 /-- Compact checked-vector batch for EXP stack execution.
     Distinctive token: ExpStackExecutionConformance.expStackConformanceVectors #92 #125. -/
 def expStackConformanceVectors : List CheckResult :=
-  [ checkVector? runExpStack? expStackValueVector
-  , checkVector? runExpStack? expStackUnderflowVector
-  ]
+  checkBatch? runExpStack? expStackConformanceTestVectors
 
 theorem expStackConformanceVectors_passed :
     expStackConformanceVectors =
       [.passed, .errored "exp-stack-underflow" "stack-underflow"] := by
-  simp [expStackConformanceVectors, expStackValueVector_passed,
-    expStackUnderflowVector_passed]
+  simp [expStackConformanceVectors, expStackConformanceTestVectors,
+    expStackValueVector_passed, expStackUnderflowVector_passed]
 
 end ExpStackExecution
 end Conformance
