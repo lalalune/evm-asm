@@ -173,6 +173,66 @@ theorem runCreateStack?_create2
                     value offset size salt))) ::
               rest } := rfl
 
+theorem runCreateStack?_create_head?
+    (creator : Address) (readByte : MemoryReader) (gas : EvmWord)
+    (executor : Executor) (value offset size : EvmWord) (rest : List EvmWord) :
+    (runCreateStack? .create creator readByte gas executor
+        { stack := value :: offset :: size :: rest }).map
+      (fun out => out.stack.head?) =
+      some (some
+        (CreateResultBridge.createResultStackWord
+          (executor
+            (CreateInitcodeBridge.createRequestFromMemory creator readByte gas
+              (EvmAsm.Evm64.CreateArgsStackDecode.mkCreate value offset size))))) := rfl
+
+theorem runCreateStack?_create2_head?
+    (creator : Address) (readByte : MemoryReader) (gas : EvmWord)
+    (executor : Executor) (value offset size salt : EvmWord) (rest : List EvmWord) :
+    (runCreateStack? .create2 creator readByte gas executor
+        { stack := value :: offset :: size :: salt :: rest }).map
+      (fun out => out.stack.head?) =
+      some (some
+        (CreateResultBridge.createResultStackWord
+          (executor
+            (CreateInitcodeBridge.create2RequestFromMemory creator readByte gas
+              (EvmAsm.Evm64.CreateArgsStackDecode.mkCreate2
+                value offset size salt))))) := rfl
+
+theorem runCreateStack?_create_head?_of_some
+    {creator : Address} {readByte : MemoryReader} {gas : EvmWord}
+    {executor : Executor} {value offset size : EvmWord} {rest : List EvmWord}
+    {out : CreateStackState}
+    (h_run : runCreateStack? .create creator readByte gas executor
+      { stack := value :: offset :: size :: rest } = some out) :
+    out.stack.head? =
+      some
+        (CreateResultBridge.createResultStackWord
+          (executor
+            (CreateInitcodeBridge.createRequestFromMemory creator readByte gas
+              (EvmAsm.Evm64.CreateArgsStackDecode.mkCreate value offset size)))) := by
+  rw [runCreateStack?_create] at h_run
+  injection h_run with h_out
+  subst h_out
+  rfl
+
+theorem runCreateStack?_create2_head?_of_some
+    {creator : Address} {readByte : MemoryReader} {gas : EvmWord}
+    {executor : Executor} {value offset size salt : EvmWord} {rest : List EvmWord}
+    {out : CreateStackState}
+    (h_run : runCreateStack? .create2 creator readByte gas executor
+      { stack := value :: offset :: size :: salt :: rest } = some out) :
+    out.stack.head? =
+      some
+        (CreateResultBridge.createResultStackWord
+          (executor
+            (CreateInitcodeBridge.create2RequestFromMemory creator readByte gas
+              (EvmAsm.Evm64.CreateArgsStackDecode.mkCreate2
+                value offset size salt)))) := by
+  rw [runCreateStack?_create2] at h_run
+  injection h_run with h_out
+  subst h_out
+  rfl
+
 theorem runCreateStack?_create_none_of_empty
     (creator : Address) (readByte : MemoryReader) (gas : EvmWord)
     (executor : Executor) :
