@@ -321,4 +321,72 @@ theorem evm_addmod_prologue_phase1_spec_within
   -- Compose: h1.post matches h2p.pre exactly.
   exact cpsTripleWithin_seq_same_cr h1 h2p
 
+/-- Compose `evm_addmod_prologue_phase1_spec_within` (31 instr, bytes
+    0..124) with `evm_addmod_phase2_reduce_evm_addmod_spec_within`
+    (1 instr `JAL x1, modOff` at byte 124..) into a single
+    32-instruction `cpsTripleWithin` over `evm_addmod_program_code base
+    modOff`, ending at the JAL target `(base + 124) + signExtend21 modOff`
+    (the entry of `evm_mod_callable`). The return slot `x1` is set to
+    `(base + 124) + 4 = base + 128` in the post-state — the natural
+    splice point for the eventual `evm_mod_callable_spec_within`.
+
+    Distinctive token: evm_addmod_prologue_phase1_phase2_reduce_spec_within #91. -/
+theorem evm_addmod_prologue_phase1_phase2_reduce_spec_within
+    (sp : Word) (base : Word) (modOff : BitVec 21)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (v7 v6 v5 v11 v1 : Word) :
+    let sum0 := a0 + b0
+    let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+    let psum1 := a1 + b1
+    let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+    let result1 := psum1 + carry0
+    let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+    let carry1 := carry1a ||| carry1b
+    let psum2 := a2 + b2
+    let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+    let result2 := psum2 + carry1
+    let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+    let carry2 := carry2a ||| carry2b
+    let psum3 := a3 + b3
+    let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+    let result3 := psum3 + carry2
+    let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+    let carry3 := carry3a ||| carry3b
+    cpsTripleWithin (31 + 1) base ((base + 124) + signExtend21 modOff)
+      (evm_addmod_program_code base modOff)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) **
+        ((sp + 56) ↦ₘ b3))
+       ** (.x1 ↦ᵣ v1))
+      (((.x12 ↦ᵣ (sp + 32)) **
+        (.x7 ↦ᵣ (carry3 + signExtend12 (0 : BitVec 12))) **
+        (.x6 ↦ᵣ carry3b) ** (.x5 ↦ᵣ carry3) ** (.x11 ↦ᵣ carry3a) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ sum0) ** ((sp + 40) ↦ₘ result1) **
+        ((sp + 48) ↦ₘ result2) ** ((sp + 56) ↦ₘ result3))
+       ** (.x1 ↦ᵣ ((base + 124) + 4))) := by
+  intro sum0 carry0 psum1 carry1a result1 carry1b carry1
+        psum2 carry2a result2 carry2b carry2
+        psum3 carry3a result3 carry3b carry3
+  -- Step 1: prologue+phase1 spec (31 instr, base..base+124).
+  have h1 := evm_addmod_prologue_phase1_spec_within sp base modOff
+    a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 v5 v11
+  -- Frame h1 with `(.x1 ↦ᵣ v1)` on the right.
+  have h1f := cpsTripleWithin_frameR (.x1 ↦ᵣ v1) (by pcFree) h1
+  -- Step 2: phase2_reduce spec (1 instr JAL, base+124..(base+124)+signExtend21 modOff).
+  have h2 := evm_addmod_phase2_reduce_evm_addmod_spec_within v1 base modOff
+  -- Frame h2 with the entire prologue+phase1 post on the left.
+  have h2f := cpsTripleWithin_frameL
+    ((.x12 ↦ᵣ (sp + 32)) **
+     (.x7 ↦ᵣ (carry3 + signExtend12 (0 : BitVec 12))) **
+     (.x6 ↦ᵣ carry3b) ** (.x5 ↦ᵣ carry3) ** (.x11 ↦ᵣ carry3a) **
+     (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + 32) ↦ₘ sum0) ** ((sp + 40) ↦ₘ result1) **
+     ((sp + 48) ↦ₘ result2) ** ((sp + 56) ↦ₘ result3))
+    (by pcFree) h2
+  -- Compose: h1f.post matches h2f.pre exactly (both are
+  -- `(prologue_phase1_post) ** (.x1 ↦ᵣ v1)`).
+  exact cpsTripleWithin_seq_same_cr h1f h2f
+
 end EvmAsm.Evm64.AddMod.Compose
