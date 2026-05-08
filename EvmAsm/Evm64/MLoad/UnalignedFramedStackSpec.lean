@@ -369,6 +369,45 @@ theorem evm_mload_unaligned_one_limb_q0_stack_spec_within_framed
     framed
 
 /--
+Public-code q0 framed MLOAD spec: transports
+`evm_mload_unaligned_one_limb_q0_stack_spec_within_framed` from the q0
+one-limb block to the full `evm_mload_code` code requirement.
+
+Distinctive token:
+evm_mload_unaligned_one_limb_q0_spec_within_framed_public_code #53.
+-/
+theorem evm_mload_unaligned_one_limb_q0_spec_within_framed_public_code
+    (offReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset memBase byteOld accOld : Word)
+    (loAddr hiAddr loVal hiVal : Word) (start : Nat)
+    (base : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (h_byte_ne_x0 : byteReg ≠ .x0) (h_acc_ne_x0 : accReg ≠ .x0)
+    (h_window : mloadLimbWindowOk (memBase + offset) loAddr hiAddr start
+                  24 25 26 27 28 29 30 31) :
+    cpsTripleWithin 23 (base + 8) (base + 100)
+      (evm_mload_code offReg byteReg accReg addrReg memBaseReg base)
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+        (sp ↦ₘ offset) **
+        ((byteReg ↦ᵣ byteOld) ** (accReg ↦ᵣ accOld) **
+         (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal))) ** F)
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+        (sp ↦ₘ mloadPackedLimbFromDwordPair loVal hiVal start) **
+        ((byteReg ↦ᵣ
+           (mloadByteFromDwordPair loVal hiVal start 7).zeroExtend 64) **
+         (accReg ↦ᵣ mloadPackedLimbFromDwordPair loVal hiVal start) **
+         (loAddr ↦ₘ loVal) ** (hiAddr ↦ₘ hiVal))) ** F) := by
+  exact cpsTripleWithin_evm_mload_of_one_limb_q0
+    offReg byteReg accReg addrReg memBaseReg base
+    (evm_mload_unaligned_one_limb_q0_stack_spec_within_framed
+      offReg byteReg accReg addrReg memBaseReg
+      sp offset memBase byteOld accOld
+      loAddr hiAddr loVal hiVal start base F hF
+      h_byte_ne_x0 h_acc_ne_x0 h_window)
+
+/--
 Sibling-framed q1 stack spec: `evm_mload_unaligned_one_limb_q1_stack_spec_within`
 with an arbitrary `pcFree` assertion `F` framed on both pre and post.
 
