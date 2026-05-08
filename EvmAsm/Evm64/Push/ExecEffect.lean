@@ -123,6 +123,22 @@ theorem effectFromCode_stack_tail
     (effectFromCode code pc n stack).stack.length = stack.length + 1 := by
   simp [effectFromCode, stackAfterPush]
 
+theorem effectFromCode_stack_length_eq_counts
+    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
+    (effectFromCode code pc n stack).stack.length + stackArgumentCount =
+      stack.length + resultCount := by
+  simp [stackArgumentCount, resultCount]
+
+theorem effectFromCode_stack_ne_nil
+    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
+    (effectFromCode code pc n stack).stack ≠ [] := by
+  simp [effectFromCode, stackAfterPush]
+
+theorem effectFromCode_stack_head?_eq_word
+    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
+    (effectFromCode code pc n stack).stack.head? =
+      some (effectFromCode code pc n stack).word := rfl
+
 @[simp] theorem pushedWordFromCode_nil (pc n : Nat) :
     pushedWordFromCode [] pc n = PushImmediate.pushImmediateWordFromCode [] pc n := rfl
 
