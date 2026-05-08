@@ -359,6 +359,29 @@ theorem runCalldataStack?_eq_some_iff
   · exact runCalldataStack?_size_eq_some_iff
   · exact runCalldataStack?_copy_eq_some_iff
 
+theorem runCalldataStack?_stack_eq_rest
+    {kind : Kind} {state : CalldataStackState} {out : CalldataStackResult}
+    (h_run : runCalldataStack? kind state = some out) :
+    ∃ rest,
+      stackRestAfterCalldata? kind state.stack = some rest ∧
+        out.stack = rest := by
+  cases state with
+  | mk data stack =>
+      cases kind
+      · rcases (runCalldataStack?_load_eq_some_iff.mp h_run) with
+          ⟨offset, rest, h_stack, h_out⟩
+        subst h_stack
+        subst h_out
+        exact ⟨rest, rfl, rfl⟩
+      · rcases (runCalldataStack?_size_eq_some_iff.mp h_run) with h_out
+        subst h_out
+        exact ⟨stack, rfl, rfl⟩
+      · rcases (runCalldataStack?_copy_eq_some_iff.mp h_run) with
+          ⟨destOffset, dataOffset, size, rest, h_stack, h_out⟩
+        subst h_stack
+        subst h_out
+        exact ⟨rest, rfl, rfl⟩
+
 /--
 Successful CALLDATACOPY stack execution exposes exactly `size.toNat` copied
 bytes from the decoded operand triple.
