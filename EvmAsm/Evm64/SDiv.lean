@@ -15,6 +15,7 @@ import EvmAsm.Evm64.SDiv.Layout
 import EvmAsm.Evm64.SDiv.Args
 import EvmAsm.Evm64.SDiv.ArgsStackDecode
 import EvmAsm.Evm64.SDiv.StackExecutionBridge
+import EvmAsm.Evm64.SDiv.HandlerBridge
 import EvmAsm.Evm64.SDiv.Program
 import EvmAsm.Evm64.SDiv.LimbSpec
 import EvmAsm.Evm64.SDiv.AddrNorm
