@@ -51,6 +51,51 @@ theorem decodeCallDataCopyStack?_eq_some_iff
   · rintro ⟨destOffset, dataOffset, size, rest, rfl, rfl⟩
     rfl
 
+theorem decodeCallDataCopyStack?_destinationRange_of_some
+    {stack : List EvmWord} {args : CallDataCopyArgs.Args}
+    (h_decode : decodeCallDataCopyStack? stack = some args) :
+    ∃ destOffset dataOffset size rest,
+      stack = destOffset :: dataOffset :: size :: rest ∧
+        CallDataCopyArgs.destinationRange args =
+          { offset := destOffset, size := size } := by
+  rw [decodeCallDataCopyStack?_eq_some_iff] at h_decode
+  rcases h_decode with ⟨destOffset, dataOffset, size, rest, h_stack, h_args⟩
+  subst h_args
+  exact ⟨destOffset, dataOffset, size, rest, h_stack, rfl⟩
+
+theorem decodeCallDataCopyStack?_destinationOffsetNat_of_some
+    {stack : List EvmWord} {args : CallDataCopyArgs.Args}
+    (h_decode : decodeCallDataCopyStack? stack = some args) :
+    ∃ destOffset dataOffset size rest,
+      stack = destOffset :: dataOffset :: size :: rest ∧
+        CallDataCopyArgs.destinationOffsetNat args = destOffset.toNat := by
+  rw [decodeCallDataCopyStack?_eq_some_iff] at h_decode
+  rcases h_decode with ⟨destOffset, dataOffset, size, rest, h_stack, h_args⟩
+  subst h_args
+  exact ⟨destOffset, dataOffset, size, rest, h_stack, rfl⟩
+
+theorem decodeCallDataCopyStack?_sourceOffsetNat_of_some
+    {stack : List EvmWord} {args : CallDataCopyArgs.Args}
+    (h_decode : decodeCallDataCopyStack? stack = some args) :
+    ∃ destOffset dataOffset size rest,
+      stack = destOffset :: dataOffset :: size :: rest ∧
+        CallDataCopyArgs.sourceOffsetNat args = dataOffset.toNat := by
+  rw [decodeCallDataCopyStack?_eq_some_iff] at h_decode
+  rcases h_decode with ⟨destOffset, dataOffset, size, rest, h_stack, h_args⟩
+  subst h_args
+  exact ⟨destOffset, dataOffset, size, rest, h_stack, rfl⟩
+
+theorem decodeCallDataCopyStack?_sizeNat_of_some
+    {stack : List EvmWord} {args : CallDataCopyArgs.Args}
+    (h_decode : decodeCallDataCopyStack? stack = some args) :
+    ∃ destOffset dataOffset size rest,
+      stack = destOffset :: dataOffset :: size :: rest ∧
+        CallDataCopyArgs.sizeNat args = size.toNat := by
+  rw [decodeCallDataCopyStack?_eq_some_iff] at h_decode
+  rcases h_decode with ⟨destOffset, dataOffset, size, rest, h_stack, h_args⟩
+  subst h_args
+  exact ⟨destOffset, dataOffset, size, rest, h_stack, rfl⟩
+
 /--
 CALLDATACOPY stack decoding fails exactly when fewer than three stack words are
 available.
