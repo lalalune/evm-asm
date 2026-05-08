@@ -182,6 +182,22 @@ theorem stackRestAfterCall?_delegatecall_none_of_five
         [gas, to, inputOffset, inputSize, outputOffset] =
       none := rfl
 
+theorem stackRestAfterCall?_eq_none_iff
+    (kind : CallKind) (stack : List EvmWord) :
+    stackRestAfterCall? kind stack = none ↔
+      stack.length < EvmAsm.Evm64.CallArgs.argumentCount kind := by
+  cases kind
+  · rcases stack with
+      _ | ⟨_, _ | ⟨_, _ | ⟨_, _ | ⟨_, _ | ⟨_, _ | ⟨_, _ | ⟨_,
+          rest⟩⟩⟩⟩⟩⟩⟩ <;>
+      simp [stackRestAfterCall?, EvmAsm.Evm64.CallArgs.argumentCount]
+  · rcases stack with
+      _ | ⟨_, _ | ⟨_, _ | ⟨_, _ | ⟨_, _ | ⟨_, _ | ⟨_, rest⟩⟩⟩⟩⟩⟩ <;>
+      simp [stackRestAfterCall?, EvmAsm.Evm64.CallArgs.argumentCount]
+  · rcases stack with
+      _ | ⟨_, _ | ⟨_, _ | ⟨_, _ | ⟨_, _ | ⟨_, _ | ⟨_, rest⟩⟩⟩⟩⟩⟩ <;>
+      simp [stackRestAfterCall?, EvmAsm.Evm64.CallArgs.argumentCount]
+
 theorem runCallStack?_call
     (state : WorldState) (caller callee : Address) (apparentValue : Word256)
     (readByte : MemoryReader) (isStatic : Bool) (executor : CallExecutor)
