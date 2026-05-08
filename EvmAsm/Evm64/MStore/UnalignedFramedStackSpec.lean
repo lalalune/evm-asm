@@ -21,7 +21,7 @@
   sibling-quarter cells #53.
 -/
 
-import EvmAsm.Evm64.MStore.Spec
+import EvmAsm.Evm64.MStore.StackSpec
 import EvmAsm.Evm64.MStore.UnalignedStackSpec
 
 namespace EvmAsm.Evm64
@@ -63,6 +63,36 @@ theorem mstore_prologue_stack_spec_within_framed
     (fun _ hp => by sep_perm hp)
     (fun _ hp => by sep_perm hp)
     framed
+
+/--
+EVM-code transport of `mstore_prologue_stack_spec_within_framed`.
+
+Later full-stack unaligned MSTORE composition can use this theorem directly at
+the public `evm_mstore_code` boundary instead of carrying an extra stack-code
+transport step.
+
+Distinctive token: evm_mstore_prologue_stack_spec_within_framed #53.
+-/
+theorem evm_mstore_prologue_stack_spec_within_framed
+    (offReg valReg byteReg accReg addrReg memBaseReg : Reg)
+    (sp offset offOld addrOld memBase : Word) (base : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (h_off_ne_x0 : offReg ≠ .x0)
+    (h_addr_ne_x0 : addrReg ≠ .x0) :
+    cpsTripleWithin 2 base (base + 8)
+      (evm_mstore_code offReg valReg byteReg accReg addrReg memBaseReg base)
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offOld) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ addrOld) **
+        (sp ↦ₘ offset)) ** F)
+      ((((.x12 : Reg) ↦ᵣ sp) ** (offReg ↦ᵣ offset) **
+        (memBaseReg ↦ᵣ memBase) ** (addrReg ↦ᵣ (memBase + offset)) **
+        (sp ↦ₘ offset)) ** F) := by
+  exact cpsTripleWithin_evm_mstore_of_stack
+    offReg valReg byteReg accReg addrReg memBaseReg base (base + 8)
+    (mstore_prologue_stack_spec_within_framed
+      offReg byteReg accReg addrReg memBaseReg
+      sp offset offOld addrOld memBase base F hF
+      h_off_ne_x0 h_addr_ne_x0)
 
 /--
 Sibling-framed q0 stack spec: `evm_mstore_unaligned_one_limb_q0_stack_spec_within`
