@@ -189,6 +189,49 @@ theorem signedArithmeticConformanceVectorIds_nodup :
     signedArithmeticConformanceVectorIds.Nodup := by
   decide
 
+def signedArithmeticValueVectorIds : List String :=
+  [ "sdiv-stack-zero-divisor"
+  , "sdiv-stack-int-min-neg-one"
+  , "sdiv-stack-pos-neg-trunc"
+  , "smod-stack-zero-divisor"
+  , "smod-stack-neg-pos-sign"
+  , "smod-stack-pos-neg-sign"
+  ]
+
+def signedArithmeticErrorVectorIds : List String :=
+  [ "sdiv-stack-underflow"
+  , "smod-stack-underflow"
+  ]
+
+theorem signedArithmeticValueVectorIds_length :
+    signedArithmeticValueVectorIds.length = 6 := rfl
+
+theorem signedArithmeticErrorVectorIds_length :
+    signedArithmeticErrorVectorIds.length = 2 := rfl
+
+theorem signedArithmeticValueVectorIds_nodup :
+    signedArithmeticValueVectorIds.Nodup := by
+  decide
+
+theorem signedArithmeticErrorVectorIds_nodup :
+    signedArithmeticErrorVectorIds.Nodup := by
+  decide
+
+theorem signedArithmeticValueVectorIds_subset_all :
+    ∀ id ∈ signedArithmeticValueVectorIds,
+      id ∈ signedArithmeticConformanceVectorIds := by
+  decide
+
+theorem signedArithmeticErrorVectorIds_subset_all :
+    ∀ id ∈ signedArithmeticErrorVectorIds,
+      id ∈ signedArithmeticConformanceVectorIds := by
+  decide
+
+theorem signedArithmeticValueVectorIds_no_error :
+    ∀ id ∈ signedArithmeticValueVectorIds,
+      id ∉ signedArithmeticErrorVectorIds := by
+  decide
+
 theorem runSDivStack?_zero_divisor_vector :
     runSDivStack? { stack := [(9 : EvmWord), 0, 42] } =
       some { effects := { stackWords := [0] }, stack := [42] } := by
