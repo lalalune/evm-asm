@@ -7,6 +7,8 @@
 
 import EvmAsm.Evm64.HandlerLoopBridge
 import EvmAsm.Evm64.SupportedHandlers
+import EvmAsm.Evm64.SDiv.HandlerBridge
+import EvmAsm.Evm64.SMod.HandlerBridge
 
 namespace EvmAsm.Evm64
 
@@ -150,6 +152,30 @@ theorem stepWithSupportedHandler_SMOD_status_of_some
   rw [stepWithSupportedHandler_SMOD h_decode]
   simp [ArithmeticHandlers.smodHandler, ArithmeticHandlers.binaryHandler,
     h_stack, EvmState.withStack]
+
+theorem stepWithSupportedHandler_SDIV_stack_of_runSDivStack?_some
+    {state : EvmState} {out : SDivStackExecutionBridge.SDivStackResult}
+    (h_decode : InterpreterLoop.decodeCurrentOpcode? state = some .SDIV)
+    (h_run :
+      SDivStackExecutionBridge.runSDivStack? { stack := state.stack } =
+        some out) :
+    (InterpreterLoop.stepWithHandler supportedLoopHandler state).stack =
+      out.effects.stackWords ++ out.stack := by
+  rw [stepWithSupportedHandler_SDIV h_decode]
+  exact SDivStackExecutionBridge.sdivHandler_stack_of_runSDivStack?_some
+    h_run
+
+theorem stepWithSupportedHandler_SMOD_stack_of_runSModStack?_some
+    {state : EvmState} {out : SModStackExecutionBridge.SModStackResult}
+    (h_decode : InterpreterLoop.decodeCurrentOpcode? state = some .SMOD)
+    (h_run :
+      SModStackExecutionBridge.runSModStack? { stack := state.stack } =
+        some out) :
+    (InterpreterLoop.stepWithHandler supportedLoopHandler state).stack =
+      out.effects.stackWords ++ out.stack := by
+  rw [stepWithSupportedHandler_SMOD h_decode]
+  exact SModStackExecutionBridge.smodHandler_stack_of_runSModStack?_some
+    h_run
 
 /--
 When the combined supported loop decodes STOP, one interpreter step terminates
