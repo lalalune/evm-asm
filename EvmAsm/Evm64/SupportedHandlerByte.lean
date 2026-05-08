@@ -159,6 +159,20 @@ theorem dispatchByte_supported_SMOD_byte_pc
   rw [dispatchByte_supported_SMOD_byte]
   exact SModStackExecutionBridge.smodHandler_pc state
 
+theorem dispatchByte_supported_SDIV_byte_gas
+    (state : EvmState) :
+    (HandlerTable.dispatchByte SupportedHandlers.supportedHandlerTable
+      (⟨0x05, by decide⟩ : Fin 256) state).gas = state.gas := by
+  rw [dispatchByte_supported_SDIV_byte]
+  exact SDivStackExecutionBridge.sdivHandler_gas state
+
+theorem dispatchByte_supported_SMOD_byte_gas
+    (state : EvmState) :
+    (HandlerTable.dispatchByte SupportedHandlers.supportedHandlerTable
+      (⟨0x07, by decide⟩ : Fin 256) state).gas = state.gas := by
+  rw [dispatchByte_supported_SMOD_byte]
+  exact SModStackExecutionBridge.smodHandler_gas state
+
 theorem dispatchByte_supported_SDIV_byte_stack_zero_divisor
     (state : EvmState) (dividend : EvmWord) (rest : List EvmWord) :
     (HandlerTable.dispatchByte SupportedHandlers.supportedHandlerTable
