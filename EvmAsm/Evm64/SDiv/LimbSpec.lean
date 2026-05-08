@@ -46,4 +46,27 @@ theorem evm_sdiv_sign_bit_block_spec_within
               (base + 4) hsign_ne_x0
   runBlock L S
 
+/-- CodeReq for `evm_sdiv_div_call_block` at byte offset `base`. -/
+abbrev evm_sdiv_div_call_block_code (divOff : BitVec 21) (base : Word) : CodeReq :=
+  CodeReq.ofProg base (evm_sdiv_div_call_block divOff)
+
+/-- 1-instruction leaf spec: near-`JAL` from SDIV into the unsigned
+    `evm_div_callable` shim. Control transfers to
+    `base + signExtend21 divOff` and `.x1` is updated with the return
+    address `base + 4`. Argument-marshalling (placing both operands in
+    the LP64 a-slots) is handled by the surrounding scaffold and is not
+    part of this leaf cpsTriple. Mirrors `exp_square_block_spec_within`
+    (`Evm64/Exp/LimbSpec.lean`). -/
+theorem evm_sdiv_div_call_block_spec_within
+    (divOff : BitVec 21) (vOld : Word) (base : Word) :
+    let code := evm_sdiv_div_call_block_code divOff base
+    cpsTripleWithin 1 base (base + signExtend21 divOff) code
+      (.x1 ↦ᵣ vOld)
+      (.x1 ↦ᵣ (base + 4)) := by
+  show cpsTripleWithin 1 base (base + signExtend21 divOff)
+    (CodeReq.ofProg base (evm_sdiv_div_call_block divOff)) _ _
+  rw [show CodeReq.ofProg base (evm_sdiv_div_call_block divOff) =
+      CodeReq.singleton base (.JAL .x1 divOff) from CodeReq.ofProg_singleton]
+  exact jal_spec_within .x1 vOld divOff base (by nofun)
+
 end EvmAsm.Evm64
