@@ -112,6 +112,44 @@ theorem loopFuel_one_of_execSpec_SMOD
   exact InterpreterExecutableFetchBridge.stepWithHandler_of_execSpec_SMOD
     handler h_pc h_code
 
+theorem loopFuel_one_supported_execSpec_SDIV_status_of_some
+    {state : EvmState} {stack' : List EvmWord}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8))
+    (h_stack : ArithmeticHandlers.binaryStack? EvmWord.sdiv state.stack =
+      some stack') :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).status = state.status := by
+  rw [loopFuel_one_of_execSpec_SDIV SupportedLoopBridge.supportedLoopHandler
+    h_status h_pc h_code]
+  rw [SupportedLoopBridge.supportedLoopHandler_apply]
+  rw [SupportedHandlers.dispatchOpcode_of_lookup
+    SupportedHandlers.supportedHandlerTable_SDIV]
+  simp [ArithmeticHandlers.sdivHandler, ArithmeticHandlers.binaryHandler,
+    h_stack, EvmState.withStack]
+
+theorem loopFuel_one_supported_execSpec_SMOD_status_of_some
+    {state : EvmState} {stack' : List EvmWord}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8))
+    (h_stack : ArithmeticHandlers.binaryStack? EvmWord.smod state.stack =
+      some stack') :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      state).status = state.status := by
+  rw [loopFuel_one_of_execSpec_SMOD SupportedLoopBridge.supportedLoopHandler
+    h_status h_pc h_code]
+  rw [SupportedLoopBridge.supportedLoopHandler_apply]
+  rw [SupportedHandlers.dispatchOpcode_of_lookup
+    SupportedHandlers.supportedHandlerTable_SMOD]
+  simp [ArithmeticHandlers.smodHandler, ArithmeticHandlers.binaryHandler,
+    h_stack, EvmState.withStack]
+
 theorem loopFuel_one_supported_execSpec_SDIV_stack_zero_divisor
     {state : EvmState} (dividend : EvmWord) (rest : List EvmWord)
     (h_status : state.status = .running)
