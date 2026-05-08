@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Evm64.InterpreterExecutableFetchBridge
+import EvmAsm.Evm64.SupportedLoopBridge
 
 namespace EvmAsm.Evm64
 
@@ -110,6 +111,278 @@ theorem loopFuel_one_of_execSpec_SMOD
   rw [InterpreterLoop.loopFuel_succ_running handler 0 state h_status]
   exact InterpreterExecutableFetchBridge.stepWithHandler_of_execSpec_SMOD
     handler h_pc h_code
+
+theorem loopFuel_one_supported_execSpec_SDIV_stack_zero_divisor
+    {state : EvmState} (dividend : EvmWord) (rest : List EvmWord)
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      { state with stack := dividend :: 0 :: rest }).stack =
+        0 :: rest := by
+  have h_status' :
+      ({ state with stack := dividend :: 0 :: rest } : EvmState).status =
+        .running := by
+    simpa using h_status
+  have h_pc' :
+      ({ state with stack := dividend :: 0 :: rest } : EvmState).pc <
+        ({ state with stack := dividend :: 0 :: rest } : EvmState).code.length := by
+    simpa using h_pc
+  have h_code' :
+      ({ state with stack := dividend :: 0 :: rest } : EvmState).code[
+        ({ state with stack := dividend :: 0 :: rest } : EvmState).pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8) := by
+    simpa using h_code
+  rw [loopFuel_one_of_execSpec_SDIV SupportedLoopBridge.supportedLoopHandler
+    h_status' h_pc' h_code']
+  rw [SupportedLoopBridge.supportedLoopHandler_apply]
+  rw [SupportedHandlers.dispatchOpcode_of_lookup
+    SupportedHandlers.supportedHandlerTable_SDIV]
+  exact SDivStackExecutionBridge.sdivHandler_stack_zero_divisor
+    state dividend rest
+
+theorem loopFuel_one_supported_execSpec_SDIV_stack_intMin_neg_one
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      { state with stack := BitVec.intMin 256 :: (-1 : EvmWord) :: state.stack }).stack =
+        BitVec.intMin 256 :: state.stack := by
+  have h_status' :
+      ({ state with stack := BitVec.intMin 256 :: (-1 : EvmWord) :: state.stack } :
+        EvmState).status = .running := by
+    simpa using h_status
+  have h_pc' :
+      ({ state with stack := BitVec.intMin 256 :: (-1 : EvmWord) :: state.stack } :
+        EvmState).pc <
+        ({ state with stack := BitVec.intMin 256 :: (-1 : EvmWord) :: state.stack } :
+          EvmState).code.length := by
+    simpa using h_pc
+  have h_code' :
+      ({ state with stack := BitVec.intMin 256 :: (-1 : EvmWord) :: state.stack } :
+        EvmState).code[
+        ({ state with stack := BitVec.intMin 256 :: (-1 : EvmWord) :: state.stack } :
+          EvmState).pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8) := by
+    simpa using h_code
+  rw [loopFuel_one_of_execSpec_SDIV SupportedLoopBridge.supportedLoopHandler
+    h_status' h_pc' h_code']
+  rw [SupportedLoopBridge.supportedLoopHandler_apply]
+  rw [SupportedHandlers.dispatchOpcode_of_lookup
+    SupportedHandlers.supportedHandlerTable_SDIV]
+  exact SDivStackExecutionBridge.sdivHandler_stack_intMin_neg_one
+    state state.stack
+
+theorem loopFuel_one_supported_execSpec_SDIV_stack_neg_one_two
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      { state with stack := (-1 : EvmWord) :: 2 :: state.stack }).stack =
+        0 :: state.stack := by
+  have h_status' :
+      ({ state with stack := (-1 : EvmWord) :: 2 :: state.stack } :
+        EvmState).status = .running := by
+    simpa using h_status
+  have h_pc' :
+      ({ state with stack := (-1 : EvmWord) :: 2 :: state.stack } :
+        EvmState).pc <
+        ({ state with stack := (-1 : EvmWord) :: 2 :: state.stack } :
+          EvmState).code.length := by
+    simpa using h_pc
+  have h_code' :
+      ({ state with stack := (-1 : EvmWord) :: 2 :: state.stack } :
+        EvmState).code[
+        ({ state with stack := (-1 : EvmWord) :: 2 :: state.stack } :
+          EvmState).pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8) := by
+    simpa using h_code
+  rw [loopFuel_one_of_execSpec_SDIV SupportedLoopBridge.supportedLoopHandler
+    h_status' h_pc' h_code']
+  rw [SupportedLoopBridge.supportedLoopHandler_apply]
+  rw [SupportedHandlers.dispatchOpcode_of_lookup
+    SupportedHandlers.supportedHandlerTable_SDIV]
+  exact SDivStackExecutionBridge.sdivHandler_stack_neg_one_two
+    state state.stack
+
+theorem loopFuel_one_supported_execSpec_SDIV_stack_pos_neg_trunc
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      { state with stack := (7 : EvmWord) :: (-2 : EvmWord) :: state.stack }).stack =
+        (-3 : EvmWord) :: state.stack := by
+  have h_status' :
+      ({ state with stack := (7 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+        EvmState).status = .running := by
+    simpa using h_status
+  have h_pc' :
+      ({ state with stack := (7 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+        EvmState).pc <
+        ({ state with stack := (7 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+          EvmState).code.length := by
+    simpa using h_pc
+  have h_code' :
+      ({ state with stack := (7 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+        EvmState).code[
+        ({ state with stack := (7 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+          EvmState).pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SDIV : BitVec 8) := by
+    simpa using h_code
+  rw [loopFuel_one_of_execSpec_SDIV SupportedLoopBridge.supportedLoopHandler
+    h_status' h_pc' h_code']
+  rw [SupportedLoopBridge.supportedLoopHandler_apply]
+  rw [SupportedHandlers.dispatchOpcode_of_lookup
+    SupportedHandlers.supportedHandlerTable_SDIV]
+  exact SDivStackExecutionBridge.sdivHandler_stack_pos_neg_trunc
+    state state.stack
+
+theorem loopFuel_one_supported_execSpec_SMOD_stack_zero_divisor
+    {state : EvmState} (dividend : EvmWord) (rest : List EvmWord)
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      { state with stack := dividend :: 0 :: rest }).stack =
+        0 :: rest := by
+  have h_status' :
+      ({ state with stack := dividend :: 0 :: rest } : EvmState).status =
+        .running := by
+    simpa using h_status
+  have h_pc' :
+      ({ state with stack := dividend :: 0 :: rest } : EvmState).pc <
+        ({ state with stack := dividend :: 0 :: rest } : EvmState).code.length := by
+    simpa using h_pc
+  have h_code' :
+      ({ state with stack := dividend :: 0 :: rest } : EvmState).code[
+        ({ state with stack := dividend :: 0 :: rest } : EvmState).pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8) := by
+    simpa using h_code
+  rw [loopFuel_one_of_execSpec_SMOD SupportedLoopBridge.supportedLoopHandler
+    h_status' h_pc' h_code']
+  rw [SupportedLoopBridge.supportedLoopHandler_apply]
+  rw [SupportedHandlers.dispatchOpcode_of_lookup
+    SupportedHandlers.supportedHandlerTable_SMOD]
+  exact SModStackExecutionBridge.smodHandler_stack_zero_divisor
+    state dividend rest
+
+theorem loopFuel_one_supported_execSpec_SMOD_stack_neg_pos_sign
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      { state with stack := (-3 : EvmWord) :: 2 :: state.stack }).stack =
+        (-1 : EvmWord) :: state.stack := by
+  have h_status' :
+      ({ state with stack := (-3 : EvmWord) :: 2 :: state.stack } :
+        EvmState).status = .running := by
+    simpa using h_status
+  have h_pc' :
+      ({ state with stack := (-3 : EvmWord) :: 2 :: state.stack } :
+        EvmState).pc <
+        ({ state with stack := (-3 : EvmWord) :: 2 :: state.stack } :
+          EvmState).code.length := by
+    simpa using h_pc
+  have h_code' :
+      ({ state with stack := (-3 : EvmWord) :: 2 :: state.stack } :
+        EvmState).code[
+        ({ state with stack := (-3 : EvmWord) :: 2 :: state.stack } :
+          EvmState).pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8) := by
+    simpa using h_code
+  rw [loopFuel_one_of_execSpec_SMOD SupportedLoopBridge.supportedLoopHandler
+    h_status' h_pc' h_code']
+  rw [SupportedLoopBridge.supportedLoopHandler_apply]
+  rw [SupportedHandlers.dispatchOpcode_of_lookup
+    SupportedHandlers.supportedHandlerTable_SMOD]
+  exact SModStackExecutionBridge.smodHandler_stack_neg_pos_sign
+    state state.stack
+
+theorem loopFuel_one_supported_execSpec_SMOD_stack_pos_neg_sign
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      { state with stack := (3 : EvmWord) :: (-2 : EvmWord) :: state.stack }).stack =
+        (1 : EvmWord) :: state.stack := by
+  have h_status' :
+      ({ state with stack := (3 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+        EvmState).status = .running := by
+    simpa using h_status
+  have h_pc' :
+      ({ state with stack := (3 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+        EvmState).pc <
+        ({ state with stack := (3 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+          EvmState).code.length := by
+    simpa using h_pc
+  have h_code' :
+      ({ state with stack := (3 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+        EvmState).code[
+        ({ state with stack := (3 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+          EvmState).pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8) := by
+    simpa using h_code
+  rw [loopFuel_one_of_execSpec_SMOD SupportedLoopBridge.supportedLoopHandler
+    h_status' h_pc' h_code']
+  rw [SupportedLoopBridge.supportedLoopHandler_apply]
+  rw [SupportedHandlers.dispatchOpcode_of_lookup
+    SupportedHandlers.supportedHandlerTable_SMOD]
+  exact SModStackExecutionBridge.smodHandler_stack_pos_neg_sign
+    state state.stack
+
+theorem loopFuel_one_supported_execSpec_SMOD_stack_neg_neg_sign
+    {state : EvmState}
+    (h_status : state.status = .running)
+    (h_pc : state.pc < state.code.length)
+    (h_code :
+      state.code[state.pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8)) :
+    (InterpreterLoop.loopFuel SupportedLoopBridge.supportedLoopHandler 1
+      { state with stack := (-3 : EvmWord) :: (-2 : EvmWord) :: state.stack }).stack =
+        (-1 : EvmWord) :: state.stack := by
+  have h_status' :
+      ({ state with stack := (-3 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+        EvmState).status = .running := by
+    simpa using h_status
+  have h_pc' :
+      ({ state with stack := (-3 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+        EvmState).pc <
+        ({ state with stack := (-3 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+          EvmState).code.length := by
+    simpa using h_pc
+  have h_code' :
+      ({ state with stack := (-3 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+        EvmState).code[
+        ({ state with stack := (-3 : EvmWord) :: (-2 : EvmWord) :: state.stack } :
+          EvmState).pc] =
+        (ExecutableSpecOpcodeBridge.Ops.SMOD : BitVec 8) := by
+    simpa using h_code
+  rw [loopFuel_one_of_execSpec_SMOD SupportedLoopBridge.supportedLoopHandler
+    h_status' h_pc' h_code']
+  rw [SupportedLoopBridge.supportedLoopHandler_apply]
+  rw [SupportedHandlers.dispatchOpcode_of_lookup
+    SupportedHandlers.supportedHandlerTable_SMOD]
+  exact SModStackExecutionBridge.smodHandler_stack_neg_neg_sign
+    state state.stack
 
 theorem loopFuel_one_of_unsupported
     (handler : InterpreterLoop.Handler)
