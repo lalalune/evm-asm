@@ -409,6 +409,33 @@ theorem decodeCallFamilyStack?_eq_some_iff
   | staticcall => exact decodeCallFamilyStack?_staticcall_eq_some_iff stack decoded
   | delegatecall => exact decodeCallFamilyStack?_delegatecall_eq_some_iff stack decoded
 
+theorem decodeCallFamilyStack?_kind_of_some
+    {kind : Kind} {stack : List EvmWord} {decoded : Decoded}
+    (h_decode : decodeCallFamilyStack? kind stack = some decoded) :
+    decodedKind decoded = kind := by
+  cases kind with
+  | call =>
+      rcases (decodeCallFamilyStack?_call_eq_some_iff stack decoded).mp h_decode with
+        ⟨_, _, _, _, _, _, _, _, _, h_decoded⟩
+      subst h_decoded
+      rfl
+  | staticcall =>
+      rcases (decodeCallFamilyStack?_staticcall_eq_some_iff stack decoded).mp h_decode with
+        ⟨_, _, _, _, _, _, _, _, h_decoded⟩
+      subst h_decoded
+      rfl
+  | delegatecall =>
+      rcases (decodeCallFamilyStack?_delegatecall_eq_some_iff stack decoded).mp h_decode with
+        ⟨_, _, _, _, _, _, _, _, h_decoded⟩
+      subst h_decoded
+      rfl
+
+theorem decodeCallFamilyStack?_argumentCount_of_some
+    {kind : Kind} {stack : List EvmWord} {decoded : Decoded}
+    (h_decode : decodeCallFamilyStack? kind stack = some decoded) :
+    decodedArgumentCount decoded = argumentCount kind := by
+  rw [decodedArgumentCount, decodeCallFamilyStack?_kind_of_some h_decode]
+
 theorem decodeCallStack?_eq_none_iff (stack : List EvmWord) :
     decodeCallStack? stack = none ↔ stack.length < 7 := by
   constructor
