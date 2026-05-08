@@ -197,6 +197,49 @@ theorem runExpStack?_gas
         ( ExpArgs.expDynamicCostFromArgs (ExpArgs.expArgs base exponent)
         , ExpArgs.expTotalGasFromArgs (ExpArgs.expArgs base exponent)) := rfl
 
+theorem runExpStack?_zero_exponent
+    (base : EvmWord) (rest : List EvmWord) :
+    runExpStack? { stack := base :: 0 :: rest } =
+      some
+        { effects := { stackWords := [1], dynamicGas := 0, totalGas := 10 }
+          stack := rest } := by
+  rw [runExpStack?_cons]
+  rw [ExpArgs.expResultFromArgs_zero_right]
+  rw [ExpArgs.expDynamicCostFromArgs_zero_exponent]
+  rw [ExpArgs.expTotalGasFromArgs_zero_exponent]
+
+theorem runExpStack?_two_256
+    (rest : List EvmWord) :
+    runExpStack? { stack := (2 : EvmWord) :: 256 :: rest } =
+      some
+        { effects := { stackWords := [0], dynamicGas := 100, totalGas := 110 }
+          stack := rest } := by
+  rw [runExpStack?_cons]
+  rw [ExpArgs.expResultFromArgs_two_256]
+  rw [ExpArgs.expDynamicCostFromArgs_256_exponent]
+  rw [ExpArgs.expTotalGasFromArgs_256_exponent]
+
+theorem runExpStack?_max_exponent_gas
+    (base : EvmWord) (rest : List EvmWord) :
+    (runExpStack? { stack := base :: (-1 : EvmWord) :: rest }).map
+      (fun out => (out.effects.dynamicGas, out.effects.totalGas)) =
+      some (1600, 1610) := by
+  rw [runExpStack?_gas]
+  rw [ExpArgs.expDynamicCostFromArgs_max_exponent]
+  rw [ExpArgs.expTotalGasFromArgs_max_exponent]
+
+theorem runExpStack?_zero_max_exponent
+    (rest : List EvmWord) :
+    runExpStack? { stack := (0 : EvmWord) :: (-1 : EvmWord) :: rest } =
+      some
+        { effects := { stackWords := [0], dynamicGas := 1600, totalGas := 1610 }
+          stack := rest } := by
+  rw [runExpStack?_cons]
+  rw [ExpArgs.expResultFromArgs_zero_left_of_ne_zero]
+  rw [ExpArgs.expDynamicCostFromArgs_max_exponent]
+  rw [ExpArgs.expTotalGasFromArgs_max_exponent]
+  decide
+
 end ExpStackExecutionBridge
 
 end EvmAsm.Evm64
