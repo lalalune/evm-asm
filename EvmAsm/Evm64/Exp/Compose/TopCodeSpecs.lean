@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Evm64.Exp.Compose.Base
+import EvmAsm.Evm64.Exp.SquaringCallSeq
 
 namespace EvmAsm.Evm64.Exp.Compose
 
@@ -317,5 +318,51 @@ theorem exp_cond_mul_square_evm_exp_spec_within
   have hret : ((base + 212 : Word) + 4) = base + 216 := by bv_omega
   rw [hret] at h
   exact cpsTripleWithin_extend_code (h := h) (hmono := evmExpCode_cond_mul_square_sub)
+
+/-- Squaring-call marshal prefix and JAL lifted to the top-level EXP code bundle. -/
+theorem exp_squaring_marshal_pair_then_square_evm_exp_spec_within
+    (sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 : Word)
+    (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (base mulTarget : Word)
+    (hmul : ((base + 104) + signExtend21 mulOff : Word) = mulTarget) :
+    cpsTripleWithin 17 (base + 40) mulTarget
+      (evmExpCode base mulOff skipOff backOff)
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       (.x1 ↦ᵣ vOld))
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r3) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ r0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ r1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ r2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ r3) **
+       (.x1 ↦ᵣ (base + 108))) := by
+  have h := EvmAsm.Evm64.exp_loop_squaring_marshal_pair_then_square_spec_within
+    sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 mulOff (base + 40)
+  have htarget : (((base + 40) + 64 : Word) + signExtend21 mulOff) = mulTarget := by
+    rw [show ((base + 40 : Word) + 64) = base + 104 by bv_omega]
+    exact hmul
+  rw [htarget] at h
+  have hret : ((base + 40 : Word) + 68) = base + 108 := by bv_omega
+  rw [hret] at h
+  exact cpsTripleWithin_extend_code (h := h) (hmono := evmExpCode_iter_squaring_sub)
 
 end EvmAsm.Evm64.Exp.Compose
