@@ -160,4 +160,53 @@ theorem exp_loop_back_evm_exp_spec_within (c : Word)
   rw [hnext] at h
   exact cpsBranchWithin_extend_code (h := h) (hmono := evmExpCode_iter_loop_back_sub)
 
+/-- Squaring-call factor-1 marshal sub-block directly included in the
+    top-level EXP code bundle. -/
+theorem evmExpCode_squaring_marshal_factor1_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 40) EvmAsm.Evm64.exp_loop_marshal_factor1) a = some i →
+      (evmExpCode base mulOff skipOff backOff) a = some i := by
+  intro a i h
+  exact evmExpCode_iter_squaring_sub a i
+    (exp_squaring_call_block_code_marshal_factor1_sub a i h)
+
+/-- Squaring-call factor-2 marshal sub-block directly included in the
+    top-level EXP code bundle. -/
+theorem evmExpCode_squaring_marshal_result_to_factor2_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 72)
+      EvmAsm.Evm64.exp_loop_marshal_result_to_factor2) a = some i →
+      (evmExpCode base mulOff skipOff backOff) a = some i := by
+  intro a i h
+  have haddr : (base + 72 : Word) = base + 40 + 32 := by bv_omega
+  rw [haddr] at h
+  exact evmExpCode_iter_squaring_sub a i
+    (exp_squaring_call_block_code_marshal_result_to_factor2_sub a i h)
+
+/-- Squaring-call JAL sub-block directly included in the top-level EXP code
+    bundle. -/
+theorem evmExpCode_squaring_square_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 104)
+      (EvmAsm.Evm64.exp_square_block mulOff)) a = some i →
+      (evmExpCode base mulOff skipOff backOff) a = some i := by
+  intro a i h
+  have haddr : (base + 104 : Word) = base + 40 + 64 := by bv_omega
+  rw [haddr] at h
+  exact evmExpCode_iter_squaring_sub a i
+    (exp_squaring_call_block_code_square_sub a i h)
+
+/-- Squaring-call unmarshal sub-block directly included in the top-level EXP
+    code bundle. -/
+theorem evmExpCode_squaring_un_marshal_and_restore_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 108)
+      EvmAsm.Evm64.exp_loop_un_marshal_and_restore) a = some i →
+      (evmExpCode base mulOff skipOff backOff) a = some i := by
+  intro a i h
+  have haddr : (base + 108 : Word) = base + 40 + 68 := by bv_omega
+  rw [haddr] at h
+  exact evmExpCode_iter_squaring_sub a i
+    (exp_squaring_call_block_code_un_marshal_and_restore_sub a i h)
+
 end EvmAsm.Evm64.Exp.Compose
