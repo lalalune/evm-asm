@@ -571,6 +571,95 @@ theorem exp_squaring_call_block_code_block_subs {base : Word}
     exp_squaring_call_block_code_square_sub,
     exp_squaring_call_block_code_un_marshal_and_restore_sub⟩
 
+/-- CodeReq decomposition for the 6-instruction `exp_iter_body`: bit-test,
+    square JAL, and conditional-multiply branch/call. This body-only handle is
+    the direct target for the `exp_iter_body_spec_within` composition; the
+    existing `expOneIterCode` adds the loop-back tail at `base + 24`. -/
+abbrev expIterBodyCode (base : Word)
+    (mulOff : BitVec 21) (skipOff : BitVec 13) : CodeReq :=
+  CodeReq.unionAll [
+    CodeReq.ofProg base EvmAsm.Evm64.exp_bit_test_block,
+    CodeReq.ofProg (base + 12) (EvmAsm.Evm64.exp_square_block mulOff),
+    CodeReq.ofProg (base + 16) (EvmAsm.Evm64.exp_cond_mul_block mulOff skipOff)
+  ]
+
+theorem expIterBodyCode_bit_test_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_bit_test_block) a = some i →
+      (expIterBodyCode base mulOff skipOff) a = some i := by
+  unfold expIterBodyCode
+  simp only [CodeReq.unionAll_cons]
+  exact CodeReq.union_mono_left
+
+theorem expIterBodyCode_square_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 12)
+      (EvmAsm.Evm64.exp_square_block mulOff)) a = some i →
+      (expIterBodyCode base mulOff skipOff) a = some i := by
+  unfold expIterBodyCode
+  simp only [CodeReq.unionAll_cons]
+  apply CodeReq.mono_union_right
+    (CodeReq.ofProg_disjoint_range (fun k1 k2 hk1 hk2 => by
+      simp only [exp_bit_test_block_len, exp_square_block_len] at hk1 hk2
+      bv_omega))
+  exact CodeReq.union_mono_left
+
+theorem expIterBodyCode_cond_mul_sub {base : Word}
+    {mulOff : BitVec 21} {skipOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 16)
+      (EvmAsm.Evm64.exp_cond_mul_block mulOff skipOff)) a = some i →
+      (expIterBodyCode base mulOff skipOff) a = some i := by
+  unfold expIterBodyCode
+  simp only [CodeReq.unionAll_cons]
+  apply CodeReq.mono_union_right
+    (CodeReq.ofProg_disjoint_range (fun k1 k2 hk1 hk2 => by
+      simp only [exp_bit_test_block_len, exp_cond_mul_block_len] at hk1 hk2
+      bv_omega))
+  apply CodeReq.mono_union_right
+    (CodeReq.ofProg_disjoint_range (fun k1 k2 hk1 hk2 => by
+      simp only [exp_square_block_len, exp_cond_mul_block_len] at hk1 hk2
+      bv_omega))
+  exact CodeReq.union_mono_left
+
+theorem expIterBodyCode_block_subs {base : Word}
+    {mulOff : BitVec 21} {skipOff : BitVec 13} :
+    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_bit_test_block) a = some i →
+      (expIterBodyCode base mulOff skipOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 12)
+      (EvmAsm.Evm64.exp_square_block mulOff)) a = some i →
+      (expIterBodyCode base mulOff skipOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 16)
+      (EvmAsm.Evm64.exp_cond_mul_block mulOff skipOff)) a = some i →
+      (expIterBodyCode base mulOff skipOff) a = some i) := by
+  exact ⟨expIterBodyCode_bit_test_sub, expIterBodyCode_square_sub,
+    expIterBodyCode_cond_mul_sub⟩
+
+theorem expIterBodyCode_eq_ofProg (base : Word)
+    (mulOff : BitVec 21) (skipOff : BitVec 13) :
+    expIterBodyCode base mulOff skipOff =
+      CodeReq.ofProg base (EvmAsm.Evm64.exp_iter_body mulOff skipOff) := by
+  unfold expIterBodyCode
+  unfold EvmAsm.Evm64.exp_iter_body
+  simp only [EvmAsm.Rv64.seq]
+  unfold Program
+  symm
+  rw [CodeReq.ofProg_append]
+  have h12 :
+      base + BitVec.ofNat 64 (4 *
+        (EvmAsm.Evm64.exp_bit_test_block).length) = base + 12 := by
+    rw [EvmAsm.Evm64.exp_bit_test_block_length]
+    rfl
+  rw [h12]
+  rw [CodeReq.ofProg_append]
+  have h16 :
+      (base + 12 : Word) + BitVec.ofNat 64 (4 *
+        (EvmAsm.Evm64.exp_square_block mulOff).length) = base + 16 := by
+    rw [EvmAsm.Evm64.exp_square_block_length]
+    bv_addr
+  rw [h16]
+  simp only [CodeReq.unionAll_cons, CodeReq.unionAll_nil]
+  rw [CodeReq.union_empty_right]
+
 /-- CodeReq decomposition for one EXP loop iteration. This mirrors
     `exp_loop`: bit-test (3 instructions), square call (1), conditional
     multiply branch/call (2), and loop-back (2). -/
@@ -1096,180 +1185,5 @@ theorem evmExpCode_pointer_restore_sub {base : Word}
     (by
       simp only [evm_exp_len]
       norm_num)
-
-theorem evmExpCode_epilogue_sub {base : Word}
-    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
-    ∀ a i, (CodeReq.ofProg (base + 264) EvmAsm.Evm64.exp_epilogue) a = some i →
-      (evmExpCode base mulOff skipOff backOff) a = some i := by
-  rw [evmExpCode_eq_ofProg]
-  exact CodeReq.ofProg_mono_sub base (base + 264)
-    (EvmAsm.Evm64.evm_exp mulOff skipOff backOff)
-    EvmAsm.Evm64.exp_epilogue 66
-    (by bv_omega)
-    (by
-      unfold EvmAsm.Evm64.evm_exp
-      simp only [EvmAsm.Rv64.seq]
-      unfold Program
-      rfl)
-    (by
-      simp only [evm_exp_len, exp_epilogue_len]
-      omega)
-    (by
-      simp only [evm_exp_len]
-      norm_num)
-
-theorem evmExpCode_block_subs {base : Word}
-    {mulOff : BitVec 21} {skipOff backOff : BitVec 13} :
-    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue) a = some i →
-      (evmExpCode base mulOff skipOff backOff) a = some i) ∧
-    (∀ a i, (CodeReq.ofProg (base + 24)
-      EvmAsm.Evm64.exp_loop_pointer_advance) a = some i →
-      (evmExpCode base mulOff skipOff backOff) a = some i) ∧
-    (∀ a i, (expIterBodyFullCode (base + 28) mulOff skipOff backOff) a = some i →
-      (evmExpCode base mulOff skipOff backOff) a = some i) ∧
-    (∀ a i, (CodeReq.ofProg (base + 260)
-      EvmAsm.Evm64.exp_loop_pointer_restore) a = some i →
-      (evmExpCode base mulOff skipOff backOff) a = some i) ∧
-    (∀ a i, (CodeReq.ofProg (base + 264) EvmAsm.Evm64.exp_epilogue) a = some i →
-      (evmExpCode base mulOff skipOff backOff) a = some i) := by
-  exact ⟨evmExpCode_prologue_sub, evmExpCode_pointer_advance_sub,
-    evmExpCode_iter_body_sub, evmExpCode_pointer_restore_sub,
-    evmExpCode_epilogue_sub⟩
-
-theorem exp_loop_back_loop_spec_within (c : Word)
-    (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
-    (base target : Word)
-    (htarget : ((base + 24) + 4 : Word) + signExtend13 backOff = target) :
-    let cNew := c + signExtend12 ((-1 : BitVec 12))
-    cpsBranchWithin 2 (base + 24)
-      (expLoopCode base mulOff skipOff backOff)
-      ((.x9 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)))
-      target ((.x9 ↦ᵣ cNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜cNew ≠ 0⌝)
-      (base + 32) ((.x9 ↦ᵣ cNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜cNew = 0⌝) := by
-  have h := EvmAsm.Evm64.exp_loop_back_spec_within c backOff (base + 24) target htarget
-  have hnext : ((base + 24 : Word) + 8) = base + 32 := by bv_omega
-  rw [hnext] at h
-  exact cpsBranchWithin_extend_code (h := h) (hmono := expLoopCode_loop_back_sub)
-
-theorem exp_bit_test_loop_spec_within
-    (e c v10 : Word) (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
-    (base : Word) :
-    cpsTripleWithin 3 base (base + 12) (expLoopCode base mulOff skipOff backOff)
-      ((.x5 ↦ᵣ e) ** (.x6 ↦ᵣ c) ** (.x10 ↦ᵣ v10))
-      ((.x5 ↦ᵣ (e >>> (1 : BitVec 6).toNat)) **
-       (.x6 ↦ᵣ (c + signExtend12 ((-1) : BitVec 12))) **
-       (.x10 ↦ᵣ (e &&& signExtend12 (1 : BitVec 12)))) := by
-  have h := EvmAsm.Evm64.exp_bit_test_block_spec_within e c v10 base
-  exact cpsTripleWithin_extend_code (h := h) (hmono := expLoopCode_bit_test_sub)
-
-theorem exp_square_loop_spec_within
-    (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
-    (vOld : Word) (base mulTarget : Word)
-    (hmul : ((base + 12) + signExtend21 mulOff : Word) = mulTarget) :
-    cpsTripleWithin 1 (base + 12) mulTarget
-      (expLoopCode base mulOff skipOff backOff)
-      (.x1 ↦ᵣ vOld)
-      (.x1 ↦ᵣ (base + 16)) := by
-  have h := EvmAsm.Evm64.exp_square_block_spec_within mulOff vOld (base + 12)
-  rw [hmul] at h
-  have hret : ((base + 12 : Word) + 4) = base + 16 := by bv_omega
-  rw [hret] at h
-  exact cpsTripleWithin_extend_code (h := h) (hmono := expLoopCode_square_sub)
-
-theorem exp_cond_mul_loop_spec_within
-    (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
-    (v10 vOld : Word) (base skipTarget mulTarget : Word)
-    (hskip : ((base + 16) + signExtend13 skipOff : Word) = skipTarget)
-    (hmul : (((base + 16) + 4) + signExtend21 mulOff : Word) = mulTarget) :
-    cpsBranchWithin 2 (base + 16) (expLoopCode base mulOff skipOff backOff)
-      ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ vOld))
-      skipTarget
-        ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ vOld) **
-          ⌜v10 = 0⌝)
-      mulTarget
-        ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (base + 24)) **
-          ⌜v10 ≠ 0⌝) := by
-  have h := EvmAsm.Evm64.exp_cond_mul_block_spec_within
-    mulOff skipOff v10 vOld (base + 16)
-  rw [hskip, hmul] at h
-  have hret : ((base + 16 : Word) + 8) = base + 24 := by bv_omega
-  rw [hret] at h
-  exact cpsBranchWithin_extend_code (h := h) (hmono := expLoopCode_cond_mul_sub)
-
-/-- Pointer advance lifted to the top-level EXP code bundle. -/
-theorem exp_loop_pointer_advance_evm_exp_spec_within
-    (vOld : Word) (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
-    (base : Word) :
-    cpsTripleWithin 1 (base + 24) (base + 28)
-      (evmExpCode base mulOff skipOff backOff)
-      (.x12 ↦ᵣ vOld)
-      (.x12 ↦ᵣ (vOld + signExtend12 (64 : BitVec 12))) := by
-  have h := EvmAsm.Evm64.exp_loop_pointer_advance_spec_within vOld (base + 24)
-  have hnext : ((base + 24 : Word) + 4) = base + 28 := by bv_omega
-  rw [hnext] at h
-  exact cpsTripleWithin_extend_code (h := h) (hmono := evmExpCode_pointer_advance_sub)
-
-/-- Pointer restore lifted to the top-level EXP code bundle. -/
-theorem exp_loop_pointer_restore_evm_exp_spec_within
-    (vOld : Word) (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
-    (base : Word) :
-    cpsTripleWithin 1 (base + 260) (base + 264)
-      (evmExpCode base mulOff skipOff backOff)
-      (.x12 ↦ᵣ vOld)
-      (.x12 ↦ᵣ (vOld + signExtend12 ((-64) : BitVec 12))) := by
-  have h := EvmAsm.Evm64.exp_loop_pointer_restore_spec_within vOld (base + 260)
-  have hnext : ((base + 260 : Word) + 4) = base + 264 := by bv_omega
-  rw [hnext] at h
-  exact cpsTripleWithin_extend_code (h := h) (hmono := evmExpCode_pointer_restore_sub)
-
-/-- EXP prologue lifted to the top-level EXP code bundle. -/
-theorem exp_prologue_evm_exp_spec_within
-    (sp cOld tOld m0 m1 m2 m3 : Word)
-    (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
-    (base : Word) :
-    cpsTripleWithin 6 base (base + 24)
-      (evmExpCode base mulOff skipOff backOff)
-      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
-       (.x5 ↦ᵣ tOld) ** ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
-       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
-       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
-       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3))
-      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
-       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
-       (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
-       evmWordIs sp (1 : EvmWord)) := by
-  have h := EvmAsm.Evm64.exp_prologue_word_spec_within
-    sp cOld tOld m0 m1 m2 m3 base
-  exact cpsTripleWithin_extend_code (h := h) (hmono := evmExpCode_prologue_sub)
-
-/-- EXP epilogue lifted to the top-level EXP code bundle. -/
-theorem exp_epilogue_evm_exp_spec_within
-    (sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word)
-    (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
-    (base : Word) :
-    cpsTripleWithin 9 (base + 264) (base + 300)
-      (evmExpCode base mulOff skipOff backOff)
-      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
-       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
-       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
-       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
-       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
-       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
-       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
-       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
-       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
-      ((.x2 ↦ᵣ sp) **
-       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
-       (.x5 ↦ᵣ r3) **
-       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
-       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
-       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
-       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
-       evmWordIs (evmSp + 32) (expResultWord r0 r1 r2 r3)) := by
-  have h := EvmAsm.Evm64.exp_epilogue_word_spec_within
-    sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 (base + 264)
-  have hnext : ((base + 264 : Word) + 36) = base + 300 := by bv_omega
-  rw [hnext] at h
-  exact cpsTripleWithin_extend_code (h := h) (hmono := evmExpCode_epilogue_sub)
 
 end EvmAsm.Evm64.Exp.Compose
