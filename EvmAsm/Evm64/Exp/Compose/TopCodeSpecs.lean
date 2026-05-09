@@ -288,4 +288,34 @@ theorem evmExpCode_cond_mul_beq_sub {base : Word}
     (EvmAsm.Evm64.exp_cond_mul_call_with_skip_block_code_beq_sub
       (base + 144) mulOff skipOff a i h)
 
+/-- Squaring-call JAL spec lifted to the top-level EXP code bundle. -/
+theorem exp_squaring_square_evm_exp_spec_within
+    (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (vOld : Word) (base mulTarget : Word)
+    (hmul : ((base + 104) + signExtend21 mulOff : Word) = mulTarget) :
+    cpsTripleWithin 1 (base + 104) mulTarget
+      (evmExpCode base mulOff skipOff backOff)
+      (.x1 ↦ᵣ vOld)
+      (.x1 ↦ᵣ (base + 108)) := by
+  have h := EvmAsm.Evm64.exp_square_block_spec_within mulOff vOld (base + 104)
+  rw [hmul] at h
+  have hret : ((base + 104 : Word) + 4) = base + 108 := by bv_omega
+  rw [hret] at h
+  exact cpsTripleWithin_extend_code (h := h) (hmono := evmExpCode_squaring_square_sub)
+
+/-- Conditional-multiply JAL spec lifted to the top-level EXP code bundle. -/
+theorem exp_cond_mul_square_evm_exp_spec_within
+    (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (vOld : Word) (base mulTarget : Word)
+    (hmul : ((base + 212) + signExtend21 mulOff : Word) = mulTarget) :
+    cpsTripleWithin 1 (base + 212) mulTarget
+      (evmExpCode base mulOff skipOff backOff)
+      (.x1 ↦ᵣ vOld)
+      (.x1 ↦ᵣ (base + 216)) := by
+  have h := EvmAsm.Evm64.exp_square_block_spec_within mulOff vOld (base + 212)
+  rw [hmul] at h
+  have hret : ((base + 212 : Word) + 4) = base + 216 := by bv_omega
+  rw [hret] at h
+  exact cpsTripleWithin_extend_code (h := h) (hmono := evmExpCode_cond_mul_square_sub)
+
 end EvmAsm.Evm64.Exp.Compose
