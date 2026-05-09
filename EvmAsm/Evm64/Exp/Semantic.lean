@@ -8,6 +8,7 @@
 
 import EvmAsm.Evm64.Exp.Args
 import EvmAsm.Evm64.Exp.Spec
+import EvmAsm.Evm64.Exp.StackExecutionBridge
 
 namespace EvmAsm.Evm64
 
@@ -62,6 +63,16 @@ theorem evm_exp_zero_exponent_args_stack_spec_within
   simpa [ExpArgs.expResultFromArgs, ExpArgs.expArgs] using
     evm_exp_zero_exponent_stack_spec_within
       sp evmSp cOld tOld m0 m1 m2 m3 base baseWord (0 : EvmWord) rest
+
+/-- Semantic-facing alias for the pure EXP stack executor's zero-exponent
+    edge case.  Distinctive token: evm_exp_zero_exponent_run_stack?_semantic. -/
+theorem evm_exp_zero_exponent_run_stack_semantic
+    (base : EvmWord) (rest : List EvmWord) :
+    ExpStackExecutionBridge.runExpStack? { stack := base :: 0 :: rest } =
+      some
+        { effects := { stackWords := [1], dynamicGas := 0, totalGas := 10 }
+          stack := rest } := by
+  exact ExpStackExecutionBridge.runExpStack?_zero_exponent base rest
 
 /-- EXP edge case required by GH #92: `0^0 = 1`. -/
 example : EvmWord.exp (0 : EvmWord) (0 : EvmWord) = 1 := by
