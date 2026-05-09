@@ -4,18 +4,11 @@
   256-bit EVM EXP opcode (`EXP(a, b) = a^b mod 2^256`) as a 64-bit RISC-V
   program.
 
-  Skeleton placeholder for GH #92 (beads slice evm-asm-cf2c).
-
-  The actual Program will be defined in the Program-definition slice
-  (evm-asm-ahaz). Per `docs/92-exp-survey.md` the algorithm is binary
-  square-and-multiply over 256 bits of exponent, invoking `evm_mul`
-  (made callable via a `cc_ret` shim) once per squaring and conditionally
-  once per set bit. The full bytecode will be assembled from sub-blocks
-  `exp_prologue`, `exp_square_block`, `exp_cond_mul_block`, `exp_iter_body`,
-  `exp_loop`, `exp_epilogue`.
-
-  This file currently has no `evm_exp` definition; later slices will add
-  it without breaking the umbrella import graph.
+  GH #92 builds EXP by binary square-and-multiply over all 256 exponent bits,
+  invoking `evm_mul` through the callable shim once per squaring and
+  conditionally once per set bit.  This file contains the concrete sub-blocks,
+  loop body, stack-pointer shims, and top-level `evm_exp` assembly used by the
+  composition and semantic proof layers.
 -/
 
 import EvmAsm.Rv64.Program
