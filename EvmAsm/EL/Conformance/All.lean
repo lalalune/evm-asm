@@ -115,7 +115,7 @@ theorem expectedConformanceErrorCount_eq :
   native_decide
 
 theorem successfulConformanceResultCount_eq :
-    successfulConformanceResultCount = 38 := by
+    successfulConformanceResultCount = 39 := by
   native_decide
 
 end Conformance
