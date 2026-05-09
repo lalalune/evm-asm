@@ -389,6 +389,77 @@ theorem exp_squaring_un_marshal_word_evm_exp_spec_within
   exact cpsTripleWithin_extend_code (h := h)
     (hmono := evmExpCode_squaring_un_marshal_and_restore_sub)
 
+/-- Squaring marshal/JAL plus MUL-call spec lifted to the top-level EXP code bundle. -/
+theorem exp_squaring_marshal_pair_then_mul_call_evm_exp_spec_within
+    (sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+      v6 v7 v10 v11 mulTarget : Word)
+    (mulOff : BitVec 21) (skipOff backOff : BitVec 13) (base : Word)
+    (hmt : mulTarget = (base + 104) + signExtend21 mulOff)
+    (hd : CodeReq.Disjoint
+            (evmExpCode base mulOff skipOff backOff)
+            (mul_callable_code mulTarget)) :
+    cpsTripleWithin (17 + 64) (base + 40) ((base + 108) &&& ~~~1)
+      ((evmExpCode base mulOff skipOff backOff).union
+        (mul_callable_code mulTarget))
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
+       (.x1 ↦ᵣ vOld))
+      ((.x2 ↦ᵣ sp) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       evmMulStackPost evmSp (expResultWord r0 r1 r2 r3)
+                              (expResultWord r0 r1 r2 r3) **
+       (.x1 ↦ᵣ (base + 108))) := by
+  have hmt' : mulTarget = ((base + 40) + 64) + signExtend21 mulOff := by
+    rw [show ((base + 40 : Word) + 64) = base + 104 by bv_omega]
+    exact hmt
+  have hdLower : CodeReq.Disjoint
+      (exp_squaring_call_block_code (base + 40) mulOff)
+      (mul_callable_code mulTarget) := by
+    intro a
+    rcases hd a with hev | hmul
+    · left
+      cases hcode : exp_squaring_call_block_code (base + 40) mulOff a with
+      | none => rfl
+      | some instr =>
+          have hev' := evmExpCode_iter_squaring_sub
+            (base := base) (mulOff := mulOff) (skipOff := skipOff)
+            (backOff := backOff) a instr hcode
+          rw [hev] at hev'
+          contradiction
+    · right
+      exact hmul
+  have h := EvmAsm.Evm64.exp_squaring_marshal_pair_then_mul_call_spec_within
+    sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+    v6 v7 v10 v11 mulTarget mulOff (base + 40) hmt' hdLower
+  have hret : (((base + 40 : Word) + 68) &&& ~~~1) = ((base + 108) &&& ~~~1) := by
+    rw [show ((base + 40 : Word) + 68) = base + 108 by bv_omega]
+  rw [hret] at h
+  have hlink : ((base + 40 : Word) + 68) = base + 108 := by bv_omega
+  rw [hlink] at h
+  exact cpsTripleWithin_extend_code (h := h) (hmono := by
+    exact CodeReq.union_sub
+      (fun a i hcode =>
+        CodeReq.union_mono_left a i
+          (evmExpCode_iter_squaring_sub
+            (base := base) (mulOff := mulOff) (skipOff := skipOff)
+            (backOff := backOff) a i hcode))
+      (CodeReq.mono_union_right hd (fun _ _ hcode => hcode)))
+
 /-- Conditional-multiply marshal pair lifted to the top-level EXP code bundle. -/
 theorem exp_cond_mul_marshal_pair_evm_exp_spec_within
     (sp evmSp tOld r0 r1 r2 r3 a0 a1 a2 a3 d0 d1 d2 d3 e0 e1 e2 e3 : Word)
