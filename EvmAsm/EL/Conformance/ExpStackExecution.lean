@@ -65,6 +65,19 @@ def expStackOneExponentVector : TestVector ExpStackState ExpStackResult :=
               totalGas := 60 }
           stack := [99] } }
 
+/-- EXP edge vector required by GH #92: `2^256 = 0 mod 2^256`.
+    Distinctive token: expStackTwo256Vector #92 #125. -/
+def expStackTwo256Vector : TestVector ExpStackState ExpStackResult :=
+  { id := "exp-stack-two-256"
+    input := { stack := [2, 256, 99] }
+    expected :=
+      .value
+        { effects :=
+            { stackWords := [0]
+              dynamicGas := 100
+              totalGas := 110 }
+          stack := [99] } }
+
 def expStackUnderflowVector : TestVector ExpStackState ExpStackResult :=
   { id := "exp-stack-underflow"
     input := { stack := [2] }
@@ -77,6 +90,7 @@ def expStackConformanceTestVectors : List (TestVector ExpStackState ExpStackResu
   [ expStackValueVector
   , expStackZeroZeroVector
   , expStackOneExponentVector
+  , expStackTwo256Vector
   , expStackUnderflowVector
   ]
 
@@ -84,25 +98,30 @@ def expStackConformanceVectorIds : List String :=
   expStackConformanceTestVectors.map TestVector.id
 
 theorem expStackConformanceTestVectors_length :
-    expStackConformanceTestVectors.length = 4 := rfl
+    expStackConformanceTestVectors.length = 5 := rfl
 
 theorem expStackConformanceVectorIds_eq :
     expStackConformanceVectorIds =
       [ "exp-stack-value"
       , "exp-stack-zero-zero"
       , "exp-stack-one-exponent"
+      , "exp-stack-two-256"
       , "exp-stack-underflow"
       ] := rfl
 
 theorem expStackConformanceVectorIds_length :
-    expStackConformanceVectorIds.length = 4 := rfl
+    expStackConformanceVectorIds.length = 5 := rfl
 
 theorem expStackConformanceVectorIds_nodup :
     expStackConformanceVectorIds.Nodup := by
   decide
 
 def expStackValueVectorIds : List String :=
-  ["exp-stack-value", "exp-stack-zero-zero", "exp-stack-one-exponent"]
+  [ "exp-stack-value"
+  , "exp-stack-zero-zero"
+  , "exp-stack-one-exponent"
+  , "exp-stack-two-256"
+  ]
 
 def expStackErrorVectorIds : List String :=
   ["exp-stack-underflow"]
@@ -149,6 +168,16 @@ theorem runExpStack?_one_exponent :
           stack := [(99 : EvmWord)] } := by
   native_decide
 
+theorem runExpStack?_two_256 :
+    runExpStack? { stack := [(2 : EvmWord), (256 : EvmWord), (99 : EvmWord)] } =
+      some
+        { effects :=
+            { stackWords := [(0 : EvmWord)]
+              dynamicGas := 100
+              totalGas := 110 }
+          stack := [(99 : EvmWord)] } := by
+  exact EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?_two_256 [(99 : EvmWord)]
+
 theorem runExpStack?_underflow :
     runExpStack? { stack := [(2 : EvmWord)] } = none := rfl
 
@@ -188,6 +217,18 @@ theorem expStackOneExponentVector_passed :
       stack := [(99 : EvmWord)] }
     runExpStack?_one_exponent
 
+theorem expStackTwo256Vector_passed :
+    checkVector? runExpStack? expStackTwo256Vector = .passed :=
+  checkVector?_some_passed runExpStack?
+    "exp-stack-two-256"
+    { stack := [(2 : EvmWord), (256 : EvmWord), (99 : EvmWord)] }
+    { effects :=
+        { stackWords := [(0 : EvmWord)]
+          dynamicGas := 100
+          totalGas := 110 }
+      stack := [(99 : EvmWord)] }
+    runExpStack?_two_256
+
 theorem expStackUnderflowVector_passed :
     checkVector? runExpStack? expStackUnderflowVector =
       .errored "exp-stack-underflow" "stack-underflow" :=
@@ -204,10 +245,11 @@ def expStackConformanceVectors : List CheckResult :=
 
 theorem expStackConformanceVectors_passed :
     expStackConformanceVectors =
-      [.passed, .passed, .passed, .errored "exp-stack-underflow" "stack-underflow"] := by
+      [.passed, .passed, .passed, .passed, .errored "exp-stack-underflow" "stack-underflow"] := by
   simp [expStackConformanceVectors, expStackConformanceTestVectors,
     expStackValueVector_passed, expStackZeroZeroVector_passed,
-    expStackOneExponentVector_passed, expStackUnderflowVector_passed]
+    expStackOneExponentVector_passed, expStackTwo256Vector_passed,
+    expStackUnderflowVector_passed]
 
 end ExpStackExecution
 end Conformance
