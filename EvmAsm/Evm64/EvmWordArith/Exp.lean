@@ -56,6 +56,10 @@ theorem exp_zero_left_of_toNat_pos (exponent : EvmWord)
     rw [h_zero] at h_pos
     simp at h_pos)
 
+/-- Zero raised to the maximum EVM word exponent remains zero. -/
+theorem exp_zero_left_max : exp 0 (-1 : EvmWord) = 0 := by
+  exact exp_zero_left_of_ne_zero (-1 : EvmWord) (by decide)
+
 /-- Any base raised to the EVM word one is itself. -/
 theorem exp_one_right (base : EvmWord) : exp base 1 = base := by
   apply BitVec.eq_of_toNat_eq
