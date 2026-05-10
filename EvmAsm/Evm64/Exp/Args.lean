@@ -163,6 +163,12 @@ theorem expTotalGasFromArgs_255_exponent (base : EvmWord) :
   change ExpGas.expTotalGasFromExponent (255 : EvmWord) = 60
   exact ExpGas.expTotalGasFromExponent_of_pos_lt_256 (by decide) (by decide)
 
+theorem expDynamicCostFromArgs_255_exponent (base : EvmWord) :
+    expDynamicCostFromArgs (expArgs base 255) = 50 := by
+  unfold expDynamicCostFromArgs expArgs
+  change ExpGas.expDynamicCostFromExponent (255 : EvmWord) = 50
+  exact ExpGas.expDynamicCostFromExponent_of_pos_lt_256 (by decide) (by decide)
+
 @[simp] theorem expDynamicCostFromArgs_zero_exponent (base : EvmWord) :
     expDynamicCostFromArgs (expArgs base 0) = 0 := by
   exact ExpGas.expDynamicCostFromExponent_zero
