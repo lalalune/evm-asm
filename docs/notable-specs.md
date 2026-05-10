@@ -140,6 +140,23 @@ DELEGATECALL, and RETURNDATACOPY.
 | `ReturnData.copyWriteByteAt_at_destination_add_of_in_bounds` | [`ReturnData/CopyMemory.lean#L101`](https://github.com/Verified-zkEVM/evm-asm/blob/d627e409ce71367bb4d6adeb6e070d1d89db62ee/EvmAsm/Evm64/ReturnData/CopyMemory.lean#L101) | In-bounds RETURNDATACOPY writes the selected returndata byte at the destination address. |
 | `ReturnData.copyWriteByteAt_at_destination_add_of_out_of_bounds` | [`ReturnData/CopyMemory.lean#L110`](https://github.com/Verified-zkEVM/evm-asm/blob/d627e409ce71367bb4d6adeb6e070d1d89db62ee/EvmAsm/Evm64/ReturnData/CopyMemory.lean#L110) | Out-of-bounds RETURNDATACOPY writes zero at the destination address. |
 
+### Interpreter simulation bridges
+
+The interpreter simulation layer relates the concrete handler/interpreter loop
+to the executable-spec handler surface. These bridges are the reusable
+entry-points for per-handler proofs and whole-loop conformance reasoning.
+
+| Theorem | Defined at | Meaning |
+|---|---|---|
+| `InterpreterSimulation.stepWithHandler_matchesSpec` | [`InterpreterSimulation.lean#L50`](https://github.com/Verified-zkEVM/evm-asm/blob/d627e409ce71367bb4d6adeb6e070d1d89db62ee/EvmAsm/Evm64/InterpreterSimulation.lean#L50) | One interpreter step with matching handlers agrees with the executable-spec step. |
+| `InterpreterSimulation.loopFuel_matchesSpec` | [`InterpreterSimulation.lean#L79`](https://github.com/Verified-zkEVM/evm-asm/blob/d627e409ce71367bb4d6adeb6e070d1d89db62ee/EvmAsm/Evm64/InterpreterSimulation.lean#L79) | Fuel-bounded interpreter execution agrees with the executable-spec loop. |
+| `InterpreterTraceSimulation.loopTrace_matchesSpec` | [`InterpreterTraceSimulation.lean#L20`](https://github.com/Verified-zkEVM/evm-asm/blob/d627e409ce71367bb4d6adeb6e070d1d89db62ee/EvmAsm/Evm64/InterpreterTraceSimulation.lean#L20) | Interpreter traces agree with executable-spec traces under a handler match. |
+| `InterpreterTraceSimulation.loopFuelAndTrace_matchesSpec` | [`InterpreterTraceSimulation.lean#L56`](https://github.com/Verified-zkEVM/evm-asm/blob/d627e409ce71367bb4d6adeb6e070d1d89db62ee/EvmAsm/Evm64/InterpreterTraceSimulation.lean#L56) | Joint fuel-loop and trace execution agree with the executable spec. |
+| `InterpreterLoopSimulation.loopFuel_eq_of_loopResultsMatch` | [`InterpreterLoopSimulation.lean#L48`](https://github.com/Verified-zkEVM/evm-asm/blob/d627e409ce71367bb4d6adeb6e070d1d89db62ee/EvmAsm/Evm64/InterpreterLoopSimulation.lean#L48) | `LoopResultsMatch` transports whole loop-fuel results. |
+| `HandlerLoopSimulationBridge.loopFuel_table_matchesSpec_at` | [`HandlerLoopSimulationBridge.lean#L169`](https://github.com/Verified-zkEVM/evm-asm/blob/d627e409ce71367bb4d6adeb6e070d1d89db62ee/EvmAsm/Evm64/HandlerLoopSimulationBridge.lean#L169) | Handler-table dispatch agrees with the executable spec for a fixed initial state and fuel. |
+| `HandlerLoopSimulationBridge.loopFuelAndTrace_table_matchesSpec_at` | [`HandlerLoopSimulationBridge.lean#L356`](https://github.com/Verified-zkEVM/evm-asm/blob/d627e409ce71367bb4d6adeb6e070d1d89db62ee/EvmAsm/Evm64/HandlerLoopSimulationBridge.lean#L356) | Handler-table fuel+trace execution agrees with the executable spec for a fixed initial state. |
+| `HandlerLoopSimulationBridge.loopResultsMatch_table_matchesSpec` | [`HandlerLoopSimulationBridge.lean#L537`](https://github.com/Verified-zkEVM/evm-asm/blob/d627e409ce71367bb4d6adeb6e070d1d89db62ee/EvmAsm/Evm64/HandlerLoopSimulationBridge.lean#L537) | Bundled `LoopResultsMatch` entry point for handler-table/spec agreement. |
+
 ## EvmWord arithmetic correctness
 
 The pure-Lean correctness theorems that say each `EvmWord.<op>` matches the
