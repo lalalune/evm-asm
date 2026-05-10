@@ -180,6 +180,15 @@ theorem runExpStack?_effects_stackWords_length
               cases h_run
               simp [resultCount, ExpArgs.resultCount]
 
+theorem runExpStack?_effects_stackWords_ne_nil
+    {state : ExpStackState} {out : ExpStackResult}
+    (h_run : runExpStack? state = some out) :
+    out.effects.stackWords ≠ [] := by
+  have h_len := runExpStack?_effects_stackWords_length h_run
+  intro h_nil
+  rw [h_nil] at h_len
+  simp [resultCount, ExpArgs.resultCount] at h_len
+
 theorem runExpStack?_stack_length
     {state : ExpStackState} {out : ExpStackResult}
     (h_run : runExpStack? state = some out) :
