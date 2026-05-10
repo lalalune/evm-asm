@@ -338,8 +338,9 @@ theorem expStackConformanceVectors_passed :
       ] := by
   simp [expStackConformanceVectors, expStackConformanceTestVectors,
     expStackValueVector_passed, expStackZeroZeroVector_passed,
-    expStackOneExponentVector_passed, expStackMaxOneExponentVector_passed,
-    expStackTwo128Vector_passed, expStackTwo64Vector_passed,
+    expStackOneExponentVector_passed, expStackTwo128Vector_passed,
+    expStackMaxOneExponentVector_passed,
+    expStackTwo64Vector_passed,
     expStackUnderflowVector_passed]
 
 end ExpStackExecution
