@@ -107,6 +107,11 @@ theorem expTotalGasFromExponent_one :
     expTotalGasFromExponent (1 : EvmWord) = 60 := by
   exact expTotalGasFromExponent_of_pos_lt_256 (by decide) (by decide)
 
+theorem expDynamicCostFromExponent_256 :
+    expDynamicCostFromExponent (256 : EvmWord) = 100 := by
+  unfold expDynamicCostFromExponent expGasPerByte
+  rw [exponentByteLength_256]
+
 theorem expTotalGasFromExponent_256 :
     expTotalGasFromExponent (256 : EvmWord) = 110 := by
   unfold expTotalGasFromExponent expDynamicCostFromExponent expGasPerByte
