@@ -72,6 +72,15 @@ theorem decodeExpStack?_base_exponent_of_some
   subst h_args
   exact ⟨rest, h_stack⟩
 
+theorem decodeExpStack?_length_ge_two_of_some
+    {stack : List EvmWord} {args : ExpArgs.Args}
+    (h : decodeExpStack? stack = some args) :
+    2 ≤ stack.length := by
+  obtain ⟨base, exponent, rest, h_stack, _h_args⟩ :=
+    decodeExpStack?_eq_some_iff.mp h
+  subst h_stack
+  simp
+
 theorem decodeExpStack?_eq_none_iff
     {stack : List EvmWord} :
     decodeExpStack? stack = none ↔
