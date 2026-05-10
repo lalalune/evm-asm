@@ -34,4 +34,31 @@ theorem exp_squaring_un_marshal_word_evm_exp_union_spec_within
     intro a i hcode
     exact CodeReq.union_mono_left a i hcode)
 
+/-- Ownership-form variant of the squaring unmarshal word spec.  This matches
+    the `regOwn .x5` produced by `mul_callable` in the squaring path. -/
+theorem exp_squaring_un_marshal_word_evm_exp_union_regOwn5_spec_within
+    (sp evmSp r0 r1 r2 r3 mulTarget : Word) (w : EvmWord)
+    (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (base : Word) :
+    cpsTripleWithin 9 (base + 108) (base + 144)
+      ((evmExpCode base mulOff skipOff backOff).union
+        (mul_callable_code mulTarget))
+      (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ (evmSp + 32)) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        evmWordIs (evmSp + 32) w) ** regOwn .x5)
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ w.getLimbN 3) **
+       evmWordIs sp w ** evmWordIs (evmSp + 32) w) := by
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn ?_
+  intro tOld
+  have h := exp_squaring_un_marshal_word_evm_exp_union_spec_within
+    sp evmSp tOld r0 r1 r2 r3 mulTarget w mulOff skipOff backOff base
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      xperm_hyp hp)
+    (fun _ hp => hp)
+    h
+
 end EvmAsm.Evm64.Exp.Compose
