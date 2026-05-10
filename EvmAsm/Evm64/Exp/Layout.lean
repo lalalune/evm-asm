@@ -95,6 +95,13 @@ theorem ExpScratchpadLayout.valid_iff_true
     today's hardcoded `sp + 0 .. sp + 24` accumulator cells. -/
 def canonicalExpScratchpadLayout : ExpScratchpadLayout := {}
 
+/-- Every current EXP scratchpad layout is the canonical empty layout. -/
+theorem ExpScratchpadLayout.eq_canonical
+    (L : ExpScratchpadLayout) :
+    L = canonicalExpScratchpadLayout := by
+  cases L
+  rfl
+
 /-- The canonical EXP scratchpad layout is `Valid`. Trivially discharged
     because the layout struct is empty. -/
 theorem canonicalExpScratchpadLayout_valid :
