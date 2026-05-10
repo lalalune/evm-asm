@@ -60,6 +60,10 @@ theorem exp_zero_left_of_toNat_pos (exponent : EvmWord)
     rw [h_zero] at h_pos
     simp at h_pos)
 
+/-- Zero raised to one remains zero. -/
+theorem exp_zero_one : exp (0 : EvmWord) 1 = 0 := by
+  exact exp_zero_left_of_ne_zero 1 (by decide)
+
 /-- Zero raised to the maximum EVM word exponent remains zero. -/
 theorem exp_zero_left_max : exp 0 (-1 : EvmWord) = 0 := by
   exact exp_zero_left_of_ne_zero (-1 : EvmWord) (by decide)
