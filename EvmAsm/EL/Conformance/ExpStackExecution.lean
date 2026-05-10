@@ -66,6 +66,9 @@ def expStackOneExponentVector : TestVector ExpStackState ExpStackResult :=
               totalGas := 60 }
           stack := [99] } }
 
+/-- EXP with base one and max exponent returns one while charging max
+    exponent-byte gas.
+    Distinctive token: exp-stack-one-max-exponent #92 #125. -/
 def expStackOneMaxExponentVector : TestVector ExpStackState ExpStackResult :=
   { id := "exp-stack-one-max-exponent"
     input := { stack := [1, (-1 : EvmWord), 99] }
@@ -387,8 +390,7 @@ theorem expStackConformanceVectors_passed :
   simp [expStackConformanceVectors, expStackConformanceTestVectors,
     expStackValueVector_passed, expStackZeroZeroVector_passed,
     expStackOneExponentVector_passed, expStackOneMaxExponentVector_passed,
-    expStackTwo128Vector_passed,
-    expStackMaxOneExponentVector_passed,
+    expStackTwo128Vector_passed, expStackMaxOneExponentVector_passed,
     expStackTwo64Vector_passed,
     expStackUnderflowVector_passed]
 
