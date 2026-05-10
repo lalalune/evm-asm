@@ -303,6 +303,32 @@ theorem dividendSign_spec_in_sdivCode
       EvmAsm.Evm64.evm_sdivDividendTopLimbOff sp sOld dividendTop
       (base + dividendSignOff) (by decide))
 
+theorem saveRa_then_dividendSign_spec_in_sdivCode
+    (vRa vSavedOld sp sOld dividendTop : Word) (base : Word) :
+    cpsTripleWithin 3 base ((base + dividendSignOff) + 8) (sdivCode base)
+      (((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ vSavedOld)) **
+       ((.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sOld) **
+        ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+          dividendTop)))
+      (((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))) **
+       ((.x12 ↦ᵣ sp) **
+        (.x8 ↦ᵣ (dividendTop >>> (63 : BitVec 6).toNat)) **
+        ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+          dividendTop))) := by
+  have hSave :=
+    cpsTripleWithin_frameR
+      (((.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sOld) **
+        ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+          dividendTop)))
+      (by pcFree)
+      (saveRa_spec_in_sdivCode vRa vSavedOld base)
+  have hSign :=
+    cpsTripleWithin_frameL
+      (((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))))
+      (by pcFree)
+      (dividendSign_spec_in_sdivCode sp sOld dividendTop base)
+  exact cpsTripleWithin_seq_same_cr hSave hSign
+
 theorem divisorSign_spec_in_sdivCode
     (sp sOld divisorTop : Word) (base : Word) :
     cpsTripleWithin 2 (base + divisorSignOff) ((base + divisorSignOff) + 8)
@@ -328,6 +354,88 @@ theorem divisorSign_spec_in_sdivCode
     (EvmAsm.Evm64.evm_sdiv_sign_bit_block_spec_within .x12 .x9
       EvmAsm.Evm64.evm_sdivDivisorTopLimbOff sp sOld divisorTop
       (base + divisorSignOff) (by decide))
+
+theorem saveRa_dividendSign_then_divisorSign_spec_in_sdivCode
+    (vRa vSavedOld sp sDividendOld dividendTop sDivisorOld divisorTop : Word)
+    (base : Word) :
+    cpsTripleWithin 5 base ((base + divisorSignOff) + 8) (sdivCode base)
+      ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ vSavedOld)) **
+        ((.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sDividendOld) **
+         ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+           dividendTop))) **
+       ((.x9 ↦ᵣ sDivisorOld) **
+        ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
+          divisorTop)))
+      ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))) **
+        ((.x8 ↦ᵣ (dividendTop >>> (63 : BitVec 6).toNat)) **
+         ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+           dividendTop))) **
+       ((.x12 ↦ᵣ sp) **
+        (.x9 ↦ᵣ (divisorTop >>> (63 : BitVec 6).toNat)) **
+        ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
+          divisorTop))) := by
+  let pre : Assertion :=
+    ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ vSavedOld)) **
+      ((.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sDividendOld) **
+       ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+         dividendTop))) **
+     ((.x9 ↦ᵣ sDivisorOld) **
+      ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
+        divisorTop)))
+  let mid : Assertion :=
+    ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))) **
+      ((.x12 ↦ᵣ sp) **
+       (.x8 ↦ᵣ (dividendTop >>> (63 : BitVec 6).toNat)) **
+       ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+         dividendTop))) **
+     ((.x9 ↦ᵣ sDivisorOld) **
+      ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
+        divisorTop)))
+  let midDivisor : Assertion :=
+    ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))) **
+      ((.x8 ↦ᵣ (dividendTop >>> (63 : BitVec 6).toNat)) **
+       ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+         dividendTop))) **
+     ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ sDivisorOld) **
+      ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
+        divisorTop)))
+  let post : Assertion :=
+    ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))) **
+      ((.x8 ↦ᵣ (dividendTop >>> (63 : BitVec 6).toNat)) **
+       ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+         dividendTop))) **
+     ((.x12 ↦ᵣ sp) **
+      (.x9 ↦ᵣ (divisorTop >>> (63 : BitVec 6).toNat)) **
+      ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
+        divisorTop)))
+  have hPrefix : cpsTripleWithin 3 base (base + divisorSignOff)
+      (sdivCode base) pre mid := by
+    dsimp [pre, mid]
+    simpa [dividendSignOff, divisorSignOff, BitVec.add_assoc] using
+      (cpsTripleWithin_frameR
+        ((.x9 ↦ᵣ sDivisorOld) **
+         ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
+          divisorTop))
+        (by pcFree)
+        (saveRa_then_dividendSign_spec_in_sdivCode
+          vRa vSavedOld sp sDividendOld dividendTop base))
+  have hDivisor : cpsTripleWithin 2 (base + divisorSignOff)
+      ((base + divisorSignOff) + 8) (sdivCode base) midDivisor post := by
+    dsimp [midDivisor, post]
+    exact
+      cpsTripleWithin_frameL
+        (((.x1 ↦ᵣ vRa) **
+          (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))) **
+         ((.x8 ↦ᵣ (dividendTop >>> (63 : BitVec 6).toNat)) **
+          ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+            dividendTop)))
+        (by pcFree)
+        (divisorSign_spec_in_sdivCode sp sDivisorOld divisorTop base)
+  have hSeq := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      dsimp [mid, midDivisor] at hp ⊢
+      xperm_hyp hp) hPrefix hDivisor
+  simpa [pre, post] using hSeq
 
 theorem dividendAbs_spec_in_sdivCode
     (sp sign maskOld valueOld carryOld limb0 limb1 limb2 limb3 : Word)
@@ -444,6 +552,54 @@ theorem divCall_spec_in_sdivCode
   exact cpsTripleWithin_extend_code hmono
     (EvmAsm.Evm64.evm_sdiv_div_call_block_spec_within
       EvmAsm.Evm64.evm_sdivCallOff vOld (base + divCallOff))
+
+theorem resultSignFix_spec_in_sdivCode
+    (sp sign maskOld valueOld carryOld limb0 limb1 limb2 limb3 : Word)
+    (base : Word) :
+    let mem0 := sp + signExtend12 (32 : BitVec 12)
+    let mem1 := sp + signExtend12 (40 : BitVec 12)
+    let mem2 := sp + signExtend12 (48 : BitVec 12)
+    let mem3 := sp + signExtend12 (56 : BitVec 12)
+    let mask := (0 : Word) - sign
+    let xored0 := limb0 ^^^ mask
+    let sum0 := xored0 + sign
+    let carry0 := if BitVec.ult sum0 sign then (1 : Word) else 0
+    let xored1 := limb1 ^^^ mask
+    let sum1 := xored1 + carry0
+    let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
+    let xored2 := limb2 ^^^ mask
+    let sum2 := xored2 + carry1
+    let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
+    let xored3 := limb3 ^^^ mask
+    let sum3 := xored3 + carry2
+    let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
+    cpsTripleWithin 21 (base + resultSignFixOff)
+      ((base + resultSignFixOff) + 84) (sdivCode base)
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sign) **
+       (.x10 ↦ᵣ maskOld) ** (.x7 ↦ᵣ valueOld) ** (.x11 ↦ᵣ carryOld) **
+       (mem0 ↦ₘ limb0) ** (mem1 ↦ₘ limb1) **
+       (mem2 ↦ₘ limb2) ** (mem3 ↦ₘ limb3))
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sign) **
+       (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
+       (mem0 ↦ₘ sum0) ** (mem1 ↦ₘ sum1) **
+       (mem2 ↦ₘ sum2) ** (mem3 ↦ₘ sum3)) := by
+  intro mem0 mem1 mem2 mem3 mask xored0 sum0 carry0 xored1 sum1 carry1
+    xored2 sum2 carry2 xored3 sum3 carry3
+  have hmono :
+      ∀ a i,
+        (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_code
+          .x12 .x8 .x10 .x7 .x11 32 40 48 56
+          (base + resultSignFixOff)) a = some i →
+        (sdivCode base) a = some i := by
+    intro a i h
+    exact sdivCode_resultSignFix_sub (base := base) a i
+      (by simpa [resultSignFixCode,
+        EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_code] using h)
+  exact cpsTripleWithin_extend_code hmono
+    (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_spec_within
+      .x12 .x8 .x10 .x7 .x11 32 40 48 56
+      sp sign maskOld valueOld carryOld limb0 limb1 limb2 limb3
+      (base + resultSignFixOff) (by decide) (by decide) (by decide))
 
 theorem signXor_spec_in_sdivCode
     (signDividend signDivisor : Word) (base : Word) :
