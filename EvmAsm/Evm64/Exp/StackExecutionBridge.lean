@@ -319,6 +319,14 @@ theorem runExpStack?_one_exponent
   rw [ExpArgs.expDynamicCostFromArgs_one_exponent]
   rw [ExpArgs.expTotalGasFromArgs_one_exponent]
 
+theorem runExpStack?_zero_one
+    (rest : List EvmWord) :
+    runExpStack? { stack := (0 : EvmWord) :: 1 :: rest } =
+      some
+        { effects := { stackWords := [0], dynamicGas := 50, totalGas := 60 }
+          stack := rest } := by
+  exact runExpStack?_one_exponent 0 rest
+
 theorem runExpStack?_max_one_exponent
     (rest : List EvmWord) :
     runExpStack? { stack := (-1 : EvmWord) :: 1 :: rest } =
