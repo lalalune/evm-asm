@@ -30,6 +30,7 @@ deriving instance DecidableEq for
 def runExpStack? (input : ExpStackState) : Option ExpStackResult :=
   EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack? input
 
+/-- EXP with stack [2, 8, 99] returns 256 on top of [99]. -/
 def expStackValueVector : TestVector ExpStackState ExpStackResult :=
   { id := "exp-stack-value"
     input := { stack := [2, 8, 99] }
@@ -41,6 +42,7 @@ def expStackValueVector : TestVector ExpStackState ExpStackResult :=
               totalGas := 60 }
           stack := [99] } }
 
+/-- EXP with zero base and zero exponent returns 1. -/
 def expStackZeroZeroVector : TestVector ExpStackState ExpStackResult :=
   { id := "exp-stack-zero-zero"
     input := { stack := [0, 0, 99] }
@@ -52,8 +54,7 @@ def expStackZeroZeroVector : TestVector ExpStackState ExpStackResult :=
               totalGas := 10 }
           stack := [99] } }
 
-/-- EXP with exponent one returns the base word.
-    Distinctive token: expStackOneExponentVector #92 #125. -/
+/-- EXP with exponent one returns the base. -/
 def expStackOneExponentVector : TestVector ExpStackState ExpStackResult :=
   { id := "exp-stack-one-exponent"
     input := { stack := [7, 1, 99] }
@@ -78,6 +79,30 @@ def expStackTwo256Vector : TestVector ExpStackState ExpStackResult :=
               totalGas := 110 }
           stack := [99] } }
 
+/-- EXP with max base and exponent one returns the max word.
+    Distinctive token: exp-stack-max-one-exponent #92 #125. -/
+def expStackMaxOneExponentVector : TestVector ExpStackState ExpStackResult :=
+  { id := "exp-stack-max-one-exponent"
+    input := { stack := [(-1 : EvmWord), 1, 99] }
+    expected :=
+      .value
+        { effects :=
+            { stackWords := [(-1 : EvmWord)]
+              dynamicGas := 50
+              totalGas := 60 }
+          stack := [99] } }
+
+def expStackTwo64Vector : TestVector ExpStackState ExpStackResult :=
+  { id := "exp-stack-two-64"
+    input := { stack := [2, 64, 99] }
+    expected :=
+      .value
+        { effects :=
+            { stackWords := [BitVec.ofNat 256 (2^64)]
+              dynamicGas := 50
+              totalGas := 60 }
+          stack := [99] } }
+
 def expStackUnderflowVector : TestVector ExpStackState ExpStackResult :=
   { id := "exp-stack-underflow"
     input := { stack := [2] }
@@ -91,6 +116,8 @@ def expStackConformanceTestVectors : List (TestVector ExpStackState ExpStackResu
   , expStackZeroZeroVector
   , expStackOneExponentVector
   , expStackTwo256Vector
+  , expStackMaxOneExponentVector
+  , expStackTwo64Vector
   , expStackUnderflowVector
   ]
 
@@ -98,7 +125,7 @@ def expStackConformanceVectorIds : List String :=
   expStackConformanceTestVectors.map TestVector.id
 
 theorem expStackConformanceTestVectors_length :
-    expStackConformanceTestVectors.length = 5 := rfl
+    expStackConformanceTestVectors.length = 7 := rfl
 
 theorem expStackConformanceVectorIds_eq :
     expStackConformanceVectorIds =
@@ -106,11 +133,13 @@ theorem expStackConformanceVectorIds_eq :
       , "exp-stack-zero-zero"
       , "exp-stack-one-exponent"
       , "exp-stack-two-256"
+      , "exp-stack-max-one-exponent"
+      , "exp-stack-two-64"
       , "exp-stack-underflow"
       ] := rfl
 
 theorem expStackConformanceVectorIds_length :
-    expStackConformanceVectorIds.length = 5 := rfl
+    expStackConformanceVectorIds.length = 7 := rfl
 
 theorem expStackConformanceVectorIds_nodup :
     expStackConformanceVectorIds.Nodup := by
@@ -121,6 +150,8 @@ def expStackValueVectorIds : List String :=
   , "exp-stack-zero-zero"
   , "exp-stack-one-exponent"
   , "exp-stack-two-256"
+  , "exp-stack-max-one-exponent"
+  , "exp-stack-two-64"
   ]
 
 def expStackErrorVectorIds : List String :=
@@ -178,6 +209,36 @@ theorem runExpStack?_two_256 :
           stack := [(99 : EvmWord)] } := by
   exact EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?_two_256 [(99 : EvmWord)]
 
+theorem runExpStack?_max_one_exponent :
+    runExpStack?
+        { stack := [(-1 : EvmWord), (1 : EvmWord), (99 : EvmWord)] } =
+      some
+        { effects :=
+            { stackWords := [(-1 : EvmWord)]
+              dynamicGas := 50
+              totalGas := 60 }
+          stack := [(99 : EvmWord)] } := by
+  change EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?
+      { stack := [(-1 : EvmWord), (1 : EvmWord), (99 : EvmWord)] } =
+    some
+      { effects :=
+          { stackWords := [(-1 : EvmWord)]
+            dynamicGas := 50
+            totalGas := 60 }
+        stack := [(99 : EvmWord)] }
+  exact EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?_max_one_exponent
+    [(99 : EvmWord)]
+
+theorem runExpStack?_two_64 :
+    runExpStack? { stack := [(2 : EvmWord), (64 : EvmWord), (99 : EvmWord)] } =
+      some
+        { effects :=
+            { stackWords := [BitVec.ofNat 256 (2^64)]
+              dynamicGas := 50
+              totalGas := 60 }
+          stack := [(99 : EvmWord)] } := by
+  native_decide
+
 theorem runExpStack?_underflow :
     runExpStack? { stack := [(2 : EvmWord)] } = none := rfl
 
@@ -229,6 +290,30 @@ theorem expStackTwo256Vector_passed :
       stack := [(99 : EvmWord)] }
     runExpStack?_two_256
 
+theorem expStackMaxOneExponentVector_passed :
+    checkVector? runExpStack? expStackMaxOneExponentVector = .passed :=
+  checkVector?_some_passed runExpStack?
+    "exp-stack-max-one-exponent"
+    { stack := [(-1 : EvmWord), (1 : EvmWord), (99 : EvmWord)] }
+    { effects :=
+        { stackWords := [(-1 : EvmWord)]
+          dynamicGas := 50
+          totalGas := 60 }
+      stack := [(99 : EvmWord)] }
+    runExpStack?_max_one_exponent
+
+theorem expStackTwo64Vector_passed :
+    checkVector? runExpStack? expStackTwo64Vector = .passed :=
+  checkVector?_some_passed runExpStack?
+    "exp-stack-two-64"
+    { stack := [(2 : EvmWord), (64 : EvmWord), (99 : EvmWord)] }
+    { effects :=
+        { stackWords := [BitVec.ofNat 256 (2^64)]
+          dynamicGas := 50
+          totalGas := 60 }
+      stack := [(99 : EvmWord)] }
+    runExpStack?_two_64
+
 theorem expStackUnderflowVector_passed :
     checkVector? runExpStack? expStackUnderflowVector =
       .errored "exp-stack-underflow" "stack-underflow" :=
@@ -245,10 +330,19 @@ def expStackConformanceVectors : List CheckResult :=
 
 theorem expStackConformanceVectors_passed :
     expStackConformanceVectors =
-      [.passed, .passed, .passed, .passed, .errored "exp-stack-underflow" "stack-underflow"] := by
+      [ .passed
+      , .passed
+      , .passed
+      , .passed
+      , .passed
+      , .passed
+      , .errored "exp-stack-underflow" "stack-underflow"
+      ] := by
   simp [expStackConformanceVectors, expStackConformanceTestVectors,
     expStackValueVector_passed, expStackZeroZeroVector_passed,
     expStackOneExponentVector_passed, expStackTwo256Vector_passed,
+    expStackMaxOneExponentVector_passed,
+    expStackTwo64Vector_passed,
     expStackUnderflowVector_passed]
 
 end ExpStackExecution
