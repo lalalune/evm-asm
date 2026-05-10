@@ -445,6 +445,54 @@ theorem divCall_spec_in_sdivCode
     (EvmAsm.Evm64.evm_sdiv_div_call_block_spec_within
       EvmAsm.Evm64.evm_sdivCallOff vOld (base + divCallOff))
 
+theorem resultSignFix_spec_in_sdivCode
+    (sp sign maskOld valueOld carryOld limb0 limb1 limb2 limb3 : Word)
+    (base : Word) :
+    let mem0 := sp + signExtend12 (32 : BitVec 12)
+    let mem1 := sp + signExtend12 (40 : BitVec 12)
+    let mem2 := sp + signExtend12 (48 : BitVec 12)
+    let mem3 := sp + signExtend12 (56 : BitVec 12)
+    let mask := (0 : Word) - sign
+    let xored0 := limb0 ^^^ mask
+    let sum0 := xored0 + sign
+    let carry0 := if BitVec.ult sum0 sign then (1 : Word) else 0
+    let xored1 := limb1 ^^^ mask
+    let sum1 := xored1 + carry0
+    let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
+    let xored2 := limb2 ^^^ mask
+    let sum2 := xored2 + carry1
+    let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
+    let xored3 := limb3 ^^^ mask
+    let sum3 := xored3 + carry2
+    let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
+    cpsTripleWithin 21 (base + resultSignFixOff)
+      ((base + resultSignFixOff) + 84) (sdivCode base)
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sign) **
+       (.x10 ↦ᵣ maskOld) ** (.x7 ↦ᵣ valueOld) ** (.x11 ↦ᵣ carryOld) **
+       (mem0 ↦ₘ limb0) ** (mem1 ↦ₘ limb1) **
+       (mem2 ↦ₘ limb2) ** (mem3 ↦ₘ limb3))
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sign) **
+       (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
+       (mem0 ↦ₘ sum0) ** (mem1 ↦ₘ sum1) **
+       (mem2 ↦ₘ sum2) ** (mem3 ↦ₘ sum3)) := by
+  intro mem0 mem1 mem2 mem3 mask xored0 sum0 carry0 xored1 sum1 carry1
+    xored2 sum2 carry2 xored3 sum3 carry3
+  have hmono :
+      ∀ a i,
+        (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_code
+          .x12 .x8 .x10 .x7 .x11 32 40 48 56
+          (base + resultSignFixOff)) a = some i →
+        (sdivCode base) a = some i := by
+    intro a i h
+    exact sdivCode_resultSignFix_sub (base := base) a i
+      (by simpa [resultSignFixCode,
+        EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_code] using h)
+  exact cpsTripleWithin_extend_code hmono
+    (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_spec_within
+      .x12 .x8 .x10 .x7 .x11 32 40 48 56
+      sp sign maskOld valueOld carryOld limb0 limb1 limb2 limb3
+      (base + resultSignFixOff) (by decide) (by decide) (by decide))
+
 theorem signXor_spec_in_sdivCode
     (signDividend signDivisor : Word) (base : Word) :
     cpsTripleWithin 1 (base + signXorOff) ((base + signXorOff) + 4)
