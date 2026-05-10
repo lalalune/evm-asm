@@ -247,5 +247,4 @@ theorem sdivCode_block_subs {base : Word} :
     sdivCode_divisorAbs_sub, sdivCode_signXor_sub, sdivCode_divCall_sub,
     sdivCode_resultSignFix_sub, sdivCode_savedRaRet_sub,
     sdivCode_divCallable_sub⟩
-
 end EvmAsm.Evm64.SDiv.Compose
