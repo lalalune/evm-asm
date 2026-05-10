@@ -45,6 +45,22 @@ theorem decodeExpStack?_eq_some_iff
   · rintro ⟨base, exponent, rest, rfl, rfl⟩
     rfl
 
+theorem decodeExpStack?_eq_some_expArgs_iff
+    {stack : List EvmWord} {base exponent : EvmWord} :
+    decodeExpStack? stack = some (ExpArgs.expArgs base exponent) ↔
+      ∃ rest, stack = base :: exponent :: rest := by
+  constructor
+  · intro h
+    obtain ⟨base', exponent', rest, h_stack, h_args⟩ :=
+      decodeExpStack?_eq_some_iff.mp h
+    simp [ExpArgs.expArgs] at h_args
+    rcases h_args with ⟨h_base, h_exponent⟩
+    subst h_base
+    subst h_exponent
+    exact ⟨rest, h_stack⟩
+  · rintro ⟨rest, rfl⟩
+    rfl
+
 theorem decodeExpStack?_base_of_some
     {stack : List EvmWord} {args : ExpArgs.Args}
     (h : decodeExpStack? stack = some args) :
