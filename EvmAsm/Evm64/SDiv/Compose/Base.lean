@@ -64,6 +64,19 @@ theorem sdiv_wrapper_block_byte_offsets :
     wrapperEndOff = 284 := by
   native_decide
 
+/-- Successive fall-through byte offsets for the concrete SDIV wrapper. -/
+theorem sdiv_wrapper_fallthrough_offsets :
+    saveRaOff + 4 = dividendSignOff ∧
+    dividendSignOff + 8 = divisorSignOff ∧
+    divisorSignOff + 8 = dividendAbsOff ∧
+    dividendAbsOff + 84 = divisorAbsOff ∧
+    divisorAbsOff + 84 = signXorOff ∧
+    signXorOff + 4 = divCallOff ∧
+    divCallOff + 4 = resultSignFixOff ∧
+    resultSignFixOff + 84 = savedRaRetOff ∧
+    savedRaRetOff + 4 = wrapperEndOff := by
+  native_decide
+
 /-- Full SDIV code region handle: wrapper followed by `evm_div_callable`. -/
 abbrev sdivCode (base : Word) : CodeReq :=
   CodeReq.ofProg base EvmAsm.Evm64.evm_sdiv
