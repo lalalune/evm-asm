@@ -68,6 +68,9 @@ theorem exponentByteLength_of_pos_lt_256 {exponent : EvmWord}
 theorem exponentByteLength_one : exponentByteLength (1 : EvmWord) = 1 := by
   exact exponentByteLength_of_pos_lt_256 (by decide) (by decide)
 
+theorem exponentByteLength_255 : exponentByteLength (255 : EvmWord) = 1 := by
+  exact exponentByteLength_of_pos_lt_256 (by decide) (by decide)
+
 theorem exponentByteLength_256 : exponentByteLength (256 : EvmWord) = 2 := by
   unfold exponentByteLength
   native_decide
