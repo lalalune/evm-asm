@@ -116,6 +116,14 @@ theorem expResultFromArgs_zero_left_of_ne_zero (exponent : EvmWord)
     expResultFromArgs (expArgs 0 exponent) = 0 := by
   exact EvmWord.exp_zero_left_of_ne_zero exponent h
 
+theorem expResultFromArgs_zero_left_of_toNat_pos (exponent : EvmWord)
+    (h_pos : 0 < exponent.toNat) :
+    expResultFromArgs (expArgs 0 exponent) = 0 := by
+  exact expResultFromArgs_zero_left_of_ne_zero exponent (by
+    intro h_zero
+    rw [h_zero] at h_pos
+    simp at h_pos)
+
 theorem expResultFromArgs_one_right (base : EvmWord) :
     expResultFromArgs (expArgs base 1) = base := by
   exact EvmWord.exp_one_right base
@@ -136,6 +144,11 @@ theorem stackAfterExp_zero_left_of_ne_zero
     (exponent : EvmWord) (rest : List EvmWord) (h : exponent ≠ 0) :
     stackAfterExp (expArgs 0 exponent) rest = 0 :: rest := by
   rw [stackAfterExp, expResultFromArgs_zero_left_of_ne_zero exponent h]
+
+theorem stackAfterExp_zero_left_of_toNat_pos
+    (exponent : EvmWord) (rest : List EvmWord) (h_pos : 0 < exponent.toNat) :
+    stackAfterExp (expArgs 0 exponent) rest = 0 :: rest := by
+  rw [stackAfterExp, expResultFromArgs_zero_left_of_toNat_pos exponent h_pos]
 
 theorem stackAfterExp_one_left (exponent : EvmWord) (rest : List EvmWord) :
     stackAfterExp (expArgs 1 exponent) rest = 1 :: rest := by
