@@ -531,6 +531,28 @@ theorem exp_cond_mul_marshal_pair_then_square_evm_exp_spec_within
     (fun _ hp => by xperm_hyp hp)
     hseq
 
+/-- Conditional-multiply unmarshal word spec lifted to the top-level EXP code bundle. -/
+theorem exp_cond_mul_un_marshal_word_evm_exp_spec_within
+    (sp evmSp tOld r0 r1 r2 r3 : Word) (w : EvmWord)
+    (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (base : Word) :
+    cpsTripleWithin 9 (base + 216) (base + 252)
+      (evmExpCode base mulOff skipOff backOff)
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ (evmSp + 32)) ** (.x5 ↦ᵣ tOld) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       evmWordIs (evmSp + 32) w)
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ w.getLimbN 3) **
+       evmWordIs sp w ** evmWordIs (evmSp + 32) w) := by
+  have h := EvmAsm.Evm64.exp_loop_un_marshal_and_restore_word_spec_within
+    sp evmSp tOld r0 r1 r2 r3 (base + 216) w
+  have hnext : ((base + 216 : Word) + 36) = base + 252 := by bv_omega
+  rw [hnext] at h
+  exact cpsTripleWithin_extend_code (h := h)
+    (hmono := evmExpCode_cond_mul_un_marshal_and_restore_sub)
+
 /-- Conditional-multiply skip gate and call prefix lifted to the top-level EXP code bundle. -/
 theorem exp_cond_mul_call_with_skip_evm_exp_spec_within
     (sp evmSp tOld vOld v10 r0 r1 r2 r3 a0 a1 a2 a3 d0 d1 d2 d3 e0 e1 e2 e3 : Word)
