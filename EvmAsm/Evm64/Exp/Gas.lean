@@ -51,6 +51,9 @@ theorem exponentByteLengthNat_65536 : exponentByteLengthNat 65536 = 3 := by
 theorem exponentByteLengthNat_16777215 : exponentByteLengthNat 16777215 = 3 := by
   native_decide
 
+theorem exponentByteLengthNat_16777216 : exponentByteLengthNat 16777216 = 4 := by
+  native_decide
+
 theorem exponentByteLengthNat_one : exponentByteLengthNat 1 = 1 := by
   exact exponentByteLengthNat_of_pos_lt_256 (by decide) (by decide)
 
@@ -102,6 +105,10 @@ theorem exponentByteLength_65536 : exponentByteLength (65536 : EvmWord) = 3 := b
   native_decide
 
 theorem exponentByteLength_16777215 : exponentByteLength (16777215 : EvmWord) = 3 := by
+  unfold exponentByteLength
+  native_decide
+
+theorem exponentByteLength_16777216 : exponentByteLength (16777216 : EvmWord) = 4 := by
   unfold exponentByteLength
   native_decide
 
@@ -190,6 +197,17 @@ theorem expTotalGasFromExponent_16777215 :
     expTotalGasFromExponent (16777215 : EvmWord) = 160 := by
   unfold expTotalGasFromExponent
   rw [expDynamicCostFromExponent_16777215]
+  rfl
+
+theorem expDynamicCostFromExponent_16777216 :
+    expDynamicCostFromExponent (16777216 : EvmWord) = 200 := by
+  unfold expDynamicCostFromExponent expGasPerByte
+  rw [exponentByteLength_16777216]
+
+theorem expTotalGasFromExponent_16777216 :
+    expTotalGasFromExponent (16777216 : EvmWord) = 210 := by
+  unfold expTotalGasFromExponent
+  rw [expDynamicCostFromExponent_16777216]
   rfl
 
 theorem expDynamicCostFromExponent_max :
