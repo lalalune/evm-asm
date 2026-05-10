@@ -62,4 +62,28 @@ theorem exp_cond_mul_beq_evm_exp_union_spec_within_frameL
     (fun _ hp => by xperm_hyp hp)
     h
 
+/-- Compose the lifted EXP conditional-multiply skip gate with an arbitrary
+    false-branch continuation over the same top-level/callable code region. -/
+theorem exp_cond_mul_skip_then_triple_evm_exp_union_spec_within
+    {nSteps : Nat} {frame postFalse : Assertion} (hframe : frame.pcFree)
+    (v10 : Word) (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (base skipTarget mulTarget exitFalse : Word)
+    (hskip : ((base + 144) + signExtend13 skipOff : Word) = skipTarget)
+    (hfalse :
+      cpsTripleWithin nSteps (base + 148) exitFalse
+        ((evmExpCode base mulOff skipOff backOff).union
+          (mul_callable_code mulTarget))
+        (frame ** ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v10 ≠ 0⌝))
+        postFalse) :
+    cpsBranchWithin (1 + nSteps) (base + 144)
+      ((evmExpCode base mulOff skipOff backOff).union
+        (mul_callable_code mulTarget))
+      (frame ** ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word))))
+      skipTarget
+        (frame ** ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v10 = 0⌝))
+      exitFalse postFalse := by
+  have hbeq := exp_cond_mul_beq_evm_exp_union_spec_within_frameL
+    frame hframe v10 mulOff skipOff backOff base skipTarget mulTarget hskip
+  exact cpsBranchWithin_seq_cpsTripleWithin_same_cr hbeq hfalse (fun _ hp => hp)
+
 end EvmAsm.Evm64.Exp.Compose
