@@ -46,6 +46,21 @@ theorem cpsTripleWithin_extend_evmExpWithMulCode {nSteps : Nat}
       (evmExpWithMulCode base mulTarget mulOff skipOff backOff) P Q :=
   cpsTripleWithin_extend_code (hmono := evmExpWithMulCode_exp_sub) h
 
+/-- Lift a top-level EXP-body branch spec into the combined EXP+MUL code
+    bundle.  The full loop uses this for the conditional multiply skip gate and
+    the iteration back-edge. -/
+theorem cpsBranchWithin_extend_evmExpWithMulCode {nSteps : Nat}
+    {entry base mulTarget : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13}
+    {P : Assertion} {exit_t : Word} {Q_t : Assertion} {exit_f : Word}
+    {Q_f : Assertion}
+    (h : cpsBranchWithin nSteps entry
+      (evmExpCode base mulOff skipOff backOff) P exit_t Q_t exit_f Q_f) :
+    cpsBranchWithin nSteps entry
+      (evmExpWithMulCode base mulTarget mulOff skipOff backOff)
+      P exit_t Q_t exit_f Q_f :=
+  cpsBranchWithin_extend_code (hmono := evmExpWithMulCode_exp_sub) h
+
 /-- Lift a multiply-callable spec into the combined EXP+MUL code bundle. -/
 theorem cpsTripleWithin_extend_mulCallable_evmExpWithMulCode {nSteps : Nat}
     {entry exit_ base mulTarget : Word}
