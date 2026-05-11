@@ -49,4 +49,36 @@ theorem evmWordIs_eq_quadMem_sdivDivisor (sp s0 s1 s2 s3 : Word) :
   unfold EvmAsm.Evm64.evm_sdivDivisorTopLimbOff
   exact evmWordIs_eq_quadMem_sp32_named sp s0 s1 s2 s3
 
+/-- Mid-tree variant of `evmWordIs_eq_quadMem_sdivDividend`: threads a
+    remainder `Q` so callers can fold four dividend sum-memIs atoms into
+    a single `evmWordIs sp` atom even when they sit at the head of a
+    longer sepConj chain (as in `saveRaSignsAbsSignXorThenDivCallPost`'s
+    unfolded form). Parallel to `evmWordIs_sp_unfold_right` in
+    `EvmAsm/Evm64/Stack.lean`. Slice 4 micro evm-asm-0zmyg. -/
+theorem evmWordIs_eq_quadMem_sdivDividend_right
+    (sp s0 s1 s2 s3 : Word) (Q : Assertion) :
+    (((sp + signExtend12 (0 : BitVec 12)) ↦ₘ s0) **
+     ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ s1) **
+     ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ s2) **
+     ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ s3) **
+     Q) =
+    ((evmWordIs sp (EvmWord.fromLimbs fun i : Fin 4 =>
+        match i with | 0 => s0 | 1 => s1 | 2 => s2 | 3 => s3)) ** Q) := by
+  rw [← evmWordIs_eq_quadMem_sdivDividend sp s0 s1 s2 s3]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
+/-- Mid-tree variant of `evmWordIs_eq_quadMem_sdivDivisor`. Same idea as
+    `evmWordIs_eq_quadMem_sdivDividend_right` but for the divisor slot. -/
+theorem evmWordIs_eq_quadMem_sdivDivisor_right
+    (sp s0 s1 s2 s3 : Word) (Q : Assertion) :
+    (((sp + signExtend12 (32 : BitVec 12)) ↦ₘ s0) **
+     ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ s1) **
+     ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ s2) **
+     ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ s3) **
+     Q) =
+    ((evmWordIs (sp + 32) (EvmWord.fromLimbs fun i : Fin 4 =>
+        match i with | 0 => s0 | 1 => s1 | 2 => s2 | 3 => s3)) ** Q) := by
+  rw [← evmWordIs_eq_quadMem_sdivDivisor sp s0 s1 s2 s3]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
 end EvmAsm.Evm64.SDiv.Compose
