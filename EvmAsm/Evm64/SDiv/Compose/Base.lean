@@ -1159,4 +1159,37 @@ theorem evmWordIs_eq_quadMem_sp32 (sp : Word) (limbs : Fin 4 → Word) :
   rw [h32, h40, h48, h56]
   exact (evmWordIs_fromLimbs (addr := sp + 32) limbs).symm
 
+/-- Named-arguments specialization of `evmWordIs_eq_quadMem` (slice 4
+    micro evm-asm-nregq). Folds four `↦ₘ` atoms holding explicitly-named
+    limb values `s0..s3` into a single `evmWordIs sp` atom carrying a
+    `Fin 4 → Word` lambda that returns each limb. Convenience wrapper used
+    by the SDIV `divCall` framing step to bridge the post of
+    `saveRa_signs_abs_signXor_then_divCall_spec_in_sdivCode` (where the
+    four dividend-absolute-value sums live as plain memIs atoms) into the
+    `evmWordIs sp a` input shape of `evm_div_callable_spec_in_sdivCode`. -/
+theorem evmWordIs_eq_quadMem_named (sp s0 s1 s2 s3 : Word) :
+    (((sp + signExtend12 (0 : BitVec 12)) ↦ₘ s0) **
+     ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ s1) **
+     ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ s2) **
+     ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ s3)) =
+    evmWordIs sp (EvmWord.fromLimbs fun i : Fin 4 =>
+      match i with | 0 => s0 | 1 => s1 | 2 => s2 | 3 => s3) := by
+  rw [← evmWordIs_eq_quadMem sp
+    (fun i : Fin 4 => match i with | 0 => s0 | 1 => s1 | 2 => s2 | 3 => s3)]
+
+/-- Named-arguments specialization of `evmWordIs_eq_quadMem_sp32`
+    (slice 4 micro evm-asm-nregq). Divisor-slot companion to
+    `evmWordIs_eq_quadMem_named`: folds four `↦ₘ` atoms at
+    `sp + signExtend12 (32/40/48/56)` into `evmWordIs (sp + 32)` carrying
+    a 4-case `Fin 4 → Word` lambda. -/
+theorem evmWordIs_eq_quadMem_sp32_named (sp s0 s1 s2 s3 : Word) :
+    (((sp + signExtend12 (32 : BitVec 12)) ↦ₘ s0) **
+     ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ s1) **
+     ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ s2) **
+     ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ s3)) =
+    evmWordIs (sp + 32) (EvmWord.fromLimbs fun i : Fin 4 =>
+      match i with | 0 => s0 | 1 => s1 | 2 => s2 | 3 => s3) := by
+  rw [← evmWordIs_eq_quadMem_sp32 sp
+    (fun i : Fin 4 => match i with | 0 => s0 | 1 => s1 | 2 => s2 | 3 => s3)]
+
 end EvmAsm.Evm64.SDiv.Compose
