@@ -184,7 +184,63 @@ theorem divK_normA_full_spec_within (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : 
     (fun h hq => by xperm_hyp hq)
     h123456
 
-/-- Full NormA over divCode_noNop. -/
+/-- Precondition for the no-NOP NormA block: entry registers + the
+    pre-normalized `a[]` limbs in scratch slots. Wrapped `@[irreducible]`
+    so downstream proofs do not re-reduce the 15-atom sepConj. -/
+@[irreducible]
+def divKNormAFullPreNoNop
+    (sp v5 v7 v10 shift antiShift
+      a0 a1 a2 a3 u0Old u1Old u2Old u3Old u4Old : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
+  (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
+  ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+  ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+  ((sp + signExtend12 4024) ↦ₘ u4Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+  ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+  ((sp + signExtend12 4056) ↦ₘ u0Old)
+
+theorem divKNormAFullPreNoNop_unfold
+    {sp v5 v7 v10 shift antiShift
+      a0 a1 a2 a3 u0Old u1Old u2Old u3Old u4Old : Word} :
+    divKNormAFullPreNoNop sp v5 v7 v10 shift antiShift
+        a0 a1 a2 a3 u0Old u1Old u2Old u3Old u4Old =
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
+       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
+       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + signExtend12 4024) ↦ₘ u4Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+       ((sp + signExtend12 4056) ↦ₘ u0Old)) := by
+  delta divKNormAFullPreNoNop
+  rfl
+
+/-- Postcondition for the no-NOP NormA block: the normalized `u[]`
+    sequence written to scratch slots, with `x5`/`x7`/`x10` holding the
+    top-of-the-shift intermediate values. Wrapped `@[irreducible]`. -/
+@[irreducible]
+def divKNormAFullPostNoNop
+    (sp shift antiShift a0 a1 a2 a3 u0 u1 u2 u3 u4 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u1) ** (.x7 ↦ᵣ u0) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
+  (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
+  ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+  ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+  ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+  ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+  ((sp + signExtend12 4056) ↦ₘ u0)
+
+theorem divKNormAFullPostNoNop_unfold
+    {sp shift antiShift a0 a1 a2 a3 u0 u1 u2 u3 u4 : Word} :
+    divKNormAFullPostNoNop sp shift antiShift a0 a1 a2 a3 u0 u1 u2 u3 u4 =
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u1) ** (.x7 ↦ᵣ u0) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
+       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
+       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + signExtend12 4056) ↦ₘ u0)) := by
+  delta divKNormAFullPostNoNop
+  rfl
+
 theorem divK_normA_full_spec_within_noNop (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : Word)
     (u0Old u1Old u2Old u3Old u4Old : Word) (base : Word) :
     let u4 := a3 >>> (antiShift.toNat % 64)
@@ -193,21 +249,11 @@ theorem divK_normA_full_spec_within_noNop (sp a0 a1 a2 a3 v5 v7 v10 shift antiSh
     let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
     let u0 := a0 <<< (shift.toNat % 64)
     cpsTripleWithin 21 (base + normAOff) (base + loopSetupOff) (divCode_noNop base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
-       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-       ((sp + signExtend12 4024) ↦ₘ u4Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
-       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
-       ((sp + signExtend12 4056) ↦ₘ u0Old))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u1) ** (.x7 ↦ᵣ u0) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
-       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-       ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
-       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4048) ↦ₘ u1) **
-       ((sp + signExtend12 4056) ↦ₘ u0)) := by
+      (divKNormAFullPreNoNop sp v5 v7 v10 shift antiShift
+        a0 a1 a2 a3 u0Old u1Old u2Old u3Old u4Old)
+      (divKNormAFullPostNoNop sp shift antiShift a0 a1 a2 a3 u0 u1 u2 u3 u4) := by
   intro u4 u3 u2 u1 u0
+  rw [divKNormAFullPreNoNop_unfold, divKNormAFullPostNoNop_unfold]
   have htop := divK_normA_top_spec_within 24 4024 sp a3 v5 v7 antiShift u4Old (base + normAOff)
   simp only [se12_24] at htop
   have htope := cpsTripleWithin_extend_code (hmono := fun a i h =>
