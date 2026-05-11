@@ -930,7 +930,9 @@ theorem saveRa_signs_abs_then_divisorAbs_spec_in_sdivCode
       dividendSum0, dividendCarry0, dividendXored1, dividendSum1,
       dividendCarry1, dividendXored2, dividendSum2, dividendCarry2,
       dividendXored3, dividendSum3, dividendCarry3]
-    simpa [dividendAbsOff, divisorAbsOff, BitVec.add_assoc] using
+    simpa [dividendAbsOff, divisorAbsOff, BitVec.add_assoc,
+      saveRaSignsThenDividendAbsPre_unfold,
+      saveRaSignsThenDividendAbsPost_unfold] using
       (cpsTripleWithin_frameR
         ((divisorMem0 ↦ₘ divisorLimb0) **
          (divisorMem1 ↦ₘ divisorLimb1) **
@@ -946,7 +948,7 @@ theorem saveRa_signs_abs_then_divisorAbs_spec_in_sdivCode
       EvmAsm.Evm64.evm_sdivDivisorTopLimbOff, divisorMask, divisorXored0,
       divisorSum0, divisorCarry0, divisorXored1, divisorSum1, divisorCarry1,
       divisorXored2, divisorSum2, divisorCarry2, divisorXored3, divisorSum3,
-      divisorCarry3] using
+      divisorCarry3, divisorAbsPre_unfold, divisorAbsPost_unfold] using
       cpsTripleWithin_frameL
         ((((.x1 ↦ᵣ vRa) **
           (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))) **
