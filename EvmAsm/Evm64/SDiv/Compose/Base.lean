@@ -532,38 +532,86 @@ theorem dividendAbs_spec_in_sdivCode
       sp sign maskOld valueOld carryOld limb0 limb1 limb2 limb3
       (base + dividendAbsOff) (by decide) (by decide) (by decide))
 
+/-- Precondition for the SDIV divisor-abs (conditional 2's-complement
+    negation) block. Mirrors `dividendAbsPre` but with the sign in `x9`
+    and limb memory cells at the `+32 … +56` divisor slots. Wrapped
+    `@[irreducible]` so downstream proofs do not re-unfold the sepConj
+    atoms at each use site. -/
+@[irreducible]
+def divisorAbsPre (sp sign maskOld valueOld carryOld
+    limb0 limb1 limb2 limb3 : Word) : Assertion :=
+  (.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ sign) **
+  (.x10 ↦ᵣ maskOld) ** (.x7 ↦ᵣ valueOld) ** (.x11 ↦ᵣ carryOld) **
+  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb0) **
+  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb1) **
+  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb2) **
+  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb3)
+
+theorem divisorAbsPre_unfold
+    {sp sign maskOld valueOld carryOld limb0 limb1 limb2 limb3 : Word} :
+    divisorAbsPre sp sign maskOld valueOld carryOld
+        limb0 limb1 limb2 limb3 =
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ sign) **
+       (.x10 ↦ᵣ maskOld) ** (.x7 ↦ᵣ valueOld) ** (.x11 ↦ᵣ carryOld) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb3)) := by
+  delta divisorAbsPre
+  rfl
+
+/-- Postcondition for the SDIV divisor-abs block: mirrors
+    `dividendAbsPost` but with the sign register `x9` and the divisor
+    memory slots `+32 … +56`. Wrapped `@[irreducible]` to hide the let
+    chain from downstream proofs. -/
+@[irreducible]
+def divisorAbsPost (sp sign limb0 limb1 limb2 limb3 : Word) : Assertion :=
+  let mask := (0 : Word) - sign
+  let sum0 := (limb0 ^^^ mask) + sign
+  let carry0 := if BitVec.ult sum0 sign then (1 : Word) else 0
+  let sum1 := (limb1 ^^^ mask) + carry0
+  let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
+  let sum2 := (limb2 ^^^ mask) + carry1
+  let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
+  let sum3 := (limb3 ^^^ mask) + carry2
+  let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
+  (.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ sign) **
+  (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
+  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ sum0) **
+  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ sum1) **
+  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ sum2) **
+  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ sum3)
+
+theorem divisorAbsPost_unfold
+    {sp sign limb0 limb1 limb2 limb3 : Word} :
+    divisorAbsPost sp sign limb0 limb1 limb2 limb3 =
+      (let mask := (0 : Word) - sign
+       let sum0 := (limb0 ^^^ mask) + sign
+       let carry0 := if BitVec.ult sum0 sign then (1 : Word) else 0
+       let sum1 := (limb1 ^^^ mask) + carry0
+       let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
+       let sum2 := (limb2 ^^^ mask) + carry1
+       let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
+       let sum3 := (limb3 ^^^ mask) + carry2
+       let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
+       (.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ sign) **
+       (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ sum0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ sum1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ sum2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ sum3)) := by
+  delta divisorAbsPost
+  rfl
+
 theorem divisorAbs_spec_in_sdivCode
     (sp sign maskOld valueOld carryOld limb0 limb1 limb2 limb3 : Word)
     (base : Word) :
-    let mem0 := sp + signExtend12 (32 : BitVec 12)
-    let mem1 := sp + signExtend12 (40 : BitVec 12)
-    let mem2 := sp + signExtend12 (48 : BitVec 12)
-    let mem3 := sp + signExtend12 (56 : BitVec 12)
-    let mask := (0 : Word) - sign
-    let xored0 := limb0 ^^^ mask
-    let sum0 := xored0 + sign
-    let carry0 := if BitVec.ult sum0 sign then (1 : Word) else 0
-    let xored1 := limb1 ^^^ mask
-    let sum1 := xored1 + carry0
-    let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
-    let xored2 := limb2 ^^^ mask
-    let sum2 := xored2 + carry1
-    let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
-    let xored3 := limb3 ^^^ mask
-    let sum3 := xored3 + carry2
-    let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
     cpsTripleWithin 21 (base + divisorAbsOff) ((base + divisorAbsOff) + 84)
       (sdivCode base)
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ sign) **
-       (.x10 ↦ᵣ maskOld) ** (.x7 ↦ᵣ valueOld) ** (.x11 ↦ᵣ carryOld) **
-       (mem0 ↦ₘ limb0) ** (mem1 ↦ₘ limb1) **
-       (mem2 ↦ₘ limb2) ** (mem3 ↦ₘ limb3))
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ sign) **
-       (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
-       (mem0 ↦ₘ sum0) ** (mem1 ↦ₘ sum1) **
-       (mem2 ↦ₘ sum2) ** (mem3 ↦ₘ sum3)) := by
-  intro mem0 mem1 mem2 mem3 mask xored0 sum0 carry0 xored1 sum1 carry1
-    xored2 sum2 carry2 xored3 sum3 carry3
+      (divisorAbsPre sp sign maskOld valueOld carryOld
+        limb0 limb1 limb2 limb3)
+      (divisorAbsPost sp sign limb0 limb1 limb2 limb3) := by
+  rw [divisorAbsPre_unfold, divisorAbsPost_unfold]
   have hmono :
       ∀ a i,
         (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_code
