@@ -355,17 +355,56 @@ theorem divisorSign_spec_in_sdivCode
       EvmAsm.Evm64.evm_sdivDivisorTopLimbOff sp sOld divisorTop
       (base + divisorSignOff) (by decide))
 
-theorem saveRa_dividendSign_then_divisorSign_spec_in_sdivCode
-    (vRa vSavedOld sp sDividendOld dividendTop sDivisorOld divisorTop : Word)
-    (base : Word) :
-    cpsTripleWithin 5 base ((base + divisorSignOff) + 8) (sdivCode base)
+/-- Precondition for the SDIV save-ra + dividend sign + divisor sign
+    composition: standard entry frame with the dividend and divisor top
+    limbs accessible in memory and both sign-register slots holding
+    their pre-call scratch. Wrapped `@[irreducible]` so downstream proofs
+    do not re-reduce the 7-atom sepConj at each use site. -/
+@[irreducible]
+def saveRaDividendSignThenDivisorSignPre
+    (vRa vSavedOld sp sDividendOld dividendTop sDivisorOld divisorTop : Word) :
+    Assertion :=
+  (((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ vSavedOld)) **
+    ((.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sDividendOld) **
+     ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+       dividendTop))) **
+   ((.x9 ↦ᵣ sDivisorOld) **
+    ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
+      divisorTop))
+
+theorem saveRaDividendSignThenDivisorSignPre_unfold
+    {vRa vSavedOld sp sDividendOld dividendTop sDivisorOld divisorTop : Word} :
+    saveRaDividendSignThenDivisorSignPre vRa vSavedOld sp sDividendOld
+        dividendTop sDivisorOld divisorTop =
       ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ vSavedOld)) **
         ((.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sDividendOld) **
          ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
            dividendTop))) **
        ((.x9 ↦ᵣ sDivisorOld) **
         ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
-          divisorTop)))
+          divisorTop))) := by
+  delta saveRaDividendSignThenDivisorSignPre
+  rfl
+
+/-- Postcondition for the same composition: `ra` saved to the spill
+    slot (x18 ← vRa + 0), `x8` and `x9` hold the dividend/divisor sign
+    bits (top-limb >>> 63), and the top-limb memory cells are
+    unchanged. Wrapped `@[irreducible]`. -/
+@[irreducible]
+def saveRaDividendSignThenDivisorSignPost
+    (vRa sp dividendTop divisorTop : Word) : Assertion :=
+  (((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))) **
+    ((.x8 ↦ᵣ (dividendTop >>> (63 : BitVec 6).toNat)) **
+     ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
+       dividendTop))) **
+   ((.x12 ↦ᵣ sp) **
+    (.x9 ↦ᵣ (divisorTop >>> (63 : BitVec 6).toNat)) **
+    ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
+      divisorTop))
+
+theorem saveRaDividendSignThenDivisorSignPost_unfold
+    {vRa sp dividendTop divisorTop : Word} :
+    saveRaDividendSignThenDivisorSignPost vRa sp dividendTop divisorTop =
       ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))) **
         ((.x8 ↦ᵣ (dividendTop >>> (63 : BitVec 6).toNat)) **
          ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
@@ -374,6 +413,18 @@ theorem saveRa_dividendSign_then_divisorSign_spec_in_sdivCode
         (.x9 ↦ᵣ (divisorTop >>> (63 : BitVec 6).toNat)) **
         ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
           divisorTop))) := by
+  delta saveRaDividendSignThenDivisorSignPost
+  rfl
+
+theorem saveRa_dividendSign_then_divisorSign_spec_in_sdivCode
+    (vRa vSavedOld sp sDividendOld dividendTop sDivisorOld divisorTop : Word)
+    (base : Word) :
+    cpsTripleWithin 5 base ((base + divisorSignOff) + 8) (sdivCode base)
+      (saveRaDividendSignThenDivisorSignPre vRa vSavedOld sp sDividendOld
+        dividendTop sDivisorOld divisorTop)
+      (saveRaDividendSignThenDivisorSignPost vRa sp dividendTop divisorTop) := by
+  rw [saveRaDividendSignThenDivisorSignPre_unfold,
+      saveRaDividendSignThenDivisorSignPost_unfold]
   let pre : Assertion :=
     ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ vSavedOld)) **
       ((.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sDividendOld) **
@@ -664,7 +715,9 @@ theorem saveRa_signs_then_dividendAbs_spec_in_sdivCode
   have hPrefix : cpsTripleWithin 5 base (base + dividendAbsOff)
       (sdivCode base) pre mid := by
     dsimp [pre, mid, extra, mem3, divisorMem3, sign, divisorSign]
-    simpa [divisorSignOff, dividendAbsOff, BitVec.add_assoc] using
+    simpa [divisorSignOff, dividendAbsOff, BitVec.add_assoc,
+      saveRaDividendSignThenDivisorSignPre_unfold,
+      saveRaDividendSignThenDivisorSignPost_unfold] using
       (cpsTripleWithin_frameR
         (((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ maskOld) **
           (.x7 ↦ᵣ valueOld) ** (.x11 ↦ᵣ carryOld)) **
