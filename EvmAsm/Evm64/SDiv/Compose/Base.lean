@@ -1122,6 +1122,18 @@ theorem evmWordIs_eq_quadMem (sp : Word) (limbs : Fin 4 → Word) :
   rw [h0, h8, h16, h24]
   exact (evmWordIs_fromLimbs (addr := sp) limbs).symm
 
+/-- Under the standard RV PC-alignment invariant (`base` has its low bit
+    clear), the JALR low-bit mask `&&& ~~~1` on the post-`divCall` return
+    address `base + resultSignFixOff` is the identity. Bite-sized helper
+    for slice 4 (evm-asm-tdlsu): used to align the exit PC of
+    `evm_div_callable_spec_in_sdivCode` (which returns to `saved_ra &&& ~~~1`
+    via JALR) with the SDIV wrapper's `resultSignFix` entry. -/
+theorem base_add_resultSignFixOff_andn_one
+    (base : Word) (hbase : base &&& 1 = 0) :
+    (base + resultSignFixOff) &&& ~~~(1 : Word) = base + resultSignFixOff := by
+  show (base + (196 : Word)) &&& ~~~(1 : Word) = base + (196 : Word)
+  bv_decide
+
 /-- Divisor-slot companion to `evmWordIs_eq_quadMem`: four `↦ₘ`-memory atoms
     at `sp + signExtend12 (32/40/48/56)` fold into a single
     `evmWordIs (sp + 32)` atom. Bite-sized helper for slice 4 (evm-asm-j8ity):
