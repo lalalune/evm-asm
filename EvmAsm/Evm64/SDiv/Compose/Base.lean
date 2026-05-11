@@ -884,6 +884,7 @@ theorem divisorAbs_spec_in_sdivCode
     EvmAsm.Evm64.condNegate256BlockPost_unfold] at hSpec
   exact cpsTripleWithin_extend_code hmono hSpec
 
+
 theorem divCall_spec_in_sdivCode
     (vOld : Word) (base : Word) :
     cpsTripleWithin 1 (base + divCallOff)
@@ -1021,6 +1022,7 @@ theorem signXor_spec_in_sdivCode
   exact cpsTripleWithin_extend_code hmono
     (xor_spec_gen_rd_eq_rs1_within .x8 .x9 signDividend signDivisor
       (base + signXorOff) (by decide))
+
 
 theorem savedRaRet_spec_in_sdivCode
     (vSavedRa : Word) (base : Word) :
