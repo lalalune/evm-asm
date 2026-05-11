@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
+import EvmAsm.Evm64.Exp.CondMulMarshalPairPost
 import EvmAsm.Evm64.Exp.CondMulMarshalPair
 import EvmAsm.Evm64.Exp.SquaringCallSeq
 import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
@@ -389,6 +390,77 @@ theorem exp_squaring_un_marshal_word_evm_exp_spec_within
   exact cpsTripleWithin_extend_code (h := h)
     (hmono := evmExpCode_squaring_un_marshal_and_restore_sub)
 
+/-- Squaring marshal/JAL plus MUL-call spec lifted to the top-level EXP code bundle. -/
+theorem exp_squaring_marshal_pair_then_mul_call_evm_exp_spec_within
+    (sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+      v6 v7 v10 v11 mulTarget : Word)
+    (mulOff : BitVec 21) (skipOff backOff : BitVec 13) (base : Word)
+    (hmt : mulTarget = (base + 104) + signExtend21 mulOff)
+    (hd : CodeReq.Disjoint
+            (evmExpCode base mulOff skipOff backOff)
+            (mul_callable_code mulTarget)) :
+    cpsTripleWithin (17 + 64) (base + 40) ((base + 108) &&& ~~~1)
+      ((evmExpCode base mulOff skipOff backOff).union
+        (mul_callable_code mulTarget))
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
+       (.x1 ↦ᵣ vOld))
+      ((.x2 ↦ᵣ sp) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       evmMulStackPost evmSp (expResultWord r0 r1 r2 r3)
+                              (expResultWord r0 r1 r2 r3) **
+       (.x1 ↦ᵣ (base + 108))) := by
+  have hmt' : mulTarget = ((base + 40) + 64) + signExtend21 mulOff := by
+    rw [show ((base + 40 : Word) + 64) = base + 104 by bv_omega]
+    exact hmt
+  have hdLower : CodeReq.Disjoint
+      (exp_squaring_call_block_code (base + 40) mulOff)
+      (mul_callable_code mulTarget) := by
+    intro a
+    rcases hd a with hev | hmul
+    · left
+      cases hcode : exp_squaring_call_block_code (base + 40) mulOff a with
+      | none => rfl
+      | some instr =>
+          have hev' := evmExpCode_iter_squaring_sub
+            (base := base) (mulOff := mulOff) (skipOff := skipOff)
+            (backOff := backOff) a instr hcode
+          rw [hev] at hev'
+          contradiction
+    · right
+      exact hmul
+  have h := EvmAsm.Evm64.exp_squaring_marshal_pair_then_mul_call_spec_within
+    sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+    v6 v7 v10 v11 mulTarget mulOff (base + 40) hmt' hdLower
+  have hret : (((base + 40 : Word) + 68) &&& ~~~1) = ((base + 108) &&& ~~~1) := by
+    rw [show ((base + 40 : Word) + 68) = base + 108 by bv_omega]
+  rw [hret] at h
+  have hlink : ((base + 40 : Word) + 68) = base + 108 := by bv_omega
+  rw [hlink] at h
+  exact cpsTripleWithin_extend_code (h := h) (hmono := by
+    exact CodeReq.union_sub
+      (fun a i hcode =>
+        CodeReq.union_mono_left a i
+          (evmExpCode_iter_squaring_sub
+            (base := base) (mulOff := mulOff) (skipOff := skipOff)
+            (backOff := backOff) a i hcode))
+      (CodeReq.mono_union_right hd (fun _ _ hcode => hcode)))
+
 /-- Conditional-multiply marshal pair lifted to the top-level EXP code bundle. -/
 theorem exp_cond_mul_marshal_pair_evm_exp_spec_within
     (sp evmSp tOld r0 r1 r2 r3 a0 a1 a2 a3 d0 d1 d2 d3 e0 e1 e2 e3 : Word)
@@ -552,6 +624,120 @@ theorem exp_cond_mul_un_marshal_word_evm_exp_spec_within
   rw [hnext] at h
   exact cpsTripleWithin_extend_code (h := h)
     (hmono := evmExpCode_cond_mul_un_marshal_and_restore_sub)
+
+/-- Conditional-multiply marshal/JAL plus MUL-call spec lifted to the top-level EXP code bundle. -/
+theorem exp_cond_mul_marshal_pair_then_mul_call_evm_exp_spec_within
+    (sp evmSp tOld vOld r0 r1 r2 r3 a0 a1 a2 a3 d0 d1 d2 d3 e0 e1 e2 e3
+      v6 v7 v10 v11 mulTarget : Word)
+    (mulOff : BitVec 21) (skipOff backOff : BitVec 13) (base : Word)
+    (hmt : mulTarget = (base + 212) + signExtend21 mulOff)
+    (hd : CodeReq.Disjoint
+            (evmExpCode base mulOff skipOff backOff)
+            (mul_callable_code mulTarget)) :
+    cpsTripleWithin (17 + 64) (base + 148) ((base + 216) &&& ~~~1)
+      ((evmExpCode base mulOff skipOff backOff).union
+        (mul_callable_code mulTarget))
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
+       (.x1 ↦ᵣ vOld))
+      ((.x2 ↦ᵣ sp) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
+       evmMulStackPost evmSp (expResultWord r0 r1 r2 r3)
+                              (expResultWord a0 a1 a2 a3) **
+       (.x1 ↦ᵣ (base + 216))) := by
+  have htarget : ((base + 212) + signExtend21 mulOff : Word) = mulTarget := by
+    exact hmt.symm
+  have hpair := exp_cond_mul_marshal_pair_then_square_evm_exp_spec_within
+    sp evmSp tOld vOld r0 r1 r2 r3 a0 a1 a2 a3 d0 d1 d2 d3 e0 e1 e2 e3
+    mulOff skipOff backOff base mulTarget htarget
+  have hpairFramed :=
+    cpsTripleWithin_frameR
+      ((.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11))
+      (by pcFree) hpair
+  have hmul := mul_callable_spec_within
+    evmSp mulTarget (base + 216)
+    (expResultWord r0 r1 r2 r3) (expResultWord a0 a1 a2 a3)
+    a3 v6 v7 v10 v11
+  have hmulFramed :=
+    cpsTripleWithin_frameL
+      ((.x2 ↦ᵣ sp) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3))
+      (by pcFree) hmul
+  have hseq :
+      cpsTripleWithin (17 + 64) (base + 148) ((base + 216) &&& ~~~1)
+        ((evmExpCode base mulOff skipOff backOff).union
+          (mul_callable_code mulTarget)) _ _ :=
+    cpsTripleWithin_seq hd
+      (cpsTripleWithin_weaken
+        (fun _ hp => hp)
+        (fun _ hp => by
+          have h0  : (evmSp + signExtend12 (0  : BitVec 12) : Word) = evmSp       := by
+            unfold signExtend12; bv_decide
+          have h8  : (evmSp + signExtend12 (8  : BitVec 12) : Word) = evmSp + 8   := by
+            unfold signExtend12; bv_decide
+          have h16 : (evmSp + signExtend12 (16 : BitVec 12) : Word) = evmSp + 16  := by
+            unfold signExtend12; bv_decide
+          have h24 : (evmSp + signExtend12 (24 : BitVec 12) : Word) = evmSp + 24  := by
+            unfold signExtend12; bv_decide
+          have h32 : (evmSp + signExtend12 (32 : BitVec 12) : Word) = evmSp + 32  := by
+            unfold signExtend12; bv_decide
+          have h40 : (evmSp + signExtend12 (40 : BitVec 12) : Word) = evmSp + 40  := by
+            unfold signExtend12; bv_decide
+          have h48 : (evmSp + signExtend12 (48 : BitVec 12) : Word) = evmSp + 48  := by
+            unfold signExtend12; bv_decide
+          have h56 : (evmSp + signExtend12 (56 : BitVec 12) : Word) = evmSp + 56  := by
+            unfold signExtend12; bv_decide
+          rw [h0, h8, h16, h24, h32, h40, h48, h56] at hp
+          have hL : evmWordIs evmSp (expResultWord r0 r1 r2 r3) = _ :=
+            evmWordIs_sp_limbs_eq evmSp (expResultWord r0 r1 r2 r3) r0 r1 r2 r3
+              (expResultWord_getLimbN_0 r0 r1 r2 r3)
+              (expResultWord_getLimbN_1 r0 r1 r2 r3)
+              (expResultWord_getLimbN_2 r0 r1 r2 r3)
+              (expResultWord_getLimbN_3 r0 r1 r2 r3)
+          have hR : evmWordIs (evmSp + 32) (expResultWord a0 a1 a2 a3) = _ :=
+            evmWordIs_sp32_limbs_eq evmSp (expResultWord a0 a1 a2 a3) a0 a1 a2 a3
+              (expResultWord_getLimbN_0 a0 a1 a2 a3)
+              (expResultWord_getLimbN_1 a0 a1 a2 a3)
+              (expResultWord_getLimbN_2 a0 a1 a2 a3)
+              (expResultWord_getLimbN_3 a0 a1 a2 a3)
+          rw [hL, hR]
+          xperm_hyp hp)
+        hpairFramed)
+      hmulFramed
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp)
+    hseq
 
 /-- Conditional-multiply skip gate and call prefix lifted to the top-level EXP code bundle. -/
 theorem exp_cond_mul_call_with_skip_evm_exp_spec_within
