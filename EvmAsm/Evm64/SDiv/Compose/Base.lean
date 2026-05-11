@@ -64,6 +64,19 @@ theorem sdiv_wrapper_block_byte_offsets :
     wrapperEndOff = 284 := by
   native_decide
 
+/-- Successive fall-through byte offsets for the concrete SDIV wrapper. -/
+theorem sdiv_wrapper_fallthrough_offsets :
+    saveRaOff + 4 = dividendSignOff ∧
+    dividendSignOff + 8 = divisorSignOff ∧
+    divisorSignOff + 8 = dividendAbsOff ∧
+    dividendAbsOff + 84 = divisorAbsOff ∧
+    divisorAbsOff + 84 = signXorOff ∧
+    signXorOff + 4 = divCallOff ∧
+    divCallOff + 4 = resultSignFixOff ∧
+    resultSignFixOff + 84 = savedRaRetOff ∧
+    savedRaRetOff + 4 = wrapperEndOff := by
+  native_decide
+
 /-- Full SDIV code region handle: wrapper followed by `evm_div_callable`. -/
 abbrev sdivCode (base : Word) : CodeReq :=
   CodeReq.ofProg base EvmAsm.Evm64.evm_sdiv
@@ -335,6 +348,25 @@ theorem divCall_spec_in_sdivCode
   exact cpsTripleWithin_extend_code hmono
     (EvmAsm.Evm64.evm_sdiv_div_call_block_spec_within
       EvmAsm.Evm64.evm_sdivCallOff vOld (base + divCallOff))
+
+theorem signXor_spec_in_sdivCode
+    (signDividend signDivisor : Word) (base : Word) :
+    cpsTripleWithin 1 (base + signXorOff) ((base + signXorOff) + 4)
+      (sdivCode base)
+      ((.x8 ↦ᵣ signDividend) ** (.x9 ↦ᵣ signDivisor))
+      ((.x8 ↦ᵣ (signDividend ^^^ signDivisor)) ** (.x9 ↦ᵣ signDivisor)) := by
+  have hmono :
+      ∀ a i, (CodeReq.singleton (base + signXorOff) (.XOR .x8 .x8 .x9)) a = some i →
+        (sdivCode base) a = some i := by
+    intro a i h
+    exact sdivCode_signXor_sub (base := base) a i
+      (by
+        rw [signXorCode, EvmAsm.Rv64.XOR', EvmAsm.Rv64.single,
+          CodeReq.ofProg_singleton]
+        exact h)
+  exact cpsTripleWithin_extend_code hmono
+    (xor_spec_gen_rd_eq_rs1_within .x8 .x9 signDividend signDivisor
+      (base + signXorOff) (by decide))
 
 theorem savedRaRet_spec_in_sdivCode
     (vSavedRa : Word) (base : Word) :
