@@ -1093,4 +1093,33 @@ theorem sdivCode_top_level_subs {base : Word} :
       (sdivCode base) a = some i) := by
   exact ⟨sdivCode_wrapper_sub, sdivCode_div_callable_sub⟩
 
+/-- Bridge lemma: four `↦ₘ`-memory atoms at `sp + signExtend12 (0/8/16/24)`
+    fold into a single `evmWordIs sp` atom holding `EvmWord.fromLimbs` of the
+    four limbs. Bite-sized helper for slice 4 (evm-asm-hvweh): the full
+    pre-`divCall` composition needs to bridge memory-quad atoms produced by
+    the absolute-value sequences to the `evmWordIs sp a` / `evmWordIs (sp+32) b`
+    inputs of `evm_div_callable_spec_in_sdivCode`. This lemma covers the
+    `sp` (dividend) slot; the `sp+32` (divisor) slot uses the analogous
+    `evmWordIs_sp32` infrastructure.
+
+    The `limbs` argument is left abstract so callers control the precise
+    `Fin 4 → Word` representation (typically built via `match i with ...`
+    matching the post-`abs` memory shape). -/
+theorem evmWordIs_eq_quadMem (sp : Word) (limbs : Fin 4 → Word) :
+    (((sp + signExtend12 (0 : BitVec 12)) ↦ₘ limbs 0) **
+     ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ limbs 1) **
+     ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ limbs 2) **
+     ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ limbs 3)) =
+    evmWordIs sp (EvmWord.fromLimbs limbs) := by
+  have h0 : (sp + signExtend12 (0 : BitVec 12) : Word) = sp := by
+    unfold signExtend12; bv_decide
+  have h8 : (sp + signExtend12 (8 : BitVec 12) : Word) = sp + 8 := by
+    unfold signExtend12; bv_decide
+  have h16 : (sp + signExtend12 (16 : BitVec 12) : Word) = sp + 16 := by
+    unfold signExtend12; bv_decide
+  have h24 : (sp + signExtend12 (24 : BitVec 12) : Word) = sp + 24 := by
+    unfold signExtend12; bv_decide
+  rw [h0, h8, h16, h24]
+  exact (evmWordIs_fromLimbs (addr := sp) limbs).symm
+
 end EvmAsm.Evm64.SDiv.Compose
