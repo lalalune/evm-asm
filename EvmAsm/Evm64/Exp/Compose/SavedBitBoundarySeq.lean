@@ -289,4 +289,52 @@ theorem exp_pointer_restore_then_epilogue_stack_tail_evm_exp_msb_saved_bit_two_m
       xperm_hyp hp)
     hFramed
 
+/-- Full visible-post-stack view of pointer-restore followed by the EXP
+    epilogue. This folds the preserved base operand and produced result word
+    into the ordinary stack prefix at `evmSp`. -/
+theorem exp_pointer_restore_then_epilogue_full_post_stack_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
+    (sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word)
+    (baseWord : EvmWord) (rest : List EvmWord)
+    (exitCond : Prop)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (base mulTarget : Word) :
+    let exitControl : Assertion :=
+      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
+    let stackTail : Assertion :=
+      evmWordIs evmSp baseWord ** evmStackIs (evmSp + 64) rest
+    cpsTripleWithin (1 + 9) (base + 264) (base + 304)
+      (evmExpMsbSavedBitTwoMulWithMulCode
+        base mulTarget squaringMulOff condMulOff skipOff backOff)
+      ((exitControl **
+        ((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
+         ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
+          ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+          ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+          ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+          ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+          ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+          ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+          ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+          ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3)))) **
+       stackTail)
+      (exitControl **
+       ((.x2 ↦ᵣ sp) **
+        (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+        (.x5 ↦ᵣ r3) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        evmStackIs evmSp (baseWord :: expResultWord r0 r1 r2 r3 :: rest))) := by
+  intro exitControl stackTail
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => by
+      dsimp [exitControl] at hp ⊢
+      rw [evmStackIs_cons]
+      xperm_hyp hp)
+    (exp_pointer_restore_then_epilogue_stack_tail_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
+      sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 baseWord rest exitCond
+      squaringMulOff condMulOff skipOff backOff base mulTarget)
+
 end EvmAsm.Evm64.Exp.Compose
