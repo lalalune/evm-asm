@@ -419,6 +419,31 @@ theorem expIterBodyFullMsbSavedBitTwoMulCode_cond_mul_sub {base : Word}
       simp only [exp_iter_body_full_msb_saved_bit_two_mul_len]
       norm_num)
 
+theorem expIterBodyFullMsbSavedBitTwoMulCode_loop_back_sub {base : Word}
+    {squaringMulOff condMulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 228)
+      (EvmAsm.Evm64.exp_loop_back backOff)) a = some i →
+      (expIterBodyFullMsbSavedBitTwoMulCode
+        base squaringMulOff condMulOff skipOff backOff) a = some i := by
+  rw [expIterBodyFullMsbSavedBitTwoMulCode_eq_ofProg]
+  exact CodeReq.ofProg_mono_sub base (base + 228)
+    (EvmAsm.Evm64.exp_iter_body_full_msb_saved_bit_two_mul
+      squaringMulOff condMulOff skipOff backOff)
+    (EvmAsm.Evm64.exp_loop_back backOff) 57
+    (by bv_omega)
+    (by
+      unfold EvmAsm.Evm64.exp_iter_body_full_msb_saved_bit_two_mul
+      simp only [EvmAsm.Rv64.seq]
+      unfold Program
+      rfl)
+    (by
+      simp only [exp_iter_body_full_msb_saved_bit_two_mul_len,
+        exp_loop_back_len]
+      omega)
+    (by
+      simp only [exp_iter_body_full_msb_saved_bit_two_mul_len]
+      norm_num)
+
 /-- Top-level CodeReq decomposition for the corrected MSB-first saved-bit EXP
     opcode program. -/
 abbrev evmExpMsbSavedBitCode (base : Word)

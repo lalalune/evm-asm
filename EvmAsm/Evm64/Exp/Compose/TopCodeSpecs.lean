@@ -183,6 +183,18 @@ theorem evmExpMsbSavedBitCode_iter_loop_back_sub {base : Word}
   exact evmExpMsbSavedBitCode_iter_body_sub a i
     (expIterBodyFullMsbSavedBitCode_loop_back_sub a i h)
 
+theorem evmExpMsbSavedBitTwoMulCode_iter_loop_back_sub {base : Word}
+    {squaringMulOff condMulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 256)
+      (EvmAsm.Evm64.exp_loop_back backOff)) a = some i →
+      (evmExpMsbSavedBitTwoMulCode
+        base squaringMulOff condMulOff skipOff backOff) a = some i := by
+  intro a i h
+  have haddr : (base + 256 : Word) = base + 28 + 228 := by bv_omega
+  rw [haddr] at h
+  exact evmExpMsbSavedBitTwoMulCode_iter_body_sub a i
+    (expIterBodyFullMsbSavedBitTwoMulCode_loop_back_sub a i h)
+
 /-- Saved-bit conditional-multiply BEQ skip-gate directly included in the
     corrected saved-bit top-level EXP code bundle. -/
 theorem evmExpMsbSavedBitCode_cond_mul_beq_sub {base : Word}
