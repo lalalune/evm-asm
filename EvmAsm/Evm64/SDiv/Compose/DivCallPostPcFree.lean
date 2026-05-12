@@ -34,4 +34,36 @@ instance pcFreeInst_saveRaDivCallBzeroCallablePost
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop) :=
   ⟨saveRaDivCallBzeroCallablePost_pcFree⟩
 
+theorem saveRaDivCallBzeroResultSignFixFrame_pcFree
+    {vRa sp base divisorSign : Word} {dividendAbsWord : EvmWord} :
+    (saveRaDivCallBzeroResultSignFixFrame
+      vRa sp base divisorSign dividendAbsWord).pcFree := by
+  rw [saveRaDivCallBzeroResultSignFixFrame_unfold,
+    EvmAsm.Evm64.divScratchOwnCall_unfold,
+    EvmAsm.Evm64.divScratchOwn_unfold]
+  pcFree
+
+instance pcFreeInst_saveRaDivCallBzeroResultSignFixFrame
+    (vRa sp base divisorSign : Word) (dividendAbsWord : EvmWord) :
+    Assertion.PCFree
+      (saveRaDivCallBzeroResultSignFixFrame
+        vRa sp base divisorSign dividendAbsWord) :=
+  ⟨saveRaDivCallBzeroResultSignFixFrame_pcFree⟩
+
+theorem saveRaDivCallBzeroSavedRaRetFrame_pcFree
+    {sp base divisorSign : Word} {dividendAbsWord : EvmWord} :
+    (saveRaDivCallBzeroSavedRaRetFrame
+      sp base divisorSign dividendAbsWord).pcFree := by
+  rw [saveRaDivCallBzeroSavedRaRetFrame_unfold,
+    EvmAsm.Evm64.divScratchOwnCall_unfold,
+    EvmAsm.Evm64.divScratchOwn_unfold]
+  pcFree
+
+instance pcFreeInst_saveRaDivCallBzeroSavedRaRetFrame
+    (sp base divisorSign : Word) (dividendAbsWord : EvmWord) :
+    Assertion.PCFree
+      (saveRaDivCallBzeroSavedRaRetFrame
+        sp base divisorSign dividendAbsWord) :=
+  ⟨saveRaDivCallBzeroSavedRaRetFrame_pcFree⟩
+
 end EvmAsm.Evm64.SDiv.Compose
