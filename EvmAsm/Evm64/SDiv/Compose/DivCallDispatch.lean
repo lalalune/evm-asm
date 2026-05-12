@@ -266,6 +266,29 @@ theorem saveRaDivCallDispatchReadyPost_unfold
           (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12))))) := by
   delta saveRaDivCallDispatchReadyPost; rfl
 
+theorem saveRaDivCallDispatchReadyPost_pcFree
+    {vRa sp base dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop v2 v5 v6
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratchUn0 : Word} :
+    (saveRaDivCallDispatchReadyPost vRa sp base
+      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+      v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratchUn0).pcFree := by
+  rw [saveRaDivCallDispatchReadyPost_unfold]
+  dsimp
+  rw [EvmAsm.Evm64.divModStackDispatchPre_unfold,
+    EvmAsm.Evm64.divScratchValuesCall_unfold]
+  pcFree
+
+instance pcFreeInst_saveRaDivCallDispatchReadyPost
+    (vRa sp base dividendLimb0 dividendLimb1 dividendLimb2 dividendTop divisorLimb0
+      divisorLimb1 divisorLimb2 divisorTop v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5
+      u6 u7 shiftMem nMem jMem retMem dMem dloMem scratchUn0 : Word) :
+    Assertion.PCFree (saveRaDivCallDispatchReadyPost vRa sp base dividendLimb0 dividendLimb1 dividendLimb2 dividendTop divisorLimb0 divisorLimb1 divisorLimb2 divisorTop v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem scratchUn0) :=
+  ⟨saveRaDivCallDispatchReadyPost_pcFree⟩
+
 /-- Prefix through the SDIV `divCall`, weakened to the exact dispatch-ready
     postcondition consumed by `evm_div_callable_spec_in_sdivCode`. -/
 theorem saveRa_signs_abs_signXor_then_divCall_dispatchReady_spec_in_sdivCode
