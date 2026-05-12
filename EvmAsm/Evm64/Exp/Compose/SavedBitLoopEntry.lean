@@ -12,6 +12,51 @@ namespace EvmAsm.Evm64.Exp.Compose
 open EvmAsm.Rv64
 
 @[irreducible]
+def expTwoMulBoundaryPre
+    (sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord) : Assertion :=
+  (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+      (.x5 ↦ᵣ tOld) ** ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+      ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+      ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+      ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3)) **
+     (.x12 ↦ᵣ evmSp)) ** evmStackIs evmSp (baseWord :: exponentWord :: rest)) **
+   (regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+    (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18)))
+
+theorem expTwoMulBoundaryPre_unfold
+    {sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 : Word}
+    {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    expTwoMulBoundaryPre sp evmSp cOld tOld m0 m1 m2 m3 vOld v18
+      baseWord exponentWord rest =
+      (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+          (.x5 ↦ᵣ tOld) ** ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+          ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+          ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+          ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3)) **
+         (.x12 ↦ᵣ evmSp)) ** evmStackIs evmSp (baseWord :: exponentWord :: rest)) **
+       (regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+        (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18))) := by
+  delta expTwoMulBoundaryPre
+  rfl
+
+theorem expTwoMulBoundaryPre_pcFree
+    {sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 : Word}
+    {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    (expTwoMulBoundaryPre sp evmSp cOld tOld m0 m1 m2 m3 vOld v18
+      baseWord exponentWord rest).pcFree := by
+  rw [expTwoMulBoundaryPre_unfold]
+  pcFree
+
+instance pcFreeInst_expTwoMulBoundaryPre
+    (sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion.PCFree
+      (expTwoMulBoundaryPre sp evmSp cOld tOld m0 m1 m2 m3 vOld v18
+        baseWord exponentWord rest) :=
+  ⟨expTwoMulBoundaryPre_pcFree⟩
+
+@[irreducible]
 def expTwoMulLoopEntryPost
     (sp evmSp vOld v18 : Word) (baseWord exponentWord : EvmWord)
     (rest : List EvmWord) : Assertion :=
@@ -74,6 +119,22 @@ theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonica
   rw [expTwoMulLoopEntryPost_unfold]
   exact
     exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_full_stack_clean_regs_spec_within
+      sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 baseWord exponentWord rest base
+
+/-- Appended-MUL canonical-code prologue/pointer boundary with named pre and
+    post assertions. -/
+theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_named_boundary_spec_within
+    (sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (base : Word) :
+    cpsTripleWithin (6 + 1) base (base + 28)
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulBoundaryPre sp evmSp cOld tOld m0 m1 m2 m3 vOld v18
+        baseWord exponentWord rest)
+      (expTwoMulLoopEntryPost sp evmSp vOld v18 baseWord exponentWord rest) := by
+  rw [expTwoMulBoundaryPre_unfold]
+  exact
+    exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_named_loop_entry_spec_within
       sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 baseWord exponentWord rest base
 
 end EvmAsm.Evm64.Exp.Compose
