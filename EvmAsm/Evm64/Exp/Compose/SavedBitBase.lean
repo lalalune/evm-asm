@@ -316,6 +316,56 @@ theorem expIterBodyFullMsbSavedBitTwoMulCode_eq_ofProg (base : Word)
     (base + 120) condMulOff skipOff]
   simp only [CodeReq.unionAll_cons, CodeReq.unionAll_nil, CodeReq.union_empty_right]
 
+theorem expIterBodyFullMsbSavedBitTwoMulCode_bit_test_sub {base : Word}
+    {squaringMulOff condMulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_msb_bit_test_block)
+      a = some i →
+      (expIterBodyFullMsbSavedBitTwoMulCode
+        base squaringMulOff condMulOff skipOff backOff) a = some i := by
+  rw [expIterBodyFullMsbSavedBitTwoMulCode_eq_ofProg]
+  exact CodeReq.ofProg_mono_sub base base
+    (EvmAsm.Evm64.exp_iter_body_full_msb_saved_bit_two_mul
+      squaringMulOff condMulOff skipOff backOff)
+    EvmAsm.Evm64.exp_msb_bit_test_block 0
+    (by bv_omega)
+    (by
+      unfold EvmAsm.Evm64.exp_iter_body_full_msb_saved_bit_two_mul
+      simp only [EvmAsm.Rv64.seq]
+      unfold Program
+      rfl)
+    (by
+      simp only [exp_iter_body_full_msb_saved_bit_two_mul_len,
+        exp_msb_bit_test_block_len]
+      omega)
+    (by
+      simp only [exp_iter_body_full_msb_saved_bit_two_mul_len]
+      norm_num)
+
+theorem expIterBodyFullMsbSavedBitTwoMulCode_save_bit_sub {base : Word}
+    {squaringMulOff condMulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    ∀ a i, (CodeReq.ofProg (base + 12) EvmAsm.Evm64.exp_save_bit_block)
+      a = some i →
+      (expIterBodyFullMsbSavedBitTwoMulCode
+        base squaringMulOff condMulOff skipOff backOff) a = some i := by
+  rw [expIterBodyFullMsbSavedBitTwoMulCode_eq_ofProg]
+  exact CodeReq.ofProg_mono_sub base (base + 12)
+    (EvmAsm.Evm64.exp_iter_body_full_msb_saved_bit_two_mul
+      squaringMulOff condMulOff skipOff backOff)
+    EvmAsm.Evm64.exp_save_bit_block 3
+    (by bv_omega)
+    (by
+      unfold EvmAsm.Evm64.exp_iter_body_full_msb_saved_bit_two_mul
+      simp only [EvmAsm.Rv64.seq]
+      unfold Program
+      rfl)
+    (by
+      simp only [exp_iter_body_full_msb_saved_bit_two_mul_len,
+        exp_save_bit_block_len]
+      omega)
+    (by
+      simp only [exp_iter_body_full_msb_saved_bit_two_mul_len]
+      norm_num)
+
 theorem expIterBodyFullMsbSavedBitTwoMulCode_squaring_sub {base : Word}
     {squaringMulOff condMulOff : BitVec 21} {skipOff backOff : BitVec 13} :
     ∀ a i, (exp_squaring_call_block_code (base + 16) squaringMulOff)
