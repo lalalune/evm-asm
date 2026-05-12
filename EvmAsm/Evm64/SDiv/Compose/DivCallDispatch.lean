@@ -177,4 +177,60 @@ theorem saveRa_signs_abs_signXor_then_divCall_dispatchReady_spec_in_sdivCode
       EvmWord.getLimb_fromLimbs] at hq ⊢
     xperm_hyp hq) hPrefix
 
+/-- Sequence the SDIV wrapper prefix with any callable proof that consumes the
+    exact dispatch-ready post. This isolates the SDIV-specific target-PC
+    alignment; a later slice can supply the stronger callable proof for this
+    exact `x1` handoff shape. -/
+theorem saveRa_signs_abs_signXor_then_divCall_then_exact_callable_spec_in_sdivCode
+    {nSteps : Nat} {callPost : Assertion}
+    (vRa vSavedOld sp sDividendOld sDivisorOld
+      dividendMaskOld dividendValueOld dividendCarryOld
+      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+      v2 v5 v6 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (base callableExit : Word)
+    (hCallable :
+      cpsTripleWithin nSteps (base + wrapperEndOff) callableExit (sdivCode base)
+        (saveRaDivCallDispatchReadyPost vRa sp base
+          dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+          divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+          v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        callPost) :
+    cpsTripleWithin (49 + nSteps) base callableExit (sdivCode base)
+      (saveRaSignsAbsSignXorThenDivCallPre vRa vSavedOld sp sDividendOld sDivisorOld
+        dividendMaskOld dividendValueOld dividendCarryOld
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
+       ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0))
+      callPost := by
+  have hPrefixRaw :=
+    saveRa_signs_abs_signXor_then_divCall_dispatchReady_spec_in_sdivCode
+      vRa vSavedOld sp sDividendOld sDivisorOld
+      dividendMaskOld dividendValueOld dividendCarryOld
+      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+      v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratchUn0 base
+  have hPrefix : cpsTripleWithin 49 base (base + wrapperEndOff) (sdivCode base)
+      (saveRaSignsAbsSignXorThenDivCallPre vRa vSavedOld sp sDividendOld sDivisorOld
+        dividendMaskOld dividendValueOld dividendCarryOld
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
+       ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0))
+      (saveRaDivCallDispatchReadyPost vRa sp base
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+        v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0) := by
+    rw [← divCall_target_eq_wrapperEndOff base]
+    exact hPrefixRaw
+  exact cpsTripleWithin_seq_same_cr hPrefix hCallable
+
 end EvmAsm.Evm64.SDiv.Compose
