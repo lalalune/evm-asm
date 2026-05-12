@@ -270,6 +270,36 @@ theorem exp_cond_mul_saved_bit_beq_evm_exp_msb_saved_bit_with_mul_spec_within
     (exp_cond_mul_saved_bit_beq_evm_exp_msb_saved_bit_spec_within
       mulOff skipOff backOff v18 base target htarget)
 
+/-- Saved-bit conditional-multiply BEQ skip-gate lifted to the two-MUL-offset
+    saved-bit EXP+MUL code bundle. -/
+theorem exp_cond_mul_saved_bit_beq_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (v18 : Word) (base mulTarget target : Word)
+    (htarget : (base + 148 : Word) + signExtend13 skipOff = target) :
+    cpsBranchWithin 1 (base + 148)
+      (evmExpMsbSavedBitTwoMulWithMulCode
+        base mulTarget squaringMulOff condMulOff skipOff backOff)
+      ((.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)))
+      target ((.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v18 = 0⌝)
+      (base + 152) ((.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v18 ≠ 0⌝) := by
+  have h := EvmAsm.Rv64.beq_spec_within .x18 .x0 skipOff v18 (0 : Word)
+    (base + 148)
+  rw [htarget] at h
+  have hnext : ((base + 148 : Word) + 4) = base + 152 := by bv_omega
+  rw [hnext] at h
+  exact cpsBranchWithin_extend_code
+    (h := h)
+    (hmono := fun a i hi => by
+      have hentry : (base + 148 : Word) = (base + 28) + 120 := by bv_omega
+      rw [hentry] at hi
+      exact evmExpMsbSavedBitTwoMulWithMulCode_exp_sub a i
+        (evmExpMsbSavedBitTwoMulCode_iter_body_sub
+          (base := base) (squaringMulOff := squaringMulOff)
+          (condMulOff := condMulOff) (skipOff := skipOff) (backOff := backOff)
+          a i (expIterBodyFullMsbSavedBitTwoMulCode_cond_mul_sub a i
+            (EvmAsm.Evm64.exp_cond_mul_call_with_saved_bit_skip_block_code_beq_sub
+              ((base + 28) + 120) condMulOff skipOff a i hi))))
+
 /-- Saved-bit loop-back block lifted directly to the corrected EXP+MUL code
     bundle. -/
 theorem exp_loop_back_evm_exp_msb_saved_bit_with_mul_spec_within (c : Word)
