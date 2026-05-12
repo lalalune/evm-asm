@@ -12,6 +12,7 @@
 -/
 
 import EvmAsm.Rv64.Program
+import Std.Tactic.BVDecide
 
 namespace EvmAsm.Evm64
 
@@ -1057,6 +1058,21 @@ theorem canonicalExpLoopBackOff_eq :
 
 theorem canonicalExpMsbSavedBitLoopBackOff_eq :
     canonicalExpMsbSavedBitLoopBackOff = -232 := rfl
+
+theorem canonicalExpCondMulSkip_target (base : Word) :
+    (base + 148 : Word) + signExtend13 canonicalExpCondMulSkipOff =
+      base + 256 := by
+  rw [canonicalExpCondMulSkipOff_eq]
+  unfold signExtend13
+  bv_decide
+
+theorem canonicalExpMsbSavedBitLoopBack_target (base : Word) :
+    ((base + 256) + 4 : Word) +
+        signExtend13 canonicalExpMsbSavedBitLoopBackOff =
+      base + 28 := by
+  rw [canonicalExpMsbSavedBitLoopBackOff_eq]
+  unfold signExtend13
+  bv_decide
 
 theorem evm_exp_canonical_eq (mulOff : BitVec 21) :
     evm_exp_canonical mulOff =
