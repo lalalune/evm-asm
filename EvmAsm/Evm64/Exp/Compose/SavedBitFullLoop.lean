@@ -130,6 +130,29 @@ theorem exp_msb_bit_test_evm_exp_msb_saved_bit_with_mul_spec_within
     (exp_msb_bit_test_evm_exp_msb_saved_bit_spec_within
       e c v10 mulOff skipOff backOff base)
 
+/-- MSB bit-test block lifted to the two-MUL-offset saved-bit EXP+MUL bundle. -/
+theorem exp_msb_bit_test_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
+    (e c v10 : Word) (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) (base mulTarget : Word) :
+    cpsTripleWithin 3 (base + 28) (base + 40)
+      (evmExpMsbSavedBitTwoMulWithMulCode
+        base mulTarget squaringMulOff condMulOff skipOff backOff)
+      ((.x5 ↦ᵣ e) ** (.x6 ↦ᵣ c) ** (.x10 ↦ᵣ v10))
+      ((.x5 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+       (.x6 ↦ᵣ (c + signExtend12 ((-1) : BitVec 12))) **
+       (.x10 ↦ᵣ (e >>> (63 : BitVec 6).toNat))) := by
+  have h := EvmAsm.Evm64.exp_msb_bit_test_block_spec_within e c v10 (base + 28)
+  have hnext : ((base + 28 : Word) + 12) = base + 40 := by bv_omega
+  rw [hnext] at h
+  exact cpsTripleWithin_extend_code
+    (h := h)
+    (hmono := fun a i hi =>
+      evmExpMsbSavedBitTwoMulWithMulCode_exp_sub a i
+        (evmExpMsbSavedBitTwoMulCode_iter_body_sub
+          (base := base) (squaringMulOff := squaringMulOff)
+          (condMulOff := condMulOff) (skipOff := skipOff) (backOff := backOff)
+          a i (expIterBodyFullMsbSavedBitTwoMulCode_bit_test_sub a i hi)))
+
 /-- Save-bit block lifted to the corrected saved-bit EXP+MUL code bundle. -/
 theorem exp_save_bit_evm_exp_msb_saved_bit_with_mul_spec_within
     (bit v18 : Word) (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
@@ -141,6 +164,29 @@ theorem exp_save_bit_evm_exp_msb_saved_bit_with_mul_spec_within
   cpsTripleWithin_extend_evmExpMsbSavedBitWithMulCode
     (exp_save_bit_evm_exp_msb_saved_bit_spec_within
       bit v18 mulOff skipOff backOff base)
+
+/-- Save-bit block lifted to the two-MUL-offset saved-bit EXP+MUL bundle. -/
+theorem exp_save_bit_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
+    (bit v18 : Word) (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) (base mulTarget : Word) :
+    cpsTripleWithin 1 (base + 40) (base + 44)
+      (evmExpMsbSavedBitTwoMulWithMulCode
+        base mulTarget squaringMulOff condMulOff skipOff backOff)
+      ((.x10 ↦ᵣ bit) ** (.x18 ↦ᵣ v18))
+      ((.x10 ↦ᵣ bit) ** (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12)))) := by
+  have h := EvmAsm.Evm64.exp_save_bit_block_spec_within bit v18 (base + 40)
+  have hnext : ((base + 40 : Word) + 4) = base + 44 := by bv_omega
+  rw [hnext] at h
+  exact cpsTripleWithin_extend_code
+    (h := h)
+    (hmono := fun a i hi => by
+      have hentry : (base + 40 : Word) = (base + 28) + 12 := by bv_omega
+      rw [hentry] at hi
+      exact evmExpMsbSavedBitTwoMulWithMulCode_exp_sub a i
+        (evmExpMsbSavedBitTwoMulCode_iter_body_sub
+          (base := base) (squaringMulOff := squaringMulOff)
+          (condMulOff := condMulOff) (skipOff := skipOff) (backOff := backOff)
+          a i (expIterBodyFullMsbSavedBitTwoMulCode_save_bit_sub a i hi)))
 
 /-- Prefix of one corrected EXP iteration: extract the current MSB into `x10`
     and save the same bit in callee-saved `x18` before the squaring call. -/
@@ -162,6 +208,40 @@ theorem exp_msb_bit_test_then_save_bit_evm_exp_msb_saved_bit_with_mul_spec_withi
     cpsTripleWithin_frameR (.x18 ↦ᵣ v18) (by pcFree) hBit
   have hSave := exp_save_bit_evm_exp_msb_saved_bit_with_mul_spec_within
     bit v18 mulOff skipOff backOff base mulTarget
+  have hSaveFramed :=
+    cpsTripleWithin_frameL
+      ((.x5 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+       (.x6 ↦ᵣ (c + signExtend12 ((-1) : BitVec 12))))
+      (by pcFree) hSave
+  have hSeq :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by xperm_hyp hp) hBitFramed hSaveFramed
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp)
+    hSeq
+
+/-- Two-MUL-offset prefix of one corrected EXP iteration: extract the current
+    MSB into `x10` and save the same bit in `x18` before the squaring call. -/
+theorem exp_msb_bit_test_then_save_bit_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
+    (e c v10 v18 : Word) (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) (base mulTarget : Word) :
+    let bit := e >>> (63 : BitVec 6).toNat
+    cpsTripleWithin (3 + 1) (base + 28) (base + 44)
+      (evmExpMsbSavedBitTwoMulWithMulCode
+        base mulTarget squaringMulOff condMulOff skipOff backOff)
+      ((.x5 ↦ᵣ e) ** (.x6 ↦ᵣ c) ** (.x10 ↦ᵣ v10) ** (.x18 ↦ᵣ v18))
+      ((.x5 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+       (.x6 ↦ᵣ (c + signExtend12 ((-1) : BitVec 12))) **
+       (.x10 ↦ᵣ bit) **
+       (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12)))) := by
+  intro bit
+  have hBit := exp_msb_bit_test_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
+    e c v10 squaringMulOff condMulOff skipOff backOff base mulTarget
+  have hBitFramed :=
+    cpsTripleWithin_frameR (.x18 ↦ᵣ v18) (by pcFree) hBit
+  have hSave := exp_save_bit_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
+    bit v18 squaringMulOff condMulOff skipOff backOff base mulTarget
   have hSaveFramed :=
     cpsTripleWithin_frameL
       ((.x5 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
