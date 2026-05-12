@@ -7,6 +7,8 @@
   tested bit live in `x18` across the unconditional squaring call.
 -/
 
+-- file-size-exception: legacy saved-bit EXP bundle on this stack branch; descendant stack splits these helpers.
+
 import EvmAsm.Evm64.Exp.Compose.FullLoop
 
 namespace EvmAsm.Evm64.Exp.Compose
