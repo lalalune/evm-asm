@@ -255,4 +255,72 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
       xperm_hyp hp)
     hConcrete
 
+/-- Assertion-level bridge from the folded-word precondition produced by the
+    two-MUL saved-bit prefix to the concrete-limb precondition consumed by the
+    conditional-multiply adapter. Keeping this as a pure assertion implication
+    avoids comparing the full generated CPS theorem type while still isolating
+    the `evmWordIs` unfolding and address normalization needed by the next
+    composition slice. -/
+theorem exp_cond_mul_folded_pre_to_call_scratch_owned_pre
+    (sp evmSp iterCount vOld a0 a1 a2 a3 : Word) (r : EvmWord) :
+    let baseFrame : Assertion :=
+      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+    let foldedPre : Assertion :=
+      (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
+        evmWordIs sp r ** evmWordIs (evmSp + 32) r **
+        baseFrame ** (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) **
+        (.x0 ↦ᵣ (0 : Word))) **
+       regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+       memOwn evmSp ** memOwn (evmSp + 8) **
+       memOwn (evmSp + 16) ** memOwn (evmSp + 24))
+    let concretePre : Assertion :=
+      let preCore : Assertion :=
+        (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r.getLimbN 0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r.getLimbN 1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r.getLimbN 2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r.getLimbN 3) **
+        ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ r.getLimbN 0) **
+        ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ r.getLimbN 1) **
+        ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ r.getLimbN 2) **
+        ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ r.getLimbN 3) **
+        ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+        ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+        ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+        ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
+        (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) ** (.x0 ↦ᵣ (0 : Word))
+      preCore **
+      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+      memOwn evmSp ** memOwn (evmSp + 8) **
+      memOwn (evmSp + 16) ** memOwn (evmSp + 24)
+    ∀ h, foldedPre h → concretePre h := by
+  intro baseFrame foldedPre concretePre h hp
+  dsimp [foldedPre, concretePre, baseFrame] at hp ⊢
+  unfold evmWordIs at hp
+  have hSrc8 : (evmSp + 32#64 + 8 : Word) = evmSp + 40#64 := by bv_omega
+  have hSrc16 : (evmSp + 32#64 + 16 : Word) = evmSp + 48#64 := by bv_omega
+  have hSrc24 : (evmSp + 32#64 + 24 : Word) = evmSp + 56#64 := by bv_omega
+  rw [hSrc8, hSrc16, hSrc24] at hp
+  have hSp0 : (sp + signExtend12 0#12 : Word) = sp := by
+    unfold signExtend12; bv_decide
+  have hSp8 : (sp + signExtend12 8#12 : Word) = sp + 8 := by
+    unfold signExtend12; bv_decide
+  have hSp16 : (sp + signExtend12 16#12 : Word) = sp + 16 := by
+    unfold signExtend12; bv_decide
+  have hSp24 : (sp + signExtend12 24#12 : Word) = sp + 24 := by
+    unfold signExtend12; bv_decide
+  have hEvm32 : (evmSp + signExtend12 32#12 : Word) = evmSp + 32#64 := by
+    unfold signExtend12; bv_decide
+  have hEvm40 : (evmSp + signExtend12 40#12 : Word) = evmSp + 40#64 := by
+    unfold signExtend12; bv_decide
+  have hEvm48 : (evmSp + signExtend12 48#12 : Word) = evmSp + 48#64 := by
+    unfold signExtend12; bv_decide
+  have hEvm56 : (evmSp + signExtend12 56#12 : Word) = evmSp + 56#64 := by
+    unfold signExtend12; bv_decide
+  rw [hSp0, hSp8, hSp16, hSp24, hEvm32, hEvm40, hEvm48, hEvm56]
+  xperm_hyp hp
+
 end EvmAsm.Evm64.Exp.Compose
