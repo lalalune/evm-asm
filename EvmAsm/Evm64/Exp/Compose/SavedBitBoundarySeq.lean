@@ -237,6 +237,39 @@ theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonica
       EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff
       base mulTarget
 
+/-- Appended-MUL canonical-code view of the full-stack
+    prologue/pointer-advance boundary. -/
+theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_full_stack_clean_regs_spec_within
+    (sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (base : Word) :
+    let scratchFrame : Assertion :=
+      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+      (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18)
+    cpsTripleWithin (6 + 1) base (base + 28)
+      (evmExpMsbSavedBitTwoMulCanonicalWithMulCode
+        base (base + 304)
+        EvmAsm.Evm64.canonicalExpSquaringMulOff
+        EvmAsm.Evm64.canonicalExpCondMulOff)
+      (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+          (.x5 ↦ᵣ tOld) ** ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+          ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+          ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+          ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3)) **
+         (.x12 ↦ᵣ evmSp)) ** evmStackIs evmSp (baseWord :: exponentWord :: rest)) **
+       scratchFrame)
+      (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x9 ↦ᵣ (256 : Word)) ** (.x5 ↦ᵣ (1 : Word)) **
+          evmWordIs sp (1 : EvmWord)) **
+         (.x12 ↦ᵣ (evmSp + 64))) **
+        evmStackIs evmSp (baseWord :: exponentWord :: rest)) **
+       scratchFrame) :=
+  exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonical_with_mul_full_stack_clean_regs_spec_within
+    sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 baseWord exponentWord rest
+    EvmAsm.Evm64.canonicalExpSquaringMulOff
+    EvmAsm.Evm64.canonicalExpCondMulOff
+    base (base + 304)
+
 /-- Pointer-restore followed by the EXP epilogue in the two-MUL saved-bit
     EXP+MUL code bundle. This packages the loop-exit boundary from
     `base + 264` through the final stack-facing writeback at `base + 304`. -/
@@ -597,5 +630,42 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
       EvmAsm.Evm64.canonicalExpCondMulSkipOff
       EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff
       base mulTarget
+
+/-- Appended-MUL canonical-code view of the loop-exit boundary: pointer restore
+    followed by EXP epilogue over the canonical combined code shape. -/
+theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_spec_within
+    (sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word)
+    (baseWord : EvmWord) (rest : List EvmWord)
+    (exitCond : Prop)
+    (base : Word) :
+    let exitControl : Assertion :=
+      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
+    cpsTripleWithin (1 + 9) (base + 264) (base + 304)
+      (evmExpMsbSavedBitTwoMulCanonicalWithMulCode
+        base (base + 304)
+        EvmAsm.Evm64.canonicalExpSquaringMulOff
+        EvmAsm.Evm64.canonicalExpCondMulOff)
+      (exitControl **
+       ((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
+        ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
+         ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+         ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+         ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+         ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3))) **
+       evmStackIs evmSp (baseWord :: expResultWord d0 d1 d2 d3 :: rest))
+      (exitControl **
+       ((.x2 ↦ᵣ sp) **
+        (.x12 ↦ᵣ (evmSp + 32)) **
+        (.x5 ↦ᵣ r3) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        evmStackIs evmSp (baseWord :: expResultWord r0 r1 r2 r3 :: rest))) :=
+  exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_mul_canonical_with_mul_spec_within
+    sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 baseWord rest exitCond
+    EvmAsm.Evm64.canonicalExpSquaringMulOff
+    EvmAsm.Evm64.canonicalExpCondMulOff
+    base (base + 304)
 
 end EvmAsm.Evm64.Exp.Compose
