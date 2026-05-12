@@ -31,6 +31,19 @@ theorem exp_loop_back_evm_exp_msb_saved_bit_two_mul_canonical_with_mul_spec_with
     EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff
     base mulTarget (base + 28) htarget
 
+/-- Appended-MUL canonical-code view of the saved-bit loop-back block. -/
+theorem exp_loop_back_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_spec_within
+    (c : Word) (base : Word) :
+    let cNew := c + signExtend12 ((-1 : BitVec 12))
+    cpsBranchWithin 2 (base + 256)
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      ((.x9 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)))
+      (base + 28) ((.x9 ↦ᵣ cNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜cNew ≠ 0⌝)
+      (base + 264) ((.x9 ↦ᵣ cNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜cNew = 0⌝) :=
+  exp_loop_back_evm_exp_msb_saved_bit_two_mul_canonical_with_mul_spec_within
+    c EvmAsm.Evm64.canonicalExpSquaringMulOff
+    EvmAsm.Evm64.canonicalExpCondMulOff base (base + 304)
+
 /-- Canonical-code view of the zero-bit path through the saved-bit BEQ and
     loop-back update. The nonzero branch remains the conditional-multiply
     handoff at `base + 152`; the loop branch returns to `base + 28`. -/
