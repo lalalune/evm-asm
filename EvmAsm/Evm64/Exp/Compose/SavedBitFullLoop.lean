@@ -116,6 +116,46 @@ theorem cpsBranchWithin_extend_evmExpMsbSavedBitWithMulCode {nSteps : Nat}
   cpsBranchWithin_extend_code
     (hmono := evmExpMsbSavedBitWithMulCode_exp_sub) h
 
+/-- Lift a two-offset corrected saved-bit EXP branch spec into the combined
+    EXP+MUL code bundle. -/
+theorem cpsBranchWithin_extend_evmExpMsbSavedBitTwoMulWithMulCode {nSteps : Nat}
+    {entry base mulTarget : Word}
+    {squaringMulOff condMulOff : BitVec 21} {skipOff backOff : BitVec 13}
+    {P : Assertion} {exit_t : Word} {Q_t : Assertion} {exit_f : Word}
+    {Q_f : Assertion}
+    (h : cpsBranchWithin nSteps entry
+      (evmExpMsbSavedBitTwoMulCode
+        base squaringMulOff condMulOff skipOff backOff)
+      P exit_t Q_t exit_f Q_f) :
+    cpsBranchWithin nSteps entry
+      (evmExpMsbSavedBitTwoMulWithMulCode
+        base mulTarget squaringMulOff condMulOff skipOff backOff)
+      P exit_t Q_t exit_f Q_f :=
+  cpsBranchWithin_extend_code
+    (hmono := evmExpMsbSavedBitTwoMulWithMulCode_exp_sub) h
+
+/-- Lift a multiply-callable spec into the two-MUL saved-bit EXP+MUL code
+    bundle. -/
+theorem cpsTripleWithin_extend_mulCallable_evmExpMsbSavedBitTwoMulWithMulCode
+    {nSteps : Nat} {entry exit_ base mulTarget : Word}
+    {squaringMulOff condMulOff : BitVec 21} {skipOff backOff : BitVec 13}
+    {P Q : Assertion}
+    (hd : CodeReq.Disjoint
+      (evmExpMsbSavedBitTwoMulCode
+        base squaringMulOff condMulOff skipOff backOff)
+      (mul_callable_code mulTarget))
+    (h : cpsTripleWithin nSteps entry exit_
+      (mul_callable_code mulTarget) P Q) :
+    cpsTripleWithin nSteps entry exit_
+      (evmExpMsbSavedBitTwoMulWithMulCode
+        base mulTarget squaringMulOff condMulOff skipOff backOff) P Q :=
+  cpsTripleWithin_extend_code
+    (hmono := evmExpMsbSavedBitTwoMulWithMulCode_mul_sub
+      (base := base) (mulTarget := mulTarget)
+      (squaringMulOff := squaringMulOff) (condMulOff := condMulOff)
+      (skipOff := skipOff) (backOff := backOff) hd)
+    h
+
 theorem evmExpMsbSavedBitTwoMulWithMulCode_block_subs {base mulTarget : Word}
     {squaringMulOff condMulOff : BitVec 21} {skipOff backOff : BitVec 13}
     (hd : CodeReq.Disjoint
