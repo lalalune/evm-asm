@@ -1095,6 +1095,16 @@ theorem sdivCode_top_level_subs {base : Word} :
       (sdivCode base) a = some i) := by
   exact ⟨sdivCode_wrapper_sub, sdivCode_div_callable_sub⟩
 
+/-- The near `JAL` at the SDIV wrapper's `divCall` block targets the appended
+    unsigned DIV callable, which starts at `base + wrapperEndOff`.  This is
+    the entry-PC alignment fact needed to sequence the wrapper prefix with the
+    callable DIV stack dispatcher. -/
+theorem divCall_target_eq_wrapperEndOff (base : Word) :
+    (base + divCallOff) + signExtend21 EvmAsm.Evm64.evm_sdivCallOff =
+      base + wrapperEndOff := by
+  show (base + (192 : Word)) + (92 : Word) = base + (284 : Word)
+  bv_decide
+
 /-- Under the standard RV PC-alignment invariant (`base` has its low bit
     clear), the JALR low-bit mask `&&& ~~~1` on the post-`divCall` return
     address `base + resultSignFixOff` is the identity. Bite-sized helper
