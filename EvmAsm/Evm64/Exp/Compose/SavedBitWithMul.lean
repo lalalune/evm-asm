@@ -286,6 +286,52 @@ theorem cpsBranchWithin_extend_evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode
   cpsBranchWithin_extend_code
     (hmono := evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode_exp_sub) h
 
+/-- Lift a corrected saved-bit top-level EXP N-branch spec into the combined
+    EXP+MUL code bundle. -/
+theorem cpsNBranchWithin_extend_evmExpMsbSavedBitWithMulCode
+    {nSteps : Nat} {entry base mulTarget : Word}
+    {mulOff : BitVec 21} {skipOff backOff : BitVec 13}
+    {P : Assertion} {exits : List (Word × Assertion)}
+    (h : cpsNBranchWithin nSteps entry
+      (evmExpMsbSavedBitCode base mulOff skipOff backOff) P exits) :
+    cpsNBranchWithin nSteps entry
+      (evmExpMsbSavedBitWithMulCode base mulTarget mulOff skipOff backOff)
+      P exits :=
+  cpsNBranchWithin_extend_code
+    (hmono := evmExpMsbSavedBitWithMulCode_exp_sub) h
+
+/-- Lift a two-offset corrected saved-bit EXP N-branch spec into the combined
+    EXP+MUL code bundle. -/
+theorem cpsNBranchWithin_extend_evmExpMsbSavedBitTwoMulWithMulCode
+    {nSteps : Nat} {entry base mulTarget : Word}
+    {squaringMulOff condMulOff : BitVec 21} {skipOff backOff : BitVec 13}
+    {P : Assertion} {exits : List (Word × Assertion)}
+    (h : cpsNBranchWithin nSteps entry
+      (evmExpMsbSavedBitTwoMulCode
+        base squaringMulOff condMulOff skipOff backOff)
+      P exits) :
+    cpsNBranchWithin nSteps entry
+      (evmExpMsbSavedBitTwoMulWithMulCode
+        base mulTarget squaringMulOff condMulOff skipOff backOff) P exits :=
+  cpsNBranchWithin_extend_code
+    (hmono := evmExpMsbSavedBitTwoMulWithMulCode_exp_sub) h
+
+/-- Lift a canonical two-offset saved-bit EXP N-branch spec into the combined
+    EXP+MUL code bundle. -/
+theorem cpsNBranchWithin_extend_evmExpMsbSavedBitTwoMulCanonicalWithMulCode
+    {nSteps : Nat} {entry base mulTarget : Word}
+    {squaringMulOff condMulOff : BitVec 21}
+    {P : Assertion} {exits : List (Word × Assertion)}
+    (h : cpsNBranchWithin nSteps entry
+      (evmExpMsbSavedBitTwoMulCanonicalCode
+        base squaringMulOff condMulOff)
+      P exits) :
+    cpsNBranchWithin nSteps entry
+      (evmExpMsbSavedBitTwoMulCanonicalWithMulCode
+        base mulTarget squaringMulOff condMulOff) P exits :=
+  cpsNBranchWithin_extend_code
+    (hmono := evmExpMsbSavedBitTwoMulCanonicalWithMulCode_exp_sub) h
+
 /-- Lift a canonical two-MUL saved-bit EXP N-branch spec into the named
     appended-MUL code bundle. -/
 theorem cpsNBranchWithin_extend_evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode
