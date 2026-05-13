@@ -21,6 +21,7 @@ import EvmAsm.Evm64.SDiv.LimbSpec
 import EvmAsm.Evm64.SDiv.AddrNorm
 import EvmAsm.Evm64.SDiv.Compose.Base
 import EvmAsm.Evm64.SDiv.Compose.Bridges
+import EvmAsm.Evm64.SDiv.Compose.BaseDividendAbsBlockSpec
 import EvmAsm.Evm64.SDiv.Compose.DivisorAbsSequence
 import EvmAsm.Evm64.SDiv.Compose.SignXorSequence
 import EvmAsm.Evm64.SDiv.Compose.DivCall
