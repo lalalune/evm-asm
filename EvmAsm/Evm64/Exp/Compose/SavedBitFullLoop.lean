@@ -925,7 +925,7 @@ theorem exp_cond_mul_call_block_evm_exp_msb_saved_bit_with_mul_spec_within
             (evmExpMsbSavedBitCode base mulOff skipOff backOff)
             (mul_callable_code mulTarget)) :
     let r := expResultWord r0 r1 r2 r3
-    let aw := expTwoMulIterAw a0 a1 a2 a3
+    let rw := expTwoMulCondRw r a0 a1 a2 a3
     cpsTripleWithin (17 + 64 + 9) (base + 152) ((base + 152) + 104)
       (evmExpMsbSavedBitWithMulCode base mulTarget mulOff skipOff backOff)
       ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
@@ -948,17 +948,17 @@ theorem exp_cond_mul_call_block_evm_exp_msb_saved_bit_with_mul_spec_within
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
        (.x1 ↦ᵣ vOld))
       ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
-       (.x5 ↦ᵣ (r * aw).getLimbN 3) **
+       (.x5 ↦ᵣ rw.getLimbN 3) **
        ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
        ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
        ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
        ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
-       evmWordIs sp (r * aw) ** evmWordIs (evmSp + 32) (r * aw) **
+       evmWordIs sp rw ** evmWordIs (evmSp + 32) rw **
        regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
        memOwn evmSp ** memOwn (evmSp + 8) **
        memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
        (.x1 ↦ᵣ ((base + 152) + 68))) := by
-  intro r aw
+  intro r rw
   have hbase' : (base + 152 : Word) &&& 1 = 0 := by bv_decide
   have hCondSub : ∀ a i,
       exp_cond_mul_call_block_code (base + 152) mulOff a = some i →
@@ -1005,7 +1005,7 @@ theorem exp_cond_mul_call_block_evm_exp_msb_saved_bit_two_mul_with_mul_spec_with
               base squaringMulOff condMulOff skipOff backOff)
             (mul_callable_code mulTarget)) :
     let r := expResultWord r0 r1 r2 r3
-    let aw := expTwoMulIterAw a0 a1 a2 a3
+    let rw := expTwoMulCondRw r a0 a1 a2 a3
     cpsTripleWithin (17 + 64 + 9) (base + 152) ((base + 152) + 104)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
@@ -1029,17 +1029,17 @@ theorem exp_cond_mul_call_block_evm_exp_msb_saved_bit_two_mul_with_mul_spec_with
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
        (.x1 ↦ᵣ vOld))
       ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
-       (.x5 ↦ᵣ (r * aw).getLimbN 3) **
+       (.x5 ↦ᵣ rw.getLimbN 3) **
        ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
        ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
        ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
        ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
-       evmWordIs sp (r * aw) ** evmWordIs (evmSp + 32) (r * aw) **
+       evmWordIs sp rw ** evmWordIs (evmSp + 32) rw **
        regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
        memOwn evmSp ** memOwn (evmSp + 8) **
        memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
        (.x1 ↦ᵣ ((base + 152) + 68))) := by
-  intro r aw
+  intro r rw
   have hbase' : (base + 152 : Word) &&& 1 = 0 := by bv_decide
   have hCondSub : ∀ a i,
       exp_cond_mul_call_block_code (base + 152) condMulOff a = some i →
