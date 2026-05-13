@@ -20,20 +20,19 @@ theorem exp_two_mul_named_iter_with_continuations_spec_within
       e0 e1 e2 e3 a0 a1 a2 a3 : Word)
     (base : Word)
     (hbase : base &&& 1 = 0) :
-    let bit := e >>> (63 : BitVec 6).toNat
-    let w := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
-    let rw := (w * w) * aw
-    let iterCountNew := iterCount + signExtend12 ((-1 : BitVec 12))
     (cpsTripleWithin nCont (base + 28) exit_
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
-      (expTwoMulIterLoopPost iterCountNew bit sp evmSp base
-        a0 a1 a2 a3 w rw)
+      (expTwoMulIterLoopPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
       R) →
     (cpsTripleWithin nCont (base + 264) exit_
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
-      (expTwoMulIterExitPost iterCountNew bit sp evmSp base
-        a0 a1 a2 a3 w rw)
+      (expTwoMulIterExitPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
       R) →
     cpsTripleWithin
       (expTwoMulNamedIterStepBound + nCont)
@@ -43,12 +42,15 @@ theorem exp_two_mul_named_iter_with_continuations_spec_within
       (expTwoMulIterPre e iterCount v18 sp evmSp vOld r0 r1 r2 r3
         d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3)
       R := by
-  intro bit w aw rw iterCountNew hLoop hExit
+  intro hLoop hExit
   exact
     cpsBranchWithin_merge_same_cr
-      (exp_msb_saved_bit_two_mul_full_iter_named_pre_canonical_appended_mul_spec_within
-        e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
-        e0 e1 e2 e3 a0 a1 a2 a3 base hbase)
+      (by
+        simpa [expTwoMulIterBit, expTwoMulIterW, expTwoMulIterAw,
+          expTwoMulIterRw, expTwoMulIterCountNew] using
+          (exp_msb_saved_bit_two_mul_full_iter_named_pre_canonical_appended_mul_spec_within
+            e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
+            e0 e1 e2 e3 a0 a1 a2 a3 base hbase))
       hLoop hExit
 
 /-- Variant of `exp_two_mul_named_iter_with_continuations_spec_within` that
@@ -59,20 +61,19 @@ theorem exp_two_mul_named_iter_with_continuations_max_spec_within
       e0 e1 e2 e3 a0 a1 a2 a3 : Word)
     (base : Word)
     (hbase : base &&& 1 = 0) :
-    let bit := e >>> (63 : BitVec 6).toNat
-    let w := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
-    let rw := (w * w) * aw
-    let iterCountNew := iterCount + signExtend12 ((-1 : BitVec 12))
     (cpsTripleWithin nLoop (base + 28) exit_
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
-      (expTwoMulIterLoopPost iterCountNew bit sp evmSp base
-        a0 a1 a2 a3 w rw)
+      (expTwoMulIterLoopPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
       R) →
     (cpsTripleWithin nExit (base + 264) exit_
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
-      (expTwoMulIterExitPost iterCountNew bit sp evmSp base
-        a0 a1 a2 a3 w rw)
+      (expTwoMulIterExitPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
       R) →
     cpsTripleWithin
       (expTwoMulNamedIterStepBound + max nLoop nExit)
@@ -82,7 +83,7 @@ theorem exp_two_mul_named_iter_with_continuations_max_spec_within
       (expTwoMulIterPre e iterCount v18 sp evmSp vOld r0 r1 r2 r3
         d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3)
       R := by
-  intro bit w aw rw iterCountNew hLoop hExit
+  intro hLoop hExit
   exact
     exp_two_mul_named_iter_with_continuations_spec_within
       e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
@@ -102,20 +103,19 @@ theorem exp_two_mul_named_iter_with_continuations_bounded_spec_within
     (hbase : base &&& 1 = 0)
     (hBound :
       expTwoMulNamedIterStepBound + max nLoop nExit ≤ nBound) :
-    let bit := e >>> (63 : BitVec 6).toNat
-    let w := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
-    let rw := (w * w) * aw
-    let iterCountNew := iterCount + signExtend12 ((-1 : BitVec 12))
     (cpsTripleWithin nLoop (base + 28) exit_
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
-      (expTwoMulIterLoopPost iterCountNew bit sp evmSp base
-        a0 a1 a2 a3 w rw)
+      (expTwoMulIterLoopPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
       R) →
     (cpsTripleWithin nExit (base + 264) exit_
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
-      (expTwoMulIterExitPost iterCountNew bit sp evmSp base
-        a0 a1 a2 a3 w rw)
+      (expTwoMulIterExitPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
       R) →
     cpsTripleWithin nBound
       (base + 28)
@@ -124,7 +124,7 @@ theorem exp_two_mul_named_iter_with_continuations_bounded_spec_within
       (expTwoMulIterPre e iterCount v18 sp evmSp vOld r0 r1 r2 r3
         d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3)
       R := by
-  intro bit w aw rw iterCountNew hLoop hExit
+  intro hLoop hExit
   exact
     cpsTripleWithin_mono_nSteps hBound
       (exp_two_mul_named_iter_with_continuations_max_spec_within
@@ -141,20 +141,19 @@ theorem exp_two_mul_named_iter_with_continuations_closed_bound_spec_within
     (base : Word)
     (hbase : base &&& 1 = 0)
     (hBound : 189 + max nLoop nExit ≤ nBound) :
-    let bit := e >>> (63 : BitVec 6).toNat
-    let w := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
-    let rw := (w * w) * aw
-    let iterCountNew := iterCount + signExtend12 ((-1 : BitVec 12))
     (cpsTripleWithin nLoop (base + 28) exit_
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
-      (expTwoMulIterLoopPost iterCountNew bit sp evmSp base
-        a0 a1 a2 a3 w rw)
+      (expTwoMulIterLoopPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
       R) →
     (cpsTripleWithin nExit (base + 264) exit_
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
-      (expTwoMulIterExitPost iterCountNew bit sp evmSp base
-        a0 a1 a2 a3 w rw)
+      (expTwoMulIterExitPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
       R) →
     cpsTripleWithin nBound
       (base + 28)
@@ -163,7 +162,7 @@ theorem exp_two_mul_named_iter_with_continuations_closed_bound_spec_within
       (expTwoMulIterPre e iterCount v18 sp evmSp vOld r0 r1 r2 r3
         d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3)
       R := by
-  intro bit w aw rw iterCountNew hLoop hExit
+  intro hLoop hExit
   exact
     exp_two_mul_named_iter_with_continuations_bounded_spec_within
       e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
@@ -179,20 +178,19 @@ theorem exp_two_mul_named_iter_with_continuations_exact_closed_bound_spec_within
       e0 e1 e2 e3 a0 a1 a2 a3 : Word)
     (base : Word)
     (hbase : base &&& 1 = 0) :
-    let bit := e >>> (63 : BitVec 6).toNat
-    let w := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
-    let rw := (w * w) * aw
-    let iterCountNew := iterCount + signExtend12 ((-1 : BitVec 12))
     (cpsTripleWithin nLoop (base + 28) exit_
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
-      (expTwoMulIterLoopPost iterCountNew bit sp evmSp base
-        a0 a1 a2 a3 w rw)
+      (expTwoMulIterLoopPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
       R) →
     (cpsTripleWithin nExit (base + 264) exit_
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
-      (expTwoMulIterExitPost iterCountNew bit sp evmSp base
-        a0 a1 a2 a3 w rw)
+      (expTwoMulIterExitPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
       R) →
     cpsTripleWithin (189 + max nLoop nExit)
       (base + 28)
