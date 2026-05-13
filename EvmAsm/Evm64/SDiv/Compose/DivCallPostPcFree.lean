@@ -78,4 +78,42 @@ instance pcFreeInst_resultSignFixPost
     Assertion.PCFree (resultSignFixPost sp sign limb0 limb1 limb2 limb3) :=
   ⟨resultSignFixPost_pcFree⟩
 
+theorem resultSignFixPreOwnX10_pcFree
+    {sp sign valueOld carryOld limb0 limb1 limb2 limb3 : Word} :
+    (resultSignFixPreOwnX10
+      sp sign valueOld carryOld limb0 limb1 limb2 limb3).pcFree := by
+  rw [resultSignFixPreOwnX10_unfold]
+  pcFree
+
+instance pcFreeInst_resultSignFixPreOwnX10
+    (sp sign valueOld carryOld limb0 limb1 limb2 limb3 : Word) :
+    Assertion.PCFree
+      (resultSignFixPreOwnX10
+        sp sign valueOld carryOld limb0 limb1 limb2 limb3) :=
+  ⟨resultSignFixPreOwnX10_pcFree⟩
+
+theorem resultSignFixPreOwnX10X7_pcFree
+    {sp sign carryOld limb0 limb1 limb2 limb3 : Word} :
+    (resultSignFixPreOwnX10X7
+      sp sign carryOld limb0 limb1 limb2 limb3).pcFree := by
+  rw [resultSignFixPreOwnX10X7_unfold]
+  pcFree
+
+instance pcFreeInst_resultSignFixPreOwnX10X7
+    (sp sign carryOld limb0 limb1 limb2 limb3 : Word) :
+    Assertion.PCFree
+      (resultSignFixPreOwnX10X7 sp sign carryOld limb0 limb1 limb2 limb3) :=
+  ⟨resultSignFixPreOwnX10X7_pcFree⟩
+
+theorem resultSignFixPreOwnScratch_pcFree
+    {sp sign limb0 limb1 limb2 limb3 : Word} :
+    (resultSignFixPreOwnScratch sp sign limb0 limb1 limb2 limb3).pcFree := by
+  rw [resultSignFixPreOwnScratch_unfold]
+  pcFree
+
+instance pcFreeInst_resultSignFixPreOwnScratch
+    (sp sign limb0 limb1 limb2 limb3 : Word) :
+    Assertion.PCFree (resultSignFixPreOwnScratch sp sign limb0 limb1 limb2 limb3) :=
+  ⟨resultSignFixPreOwnScratch_pcFree⟩
+
 end EvmAsm.Evm64.SDiv.Compose
