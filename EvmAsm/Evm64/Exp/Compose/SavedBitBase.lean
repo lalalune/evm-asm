@@ -556,6 +556,26 @@ theorem evmExpMsbSavedBitTwoMulCode_eq_ofProg (base : Word)
     (base + 28) squaringMulOff condMulOff skipOff backOff]
   simp only [CodeReq.unionAll_cons, CodeReq.unionAll_nil, CodeReq.union_empty_right]
 
+/-- CodeReq decomposition for the canonical two-MUL saved-bit EXP program.
+    The branch offsets are fixed by `evm_exp_msb_saved_bit_two_mul_canonical`;
+    the two external MUL call offsets remain caller supplied. -/
+abbrev evmExpMsbSavedBitTwoMulCanonicalCode (base : Word)
+    (squaringMulOff condMulOff : BitVec 21) : CodeReq :=
+  evmExpMsbSavedBitTwoMulCode base squaringMulOff condMulOff
+    EvmAsm.Evm64.canonicalExpCondMulSkipOff
+    EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff
+
+theorem evmExpMsbSavedBitTwoMulCanonicalCode_eq_ofProg (base : Word)
+    (squaringMulOff condMulOff : BitVec 21) :
+    evmExpMsbSavedBitTwoMulCanonicalCode base squaringMulOff condMulOff =
+      CodeReq.ofProg base
+        (EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_canonical
+          squaringMulOff condMulOff) := by
+  rw [EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_canonical_eq]
+  exact evmExpMsbSavedBitTwoMulCode_eq_ofProg base squaringMulOff condMulOff
+    EvmAsm.Evm64.canonicalExpCondMulSkipOff
+    EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff
+
 theorem evmExpMsbSavedBitTwoMulCode_iter_body_sub {base : Word}
     {squaringMulOff condMulOff : BitVec 21} {skipOff backOff : BitVec 13} :
     ∀ a i, (expIterBodyFullMsbSavedBitTwoMulCode
