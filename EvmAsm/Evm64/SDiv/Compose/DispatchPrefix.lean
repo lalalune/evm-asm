@@ -5,8 +5,8 @@
 -/
 
 import EvmAsm.Evm64.SDiv.Compose.Base
-import EvmAsm.Evm64.SDiv.Compose.DivCall
 import EvmAsm.Evm64.SDiv.Compose.Bridges
+import EvmAsm.Evm64.SDiv.Compose.DivCallDispatchFrame
 import EvmAsm.Evm64.SDiv.Compose.DispatchReadyPost
 
 namespace EvmAsm.Evm64.SDiv.Compose
