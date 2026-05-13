@@ -924,8 +924,7 @@ theorem exp_cond_mul_call_block_evm_exp_msb_saved_bit_with_mul_spec_within
     (hd : CodeReq.Disjoint
             (evmExpMsbSavedBitCode base mulOff skipOff backOff)
             (mul_callable_code mulTarget)) :
-    let r := expResultWord r0 r1 r2 r3
-    let rw := expTwoMulCondRw r a0 a1 a2 a3
+    let rw := expTwoMulCondRwFromLimbs r0 r1 r2 r3 a0 a1 a2 a3
     cpsTripleWithin (17 + 64 + 9) (base + 152) ((base + 152) + 104)
       (evmExpMsbSavedBitWithMulCode base mulTarget mulOff skipOff backOff)
       ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
@@ -958,7 +957,7 @@ theorem exp_cond_mul_call_block_evm_exp_msb_saved_bit_with_mul_spec_within
        memOwn evmSp ** memOwn (evmSp + 8) **
        memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
        (.x1 ↦ᵣ ((base + 152) + 68))) := by
-  intro r rw
+  intro rw
   have hbase' : (base + 152 : Word) &&& 1 = 0 := by bv_decide
   have hCondSub : ∀ a i,
       exp_cond_mul_call_block_code (base + 152) mulOff a = some i →
@@ -1004,8 +1003,7 @@ theorem exp_cond_mul_call_block_evm_exp_msb_saved_bit_two_mul_with_mul_spec_with
             (evmExpMsbSavedBitTwoMulCode
               base squaringMulOff condMulOff skipOff backOff)
             (mul_callable_code mulTarget)) :
-    let r := expResultWord r0 r1 r2 r3
-    let rw := expTwoMulCondRw r a0 a1 a2 a3
+    let rw := expTwoMulCondRwFromLimbs r0 r1 r2 r3 a0 a1 a2 a3
     cpsTripleWithin (17 + 64 + 9) (base + 152) ((base + 152) + 104)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
@@ -1039,7 +1037,7 @@ theorem exp_cond_mul_call_block_evm_exp_msb_saved_bit_two_mul_with_mul_spec_with
        memOwn evmSp ** memOwn (evmSp + 8) **
        memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
        (.x1 ↦ᵣ ((base + 152) + 68))) := by
-  intro r rw
+  intro rw
   have hbase' : (base + 152 : Word) &&& 1 = 0 := by bv_decide
   have hCondSub : ∀ a i,
       exp_cond_mul_call_block_code (base + 152) condMulOff a = some i →
