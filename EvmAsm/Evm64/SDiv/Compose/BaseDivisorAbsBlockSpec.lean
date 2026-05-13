@@ -8,7 +8,6 @@ import EvmAsm.Evm64.SDiv.Compose.BaseDivisorAbsSequence
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 theorem divisorAbs_spec_in_sdivCode

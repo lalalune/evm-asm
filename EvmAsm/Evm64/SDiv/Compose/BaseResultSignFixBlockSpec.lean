@@ -9,7 +9,6 @@ import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFix
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 theorem resultSignFix_spec_in_sdivCode

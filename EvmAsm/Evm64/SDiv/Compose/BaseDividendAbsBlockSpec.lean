@@ -8,7 +8,6 @@ import EvmAsm.Evm64.SDiv.Compose.SaveRaDividendAbsPost
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 theorem dividendAbs_spec_in_sdivCode
