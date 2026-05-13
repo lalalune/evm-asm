@@ -5,29 +5,6 @@ namespace EvmAsm.Evm64.Exp.Compose
 open EvmAsm.Rv64
 
 @[irreducible]
-def expTwoMulIterBaseFrame
-    (evmSp a0 a1 a2 a3 : Word) : Assertion :=
-  ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-  ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-  ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-  ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
-
-theorem expTwoMulIterBaseFrame_unfold {evmSp a0 a1 a2 a3 : Word} :
-    expTwoMulIterBaseFrame evmSp a0 a1 a2 a3 =
-      (((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)) := by
-  delta expTwoMulIterBaseFrame
-  rfl
-
-theorem expTwoMulIterBaseFrame_pcFree
-    {evmSp a0 a1 a2 a3 : Word} :
-    (expTwoMulIterBaseFrame evmSp a0 a1 a2 a3).pcFree := by
-  rw [expTwoMulIterBaseFrame_unfold]
-  pcFree
-
-@[irreducible]
 def expTwoMulIterSkipRest
     (bit sp evmSp base : Word) (squareW : EvmWord) : Assertion :=
   expTwoMulSkipLoopRest bit sp evmSp base squareW
