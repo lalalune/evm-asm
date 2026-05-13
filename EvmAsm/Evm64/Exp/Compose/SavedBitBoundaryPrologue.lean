@@ -17,6 +17,11 @@ def expBoundaryScratchFrame (vOld v18 : Word) : Assertion :=
   regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
   (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18)
 
+def expBoundaryOperandFrame (evmSp vOld v18 : Word)
+    (baseWord exponentWord : EvmWord) : Assertion :=
+  evmWordIs evmSp baseWord ** evmWordIs (evmSp + 32) exponentWord **
+  expBoundaryScratchFrame vOld v18
+
 /-- EXP prologue followed by the pointer-advance block, lifted to the
     two-MUL saved-bit EXP+MUL code bundle. This lands at the iteration-body
     entry with the EVM stack pointer advanced by one operand window. -/
@@ -74,9 +79,7 @@ theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_with_mul
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget : Word) :
     let operandFrame : Assertion :=
-      evmWordIs evmSp baseWord ** evmWordIs (evmSp + 32) exponentWord **
-      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-      (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18)
+      expBoundaryOperandFrame evmSp vOld v18 baseWord exponentWord
     cpsTripleWithin (6 + 1) base (base + 28)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
@@ -138,8 +141,7 @@ theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_with_mul
        scratchFrame) := by
   intro scratchFrame
   let operandFrame : Assertion :=
-    evmWordIs evmSp baseWord ** evmWordIs (evmSp + 32) exponentWord **
-    scratchFrame
+    expBoundaryOperandFrame evmSp vOld v18 baseWord exponentWord
   have hBase :=
     exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_with_mul_operand_frame_spec_within
       sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 baseWord exponentWord
@@ -148,13 +150,15 @@ theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_with_mul
     pcFree_evmStackIs hBase
   exact cpsTripleWithin_weaken
     (fun _ hp => by
-      dsimp [scratchFrame, operandFrame, expBoundaryScratchFrame] at hp ⊢
+      dsimp [scratchFrame, operandFrame, expBoundaryOperandFrame,
+        expBoundaryScratchFrame] at hp ⊢
       rw [evmStackIs_cons, evmStackIs_cons] at hp
       rw [show evmSp + 32 + 32 = evmSp + 64#64 from by bv_addr] at hp
       rw [show evmSp + 32#64 = evmSp + (32 : Word) from rfl]
       xperm_hyp hp)
     (fun _ hp => by
-      dsimp [scratchFrame, operandFrame, expBoundaryScratchFrame] at hp ⊢
+      dsimp [scratchFrame, operandFrame, expBoundaryOperandFrame,
+        expBoundaryScratchFrame] at hp ⊢
       rw [evmStackIs_cons, evmStackIs_cons]
       rw [show evmSp + 32#64 = evmSp + (32 : Word) from rfl] at hp
       rw [show evmSp + 64#64 = evmSp + 32 + 32 from by bv_addr] at hp
