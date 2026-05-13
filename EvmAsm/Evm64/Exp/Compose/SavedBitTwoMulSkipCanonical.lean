@@ -14,32 +14,39 @@ open EvmAsm.Rv64
 theorem exp_loop_back_evm_exp_msb_saved_bit_two_mul_canonical_with_mul_spec_within
     (c : Word) (squaringMulOff condMulOff : BitVec 21)
     (base mulTarget : Word) :
-    let cNew := c + signExtend12 ((-1 : BitVec 12))
     cpsBranchWithin 2 (base + 256)
       (evmExpMsbSavedBitTwoMulCanonicalWithMulCode
         base mulTarget squaringMulOff condMulOff)
       ((.x9 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)))
-      (base + 28) ((.x9 ↦ᵣ cNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜cNew ≠ 0⌝)
-      (base + 264) ((.x9 ↦ᵣ cNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜cNew = 0⌝) := by
+      (base + 28)
+        ((.x9 ↦ᵣ expTwoMulIterCountNew c) ** (.x0 ↦ᵣ (0 : Word)) **
+          ⌜expTwoMulIterCountNew c ≠ 0⌝)
+      (base + 264)
+        ((.x9 ↦ᵣ expTwoMulIterCountNew c) ** (.x0 ↦ᵣ (0 : Word)) **
+          ⌜expTwoMulIterCountNew c = 0⌝) := by
   have htarget :
       ((base + 256) + 4 : Word) +
           signExtend13 EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff =
         base + 28 := by
     exact EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBack_target base
-  exact exp_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
-    c squaringMulOff condMulOff EvmAsm.Evm64.canonicalExpCondMulSkipOff
-    EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff
-    base mulTarget (base + 28) htarget
+  simpa [expTwoMulIterCountNew] using
+    (exp_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
+      c squaringMulOff condMulOff EvmAsm.Evm64.canonicalExpCondMulSkipOff
+      EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff
+      base mulTarget (base + 28) htarget)
 
 /-- Appended-MUL canonical-code view of the saved-bit loop-back block. -/
 theorem exp_loop_back_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_spec_within
     (c : Word) (base : Word) :
-    let cNew := c + signExtend12 ((-1 : BitVec 12))
     cpsBranchWithin 2 (base + 256)
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
       ((.x9 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)))
-      (base + 28) ((.x9 ↦ᵣ cNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜cNew ≠ 0⌝)
-      (base + 264) ((.x9 ↦ᵣ cNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜cNew = 0⌝) :=
+      (base + 28)
+        ((.x9 ↦ᵣ expTwoMulIterCountNew c) ** (.x0 ↦ᵣ (0 : Word)) **
+          ⌜expTwoMulIterCountNew c ≠ 0⌝)
+      (base + 264)
+        ((.x9 ↦ᵣ expTwoMulIterCountNew c) ** (.x0 ↦ᵣ (0 : Word)) **
+          ⌜expTwoMulIterCountNew c = 0⌝) :=
   exp_loop_back_evm_exp_msb_saved_bit_two_mul_canonical_with_mul_spec_within
     c EvmAsm.Evm64.canonicalExpSquaringMulOff
     EvmAsm.Evm64.canonicalExpCondMulOff base (base + 304)
