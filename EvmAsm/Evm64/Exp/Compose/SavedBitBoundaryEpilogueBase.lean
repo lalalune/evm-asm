@@ -13,6 +13,13 @@ namespace EvmAsm.Evm64.Exp.Compose
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
+def expBoundaryExitControl (iterCountNew : Word) (exitCond : Prop) : Assertion :=
+  (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
+
+def expBoundaryStackTail (evmSp : Word) (baseWord : EvmWord)
+    (rest : List EvmWord) : Assertion :=
+  evmWordIs evmSp baseWord ** evmStackIs (evmSp + 64) rest
+
 theorem exp_pointer_restore_then_epilogue_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
     (sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
@@ -97,7 +104,7 @@ theorem exp_pointer_restore_then_epilogue_exit_control_evm_exp_msb_saved_bit_two
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget : Word) :
     let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
+      expBoundaryExitControl iterCountNew exitCond
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
@@ -127,14 +134,14 @@ theorem exp_pointer_restore_then_epilogue_exit_control_evm_exp_msb_saved_bit_two
       sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3
       squaringMulOff condMulOff skipOff backOff base mulTarget
   have hFramed := cpsTripleWithin_frameR exitControl (by
-    dsimp [exitControl]
+    dsimp [exitControl, expBoundaryExitControl]
     pcFree) hBase
   exact cpsTripleWithin_weaken
     (fun _ hp => by
-      dsimp [exitControl] at hp ⊢
+      dsimp [exitControl, expBoundaryExitControl] at hp ⊢
       xperm_hyp hp)
     (fun _ hp => by
-      dsimp [exitControl] at hp ⊢
+      dsimp [exitControl, expBoundaryExitControl] at hp ⊢
       xperm_hyp hp)
     hFramed
 
@@ -149,9 +156,9 @@ theorem exp_pointer_restore_then_epilogue_stack_tail_evm_exp_msb_saved_bit_two_m
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget : Word) :
     let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
+      expBoundaryExitControl iterCountNew exitCond
     let stackTail : Assertion :=
-      evmWordIs evmSp baseWord ** evmStackIs (evmSp + 64) rest
+      expBoundaryStackTail evmSp baseWord rest
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
@@ -183,14 +190,16 @@ theorem exp_pointer_restore_then_epilogue_stack_tail_evm_exp_msb_saved_bit_two_m
       sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 exitCond
       squaringMulOff condMulOff skipOff backOff base mulTarget
   have hFramed := cpsTripleWithin_frameR stackTail (by
-    dsimp [stackTail]
+    dsimp [stackTail, expBoundaryStackTail]
     pcFree) hBase
   exact cpsTripleWithin_weaken
     (fun _ hp => by
-      dsimp [exitControl, stackTail] at hp ⊢
+      dsimp [exitControl, stackTail, expBoundaryExitControl,
+        expBoundaryStackTail] at hp ⊢
       xperm_hyp hp)
     (fun _ hp => by
-      dsimp [exitControl, stackTail] at hp ⊢
+      dsimp [exitControl, stackTail, expBoundaryExitControl,
+        expBoundaryStackTail] at hp ⊢
       rw [evmStackIs_cons]
       rw [show evmSp + 64#64 = evmSp + 32#64 + 32#64 from by bv_addr] at hp
       xperm_hyp hp)

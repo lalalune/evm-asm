@@ -14,13 +14,6 @@ namespace EvmAsm.Evm64.Exp.Compose
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
-def expBoundaryExitControl (iterCountNew : Word) (exitCond : Prop) : Assertion :=
-  (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
-
-def expBoundaryStackTail (evmSp : Word) (baseWord : EvmWord)
-    (rest : List EvmWord) : Assertion :=
-  evmWordIs evmSp baseWord ** evmStackIs (evmSp + 64) rest
-
 /-- Full visible-post-stack view of pointer-restore followed by the EXP
     epilogue. This folds the preserved base operand and produced result word
     into the ordinary stack prefix at `evmSp`. -/
