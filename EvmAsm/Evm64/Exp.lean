@@ -32,6 +32,7 @@ import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
 import EvmAsm.Evm64.Exp.Compose.LoopCodeSpecs
 import EvmAsm.Evm64.Exp.Compose.TopCodeSpecs
 import EvmAsm.Evm64.Exp.Compose.WithMulCode
+import EvmAsm.Evm64.Exp.Compose.SquaringCallPath
 import EvmAsm.Evm64.Exp.Compose.FullLoop
 import EvmAsm.Evm64.Exp.Compose.SavedBitWithMul
 import EvmAsm.Evm64.Exp.Compose.SavedBitFullLoop
