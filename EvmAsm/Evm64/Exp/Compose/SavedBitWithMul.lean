@@ -397,6 +397,35 @@ theorem evmExpMsbSavedBitTwoMulCanonicalWithMulCode_block_subs
           (h_epilogue a i h),
      evmExpMsbSavedBitTwoMulCanonicalWithMulCode_mul_sub hd⟩
 
+/-- Bundled block subsumptions for the canonical two-MUL saved-bit EXP wrapper
+    with `mul_callable` appended immediately after the 304-byte wrapper. -/
+theorem evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode_block_subs
+    {base : Word} :
+    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue) a = some i →
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 24)
+      EvmAsm.Evm64.exp_loop_pointer_advance) a = some i →
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base) a = some i) ∧
+    (∀ a i, (expIterBodyFullMsbSavedBitTwoMulCode
+      (base + 28) EvmAsm.Evm64.canonicalExpSquaringMulOff
+      EvmAsm.Evm64.canonicalExpCondMulOff
+      EvmAsm.Evm64.canonicalExpCondMulSkipOff
+      EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff) a = some i →
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 264)
+      EvmAsm.Evm64.exp_loop_pointer_restore) a = some i →
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 268) EvmAsm.Evm64.exp_epilogue)
+      a = some i →
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base) a = some i) ∧
+    (∀ a i, (mul_callable_code (base + 304)) a = some i →
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base) a = some i) :=
+  evmExpMsbSavedBitTwoMulCanonicalWithMulCode_block_subs
+    (base := base) (mulTarget := base + 304)
+    (squaringMulOff := EvmAsm.Evm64.canonicalExpSquaringMulOff)
+    (condMulOff := EvmAsm.Evm64.canonicalExpCondMulOff)
+    (evmExpMsbSavedBitTwoMulCanonicalCode_disjoint_appended_mul base)
+
 /-- Pointer advance lifted to the two-MUL saved-bit EXP+MUL code bundle. -/
 theorem exp_loop_pointer_advance_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
     (vOld : Word) (squaringMulOff condMulOff : BitVec 21)
