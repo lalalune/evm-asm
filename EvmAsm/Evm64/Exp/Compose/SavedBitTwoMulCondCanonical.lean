@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulCond
+import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostDefs
 
 namespace EvmAsm.Evm64.Exp.Compose
 
@@ -126,10 +127,7 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
             (mul_callable_code mulTarget)) :
     let rw := expTwoMulCondRw r a0 a1 a2 a3
     let baseFrame : Assertion :=
-      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+      expTwoMulIterBaseFrame evmSp a0 a1 a2 a3
     let foldedPre : Assertion :=
       (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
         evmWordIs sp r ** evmWordIs (evmSp + 32) r **
@@ -155,7 +153,8 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
           signExtend13 EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff =
         base + 28 := by
     exact EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBack_target base
-  simpa [expCondMulLoopRest_unfold, expTwoMulIterCountNew] using
+  simpa [expCondMulLoopRest_unfold, expTwoMulIterBaseFrame_unfold,
+    expTwoMulIterCountNew] using
     (exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_folded_owned_spec_within
       iterCount sp evmSp vOld a0 a1 a2 a3 mulTarget r
       squaringMulOff condMulOff
@@ -171,10 +170,7 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
     (hbase : base &&& 1 = 0) :
     let rw := expTwoMulCondRw r a0 a1 a2 a3
     let baseFrame : Assertion :=
-      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+      expTwoMulIterBaseFrame evmSp a0 a1 a2 a3
     let foldedPre : Assertion :=
       (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
         evmWordIs sp r ** evmWordIs (evmSp + 32) r **
