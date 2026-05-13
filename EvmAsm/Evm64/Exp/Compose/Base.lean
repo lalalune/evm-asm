@@ -17,7 +17,9 @@ import EvmAsm.Evm64.Exp.LimbSpec
 namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64.Tactics
-open EvmAsm.Rv64
+open EvmAsm.Rv64 (CodeReq Program cpsTripleWithin cpsTripleWithin_extend_code
+  cpsTripleWithin_frameR cpsTripleWithin_seq cpsTripleWithin_weaken seq
+  signExtend12)
 
 /-- Length of the EXP prologue block, restated in the composition namespace so
     future `skipBlock`-style subsumption proofs can use a compact simp set. -/
