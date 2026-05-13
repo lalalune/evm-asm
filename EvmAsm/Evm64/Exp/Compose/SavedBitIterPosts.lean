@@ -190,6 +190,15 @@ theorem expTwoMulIterLoopPost_unfold
   delta expTwoMulIterLoopPost
   rfl
 
+theorem expTwoMulIterLoopPost_pcFree
+    {iterCountNew bit sp evmSp base a0 a1 a2 a3 : Word} {w rw : EvmWord} :
+    (expTwoMulIterLoopPost iterCountNew bit sp evmSp base a0 a1 a2 a3 w rw).pcFree := by
+  rw [expTwoMulIterLoopPost_unfold]
+  intro h hp
+  rcases hp with hp | hp
+  · exact expTwoMulIterCondPost_pcFree h hp
+  · exact expTwoMulIterSkipPost_pcFree h hp
+
 @[irreducible]
 def expTwoMulIterExitPost
     (iterCountNew bit sp evmSp base a0 a1 a2 a3 : Word)
@@ -210,6 +219,15 @@ theorem expTwoMulIterExitPost_unfold
           (iterCountNew = 0) h) := by
   delta expTwoMulIterExitPost
   rfl
+
+theorem expTwoMulIterExitPost_pcFree
+    {iterCountNew bit sp evmSp base a0 a1 a2 a3 : Word} {w rw : EvmWord} :
+    (expTwoMulIterExitPost iterCountNew bit sp evmSp base a0 a1 a2 a3 w rw).pcFree := by
+  rw [expTwoMulIterExitPost_unfold]
+  intro h hp
+  rcases hp with hp | hp
+  · exact expTwoMulIterCondPost_pcFree h hp
+  · exact expTwoMulIterSkipPost_pcFree h hp
 
 theorem exp_msb_saved_bit_two_mul_full_iter_owned_scratch_branch_named_posts_spec_within
     (e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
