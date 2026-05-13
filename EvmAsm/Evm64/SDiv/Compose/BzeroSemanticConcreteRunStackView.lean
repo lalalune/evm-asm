@@ -1,26 +1,25 @@
 /-
-  EvmAsm.Evm64.SDiv.Compose.BzeroSemanticViews
+  EvmAsm.Evm64.SDiv.Compose.BzeroSemanticConcreteRunStackView
 
-  Stack-semantic adapters for the SDIV zero-divisor dispatch path.
+  Concrete run-stack semantic adapter for the SDIV zero-divisor dispatch path.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.BzeroSemanticConcreteRunStackView
-import EvmAsm.Evm64.SDiv.HandlerBridge
+import EvmAsm.Evm64.SDiv.Compose.BzeroSemanticRunStackView
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
-/-- Zero-divisor SDIV bzero path with the post stack named by the pure
-    `sdivHandler` stack result. This connects the assembly zero-divisor path
-    to the executable handler view for states whose visible stack starts with
-    `dividend :: 0 :: rest`. -/
-theorem saveRa_signs_abs_signXor_then_divCall_bzero_stack_entry_zero_divisor_handler_stack_spec_in_sdivCode
+/-- Zero-divisor SDIV bzero path with the concrete successful `runSDivStack?`
+    output inlined in the postcondition. This avoids threading an explicit
+    `out` witness through callers that are already on the divisor-zero stack
+    shape. -/
+theorem saveRa_signs_abs_signXor_then_divCall_bzero_stack_entry_zero_divisor_runStack_concrete_spec_in_sdivCode
     (vRa vSavedOld sp sDividendOld sDivisorOld
       dividendMaskOld dividendValueOld dividendCarryOld
       v2 v5 v6 : Word)
-    (state : EvmState) (dividend : EvmWord) (rest : List EvmWord)
+    (dividend : EvmWord) (rest : List EvmWord)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      shiftMem nMem jMem retMem dMem dloMem scratchUn0 : Word)
     (base : Word) (hbase : base &&& 1 = 0) :
@@ -34,7 +33,9 @@ theorem saveRa_signs_abs_signXor_then_divCall_bzero_stack_entry_zero_divisor_han
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
         EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
-      (let dividendAbsWord :=
+      (let out : EvmAsm.Evm64.SDivStackExecutionBridge.SDivStackResult :=
+         { effects := { stackWords := [0] }, stack := rest }
+       let dividendAbsWord :=
          sdivAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
            (dividend.getLimbN 2) (dividend.getLimbN 3)
        let divisorSign := (0 : Word) >>> (63 : BitVec 6).toNat
@@ -52,21 +53,16 @@ theorem saveRa_signs_abs_signXor_then_divCall_bzero_stack_entry_zero_divisor_han
        (.x18 ↦ᵣ vRa) **
        (((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (sp + 32)) ** (.x8 ↦ᵣ resultSign) **
          (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ carry3) **
-         evmStackIs (sp + 32)
-          ((ArithmeticHandlers.sdivHandler
-            { state with stack := dividend :: (0 : EvmWord) :: rest }).stack)) **
+         evmStackIs (sp + 32) (out.effects.stackWords ++ out.stack)) **
         saveRaDivCallBzeroSavedRaRetFrame sp base divisorSign dividendAbsWord)) := by
-  exact cpsTripleWithin_weaken
-    (fun _ hp => hp)
-    (fun _ hp => by
-      rw [EvmAsm.Evm64.SDivStackExecutionBridge.sdivHandler_stack_zero_divisor
-        state dividend rest]
-      simpa only [List.singleton_append] using hp)
-    (saveRa_signs_abs_signXor_then_divCall_bzero_stack_entry_zero_divisor_runStack_concrete_spec_in_sdivCode
+  exact
+    saveRa_signs_abs_signXor_then_divCall_bzero_stack_entry_zero_divisor_runStack_spec_in_sdivCode
       vRa vSavedOld sp sDividendOld sDivisorOld
       dividendMaskOld dividendValueOld dividendCarryOld
       v2 v5 v6 dividend rest
+      { effects := { stackWords := [0] }, stack := rest }
+      (EvmAsm.Evm64.SDivStackExecutionBridge.runSDivStack?_zero_divisor dividend rest)
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      shiftMem nMem jMem retMem dMem dloMem scratchUn0 base hbase)
+      shiftMem nMem jMem retMem dMem dloMem scratchUn0 base hbase
 
 end EvmAsm.Evm64.SDiv.Compose
