@@ -42,7 +42,7 @@ abbrev expCondMulRw (r : EvmWord) (a0 a1 a2 a3 : Word) : EvmWord :=
 
 abbrev expCondMulRwFromLimbs
     (r0 r1 r2 r3 a0 a1 a2 a3 : Word) : EvmWord :=
-  expCondMulRw (expResultWord r0 r1 r2 r3) a0 a1 a2 a3
+  expCondMulCallProductW r0 r1 r2 r3 a0 a1 a2 a3
 
 abbrev expSquareRw (r0 r1 r2 r3 : Word) : EvmWord :=
   expSquaringCallSquareW r0 r1 r2 r3
