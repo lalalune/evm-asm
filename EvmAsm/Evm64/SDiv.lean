@@ -25,4 +25,8 @@ import EvmAsm.Evm64.SDiv.Compose.DivisorAbsSequence
 import EvmAsm.Evm64.SDiv.Compose.SignXorSequence
 import EvmAsm.Evm64.SDiv.Compose.DivCall
 import EvmAsm.Evm64.SDiv.Compose.DivCallDispatch
+import EvmAsm.Evm64.SDiv.Compose.DivCallResultSignFix
+import EvmAsm.Evm64.SDiv.Compose.DivCallPostPcFree
+import EvmAsm.Evm64.SDiv.Compose.DivCallDispatchZeroDivisor
+import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
 import EvmAsm.Evm64.SDiv.Spec
