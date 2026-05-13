@@ -5,7 +5,7 @@
   dividend and divisor sign-bit probes.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.SaveRaSignsPre
+import EvmAsm.Evm64.SDiv.Compose.SaveRaSignsPost
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
@@ -105,36 +105,6 @@ theorem divisorSign_spec_in_sdivCode
     (EvmAsm.Evm64.evm_sdiv_sign_bit_block_spec_within .x12 .x9
       EvmAsm.Evm64.evm_sdivDivisorTopLimbOff sp sOld divisorTop
       (base + divisorSignOff) (by decide))
-
-/-- Postcondition for the same composition: `ra` saved to the spill
-    slot (x18 ← vRa + 0), `x8` and `x9` hold the dividend/divisor sign
-    bits (top-limb >>> 63), and the top-limb memory cells are
-    unchanged. Wrapped `@[irreducible]`. -/
-@[irreducible]
-def saveRaDividendSignThenDivisorSignPost
-    (vRa sp dividendTop divisorTop : Word) : Assertion :=
-  (((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))) **
-    ((.x8 ↦ᵣ (dividendTop >>> (63 : BitVec 6).toNat)) **
-     ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
-       dividendTop))) **
-   ((.x12 ↦ᵣ sp) **
-    (.x9 ↦ᵣ (divisorTop >>> (63 : BitVec 6).toNat)) **
-    ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
-      divisorTop))
-
-theorem saveRaDividendSignThenDivisorSignPost_unfold
-    {vRa sp dividendTop divisorTop : Word} :
-    saveRaDividendSignThenDivisorSignPost vRa sp dividendTop divisorTop =
-      ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ (vRa + signExtend12 (0 : BitVec 12)))) **
-        ((.x8 ↦ᵣ (dividendTop >>> (63 : BitVec 6).toNat)) **
-         ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDividendTopLimbOff) ↦ₘ
-           dividendTop))) **
-       ((.x12 ↦ᵣ sp) **
-        (.x9 ↦ᵣ (divisorTop >>> (63 : BitVec 6).toNat)) **
-        ((sp + signExtend12 EvmAsm.Evm64.evm_sdivDivisorTopLimbOff) ↦ₘ
-          divisorTop))) := by
-  delta saveRaDividendSignThenDivisorSignPost
-  rfl
 
 theorem saveRa_dividendSign_then_divisorSign_spec_in_sdivCode
     (vRa vSavedOld sp sDividendOld dividendTop sDivisorOld divisorTop : Word)
