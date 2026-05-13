@@ -34,6 +34,8 @@ import EvmAsm.Evm64.SDiv.Compose.BzeroCallable
 import EvmAsm.Evm64.SDiv.Compose.BzeroCallableNamedPost
 import EvmAsm.Evm64.SDiv.Compose.BzeroResultSignFix
 import EvmAsm.Evm64.SDiv.Compose.BzeroReturn
+import EvmAsm.Evm64.SDiv.Compose.BzeroReturnNormalizedView
+import EvmAsm.Evm64.SDiv.Compose.BzeroReturnZeroWordView
 import EvmAsm.Evm64.SDiv.Compose.BzeroStackViews
 import EvmAsm.Evm64.SDiv.Compose.DivCallDispatch
 import EvmAsm.Evm64.SDiv.Compose.DivCallCallableReturnPost
