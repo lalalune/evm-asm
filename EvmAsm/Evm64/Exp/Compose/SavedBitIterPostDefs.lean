@@ -72,20 +72,21 @@ theorem expTwoMulIterCondRest_pcFree
 
 @[irreducible]
 def expTwoMulIterCondFrame (bit : Word) : Assertion :=
-  (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
-  ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝
+  expTwoMulCondFrame bit
 
 theorem expTwoMulIterCondFrame_unfold {bit : Word} :
     expTwoMulIterCondFrame bit =
       ((.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
        ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝) := by
   delta expTwoMulIterCondFrame
-  rfl
+  exact expTwoMulCondFrame_unfold
 
 theorem expTwoMulIterCondFrame_pcFree {bit : Word} :
     (expTwoMulIterCondFrame bit).pcFree := by
-  rw [expTwoMulIterCondFrame_unfold]
-  pcFree
+  rw [show expTwoMulIterCondFrame bit = expTwoMulCondFrame bit by
+    delta expTwoMulIterCondFrame
+    rfl]
+  exact expTwoMulCondFrame_pcFree
 
 @[irreducible]
 def expTwoMulIterCondPost
