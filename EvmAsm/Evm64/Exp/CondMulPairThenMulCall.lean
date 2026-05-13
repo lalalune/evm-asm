@@ -30,7 +30,10 @@ open EvmAsm.Rv64.Tactics
 
 namespace EvmAsm.Evm64
 
-open EvmAsm.Rv64
+open EvmAsm.Rv64 (CodeReq cpsTripleWithin cpsTripleWithin_extend_code
+  cpsTripleWithin_frameL cpsTripleWithin_frameR cpsTripleWithin_seq
+  cpsTripleWithin_seq_perm_same_cr cpsTripleWithin_weaken memOwn regOwn
+  signExtend12 signExtend21)
 
 /-- Compose the cond-mul marshal pair plus its trailing JAL (17 instr) with
     `mul_callable_spec_within` (64 instr) at the JAL target.
