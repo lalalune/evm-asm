@@ -8,7 +8,6 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitBase
 
 namespace EvmAsm.Evm64.Exp.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 /-- Bit-test sub-block directly included in the top-level EXP code bundle. -/
