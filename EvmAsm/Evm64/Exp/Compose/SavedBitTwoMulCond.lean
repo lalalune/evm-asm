@@ -26,7 +26,7 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
             (mul_callable_code mulTarget))
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
     let r := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
+    let aw := expTwoMulIterAw a0 a1 a2 a3
     let rw := r * aw
     let rest : Assertion :=
       (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
@@ -117,7 +117,7 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
             (mul_callable_code mulTarget))
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
     let r := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
+    let aw := expTwoMulIterAw a0 a1 a2 a3
     let rw := r * aw
     let rest : Assertion :=
       (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
@@ -337,7 +337,7 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
               base squaringMulOff condMulOff skipOff backOff)
             (mul_callable_code mulTarget))
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
-    let aw := expResultWord a0 a1 a2 a3
+    let aw := expTwoMulIterAw a0 a1 a2 a3
     let rw := r * aw
     let baseFrame : Assertion :=
       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
@@ -443,9 +443,8 @@ theorem exp_msb_saved_bit_two_mul_full_iter_four_exit_spec_within
     (hskip : (base + 148 : Word) + signExtend13 skipOff = base + 256)
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
     let bit := expTwoMulIterBit e
-    let w := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
-    let rw := (w * w) * aw
+    let w := expTwoMulIterW r0 r1 r2 r3
+    let rw := expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3
     let baseFrame : Assertion :=
       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
@@ -509,7 +508,7 @@ theorem exp_msb_saved_bit_two_mul_full_iter_four_exit_spec_within
         (base + 264,
           ((((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
            ⌜expTwoMulIterCountNew iterCount = 0⌝) ** skipRest) ** baseFrame))] := by
-  intro bit w aw rw baseFrame skipRest condRest condFrame
+  intro bit w rw baseFrame skipRest condRest condFrame
   have hSkip :=
     exp_msb_saved_bit_prefix_squaring_beq_skip_then_loop_back_with_base_frame_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
       e c iterCount v10 v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
@@ -571,9 +570,8 @@ theorem exp_msb_saved_bit_two_mul_full_iter_merged_exit_spec_within
     (hskip : (base + 148 : Word) + signExtend13 skipOff = base + 256)
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
     let bit := expTwoMulIterBit e
-    let w := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
-    let rw := (w * w) * aw
+    let w := expTwoMulIterW r0 r1 r2 r3
+    let rw := expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3
     let baseFrame : Assertion :=
       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
@@ -639,7 +637,7 @@ theorem exp_msb_saved_bit_two_mul_full_iter_merged_exit_spec_within
         (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ iterCount)) ** baseFrame)
       [(loopTarget, fun h => condLoop h ∨ skipLoop h),
         (base + 264, fun h => condExit h ∨ skipExit h)] := by
-  intro bit w aw rw baseFrame skipRest condRest condFrame
+  intro bit w rw baseFrame skipRest condRest condFrame
     condLoop condExit skipLoop skipExit
   have hFour :=
     exp_msb_saved_bit_two_mul_full_iter_four_exit_spec_within
@@ -695,9 +693,8 @@ theorem exp_msb_saved_bit_two_mul_full_iter_branch_spec_within
     (hskip : (base + 148 : Word) + signExtend13 skipOff = base + 256)
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
     let bit := expTwoMulIterBit e
-    let w := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
-    let rw := (w * w) * aw
+    let w := expTwoMulIterW r0 r1 r2 r3
+    let rw := expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3
     let baseFrame : Assertion :=
       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
@@ -763,7 +760,7 @@ theorem exp_msb_saved_bit_two_mul_full_iter_branch_spec_within
         (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ iterCount)) ** baseFrame)
       loopTarget (fun h => condLoop h ∨ skipLoop h)
       (base + 264) (fun h => condExit h ∨ skipExit h) := by
-  intro bit w aw rw baseFrame skipRest condRest condFrame
+  intro bit w rw baseFrame skipRest condRest condFrame
     condLoop condExit skipLoop skipExit
   exact cpsNBranchWithin_as_cpsBranchWithin
     (exp_msb_saved_bit_two_mul_full_iter_merged_exit_spec_within
@@ -791,9 +788,8 @@ theorem exp_msb_saved_bit_two_mul_full_iter_branch_owned_scratch_spec_within
     (hskip : (base + 148 : Word) + signExtend13 skipOff = base + 256)
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
     let bit := expTwoMulIterBit e
-    let w := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
-    let rw := (w * w) * aw
+    let w := expTwoMulIterW r0 r1 r2 r3
+    let rw := expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3
     let baseFrame : Assertion :=
       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
@@ -859,7 +855,7 @@ theorem exp_msb_saved_bit_two_mul_full_iter_branch_owned_scratch_spec_within
         (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ iterCount)) ** baseFrame)
       [(loopTarget, fun h => condLoop h ∨ skipLoop h),
        (base + 264, fun h => condExit h ∨ skipExit h)] := by
-  intro bit w aw rw baseFrame skipRest condRest condFrame
+  intro bit w rw baseFrame skipRest condRest condFrame
     condLoop condExit skipLoop skipExit
   refine cpsNBranchWithin_of_forall_regIs_to_regOwn_perm
     (r := .x6)
@@ -983,9 +979,8 @@ theorem exp_msb_saved_bit_two_mul_full_iter_owned_scratch_branch_spec_within
     (hskip : (base + 148 : Word) + signExtend13 skipOff = base + 256)
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
     let bit := expTwoMulIterBit e
-    let w := expResultWord r0 r1 r2 r3
-    let aw := expResultWord a0 a1 a2 a3
-    let rw := (w * w) * aw
+    let w := expTwoMulIterW r0 r1 r2 r3
+    let rw := expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3
     let baseFrame : Assertion :=
       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
@@ -1051,7 +1046,7 @@ theorem exp_msb_saved_bit_two_mul_full_iter_owned_scratch_branch_spec_within
         (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ iterCount)) ** baseFrame)
       loopTarget (fun h => condLoop h ∨ skipLoop h)
       (base + 264) (fun h => condExit h ∨ skipExit h) := by
-  intro bit w aw rw baseFrame skipRest condRest condFrame
+  intro bit w rw baseFrame skipRest condRest condFrame
     condLoop condExit skipLoop skipExit
   exact cpsNBranchWithin_as_cpsBranchWithin
     (exp_msb_saved_bit_two_mul_full_iter_branch_owned_scratch_spec_within
