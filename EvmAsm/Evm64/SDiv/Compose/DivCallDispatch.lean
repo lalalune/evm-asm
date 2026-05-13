@@ -61,6 +61,37 @@ def sdivAbsDivisorWord
     match i with
     | 0 => divisorSum0 | 1 => divisorSum1 | 2 => divisorSum2 | 3 => divisorSum3
 
+/-- The SDIV result sign is the XOR of two top-bit extractions, hence it is a
+    Boolean word. This keeps later result-sign-fix zero-quotient rewrites from
+    reasoning about arbitrary 64-bit masks. -/
+theorem sdivResultSign_bool (dividendTop divisorTop : Word) :
+    let resultSign :=
+      (dividendTop >>> (63 : BitVec 6).toNat) ^^^
+        (divisorTop >>> (63 : BitVec 6).toNat)
+    resultSign = 0 ∨ resultSign = 1 := by
+  dsimp
+  bv_decide
+
+/-- Conditional negation by the SDIV result sign leaves the zero quotient
+    limbs equal to zero. The carries may be used internally by the sign-fix
+    block, but the four memory-result limbs remain zero. -/
+theorem sdivResultSign_fixZeroLimbs
+    (dividendTop divisorTop : Word) :
+    let resultSign :=
+      (dividendTop >>> (63 : BitVec 6).toNat) ^^^
+        (divisorTop >>> (63 : BitVec 6).toNat)
+    let mask := (0 : Word) - resultSign
+    let sum0 := ((0 : Word) ^^^ mask) + resultSign
+    let carry0 := if BitVec.ult sum0 resultSign then (1 : Word) else 0
+    let sum1 := ((0 : Word) ^^^ mask) + carry0
+    let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
+    let sum2 := ((0 : Word) ^^^ mask) + carry1
+    let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
+    let sum3 := ((0 : Word) ^^^ mask) + carry2
+    sum0 = 0 ∧ sum1 = 0 ∧ sum2 = 0 ∧ sum3 = 0 := by
+  dsimp
+  bv_decide
+
 /-- Post-shape consumed by `evm_div_callable_spec_in_sdivCode`: the
     `divModStackDispatchPre` bundle (the dispatcher's pre, which the
     callable consumes) paired with the SDIV-wrapper-private sign frame
