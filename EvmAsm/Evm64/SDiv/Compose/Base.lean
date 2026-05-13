@@ -122,7 +122,7 @@ abbrev divCallCode (base : Word) : CodeReq :=
 abbrev resultSignFixCode (base : Word) : CodeReq :=
   CodeReq.ofProg (base + resultSignFixOff)
     (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block .x12 .x8 .x10 .x7 .x11
-      32 40 48 56)
+      0 8 16 24)
 
 /-- Code handle for the saved-`ra` return instruction. -/
 abbrev savedRaRetCode (base : Word) : CodeReq :=
@@ -218,7 +218,7 @@ theorem sdivCode_resultSignFix_sub {base : Word} :
   exact CodeReq.ofProg_mono_sub base (base + resultSignFixOff)
     EvmAsm.Evm64.evm_sdiv
     (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block .x12 .x8 .x10 .x7 .x11
-      32 40 48 56) 49
+      0 8 16 24) 49
     (by simp [resultSignFixOff])
     (by native_decide)
     (by native_decide)
@@ -906,20 +906,19 @@ theorem divCall_spec_in_sdivCode
       EvmAsm.Evm64.evm_sdivCallOff vOld (base + divCallOff))
 
 /-- Precondition for the SDIV result sign-fixup (conditional 2's-complement
-    negation) block. Mirrors `divisorAbsPre` but with the sign in `x8`
-    (post-`signXor` result sign) — same divisor memory slots `+32…+56`
-    that the result is written back to. Wrapped `@[irreducible]` so
-    downstream proofs do not re-unfold the sepConj atoms at each use
-    site. -/
+    negation) block. The unsigned DIV callable returns with `x12` advanced
+    to the quotient cell, so this block operates on offsets `0…24` from the
+    live stack pointer. Wrapped `@[irreducible]` so downstream proofs do not
+    re-unfold the sepConj atoms at each use site. -/
 @[irreducible]
 def resultSignFixPre (sp sign maskOld valueOld carryOld
     limb0 limb1 limb2 limb3 : Word) : Assertion :=
   (.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sign) **
   (.x10 ↦ᵣ maskOld) ** (.x7 ↦ᵣ valueOld) ** (.x11 ↦ᵣ carryOld) **
-  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb0) **
-  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb1) **
-  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb2) **
-  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb3)
+  ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ limb0) **
+  ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ limb1) **
+  ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ limb2) **
+  ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ limb3)
 
 theorem resultSignFixPre_unfold
     {sp sign maskOld valueOld carryOld limb0 limb1 limb2 limb3 : Word} :
@@ -927,10 +926,10 @@ theorem resultSignFixPre_unfold
         limb0 limb1 limb2 limb3 =
       ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sign) **
        (.x10 ↦ᵣ maskOld) ** (.x7 ↦ᵣ valueOld) ** (.x11 ↦ᵣ carryOld) **
-       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limb0) **
-       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limb1) **
-       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limb2) **
-       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limb3)) := by
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ limb0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ limb1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ limb2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ limb3)) := by
   delta resultSignFixPre
   rfl
 
@@ -950,10 +949,10 @@ def resultSignFixPost (sp sign limb0 limb1 limb2 limb3 : Word) : Assertion :=
   let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
   (.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sign) **
   (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
-  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ sum0) **
-  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ sum1) **
-  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ sum2) **
-  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ sum3)
+  ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ sum0) **
+  ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ sum1) **
+  ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ sum2) **
+  ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ sum3)
 
 theorem resultSignFixPost_unfold
     {sp sign limb0 limb1 limb2 limb3 : Word} :
@@ -969,10 +968,10 @@ theorem resultSignFixPost_unfold
        let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
        (.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sign) **
        (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
-       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ sum0) **
-       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ sum1) **
-       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ sum2) **
-       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ sum3)) := by
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ sum0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ sum1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ sum2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ sum3)) := by
   delta resultSignFixPost
   rfl
 
@@ -988,7 +987,7 @@ theorem resultSignFix_spec_in_sdivCode
   have hmono :
       ∀ a i,
         (EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_code
-          .x12 .x8 .x10 .x7 .x11 32 40 48 56
+          .x12 .x8 .x10 .x7 .x11 0 8 16 24
           (base + resultSignFixOff)) a = some i →
         (sdivCode base) a = some i := by
     intro a i h
@@ -997,7 +996,7 @@ theorem resultSignFix_spec_in_sdivCode
         EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_code] using h)
   have hSpec :=
     EvmAsm.Evm64.evm_sdiv_cond_negate_256_block_spec_within
-      .x12 .x8 .x10 .x7 .x11 32 40 48 56
+      .x12 .x8 .x10 .x7 .x11 0 8 16 24
       sp sign maskOld valueOld carryOld limb0 limb1 limb2 limb3
       (base + resultSignFixOff) (by decide) (by decide) (by decide)
   rw [EvmAsm.Evm64.condNegate256BlockPre_unfold,
@@ -1095,34 +1094,15 @@ theorem sdivCode_top_level_subs {base : Word} :
       (sdivCode base) a = some i) := by
   exact ⟨sdivCode_wrapper_sub, sdivCode_div_callable_sub⟩
 
-/-- Bridge lemma: four `↦ₘ`-memory atoms at `sp + signExtend12 (0/8/16/24)`
-    fold into a single `evmWordIs sp` atom holding `EvmWord.fromLimbs` of the
-    four limbs. Bite-sized helper for slice 4 (evm-asm-hvweh): the full
-    pre-`divCall` composition needs to bridge memory-quad atoms produced by
-    the absolute-value sequences to the `evmWordIs sp a` / `evmWordIs (sp+32) b`
-    inputs of `evm_div_callable_spec_in_sdivCode`. This lemma covers the
-    `sp` (dividend) slot; the `sp+32` (divisor) slot uses the analogous
-    `evmWordIs_sp32` infrastructure.
-
-    The `limbs` argument is left abstract so callers control the precise
-    `Fin 4 → Word` representation (typically built via `match i with ...`
-    matching the post-`abs` memory shape). -/
-theorem evmWordIs_eq_quadMem (sp : Word) (limbs : Fin 4 → Word) :
-    (((sp + signExtend12 (0 : BitVec 12)) ↦ₘ limbs 0) **
-     ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ limbs 1) **
-     ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ limbs 2) **
-     ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ limbs 3)) =
-    evmWordIs sp (EvmWord.fromLimbs limbs) := by
-  have h0 : (sp + signExtend12 (0 : BitVec 12) : Word) = sp := by
-    unfold signExtend12; bv_decide
-  have h8 : (sp + signExtend12 (8 : BitVec 12) : Word) = sp + 8 := by
-    unfold signExtend12; bv_decide
-  have h16 : (sp + signExtend12 (16 : BitVec 12) : Word) = sp + 16 := by
-    unfold signExtend12; bv_decide
-  have h24 : (sp + signExtend12 (24 : BitVec 12) : Word) = sp + 24 := by
-    unfold signExtend12; bv_decide
-  rw [h0, h8, h16, h24]
-  exact (evmWordIs_fromLimbs (addr := sp) limbs).symm
+/-- The near `JAL` at the SDIV wrapper's `divCall` block targets the appended
+    unsigned DIV callable, which starts at `base + wrapperEndOff`.  This is
+    the entry-PC alignment fact needed to sequence the wrapper prefix with the
+    callable DIV stack dispatcher. -/
+theorem divCall_target_eq_wrapperEndOff (base : Word) :
+    (base + divCallOff) + signExtend21 EvmAsm.Evm64.evm_sdivCallOff =
+      base + wrapperEndOff := by
+  show (base + (192 : Word)) + (92 : Word) = base + (284 : Word)
+  bv_decide
 
 /-- Under the standard RV PC-alignment invariant (`base` has its low bit
     clear), the JALR low-bit mask `&&& ~~~1` on the post-`divCall` return
@@ -1136,60 +1116,16 @@ theorem base_add_resultSignFixOff_andn_one
   show (base + (196 : Word)) &&& ~~~(1 : Word) = base + (196 : Word)
   bv_decide
 
-/-- Divisor-slot companion to `evmWordIs_eq_quadMem`: four `↦ₘ`-memory atoms
-    at `sp + signExtend12 (32/40/48/56)` fold into a single
-    `evmWordIs (sp + 32)` atom. Bite-sized helper for slice 4 (evm-asm-j8ity):
-    the post-`abs` divisor limbs live at `sp + signExtend12 (32..56)` while
-    `evm_div_callable_spec_in_sdivCode` consumes them as
-    `evmWordIs (sp + 32) b`; this lemma bridges the two shapes. -/
-theorem evmWordIs_eq_quadMem_sp32 (sp : Word) (limbs : Fin 4 → Word) :
-    (((sp + signExtend12 (32 : BitVec 12)) ↦ₘ limbs 0) **
-     ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ limbs 1) **
-     ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ limbs 2) **
-     ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ limbs 3)) =
-    evmWordIs (sp + 32) (EvmWord.fromLimbs limbs) := by
-  have h32 : (sp + signExtend12 (32 : BitVec 12) : Word) = sp + 32 := by
-    unfold signExtend12; bv_decide
-  have h40 : (sp + signExtend12 (40 : BitVec 12) : Word) = (sp + 32) + 8 := by
-    unfold signExtend12; bv_decide
-  have h48 : (sp + signExtend12 (48 : BitVec 12) : Word) = (sp + 32) + 16 := by
-    unfold signExtend12; bv_decide
-  have h56 : (sp + signExtend12 (56 : BitVec 12) : Word) = (sp + 32) + 24 := by
-    unfold signExtend12; bv_decide
-  rw [h32, h40, h48, h56]
-  exact (evmWordIs_fromLimbs (addr := sp + 32) limbs).symm
-
-/-- Named-arguments specialization of `evmWordIs_eq_quadMem` (slice 4
-    micro evm-asm-nregq). Folds four `↦ₘ` atoms holding explicitly-named
-    limb values `s0..s3` into a single `evmWordIs sp` atom carrying a
-    `Fin 4 → Word` lambda that returns each limb. Convenience wrapper used
-    by the SDIV `divCall` framing step to bridge the post of
-    `saveRa_signs_abs_signXor_then_divCall_spec_in_sdivCode` (where the
-    four dividend-absolute-value sums live as plain memIs atoms) into the
-    `evmWordIs sp a` input shape of `evm_div_callable_spec_in_sdivCode`. -/
-theorem evmWordIs_eq_quadMem_named (sp s0 s1 s2 s3 : Word) :
-    (((sp + signExtend12 (0 : BitVec 12)) ↦ₘ s0) **
-     ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ s1) **
-     ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ s2) **
-     ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ s3)) =
-    evmWordIs sp (EvmWord.fromLimbs fun i : Fin 4 =>
-      match i with | 0 => s0 | 1 => s1 | 2 => s2 | 3 => s3) := by
-  rw [← evmWordIs_eq_quadMem sp
-    (fun i : Fin 4 => match i with | 0 => s0 | 1 => s1 | 2 => s2 | 3 => s3)]
-
-/-- Named-arguments specialization of `evmWordIs_eq_quadMem_sp32`
-    (slice 4 micro evm-asm-nregq). Divisor-slot companion to
-    `evmWordIs_eq_quadMem_named`: folds four `↦ₘ` atoms at
-    `sp + signExtend12 (32/40/48/56)` into `evmWordIs (sp + 32)` carrying
-    a 4-case `Fin 4 → Word` lambda. -/
-theorem evmWordIs_eq_quadMem_sp32_named (sp s0 s1 s2 s3 : Word) :
-    (((sp + signExtend12 (32 : BitVec 12)) ↦ₘ s0) **
-     ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ s1) **
-     ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ s2) **
-     ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ s3)) =
-    evmWordIs (sp + 32) (EvmWord.fromLimbs fun i : Fin 4 =>
-      match i with | 0 => s0 | 1 => s1 | 2 => s2 | 3 => s3) := by
-  rw [← evmWordIs_eq_quadMem_sp32 sp
-    (fun i : Fin 4 => match i with | 0 => s0 | 1 => s1 | 2 => s2 | 3 => s3)]
+/-- The return address written by the SDIV wrapper's near `divCall` is exactly
+    the result-sign-fixup entry, and masking bit 0 for the eventual `JALR`
+    keeps it there.  This is the concrete `raVal &&& ~~~1` alignment fact
+    needed when composing the wrapper prefix with `evm_div_callable`. -/
+theorem divCall_return_andn_one_eq_resultSignFixOff
+    (base : Word) (hbase : base &&& 1 = 0) :
+    (((base + divCallOff) + 4 : Word) &&& ~~~(1 : Word)) =
+      base + resultSignFixOff := by
+  show (((base + (192 : Word)) + (4 : Word)) &&& ~~~(1 : Word)) =
+      base + (196 : Word)
+  bv_decide
 
 end EvmAsm.Evm64.SDiv.Compose
