@@ -1,0 +1,53 @@
+/-
+  EvmAsm.Evm64.Exp.Compose.SavedBitIterMerge
+
+  Branch-elimination helper for the named two-MUL saved-bit EXP iteration.
+-/
+
+import EvmAsm.Evm64.Exp.Compose.SavedBitIterPosts
+
+namespace EvmAsm.Evm64.Exp.Compose
+
+open EvmAsm.Rv64
+
+/-- Merge one named canonical appended-MUL EXP iteration with externally
+    supplied continuations for the loop-back and loop-exit edges. This is the
+    structural induction step needed by the full 256-iteration loop proof. -/
+theorem exp_two_mul_named_iter_with_continuations_spec_within
+    {nCont : Nat} {exit_ : Word} {R : Assertion}
+    (e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e0 e1 e2 e3 a0 a1 a2 a3 : Word)
+    (base : Word)
+    (hbase : base &&& 1 = 0) :
+    let bit := e >>> (63 : BitVec 6).toNat
+    let w := expResultWord r0 r1 r2 r3
+    let aw := expResultWord a0 a1 a2 a3
+    let rw := (w * w) * aw
+    let iterCountNew := iterCount + signExtend12 ((-1 : BitVec 12))
+    (cpsTripleWithin nCont (base + 28) exit_
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulIterLoopPost iterCountNew bit sp evmSp base
+        a0 a1 a2 a3 w rw)
+      R) →
+    (cpsTripleWithin nCont (base + 264) exit_
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulIterExitPost iterCountNew bit sp evmSp base
+        a0 a1 a2 a3 w rw)
+      R) →
+    cpsTripleWithin
+      ((((3 + 1 + (17 + 64 + 9) + 1) + 2) + ((17 + 64 + 9) + 2)) + nCont)
+      (base + 28)
+      exit_
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulIterPre e iterCount v18 sp evmSp vOld r0 r1 r2 r3
+        d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3)
+      R := by
+  intro bit w aw rw iterCountNew hLoop hExit
+  exact
+    cpsBranchWithin_merge_same_cr
+      (exp_msb_saved_bit_two_mul_full_iter_named_pre_canonical_appended_mul_spec_within
+        e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
+        e0 e1 e2 e3 a0 a1 a2 a3 base hbase)
+      hLoop hExit
+
+end EvmAsm.Evm64.Exp.Compose
