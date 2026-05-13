@@ -9,7 +9,6 @@ import EvmAsm.Evm64.SDiv.Compose.DivCallResultSignFix
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 theorem divModStackDispatchPre_pcFree
