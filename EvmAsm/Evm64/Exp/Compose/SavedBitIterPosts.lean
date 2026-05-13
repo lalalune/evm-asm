@@ -21,6 +21,12 @@ theorem expTwoMulIterBaseFrame_unfold {evmSp a0 a1 a2 a3 : Word} :
   delta expTwoMulIterBaseFrame
   rfl
 
+theorem expTwoMulIterBaseFrame_pcFree
+    {evmSp a0 a1 a2 a3 : Word} :
+    (expTwoMulIterBaseFrame evmSp a0 a1 a2 a3).pcFree := by
+  rw [expTwoMulIterBaseFrame_unfold]
+  pcFree
+
 @[irreducible]
 def expTwoMulIterSkipRest
     (bit sp evmSp base : Word) (w : EvmWord) : Assertion :=
@@ -47,6 +53,12 @@ theorem expTwoMulIterSkipRest_unfold {bit sp evmSp base : Word} {w : EvmWord} :
        (.x1 ↦ᵣ ((base + 44) + 68))) := by
   delta expTwoMulIterSkipRest
   rfl
+
+theorem expTwoMulIterSkipRest_pcFree
+    {bit sp evmSp base : Word} {w : EvmWord} :
+    (expTwoMulIterSkipRest bit sp evmSp base w).pcFree := by
+  rw [expTwoMulIterSkipRest_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold]
+  pcFree
 
 @[irreducible]
 def expTwoMulIterCondRest
@@ -80,6 +92,12 @@ theorem expTwoMulIterCondRest_unfold
   delta expTwoMulIterCondRest
   rfl
 
+theorem expTwoMulIterCondRest_pcFree
+    {sp evmSp base a0 a1 a2 a3 : Word} {rw : EvmWord} :
+    (expTwoMulIterCondRest sp evmSp base a0 a1 a2 a3 rw).pcFree := by
+  rw [expTwoMulIterCondRest_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold]
+  pcFree
+
 @[irreducible]
 def expTwoMulIterCondFrame (bit : Word) : Assertion :=
   (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
@@ -91,6 +109,11 @@ theorem expTwoMulIterCondFrame_unfold {bit : Word} :
        ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝) := by
   delta expTwoMulIterCondFrame
   rfl
+
+theorem expTwoMulIterCondFrame_pcFree {bit : Word} :
+    (expTwoMulIterCondFrame bit).pcFree := by
+  rw [expTwoMulIterCondFrame_unfold]
+  pcFree
 
 @[irreducible]
 def expTwoMulIterCondPost
@@ -110,6 +133,15 @@ theorem expTwoMulIterCondPost_unfold
   delta expTwoMulIterCondPost
   rfl
 
+theorem expTwoMulIterCondPost_pcFree
+    {iterCountNew bit sp evmSp base a0 a1 a2 a3 : Word} {rw : EvmWord}
+    {exitCond : Prop} :
+    (expTwoMulIterCondPost iterCountNew bit sp evmSp base a0 a1 a2 a3 rw
+      exitCond).pcFree := by
+  rw [expTwoMulIterCondPost_unfold, expTwoMulIterCondRest_unfold,
+    expTwoMulIterCondFrame_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold]
+  pcFree
+
 @[irreducible]
 def expTwoMulIterSkipPost
     (iterCountNew bit sp evmSp base a0 a1 a2 a3 : Word) (w : EvmWord)
@@ -127,6 +159,15 @@ theorem expTwoMulIterSkipPost_unfold
        expTwoMulIterBaseFrame evmSp a0 a1 a2 a3) := by
   delta expTwoMulIterSkipPost
   rfl
+
+theorem expTwoMulIterSkipPost_pcFree
+    {iterCountNew bit sp evmSp base a0 a1 a2 a3 : Word} {w : EvmWord}
+    {exitCond : Prop} :
+    (expTwoMulIterSkipPost iterCountNew bit sp evmSp base a0 a1 a2 a3 w
+      exitCond).pcFree := by
+  rw [expTwoMulIterSkipPost_unfold, expTwoMulIterSkipRest_unfold,
+    expTwoMulIterBaseFrame_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold]
+  pcFree
 
 theorem exp_msb_saved_bit_two_mul_full_iter_owned_scratch_branch_named_posts_spec_within
     (e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
