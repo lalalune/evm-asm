@@ -617,6 +617,40 @@ theorem saveRaDivCallBzeroCallablePost_resultSignFixPreOwnScratch
   rw [show (sp + 32 + signExtend12 (24 : BitVec 12) : Word) = (sp + 32) + 24 by bv_addr]
   xperm
 
+/-- Callable post reshaped as the result-sign-fix precondition over the
+    unsigned DIV quotient plus the saved-RA/sign frame. The zero-divisor
+    specialization below is the same shape with the quotient reduced to zero. -/
+theorem saveRaDivCallBzeroCallablePost_resultSignFixPreOwnScratch_quotient
+    {vRa sp base : Word}
+    {dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop : Word} :
+    saveRaDivCallBzeroCallablePost vRa sp base
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop =
+      (let dividendAbsWord :=
+         sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+       let divisorAbsWord :=
+         sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+       let quotientWord := EvmWord.div dividendAbsWord divisorAbsWord
+       let resultSign :=
+         (dividendTop >>> (63 : BitVec 6).toNat) ^^^
+           (divisorTop >>> (63 : BitVec 6).toNat)
+       let divisorSign := divisorTop >>> (63 : BitVec 6).toNat
+       resultSignFixPreOwnScratch (sp + 32) resultSign
+         (quotientWord.getLimbN 0) (quotientWord.getLimbN 1)
+         (quotientWord.getLimbN 2) (quotientWord.getLimbN 3) **
+       saveRaDivCallBzeroResultSignFixFrame vRa sp base divisorSign dividendAbsWord) := by
+  rw [saveRaDivCallBzeroCallablePost_unfold,
+    EvmAsm.Evm64.divStackDispatchPostNoX1_unfold]
+  dsimp only
+  rw [resultSignFixPreOwnScratch_unfold,
+    saveRaDivCallBzeroResultSignFixFrame_unfold, evmWordIs_sp32_unfold]
+  rw [show (sp + 32 + signExtend12 (0 : BitVec 12) : Word) = sp + 32 by bv_addr]
+  rw [show (sp + 32 + signExtend12 (8 : BitVec 12) : Word) = sp + 40 by bv_addr]
+  rw [show (sp + 32 + signExtend12 (16 : BitVec 12) : Word) = sp + 48 by bv_addr]
+  rw [show (sp + 32 + signExtend12 (24 : BitVec 12) : Word) = sp + 56 by bv_addr]
+  xperm
+
 /-- SDIV wrapper prefix followed by the zero-divisor unsigned-DIV callable,
     using the named postcondition consumed by later composition slices. -/
 theorem saveRa_signs_abs_signXor_then_divCall_bzero_callable_named_post_spec_in_sdivCode
