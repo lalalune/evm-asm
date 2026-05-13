@@ -50,6 +50,31 @@ theorem expCondMulLoopRest_pcFree
   rw [expCondMulLoopRest_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold]
   pcFree
 
+@[irreducible]
+def expCondMulFoldedPre
+    (sp evmSp iterCount vOld a0 a1 a2 a3 : Word) (r : EvmWord) :
+    Assertion :=
+  (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
+    evmWordIs sp r ** evmWordIs (evmSp + 32) r **
+    expTwoMulIterBaseFrame evmSp a0 a1 a2 a3 ** (.x1 ↦ᵣ vOld) **
+    (.x9 ↦ᵣ iterCount) ** (.x0 ↦ᵣ (0 : Word))) **
+   regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+   memOwn evmSp ** memOwn (evmSp + 8) **
+   memOwn (evmSp + 16) ** memOwn (evmSp + 24))
+
+theorem expCondMulFoldedPre_unfold
+    {sp evmSp iterCount vOld a0 a1 a2 a3 : Word} {r : EvmWord} :
+    expCondMulFoldedPre sp evmSp iterCount vOld a0 a1 a2 a3 r =
+      (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
+        evmWordIs sp r ** evmWordIs (evmSp + 32) r **
+        expTwoMulIterBaseFrame evmSp a0 a1 a2 a3 ** (.x1 ↦ᵣ vOld) **
+        (.x9 ↦ᵣ iterCount) ** (.x0 ↦ᵣ (0 : Word))) **
+       regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+       memOwn evmSp ** memOwn (evmSp + 8) **
+       memOwn (evmSp + 16) ** memOwn (evmSp + 24)) := by
+  delta expCondMulFoldedPre
+  rfl
+
 /-- Taken conditional-multiply block followed by the loop-back counter update
     under the two-MUL-offset saved-bit EXP+MUL code bundle. -/
 theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
@@ -278,16 +303,6 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
     composition slice. -/
 theorem exp_cond_mul_folded_pre_to_call_scratch_owned_pre
     (sp evmSp iterCount vOld a0 a1 a2 a3 : Word) (r : EvmWord) :
-    let baseFrame : Assertion :=
-      expTwoMulIterBaseFrame evmSp a0 a1 a2 a3
-    let foldedPre : Assertion :=
-      (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
-        evmWordIs sp r ** evmWordIs (evmSp + 32) r **
-        baseFrame ** (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) **
-        (.x0 ↦ᵣ (0 : Word))) **
-       regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-       memOwn evmSp ** memOwn (evmSp + 8) **
-       memOwn (evmSp + 16) ** memOwn (evmSp + 24))
     let concretePre : Assertion :=
       let preCore : Assertion :=
         (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
@@ -308,9 +323,12 @@ theorem exp_cond_mul_folded_pre_to_call_scratch_owned_pre
       regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
       memOwn evmSp ** memOwn (evmSp + 8) **
       memOwn (evmSp + 16) ** memOwn (evmSp + 24)
-    ∀ h, foldedPre h → concretePre h := by
-  intro baseFrame foldedPre concretePre h hp
-  simp [foldedPre, concretePre, baseFrame, expTwoMulIterBaseFrame_unfold] at hp ⊢
+    ∀ h,
+      expCondMulFoldedPre sp evmSp iterCount vOld a0 a1 a2 a3 r h →
+      concretePre h := by
+  intro concretePre h hp
+  simp [expCondMulFoldedPre_unfold, concretePre,
+    expTwoMulIterBaseFrame_unfold] at hp ⊢
   unfold evmWordIs at hp
   have hSrc8 : (evmSp + 32#64 + 8 : Word) = evmSp + 40#64 := by bv_omega
   have hSrc16 : (evmSp + 32#64 + 16 : Word) = evmSp + 48#64 := by bv_omega
@@ -352,20 +370,10 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
             (mul_callable_code mulTarget))
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
     let rw := expTwoMulCondRw r a0 a1 a2 a3
-    let baseFrame : Assertion :=
-      expTwoMulIterBaseFrame evmSp a0 a1 a2 a3
-    let foldedPre : Assertion :=
-      (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
-        evmWordIs sp r ** evmWordIs (evmSp + 32) r **
-        baseFrame ** (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) **
-        (.x0 ↦ᵣ (0 : Word))) **
-       regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-       memOwn evmSp ** memOwn (evmSp + 8) **
-       memOwn (evmSp + 16) ** memOwn (evmSp + 24))
     cpsNBranchWithin ((17 + 64 + 9) + 2) (base + 152)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
-      foldedPre
+      (expCondMulFoldedPre sp evmSp iterCount vOld a0 a1 a2 a3 r)
       [(loopTarget,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
            ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) **
@@ -374,7 +382,7 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
            ⌜expTwoMulIterCountNew iterCount = 0⌝) **
             expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw))] := by
-  intro rw baseFrame foldedPre
+  intro rw
   let concretePre : Assertion :=
     let preCore : Assertion :=
       (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
@@ -408,8 +416,8 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
           (base + 264,
             (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
              ⌜expTwoMulIterCountNew iterCount = 0⌝) **
-              expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw))] := by
-    dsimp [concretePre, baseFrame]
+             expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw))] := by
+    dsimp [concretePre]
     simpa [expTwoMulCondRwFromLimbs, expTwoMulIterW,
       expResultWord_getLimbN_self r] using
     exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_call_scratch_owned_spec_within
@@ -421,8 +429,7 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
       base loopTarget hbase hmt hd hback
   refine cpsNBranchWithin_weaken_pre ?_ hConcrete
   intro h hp
-  dsimp [foldedPre] at hp
-  simpa [concretePre, baseFrame] using
+  simpa [concretePre] using
     exp_cond_mul_folded_pre_to_call_scratch_owned_pre
       sp evmSp iterCount vOld a0 a1 a2 a3 r h hp
 

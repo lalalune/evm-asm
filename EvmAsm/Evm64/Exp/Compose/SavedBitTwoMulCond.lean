@@ -113,7 +113,8 @@ theorem exp_msb_saved_bit_two_mul_full_iter_four_exit_spec_within
               expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw) ** condFrame)] := by
     exact cpsNBranchWithin_weaken_pre
       (fun _ hp => by
-        simp [condFrame, baseFrame, expTwoMulIterBaseFrame_unfold] at hp ⊢
+        simp [condFrame, baseFrame, expCondMulFoldedPre_unfold,
+          expTwoMulIterBaseFrame_unfold] at hp ⊢
         xperm_hyp hp) hCondFramed
   have hFull :=
     cpsNBranchWithin_extend_head_nbranch hSkip hCondHead
