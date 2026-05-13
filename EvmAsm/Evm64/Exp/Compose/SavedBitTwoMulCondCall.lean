@@ -279,10 +279,7 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
 theorem exp_cond_mul_folded_pre_to_call_scratch_owned_pre
     (sp evmSp iterCount vOld a0 a1 a2 a3 : Word) (r : EvmWord) :
     let baseFrame : Assertion :=
-      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+      expTwoMulIterBaseFrame evmSp a0 a1 a2 a3
     let foldedPre : Assertion :=
       (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
         evmWordIs sp r ** evmWordIs (evmSp + 32) r **
@@ -313,7 +310,7 @@ theorem exp_cond_mul_folded_pre_to_call_scratch_owned_pre
       memOwn (evmSp + 16) ** memOwn (evmSp + 24)
     ∀ h, foldedPre h → concretePre h := by
   intro baseFrame foldedPre concretePre h hp
-  dsimp [foldedPre, concretePre, baseFrame] at hp ⊢
+  simp [foldedPre, concretePre, baseFrame, expTwoMulIterBaseFrame_unfold] at hp ⊢
   unfold evmWordIs at hp
   have hSrc8 : (evmSp + 32#64 + 8 : Word) = evmSp + 40#64 := by bv_omega
   have hSrc16 : (evmSp + 32#64 + 16 : Word) = evmSp + 48#64 := by bv_omega
@@ -356,10 +353,7 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
     let rw := expTwoMulCondRw r a0 a1 a2 a3
     let baseFrame : Assertion :=
-      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+      expTwoMulIterBaseFrame evmSp a0 a1 a2 a3
     let foldedPre : Assertion :=
       (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
         evmWordIs sp r ** evmWordIs (evmSp + 32) r **
