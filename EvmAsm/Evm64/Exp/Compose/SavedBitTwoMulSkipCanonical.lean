@@ -25,9 +25,7 @@ theorem exp_loop_back_evm_exp_msb_saved_bit_two_mul_canonical_with_mul_spec_with
       ((base + 256) + 4 : Word) +
           signExtend13 EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff =
         base + 28 := by
-    rw [EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff_eq]
-    unfold signExtend13
-    bv_decide
+    exact EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBack_target base
   exact exp_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
     c squaringMulOff condMulOff EvmAsm.Evm64.canonicalExpCondMulSkipOff
     EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff
@@ -97,16 +95,12 @@ theorem exp_msb_saved_bit_prefix_squaring_beq_skip_then_loop_back_evm_exp_msb_sa
   have hskip :
       (base + 148 : Word) + signExtend13 EvmAsm.Evm64.canonicalExpCondMulSkipOff =
         base + 256 := by
-    rw [EvmAsm.Evm64.canonicalExpCondMulSkipOff_eq]
-    unfold signExtend13
-    bv_decide
+    exact EvmAsm.Evm64.canonicalExpCondMulSkip_target base
   have hback :
       ((base + 256) + 4 : Word) +
           signExtend13 EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff =
         base + 28 := by
-    rw [EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff_eq]
-    unfold signExtend13
-    bv_decide
+    exact EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBack_target base
   exact
     exp_msb_saved_bit_prefix_squaring_beq_skip_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
       e c iterCount v10 v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3

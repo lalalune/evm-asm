@@ -71,9 +71,7 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
       ((base + 256) + 4 : Word) +
           signExtend13 EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff =
         base + 28 := by
-    rw [EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff_eq]
-    unfold signExtend13
-    bv_decide
+    exact EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBack_target base
   exact
     exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
       iterCount sp evmSp tOld vOld r0 r1 r2 r3 a0 a1 a2 a3 d0 d1 d2 d3
@@ -135,9 +133,7 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
       ((base + 256) + 4 : Word) +
           signExtend13 EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff =
         base + 28 := by
-    rw [EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff_eq]
-    unfold signExtend13
-    bv_decide
+    exact EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBack_target base
   exact
     exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_folded_owned_spec_within
       iterCount sp evmSp vOld a0 a1 a2 a3 mulTarget r
