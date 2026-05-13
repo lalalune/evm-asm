@@ -8,6 +8,7 @@
   `Compose/Base.lean` to respect the per-file line cap on Compose files.
 -/
 
+import EvmAsm.Evm64.SDiv.Compose.BaseDivisorAbsBlockSpec
 import EvmAsm.Evm64.SDiv.Compose.DivisorAbsPost
 
 namespace EvmAsm.Evm64.SDiv.Compose
