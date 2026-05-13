@@ -4,6 +4,7 @@
   Generic SDIV prefix sequencing into the unsigned DIV callable handoff shape.
 -/
 
+import EvmAsm.Evm64.SDiv.Compose.Base
 import EvmAsm.Evm64.SDiv.Compose.DivCall
 import EvmAsm.Evm64.SDiv.Compose.Bridges
 import EvmAsm.Evm64.SDiv.Compose.DispatchReadyPost
