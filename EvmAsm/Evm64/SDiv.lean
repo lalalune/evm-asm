@@ -45,6 +45,8 @@ import EvmAsm.Evm64.SDiv.Compose.DivCallResultSignFixPost
 import EvmAsm.Evm64.SDiv.Compose.DivCallReturnPosts
 import EvmAsm.Evm64.SDiv.Compose.DivCallResultSignFix
 import EvmAsm.Evm64.SDiv.Compose.DivCallResultSignFixNamedPost
+import EvmAsm.Evm64.SDiv.Compose.DivCallAbsComponents
+import EvmAsm.Evm64.SDiv.Compose.DivCallDispatchPcFreeBasics
 import EvmAsm.Evm64.SDiv.Compose.DivCallPostPcFree
 import EvmAsm.Evm64.SDiv.Compose.BzeroSemanticViews
 import EvmAsm.Evm64.SDiv.Compose.DivCallDispatchZeroDivisor
