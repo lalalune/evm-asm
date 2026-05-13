@@ -5,7 +5,7 @@
   separate from `DivCallDispatch.lean`, which is at the Compose line cap.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.DivCallExactCallable
+import EvmAsm.Evm64.SDiv.Compose.DivCallFramedCallable
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
@@ -103,39 +103,6 @@ theorem saveRaDivCallDispatchReadyPost_exact_callable_spec_in_sdivCode
     dsimp [dividendAbsWord, divisorAbsWord, divisorSign, resultSign,
       saveRaDivCallSignFrame, sdivDivCallResultSign, sdivAbsSign] at hp ⊢
     exact hp) hCallableExit
-
-/-- Frame the preserving-`x1` unsigned-DIV callable wrapper by an arbitrary
-    PC-free assertion. SDIV uses this for the private sign frame carried across
-    the exact callable handoff. -/
-theorem evm_div_callable_preserving_x1_framed_spec_in_sdivCode
-    {F : Assertion} [Assertion.PCFree F]
-    (sp base raVal : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
-    (branch : EvmAsm.Evm64.DivStackSpecCase (base + wrapperEndOff) a b)
-    (hStack :
-      cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
-        (base + wrapperEndOff)
-        ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
-        (EvmAsm.Evm64.divCode_noNop (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPre sp a b
-          branch.x1 branch.x2 v5 v6 v7 v10 v11
-          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal))) :
-    cpsTripleWithin (EvmAsm.Evm64.unifiedDivBound + 1)
-      (base + wrapperEndOff) (raVal &&& ~~~1) (sdivCode base)
-      (EvmAsm.Evm64.divModStackDispatchPre sp a b
-        branch.x1 branch.x2 v5 v6 v7 v10 v11
-        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** F)
-      ((EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal)) ** F) := by
-  exact
-    cpsTripleWithin_frameR F (by pcFree)
-      (evm_div_callable_preserving_x1_spec_in_sdivCode
-        sp base raVal a b v5 v6 v7 v10 v11
-        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-        nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack)
 
 /-- The named zero-divisor callable handoff from the SDIV dispatch-ready
     bundle to the zero-divisor callable post. This isolates the callable
