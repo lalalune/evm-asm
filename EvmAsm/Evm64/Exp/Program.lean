@@ -15,7 +15,7 @@ import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Evm64
 
-open EvmAsm.Rv64
+open EvmAsm.Rv64 (ADDI ANDI BEQ BNE Instr JAL LD Program SD SLLI SRLI seq single)
 
 -- ============================================================================
 -- Iteration sub-blocks (#92 slice 3a, beads evm-asm-dl98)
