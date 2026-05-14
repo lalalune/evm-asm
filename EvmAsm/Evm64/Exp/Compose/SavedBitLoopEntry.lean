@@ -59,7 +59,7 @@ theorem expTwoMulBoundaryPre_pcFree
     {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
     (expTwoMulBoundaryPre sp evmSp cOld tOld m0 m1 m2 m3 vOld v18
       baseWord exponentWord rest).pcFree := by
-  rw [expTwoMulBoundaryPre_unfold]
+  rw [expTwoMulBoundaryPre_unfold_namedScratch]
   pcFree
 
 instance pcFreeInst_expTwoMulBoundaryPre
@@ -112,7 +112,7 @@ theorem expTwoMulLoopEntryPost_pcFree
     {sp evmSp vOld v18 : Word} {baseWord exponentWord : EvmWord}
     {rest : List EvmWord} :
     (expTwoMulLoopEntryPost sp evmSp vOld v18 baseWord exponentWord rest).pcFree := by
-  rw [expTwoMulLoopEntryPost_unfold]
+  rw [expTwoMulLoopEntryPost_unfold_namedScratch]
   pcFree
 
 instance pcFreeInst_expTwoMulLoopEntryPost
