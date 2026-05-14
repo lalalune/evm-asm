@@ -66,6 +66,7 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulSkipCanonical
 import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulCondCall
 import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulCond
 import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulCondCanonical
+import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostDefs
 import EvmAsm.Evm64.Exp.Compose.SavedBitIterPosts
 import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostPcFree
 import EvmAsm.Evm64.Exp.Compose.SavedBitIterMerge
