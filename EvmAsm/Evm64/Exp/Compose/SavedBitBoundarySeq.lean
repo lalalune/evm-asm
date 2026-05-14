@@ -13,6 +13,28 @@ namespace EvmAsm.Evm64.Exp.Compose
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
+@[irreducible]
+def expTwoMulLoopExitControl (iterCountNew : Word) (exitCond : Prop) : Assertion :=
+  (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
+
+theorem expTwoMulLoopExitControl_unfold
+    {iterCountNew : Word} {exitCond : Prop} :
+    expTwoMulLoopExitControl iterCountNew exitCond =
+      ((.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝) := by
+  delta expTwoMulLoopExitControl
+  rfl
+
+theorem expTwoMulLoopExitControl_pcFree
+    {iterCountNew : Word} {exitCond : Prop} :
+    (expTwoMulLoopExitControl iterCountNew exitCond).pcFree := by
+  rw [expTwoMulLoopExitControl_unfold]
+  pcFree
+
+instance pcFreeInst_expTwoMulLoopExitControl
+    (iterCountNew : Word) (exitCond : Prop) :
+    Assertion.PCFree (expTwoMulLoopExitControl iterCountNew exitCond) :=
+  ⟨expTwoMulLoopExitControl_pcFree⟩
+
 /-- EXP prologue followed by the pointer-advance block, lifted to the
     two-MUL saved-bit EXP+MUL code bundle. This lands at the iteration-body
     entry with the EVM stack pointer advanced by one operand window. -/
