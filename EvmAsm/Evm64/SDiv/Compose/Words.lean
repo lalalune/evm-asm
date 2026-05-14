@@ -98,6 +98,47 @@ theorem sdivResultSign_fixZeroLimbs
   dsimp
   bv_decide
 
+/-- If the dividend sign bit is zero, the dividend absolute-value word is just
+    the original four-limb word. -/
+theorem sdivAbsDividendWord_of_sign_zero
+    (limb0 limb1 limb2 top : Word)
+    (hSign : top >>> (63 : BitVec 6).toNat = (0 : Word)) :
+    sdivAbsDividendWord limb0 limb1 limb2 top =
+      EvmWord.fromLimbs fun i : Fin 4 =>
+        match i with
+        | 0 => limb0 | 1 => limb1 | 2 => limb2 | 3 => top := by
+  unfold sdivAbsDividendWord EvmWord.fromLimbs
+  rw [hSign]
+  bv_decide
+
+/-- If the divisor sign bit is zero, the divisor absolute-value word is just the
+    original four-limb word. -/
+theorem sdivAbsDivisorWord_of_sign_zero
+    (limb0 limb1 limb2 top : Word)
+    (hSign : top >>> (63 : BitVec 6).toNat = (0 : Word)) :
+    sdivAbsDivisorWord limb0 limb1 limb2 top =
+      EvmWord.fromLimbs fun i : Fin 4 =>
+        match i with
+        | 0 => limb0 | 1 => limb1 | 2 => limb2 | 3 => top := by
+  unfold sdivAbsDivisorWord EvmWord.fromLimbs
+  rw [hSign]
+  bv_decide
+
+/-- If the SDIV result sign is zero, the result-sign-fix word is just the
+    unsigned quotient word assembled from its four limbs. -/
+theorem sdivResultSignFixedWord_of_result_sign_zero
+    (dividendTop divisorTop limb0 limb1 limb2 limb3 : Word)
+    (hSign :
+      (dividendTop >>> (63 : BitVec 6).toNat) ^^^
+        (divisorTop >>> (63 : BitVec 6).toNat) = (0 : Word)) :
+    sdivResultSignFixedWord dividendTop divisorTop limb0 limb1 limb2 limb3 =
+      EvmWord.fromLimbs fun i : Fin 4 =>
+        match i with
+        | 0 => limb0 | 1 => limb1 | 2 => limb2 | 3 => limb3 := by
+  unfold sdivResultSignFixedWord EvmWord.fromLimbs
+  rw [hSign]
+  bv_decide
+
 /-- The SDIV divisor absolute-value word is zero when all divisor limbs are
     zero. This discharges the internal bzero-branch hypothesis for the
     caller-visible zero-divisor stack case. -/
