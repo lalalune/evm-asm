@@ -388,6 +388,57 @@ theorem exp_two_mul_full_loop_body_peel_tail_with_continuations_spec_within
         rw [Nat.max_self]
         rw [← expTwoMulFullLoopBodyBound_eq_iter_plus_tail])
 
+/-- Peel one named iteration from the 256-iteration body with the loop-back
+    continuation packaged under the named 255-iteration tail bound, reducing
+    the zero-step exit bridge to the two concrete branch-postcondition cases. -/
+theorem exp_two_mul_full_loop_body_peel_tail_with_exit_cases_spec_within
+    (e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e0 e1 e2 e3 a0 a1 a2 a3 iterCountFinal tOld out0 out1 out2 out3 : Word)
+    (base : Word)
+    (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop)
+    (hbase : base &&& 1 = 0)
+    (hCondExit :
+      ∀ hp,
+        expTwoMulIterCondPost (expTwoMulIterCountNew iterCount)
+          (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+          (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3)
+          (expTwoMulIterCountNew iterCount = 0) hp →
+        expTwoMulLoopExitPre sp evmSp iterCountFinal tOld out0 out1 out2 out3
+          baseWord rest exitCond hp)
+    (hSkipExit :
+      ∀ hp,
+        expTwoMulIterSkipPost (expTwoMulIterCountNew iterCount)
+          (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+          (expTwoMulIterW r0 r1 r2 r3)
+          (expTwoMulIterCountNew iterCount = 0) hp →
+        expTwoMulLoopExitPre sp evmSp iterCountFinal tOld out0 out1 out2 out3
+          baseWord rest exitCond hp) :
+    (cpsTripleWithin expTwoMulFullLoopBodyTailBound (base + 28) (base + 264)
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulIterLoopPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
+      (expTwoMulLoopExitPre sp evmSp iterCountFinal tOld out0 out1 out2 out3
+        baseWord rest exitCond)) →
+    cpsTripleWithin expTwoMulFullLoopBodyBound (base + 28) (base + 264)
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulIterPre e iterCount v18 sp evmSp vOld r0 r1 r2 r3
+        d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3)
+      (expTwoMulLoopExitPre sp evmSp iterCountFinal tOld out0 out1 out2 out3
+        baseWord rest exitCond) := by
+  intro hLoop
+  rw [show expTwoMulFullLoopBodyBound =
+        expTwoMulIterationsBodyBound (255 + 1) by
+      rw [expTwoMulFullLoopBodyBound_eq_iter_plus_tail,
+        expTwoMulIterationsBodyBound_succ]]
+  exact
+    exp_two_mul_iterations_body_peel_with_exit_cases_spec_within
+      255
+      e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e0 e1 e2 e3 a0 a1 a2 a3 iterCountFinal tOld out0 out1 out2 out3
+      base baseWord rest exitCond hbase hCondExit hSkipExit hLoop
+
 /-- Closed-form bound variant of
     `exp_two_mul_named_iter_with_continuations_bounded_spec_within`, using the
     normalized one-iteration cost `189`. -/
