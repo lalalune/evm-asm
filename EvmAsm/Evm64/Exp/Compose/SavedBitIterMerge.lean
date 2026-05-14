@@ -131,6 +131,40 @@ theorem exp_two_mul_named_iter_with_continuations_bounded_spec_within
         e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
         e0 e1 e2 e3 a0 a1 a2 a3 base hbase hLoop hExit)
 
+/-- Exact named-bound variant of
+    `exp_two_mul_named_iter_with_continuations_max_spec_within`. -/
+theorem exp_two_mul_named_iter_with_continuations_exact_named_bound_spec_within
+    {nLoop nExit : Nat} {exit_ : Word} {R : Assertion}
+    (e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e0 e1 e2 e3 a0 a1 a2 a3 : Word)
+    (base : Word)
+    (hbase : base &&& 1 = 0) :
+    (cpsTripleWithin nLoop (base + 28) exit_
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulIterLoopPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulSquareW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
+      R) →
+    (cpsTripleWithin nExit (base + 264) exit_
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulIterExitPost (expTwoMulIterCountNew iterCount)
+        (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+        (expTwoMulSquareW r0 r1 r2 r3)
+        (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
+      R) →
+    cpsTripleWithin (expTwoMulNamedIterStepBound + max nLoop nExit)
+      (base + 28)
+      exit_
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulIterPre e iterCount v18 sp evmSp vOld r0 r1 r2 r3
+        d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3)
+      R := by
+  exact
+    exp_two_mul_named_iter_with_continuations_max_spec_within
+      e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e0 e1 e2 e3 a0 a1 a2 a3 base hbase
+
 /-- Closed-form bound variant of
     `exp_two_mul_named_iter_with_continuations_bounded_spec_within`, using the
     normalized one-iteration cost `189`. -/
