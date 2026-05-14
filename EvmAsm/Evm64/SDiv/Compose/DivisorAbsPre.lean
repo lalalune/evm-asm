@@ -4,7 +4,8 @@
   Irreducible precondition for the SDIV prefix through divisor absolute value.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.Base
+import EvmAsm.Evm64.SDiv.Program
+import EvmAsm.Rv64.SepLogic
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

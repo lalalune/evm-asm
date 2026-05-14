@@ -8,6 +8,7 @@
   per-file line cap on Compose files.
 -/
 
+import EvmAsm.Evm64.SDiv.Compose.BaseFinalBlockSpecs
 import EvmAsm.Evm64.SDiv.Compose.SignXorPost
 
 namespace EvmAsm.Evm64.SDiv.Compose

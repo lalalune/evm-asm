@@ -5,7 +5,7 @@
   across the unsigned DIV callable.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.Base
+import EvmAsm.Rv64.SepLogic
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

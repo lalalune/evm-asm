@@ -5,11 +5,10 @@
   behind ownership.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.Base
+import EvmAsm.Rv64.SepLogic
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 /-- Result sign-fix precondition with `x10` hidden behind ownership. -/
