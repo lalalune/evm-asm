@@ -4,7 +4,7 @@
   No-NOP stack-pre wrappers for the n=4 shift-nonzero DIV call+addback-BEQ path.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallSkip
+import EvmAsm.Evm64.DivMod.Spec.CallAddback
 
 open EvmAsm.Rv64.Tactics
 
@@ -85,5 +85,44 @@ theorem evm_div_n4_full_call_addback_beq_stack_pre_spec_bundled_noNop (sp base :
     (fun _ hp => by rw [divN4StackPreCall_unfold] at hp; exact hp)
     (fun _ hq => hq)
     h
+
+/-- No-NOP variant of `evm_div_n4_call_addback_beq_stack_spec`. -/
+theorem evm_div_n4_call_addback_beq_stack_spec_noNop (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : isCallTrialN4Evm a b)
+    (hcarry2_nz : isAddbackCarry2NzN4CallEvm a b)
+    (hborrow : isAddbackBorrowN4CallEvm a b)
+    (hsem : n4CallAddbackBeqSemanticHolds a b) :
+    cpsTripleWithin 340 base (base + nopOff) (divCode_noNop base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divN4CallSkipStackPost sp a b) := by
+  have h_pre := evm_div_n4_full_call_addback_beq_stack_pre_spec_bundled_noNop sp base a b
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_nz halign hbltu hcarry2_nz hborrow
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
+    n4_call_addback_beq_div_mod_getLimbN a b hbnz hsem
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
+  intro h hq
+  simp only [fullDivN4CallAddbackBeqPost_unfold, denormDivPost_unfold] at hq
+  apply div_n4_call_skip_stack_weaken sp a b h
+  rw [show evmWordIs sp a =
+      ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3))
+      from evmWordIs_sp_unfold]
+  rw [show evmWordIs (sp + 32) (EvmWord.div a b) = _
+      from by rw [evmWordIs_sp32_limbs_eq sp (EvmWord.div a b) _ _ _ _
+                  hdiv0 hdiv1 hdiv2 hdiv3]]
+  rw [divScratchValuesCall_unfold, divScratchValues_unfold]
+  rw [word_add_zero] at hq
+  xperm_hyp hq
 
 end EvmAsm.Evm64
