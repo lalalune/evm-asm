@@ -8,7 +8,6 @@ import EvmAsm.Evm64.SDiv.Compose.BaseSignSequence
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 /-- Precondition for the SDIV dividend-abs (conditional 2's-complement

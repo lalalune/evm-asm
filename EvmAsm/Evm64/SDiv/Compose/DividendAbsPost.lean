@@ -8,7 +8,6 @@ import EvmAsm.Evm64.SDiv.Compose.DividendAbsPre
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 /-- Postcondition for the SDIV dividend-abs block: each limb is XORed
