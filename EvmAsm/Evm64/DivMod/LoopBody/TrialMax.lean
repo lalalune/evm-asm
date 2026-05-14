@@ -45,6 +45,18 @@ private theorem divK_trial_max_extended (v11Old : Word) (base : Word) :
     exact CodeReq.union_sub (lb_sub 14 _ _ (by decide) (by bv_addr) (by decide))
       (lb_sub 15 _ _ (by decide) (by bv_addr) (by decide))) TM
 
+/-- Trial quotient MAX path over `divCode_noNop`. -/
+theorem divK_trial_max_extended_noNop (v11Old : Word) (base : Word) :
+    cpsTripleWithin 2 (base + trialMaxOff) (base + div128CallRetOff) (divCode_noNop base)
+      ((.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ 0))
+      ((.x11 ↦ᵣ signExtend12 4095) ** (.x0 ↦ᵣ 0)) := by
+  have TM := divK_trial_max_spec_within v11Old (base + trialMaxOff)
+  dsimp only [] at TM
+  rw [lb_trial_max_end] at TM
+  exact cpsTripleWithin_extend_code (hmono := by
+    exact CodeReq.union_sub (lb_sub_noNop 14 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub_noNop 15 _ _ (by decide) (by bv_addr) (by decide))) TM
+
 -- ============================================================================
 -- Section 11: Trial quotient max path (BLTU not-taken)
 -- Composes: save_trial_load → BLTU ntaken → trial_max.
