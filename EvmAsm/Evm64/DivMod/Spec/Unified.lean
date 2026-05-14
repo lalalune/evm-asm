@@ -882,6 +882,63 @@ theorem evm_div_stack_spec (sp base : Word) (a b : EvmWord)
         nMem shiftMem jMem retMem dMem dloMem scratch_un0
         hbnz hb3nz halign hbltu hcarry2_nz_addback hsem_addback
 
+/-- Single named DIV stack spec over `divCode_noNop`. -/
+theorem evm_div_stack_spec_noNop (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (branch : DivStackSpecCase base a b) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+      (divModStackDispatchPre sp a b
+        branch.x1 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  cases branch with
+  | bzero v1 v2 hbz =>
+      exact evm_div_bzero_stack_spec_within_dispatch_noNop_uni sp base a b
+        v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0 hbz
+  | n1Full bltu_3 bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1z hshift_nz halign
+      hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord =>
+      exact evm_div_n1_stack_spec_within_word_noNop_uni
+        bltu_3 bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1z hshift_nz halign
+        hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord
+  | n2Full bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1nz hshift_nz halign
+      hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord =>
+      exact evm_div_n2_stack_spec_within_word_noNop_uni
+        bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1nz hshift_nz halign
+        hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord
+  | n3Full bltu_1 bltu_0 hbnz hb3z hb2nz hshift_nz halign
+      hbltu_1 hbltu_0 hcarry2 hdivWord =>
+      exact evm_div_n3_stack_spec_within_word_noNop_uni
+        bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2nz hshift_nz halign
+        hbltu_1 hbltu_0 hcarry2 hdivWord
+  | n4Full hbnz hb3nz halign hbltu hcarry2_nz_addback hsem_addback =>
+      exact evm_div_n4_stack_spec_within_dispatch_noNop_uni sp base a b
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        hbnz hb3nz halign hbltu hcarry2_nz_addback hsem_addback
+
 /-! ### MOD `_uni` wrappers -/
 
 /-- Unified-bound wrapper for `evm_mod_n1_stack_spec_within_word`. -/
