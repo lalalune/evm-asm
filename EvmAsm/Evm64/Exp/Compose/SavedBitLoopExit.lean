@@ -112,7 +112,8 @@ theorem exp_pointer_restore_then_epilogue_evm_exp_msb_saved_bit_two_mul_canonica
       (expTwoMulLoopExitPost sp evmSp iterCountNew r0 r1 r2 r3
         baseWord rest exitCond) := by
   unfold expTwoMulLoopExitPre expTwoMulLoopExitPost
-  exact
+  simpa [expTwoMulLoopExitFullStackPreFrame_unfold,
+    expTwoMulLoopExitFullStackPostFrame_unfold] using
     exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_spec_within
       sp evmSp iterCountNew tOld r0 r1 r2 r3 r0 r1 r2 r3
       baseWord rest exitCond base
