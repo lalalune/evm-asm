@@ -137,12 +137,13 @@ theorem exp_loop_back_evm_exp_with_mul_spec_within (c : Word)
     (mulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget target : Word)
     (htarget : ((base + 252) + 4 : Word) + signExtend13 backOff = target) :
-    let cNew := c + signExtend12 ((-1 : BitVec 12))
     cpsBranchWithin 2 (base + 252)
       (evmExpWithMulCode base mulTarget mulOff skipOff backOff)
       ((.x9 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)))
-      target ((.x9 ↦ᵣ cNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜cNew ≠ 0⌝)
-      (base + 260) ((.x9 ↦ᵣ cNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜cNew = 0⌝) :=
+      target
+        ((.x9 ↦ᵣ expIterCountNew c) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜expIterCountNew c ≠ 0⌝)
+      (base + 260)
+        ((.x9 ↦ᵣ expIterCountNew c) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜expIterCountNew c = 0⌝) :=
   cpsBranchWithin_extend_evmExpWithMulCode
     (exp_loop_back_evm_exp_spec_within c mulOff skipOff backOff base target htarget)
 
