@@ -98,6 +98,25 @@ theorem sdivResultSign_fixZeroLimbs
   dsimp
   bv_decide
 
+/-- Top output limb of result-sign-fix is zero when the unsigned quotient is
+    zero. -/
+theorem sdivResultSign_fixZeroLimb3
+    (dividendTop divisorTop : Word) :
+    let resultSign :=
+      (dividendTop >>> (63 : BitVec 6).toNat) ^^^
+        (divisorTop >>> (63 : BitVec 6).toNat)
+    let mask := (0 : Word) - resultSign
+    let sum0 := ((0 : Word) ^^^ mask) + resultSign
+    let carry0 := if BitVec.ult sum0 resultSign then (1 : Word) else 0
+    let sum1 := ((0 : Word) ^^^ mask) + carry0
+    let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
+    let sum2 := ((0 : Word) ^^^ mask) + carry1
+    let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
+    let sum3 := ((0 : Word) ^^^ mask) + carry2
+    sum3 = 0 := by
+  have h := sdivResultSign_fixZeroLimbs dividendTop divisorTop
+  simpa using h.2.2.2
+
 /-- If the dividend sign bit is zero, the dividend absolute-value word is just
     the original four-limb word. -/
 theorem sdivAbsDividendWord_of_sign_zero
