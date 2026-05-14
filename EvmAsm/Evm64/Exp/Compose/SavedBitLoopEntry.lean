@@ -137,4 +137,18 @@ theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonica
     exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_named_loop_entry_spec_within
       sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 baseWord exponentWord rest base
 
+/-- Closed-form bound variant of
+    `exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_named_boundary_spec_within`. -/
+theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_named_boundary_closed_bound_spec_within
+    (sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (base : Word) :
+    cpsTripleWithin 7 base (base + 28)
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulBoundaryPre sp evmSp cOld tOld m0 m1 m2 m3 vOld v18
+        baseWord exponentWord rest)
+      (expTwoMulLoopEntryPost sp evmSp vOld v18 baseWord exponentWord rest) :=
+  exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_named_boundary_spec_within
+    sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 baseWord exponentWord rest base
+
 end EvmAsm.Evm64.Exp.Compose
