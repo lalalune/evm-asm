@@ -60,11 +60,22 @@ theorem expTwoMulIterationsBodyBound_zero :
     expTwoMulIterationsBodyBound 0 = 0 := by
   rfl
 
+theorem expTwoMulIterationsBodyBound_eq (iterations : Nat) :
+    expTwoMulIterationsBodyBound iterations = iterations * 189 := by
+  rw [expTwoMulIterationsBodyBound, expTwoMulNamedIterStepBound_eq]
+
 theorem expTwoMulIterationsBodyBound_succ (iterations : Nat) :
     expTwoMulIterationsBodyBound (iterations + 1) =
       expTwoMulNamedIterStepBound + expTwoMulIterationsBodyBound iterations := by
   unfold expTwoMulIterationsBodyBound
   rw [Nat.add_one, Nat.succ_mul, Nat.add_comm]
+
+theorem expTwoMulIterationsBodyBound_mono {iterations iterations' : Nat}
+    (h : iterations ≤ iterations') :
+    expTwoMulIterationsBodyBound iterations ≤
+      expTwoMulIterationsBodyBound iterations' := by
+  unfold expTwoMulIterationsBodyBound
+  exact Nat.mul_le_mul_right expTwoMulNamedIterStepBound h
 
 theorem expTwoMulFullLoopBodyBound_eq :
     expTwoMulFullLoopBodyBound = 48384 := by
