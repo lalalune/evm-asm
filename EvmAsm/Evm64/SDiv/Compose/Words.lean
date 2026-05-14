@@ -8,8 +8,6 @@ import EvmAsm.Evm64.Stack
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64
-
 /-- Absolute-value word produced by the SDIV dividend sign/absolute-value
     prefix, packaged as a named expression so downstream callable-composition
     proofs do not duplicate the expanded `fromLimbs` term. -/
