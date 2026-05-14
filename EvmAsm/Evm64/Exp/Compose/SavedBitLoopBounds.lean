@@ -27,15 +27,19 @@ abbrev expTwoMulBoundarySuffixBound : Nat := 1 + 9
 abbrev expTwoMulBoundaryLoopBound (nSteps : Nat) : Nat :=
   (expTwoMulBoundaryPrefixBound + nSteps) + expTwoMulBoundarySuffixBound
 
+/-- Bound for `iterations` saved-bit two-MUL loop iterations. -/
+abbrev expTwoMulIterationsBodyBound (iterations : Nat) : Nat :=
+  iterations * expTwoMulNamedIterStepBound
+
 /-- Aggregate bound for 256 saved-bit two-MUL loop iterations, excluding the
     prologue/pointer-advance and pointer-restore/epilogue boundary. -/
 abbrev expTwoMulFullLoopBodyBound : Nat :=
-  256 * expTwoMulNamedIterStepBound
+  expTwoMulIterationsBodyBound 256
 
 /-- Remaining body bound after peeling one iteration from the 256-iteration
     saved-bit two-MUL loop. -/
 abbrev expTwoMulFullLoopBodyTailBound : Nat :=
-  255 * expTwoMulNamedIterStepBound
+  expTwoMulIterationsBodyBound 255
 
 /-- Aggregate bound for the full saved-bit two-MUL loop including the
     prologue/pointer-advance and pointer-restore/epilogue boundary. -/
@@ -52,13 +56,25 @@ theorem expTwoMulBoundaryLoopBound_eq (nSteps : Nat) :
     expTwoMulBoundarySuffixBound
   omega
 
+theorem expTwoMulIterationsBodyBound_zero :
+    expTwoMulIterationsBodyBound 0 = 0 := by
+  rfl
+
+theorem expTwoMulIterationsBodyBound_succ (iterations : Nat) :
+    expTwoMulIterationsBodyBound (iterations + 1) =
+      expTwoMulNamedIterStepBound + expTwoMulIterationsBodyBound iterations := by
+  unfold expTwoMulIterationsBodyBound
+  rw [Nat.add_one, Nat.succ_mul, Nat.add_comm]
+
 theorem expTwoMulFullLoopBodyBound_eq :
     expTwoMulFullLoopBodyBound = 48384 := by
-  norm_num [expTwoMulFullLoopBodyBound, expTwoMulNamedIterStepBound_eq]
+  norm_num [expTwoMulFullLoopBodyBound, expTwoMulIterationsBodyBound,
+    expTwoMulNamedIterStepBound_eq]
 
 theorem expTwoMulFullLoopBodyTailBound_eq :
     expTwoMulFullLoopBodyTailBound = 48195 := by
-  norm_num [expTwoMulFullLoopBodyTailBound, expTwoMulNamedIterStepBound_eq]
+  norm_num [expTwoMulFullLoopBodyTailBound, expTwoMulIterationsBodyBound,
+    expTwoMulNamedIterStepBound_eq]
 
 /-- Peel the first named iteration from the 256-iteration body bound. -/
 theorem expTwoMulFullLoopBodyBound_eq_iter_plus_tail :
