@@ -24,7 +24,6 @@ import EvmAsm.Evm64.SDiv.Compose.BaseFinalBlockSpecs
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 /-- Wrapper sub-region inside `sdivCode`. -/

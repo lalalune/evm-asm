@@ -11,7 +11,6 @@ import EvmAsm.Evm64.SDiv.Compose.DivCallFramedCallable
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 /-- The named zero-divisor callable handoff from the SDIV dispatch-ready

@@ -8,7 +8,6 @@ import EvmAsm.Evm64.SDiv.Compose.BaseDividendAbsSequence
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 /-- Precondition for the SDIV divisor-abs (conditional 2's-complement

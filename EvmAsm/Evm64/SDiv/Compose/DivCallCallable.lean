@@ -10,7 +10,6 @@ import EvmAsm.Evm64.SDiv.Compose.BaseCode
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 theorem evm_div_callable_code_sub_sdivCode {base : Word} :
