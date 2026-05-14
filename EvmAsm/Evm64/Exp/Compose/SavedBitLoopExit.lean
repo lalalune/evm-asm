@@ -12,28 +12,6 @@ namespace EvmAsm.Evm64.Exp.Compose
 open EvmAsm.Rv64
 
 @[irreducible]
-def expTwoMulLoopExitControl (iterCountNew : Word) (exitCond : Prop) : Assertion :=
-  (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
-
-theorem expTwoMulLoopExitControl_unfold
-    {iterCountNew : Word} {exitCond : Prop} :
-    expTwoMulLoopExitControl iterCountNew exitCond =
-      ((.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝) := by
-  delta expTwoMulLoopExitControl
-  rfl
-
-theorem expTwoMulLoopExitControl_pcFree
-    {iterCountNew : Word} {exitCond : Prop} :
-    (expTwoMulLoopExitControl iterCountNew exitCond).pcFree := by
-  rw [expTwoMulLoopExitControl_unfold]
-  pcFree
-
-instance pcFreeInst_expTwoMulLoopExitControl
-    (iterCountNew : Word) (exitCond : Prop) :
-    Assertion.PCFree (expTwoMulLoopExitControl iterCountNew exitCond) :=
-  ⟨expTwoMulLoopExitControl_pcFree⟩
-
-@[irreducible]
 def expTwoMulLoopExitPre
     (sp evmSp iterCountNew tOld r0 r1 r2 r3 : Word)
     (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop) : Assertion :=
