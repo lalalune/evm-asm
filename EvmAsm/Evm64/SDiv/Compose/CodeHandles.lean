@@ -10,7 +10,6 @@ import EvmAsm.Evm64.SDiv.Compose.BaseOffsets
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 /-- Full SDIV code region handle: wrapper followed by `evm_div_callable`. -/
