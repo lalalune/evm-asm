@@ -30,15 +30,7 @@ theorem expTwoMulIterBaseFrame_pcFree
 @[irreducible]
 def expTwoMulIterSkipRest
     (bit sp evmSp base : Word) (squareW : EvmWord) : Assertion :=
-  (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
-  ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝ **
-  (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
-  (.x5 ↦ᵣ squareW.getLimbN 3) **
-  evmWordIs sp squareW ** evmWordIs (evmSp + 32) squareW **
-  regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-  memOwn evmSp ** memOwn (evmSp + 8) **
-  memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
-  (.x1 ↦ᵣ ((base + 44) + 68))
+  expTwoMulSkipLoopRest bit sp evmSp base squareW
 
 theorem expTwoMulIterSkipRest_unfold
     {bit sp evmSp base : Word} {squareW : EvmWord} :
@@ -52,14 +44,20 @@ theorem expTwoMulIterSkipRest_unfold
        memOwn evmSp ** memOwn (evmSp + 8) **
        memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
        (.x1 ↦ᵣ ((base + 44) + 68))) := by
-  delta expTwoMulIterSkipRest
-  rfl
+  rw [show expTwoMulIterSkipRest bit sp evmSp base squareW =
+        expTwoMulSkipLoopRest bit sp evmSp base squareW by
+      delta expTwoMulIterSkipRest
+      rfl]
+  exact expTwoMulSkipLoopRest_unfold
 
 theorem expTwoMulIterSkipRest_pcFree
     {bit sp evmSp base : Word} {squareW : EvmWord} :
     (expTwoMulIterSkipRest bit sp evmSp base squareW).pcFree := by
-  rw [expTwoMulIterSkipRest_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold]
-  pcFree
+  rw [show expTwoMulIterSkipRest bit sp evmSp base squareW =
+        expTwoMulSkipLoopRest bit sp evmSp base squareW by
+      delta expTwoMulIterSkipRest
+      rfl]
+  exact expTwoMulSkipLoopRest_pcFree
 
 @[irreducible]
 def expTwoMulIterCondRest
