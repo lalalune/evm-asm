@@ -4,6 +4,7 @@
   Exact-`x1` callable handoff from the SDIV div-call dispatch-ready bundle.
 -/
 
+import EvmAsm.Evm64.SDiv.Compose.DivCallExactCallable
 import EvmAsm.Evm64.SDiv.Compose.DivCallFramedCallable
 
 namespace EvmAsm.Evm64.SDiv.Compose
