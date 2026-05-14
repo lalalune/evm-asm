@@ -1366,4 +1366,8 @@ theorem evm_sdiv_exact_callable_return_result_sign_one_stack_spec_within
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       shiftMem nMem jMem retMem dMem dloMem scratchUn0 base hbase hStack)
 
+-- Placeholder: full all-case `evm_sdiv_stack_spec_within` lands in slice 4
+-- (evm-asm-01uh). The signed-division correctness lemma
+-- `EvmWord.sdiv_correct` is added in slice 3 (evm-asm-kvs4).
+
 end EvmAsm.Evm64
