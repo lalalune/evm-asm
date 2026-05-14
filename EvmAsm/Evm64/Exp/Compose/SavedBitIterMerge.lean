@@ -315,7 +315,7 @@ theorem exp_two_mul_iterations_body_peel_with_exit_cases_spec_within
       ∀ hp,
         expTwoMulIterSkipPost (expTwoMulIterCountNew iterCount)
           (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
-          (expTwoMulIterW r0 r1 r2 r3)
+          (expTwoMulSquareW r0 r1 r2 r3)
           (expTwoMulIterCountNew iterCount = 0) hp →
         expTwoMulLoopExitPre sp evmSp iterCountFinal tOld out0 out1 out2 out3
           baseWord rest exitCond hp) :
@@ -324,7 +324,7 @@ theorem exp_two_mul_iterations_body_peel_with_exit_cases_spec_within
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
       (expTwoMulIterLoopPost (expTwoMulIterCountNew iterCount)
         (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
-        (expTwoMulIterW r0 r1 r2 r3)
+        (expTwoMulSquareW r0 r1 r2 r3)
         (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
       (expTwoMulLoopExitPre sp evmSp iterCountFinal tOld out0 out1 out2 out3
         baseWord rest exitCond)) →
