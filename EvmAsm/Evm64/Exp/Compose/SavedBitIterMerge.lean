@@ -244,7 +244,7 @@ theorem exp_two_mul_iterations_body_peel_with_continuations_spec_within
       e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
       e0 e1 e2 e3 a0 a1 a2 a3 base hbase
       (by
-        rw [Nat.max_self, expTwoMulIterationsBodyBound_succ]; omega)
+        rw [Nat.max_self, expTwoMulIterationsBodyBound_succ])
 
 /-- Peel one named iteration from the 256-iteration body when both branch
     continuations are already packaged under the named 255-iteration tail
