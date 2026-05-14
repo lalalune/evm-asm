@@ -117,4 +117,19 @@ theorem exp_pointer_restore_then_epilogue_evm_exp_msb_saved_bit_two_mul_canonica
       sp evmSp iterCountNew tOld r0 r1 r2 r3 r0 r1 r2 r3
       baseWord rest exitCond base
 
+/-- Closed-form bound variant of
+    `exp_pointer_restore_then_epilogue_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_named_loop_exit_spec_within`. -/
+theorem exp_pointer_restore_then_epilogue_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_named_loop_exit_closed_bound_spec_within
+    (sp evmSp iterCountNew tOld r0 r1 r2 r3 : Word)
+    (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop)
+    (base : Word) :
+    cpsTripleWithin 10 (base + 264) (base + 304)
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulLoopExitPre sp evmSp iterCountNew tOld r0 r1 r2 r3
+        baseWord rest exitCond)
+      (expTwoMulLoopExitPost sp evmSp iterCountNew r0 r1 r2 r3
+        baseWord rest exitCond) :=
+  exp_pointer_restore_then_epilogue_evm_exp_msb_saved_bit_two_mul_canonical_appended_mul_named_loop_exit_spec_within
+    sp evmSp iterCountNew tOld r0 r1 r2 r3 baseWord rest exitCond base
+
 end EvmAsm.Evm64.Exp.Compose
