@@ -14,6 +14,27 @@ open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
 @[irreducible]
+def expTwoMulScratchFrame (vOld v18 : Word) : Assertion :=
+  regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+  (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18)
+
+theorem expTwoMulScratchFrame_unfold {vOld v18 : Word} :
+    expTwoMulScratchFrame vOld v18 =
+      (regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+       (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18)) := by
+  delta expTwoMulScratchFrame
+  rfl
+
+theorem expTwoMulScratchFrame_pcFree {vOld v18 : Word} :
+    (expTwoMulScratchFrame vOld v18).pcFree := by
+  rw [expTwoMulScratchFrame_unfold]
+  pcFree
+
+instance pcFreeInst_expTwoMulScratchFrame (vOld v18 : Word) :
+    Assertion.PCFree (expTwoMulScratchFrame vOld v18) :=
+  ⟨expTwoMulScratchFrame_pcFree⟩
+
+@[irreducible]
 def expTwoMulLoopExitControl (iterCountNew : Word) (exitCond : Prop) : Assertion :=
   (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
 
@@ -315,8 +336,7 @@ theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_with_mul
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget : Word) :
     let scratchFrame : Assertion :=
-      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-      (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18)
+      expTwoMulScratchFrame vOld v18
     cpsTripleWithin (6 + 1) base (base + 28)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
@@ -347,12 +367,14 @@ theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_with_mul
   exact cpsTripleWithin_weaken
     (fun _ hp => by
       dsimp [scratchFrame, operandFrame] at hp ⊢
+      rw [expTwoMulScratchFrame_unfold] at hp
       rw [evmStackIs_cons, evmStackIs_cons] at hp
       rw [show evmSp + 32 + 32 = evmSp + 64#64 from by bv_addr] at hp
       rw [show evmSp + 32#64 = evmSp + (32 : Word) from rfl]
       xperm_hyp hp)
     (fun _ hp => by
       dsimp [scratchFrame, operandFrame] at hp ⊢
+      rw [expTwoMulScratchFrame_unfold]
       rw [evmStackIs_cons, evmStackIs_cons]
       rw [show evmSp + 32#64 = evmSp + (32 : Word) from rfl] at hp
       rw [show evmSp + 64#64 = evmSp + 32 + 32 from by bv_addr] at hp
@@ -368,8 +390,7 @@ theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_with_mul
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget : Word) :
     let scratchFrame : Assertion :=
-      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-      (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18)
+      expTwoMulScratchFrame vOld v18
     cpsTripleWithin (6 + 1) base (base + 28)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
@@ -412,8 +433,7 @@ theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonica
     (squaringMulOff condMulOff : BitVec 21)
     (base mulTarget : Word) :
     let scratchFrame : Assertion :=
-      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-      (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18)
+      expTwoMulScratchFrame vOld v18
     cpsTripleWithin (6 + 1) base (base + 28)
       (evmExpMsbSavedBitTwoMulCanonicalWithMulCode
         base mulTarget squaringMulOff condMulOff)
@@ -445,8 +465,7 @@ theorem exp_prologue_then_pointer_advance_evm_exp_msb_saved_bit_two_mul_canonica
     (baseWord exponentWord : EvmWord) (rest : List EvmWord)
     (base : Word) :
     let scratchFrame : Assertion :=
-      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-      (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18)
+      expTwoMulScratchFrame vOld v18
     cpsTripleWithin (6 + 1) base (base + 28)
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
       (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
