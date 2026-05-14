@@ -34,6 +34,7 @@ import EvmAsm.Evm64.Exp.Compose.TopCodeSpecs
 import EvmAsm.Evm64.Exp.Compose.WithMulCode
 import EvmAsm.Evm64.Exp.Compose.LoopControlBlocks
 import EvmAsm.Evm64.Exp.Compose.SquaringMarshalBlocks
+import EvmAsm.Evm64.Exp.Compose.CondMulMarshalBlocks
 import EvmAsm.Evm64.Exp.Compose.SquaringCallPath
 import EvmAsm.Evm64.Exp.Compose.CondMulCallPath
 import EvmAsm.Evm64.Exp.Compose.SquaringCallBlock
