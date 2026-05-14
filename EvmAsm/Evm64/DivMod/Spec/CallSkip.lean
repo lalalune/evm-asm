@@ -1449,6 +1449,28 @@ theorem evm_div_n4_call_skip_stack_spec_unconditional (sp base : Word)
     hbnz hb3nz hshift_nz halign hbltu hborrow
     (n4CallSkipSemanticHolds_of_call_trial a b hb3nz hshift_nz hbltu)
 
+/-- No-NOP variant of `evm_div_n4_call_skip_stack_spec_unconditional`. -/
+theorem evm_div_n4_call_skip_stack_spec_unconditional_noNop (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallEvm a b) :
+    cpsTripleWithin 264 base (base + nopOff) (divCode_noNop base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divN4CallSkipStackPost sp a b) :=
+  evm_div_n4_call_skip_stack_spec_noNop sp base a b v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_nz halign hbltu hborrow
+    (n4CallSkipSemanticHolds_of_call_trial a b hb3nz hshift_nz hbltu)
+
 /-- **`evm_mod_n4_call_skip_stack_spec_within` without `hsem`** — same idea
     for MOD. -/
 theorem evm_mod_n4_call_skip_stack_spec_unconditional_within (sp base : Word)
