@@ -23,18 +23,6 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
               base squaringMulOff condMulOff)
             (mul_callable_code mulTarget)) :
     let rw := expTwoMulCondRwFromLimbs r0 r1 r2 r3 a0 a1 a2 a3
-    let rest : Assertion :=
-      (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
-      (.x5 ↦ᵣ rw.getLimbN 3) **
-      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
-      evmWordIs sp rw ** evmWordIs (evmSp + 32) rw **
-      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-      memOwn evmSp ** memOwn (evmSp + 8) **
-      memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
-      (.x1 ↦ᵣ ((base + 152) + 68))
     cpsNBranchWithin ((17 + 64 + 9) + 2) (base + 152)
       (evmExpMsbSavedBitTwoMulCanonicalWithMulCode
         base mulTarget squaringMulOff condMulOff)
@@ -60,10 +48,12 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
        (.x9 ↦ᵣ iterCount) ** (.x0 ↦ᵣ (0 : Word)))
       [(base + 28,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) ** rest)),
+           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) **
+            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw)),
         (base + 264,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount = 0⌝) ** rest))] := by
+           ⌜expTwoMulIterCountNew iterCount = 0⌝) **
+            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw))] := by
   have hback :
       ((base + 256) + 4 : Word) +
           signExtend13 EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff =
@@ -85,18 +75,6 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
     (base : Word)
     (hbase : base &&& 1 = 0) :
     let rw := expTwoMulCondRwFromLimbs r0 r1 r2 r3 a0 a1 a2 a3
-    let rest : Assertion :=
-      (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
-      (.x5 ↦ᵣ rw.getLimbN 3) **
-      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
-      evmWordIs sp rw ** evmWordIs (evmSp + 32) rw **
-      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-      memOwn evmSp ** memOwn (evmSp + 8) **
-      memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
-      (.x1 ↦ᵣ ((base + 152) + 68))
     cpsNBranchWithin ((17 + 64 + 9) + 2) (base + 152)
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
       (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
@@ -121,10 +99,12 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
        (.x9 ↦ᵣ iterCount) ** (.x0 ↦ᵣ (0 : Word)))
       [(base + 28,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) ** rest)),
+           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) **
+            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw)),
         (base + 264,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount = 0⌝) ** rest))] :=
+           ⌜expTwoMulIterCountNew iterCount = 0⌝) **
+            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw))] :=
   exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical_with_mul_spec_within
     iterCount sp evmSp tOld vOld r0 r1 r2 r3 a0 a1 a2 a3 d0 d1 d2 d3
     e0 e1 e2 e3 v6 v7 v10 v11 (base + 304)
@@ -150,18 +130,6 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
-    let rest : Assertion :=
-      (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
-      (.x5 ↦ᵣ rw.getLimbN 3) **
-      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
-      evmWordIs sp rw ** evmWordIs (evmSp + 32) rw **
-      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-      memOwn evmSp ** memOwn (evmSp + 8) **
-      memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
-      (.x1 ↦ᵣ ((base + 152) + 68))
     let foldedPre : Assertion :=
       (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
         evmWordIs sp r ** evmWordIs (evmSp + 32) r **
@@ -176,10 +144,12 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
       foldedPre
       [(base + 28,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) ** rest)),
+           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) **
+            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw)),
         (base + 264,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount = 0⌝) ** rest))] := by
+           ⌜expTwoMulIterCountNew iterCount = 0⌝) **
+            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw))] := by
   have hback :
       ((base + 256) + 4 : Word) +
           signExtend13 EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBackOff =
@@ -205,18 +175,6 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
-    let rest : Assertion :=
-      (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
-      (.x5 ↦ᵣ rw.getLimbN 3) **
-      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
-      evmWordIs sp rw ** evmWordIs (evmSp + 32) rw **
-      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-      memOwn evmSp ** memOwn (evmSp + 8) **
-      memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
-      (.x1 ↦ᵣ ((base + 152) + 68))
     let foldedPre : Assertion :=
       (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
         evmWordIs sp r ** evmWordIs (evmSp + 32) r **
@@ -230,10 +188,12 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical
       foldedPre
       [(base + 28,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) ** rest)),
+           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) **
+            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw)),
         (base + 264,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount = 0⌝) ** rest))] :=
+           ⌜expTwoMulIterCountNew iterCount = 0⌝) **
+            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw))] :=
   exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical_with_mul_folded_owned_spec_within
     iterCount sp evmSp vOld a0 a1 a2 a3 (base + 304) r
     EvmAsm.Evm64.canonicalExpSquaringMulOff
