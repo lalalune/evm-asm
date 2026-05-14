@@ -12,10 +12,32 @@ namespace EvmAsm.Evm64.Exp.Compose
 open EvmAsm.Rv64
 
 @[irreducible]
+def expTwoMulLoopExitControl (iterCountNew : Word) (exitCond : Prop) : Assertion :=
+  (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
+
+theorem expTwoMulLoopExitControl_unfold
+    {iterCountNew : Word} {exitCond : Prop} :
+    expTwoMulLoopExitControl iterCountNew exitCond =
+      ((.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝) := by
+  delta expTwoMulLoopExitControl
+  rfl
+
+theorem expTwoMulLoopExitControl_pcFree
+    {iterCountNew : Word} {exitCond : Prop} :
+    (expTwoMulLoopExitControl iterCountNew exitCond).pcFree := by
+  rw [expTwoMulLoopExitControl_unfold]
+  pcFree
+
+instance pcFreeInst_expTwoMulLoopExitControl
+    (iterCountNew : Word) (exitCond : Prop) :
+    Assertion.PCFree (expTwoMulLoopExitControl iterCountNew exitCond) :=
+  ⟨expTwoMulLoopExitControl_pcFree⟩
+
+@[irreducible]
 def expTwoMulLoopExitPre
     (sp evmSp iterCountNew tOld r0 r1 r2 r3 : Word)
     (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop) : Assertion :=
-  ((.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝) **
+  expTwoMulLoopExitControl iterCountNew exitCond **
   ((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
    ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
     ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -37,7 +59,7 @@ theorem expTwoMulLoopExitPre_unfold
          ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
          ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3))) **
        evmStackIs evmSp (baseWord :: expResultWord r0 r1 r2 r3 :: rest)) := by
-  delta expTwoMulLoopExitPre
+  delta expTwoMulLoopExitPre expTwoMulLoopExitControl
   rfl
 
 theorem expTwoMulLoopExitPre_pcFree
@@ -60,7 +82,7 @@ instance pcFreeInst_expTwoMulLoopExitPre
 def expTwoMulLoopExitPost
     (sp evmSp iterCountNew r0 r1 r2 r3 : Word)
     (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop) : Assertion :=
-  ((.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝) **
+  expTwoMulLoopExitControl iterCountNew exitCond **
   ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ (evmSp + 32)) ** (.x5 ↦ᵣ r3) **
    ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
    ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
@@ -80,7 +102,7 @@ theorem expTwoMulLoopExitPost_unfold
         ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
         ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
         evmStackIs evmSp (baseWord :: expResultWord r0 r1 r2 r3 :: rest))) := by
-  delta expTwoMulLoopExitPost
+  delta expTwoMulLoopExitPost expTwoMulLoopExitControl
   rfl
 
 theorem expTwoMulLoopExitPost_pcFree
