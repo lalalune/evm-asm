@@ -115,6 +115,35 @@ theorem divK_loop_body_n4_max_skip_j0_norm (sp base : Word)
              u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at raw
   exact cpsTripleWithin_mono_nSteps (by decide) raw
 
+theorem divK_loop_body_n4_max_skip_j0_norm_noNop (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (hbltu : ¬BitVec.ult uTop v3) :
+    let qHat : Word := signExtend12 4095
+    (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)
+     then (1 : Word) else 0) = (0 : Word) →
+    cpsTripleWithin 76 (base + loopBodyOff) (base + denormOff) (divCode_noNop base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+       ((sp + 32) ↦ₘ v0) ** ((sp + signExtend12 4056) ↦ₘ u0) **
+       ((sp + 40) ↦ₘ v1) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + 48) ↦ₘ v2) ** ((sp + signExtend12 4040) ↦ₘ u2) **
+       ((sp + 56) ↦ₘ v3) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + signExtend12 4024) ↦ₘ uTop) **
+       ((sp + signExtend12 4088) ↦ₘ qOld))
+      (loopBodyN4SkipPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
+  intro qHat hborrow
+  have raw := divK_loop_body_n4_max_skip_j0_divCode_noNop_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
+    hbltu hborrow
+  simp only [se12_32, se12_40, se12_48, se12_56,
+             u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
+             u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at raw
+  exact cpsTripleWithin_mono_nSteps (by decide) raw
+
 -- ============================================================================
 -- Pre-loop + loop body (max+skip): base → base+904
 -- ============================================================================
