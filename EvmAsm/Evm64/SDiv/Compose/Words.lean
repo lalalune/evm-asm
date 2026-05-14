@@ -378,6 +378,15 @@ theorem sdivResultSign_one_of_ne
   dsimp
   bv_decide
 
+/-- If the SDIV result sign is one, result-sign fixup computes two's-complement
+    negation of the quotient word. -/
+theorem sdivSignFixedWord_one_sign (word : EvmWord) :
+    sdivSignFixedWord 1
+      (word.getLimbN 0) (word.getLimbN 1) (word.getLimbN 2) (word.getLimbN 3) =
+      ~~~word + 1 := by
+  unfold sdivSignFixedWord EvmWord.fromLimbs EvmWord.getLimbN EvmWord.getLimb
+  bv_decide
+
 /-- Conditional result-sign fixup maps a zero quotient to the zero word. -/
 theorem sdivSignFixedWord_zero_quotient
     (dividendTop divisorTop : Word) :
