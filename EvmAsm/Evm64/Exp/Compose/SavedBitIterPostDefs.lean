@@ -62,17 +62,7 @@ theorem expTwoMulIterSkipRest_pcFree
 @[irreducible]
 def expTwoMulIterCondRest
     (sp evmSp base a0 a1 a2 a3 : Word) (rw : EvmWord) : Assertion :=
-  (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
-  (.x5 ↦ᵣ rw.getLimbN 3) **
-  ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-  ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-  ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-  ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
-  evmWordIs sp rw ** evmWordIs (evmSp + 32) rw **
-  regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-  memOwn evmSp ** memOwn (evmSp + 8) **
-  memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
-  (.x1 ↦ᵣ ((base + 152) + 68))
+  expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw
 
 theorem expTwoMulIterCondRest_unfold
     {sp evmSp base a0 a1 a2 a3 : Word} {rw : EvmWord} :
@@ -88,14 +78,20 @@ theorem expTwoMulIterCondRest_unfold
        memOwn evmSp ** memOwn (evmSp + 8) **
        memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
        (.x1 ↦ᵣ ((base + 152) + 68))) := by
-  delta expTwoMulIterCondRest
-  rfl
+  rw [show expTwoMulIterCondRest sp evmSp base a0 a1 a2 a3 rw =
+        expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw by
+      delta expTwoMulIterCondRest
+      rfl]
+  exact expCondMulLoopRest_unfold
 
 theorem expTwoMulIterCondRest_pcFree
     {sp evmSp base a0 a1 a2 a3 : Word} {rw : EvmWord} :
     (expTwoMulIterCondRest sp evmSp base a0 a1 a2 a3 rw).pcFree := by
-  rw [expTwoMulIterCondRest_unfold, evmWordIs_sp_unfold, evmWordIs_sp32_unfold]
-  pcFree
+  rw [show expTwoMulIterCondRest sp evmSp base a0 a1 a2 a3 rw =
+        expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw by
+      delta expTwoMulIterCondRest
+      rfl]
+  exact expCondMulLoopRest_pcFree
 
 @[irreducible]
 def expTwoMulIterCondFrame (bit : Word) : Assertion :=
