@@ -375,12 +375,10 @@ theorem exp_pointer_restore_then_epilogue_exit_control_evm_exp_msb_saved_bit_two
     (exitCond : Prop)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget : Word) :
-    let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
-      (exitControl **
+      (expTwoMulLoopExitControl iterCountNew exitCond **
        ((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
         ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
          ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -391,7 +389,7 @@ theorem exp_pointer_restore_then_epilogue_exit_control_evm_exp_msb_saved_bit_two
          ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
          ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
          ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))))
-      (exitControl **
+      (expTwoMulLoopExitControl iterCountNew exitCond **
        ((.x2 ↦ᵣ sp) **
         (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
         (.x5 ↦ᵣ r3) **
@@ -400,20 +398,16 @@ theorem exp_pointer_restore_then_epilogue_exit_control_evm_exp_msb_saved_bit_two
         ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
         ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
         evmWordIs (evmSp + 32) (expResultWord r0 r1 r2 r3))) := by
-  intro exitControl
   have hBase :=
     exp_pointer_restore_then_epilogue_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
       sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3
       squaringMulOff condMulOff skipOff backOff base mulTarget
-  have hFramed := cpsTripleWithin_frameR exitControl (by
-    dsimp [exitControl]
-    pcFree) hBase
+  have hFramed := cpsTripleWithin_frameR
+    (expTwoMulLoopExitControl iterCountNew exitCond) (by pcFree) hBase
   exact cpsTripleWithin_weaken
     (fun _ hp => by
-      dsimp [exitControl] at hp ⊢
       xperm_hyp hp)
     (fun _ hp => by
-      dsimp [exitControl] at hp ⊢
       xperm_hyp hp)
     hFramed
 
@@ -427,14 +421,12 @@ theorem exp_pointer_restore_then_epilogue_stack_tail_evm_exp_msb_saved_bit_two_m
     (exitCond : Prop)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget : Word) :
-    let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
     let stackTail : Assertion :=
       evmWordIs evmSp baseWord ** evmStackIs (evmSp + 64) rest
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
-      ((exitControl **
+      ((expTwoMulLoopExitControl iterCountNew exitCond **
         ((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
          ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
           ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -446,7 +438,7 @@ theorem exp_pointer_restore_then_epilogue_stack_tail_evm_exp_msb_saved_bit_two_m
           ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
           ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3)))) **
        stackTail)
-      (exitControl **
+      (expTwoMulLoopExitControl iterCountNew exitCond **
        ((.x2 ↦ᵣ sp) **
         (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
         (.x5 ↦ᵣ r3) **
@@ -456,7 +448,7 @@ theorem exp_pointer_restore_then_epilogue_stack_tail_evm_exp_msb_saved_bit_two_m
         ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
         evmWordIs evmSp baseWord **
         evmStackIs (evmSp + 32) (expResultWord r0 r1 r2 r3 :: rest))) := by
-  intro exitControl stackTail
+  intro stackTail
   have hBase :=
     exp_pointer_restore_then_epilogue_exit_control_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
       sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 exitCond
@@ -466,10 +458,10 @@ theorem exp_pointer_restore_then_epilogue_stack_tail_evm_exp_msb_saved_bit_two_m
     pcFree) hBase
   exact cpsTripleWithin_weaken
     (fun _ hp => by
-      dsimp [exitControl, stackTail] at hp ⊢
+      dsimp [stackTail] at hp ⊢
       xperm_hyp hp)
     (fun _ hp => by
-      dsimp [exitControl, stackTail] at hp ⊢
+      dsimp [stackTail] at hp ⊢
       rw [evmStackIs_cons]
       rw [show evmSp + 64#64 = evmSp + 32#64 + 32#64 from by bv_addr] at hp
       xperm_hyp hp)
@@ -484,14 +476,12 @@ theorem exp_pointer_restore_then_epilogue_full_post_stack_evm_exp_msb_saved_bit_
     (exitCond : Prop)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget : Word) :
-    let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
     let stackTail : Assertion :=
       evmWordIs evmSp baseWord ** evmStackIs (evmSp + 64) rest
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
-      ((exitControl **
+      ((expTwoMulLoopExitControl iterCountNew exitCond **
         ((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
          ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
           ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -503,7 +493,7 @@ theorem exp_pointer_restore_then_epilogue_full_post_stack_evm_exp_msb_saved_bit_
           ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
           ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3)))) **
        stackTail)
-      (exitControl **
+      (expTwoMulLoopExitControl iterCountNew exitCond **
        ((.x2 ↦ᵣ sp) **
         (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
         (.x5 ↦ᵣ r3) **
@@ -512,11 +502,10 @@ theorem exp_pointer_restore_then_epilogue_full_post_stack_evm_exp_msb_saved_bit_
         ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
         ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
         evmStackIs evmSp (baseWord :: expResultWord r0 r1 r2 r3 :: rest))) := by
-  intro exitControl stackTail
+  intro stackTail
   exact cpsTripleWithin_weaken
     (fun _ hp => hp)
     (fun _ hp => by
-      dsimp [exitControl] at hp ⊢
       rw [evmStackIs_cons]
       xperm_hyp hp)
     (exp_pointer_restore_then_epilogue_stack_tail_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
@@ -531,14 +520,12 @@ theorem exp_pointer_restore_then_epilogue_full_post_stack_clean_pointer_evm_exp_
     (exitCond : Prop)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget : Word) :
-    let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
     let stackTail : Assertion :=
       evmWordIs evmSp baseWord ** evmStackIs (evmSp + 64) rest
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
-      ((exitControl **
+      ((expTwoMulLoopExitControl iterCountNew exitCond **
         ((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
          ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
           ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -550,7 +537,7 @@ theorem exp_pointer_restore_then_epilogue_full_post_stack_clean_pointer_evm_exp_
           ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
           ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3)))) **
        stackTail)
-      (exitControl **
+      (expTwoMulLoopExitControl iterCountNew exitCond **
        ((.x2 ↦ᵣ sp) **
         (.x12 ↦ᵣ (evmSp + 32)) **
         (.x5 ↦ᵣ r3) **
@@ -559,7 +546,7 @@ theorem exp_pointer_restore_then_epilogue_full_post_stack_clean_pointer_evm_exp_
         ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
         ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
         evmStackIs evmSp (baseWord :: expResultWord r0 r1 r2 r3 :: rest))) := by
-  intro exitControl stackTail
+  intro stackTail
   rw [← show evmSp + signExtend12 (32 : BitVec 12) = evmSp + 32 from by
     rw [signExtend12_32]]
   exact exp_pointer_restore_then_epilogue_full_post_stack_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
@@ -576,12 +563,10 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
     (exitCond : Prop)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget : Word) :
-    let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
-      (exitControl **
+      (expTwoMulLoopExitControl iterCountNew exitCond **
        ((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
         ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
          ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -589,7 +574,7 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
          ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
          ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3))) **
        evmStackIs evmSp (baseWord :: expResultWord d0 d1 d2 d3 :: rest))
-      (exitControl **
+      (expTwoMulLoopExitControl iterCountNew exitCond **
        ((.x2 ↦ᵣ sp) **
         (.x12 ↦ᵣ (evmSp + 32)) **
         (.x5 ↦ᵣ r3) **
@@ -598,10 +583,8 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
         ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
         ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
         evmStackIs evmSp (baseWord :: expResultWord r0 r1 r2 r3 :: rest))) := by
-  intro exitControl
   exact cpsTripleWithin_weaken
     (fun _ hp => by
-      dsimp [exitControl] at hp ⊢
       rw [evmStackIs_cons, evmStackIs_cons] at hp
       rw [← exp_epilogue_result_word_right evmSp d0 d1 d2 d3
         (evmStackIs (evmSp + 32 + 32) rest)] at hp
@@ -620,12 +603,10 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
     (exitCond : Prop)
     (squaringMulOff condMulOff : BitVec 21)
     (base mulTarget : Word) :
-    let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulCanonicalWithMulCode
         base mulTarget squaringMulOff condMulOff)
-      (exitControl **
+      (expTwoMulLoopExitControl iterCountNew exitCond **
        ((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
         ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
          ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -633,7 +614,7 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
          ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
          ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3))) **
        evmStackIs evmSp (baseWord :: expResultWord d0 d1 d2 d3 :: rest))
-      (exitControl **
+      (expTwoMulLoopExitControl iterCountNew exitCond **
        ((.x2 ↦ᵣ sp) **
         (.x12 ↦ᵣ (evmSp + 32)) **
         (.x5 ↦ᵣ r3) **
@@ -657,11 +638,9 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
     (baseWord : EvmWord) (rest : List EvmWord)
     (exitCond : Prop)
     (base : Word) :
-    let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
-      (exitControl **
+      (expTwoMulLoopExitControl iterCountNew exitCond **
        ((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
         ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
          ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -669,7 +648,7 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
          ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
          ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3))) **
        evmStackIs evmSp (baseWord :: expResultWord d0 d1 d2 d3 :: rest))
-      (exitControl **
+      (expTwoMulLoopExitControl iterCountNew exitCond **
        ((.x2 ↦ᵣ sp) **
         (.x12 ↦ᵣ (evmSp + 32)) **
         (.x5 ↦ᵣ r3) **
