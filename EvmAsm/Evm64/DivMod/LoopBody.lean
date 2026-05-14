@@ -657,6 +657,67 @@ theorem divK_save_trial_load_spec_within
     (fun h hq => by xperm_hyp hq)
     SJfTLe
 
+/-- Save j + trial load over `divCode_noNop`: save j to memory, then load
+    uHi, uLo, vTop for trial quotient. -/
+theorem divK_save_trial_load_spec_within_noNop
+    (sp j n jOld v5Old v6Old v7Old v10Old uHi uLo vTop : Word)
+    (base : Word) :
+    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 13 (base + loopBodyOff) (base + trialCallOff) (divCode_noNop base)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) **
+       (sp + signExtend12 3976 ↦ₘ jOld) **
+       (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+       (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
+       (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
+       (sp + signExtend12 3976 ↦ₘ j) **
+       (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop)) := by
+  intro uAddr vtopBase
+  -- 1. Save j: instr [0] at base+448
+  have SJ := divK_save_j_spec_within sp j jOld (base + loopBodyOff)
+  rw [lb_save_j] at SJ
+  have SJe := cpsTripleWithin_extend_code (hmono :=
+    lb_sub_noNop 0 _ _ (by decide) (by bv_addr) (by decide)) SJ
+  -- Frame save_j with trial_load state
+  have SJf := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+     (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) **
+     (sp + signExtend12 3984 ↦ₘ n) **
+     (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+     (vtopBase + signExtend12 32 ↦ₘ vTop))
+    (by pcFree) SJe
+  -- 2. Trial load: instrs [1]-[12] at base+452
+  have TL := divK_trial_load_spec_within sp j n v5Old v6Old v7Old v10Old uHi uLo vTop
+    (base + (loopBodyOff + 4))
+  dsimp only [] at TL
+  rw [lb_trial_load] at TL
+  have TLe := cpsTripleWithin_extend_code (hmono := by
+    exact CodeReq.union_sub (lb_sub_noNop 1 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_noNop 2 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_noNop 3 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_noNop 4 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_noNop 5 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_noNop 6 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_noNop 7 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_noNop 8 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_noNop 9 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_noNop 10 _ _ (by decide) (by bv_addr) (by decide))
+     (CodeReq.union_sub (lb_sub_noNop 11 _ _ (by decide) (by bv_addr) (by decide))
+      (lb_sub_noNop 12 _ _ (by decide) (by bv_addr) (by decide))))))))))))) TL
+  -- 3. Compose save_j + trial_load
+  seqFrame SJf TLe
+  exact cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    SJfTLe
+
 theorem lb_bltu_taken {base : Word} : (base + trialCallOff : Word) + signExtend13 (12 : BitVec 13) = base + trialJalOff := by
   rv64_addr
 theorem lb_bltu_ntaken {base : Word} : (base + trialCallOff : Word) + 4 = base + trialMaxOff := by bv_addr
