@@ -17,6 +17,10 @@ theorem expSavedBitSquaringPrefixExitPc (base : Word) :
     ((base + 44 : Word) + 104) = base + 148 := by
   bv_omega
 
+theorem expSavedBitSquaringEntryAddr (base : Word) :
+    (base + 44 : Word) = (base + 28) + 16 := by
+  bv_omega
+
 /-- Squaring-side full call-block lifted to the corrected saved-bit EXP+MUL
     code bundle.  The block starts after the saved-bit instruction, at
     `base + 44`, and exits at the saved-bit BEQ site `base + 148`. -/
@@ -129,8 +133,7 @@ theorem exp_squaring_call_block_evm_exp_msb_saved_bit_two_mul_with_mul_spec_with
       evmExpMsbSavedBitTwoMulCode
         base squaringMulOff condMulOff skipOff backOff a = some i := by
     intro a i h
-    have hiter : (base + 44 : Word) = (base + 28) + 16 := by bv_omega
-    rw [hiter] at h
+    rw [expSavedBitSquaringEntryAddr] at h
     exact evmExpMsbSavedBitTwoMulCode_iter_body_sub
       (base := base) (squaringMulOff := squaringMulOff)
       (condMulOff := condMulOff) (skipOff := skipOff) (backOff := backOff)
