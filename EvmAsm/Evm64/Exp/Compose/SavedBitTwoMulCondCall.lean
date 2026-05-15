@@ -434,4 +434,41 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
       sp evmSp iterCount vOld a0 a1 a2 a3 r h hp
 
 
+/-- Bundled precondition shared by the folded-word conditional-multiply
+    adapters in both `SavedBitTwoMulCondCall` and `SavedBitTwoMulCondCanonical`.
+    Hides `baseFrame` (the exponent-limb frame) and the full `foldedPre`
+    assertion so spec statements can reduce to a single `let rw` binding. -/
+@[irreducible]
+def expCondMulFoldedPre
+    (sp evmSp iterCount vOld a0 a1 a2 a3 : Word) (r : EvmWord) : Assertion :=
+  let baseFrame : Assertion :=
+    ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+    ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+    ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+    ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+  (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
+    evmWordIs sp r ** evmWordIs (evmSp + 32) r **
+    baseFrame ** (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) **
+    (.x0 ↦ᵣ (0 : Word))) **
+   regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+   memOwn evmSp ** memOwn (evmSp + 8) **
+   memOwn (evmSp + 16) ** memOwn (evmSp + 24))
+
+theorem expCondMulFoldedPre_unfold
+    {sp evmSp iterCount vOld a0 a1 a2 a3 : Word} {r : EvmWord} :
+    expCondMulFoldedPre sp evmSp iterCount vOld a0 a1 a2 a3 r =
+      (let baseFrame : Assertion :=
+         ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+         ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+         ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+         ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+       (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
+         evmWordIs sp r ** evmWordIs (evmSp + 32) r **
+         baseFrame ** (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) **
+         (.x0 ↦ᵣ (0 : Word))) **
+        regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+        memOwn evmSp ** memOwn (evmSp + 8) **
+        memOwn (evmSp + 16) ** memOwn (evmSp + 24))) := by
+  delta expCondMulFoldedPre; rfl
+
 end EvmAsm.Evm64.Exp.Compose
