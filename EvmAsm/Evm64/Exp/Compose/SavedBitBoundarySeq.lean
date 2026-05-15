@@ -214,31 +214,6 @@ instance pcFreeInst_expTwoMulLoopExitFullStackPostFrame
         sp evmSp iterCountNew r0 r1 r2 r3 baseWord rest exitCond) :=
   ⟨expTwoMulLoopExitFullStackPostFrame_pcFree⟩
 
-@[irreducible]
-def expTwoMulLoopExitStackTailFrame
-    (evmSp : Word) (baseWord : EvmWord) (rest : List EvmWord) :
-    Assertion :=
-  evmWordIs evmSp baseWord ** evmStackIs (evmSp + 64) rest
-
-theorem expTwoMulLoopExitStackTailFrame_unfold
-    {evmSp : Word} {baseWord : EvmWord} {rest : List EvmWord} :
-    expTwoMulLoopExitStackTailFrame evmSp baseWord rest =
-      (evmWordIs evmSp baseWord ** evmStackIs (evmSp + 64) rest) := by
-  delta expTwoMulLoopExitStackTailFrame
-  rfl
-
-theorem expTwoMulLoopExitStackTailFrame_pcFree
-    {evmSp : Word} {baseWord : EvmWord} {rest : List EvmWord} :
-    (expTwoMulLoopExitStackTailFrame evmSp baseWord rest).pcFree := by
-  rw [expTwoMulLoopExitStackTailFrame_unfold]
-  pcFree
-
-instance pcFreeInst_expTwoMulLoopExitStackTailFrame
-    (evmSp : Word) (baseWord : EvmWord) (rest : List EvmWord) :
-    Assertion.PCFree
-      (expTwoMulLoopExitStackTailFrame evmSp baseWord rest) :=
-  ⟨expTwoMulLoopExitStackTailFrame_pcFree⟩
-
 /-- Pointer-restore followed by the EXP epilogue in the two-MUL saved-bit
     EXP+MUL code bundle. This packages the loop-exit boundary from
     `base + 264` through the final stack-facing writeback at `base + 304`. -/
