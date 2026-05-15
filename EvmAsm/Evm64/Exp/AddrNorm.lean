@@ -167,6 +167,26 @@ attribute [exp_addr]
     (base + 44 : Word) = (base + 28) + 16 := by
   bv_decide
 
+@[exp_addr, grind =] theorem expTopPointerAdvanceNextPc (base : Word) :
+    ((base + 24 : Word) + 4) = base + 28 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopPointerRestoreNextPc (base : Word) :
+    ((base + 260 : Word) + 4) = base + 264 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopEpilogueNextPc (base : Word) :
+    ((base + 264 : Word) + 36) = base + 300 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopSavedBitEpilogueEntryNextPc (base : Word) :
+    ((base + 264 : Word) + 4) = base + 268 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopSavedBitEpilogueNextPc (base : Word) :
+    ((base + 268 : Word) + 36) = base + 304 := by
+  bv_decide
+
 @[exp_addr, grind =] theorem expBaseAdd40Aligned
     (base : Word) (hbase : base &&& 1 = 0) :
     (base + 40 : Word) &&& 1 = 0 := by bv_decide
