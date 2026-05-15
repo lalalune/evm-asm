@@ -11,6 +11,32 @@ namespace EvmAsm.Evm64.Exp.Compose
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
+@[irreducible]
+def expTwoMulCondBaseFrame (evmSp a0 a1 a2 a3 : Word) : Assertion :=
+  ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+  ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+  ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+  ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+
+theorem expTwoMulCondBaseFrame_unfold {evmSp a0 a1 a2 a3 : Word} :
+    expTwoMulCondBaseFrame evmSp a0 a1 a2 a3 =
+      (((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)) := by
+  delta expTwoMulCondBaseFrame; rfl
+
+@[irreducible]
+def expTwoMulCondFrameBit (e : Word) : Assertion :=
+  (.x18 ↦ᵣ (expTwoMulIterBit e + signExtend12 (0 : BitVec 12))) **
+  ⌜expTwoMulIterBit e + signExtend12 (0 : BitVec 12) ≠ 0⌝
+
+theorem expTwoMulCondFrameBit_unfold {e : Word} :
+    expTwoMulCondFrameBit e =
+      ((.x18 ↦ᵣ (expTwoMulIterBit e + signExtend12 (0 : BitVec 12))) **
+       ⌜expTwoMulIterBit e + signExtend12 (0 : BitVec 12) ≠ 0⌝) := by
+  delta expTwoMulCondFrameBit; rfl
+
 /-- One two-MUL-offset saved-bit EXP iteration with both conditional-multiply
     outcomes and both zero-bit skip outcomes exposed as separate exits. This
     composes the skip/loop-back path with the folded-word conditional-multiply
@@ -33,16 +59,6 @@ theorem exp_msb_saved_bit_two_mul_full_iter_four_exit_spec_within
     let bit := expTwoMulIterBit e
     let squareW := expTwoMulSquareW r0 r1 r2 r3
     let rw := expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3
-    let baseFrame : Assertion :=
-      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
-    let skipRest : Assertion :=
-      expTwoMulSkipLoopRest bit sp evmSp base squareW
-    let condFrame : Assertion :=
-      (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
-      ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝
     cpsNBranchWithin
       (((3 + 1 + (17 + 64 + 9) + 1) + 2) + ((17 + 64 + 9) + 2))
       (base + 28)
@@ -63,22 +79,29 @@ theorem exp_msb_saved_bit_two_mul_full_iter_four_exit_spec_within
         ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
         ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
         (.x7 ↦ᵣ v7) ** (.x11 ↦ᵣ v11) ** (.x1 ↦ᵣ vOld) **
-        (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ iterCount)) ** baseFrame)
+        (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ iterCount)) **
+        expTwoMulCondBaseFrame evmSp a0 a1 a2 a3)
       [(loopTarget,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
            ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) **
-            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw) ** condFrame),
+            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw) **
+          expTwoMulCondFrameBit e),
         (base + 264,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
            ⌜expTwoMulIterCountNew iterCount = 0⌝) **
-            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw) ** condFrame),
+            expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw) **
+          expTwoMulCondFrameBit e),
         (loopTarget,
           ((((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) ** skipRest) ** baseFrame)),
+           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) **
+            expTwoMulSkipIterRest e sp evmSp base r0 r1 r2 r3) **
+            expTwoMulCondBaseFrame evmSp a0 a1 a2 a3)),
         (base + 264,
           ((((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount = 0⌝) ** skipRest) ** baseFrame))] := by
-  intro bit squareW rw baseFrame skipRest condFrame
+           ⌜expTwoMulIterCountNew iterCount = 0⌝) **
+            expTwoMulSkipIterRest e sp evmSp base r0 r1 r2 r3) **
+            expTwoMulCondBaseFrame evmSp a0 a1 a2 a3))] := by
+  intro bit squareW rw
   have hSkip :=
     exp_msb_saved_bit_prefix_squaring_beq_skip_then_loop_back_with_base_frame_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
       e c iterCount v10 v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
@@ -90,8 +113,8 @@ theorem exp_msb_saved_bit_two_mul_full_iter_four_exit_spec_within
       iterCount sp evmSp ((base + 44) + 68) a0 a1 a2 a3 mulTarget squareW
       squaringMulOff condMulOff skipOff backOff base loopTarget
       hbase hcondmt hd hback
-  have hCondFramed := cpsNBranchWithin_frameR (F := condFrame) (by
-    dsimp [condFrame]
+  have hCondFramed := cpsNBranchWithin_frameR (F := expTwoMulCondFrameBit e) (by
+    simp only [expTwoMulCondFrameBit_unfold]
     pcFree) hCond
   have hCondHead :
       cpsNBranchWithin ((17 + 64 + 9) + 2) (base + 152)
@@ -105,22 +128,27 @@ theorem exp_msb_saved_bit_two_mul_full_iter_four_exit_spec_within
            regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
            memOwn evmSp ** memOwn (evmSp + 8) **
            memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
-           (.x1 ↦ᵣ ((base + 44) + 68))) ** (.x9 ↦ᵣ iterCount)) ** baseFrame)
+           (.x1 ↦ᵣ ((base + 44) + 68))) ** (.x9 ↦ᵣ iterCount)) **
+          expTwoMulCondBaseFrame evmSp a0 a1 a2 a3)
         [(loopTarget,
             (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
              ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) **
-              expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw) ** condFrame),
+              expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw) **
+            expTwoMulCondFrameBit e),
           (base + 264,
             (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
              ⌜expTwoMulIterCountNew iterCount = 0⌝) **
-              expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw) ** condFrame)] := by
+              expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw) **
+            expTwoMulCondFrameBit e)] := by
     exact cpsNBranchWithin_weaken_pre
       (fun _ hp => by
-        dsimp [condFrame, baseFrame] at hp ⊢
+        simp only [expTwoMulCondFrameBit_unfold, expTwoMulCondBaseFrame_unfold] at hp ⊢
         xperm_hyp hp) hCondFramed
+  simp only [expTwoMulCondBaseFrame_unfold, expTwoMulCondFrameBit_unfold] at hCondHead
   have hFull :=
     cpsNBranchWithin_extend_head_nbranch hSkip hCondHead
-  exact hFull
+  simpa [expTwoMulSkipIterRest_unfold, expTwoMulCondBaseFrame_unfold,
+         expTwoMulCondFrameBit_unfold] using hFull
 
 /-- Two-exit view of
     `exp_msb_saved_bit_two_mul_full_iter_four_exit_spec_within`, merging the
@@ -199,6 +227,8 @@ theorem exp_msb_saved_bit_two_mul_full_iter_merged_exit_spec_within
       e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 mulTarget
       squaringMulOff condMulOff skipOff backOff base loopTarget
       hbase hsqmt hcondmt hd hskip hback
+  simp only [expTwoMulCondBaseFrame_unfold, expTwoMulCondFrameBit_unfold,
+             expTwoMulSkipIterRest_unfold] at hFour
   refine cpsNBranchWithin_weaken_posts hFour ?_
   intro ex hmem
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
