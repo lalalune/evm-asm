@@ -30,7 +30,10 @@ open EvmAsm.Rv64.Tactics
 
 namespace EvmAsm.Evm64
 
-open EvmAsm.Rv64
+open EvmAsm.Rv64 (CodeReq cpsTripleWithin cpsTripleWithin_extend_code
+  cpsTripleWithin_frameL cpsTripleWithin_frameR cpsTripleWithin_seq
+  cpsTripleWithin_seq_perm_same_cr cpsTripleWithin_weaken memOwn regOwn
+  signExtend12 signExtend21)
 
 /-- Result word produced by the EXP conditional-multiply call block. -/
 abbrev expCondMulCallProductW
