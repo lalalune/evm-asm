@@ -214,7 +214,8 @@ theorem exp_msb_saved_bit_two_mul_full_iter_four_exit_spec_within
             expTwoMulCondFrameBit e)] := by
     exact cpsNBranchWithin_weaken_pre
       (fun _ hp => by
-        simp only [expTwoMulCondFrameBit_unfold, expTwoMulCondBaseFrame_unfold] at hp ⊢
+        simp only [expCondMulFoldedPre_unfold, expTwoMulCondFrameBit_unfold,
+                   expTwoMulCondBaseFrame_unfold] at hp ⊢
         xperm_hyp hp) hCondFramed
   simp only [expTwoMulCondBaseFrame_unfold, expTwoMulCondFrameBit_unfold] at hCondHead
   have hFull :=

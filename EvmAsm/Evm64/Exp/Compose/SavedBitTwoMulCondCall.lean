@@ -318,6 +318,43 @@ theorem exp_cond_mul_folded_pre_to_call_scratch_owned_pre
   rw [hSp0, hSp8, hSp16, hSp24, hEvm32, hEvm40, hEvm48, hEvm56]
   xperm_hyp hp
 
+/-- Bundled precondition shared by the folded-word conditional-multiply
+    adapters in both `SavedBitTwoMulCondCall` and `SavedBitTwoMulCondCanonical`.
+    Hides `baseFrame` (the exponent-limb frame) and the full `foldedPre`
+    assertion so spec statements can reduce to a single `let rw` binding. -/
+@[irreducible]
+def expCondMulFoldedPre
+    (sp evmSp iterCount vOld a0 a1 a2 a3 : Word) (r : EvmWord) : Assertion :=
+  let baseFrame : Assertion :=
+    ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+    ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+    ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+    ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+  (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
+    evmWordIs sp r ** evmWordIs (evmSp + 32) r **
+    baseFrame ** (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) **
+    (.x0 ↦ᵣ (0 : Word))) **
+   regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+   memOwn evmSp ** memOwn (evmSp + 8) **
+   memOwn (evmSp + 16) ** memOwn (evmSp + 24))
+
+theorem expCondMulFoldedPre_unfold
+    {sp evmSp iterCount vOld a0 a1 a2 a3 : Word} {r : EvmWord} :
+    expCondMulFoldedPre sp evmSp iterCount vOld a0 a1 a2 a3 r =
+      (let baseFrame : Assertion :=
+         ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+         ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+         ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+         ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+       (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
+         evmWordIs sp r ** evmWordIs (evmSp + 32) r **
+         baseFrame ** (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) **
+         (.x0 ↦ᵣ (0 : Word))) **
+        regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+        memOwn evmSp ** memOwn (evmSp + 8) **
+        memOwn (evmSp + 16) ** memOwn (evmSp + 24))) := by
+  delta expCondMulFoldedPre; rfl
+
 /-- Folded-word variant of the two-MUL conditional-multiply path adapter.
     The precondition consumes the current result from `sp` and the second
     multiplicand from `evmSp + 32` as `evmWordIs`, then delegates to the
@@ -335,23 +372,10 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
             (mul_callable_code mulTarget))
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
     let rw := expTwoMulCondRw r a0 a1 a2 a3
-    let baseFrame : Assertion :=
-      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
-    let foldedPre : Assertion :=
-      (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
-        evmWordIs sp r ** evmWordIs (evmSp + 32) r **
-        baseFrame ** (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) **
-        (.x0 ↦ᵣ (0 : Word))) **
-       regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-       memOwn evmSp ** memOwn (evmSp + 8) **
-       memOwn (evmSp + 16) ** memOwn (evmSp + 24))
     cpsNBranchWithin ((17 + 64 + 9) + 2) (base + 152)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
-      foldedPre
+      (expCondMulFoldedPre sp evmSp iterCount vOld a0 a1 a2 a3 r)
       [(loopTarget,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
            ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) **
@@ -360,7 +384,20 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
            ⌜expTwoMulIterCountNew iterCount = 0⌝) **
             expCondMulLoopRest sp evmSp base a0 a1 a2 a3 rw))] := by
-  intro rw baseFrame foldedPre
+  intro rw
+  let baseFrame : Assertion :=
+    ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+    ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+    ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+    ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+  let foldedPre : Assertion :=
+    (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
+      evmWordIs sp r ** evmWordIs (evmSp + 32) r **
+      baseFrame ** (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) **
+      (.x0 ↦ᵣ (0 : Word))) **
+     regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+     memOwn evmSp ** memOwn (evmSp + 8) **
+     memOwn (evmSp + 16) ** memOwn (evmSp + 24))
   let concretePre : Assertion :=
     let preCore : Assertion :=
       (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
@@ -407,47 +444,10 @@ theorem exp_cond_mul_call_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_
       base loopTarget hbase hmt hd hback
   refine cpsNBranchWithin_weaken_pre ?_ hConcrete
   intro h hp
-  dsimp [foldedPre] at hp
+  simp only [expCondMulFoldedPre_unfold] at hp
   simpa [concretePre, baseFrame] using
     exp_cond_mul_folded_pre_to_call_scratch_owned_pre
       sp evmSp iterCount vOld a0 a1 a2 a3 r h hp
 
-
-/-- Bundled precondition shared by the folded-word conditional-multiply
-    adapters in both `SavedBitTwoMulCondCall` and `SavedBitTwoMulCondCanonical`.
-    Hides `baseFrame` (the exponent-limb frame) and the full `foldedPre`
-    assertion so spec statements can reduce to a single `let rw` binding. -/
-@[irreducible]
-def expCondMulFoldedPre
-    (sp evmSp iterCount vOld a0 a1 a2 a3 : Word) (r : EvmWord) : Assertion :=
-  let baseFrame : Assertion :=
-    ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-    ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-    ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-    ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
-  (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
-    evmWordIs sp r ** evmWordIs (evmSp + 32) r **
-    baseFrame ** (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) **
-    (.x0 ↦ᵣ (0 : Word))) **
-   regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-   memOwn evmSp ** memOwn (evmSp + 8) **
-   memOwn (evmSp + 16) ** memOwn (evmSp + 24))
-
-theorem expCondMulFoldedPre_unfold
-    {sp evmSp iterCount vOld a0 a1 a2 a3 : Word} {r : EvmWord} :
-    expCondMulFoldedPre sp evmSp iterCount vOld a0 a1 a2 a3 r =
-      (let baseFrame : Assertion :=
-         ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
-         ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
-         ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
-         ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
-       (((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ r.getLimbN 3) **
-         evmWordIs sp r ** evmWordIs (evmSp + 32) r **
-         baseFrame ** (.x1 ↦ᵣ vOld) ** (.x9 ↦ᵣ iterCount) **
-         (.x0 ↦ᵣ (0 : Word))) **
-        regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
-        memOwn evmSp ** memOwn (evmSp + 8) **
-        memOwn (evmSp + 16) ** memOwn (evmSp + 24))) := by
-  delta expCondMulFoldedPre; rfl
 
 end EvmAsm.Evm64.Exp.Compose
