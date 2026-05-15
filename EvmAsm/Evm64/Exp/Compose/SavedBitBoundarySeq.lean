@@ -259,13 +259,7 @@ theorem exp_pointer_restore_then_epilogue_evm_exp_msb_saved_bit_two_mul_with_mul
   have hRestoreFramed := cpsTripleWithin_frameR epilogueFrame (by
     dsimp [epilogueFrame]
     pcFree) hRestore
-  have hPtr : (evmSp + signExtend12 (64 : BitVec 12)) +
-      signExtend12 ((-64) : BitVec 12) = evmSp := by
-    have hNeg64 :
-        signExtend12 ((-64) : BitVec 12) =
-          (18446744073709551552 : Word) := by decide
-    rw [signExtend12_64, hNeg64]
-    bv_decide
+  have hPtr := expTwoMulPointerRestoreBackToEvmSp evmSp
   have hRestoreFramed' :
       cpsTripleWithin 1 (base + 264) (base + 268)
         (evmExpMsbSavedBitTwoMulWithMulCode
