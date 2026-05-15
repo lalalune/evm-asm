@@ -10,6 +10,21 @@ namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
 
+/-- Bundles `expTwoMulSkipLoopRest` with the `bit` and `squareW` computations
+    so the skip canonical specs need only one let instead of three. -/
+@[irreducible]
+def expTwoMulSkipIterRest
+    (e sp evmSp base r0 r1 r2 r3 : Word) : Assertion :=
+  expTwoMulSkipLoopRest
+    (expTwoMulIterBit e) sp evmSp base (expTwoMulSquareW r0 r1 r2 r3)
+
+theorem expTwoMulSkipIterRest_unfold
+    {e sp evmSp base r0 r1 r2 r3 : Word} :
+    expTwoMulSkipIterRest e sp evmSp base r0 r1 r2 r3 =
+      expTwoMulSkipLoopRest
+        (expTwoMulIterBit e) sp evmSp base (expTwoMulSquareW r0 r1 r2 r3) := by
+  delta expTwoMulSkipIterRest; rfl
+
 /-- Canonical-code view of the saved-bit loop-back block. -/
 theorem exp_loop_back_evm_exp_msb_saved_bit_two_mul_canonical_with_mul_spec_within
     (c : Word) (squaringMulOff condMulOff : BitVec 21)
@@ -66,8 +81,6 @@ theorem exp_msb_saved_bit_prefix_squaring_beq_skip_then_loop_back_evm_exp_msb_sa
             (mul_callable_code mulTarget)) :
     let bit := expTwoMulIterBit e
     let squareW := expTwoMulSquareW r0 r1 r2 r3
-    let rest : Assertion :=
-      expTwoMulSkipLoopRest bit sp evmSp base squareW
     cpsNBranchWithin ((3 + 1 + (17 + 64 + 9) + 1) + 2) (base + 28)
       (evmExpMsbSavedBitTwoMulCanonicalWithMulCode
         base mulTarget squaringMulOff condMulOff)
@@ -99,10 +112,12 @@ theorem exp_msb_saved_bit_prefix_squaring_beq_skip_then_loop_back_evm_exp_msb_sa
            (.x1 ↦ᵣ ((base + 44) + 68))) ** (.x9 ↦ᵣ iterCount)),
         (base + 28,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) ** rest)),
+           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) **
+            expTwoMulSkipIterRest e sp evmSp base r0 r1 r2 r3)),
         (base + 264,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount = 0⌝) ** rest))] := by
+           ⌜expTwoMulIterCountNew iterCount = 0⌝) **
+            expTwoMulSkipIterRest e sp evmSp base r0 r1 r2 r3))] := by
   have hskip :
       (base + 148 : Word) + signExtend13 EvmAsm.Evm64.canonicalExpCondMulSkipOff =
         base + 256 := by
@@ -113,7 +128,7 @@ theorem exp_msb_saved_bit_prefix_squaring_beq_skip_then_loop_back_evm_exp_msb_sa
         base + 28 := by
     exact EvmAsm.Evm64.canonicalExpMsbSavedBitLoopBack_target base
   dsimp only
-  simpa [expTwoMulIterCountNew, expTwoMulSkipLoopRest_unfold] using
+  simpa [expTwoMulIterCountNew, expTwoMulSkipLoopRest_unfold, expTwoMulSkipIterRest_unfold] using
     (exp_msb_saved_bit_prefix_squaring_beq_skip_then_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
       e c iterCount v10 v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
       e0 e1 e2 e3 v7 v11 mulTarget squaringMulOff condMulOff
@@ -130,8 +145,6 @@ theorem exp_msb_saved_bit_prefix_squaring_beq_skip_then_loop_back_evm_exp_msb_sa
     (hbase : base &&& 1 = 0) :
     let bit := expTwoMulIterBit e
     let squareW := expTwoMulSquareW r0 r1 r2 r3
-    let rest : Assertion :=
-      expTwoMulSkipLoopRest bit sp evmSp base squareW
     cpsNBranchWithin ((3 + 1 + (17 + 64 + 9) + 1) + 2) (base + 28)
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
       ((.x5 ↦ᵣ e) ** (.x6 ↦ᵣ c) ** (.x10 ↦ᵣ v10) ** (.x18 ↦ᵣ v18) **
@@ -162,10 +175,12 @@ theorem exp_msb_saved_bit_prefix_squaring_beq_skip_then_loop_back_evm_exp_msb_sa
            (.x1 ↦ᵣ ((base + 44) + 68))) ** (.x9 ↦ᵣ iterCount)),
         (base + 28,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) ** rest)),
+           ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) **
+            expTwoMulSkipIterRest e sp evmSp base r0 r1 r2 r3)),
         (base + 264,
           (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
-           ⌜expTwoMulIterCountNew iterCount = 0⌝) ** rest))] :=
+           ⌜expTwoMulIterCountNew iterCount = 0⌝) **
+            expTwoMulSkipIterRest e sp evmSp base r0 r1 r2 r3))] :=
   exp_msb_saved_bit_prefix_squaring_beq_skip_then_loop_back_evm_exp_msb_saved_bit_two_mul_canonical_with_mul_spec_within
     e c iterCount v10 v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
     e0 e1 e2 e3 v7 v11 (base + 304)
