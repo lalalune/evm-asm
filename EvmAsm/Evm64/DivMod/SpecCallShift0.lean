@@ -630,8 +630,9 @@ theorem evm_div_n4_shift0_call_addback_beq_stack_spec (sp base : Word)
   rw [word_add_zero] at hq
   xperm_hyp hq
 
-/-- No-NOP variant of `evm_div_n4_shift0_call_addback_beq_stack_spec`. -/
-theorem evm_div_n4_shift0_call_addback_beq_stack_spec_noNop (sp base : Word)
+/-- Variant of `evm_div_n4_shift0_call_addback_beq_stack_spec` that keeps the
+    concrete post-branch `x1` value instead of weakening it to `regOwn`. -/
+theorem evm_div_n4_shift0_call_addback_beq_stack_spec_exact_x1 (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
@@ -642,12 +643,13 @@ theorem evm_div_n4_shift0_call_addback_beq_stack_spec_noNop (sp base : Word)
     (hcarry2_nz : isAddbackCarry2NzN4Shift0Evm a b)
     (hborrow : isAddbackBorrowN4Shift0Evm a b) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12)
-      base (base + nopOff) (divCode_noNop base)
+      base (base + nopOff) (divCode base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
-      (divN4CallSkipStackPost sp a b) := by
-  have h_pre := evm_div_n4_full_shift0_call_addback_beq_stack_pre_spec_bundled_noNop
+      (divN4CallSkipStackPostNoX1 sp a b **
+        (.x1 ↦ᵣ signExtend12 (4095 : BitVec 12))) := by
+  have h_pre := evm_div_n4_full_shift0_call_addback_beq_stack_pre_spec_bundled
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0
     hbnz hb3nz hshift_z halign hcarry2_nz hborrow
@@ -656,7 +658,7 @@ theorem evm_div_n4_shift0_call_addback_beq_stack_spec_noNop (sp base : Word)
   refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
   intro h hq
   unfold fullDivN4Shift0CallAddbackBeqPost at hq
-  apply div_n4_call_skip_stack_weaken sp a b h
+  apply div_n4_call_skip_stack_weaken_noX1 sp a b h
   rw [show evmWordIs sp a =
       ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
        ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3))
