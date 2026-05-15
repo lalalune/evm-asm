@@ -6,22 +6,11 @@
 -/
 
 import EvmAsm.Evm64.Exp.Compose.TopJalBlocks
+import EvmAsm.Evm64.Exp.AddrNorm
 
 namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
-
-theorem expTopSquaringFactor1ExitPc (base : Word) :
-    ((base + 40 : Word) + 32) = base + 72 := by
-  bv_omega
-
-theorem expTopSquaringFactor2ExitPc (base : Word) :
-    ((base + 72 : Word) + 32) = base + 104 := by
-  bv_omega
-
-theorem expTopSquaringRestoreExitPc (base : Word) :
-    ((base + 108 : Word) + 36) = base + 144 := by
-  bv_omega
 
 /-- Squaring-call factor-1 marshal spec lifted to the top-level EXP code
     bundle: at offset `base + 40`, copies result limbs from scratch to
@@ -51,7 +40,7 @@ theorem exp_squaring_marshal_factor1_evm_exp_spec_within
        ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ r3)) := by
   have h := EvmAsm.Evm64.exp_loop_marshal_factor1_ofProg_spec_within
     sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 (base + 40)
-  rw [expTopSquaringFactor1ExitPc] at h
+  rw [EvmAsm.Evm64.Exp.AddrNorm.expTopSquaringFactor1ExitPc] at h
   exact cpsTripleWithin_extend_code (h := h)
     (hmono := evmExpCode_squaring_marshal_factor1_sub)
 
@@ -83,7 +72,7 @@ theorem exp_squaring_marshal_result_to_factor2_evm_exp_spec_within
        ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ r3)) := by
   have h := EvmAsm.Evm64.exp_loop_marshal_result_to_factor2_ofProg_spec_within
     sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 (base + 72)
-  rw [expTopSquaringFactor2ExitPc] at h
+  rw [EvmAsm.Evm64.Exp.AddrNorm.expTopSquaringFactor2ExitPc] at h
   exact cpsTripleWithin_extend_code (h := h)
     (hmono := evmExpCode_squaring_marshal_result_to_factor2_sub)
 
@@ -117,7 +106,7 @@ theorem exp_squaring_un_marshal_and_restore_evm_exp_spec_within
        ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ d3)) := by
   have h := EvmAsm.Evm64.exp_loop_un_marshal_and_restore_ofProg_spec_within
     sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 (base + 108)
-  rw [expTopSquaringRestoreExitPc] at h
+  rw [EvmAsm.Evm64.Exp.AddrNorm.expTopSquaringRestoreExitPc] at h
   exact cpsTripleWithin_extend_code (h := h)
     (hmono := evmExpCode_squaring_un_marshal_and_restore_sub)
 
