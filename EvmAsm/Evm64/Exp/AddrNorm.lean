@@ -103,6 +103,10 @@ attribute [exp_addr]
     (addr + 32#64 + 24 : Word) = addr + 56#64 := by
   bv_decide
 
+@[exp_addr, grind =] theorem expFullLoopCondMulCallAddr (base : Word) :
+    (base + 148 : Word) = base + 144 + 4 := by
+  bv_decide
+
 @[exp_addr, grind =] theorem expSavedBitCondMulTakenAddr (base : Word) :
     (base + 152 : Word) = base + 148 + 4 := by
   bv_decide
