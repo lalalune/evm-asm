@@ -538,7 +538,6 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
       rw [← exp_epilogue_result_word_right evmSp d0 d1 d2 d3
         (evmStackIs (evmSp + 32 + 32) rest)] at hp
       rw [show evmSp + 32 + 32 = evmSp + 64 from by bv_addr] at hp
-      rw [expTwoMulPointerRestoreEpiloguePreFrame_unfold]
       rw [expTwoMulLoopExitStackTailFrame_unfold]
       xcancel_struct hp)
     (fun _ hp => by
