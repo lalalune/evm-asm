@@ -31,8 +31,7 @@ theorem exp_loop_back_evm_exp_msb_saved_bit_two_mul_with_mul_spec_within
           ⌜expTwoMulIterCountNew c = 0⌝) := by
   have h := EvmAsm.Evm64.exp_loop_back_spec_within c backOff (base + 256)
     target htarget
-  have hnext : ((base + 256 : Word) + 8) = base + 264 := by bv_omega
-  rw [hnext] at h
+  rw [expSavedBitLoopBackNextPc] at h
   simpa [expTwoMulIterCountNew] using
     (cpsBranchWithin_extend_code (h := h)
       (hmono := fun a i hi =>
