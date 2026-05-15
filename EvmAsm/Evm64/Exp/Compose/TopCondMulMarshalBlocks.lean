@@ -12,18 +12,6 @@ namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
 
-theorem expTopCondMulFactor1ExitPc (base : Word) :
-    ((base + 148 : Word) + 32) = base + 180 := by
-  bv_omega
-
-theorem expTopCondMulFactor2ExitPc (base : Word) :
-    ((base + 180 : Word) + 32) = base + 212 := by
-  bv_omega
-
-theorem expTopCondMulRestoreExitPc (base : Word) :
-    ((base + 216 : Word) + 36) = base + 252 := by
-  bv_omega
-
 /-- Conditional-multiply factor-1 marshal spec lifted to the top-level EXP
     code bundle: at offset `base + 148`, copies result limbs from scratch to
     factor1, exits at `base + 180`. -/
@@ -85,7 +73,7 @@ theorem exp_cond_mul_marshal_a_to_factor2_evm_exp_spec_within
        ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ a3)) := by
   have h := EvmAsm.Evm64.exp_loop_marshal_a_to_factor2_ofProg_spec_within
     evmSp tOld a0 a1 a2 a3 d0 d1 d2 d3 (base + 180)
-  rw [expTopCondMulFactor2ExitPc] at h
+  rw [EvmAsm.Evm64.Exp.AddrNorm.expTopCondMulFactor2ExitPc] at h
   exact cpsTripleWithin_extend_code (h := h)
     (hmono := evmExpCode_cond_mul_marshal_a_to_factor2_sub)
 
@@ -119,7 +107,7 @@ theorem exp_cond_mul_un_marshal_and_restore_evm_exp_spec_within
        ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ d3)) := by
   have h := EvmAsm.Evm64.exp_loop_un_marshal_and_restore_ofProg_spec_within
     sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 (base + 216)
-  rw [expTopCondMulRestoreExitPc] at h
+  rw [EvmAsm.Evm64.Exp.AddrNorm.expTopCondMulRestoreExitPc] at h
   exact cpsTripleWithin_extend_code (h := h)
     (hmono := evmExpCode_cond_mul_un_marshal_and_restore_sub)
 

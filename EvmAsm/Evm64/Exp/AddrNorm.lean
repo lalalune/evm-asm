@@ -219,6 +219,30 @@ attribute [exp_addr]
     ((base + 212 : Word) + 4) = base + 216 := by
   bv_decide
 
+@[exp_addr, grind =] theorem expTopSquaringFactor1ExitPc (base : Word) :
+    ((base + 40 : Word) + 32) = base + 72 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopSquaringFactor2ExitPc (base : Word) :
+    ((base + 72 : Word) + 32) = base + 104 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopSquaringRestoreExitPc (base : Word) :
+    ((base + 108 : Word) + 36) = base + 144 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopCondMulFactor1ExitPc (base : Word) :
+    ((base + 148 : Word) + 32) = base + 180 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopCondMulFactor2ExitPc (base : Word) :
+    ((base + 180 : Word) + 32) = base + 212 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopCondMulRestoreExitPc (base : Word) :
+    ((base + 216 : Word) + 36) = base + 252 := by
+  bv_decide
+
 @[exp_addr, grind =] theorem expBaseAdd40Aligned
     (base : Word) (hbase : base &&& 1 = 0) :
     (base + 40 : Word) &&& 1 = 0 := by bv_decide
