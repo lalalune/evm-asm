@@ -7,14 +7,11 @@
 
 import EvmAsm.Evm64.Exp.Compose.WithMulCode
 import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
+import EvmAsm.Evm64.Exp.AddrNorm
 
 namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
-
-theorem expFullLoopCondMulCallAddr (base : Word) :
-    (base + 148 : Word) = base + 144 + 4 := by
-  bv_omega
 
 /-- Cond-mul-side marshal-pair + JAL + `mul_callable` round-trip lifted from
     the disjoint-union code `exp_cond_mul_call_block_code.union mul_callable_code`
@@ -68,7 +65,7 @@ theorem exp_cond_mul_marshal_pair_then_mul_call_evm_exp_with_mul_spec_within
       exp_cond_mul_call_block_code (base + 148) mulOff a = some i →
       evmExpCode base mulOff skipOff backOff a = some i := by
     intro a i h
-    rw [expFullLoopCondMulCallAddr] at h
+    rw [EvmAsm.Evm64.Exp.AddrNorm.expFullLoopCondMulCallAddr] at h
     exact evmExpCode_iter_cond_mul_sub a i
       (EvmAsm.Evm64.exp_cond_mul_call_with_skip_block_code_call_sub
         (base + 144) mulOff skipOff a i h)

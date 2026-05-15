@@ -67,7 +67,7 @@ theorem exp_cond_mul_call_block_evm_exp_with_mul_spec_within
       exp_cond_mul_call_block_code (base + 148) mulOff a = some i →
       evmExpCode base mulOff skipOff backOff a = some i := by
     intro a i h
-    rw [expFullLoopCondMulCallAddr] at h
+    rw [EvmAsm.Evm64.Exp.AddrNorm.expFullLoopCondMulCallAddr] at h
     exact evmExpCode_iter_cond_mul_sub a i
       (EvmAsm.Evm64.exp_cond_mul_call_with_skip_block_code_call_sub
         (base + 144) mulOff skipOff a i h)
