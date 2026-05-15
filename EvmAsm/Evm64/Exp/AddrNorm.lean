@@ -318,6 +318,22 @@ attribute [exp_addr]
   rw [EvmAsm.Evm64.exp_prologue_length]
   bv_decide
 
+@[exp_addr, grind =] theorem expTopPointerAdvanceProgramAddr (base : Word) :
+    (base + 24 : Word) = base + BitVec.ofNat 64 (4 * 6) := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopIterBodyProgramAddr (base : Word) :
+    (base + 28 : Word) = base + BitVec.ofNat 64 (4 * 7) := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopPointerRestoreProgramAddr (base : Word) :
+    (base + 260 : Word) = base + BitVec.ofNat 64 (4 * 65) := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopEpilogueProgramAddr (base : Word) :
+    (base + 264 : Word) = base + BitVec.ofNat 64 (4 * 66) := by
+  bv_decide
+
 @[exp_addr, grind =] theorem expBaseAdd40Aligned
     (base : Word) (hbase : base &&& 1 = 0) :
     (base + 40 : Word) &&& 1 = 0 := by bv_decide
