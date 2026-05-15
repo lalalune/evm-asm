@@ -20,7 +20,9 @@ import EvmAsm.Evm64.Exp.Compose.BaseSquaringCallCode
 namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64.Tactics
-open EvmAsm.Rv64
+open EvmAsm.Rv64 (CodeReq Program cpsTripleWithin cpsTripleWithin_extend_code
+  cpsTripleWithin_frameR cpsTripleWithin_seq cpsTripleWithin_weaken seq
+  signExtend12)
 
 /-- CodeReq decomposition for one EXP loop iteration. This mirrors
     `exp_loop`: bit-test (3 instructions), square call (1), conditional
