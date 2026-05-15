@@ -21,7 +21,7 @@ theorem evmExpCode_epilogue_sub {base : Word}
   exact CodeReq.ofProg_mono_sub base (base + 264)
     (EvmAsm.Evm64.evm_exp mulOff skipOff backOff)
     EvmAsm.Evm64.exp_epilogue 66
-    (by bv_omega)
+    (EvmAsm.Evm64.Exp.AddrNorm.expTopEpilogueProgramAddr base)
     (by
       unfold EvmAsm.Evm64.evm_exp
       simp only [EvmAsm.Rv64.seq]
