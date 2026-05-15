@@ -11,6 +11,38 @@ namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
 
+theorem expTopSquaringFactor2Addr (base : Word) :
+    (base + 72 : Word) = base + 40 + 32 := by
+  bv_omega
+
+theorem expTopSquaringSquareAddr (base : Word) :
+    (base + 104 : Word) = base + 40 + 64 := by
+  bv_omega
+
+theorem expTopSquaringRestoreAddr (base : Word) :
+    (base + 108 : Word) = base + 40 + 68 := by
+  bv_omega
+
+theorem expTopCondMulCallStartAddr (base : Word) :
+    (base + 148 : Word) = base + 144 + 4 := by
+  bv_omega
+
+theorem expTopCondMulFactor2Addr (base : Word) :
+    (base + 180 : Word) = base + 148 + 32 := by
+  bv_omega
+
+theorem expTopCondMulFactor2Addr_symm (base : Word) :
+    ((base + 148 : Word) + 32) = base + 180 := by
+  bv_omega
+
+theorem expTopCondMulSquareAddr (base : Word) :
+    (base + 212 : Word) = base + 148 + 64 := by
+  bv_omega
+
+theorem expTopCondMulRestoreAddr (base : Word) :
+    (base + 216 : Word) = base + 148 + 68 := by
+  bv_omega
+
 /-- Squaring-call factor-1 marshal sub-block directly included in the
     top-level EXP code bundle. -/
 theorem evmExpCode_squaring_marshal_factor1_sub {base : Word}
@@ -29,8 +61,7 @@ theorem evmExpCode_squaring_marshal_result_to_factor2_sub {base : Word}
       EvmAsm.Evm64.exp_loop_marshal_result_to_factor2) a = some i →
       (evmExpCode base mulOff skipOff backOff) a = some i := by
   intro a i h
-  have haddr : (base + 72 : Word) = base + 40 + 32 := by bv_omega
-  rw [haddr] at h
+  rw [expTopSquaringFactor2Addr] at h
   exact evmExpCode_iter_squaring_sub a i
     (exp_squaring_call_block_code_marshal_result_to_factor2_sub a i h)
 
@@ -42,8 +73,7 @@ theorem evmExpCode_squaring_square_sub {base : Word}
       (EvmAsm.Evm64.exp_square_block mulOff)) a = some i →
       (evmExpCode base mulOff skipOff backOff) a = some i := by
   intro a i h
-  have haddr : (base + 104 : Word) = base + 40 + 64 := by bv_omega
-  rw [haddr] at h
+  rw [expTopSquaringSquareAddr] at h
   exact evmExpCode_iter_squaring_sub a i
     (exp_squaring_call_block_code_square_sub a i h)
 
@@ -55,8 +85,7 @@ theorem evmExpCode_squaring_un_marshal_and_restore_sub {base : Word}
       EvmAsm.Evm64.exp_loop_un_marshal_and_restore) a = some i →
       (evmExpCode base mulOff skipOff backOff) a = some i := by
   intro a i h
-  have haddr : (base + 108 : Word) = base + 40 + 68 := by bv_omega
-  rw [haddr] at h
+  rw [expTopSquaringRestoreAddr] at h
   exact evmExpCode_iter_squaring_sub a i
     (exp_squaring_call_block_code_un_marshal_and_restore_sub a i h)
 
@@ -69,8 +98,7 @@ theorem evmExpCode_cond_mul_marshal_factor1_sub {base : Word}
   intro a i h
   have hcall := exp_cond_mul_call_block_code_marshal_factor1_sub
     (base + 148) mulOff a i h
-  have hskip : (base + 148 : Word) = base + 144 + 4 := by bv_omega
-  rw [hskip] at hcall
+  rw [expTopCondMulCallStartAddr] at hcall
   exact evmExpCode_iter_cond_mul_sub a i
     (EvmAsm.Evm64.exp_cond_mul_call_with_skip_block_code_call_sub
       (base + 144) mulOff skipOff a i hcall)
@@ -83,12 +111,10 @@ theorem evmExpCode_cond_mul_marshal_a_to_factor2_sub {base : Word}
       EvmAsm.Evm64.exp_loop_marshal_a_to_factor2) a = some i →
       (evmExpCode base mulOff skipOff backOff) a = some i := by
   intro a i h
-  have haddr : (base + 180 : Word) = base + 148 + 32 := by bv_omega
-  rw [haddr] at h
+  rw [expTopCondMulFactor2Addr] at h
   have hcall := exp_cond_mul_call_block_code_marshal_a_to_factor2_sub
     (base + 148) mulOff a i h
-  have hskip : (base + 148 : Word) = base + 144 + 4 := by bv_omega
-  rw [hskip] at hcall
+  rw [expTopCondMulCallStartAddr] at hcall
   exact evmExpCode_iter_cond_mul_sub a i
     (EvmAsm.Evm64.exp_cond_mul_call_with_skip_block_code_call_sub
       (base + 144) mulOff skipOff a i hcall)
@@ -101,11 +127,9 @@ theorem evmExpCode_cond_mul_square_sub {base : Word}
       (EvmAsm.Evm64.exp_square_block mulOff)) a = some i →
       (evmExpCode base mulOff skipOff backOff) a = some i := by
   intro a i h
-  have haddr : (base + 212 : Word) = base + 148 + 64 := by bv_omega
-  rw [haddr] at h
+  rw [expTopCondMulSquareAddr] at h
   have hcall := exp_cond_mul_call_block_code_square_sub (base + 148) mulOff a i h
-  have hskip : (base + 148 : Word) = base + 144 + 4 := by bv_omega
-  rw [hskip] at hcall
+  rw [expTopCondMulCallStartAddr] at hcall
   exact evmExpCode_iter_cond_mul_sub a i
     (EvmAsm.Evm64.exp_cond_mul_call_with_skip_block_code_call_sub
       (base + 144) mulOff skipOff a i hcall)
@@ -118,12 +142,10 @@ theorem evmExpCode_cond_mul_un_marshal_and_restore_sub {base : Word}
       EvmAsm.Evm64.exp_loop_un_marshal_and_restore) a = some i →
       (evmExpCode base mulOff skipOff backOff) a = some i := by
   intro a i h
-  have haddr : (base + 216 : Word) = base + 148 + 68 := by bv_omega
-  rw [haddr] at h
+  rw [expTopCondMulRestoreAddr] at h
   have hcall := exp_cond_mul_call_block_code_un_marshal_and_restore_sub
     (base + 148) mulOff a i h
-  have hskip : (base + 148 : Word) = base + 144 + 4 := by bv_omega
-  rw [hskip] at hcall
+  rw [expTopCondMulCallStartAddr] at hcall
   exact evmExpCode_iter_cond_mul_sub a i
     (EvmAsm.Evm64.exp_cond_mul_call_with_skip_block_code_call_sub
       (base + 144) mulOff skipOff a i hcall)

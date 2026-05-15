@@ -113,8 +113,7 @@ theorem exp_cond_mul_marshal_pair_evm_exp_spec_within
       (evmExpCode_cond_mul_marshal_factor1_sub (base := base)
         (mulOff := mulOff) (skipOff := skipOff) (backOff := backOff))
       (fun a i hfactor2 => by
-        have haddr : ((base + 148 : Word) + 32) = base + 180 := by bv_omega
-        rw [haddr] at hfactor2
+        rw [expTopCondMulFactor2Addr_symm] at hfactor2
         exact evmExpCode_cond_mul_marshal_a_to_factor2_sub
           (base := base) (mulOff := mulOff) (skipOff := skipOff)
           (backOff := backOff) a i hfactor2)
