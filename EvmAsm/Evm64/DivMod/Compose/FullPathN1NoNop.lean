@@ -222,8 +222,7 @@ theorem evm_div_phaseAB_n1_clz_c2_normB_spec_within_noNop (sp base : Word)
         q0 q1 q2 q3 u5 u6 u7 nMem shiftMem)
       (evmDivPhaseABN1ClzC2NormBFullPost sp b0 b1 b2 b3) := by
   simp only [evmDivPhaseABN1ClzC2NormBPre_unfold,
-             evmDivPhaseABN1ClzC2NormBFullPost_unfold,
-             evmDivPhaseABN1ClzC2NormBPost_unfold]
+             evmDivPhaseABN1ClzC2NormBFullPost_unfold]
   let shift := (clzResult b0).1
   let antiShift := signExtend12 (0 : BitVec 12) - shift
   let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
