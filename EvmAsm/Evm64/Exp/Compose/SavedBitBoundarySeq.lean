@@ -755,8 +755,6 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
     (exitCond : Prop)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base mulTarget : Word) :
-    let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
@@ -790,8 +788,6 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
     (exitCond : Prop)
     (squaringMulOff condMulOff : BitVec 21)
     (base mulTarget : Word) :
-    let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulCanonicalWithMulCode
         base mulTarget squaringMulOff condMulOff)
@@ -815,8 +811,6 @@ theorem exp_pointer_restore_then_epilogue_full_stack_evm_exp_msb_saved_bit_two_m
     (baseWord : EvmWord) (rest : List EvmWord)
     (exitCond : Prop)
     (base : Word) :
-    let exitControl : Assertion :=
-      (.x9 ↦ᵣ iterCountNew) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜exitCond⌝
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
       (expTwoMulLoopExitFullStackPreFrame
