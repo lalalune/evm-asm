@@ -75,6 +75,15 @@ theorem expTwoMulBoundaryAdvancedEvmSpWord (evmSp : Word) :
     evmSp + signExtend12 (64 : BitVec 12) = evmSp + 64 := by
   rw [signExtend12_64]
 
+theorem expTwoMulPointerRestoreBackToEvmSp (evmSp : Word) :
+    (evmSp + signExtend12 (64 : BitVec 12)) +
+      signExtend12 ((-64) : BitVec 12) = evmSp := by
+  have hNeg64 :
+      signExtend12 ((-64) : BitVec 12) =
+        (18446744073709551552 : Word) := by decide
+  rw [signExtend12_64, hNeg64]
+  bv_decide
+
 /-- EXP prologue followed by the pointer-advance block, lifted to the
     two-MUL saved-bit EXP+MUL code bundle. This lands at the iteration-body
     entry with the EVM stack pointer advanced by one operand window. -/
