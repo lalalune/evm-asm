@@ -18,9 +18,6 @@ theorem exp_msb_saved_bit_two_mul_full_iter_owned_scratch_branch_named_posts_spe
             (mul_callable_code mulTarget))
     (hskip : (base + 148 : Word) + signExtend13 skipOff = base + 256)
     (hback : ((base + 256) + 4 : Word) + signExtend13 backOff = loopTarget) :
-    let bit := expTwoMulIterBit e
-    let squareW := expTwoMulSquareW r0 r1 r2 r3
-    let rw := expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3
     cpsBranchWithin
       (((3 + 1 + (17 + 64 + 9) + 1) + 2) + ((17 + 64 + 9) + 2))
       (base + 28)
@@ -45,17 +42,24 @@ theorem exp_msb_saved_bit_two_mul_full_iter_owned_scratch_branch_named_posts_spe
        expTwoMulIterBaseFrame evmSp a0 a1 a2 a3)
       loopTarget
         (fun h =>
-          expTwoMulIterCondPost (expTwoMulIterCountNew iterCount) bit sp evmSp
-            base a0 a1 a2 a3 rw (expTwoMulIterCountNew iterCount ≠ 0) h ∨
-          expTwoMulIterSkipPost (expTwoMulIterCountNew iterCount) bit sp evmSp
-            base a0 a1 a2 a3 squareW (expTwoMulIterCountNew iterCount ≠ 0) h)
+          expTwoMulIterCondPost (expTwoMulIterCountNew iterCount)
+            (expTwoMulIterBit e) sp evmSp
+            base a0 a1 a2 a3 (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3)
+            (expTwoMulIterCountNew iterCount ≠ 0) h ∨
+          expTwoMulIterSkipPost (expTwoMulIterCountNew iterCount)
+            (expTwoMulIterBit e) sp evmSp
+            base a0 a1 a2 a3 (expTwoMulSquareW r0 r1 r2 r3)
+            (expTwoMulIterCountNew iterCount ≠ 0) h)
       (base + 264)
         (fun h =>
-          expTwoMulIterCondPost (expTwoMulIterCountNew iterCount) bit sp evmSp
-            base a0 a1 a2 a3 rw (expTwoMulIterCountNew iterCount = 0) h ∨
-          expTwoMulIterSkipPost (expTwoMulIterCountNew iterCount) bit sp evmSp
-            base a0 a1 a2 a3 squareW (expTwoMulIterCountNew iterCount = 0) h) := by
-  intro bit squareW rw
+          expTwoMulIterCondPost (expTwoMulIterCountNew iterCount)
+            (expTwoMulIterBit e) sp evmSp
+            base a0 a1 a2 a3 (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3)
+            (expTwoMulIterCountNew iterCount = 0) h ∨
+          expTwoMulIterSkipPost (expTwoMulIterCountNew iterCount)
+            (expTwoMulIterBit e) sp evmSp
+            base a0 a1 a2 a3 (expTwoMulSquareW r0 r1 r2 r3)
+            (expTwoMulIterCountNew iterCount = 0) h) := by
   rw [expTwoMulIterBaseFrame_unfold]
   exact cpsBranchWithin_weaken
     (fun _ hp => hp)
