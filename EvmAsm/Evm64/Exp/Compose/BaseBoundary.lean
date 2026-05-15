@@ -58,6 +58,10 @@ theorem expBoundaryProgram_len : expBoundaryProgram.length = 15 := by
 theorem expBoundaryProgram_byte_len : 4 * expBoundaryProgram.length = 60 := by
   rw [expBoundaryProgram_len]
 
+theorem expBoundaryEpilogueExitPc (base : Word) :
+    (base + 24 : Word) + 36 = base + 60 := by
+  bv_omega
+
 /-- Concrete `CodeReq.ofProg` handle for `expBoundaryProgram`. -/
 abbrev expBoundaryProgramCode (base : Word) : CodeReq :=
   CodeReq.ofProg base expBoundaryProgram
@@ -163,7 +167,7 @@ theorem expBoundaryProgram_spec_within
       ((0 : Word) + signExtend12 (1 : BitVec 12))
       ((0 : Word) + signExtend12 (1 : BitVec 12))
       (0 : Word) (0 : Word) (0 : Word) d0 d1 d2 d3 (base + 24)
-  rw [show (base + 24 : Word) + 36 = base + 60 from by bv_omega] at hEpi
+  rw [expBoundaryEpilogueExitPc] at hEpi
   have hProFramed : cpsTripleWithin 6 base (base + 24)
       (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue)
       ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
