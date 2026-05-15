@@ -383,10 +383,24 @@ theorem exp_pointer_restore_then_epilogue_evm_exp_msb_saved_bit_two_mul_with_mul
     cpsTripleWithin (1 + 9) (base + 264) (base + 304)
       (evmExpMsbSavedBitTwoMulWithMulCode
         base mulTarget squaringMulOff condMulOff skipOff backOff)
-      (expTwoMulPointerRestoreEpiloguePreFrame
-        sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3)
-      (expTwoMulPointerRestoreEpiloguePostFrame
-        sp evmSp r0 r1 r2 r3) := by
+      ((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
+       ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+        ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+        ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+        ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3)))
+      ((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ r3) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       evmWordIs (evmSp + 32) (expResultWord r0 r1 r2 r3)) := by
   let epilogueFrame : Assertion :=
     (.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
     ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -431,12 +445,9 @@ theorem exp_pointer_restore_then_epilogue_evm_exp_msb_saved_bit_two_mul_with_mul
       hRestoreFramed' hEpilogue
   exact cpsTripleWithin_weaken
     (fun _ hp => by
-      rw [expTwoMulPointerRestoreEpiloguePreFrame_unfold] at hp
       dsimp [epilogueFrame] at hp ⊢
       xperm_hyp hp)
-    (fun _ hp => by
-      rw [expTwoMulPointerRestoreEpiloguePostFrame_unfold]
-      exact hp)
+    (fun _ hp => hp)
     hSeq
 
 /-- Exit-control framed view of pointer-restore followed by the EXP epilogue.
@@ -483,10 +494,10 @@ theorem exp_pointer_restore_then_epilogue_exit_control_evm_exp_msb_saved_bit_two
     pcFree) hBase
   exact cpsTripleWithin_weaken
     (fun _ hp => by
-      rw [expTwoMulPointerRestoreEpiloguePreFrame_unfold]
+      dsimp [exitControl] at hp ⊢
       xperm_hyp hp)
     (fun _ hp => by
-      rw [expTwoMulPointerRestoreEpiloguePostFrame_unfold] at hp
+      dsimp [exitControl] at hp ⊢
       xperm_hyp hp)
     hFramed
 
