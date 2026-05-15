@@ -334,6 +334,18 @@ attribute [exp_addr]
     (base + 264 : Word) = base + BitVec.ofNat 64 (4 * 66) := by
   bv_decide
 
+@[exp_addr, grind =] theorem expLoopSquareProgramAddr (base : Word) :
+    (base + 12 : Word) = base + BitVec.ofNat 64 (4 * 3) := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expLoopCondMulProgramAddr (base : Word) :
+    (base + 16 : Word) = base + BitVec.ofNat 64 (4 * 4) := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expLoopBackProgramAddr (base : Word) :
+    (base + 24 : Word) = base + BitVec.ofNat 64 (4 * 6) := by
+  bv_decide
+
 @[exp_addr, grind =] theorem expBaseAdd40Aligned
     (base : Word) (hbase : base &&& 1 = 0) :
     (base + 40 : Word) &&& 1 = 0 := by bv_decide

@@ -148,7 +148,7 @@ theorem expLoopCode_square_sub {base : Word}
   exact CodeReq.ofProg_mono_sub base (base + 12)
     (EvmAsm.Evm64.exp_loop mulOff skipOff backOff)
     (EvmAsm.Evm64.exp_square_block mulOff) 3
-    (by bv_omega)
+    (EvmAsm.Evm64.Exp.AddrNorm.expLoopSquareProgramAddr base)
     (by
       unfold EvmAsm.Evm64.exp_loop EvmAsm.Evm64.exp_iter_body
       unfold EvmAsm.Evm64.exp_bit_test_block EvmAsm.Evm64.exp_square_block
@@ -172,7 +172,7 @@ theorem expLoopCode_cond_mul_sub {base : Word}
   exact CodeReq.ofProg_mono_sub base (base + 16)
     (EvmAsm.Evm64.exp_loop mulOff skipOff backOff)
     (EvmAsm.Evm64.exp_cond_mul_block mulOff skipOff) 4
-    (by bv_omega)
+    (EvmAsm.Evm64.Exp.AddrNorm.expLoopCondMulProgramAddr base)
     (by
       unfold EvmAsm.Evm64.exp_loop EvmAsm.Evm64.exp_iter_body
       unfold EvmAsm.Evm64.exp_bit_test_block EvmAsm.Evm64.exp_square_block
@@ -196,7 +196,7 @@ theorem expLoopCode_loop_back_sub {base : Word}
   exact CodeReq.ofProg_mono_sub base (base + 24)
     (EvmAsm.Evm64.exp_loop mulOff skipOff backOff)
     (EvmAsm.Evm64.exp_loop_back backOff) 6
-    (by bv_omega)
+    (EvmAsm.Evm64.Exp.AddrNorm.expLoopBackProgramAddr base)
     (by
       unfold EvmAsm.Evm64.exp_loop EvmAsm.Evm64.exp_iter_body
       unfold EvmAsm.Evm64.exp_bit_test_block EvmAsm.Evm64.exp_square_block
