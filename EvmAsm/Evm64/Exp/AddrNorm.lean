@@ -251,6 +251,30 @@ attribute [exp_addr]
     ((base + 40 : Word) + 64) = base + 104 := by
   bv_decide
 
+@[exp_addr, grind =] theorem expTopIterSquaringAddr (base : Word) :
+    (base + 40 : Word) = base + 28 + 12 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopIterCondMulAddr (base : Word) :
+    (base + 144 : Word) = base + 28 + 116 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopIterSavedBitSquaringAddr (base : Word) :
+    (base + 44 : Word) = base + 28 + 16 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopIterSavedBitCondMulAddr (base : Word) :
+    (base + 148 : Word) = base + 28 + 120 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopIterSavedBitLoopBackAddr (base : Word) :
+    (base + 256 : Word) = base + 28 + 228 := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expTopIterLoopBackAddr (base : Word) :
+    (base + 252 : Word) = base + 28 + 224 := by
+  bv_decide
+
 @[exp_addr, grind =] theorem expBaseAdd40Aligned
     (base : Word) (hbase : base &&& 1 = 0) :
     (base + 40 : Word) &&& 1 = 0 := by bv_decide
