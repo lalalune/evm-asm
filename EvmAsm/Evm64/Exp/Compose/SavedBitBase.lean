@@ -11,7 +11,7 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulCode
 namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64.Tactics
-open EvmAsm.Rv64
+open EvmAsm.Rv64 (CodeReq Program seq)
 
 /-- Top-level CodeReq decomposition for the corrected MSB-first saved-bit EXP
     opcode program. -/
