@@ -26,9 +26,9 @@ theorem divK_loop_body_n1_max_skip_j0_spec_within
     (base : Word)
     (hbltu : ¬BitVec.ult u1 v0) :
     let uBase := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
-    let qHat : Word := signExtend12 4095
+
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-    (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
+    (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
     cpsTripleWithin 76 (base + loopBodyOff) (base + denormOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
@@ -41,8 +41,9 @@ theorem divK_loop_body_n1_max_skip_j0_spec_within
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
        (qAddr ↦ₘ qOld))
-      (loopBodyN1SkipPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  intro uBase qHat qAddr hborrow
+      (loopBodyN1SkipPost sp (0 : Word) (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
+  intro uBase qAddr hborrow
+  let qHat : Word := signExtend12 4095
   let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
   let p0_lo := qHat * v0; let p0_hi := rv64_mulhu qHat v0
   let fs0 := p0_lo + (signExtend12 0 : Word)
@@ -123,9 +124,9 @@ theorem divK_loop_body_n1_max_skip_jgt0_spec_within (j : Word)
     (base : Word)
     (hbltu : ¬BitVec.ult u1 v0) :
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
-    let qHat : Word := signExtend12 4095
+
     let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
-    (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
+    (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
     cpsTripleWithin 76 (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
@@ -138,8 +139,9 @@ theorem divK_loop_body_n1_max_skip_jgt0_spec_within (j : Word)
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
        (qAddr ↦ₘ qOld))
-      (loopBodyN1SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  intro uBase qHat qAddr hborrow
+      (loopBodyN1SkipPost sp j (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
+  intro uBase qAddr hborrow
+  let qHat : Word := signExtend12 4095
   let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
   let p0_lo := qHat * v0; let p0_hi := rv64_mulhu qHat v0
   let fs0 := p0_lo + (signExtend12 0 : Word)
@@ -205,9 +207,9 @@ theorem divK_loop_body_n1_max_skip_j0_spec_within_noNop
     (base : Word)
     (hbltu : ¬BitVec.ult u1 v0) :
     let uBase := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
-    let qHat : Word := signExtend12 4095
+
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-    (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
+    (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
     cpsTripleWithin 76 (base + loopBodyOff) (base + denormOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
@@ -220,8 +222,9 @@ theorem divK_loop_body_n1_max_skip_j0_spec_within_noNop
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
        (qAddr ↦ₘ qOld))
-      (loopBodyN1SkipPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  intro uBase qHat qAddr hborrow
+      (loopBodyN1SkipPost sp (0 : Word) (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
+  intro uBase qAddr hborrow
+  let qHat : Word := signExtend12 4095
   let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
   let p0_lo := qHat * v0; let p0_hi := rv64_mulhu qHat v0
   let fs0 := p0_lo + (signExtend12 0 : Word)
@@ -297,9 +300,9 @@ theorem divK_loop_body_n1_max_skip_jgt0_spec_within_noNop (j : Word)
     (base : Word)
     (hbltu : ¬BitVec.ult u1 v0) :
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
-    let qHat : Word := signExtend12 4095
+
     let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
-    (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
+    (if BitVec.ult uTop (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word) →
     cpsTripleWithin 76 (base + loopBodyOff) (base + loopBodyOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
@@ -312,8 +315,9 @@ theorem divK_loop_body_n1_max_skip_jgt0_spec_within_noNop (j : Word)
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop) **
        (qAddr ↦ₘ qOld))
-      (loopBodyN1SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
-  intro uBase qHat qAddr hborrow
+      (loopBodyN1SkipPost sp j (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
+  intro uBase qAddr hborrow
+  let qHat : Word := signExtend12 4095
   let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
   let p0_lo := qHat * v0; let p0_hi := rv64_mulhu qHat v0
   let fs0 := p0_lo + (signExtend12 0 : Word)
