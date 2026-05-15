@@ -305,7 +305,7 @@ theorem evm_div_n4_to_loopSetup_spec (sp base : Word)
   have hNormA := divK_normA_full_spec_within sp a0 a1 a2 a3
     b0' (b0 >>> (antiShift.toNat % 64)) b3 shift antiShift
     u0Old u1Old u2Old u3Old u4Old base
-  intro_lets at hNormA
+  simp only [normAFullPost_unfold] at hNormA
   -- Frame NormA with x0, b[], scratch q/u5-7/n/shift
   have hNormAf := cpsTripleWithin_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
@@ -400,8 +400,8 @@ theorem evm_div_n4_to_loopSetup_spec_noNop (sp base : Word)
   have hNormA := divK_normA_full_spec_within_noNop sp a0 a1 a2 a3
     b0' (b0 >>> (antiShift.toNat % 64)) b3 shift antiShift
     u0Old u1Old u2Old u3Old u4Old base
-  intro_lets at hNormA
-  rw [divKNormAFullPreNoNop_unfold, divKNormAFullPostNoNop_unfold] at hNormA
+  rw [divKNormAFullPreNoNop_unfold] at hNormA
+  simp only [normAFullPost_unfold] at hNormA
   have hNormAf := cpsTripleWithin_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **

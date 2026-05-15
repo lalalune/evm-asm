@@ -182,7 +182,7 @@ theorem evm_mod_n2_to_loopSetup_spec_within (sp base : Word)
   have hNormA := mod_normA_full_spec_within sp a0 a1 a2 a3
     b0' (b0 >>> (antiShift.toNat % 64)) b3 shift antiShift
     u0Old u1Old u2Old u3Old u4Old base
-  intro_lets at hNormA
+  simp only [normAFullPost_unfold] at hNormA
   have hNormAf := cpsTripleWithin_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
      (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
