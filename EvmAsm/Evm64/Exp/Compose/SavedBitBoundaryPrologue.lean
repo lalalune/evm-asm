@@ -84,6 +84,22 @@ theorem expTwoMulPointerRestoreBackToEvmSp (evmSp : Word) :
   rw [signExtend12_64, hNeg64]
   bv_decide
 
+theorem expTwoMulBoundaryResultEvmSpWord (evmSp : Word) :
+    evmSp + signExtend12 (32 : BitVec 12) = evmSp + 32 := by
+  rw [signExtend12_32]
+
+theorem expTwoMulBoundaryResultTailWord (evmSp : Word) :
+    evmSp + 32 + 32 = evmSp + 64#64 := by
+  bv_addr
+
+theorem expTwoMulBoundaryResultTailWord_symm (evmSp : Word) :
+    evmSp + 64 = evmSp + 32#64 + 32#64 := by
+  bv_addr
+
+theorem expTwoMulBoundaryResultTailWord_symm_word (evmSp : Word) :
+    evmSp + 64#64 = evmSp + 32 + 32 := by
+  bv_addr
+
 @[irreducible]
 def expTwoMulLoopExitStackTailFrame
     (evmSp : Word) (baseWord : EvmWord) (rest : List EvmWord) :
