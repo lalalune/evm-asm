@@ -6,30 +6,11 @@
 
 import EvmAsm.Evm64.Exp.Compose.SavedBitBase
 import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
+import EvmAsm.Evm64.Exp.AddrNorm
 
 namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
-
-theorem expTopPointerAdvanceNextPc (base : Word) :
-    ((base + 24 : Word) + 4) = base + 28 := by
-  bv_omega
-
-theorem expTopPointerRestoreNextPc (base : Word) :
-    ((base + 260 : Word) + 4) = base + 264 := by
-  bv_omega
-
-theorem expTopEpilogueNextPc (base : Word) :
-    ((base + 264 : Word) + 36) = base + 300 := by
-  bv_omega
-
-theorem expTopSavedBitEpilogueEntryNextPc (base : Word) :
-    ((base + 264 : Word) + 4) = base + 268 := by
-  bv_omega
-
-theorem expTopSavedBitEpilogueNextPc (base : Word) :
-    ((base + 268 : Word) + 36) = base + 304 := by
-  bv_omega
 
 /-- Pointer advance lifted to the top-level EXP code bundle. -/
 theorem exp_loop_pointer_advance_evm_exp_spec_within
@@ -40,7 +21,7 @@ theorem exp_loop_pointer_advance_evm_exp_spec_within
       (.x12 ↦ᵣ vOld)
       (.x12 ↦ᵣ (vOld + signExtend12 (64 : BitVec 12))) := by
   have h := EvmAsm.Evm64.exp_loop_pointer_advance_spec_within vOld (base + 24)
-  rw [expTopPointerAdvanceNextPc] at h
+  rw [EvmAsm.Evm64.Exp.AddrNorm.expTopPointerAdvanceNextPc] at h
   exact cpsTripleWithin_extend_code (h := h) (hmono := evmExpCode_pointer_advance_sub)
 
 /-- Pointer restore lifted to the top-level EXP code bundle. -/
@@ -52,7 +33,7 @@ theorem exp_loop_pointer_restore_evm_exp_spec_within
       (.x12 ↦ᵣ vOld)
       (.x12 ↦ᵣ (vOld + signExtend12 ((-64) : BitVec 12))) := by
   have h := EvmAsm.Evm64.exp_loop_pointer_restore_spec_within vOld (base + 260)
-  rw [expTopPointerRestoreNextPc] at h
+  rw [EvmAsm.Evm64.Exp.AddrNorm.expTopPointerRestoreNextPc] at h
   exact cpsTripleWithin_extend_code (h := h) (hmono := evmExpCode_pointer_restore_sub)
 
 /-- EXP prologue lifted to the top-level EXP code bundle. -/
@@ -101,7 +82,7 @@ theorem exp_epilogue_evm_exp_spec_within
        evmWordIs (evmSp + 32) (expResultWord r0 r1 r2 r3)) := by
   have h := EvmAsm.Evm64.exp_epilogue_word_spec_within
     sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 (base + 264)
-  rw [expTopEpilogueNextPc] at h
+  rw [EvmAsm.Evm64.Exp.AddrNorm.expTopEpilogueNextPc] at h
   exact cpsTripleWithin_extend_code (h := h) (hmono := evmExpCode_epilogue_sub)
 
 /-- Pointer advance lifted to the two-MUL saved-bit top-level EXP code
@@ -115,7 +96,7 @@ theorem exp_loop_pointer_advance_evm_exp_msb_saved_bit_two_mul_spec_within
       (.x12 ↦ᵣ vOld)
       (.x12 ↦ᵣ (vOld + signExtend12 (64 : BitVec 12))) := by
   have h := EvmAsm.Evm64.exp_loop_pointer_advance_spec_within vOld (base + 24)
-  rw [expTopPointerAdvanceNextPc] at h
+  rw [EvmAsm.Evm64.Exp.AddrNorm.expTopPointerAdvanceNextPc] at h
   exact cpsTripleWithin_extend_code
     (h := h)
     (hmono := evmExpMsbSavedBitTwoMulCode_pointer_advance_sub)
@@ -131,7 +112,7 @@ theorem exp_loop_pointer_restore_evm_exp_msb_saved_bit_two_mul_spec_within
       (.x12 ↦ᵣ vOld)
       (.x12 ↦ᵣ (vOld + signExtend12 ((-64) : BitVec 12))) := by
   have h := EvmAsm.Evm64.exp_loop_pointer_restore_spec_within vOld (base + 264)
-  rw [expTopSavedBitEpilogueEntryNextPc] at h
+  rw [EvmAsm.Evm64.Exp.AddrNorm.expTopSavedBitEpilogueEntryNextPc] at h
   exact cpsTripleWithin_extend_code
     (h := h)
     (hmono := evmExpMsbSavedBitTwoMulCode_pointer_restore_sub)
@@ -186,7 +167,7 @@ theorem exp_epilogue_evm_exp_msb_saved_bit_two_mul_spec_within
        evmWordIs (evmSp + 32) (expResultWord r0 r1 r2 r3)) := by
   have h := EvmAsm.Evm64.exp_epilogue_word_spec_within
     sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 (base + 268)
-  rw [expTopSavedBitEpilogueNextPc] at h
+  rw [EvmAsm.Evm64.Exp.AddrNorm.expTopSavedBitEpilogueNextPc] at h
   exact cpsTripleWithin_extend_code
     (h := h)
     (hmono := evmExpMsbSavedBitTwoMulCode_epilogue_sub)
