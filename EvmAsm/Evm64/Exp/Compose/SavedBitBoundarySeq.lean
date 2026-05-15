@@ -556,7 +556,7 @@ theorem exp_pointer_restore_then_epilogue_stack_tail_evm_exp_msb_saved_bit_two_m
       dsimp [exitControl, stackTail] at hp ⊢
       rw [evmStackIs_cons]
       rw [show evmSp + 64#64 = evmSp + 32#64 + 32#64 from by bv_addr] at hp
-      xperm_hyp hp)
+      xcancel_struct hp)
     hFramed
 
 /-- Full visible-post-stack view of pointer-restore followed by the EXP
