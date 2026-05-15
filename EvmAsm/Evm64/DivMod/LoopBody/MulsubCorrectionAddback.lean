@@ -316,18 +316,61 @@ theorem divK_mulsub_correction_addback_named_880_spec_within
   exact (divK_mulsub_correction_addback_880_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
     v1Old v5Old v6Old v7Old v10Old v2Old base) hborrow
 
-/-- No-NOP variant of `divK_mulsub_correction_addback_named_880_spec_within`. -/
+/-- Bundled postcondition for `divK_mulsub_correction_addback_named_880_spec_within_noNop`.
+    Hides `ms`, `c3`, `ab`, and `qHat'` so the spec statement keeps only one
+    let (`uBase`) for the precondition's address calculations. -/
+@[irreducible]
+def n4McaNamed880Post
+    (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
+  let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
+  let ms    := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
+  let c3    := ms.2.2.2.2
+  let ab    := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - c3) v0 v1 v2 v3
+  let qHat' := qHat + signExtend12 4095
+  (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat') **
+  (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ ab.2.2.2.2) ** (.x6 ↦ᵣ uBase) **
+  (.x7 ↦ᵣ addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3) **
+  (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ ab.2.2.2.1) **
+  (.x0 ↦ᵣ 0) **
+  (sp + signExtend12 3976 ↦ₘ j) **
+  ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ ab.1) **
+  ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ ab.2.1) **
+  ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ ab.2.2.1) **
+  ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ ab.2.2.2.1) **
+  ((uBase + signExtend12 4064) ↦ₘ ab.2.2.2.2)
+
+theorem n4McaNamed880Post_unfold
+    {sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
+    n4McaNamed880Post sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      (let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
+       let ms    := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
+       let c3    := ms.2.2.2.2
+       let ab    := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - c3) v0 v1 v2 v3
+       let qHat' := qHat + signExtend12 4095
+       (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat') **
+       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ ab.2.2.2.2) ** (.x6 ↦ᵣ uBase) **
+       (.x7 ↦ᵣ addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3) **
+       (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ ab.2.2.2.1) **
+       (.x0 ↦ᵣ 0) **
+       (sp + signExtend12 3976 ↦ₘ j) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ ab.1) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ ab.2.1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ ab.2.2.1) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ ab.2.2.2.1) **
+       ((uBase + signExtend12 4064) ↦ₘ ab.2.2.2.2)) := by
+  delta n4McaNamed880Post; rfl
+
+/-- No-NOP variant of `divK_mulsub_correction_addback_named_880_spec_within`.
+    The statement keeps one let (`uBase`, needed for the precondition addresses);
+    `ms`, `c3`, `ab`, and `qHat'` are hidden in `n4McaNamed880Post`. -/
 theorem divK_mulsub_correction_addback_named_880_spec_within_noNop
     (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
     (base : Word) :
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
-    let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
-    let c3 := ms.2.2.2.2
-    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - c3) v0 v1 v2 v3
-    let qHat' := qHat + signExtend12 4095
     -- Hypothesis: borrow ≠ 0
-    (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
+    (if BitVec.ult uTop (mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 then (1 : Word) else 0) ≠
+      (0 : Word) →
     cpsTripleWithin 91 (base + div128CallRetOff) (base + addbackBeqOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
@@ -339,19 +382,13 @@ theorem divK_mulsub_correction_addback_named_880_spec_within_noNop
        ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop))
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat') **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ ab.2.2.2.2) ** (.x6 ↦ᵣ uBase) **
-       (.x7 ↦ᵣ addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ ab.2.2.2.1) **
-       (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3976 ↦ₘ j) **
-       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ ab.1) **
-       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ ab.2.1) **
-       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ ab.2.2.1) **
-       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ ab.2.2.2.1) **
-       ((uBase + signExtend12 4064) ↦ₘ ab.2.2.2.2)) := by
-  intro uBase ms c3 ab qHat' hborrow
-  exact (divK_mulsub_correction_addback_880_spec_within_noNop sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    v1Old v5Old v6Old v7Old v10Old v2Old base) hborrow
+      (n4McaNamed880Post sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
+  intro uBase hborrow
+  exact cpsTripleWithin_weaken
+    (fun h hp => hp)
+    (fun h hp => by simp only [n4McaNamed880Post_unfold]; exact hp)
+    ((divK_mulsub_correction_addback_880_spec_within_noNop sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+       v1Old v5Old v6Old v7Old v10Old v2Old base) hborrow)
 
 /-- Mulsub + correction addback + BEQ passthrough: when mulsub produces borrow≠0,
     run addback, then BEQ falls through (carry ≠ 0).
