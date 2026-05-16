@@ -21,6 +21,7 @@ import EvmAsm.Evm64.DivMod.Shift0Dispatcher
 import EvmAsm.Evm64.DivMod.N4StackSpec
 import EvmAsm.Evm64.DivMod.N4StackSpecWithin
 import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeq
+import EvmAsm.Evm64.DivMod.LoopBody.MulsubFull
 import EvmAsm.Evm64.DivMod.Compose.SharedLoopPost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1LoopUnified
