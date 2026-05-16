@@ -86,6 +86,7 @@ theorem sdivAbsDividendWord_evmWordIs_sp_components
     EvmWord.getLimbN_fromLimbs_2
     EvmWord.getLimbN_fromLimbs_3
 
+open EvmAsm.Rv64 in
 theorem sdivAbsDividendWord_evmWordIs_sp_components_right
     (sp limb0 limb1 limb2 top : Word) (Q : Assertion) :
     ((sp ↦ₘ sdivAbsSum0 limb0 top) **
@@ -110,6 +111,7 @@ theorem sdivAbsDivisorWord_evmWordIs_sp32_components
     EvmWord.getLimbN_fromLimbs_2
     EvmWord.getLimbN_fromLimbs_3
 
+open EvmAsm.Rv64 in
 theorem sdivAbsDivisorWord_evmWordIs_sp32_components_right
     (sp limb0 limb1 limb2 top : Word) (Q : Assertion) :
     (((sp + 32) ↦ₘ sdivAbsSum0 limb0 top) **
