@@ -101,6 +101,7 @@ theorem divK_mulsub_correction_addback_beq_spec_within
     -- Use named 880 spec (→880 with addbackN4_carry in postcondition)
     have MCA_N := (divK_mulsub_correction_addback_named_880_spec_within sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
       v1Old v5Old v6Old v7Old v10Old v2Old base) hborrow
+    simp only [n4McaNamed880Post_unfold] at MCA_N
     -- Rewrite carry to 0
     rw [show addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3 = (0 : Word) from hcarry] at MCA_N
     -- Use named DA spec (880→884 with addbackN4 projections in postcondition)
