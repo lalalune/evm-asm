@@ -119,4 +119,18 @@ theorem divKNormBMergePost_unfold (sp : Word) (high_off low_off : BitVec 12)
        ((sp + signExtend12 low_off) ↦ₘ low)) := by
   delta divKNormBMergePost; rfl
 
+/-- 0-let named wrapper for `divK_normB_merge_spec_within`. -/
+theorem divK_normB_merge_named_spec_within (high_off low_off : BitVec 12)
+    (sp high low v5 v7 shift antiShift : Word) (base : Word) :
+    cpsTripleWithin 6 base (base + 24) (divK_normB_merge_code high_off low_off base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
+       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
+       ((sp + signExtend12 high_off) ↦ₘ high) **
+       ((sp + signExtend12 low_off) ↦ₘ low))
+      (divKNormBMergePost sp high_off low_off high low shift antiShift) :=
+  EvmAsm.Rv64.cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => by simp only [divKNormBMergePost_unfold]; exact hp)
+    (divK_normB_merge_spec_within high_off low_off sp high low v5 v7 shift antiShift base)
+
 end EvmAsm.Evm64
