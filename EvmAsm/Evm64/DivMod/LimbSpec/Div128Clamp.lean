@@ -200,4 +200,22 @@ theorem divK_div128_clamp_q0_merged_spec_within (q0 rhat2 dHi v1Old : Word) (bas
       (fun h hp => hp)
       (fun h hp => by xperm_hyp hp) full
 
+/-- Bundled postcondition for `divK_div128_clamp_q1_merged_spec_within`. -/
+@[irreducible]
+def divKDiv128ClampQ1Post (q1 rhat dHi : Word) : Assertion :=
+  let hi := q1 >>> (32 : BitVec 6).toNat
+  let q1' := if hi = 0 then q1 else q1 + signExtend12 4095
+  let rhat' := if hi = 0 then rhat else rhat + dHi
+  (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi) **
+  (.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word))
+
+theorem divKDiv128ClampQ1Post_unfold (q1 rhat dHi : Word) :
+    divKDiv128ClampQ1Post q1 rhat dHi =
+      (let hi := q1 >>> (32 : BitVec 6).toNat
+       let q1' := if hi = 0 then q1 else q1 + signExtend12 4095
+       let rhat' := if hi = 0 then rhat else rhat + dHi
+       (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi) **
+       (.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word))) := by
+  delta divKDiv128ClampQ1Post; rfl
+
 end EvmAsm.Evm64

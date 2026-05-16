@@ -145,4 +145,22 @@ theorem divK_div128_restore_return_spec_within (sp v2Old retAddr : Word) (base :
   rw [halign] at I1
   runBlock I0 I1
 
-end EvmAsm.Evm64
+/-- Bundled postcondition for `divK_div128_prodcheck2_body_spec_within`. -/
+@[irreducible]
+def divKDiv128ProdCheck2BodyPost (sp q0 rhat2 dlo un0 : Word) : Assertion :=
+  let q0Dlo := q0 * dlo
+  let rhat2_hi := rhat2 <<< (32 : BitVec 6).toNat
+  let rhat2Un0 := rhat2_hi ||| un0
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ un0) **
+  (.x7 ↦ᵣ q0Dlo) ** (.x1 ↦ᵣ rhat2Un0) **
+  (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)
+
+theorem divKDiv128ProdCheck2BodyPost_unfold (sp q0 rhat2 dlo un0 : Word) :
+    divKDiv128ProdCheck2BodyPost sp q0 rhat2 dlo un0 =
+      (let q0Dlo := q0 * dlo
+       let rhat2_hi := rhat2 <<< (32 : BitVec 6).toNat
+       let rhat2Un0 := rhat2_hi ||| un0
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ un0) **
+       (.x7 ↦ᵣ q0Dlo) ** (.x1 ↦ᵣ rhat2Un0) **
+       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
+  delta divKDiv128ProdCheck2BodyPost; rfl
