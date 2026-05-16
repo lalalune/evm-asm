@@ -970,5 +970,18 @@ theorem shr_phase_a_spec_within (sp r5 r10 : Word)
       combined
   exact result
 
+/-- Named-postcondition wrapper for `shr_last_limb_spec_within`. 0 statement lets.
+    Inlines memSrc = sp+24, memDst = sp+dst_off, result = src >>> (bit_shift % 64). -/
+theorem shr_last_limb_named_spec_within (dst_off : BitVec 12)
+    (sp src dstOld v5 bit_shift : Word) (base : Word) :
+    cpsTripleWithin 3 base (base + 12) (shr_last_limb_code dst_off base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ bit_shift) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ src) ** ((sp + signExtend12 dst_off) ↦ₘ dstOld))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ src >>> (bit_shift.toNat % 64)) ** (.x6 ↦ᵣ bit_shift) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ src) **
+       ((sp + signExtend12 dst_off) ↦ₘ src >>> (bit_shift.toNat % 64))) :=
+  cpsTripleWithin_weaken
+    (fun _ hp => hp) (fun _ hp => hp)
+    (shr_last_limb_spec_within dst_off sp src dstOld v5 bit_shift base)
 
 end EvmAsm.Evm64
