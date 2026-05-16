@@ -531,4 +531,55 @@ theorem divK_div128_step2_spec_within
     xperm_hyp hP')
   exact cpsBranchWithin_merge_same_cr hbr h_t h_f
 
+/-- Code requirement for `divK_div128_step2_upto_guard_spec_within`. -/
+abbrev divKDiv128Step2UptoGuardCode (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
+   (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6)))))))
+
+/-- Bundled postcondition for `divK_div128_step2_upto_guard_spec_within`.
+    Hides 5 computation lets (q0, rhat2, hi, q0c, rhat2c). -/
+@[irreducible]
+def divKDiv128Step2UptoGuardPost (sp un21 dHi dlo un0 : Word) : Assertion :=
+  let q0 := rv64_divu un21 dHi
+  let rhat2 := un21 - q0 * dHi
+  let hi := q0 >>> (32 : BitVec 6).toNat
+  let q0c := if hi = 0 then q0 else q0 + signExtend12 4095
+  let rhat2c := if hi = 0 then rhat2 else rhat2 + dHi
+  (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
+  (.x1 ↦ᵣ hi) ** (.x11 ↦ᵣ rhat2c) **
+  (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+  (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)
+
+theorem divKDiv128Step2UptoGuardPost_unfold (sp un21 dHi dlo un0 : Word) :
+    divKDiv128Step2UptoGuardPost sp un21 dHi dlo un0 =
+      (let q0 := rv64_divu un21 dHi
+       let rhat2 := un21 - q0 * dHi
+       let hi := q0 >>> (32 : BitVec 6).toNat
+       let q0c := if hi = 0 then q0 else q0 + signExtend12 4095
+       let rhat2c := if hi = 0 then rhat2 else rhat2 + dHi
+       (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
+       (.x1 ↦ᵣ hi) ** (.x11 ↦ᵣ rhat2c) **
+       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
+  delta divKDiv128Step2UptoGuardPost; rfl
+
+/-- Named-postcondition wrapper for `divK_div128_step2_upto_guard_spec_within`. 0 statement lets. -/
+theorem divK_div128_step2_upto_guard_named_spec_within
+    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
+    cpsTripleWithin 7 base (base + 28) (divKDiv128Step2UptoGuardCode base)
+      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
+       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
+      (divKDiv128Step2UptoGuardPost sp un21 dHi dlo un0) :=
+  cpsTripleWithin_weaken
+    (fun h hp => hp)
+    (fun h hp => by simp only [divKDiv128Step2UptoGuardPost_unfold]; exact hp)
+    (divK_div128_step2_upto_guard_spec_within sp un21 dHi v1Old v5Old v11Old dlo un0 base)
+
 end EvmAsm.Evm64
