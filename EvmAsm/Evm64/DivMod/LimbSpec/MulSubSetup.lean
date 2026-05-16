@@ -76,4 +76,22 @@ theorem divK_addback_init_spec_within (v7Old : Word) (base : Word) :
   have I0 := addi_x0_spec_gen_within .x7 v7Old 0 base (by nofun)
   runBlock I0
 
-end EvmAsm.Evm64
+/-- Bundled postcondition for `divK_mulsub_setup_spec_within`. -/
+@[irreducible]
+def divKMulsubSetupPost (sp j qHat : Word) : Assertion :=
+  let jX8 := j <<< (3 : BitVec 6).toNat
+  let uBase := sp + signExtend12 4056 - jX8
+  (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+  (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ jX8) ** (.x6 ↦ᵣ uBase) **
+  (.x10 ↦ᵣ signExtend12 (0 : BitVec 12)) ** (.x0 ↦ᵣ (0 : Word)) **
+  (sp + signExtend12 3976 ↦ₘ j)
+
+theorem divKMulsubSetupPost_unfold (sp j qHat : Word) :
+    divKMulsubSetupPost sp j qHat =
+      (let jX8 := j <<< (3 : BitVec 6).toNat
+       let uBase := sp + signExtend12 4056 - jX8
+       (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ jX8) ** (.x6 ↦ᵣ uBase) **
+       (.x10 ↦ᵣ signExtend12 (0 : BitVec 12)) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ j)) := by
+  delta divKMulsubSetupPost; rfl
