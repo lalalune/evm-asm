@@ -640,36 +640,11 @@ theorem evm_sdiv_exact_callable_return_sign_fixed_word_stack_spec_within
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
         EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
-      ((let dividendAbsWord :=
-          sdivAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
-            (dividend.getLimbN 2) (dividend.getLimbN 3)
-        let divisorAbsWord :=
-          sdivAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
-            (divisor.getLimbN 2) (divisor.getLimbN 3)
-        let quotientWord := EvmWord.div dividendAbsWord divisorAbsWord
-        let resultSign :=
-          (dividend.getLimbN 3 >>> (63 : BitVec 6).toNat) ^^^
-            (divisor.getLimbN 3 >>> (63 : BitVec 6).toNat)
-        let divisorSign := divisor.getLimbN 3 >>> (63 : BitVec 6).toNat
-        let resultWord :=
-          sdivSignFixedWord resultSign
-            (quotientWord.getLimbN 0) (quotientWord.getLimbN 1)
-            (quotientWord.getLimbN 2) (quotientWord.getLimbN 3)
-        let mask := (0 : Word) - resultSign
-        let sum0 := (quotientWord.getLimbN 0 ^^^ mask) + resultSign
-        let carry0 := if BitVec.ult sum0 resultSign then (1 : Word) else 0
-        let sum1 := (quotientWord.getLimbN 1 ^^^ mask) + carry0
-        let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
-        let sum2 := (quotientWord.getLimbN 2 ^^^ mask) + carry1
-        let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
-        let sum3 := (quotientWord.getLimbN 3 ^^^ mask) + carry2
-        let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
-        (.x18 ↦ᵣ vRa) **
-        (((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (sp + 32)) **
-          (.x8 ↦ᵣ resultSign) ** (.x10 ↦ᵣ mask) **
-          (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
-          evmWordIs (sp + 32) resultWord) **
-         saveRaDivCallBzeroSavedRaRetFrame sp base divisorSign dividendAbsWord)) **
+      (saveRaDivCallCallableReturnSignFixedWordPost vRa sp base
+        (dividend.getLimbN 0) (dividend.getLimbN 1)
+        (dividend.getLimbN 2) (dividend.getLimbN 3)
+        (divisor.getLimbN 0) (divisor.getLimbN 1)
+        (divisor.getLimbN 2) (divisor.getLimbN 3) **
        evmStackIs (sp + 64) rest) := by
   exact EvmAsm.Rv64.cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => by
       rw [saveRaDivCallCallableReturnPost_evmWordIs] at hp

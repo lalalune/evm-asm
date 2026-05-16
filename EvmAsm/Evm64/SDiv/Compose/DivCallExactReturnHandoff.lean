@@ -190,33 +190,9 @@ theorem saveRa_signs_abs_signXor_then_divCall_exact_then_return_sign_fixed_word_
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
         EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
-      (let dividendAbsWord :=
-         sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
-       let divisorAbsWord :=
-         sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
-       let quotientWord := EvmWord.div dividendAbsWord divisorAbsWord
-       let resultSign :=
-         (dividendTop >>> (63 : BitVec 6).toNat) ^^^
-           (divisorTop >>> (63 : BitVec 6).toNat)
-       let divisorSign := divisorTop >>> (63 : BitVec 6).toNat
-       let resultWord :=
-         sdivSignFixedWord resultSign
-           (quotientWord.getLimbN 0) (quotientWord.getLimbN 1)
-           (quotientWord.getLimbN 2) (quotientWord.getLimbN 3)
-       let mask := (0 : Word) - resultSign
-       let sum0 := (quotientWord.getLimbN 0 ^^^ mask) + resultSign
-       let carry0 := if BitVec.ult sum0 resultSign then (1 : Word) else 0
-       let sum1 := (quotientWord.getLimbN 1 ^^^ mask) + carry0
-       let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
-       let sum2 := (quotientWord.getLimbN 2 ^^^ mask) + carry1
-       let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
-       let sum3 := (quotientWord.getLimbN 3 ^^^ mask) + carry2
-       let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
-       (.x18 ↦ᵣ vRa) **
-       (((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (sp + 32)) ** (.x8 ↦ᵣ resultSign) **
-         (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
-         evmWordIs (sp + 32) resultWord) **
-        saveRaDivCallBzeroSavedRaRetFrame sp base divisorSign dividendAbsWord)) := by
+      (saveRaDivCallCallableReturnSignFixedWordPost vRa sp base
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop) := by
   exact EvmAsm.Rv64.cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => by
       rw [saveRaDivCallCallableReturnPost_evmWordIs] at hp
       exact hp)
