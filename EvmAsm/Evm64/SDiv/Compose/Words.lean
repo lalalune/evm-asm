@@ -295,15 +295,13 @@ theorem sdivSignFixedWord_zero_sign (word : EvmWord) :
     sdivSignFixedWord 0
       (word.getLimbN 0) (word.getLimbN 1) (word.getLimbN 2) (word.getLimbN 3) =
       word := by
-  rw [EvmWord.eq_iff_limbs]
-  intro i
-  fin_cases i
-  · simp [sdivSignFixedWord, EvmWord.getLimb_fromLimbs, EvmWord.getLimbN]
-  · simp [sdivSignFixedWord, EvmWord.getLimb_fromLimbs, EvmWord.getLimbN]
-    bv_decide
-  · simp [sdivSignFixedWord, EvmWord.getLimb_fromLimbs, EvmWord.getLimbN]
-    bv_decide
-  · simp [sdivSignFixedWord, EvmWord.getLimb_fromLimbs, EvmWord.getLimbN]
-    bv_decide
+  have hzero : (0 : Word) - (0 : Word) = 0 := by decide
+  have hxor : ∀ x : Word, x ^^^ (0 : Word) = x := fun x => by bv_decide
+  have hult0 : ∀ x : Word, BitVec.ult x (0 : Word) = false := fun x => by bv_decide
+  have hbool : ¬(false = true) := by decide
+  have hadd0 : ∀ x : Word, x + 0 = x := fun x => by bv_decide
+  unfold sdivSignFixedWord
+  simp only [hzero, hxor, hult0, if_neg hbool, hadd0]
+  exact sdivWord_from_getLimbN word
 
 end EvmAsm.Evm64.SDiv.Compose
