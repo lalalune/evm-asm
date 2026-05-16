@@ -407,7 +407,7 @@ set_option maxRecDepth 4096 in
 /-- Full add-back correction: init carry + 4 limb corrections + final u[j+4] adjust + qHat--.
     37 instructions, loop body indices [71]-[107].
     Entry: base+732, Exit: base+880, CodeReq: sharedDivModCode base. -/
-theorem divK_addback_full_spec_within
+private theorem divK_addback_full_spec_within
     (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v7_init v5_init v2_init : Word)
     (base : Word) :
@@ -551,7 +551,7 @@ theorem divK_addback_full_spec_within
     IfA0eA1eA2eA3eAFe
 
 /-- `divK_addback_full_spec_within` replayed over the DIV no-NOP code surface. -/
-theorem divK_addback_full_spec_within_noNop
+private theorem divK_addback_full_spec_within_noNop
     (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v7_init v5_init v2_init : Word)
     (base : Word) :
@@ -694,6 +694,45 @@ theorem divK_addback_full_spec_within_noNop
     (fun h hq => by xperm_hyp hq)
     IfA0eA1eA2eA3eAFe
 
+/-- Named-postcondition wrapper for `divK_addback_full_spec_within`.
+    Bundles the 22-let result into `addbackFullPost`; 0 statement lets. -/
+theorem divK_addback_full_named_spec_within
+    (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
+    (v7_init v5_init v2_init : Word)
+    (base : Word) :
+    cpsTripleWithin 37 (base + addbackInitOff) (base + addbackBeqOff) (sharedDivModCode base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ v7_init) **
+       (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5_init) ** (.x2 ↦ᵣ v2_init) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+       ((uBase + signExtend12 4064) ↦ₘ u4))
+      (addbackFullPost sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4) :=
+  cpsTripleWithin_weaken
+    (fun h hp => hp)
+    (fun h hp => by simp only [addbackFullPost_unfold]; exact hp)
+    (divK_addback_full_spec_within sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 v7_init v5_init v2_init base)
+
+/-- Named-postcondition no-NOP wrapper for `divK_addback_full_spec_within_noNop`.
+    Bundles the 22-let result into `addbackFullPost`; 0 statement lets. -/
+theorem divK_addback_full_named_spec_within_noNop
+    (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
+    (v7_init v5_init v2_init : Word)
+    (base : Word) :
+    cpsTripleWithin 37 (base + addbackInitOff) (base + addbackBeqOff) (divCode_noNop base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ v7_init) **
+       (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5_init) ** (.x2 ↦ᵣ v2_init) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+       ((uBase + signExtend12 4064) ↦ₘ u4))
+      (addbackFullPost sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4) :=
+  cpsTripleWithin_weaken
+    (fun h hp => hp)
+    (fun h hp => by simp only [addbackFullPost_unfold]; exact hp)
+    (divK_addback_full_spec_within_noNop sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 v7_init v5_init v2_init base)
 
 private theorem lb_ms_setup {base : Word} : (base + div128CallRetOff : Word) + 20 = base + mulsubOff := by bv_addr
 
