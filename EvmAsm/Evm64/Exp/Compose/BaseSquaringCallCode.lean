@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.Exp.Compose.BaseLengths
+import EvmAsm.Evm64.Exp.AddrNorm
 
 namespace EvmAsm.Evm64.Exp.Compose
 
@@ -86,7 +87,7 @@ theorem exp_squaring_call_block_code_marshal_result_to_factor2_sub {base : Word}
   exact CodeReq.ofProg_mono_sub base (base + 32)
     (EvmAsm.Evm64.exp_squaring_call_block mulOff)
     EvmAsm.Evm64.exp_loop_marshal_result_to_factor2 8
-    (by bv_omega)
+    (EvmAsm.Evm64.Exp.AddrNorm.expSquaringCallFactor2ProgramAddr base)
     (by
       unfold EvmAsm.Evm64.exp_squaring_call_block
       simp only [EvmAsm.Rv64.seq]
@@ -109,7 +110,7 @@ theorem exp_squaring_call_block_code_square_sub {base : Word}
   exact CodeReq.ofProg_mono_sub base (base + 64)
     (EvmAsm.Evm64.exp_squaring_call_block mulOff)
     (EvmAsm.Evm64.exp_square_block mulOff) 16
-    (by bv_omega)
+    (EvmAsm.Evm64.Exp.AddrNorm.expSquaringCallSquareProgramAddr base)
     (by
       unfold EvmAsm.Evm64.exp_squaring_call_block
       simp only [EvmAsm.Rv64.seq]
@@ -131,7 +132,7 @@ theorem exp_squaring_call_block_code_un_marshal_and_restore_sub {base : Word}
   exact CodeReq.ofProg_mono_sub base (base + 68)
     (EvmAsm.Evm64.exp_squaring_call_block mulOff)
     EvmAsm.Evm64.exp_loop_un_marshal_and_restore 17
-    (by bv_omega)
+    (EvmAsm.Evm64.Exp.AddrNorm.expSquaringCallRestoreProgramAddr base)
     (by
       unfold EvmAsm.Evm64.exp_squaring_call_block
       simp only [EvmAsm.Rv64.seq]
