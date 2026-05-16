@@ -822,5 +822,20 @@ theorem signext_phase_c_spec_pure_within (v5 v10 : Word) (base : Word)
       · exact ⟨_, List.Mem.tail _ (List.Mem.tail _ (List.Mem.head _)), rfl, fun h hp => by xperm_hyp hp⟩
       · exact ⟨_, List.Mem.tail _ (List.Mem.tail _ (List.Mem.tail _ (List.Mem.head _))), he3.symm, fun h hp => by xperm_hyp hp⟩)
 
+/-- Bundled postcondition for `signext_body_1_spec_within`. Hides `result` and `signFill`. -/
+@[irreducible]
+def signextBody1Post (sp shiftAmount v1 : Word) : Assertion :=
+  let result := BitVec.sshiftRight (v1 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64)
+  let signFill := BitVec.sshiftRight result 63
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shiftAmount) ** (.x10 ↦ᵣ signFill) **
+  ((sp + 40) ↦ₘ result) ** ((sp + 48) ↦ₘ signFill) ** ((sp + 56) ↦ₘ signFill)
+
+theorem signextBody1Post_unfold (sp shiftAmount v1 : Word) :
+    signextBody1Post sp shiftAmount v1 =
+      (let result := BitVec.sshiftRight (v1 <<< (shiftAmount.toNat % 64)) (shiftAmount.toNat % 64)
+       let signFill := BitVec.sshiftRight result 63
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ shiftAmount) ** (.x10 ↦ᵣ signFill) **
+       ((sp + 40) ↦ₘ result) ** ((sp + 48) ↦ₘ signFill) ** ((sp + 56) ↦ₘ signFill)) := by
+  delta signextBody1Post; rfl
 
 end EvmAsm.Evm64
