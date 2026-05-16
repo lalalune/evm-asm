@@ -97,6 +97,7 @@ theorem sdivAbsDividendWord_evmWordIs_sp_components_right
   rw [sdivAbsDividendWord_evmWordIs_sp_components]
   rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
 
+open EvmAsm.Rv64 in
 theorem sdivAbsDividendWord_evmWordIs_sp_components_sdivOffsets
     (sp limb0 limb1 limb2 top : Word) :
     evmWordIs sp (sdivAbsDividendWord limb0 limb1 limb2 top) =
@@ -155,6 +156,7 @@ theorem sdivAbsDivisorWord_evmWordIs_sp32_components_right
   rw [sdivAbsDivisorWord_evmWordIs_sp32_components]
   rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
 
+open EvmAsm.Rv64 in
 theorem sdivAbsDivisorWord_evmWordIs_sp32_components_sdivOffsets
     (sp limb0 limb1 limb2 top : Word) :
     evmWordIs (sp + 32) (sdivAbsDivisorWord limb0 limb1 limb2 top) =
