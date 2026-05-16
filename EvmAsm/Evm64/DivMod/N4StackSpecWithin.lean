@@ -28,6 +28,22 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (word_add_zero)
 
+/-- The n=4 call-skip no-`x1` postcondition is the dispatcher no-`x1`
+    postcondition under the dispatcher surface name. -/
+theorem divN4CallSkipStackPostNoX1_eq_divStackDispatchPostNoX1
+    {sp : Word} {a b : EvmWord} :
+    divN4CallSkipStackPostNoX1 sp a b = divStackDispatchPostNoX1 sp a b := by
+  rw [divN4CallSkipStackPostNoX1_unfold, divStackDispatchPostNoX1_unfold]
+
+theorem divN4CallSkipStackPostNoX1_to_divStackDispatchPostNoX1_frame
+    (sp : Word) (a b : EvmWord) {v1 : Word} :
+    ∀ h,
+      (divN4CallSkipStackPostNoX1 sp a b ** (.x1 ↦ᵣ v1)) h →
+      (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ v1)) h := by
+  intro h hp
+  rw [← divN4CallSkipStackPostNoX1_eq_divStackDispatchPostNoX1]
+  exact hp
+
 /-- Dispatcher-surface wrapper for the n=4 DIV path. Lifts
     `evm_div_n4_stack_spec` from `divN4StackPreCall` /
     `divN4CallSkipStackPost` into `divModStackDispatchPre` /
