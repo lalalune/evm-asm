@@ -199,3 +199,17 @@ theorem mod_clz_spec_within (val v6Old v7Old : Word) (base : Word) :
     (fun h hq => by xperm_hyp hq)
     IefS0eS1eS2eS3eS4eS5e
 
+
+/-- Bundled postcondition for `mod_clz_stage_combined`. Hides `val'` and `count'` lets. -/
+@[irreducible]
+private def modClzStageCombinedPost (K M_s : BitVec 6) (M_a : BitVec 12) (val count : Word) : Assertion :=
+  let val' := if val >>> K.toNat ≠ 0 then val else val <<< M_s.toNat
+  let count' := if val >>> K.toNat ≠ 0 then count else count + signExtend12 M_a
+  (.x5 ↦ᵣ val') ** (.x6 ↦ᵣ count') ** (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))
+
+private theorem modClzStageCombinedPost_unfold (K M_s : BitVec 6) (M_a : BitVec 12) (val count : Word) :
+    modClzStageCombinedPost K M_s M_a val count =
+      (let val' := if val >>> K.toNat ≠ 0 then val else val <<< M_s.toNat
+       let count' := if val >>> K.toNat ≠ 0 then count else count + signExtend12 M_a
+       (.x5 ↦ᵣ val') ** (.x6 ↦ᵣ count') ** (.x7 ↦ᵣ (val >>> K.toNat)) ** (.x0 ↦ᵣ (0 : Word))) := by
+  delta modClzStageCombinedPost; rfl
