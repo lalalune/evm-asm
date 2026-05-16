@@ -98,4 +98,21 @@ theorem divK_loop_control_spec_within (j : Word) (loop_back_off : BitVec 13)
         simp only [beq_iff_eq, h0, ↓reduceIte]))) hPR hpc
   exact cpsTripleWithin_seq_cpsBranchWithin_same_cr hbody hbge_ext
 
+/-- Bundled postcondition for `divK_addback_final_spec_within`.
+    Hides `uNew` and `qHat'` add-back intermediates. -/
+@[irreducible]
+def divKAddbackFinalPost (uBase carry qHat uTop : Word) (u_off : BitVec 12) : Assertion :=
+  let uNew := uTop + carry
+  let qHat' := qHat + signExtend12 4095
+  (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ qHat') **
+  (.x5 ↦ᵣ uNew) ** (uBase + signExtend12 u_off ↦ₘ uNew)
+
+theorem divKAddbackFinalPost_unfold (uBase carry qHat uTop : Word) (u_off : BitVec 12) :
+    divKAddbackFinalPost uBase carry qHat uTop u_off =
+      (let uNew := uTop + carry
+       let qHat' := qHat + signExtend12 4095
+       (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ carry) ** (.x11 ↦ᵣ qHat') **
+       (.x5 ↦ᵣ uNew) ** (uBase + signExtend12 u_off ↦ₘ uNew)) := by
+  delta divKAddbackFinalPost; rfl
+
 end EvmAsm.Evm64
