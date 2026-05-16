@@ -25,6 +25,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.CallSkip
+import EvmAsm.Evm64.DivMod.Spec.CallSkipUnconditional
 
 namespace EvmAsm.Evm64
 
