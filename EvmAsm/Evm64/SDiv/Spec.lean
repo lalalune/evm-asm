@@ -1043,7 +1043,7 @@ theorem evm_sdiv_exact_callable_return_result_stack_spec_within
      shiftMem nMem jMem retMem dMem dloMem scratchUn0 : Word)
     (base : Word) (hbase : base &&& 1 = 0)
     (hStack :
-      cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
+      EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
         (base + wrapperEndOff)
         ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.divCode_noNop (base + wrapperEndOff))
@@ -1066,7 +1066,7 @@ theorem evm_sdiv_exact_callable_return_result_stack_spec_within
           (sdivAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
             (divisor.getLimbN 2) (divisor.getLimbN 3)) **
           (.x1 ↦ᵣ ((base + divCallOff) + 4)))) :
-    cpsTripleWithin (((49 + (EvmAsm.Evm64.unifiedDivBound + 1)) + 21) + 1)
+    EvmAsm.Rv64.cpsTripleWithin (((49 + (EvmAsm.Evm64.unifiedDivBound + 1)) + 21) + 1)
       base (vRa &&& ~~~(1 : Word)) (sdivCode base)
       ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ vSavedOld) ** (.x12 ↦ᵣ sp) **
          (.x8 ↦ᵣ sDividendOld) ** (.x9 ↦ᵣ sDivisorOld) **
@@ -1105,7 +1105,7 @@ theorem evm_sdiv_exact_callable_return_result_stack_spec_within
          (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
          evmStackIs (sp + 32) (resultWord :: rest)) **
         saveRaDivCallBzeroSavedRaRetFrame sp base divisorSign dividendAbsWord)) := by
-  exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => by
+  exact EvmAsm.Rv64.cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => by
       rw [saveRaDivCallCallableReturnSignFixedWordPost_unfold] at hp
       dsimp only at hp ⊢
       rw [evmStackIs_cons]
