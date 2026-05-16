@@ -353,6 +353,58 @@ private theorem lb_ab2_end {base : Word} : (base + addbackLimb2Off : Word) + 32 
 private theorem lb_ab3_end {base : Word} : (base + addbackLimb3Off : Word) + 32 = base + addbackFinalOff := by bv_addr
 private theorem lb_abf_end {base : Word} : (base + addbackFinalOff : Word) + 16 = base + addbackBeqOff := by bv_addr
 
+/-- Postcondition bundle for the full addback: bundles the 22-let chain
+    so callers see a flat postcondition. -/
+@[irreducible]
+def addbackFullPost (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word) :
+    EvmAsm.Rv64.Assertion :=
+  let upc0 := u0 + (signExtend12 0 : Word)
+  let ac1_0 := if BitVec.ult upc0 (signExtend12 0 : Word) then (1 : Word) else 0
+  let aun0 := upc0 + v0; let ac2_0 := if BitVec.ult aun0 v0 then (1 : Word) else 0
+  let aco0 := ac1_0 ||| ac2_0
+  let upc1 := u1 + aco0; let ac1_1 := if BitVec.ult upc1 aco0 then (1 : Word) else 0
+  let aun1 := upc1 + v1; let ac2_1 := if BitVec.ult aun1 v1 then (1 : Word) else 0
+  let aco1 := ac1_1 ||| ac2_1
+  let upc2 := u2 + aco1; let ac1_2 := if BitVec.ult upc2 aco1 then (1 : Word) else 0
+  let aun2 := upc2 + v2; let ac2_2 := if BitVec.ult aun2 v2 then (1 : Word) else 0
+  let aco2 := ac1_2 ||| ac2_2
+  let upc3 := u3 + aco2; let ac1_3 := if BitVec.ult upc3 aco2 then (1 : Word) else 0
+  let aun3 := upc3 + v3; let ac2_3 := if BitVec.ult aun3 v3 then (1 : Word) else 0
+  let aco3 := ac1_3 ||| ac2_3
+  let aun4 := u4 + aco3; let qHat' := qHat + signExtend12 4095
+  (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ aco3) **
+  (.x11 ↦ᵣ qHat') ** (.x5 ↦ᵣ aun4) ** (.x2 ↦ᵣ aun3) ** (.x0 ↦ᵣ (0 : Word)) **
+  ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ aun0) **
+  ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ aun1) **
+  ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ aun2) **
+  ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ aun3) **
+  ((uBase + signExtend12 4064) ↦ₘ aun4)
+
+theorem addbackFullPost_unfold {sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word} :
+    addbackFullPost sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 =
+      (let upc0 := u0 + (signExtend12 0 : Word)
+       let ac1_0 := if BitVec.ult upc0 (signExtend12 0 : Word) then (1 : Word) else 0
+       let aun0 := upc0 + v0; let ac2_0 := if BitVec.ult aun0 v0 then (1 : Word) else 0
+       let aco0 := ac1_0 ||| ac2_0
+       let upc1 := u1 + aco0; let ac1_1 := if BitVec.ult upc1 aco0 then (1 : Word) else 0
+       let aun1 := upc1 + v1; let ac2_1 := if BitVec.ult aun1 v1 then (1 : Word) else 0
+       let aco1 := ac1_1 ||| ac2_1
+       let upc2 := u2 + aco1; let ac1_2 := if BitVec.ult upc2 aco1 then (1 : Word) else 0
+       let aun2 := upc2 + v2; let ac2_2 := if BitVec.ult aun2 v2 then (1 : Word) else 0
+       let aco2 := ac1_2 ||| ac2_2
+       let upc3 := u3 + aco2; let ac1_3 := if BitVec.ult upc3 aco2 then (1 : Word) else 0
+       let aun3 := upc3 + v3; let ac2_3 := if BitVec.ult aun3 v3 then (1 : Word) else 0
+       let aco3 := ac1_3 ||| ac2_3
+       let aun4 := u4 + aco3; let qHat' := qHat + signExtend12 4095
+       (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ aco3) **
+       (.x11 ↦ᵣ qHat') ** (.x5 ↦ᵣ aun4) ** (.x2 ↦ᵣ aun3) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ aun0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ aun1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ aun2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ aun3) **
+       ((uBase + signExtend12 4064) ↦ₘ aun4)) := by
+  delta addbackFullPost; rfl
+
 set_option maxRecDepth 4096 in
 /-- Full add-back correction: init carry + 4 limb corrections + final u[j+4] adjust + qHat--.
     37 instructions, loop body indices [71]-[107].
