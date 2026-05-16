@@ -124,7 +124,7 @@ theorem evm_div_callable_preserving_branch_return_x1_framed_spec_in_sdivCode
       ((EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b **
         (.x1 ↦ᵣ branch.returnX1)) ** F) := by
   exact
-    cpsTripleWithin_frameR F (by pcFree)
+    EvmAsm.Rv64.cpsTripleWithin_frameR F (by pcFree)
       (evm_div_callable_preserving_branch_return_x1_spec_in_sdivCode
         sp base a b v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
