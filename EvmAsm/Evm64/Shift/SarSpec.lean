@@ -293,4 +293,48 @@ theorem sar_last_limb_named_spec_within (dst_off : BitVec 12)
     (fun _ hp => hp) (fun _ hp => hp)
     (sar_last_limb_spec_within dst_off sp src dstOld v5 bit_shift base)
 
+/-- Bundled postcondition for `sar_body_1_spec_within`. Hides result0-2 and signExt. -/
+@[irreducible]
+def sarBody1Post (sp bit_shift antiShift mask v1 v2 v3 : Word) : Assertion :=
+  let result0 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+  let result1 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
+  let result2 := BitVec.sshiftRight v3 (bit_shift.toNat % 64)
+  let signExt := BitVec.sshiftRight result2 63
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result2) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ signExt) ** (.x11 ↦ᵣ mask) **
+  (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ signExt)
+
+theorem sarBody1Post_unfold (sp bit_shift antiShift mask v1 v2 v3 : Word) :
+    sarBody1Post sp bit_shift antiShift mask v1 v2 v3 =
+      (let result0 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+       let result1 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
+       let result2 := BitVec.sshiftRight v3 (bit_shift.toNat % 64)
+       let signExt := BitVec.sshiftRight result2 63
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result2) ** (.x6 ↦ᵣ bit_shift) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ signExt) ** (.x11 ↦ᵣ mask) **
+       (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ signExt)) := by
+  delta sarBody1Post; rfl
+
+/-- Bundled postcondition for `sar_body_0_spec_within`. Hides result0-3. -/
+@[irreducible]
+def sarBody0Post (sp bit_shift antiShift mask v0 v1 v2 v3 : Word) : Assertion :=
+  let result0 := (v0 >>> (bit_shift.toNat % 64)) ||| ((v1 <<< (antiShift.toNat % 64)) &&& mask)
+  let result1 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+  let result2 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
+  let result3 := BitVec.sshiftRight v3 (bit_shift.toNat % 64)
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result3) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v3 <<< (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+  (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)
+
+theorem sarBody0Post_unfold (sp bit_shift antiShift mask v0 v1 v2 v3 : Word) :
+    sarBody0Post sp bit_shift antiShift mask v0 v1 v2 v3 =
+      (let result0 := (v0 >>> (bit_shift.toNat % 64)) ||| ((v1 <<< (antiShift.toNat % 64)) &&& mask)
+       let result1 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+       let result2 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
+       let result3 := BitVec.sshiftRight v3 (bit_shift.toNat % 64)
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result3) ** (.x6 ↦ᵣ bit_shift) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v3 <<< (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+       (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)) := by
+  delta sarBody0Post; rfl
+
 end EvmAsm.Evm64
