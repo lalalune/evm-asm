@@ -352,4 +352,30 @@ theorem sdivSignFixedWord_result_sign
     ((dividendTop >>> 63) ^^^ (divisorTop >>> 63))
     (sdivResultSign_bool dividendTop divisorTop) word
 
+/-- Equal SDIV operand sign bits make the result sign zero. -/
+theorem sdivResultSign_zero_of_eq
+    {dividendTop divisorTop : Word}
+    (h_sign :
+      dividendTop >>> (63 : BitVec 6).toNat =
+        divisorTop >>> (63 : BitVec 6).toNat) :
+    let resultSign :=
+      (dividendTop >>> (63 : BitVec 6).toNat) ^^^
+        (divisorTop >>> (63 : BitVec 6).toNat)
+    resultSign = 0 := by
+  dsimp
+  bv_decide
+
+/-- Distinct SDIV operand sign bits make the result sign one. -/
+theorem sdivResultSign_one_of_ne
+    {dividendTop divisorTop : Word}
+    (h_sign :
+      dividendTop >>> (63 : BitVec 6).toNat ≠
+        divisorTop >>> (63 : BitVec 6).toNat) :
+    let resultSign :=
+      (dividendTop >>> (63 : BitVec 6).toNat) ^^^
+        (divisorTop >>> (63 : BitVec 6).toNat)
+    resultSign = 1 := by
+  dsimp
+  bv_decide
+
 end EvmAsm.Evm64.SDiv.Compose
