@@ -168,4 +168,46 @@ theorem divKTrialLoadVTopPost_unfold (sp n vTop : Word) :
        (sp + signExtend12 3984 ↦ₘ n) ** (vtopBase + signExtend12 32 ↦ₘ vTop)) := by
   delta divKTrialLoadVTopPost; rfl
 
+/-- 0-let named wrapper for `divK_trial_load_u_spec_within`.
+    Inlines `uAddr = sp + signExtend12 4056 - ((j+n) <<< 3)` in precondition. -/
+theorem divK_trial_load_u_named_spec_within
+    (sp j n v5Old v7Old uHi uLo : Word) (base : Word) :
+    cpsTripleWithin 7 base (base + 28)
+      (CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 3984))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.ADD .x7 .x1 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x7 .x7 3))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.ADDI .x5 .x12 4056))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.SUB .x5 .x5 .x7))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.LD .x7 .x5 0))
+       (CodeReq.singleton (base + 24) (.LD .x5 .x5 8))))))))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) **
+       (sp + signExtend12 3984 ↦ₘ n) **
+       ((sp + signExtend12 4056 - ((j + n) <<< (3 : BitVec 6).toNat)) ↦ₘ uHi) **
+       ((sp + signExtend12 4056 - ((j + n) <<< (3 : BitVec 6).toNat) + 8) ↦ₘ uLo))
+      (divKTrialLoadUPost sp j n uHi uLo) :=
+  EvmAsm.Rv64.cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => by simp only [divKTrialLoadUPost_unfold]; exact hp)
+    (divK_trial_load_u_spec_within sp j n v5Old v7Old uHi uLo base)
+
+/-- 0-let named wrapper for `divK_trial_load_vtop_spec_within`.
+    Inlines `vtopBase = sp + ((n + signExtend12 4095) <<< 3)` in precondition. -/
+theorem divK_trial_load_vtop_named_spec_within
+    (sp n v6Old v10Old vTop : Word) (base : Word) :
+    cpsTripleWithin 5 base (base + 20)
+      (CodeReq.union (CodeReq.singleton base (.LD .x6 .x12 3984))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.ADDI .x6 .x6 4095))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x6 .x6 3))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.ADD .x6 .x12 .x6))
+       (CodeReq.singleton (base + 16) (.LD .x10 .x6 32))))))
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x10 ↦ᵣ v10Old) **
+       (sp + signExtend12 3984 ↦ₘ n) **
+       ((sp + ((n + signExtend12 4095) <<< (3 : BitVec 6).toNat)) + signExtend12 32 ↦ₘ vTop))
+      (divKTrialLoadVTopPost sp n vTop) :=
+  EvmAsm.Rv64.cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => by simp only [divKTrialLoadVTopPost_unfold]; exact hp)
+    (divK_trial_load_vtop_spec_within sp n v6Old v10Old vTop base)
+
 end EvmAsm.Evm64
