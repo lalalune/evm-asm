@@ -94,7 +94,7 @@ theorem expBoundaryProgramCode_epilogue_sub {base : Word} :
   unfold expBoundaryProgramCode
   exact CodeReq.ofProg_mono_sub base (base + 24)
     expBoundaryProgram EvmAsm.Evm64.exp_epilogue 6
-    (by bv_omega)
+    (EvmAsm.Evm64.Exp.AddrNorm.expTopPointerAdvanceProgramAddr base)
     (by unfold expBoundaryProgram; simp only [EvmAsm.Rv64.seq]; rfl)
     (by
       rw [expBoundaryProgram_len, exp_epilogue_len])
