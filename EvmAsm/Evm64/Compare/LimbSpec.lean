@@ -154,5 +154,77 @@ theorem slt_msb_load_spec_within (offA offB : BitVec 12)
   have L1 := ld_spec_gen_within .x6 .x12 sp v6 b3 offB (base + 4) (by nofun)
   runBlock L0 L1
 
+/-- Code requirement for `lt_limb0_spec_within`. -/
+abbrev ltLimb0Code (offA offB : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 offA))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 offB))
+   (CodeReq.singleton (base + 8) (.SLTU .x5 .x7 .x6)))
+
+/-- Bundled postcondition for `lt_limb0_spec_within`. Hides `borrow` let. -/
+@[irreducible]
+def ltLimb0Post (sp : Word) (offA offB : BitVec 12) (aLimb bLimb : Word) : Assertion :=
+  let borrow := if BitVec.ult aLimb bLimb then (1 : Word) else 0
+  (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ aLimb) ** (.x6 ↦ᵣ bLimb) ** (.x5 ↦ᵣ borrow) **
+  ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ bLimb)
+
+theorem ltLimb0Post_unfold (sp : Word) (offA offB : BitVec 12) (aLimb bLimb : Word) :
+    ltLimb0Post sp offA offB aLimb bLimb =
+      (let borrow := if BitVec.ult aLimb bLimb then (1 : Word) else 0
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ aLimb) ** (.x6 ↦ᵣ bLimb) ** (.x5 ↦ᵣ borrow) **
+       ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ bLimb)) := by
+  delta ltLimb0Post; rfl
+
+/-- Named-postcondition wrapper for `lt_limb0_spec_within`. 0 statement lets. -/
+theorem lt_limb0_named_spec_within (offA offB : BitVec 12)
+    (sp aLimb bLimb v7 v6 v5 : Word) (base : Word) :
+    cpsTripleWithin 3 base (base + 12) (ltLimb0Code offA offB base)
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) **
+       ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ bLimb))
+      (ltLimb0Post sp offA offB aLimb bLimb) :=
+  cpsTripleWithin_weaken
+    (fun h hp => hp)
+    (fun h hp => by simp only [ltLimb0Post_unfold]; exact hp)
+    (lt_limb0_spec_within offA offB sp aLimb bLimb v7 v6 v5 base)
+
+/-- Code requirement for `lt_limb_carry_spec_within`. -/
+abbrev ltLimbCarryCode (offA offB : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 offA))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 offB))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SLTU .x11 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SUB .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.SLTU .x6 .x7 .x5))
+   (CodeReq.singleton (base + 20) (.OR .x5 .x11 .x6))))))
+
+/-- Bundled postcondition for `lt_limb_carry_spec_within`. Hides 4 computation lets. -/
+@[irreducible]
+def ltLimbCarryPost (sp : Word) (offA offB : BitVec 12) (aLimb bLimb borrowIn : Word) : Assertion :=
+  let borrow1 := if BitVec.ult aLimb bLimb then (1 : Word) else 0
+  let temp := aLimb - bLimb
+  let borrow2 := if BitVec.ult temp borrowIn then (1 : Word) else 0
+  let borrowOut := borrow1 ||| borrow2
+  (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ temp) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrowOut) ** (.x11 ↦ᵣ borrow1) **
+  ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ bLimb)
+
+theorem ltLimbCarryPost_unfold (sp : Word) (offA offB : BitVec 12) (aLimb bLimb borrowIn : Word) :
+    ltLimbCarryPost sp offA offB aLimb bLimb borrowIn =
+      (let borrow1 := if BitVec.ult aLimb bLimb then (1 : Word) else 0
+       let temp := aLimb - bLimb
+       let borrow2 := if BitVec.ult temp borrowIn then (1 : Word) else 0
+       let borrowOut := borrow1 ||| borrow2
+       (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ temp) ** (.x6 ↦ᵣ borrow2) ** (.x5 ↦ᵣ borrowOut) ** (.x11 ↦ᵣ borrow1) **
+       ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ bLimb)) := by
+  delta ltLimbCarryPost; rfl
+
+/-- Named-postcondition wrapper for `lt_limb_carry_spec_within`. 0 statement lets. -/
+theorem lt_limb_carry_named_spec_within (offA offB : BitVec 12)
+    (sp aLimb bLimb v7 v6 borrowIn v11 : Word) (base : Word) :
+    cpsTripleWithin 6 base (base + 24) (ltLimbCarryCode offA offB base)
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ borrowIn) ** (.x11 ↦ᵣ v11) **
+       ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ bLimb))
+      (ltLimbCarryPost sp offA offB aLimb bLimb borrowIn) :=
+  cpsTripleWithin_weaken
+    (fun h hp => hp)
+    (fun h hp => by simp only [ltLimbCarryPost_unfold]; exact hp)
+    (lt_limb_carry_spec_within offA offB sp aLimb bLimb v7 v6 borrowIn v11 base)
 
 end EvmAsm.Evm64
