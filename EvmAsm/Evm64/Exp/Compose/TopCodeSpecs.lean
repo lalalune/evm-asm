@@ -19,6 +19,10 @@ theorem expTopIterSquaringAddr (base : Word) :
     (base + 40 : Word) = base + 28 + 12 := by
   bv_omega
 
+theorem expTopSavedBitLoopBackNextPc (base : Word) :
+    ((base + 256 : Word) + 8) = base + 264 := by
+  bv_omega
+
 theorem expTopIterCondMulAddr (base : Word) :
     (base + 144 : Word) = base + 28 + 116 := by
   bv_omega
