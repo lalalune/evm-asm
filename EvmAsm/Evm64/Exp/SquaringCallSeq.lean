@@ -93,7 +93,8 @@ theorem exp_loop_squaring_marshal_pair_then_square_spec_within
   --     code = exp_square_block_code (base+64) mulOff.
   have hjalRaw := exp_square_block_spec_within mulOff vOld (base + 64)
   -- Normalize the link-address: (base+64) + 4 = base + 68.
-  have hb : (base + 64 : Word) + 4 = base + 68 := by bv_omega
+  have hb : (base + 64 : Word) + 4 = base + 68 := by
+    exact EvmAsm.Evm64.Exp.AddrNorm.expCallBlock_square_end_addr base
   rw [hb] at hjalRaw
   -- Frame the entire pair-post (every slot but `.x1`) on the left of the JAL.
   -- The pair-post is exactly the assertion below, in the same right-leaning shape.

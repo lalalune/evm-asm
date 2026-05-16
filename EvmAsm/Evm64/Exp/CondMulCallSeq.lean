@@ -103,7 +103,8 @@ theorem exp_loop_cond_mul_marshal_pair_then_call_spec_within
     (exp_cond_mul_call_block_code_marshal_pair_sub base mulOff) hpairFramed
   -- (2) JAL: 1 instr at base+64, exit (base+64)+signExtend21 mulOff.
   have hjalRaw := exp_square_block_spec_within mulOff vOld (base + 64)
-  have hb : (base + 64 : Word) + 4 = base + 68 := by bv_omega
+  have hb : (base + 64 : Word) + 4 = base + 68 := by
+    exact EvmAsm.Evm64.Exp.AddrNorm.expCallBlock_square_end_addr base
   rw [hb] at hjalRaw
   -- Frame the entire pair-post (every slot but `.x1`) on the left of the JAL.
   have hjalFramed :=
