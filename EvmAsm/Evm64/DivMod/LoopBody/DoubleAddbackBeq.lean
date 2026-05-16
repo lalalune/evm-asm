@@ -74,10 +74,9 @@ private theorem divK_double_addback_beq_spec_within_noNop
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     beq_taken
   -- 2. Second addback (base+732 -> base+880)
-  have AB2 := divK_addback_full_spec_within_noNop sp uBase qHat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4
+  have AB2 := divK_addback_full_named_spec_within_noNop sp uBase qHat' v0 v1 v2 v3 aun0 aun1 aun2 aun3 aun4
     (0 : Word) aun4 aun3 base
-
-  intro_lets at AB2
+  simp only [addbackFullPost_unfold] at AB2
   -- 3. BEQ at [108] not taken (carry2 != 0) -> base+884
   have haco3_nz : aco3' ≠ 0 := by
     unfold addbackN4_carry at hcarry2_nz
