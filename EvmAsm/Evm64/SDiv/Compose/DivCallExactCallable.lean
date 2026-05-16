@@ -96,6 +96,40 @@ theorem evm_div_callable_preserving_branch_return_x1_spec_in_sdivCode
     q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 hStack
 
+/-- Framed variant of
+    `evm_div_callable_preserving_branch_return_x1_spec_in_sdivCode`. -/
+theorem evm_div_callable_preserving_branch_return_x1_framed_spec_in_sdivCode
+    {F : EvmAsm.Rv64.Assertion} [EvmAsm.Rv64.Assertion.PCFree F]
+    (sp base : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (branch : EvmAsm.Evm64.DivStackSpecCase (base + wrapperEndOff) a b)
+    (hStack :
+      EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
+        (base + wrapperEndOff)
+        ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
+        (EvmAsm.Evm64.divCode_noNop (base + wrapperEndOff))
+        (EvmAsm.Evm64.divModStackDispatchPre sp a b
+          branch.returnX1 branch.x2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b **
+          (.x1 ↦ᵣ branch.returnX1))) :
+    EvmAsm.Rv64.cpsTripleWithin (EvmAsm.Evm64.unifiedDivBound + 1)
+      (base + wrapperEndOff) (branch.returnX1 &&& ~~~1) (sdivCode base)
+      (EvmAsm.Evm64.divModStackDispatchPre sp a b
+        branch.returnX1 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** F)
+      ((EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b **
+        (.x1 ↦ᵣ branch.returnX1)) ** F) := by
+  exact
+    EvmAsm.Rv64.cpsTripleWithin_frameR F (by pcFree)
+      (evm_div_callable_preserving_branch_return_x1_spec_in_sdivCode
+        sp base a b v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack)
+
 /-- Frame the exact-pre preserving-`x1` unsigned-DIV callable wrapper by an
     arbitrary PC-free assertion. This is the shape needed once SDIV has a
     no-NOP proof for the exact dispatch-ready post, including the private sign
