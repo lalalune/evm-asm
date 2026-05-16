@@ -462,6 +462,13 @@ theorem expCallBlock_square_end_addr (base : Word) :
     (base + 4 : Word) = base + BitVec.ofNat 64 (4 * 1) := by
   bv_decide
 
+@[exp_addr, grind =] theorem expSingleInstrNextPc (base : Word) :
+    ((base + 4 : Word) + 4) = base + 8 := by
+  bv_decide
+
+theorem expBase_ne_add4 (base : Word) : base ≠ base + 4 := by
+  bv_omega
+
 @[exp_addr, grind =] theorem expSquaringCallFactor2ProgramAddr (base : Word) :
     (base + 32 : Word) = base + BitVec.ofNat 64 (4 * 8) := by
   bv_decide

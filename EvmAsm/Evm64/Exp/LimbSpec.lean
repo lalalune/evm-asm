@@ -12,6 +12,7 @@
 
 import EvmAsm.Evm64.Stack
 import EvmAsm.Evm64.Exp.Program
+import EvmAsm.Evm64.Exp.AddrNorm
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.RunBlock
@@ -185,7 +186,8 @@ theorem exp_cond_mul_block_spec_within
   have hjal_framed := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v10 ≠ (0 : Word)⌝)
     (by pcFree) hjal_raw
-  have hb4 : (base + 4 : Word) + 4 = base + 8 := by bv_omega
+  have hb4 : (base + 4 : Word) + 4 = base + 8 :=
+    EvmAsm.Evm64.Exp.AddrNorm.expSingleInstrNextPc base
   rw [hb4] at hjal_framed
   have hjal_ext : cpsTripleWithin 1 (base + 4)
       ((base + 4) + signExtend21 mulOff)
@@ -252,11 +254,12 @@ theorem exp_loop_back_spec_within (c : Word) (backOff : BitVec 13)
         (ADDI .x9 .x9 (-1) ;; single (.BNE .x9 .x0 backOff)) = _
     show CodeReq.ofProg base [.ADDI .x9 .x9 (-1), .BNE .x9 .x0 backOff] = _
     exact CodeReq.ofProg_pair]
-  have ha1 : (base + 4 : Word) + 4 = base + 8 := by bv_omega
+  have ha1 : (base + 4 : Word) + 4 = base + 8 :=
+    EvmAsm.Evm64.Exp.AddrNorm.expSingleInstrNextPc base
   have hd : CodeReq.Disjoint
       (CodeReq.singleton base (.ADDI .x9 .x9 (-1)))
       (CodeReq.singleton (base + 4) (.BNE .x9 .x0 backOff)) :=
-    CodeReq.Disjoint.singleton (by bv_omega)
+    CodeReq.Disjoint.singleton (EvmAsm.Evm64.Exp.AddrNorm.expBase_ne_add4 base)
   -- Step 1: ADDI x9 x9 -1 — frame x0 across.
   have s1_raw := addi_spec_gen_same_within .x9 c (-1) base (by nofun)
   have s1 : cpsTripleWithin 1 base (base + 4)
