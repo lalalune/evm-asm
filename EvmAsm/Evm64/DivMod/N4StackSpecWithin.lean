@@ -84,6 +84,44 @@ theorem evm_div_n4_stack_spec_within_dispatch (sp base : Word)
       exact hq)
     hN4
 
+/-- Exact-`x1` dispatcher-surface wrapper for the n=4 DIV path. Lifts
+    `evm_div_n4_stack_spec_exact_x1` into the generic no-`x1` dispatcher
+    postcondition while preserving the concrete return marker atom. -/
+theorem evm_div_n4_stack_spec_within_dispatch_exact_x1 (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : isCallTrialN4Evm a b)
+    (hcarry2_nz_addback :
+      isAddbackBorrowN4CallEvm a b → isAddbackCarry2NzN4CallEvm a b)
+    (hsem_addback :
+      isAddbackBorrowN4CallEvm a b → n4CallAddbackBeqSemanticHolds a b) :
+    cpsTripleWithin 340 base (base + nopOff) (divCode base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult (b.getLimbN 3)).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPostNoX1 sp a b **
+        (.x1 ↦ᵣ signExtend12 (4095 : BitVec 12))) := by
+  have hN4 := evm_div_n4_stack_spec_exact_x1 sp base a b
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz halign hbltu hcarry2_nz_addback hsem_addback
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      delta divModStackDispatchPre at hp
+      rw [divN4StackPreCall_unfold]
+      xperm_hyp hp)
+    (fun _ hq => by
+      exact divN4CallSkipStackPostNoX1_to_divStackDispatchPostNoX1_frame
+        sp a b _ hq)
+    hN4
+
 /-- No-NOP dispatcher-surface wrapper for the n=4 DIV path. -/
 theorem evm_div_n4_stack_spec_within_dispatch_noNop (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
