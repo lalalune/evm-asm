@@ -148,6 +148,24 @@ theorem divStackDispatchPostNoX1_weaken_frame
       retMem dMem dloMem scratch_un0
   exact hpLeft
 
+theorem divStackDispatchPostNoX1_weaken
+    (sp : Word) (a b : EvmWord)
+    {v1 v2 v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
+    ∀ h,
+      ((.x12 ↦ᵣ (sp + 32)) **
+       (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+       divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0) h →
+      (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ v1)) h := by
+  intro h hp
+  exact divStackDispatchPostNoX1_weaken_frame (sp := sp) (a := a) (b := b) h
+    (by xperm_hyp hp)
+
 /-- Final MOD stack-dispatch postcondition. -/
 @[irreducible]
 def modStackDispatchPost (sp : Word) (a b : EvmWord) : Assertion :=
