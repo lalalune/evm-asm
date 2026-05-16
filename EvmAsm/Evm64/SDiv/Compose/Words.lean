@@ -289,4 +289,21 @@ def sdivSignFixedWord
     match i with
     | 0 => sum0 | 1 => sum1 | 2 => sum2 | 3 => sum3
 
+/-- If the SDIV result sign is zero, result-sign fixup leaves the quotient
+    word unchanged. -/
+theorem sdivSignFixedWord_zero_sign (word : EvmWord) :
+    sdivSignFixedWord 0
+      (word.getLimbN 0) (word.getLimbN 1) (word.getLimbN 2) (word.getLimbN 3) =
+      word := by
+  rw [EvmWord.eq_iff_limbs]
+  intro i
+  fin_cases i
+  · simp [sdivSignFixedWord, EvmWord.getLimb_fromLimbs, EvmWord.getLimbN]
+  · simp [sdivSignFixedWord, EvmWord.getLimb_fromLimbs, EvmWord.getLimbN]
+    bv_decide
+  · simp [sdivSignFixedWord, EvmWord.getLimb_fromLimbs, EvmWord.getLimbN]
+    bv_decide
+  · simp [sdivSignFixedWord, EvmWord.getLimb_fromLimbs, EvmWord.getLimbN]
+    bv_decide
+
 end EvmAsm.Evm64.SDiv.Compose
