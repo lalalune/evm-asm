@@ -417,4 +417,42 @@ theorem shlBody0Post_unfold (sp bit_shift antiShift mask v0 v1 v2 v3 : Word) :
        (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)) := by
   delta shlBody0Post; rfl
 
+/-- Bundled postcondition for `shl_body_2_spec_within`. -/
+@[irreducible]
+def shlBody2Post (sp bit_shift antiShift mask v0 v1 : Word) : Assertion :=
+  let result3 := (v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (antiShift.toNat % 64)) &&& mask)
+  let result2 := v0 <<< (bit_shift.toNat % 64)
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result2) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v0 >>> (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+  (sp ↦ₘ 0) ** ((sp + 8) ↦ₘ 0) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)
+
+theorem shlBody2Post_unfold (sp bit_shift antiShift mask v0 v1 : Word) :
+    shlBody2Post sp bit_shift antiShift mask v0 v1 =
+      (let result3 := (v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (antiShift.toNat % 64)) &&& mask)
+       let result2 := v0 <<< (bit_shift.toNat % 64)
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result2) ** (.x6 ↦ᵣ bit_shift) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v0 >>> (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+       (sp ↦ₘ 0) ** ((sp + 8) ↦ₘ 0) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)) := by
+  delta shlBody2Post; rfl
+
+/-- Bundled postcondition for `shl_body_1_spec_within`. -/
+@[irreducible]
+def shlBody1Post (sp bit_shift antiShift mask v0 v1 v2 : Word) : Assertion :=
+  let result3 := (v2 <<< (bit_shift.toNat % 64)) ||| ((v1 >>> (antiShift.toNat % 64)) &&& mask)
+  let result2 := (v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (antiShift.toNat % 64)) &&& mask)
+  let result1 := v0 <<< (bit_shift.toNat % 64)
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result1) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v0 >>> (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+  (sp ↦ₘ 0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)
+
+theorem shlBody1Post_unfold (sp bit_shift antiShift mask v0 v1 v2 : Word) :
+    shlBody1Post sp bit_shift antiShift mask v0 v1 v2 =
+      (let result3 := (v2 <<< (bit_shift.toNat % 64)) ||| ((v1 >>> (antiShift.toNat % 64)) &&& mask)
+       let result2 := (v1 <<< (bit_shift.toNat % 64)) ||| ((v0 >>> (antiShift.toNat % 64)) &&& mask)
+       let result1 := v0 <<< (bit_shift.toNat % 64)
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result1) ** (.x6 ↦ᵣ bit_shift) **
+       (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v0 >>> (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+       (sp ↦ₘ 0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)) := by
+  delta shlBody1Post; rfl
+
 end EvmAsm.Evm64
