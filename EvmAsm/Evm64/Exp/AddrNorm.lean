@@ -358,6 +358,18 @@ attribute [exp_addr]
     (base + 268 : Word) = base + BitVec.ofNat 64 (4 * 67) := by
   bv_decide
 
+@[exp_addr, grind =] theorem expSquaringCallFactor2ProgramAddr (base : Word) :
+    (base + 32 : Word) = base + BitVec.ofNat 64 (4 * 8) := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expSquaringCallSquareProgramAddr (base : Word) :
+    (base + 64 : Word) = base + BitVec.ofNat 64 (4 * 16) := by
+  bv_decide
+
+@[exp_addr, grind =] theorem expSquaringCallRestoreProgramAddr (base : Word) :
+    (base + 68 : Word) = base + BitVec.ofNat 64 (4 * 17) := by
+  bv_decide
+
 @[exp_addr, grind =] theorem expBaseAdd40Aligned
     (base : Word) (hbase : base &&& 1 = 0) :
     (base + 40 : Word) &&& 1 = 0 := by bv_decide
