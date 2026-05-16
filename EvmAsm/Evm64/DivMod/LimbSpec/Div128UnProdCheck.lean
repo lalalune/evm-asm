@@ -153,4 +153,34 @@ theorem divKDiv128ProdCheckBodyPost_unfold (sp q rhat un1 dlo : Word) :
        (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by
   delta divKDiv128ProdCheckBodyPost; rfl
 
+/-- Bundled postcondition for `divK_div128_correct_q1_spec_within`.
+    Hides `q'` and `rhat'` correction intermediates (x10/x7 pair). -/
+@[irreducible]
+def divKDiv128CorrectQ1Post (q rhat dHi : Word) : Assertion :=
+  let q' := q + signExtend12 4095
+  let rhat' := rhat + dHi
+  (.x10 ↦ᵣ q') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi)
+
+theorem divKDiv128CorrectQ1Post_unfold (q rhat dHi : Word) :
+    divKDiv128CorrectQ1Post q rhat dHi =
+      (let q' := q + signExtend12 4095
+       let rhat' := rhat + dHi
+       (.x10 ↦ᵣ q') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi)) := by
+  delta divKDiv128CorrectQ1Post; rfl
+
+/-- Bundled postcondition for `divK_div128_correct_q0_spec_within`.
+    Hides `q0'` and `rhat2'` correction intermediates (x5/x11 pair). -/
+@[irreducible]
+def divKDiv128CorrectQ0Post (q0 rhat2 dHi : Word) : Assertion :=
+  let q0' := q0 + signExtend12 4095
+  let rhat2' := rhat2 + dHi
+  (.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ dHi)
+
+theorem divKDiv128CorrectQ0Post_unfold (q0 rhat2 dHi : Word) :
+    divKDiv128CorrectQ0Post q0 rhat2 dHi =
+      (let q0' := q0 + signExtend12 4095
+       let rhat2' := rhat2 + dHi
+       (.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ dHi)) := by
+  delta divKDiv128CorrectQ0Post; rfl
+
 end EvmAsm.Evm64
