@@ -324,4 +324,17 @@ theorem sdivSignFixedWord_one_sign (word : EvmWord) :
   unfold sdivSignFixedWord EvmWord.fromLimbs EvmWord.getLimbN EvmWord.getLimb
   bv_decide
 
+/-- Boolean result signs reduce result-sign fixup to either the original
+    quotient word or its explicit two's-complement negation. -/
+theorem sdivSignFixedWord_bool_sign
+    (sign : Word) (h_sign : sign = 0 ∨ sign = 1) (word : EvmWord) :
+    sdivSignFixedWord sign
+      (word.getLimbN 0) (word.getLimbN 1) (word.getLimbN 2) (word.getLimbN 3) =
+      if sign = 0 then word else ~~~word + 1 := by
+  obtain h_zero | h_one := h_sign
+  · rw [h_zero, sdivSignFixedWord_zero_sign]
+    simp
+  · rw [h_one, sdivSignFixedWord_one_sign]
+    simp
+
 end EvmAsm.Evm64.SDiv.Compose
