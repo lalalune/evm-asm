@@ -900,6 +900,83 @@ theorem mul_col0_named_spec_within (sp base : Word)
     (fun h hp => by simp only [mulCol0Post_unfold]; exact hp)
     (mul_col0_spec_within sp base a0 a1 a2 a3 b0 v5 v6 v7 v10 v11)
 
+/-- Bundled postcondition for `evm_mul_cols01_spec_within`. Hides 24 computation lets. -/
+@[irreducible]
+def mulCols01Post (sp a0 a1 a2 a3 b0 b1 : Word) : Assertion :=
+  let c0_r0 := a0 * b0
+  let c0_hi_a0b0 := rv64_mulhu a0 b0
+  let c0_lo_a1b0 := a1 * b0
+  let c0_hi_a1b0 := rv64_mulhu a1 b0
+  let c0_r1 := c0_hi_a0b0 + c0_lo_a1b0
+  let c0_c1 := if BitVec.ult c0_r1 c0_lo_a1b0 then (1 : Word) else 0
+  let c0_lo_a2b0 := a2 * b0
+  let c0_hi_a2b0 := rv64_mulhu a2 b0
+  let c0_r2 := c0_hi_a1b0 + c0_c1 + c0_lo_a2b0
+  let c0_c2 := if BitVec.ult c0_r2 c0_lo_a2b0 then (1 : Word) else 0
+  let c0_r3p := c0_hi_a2b0 + c0_c2 + a3 * b0
+  let c1_lo := a0 * b1
+  let c1_hi := rv64_mulhu a0 b1
+  let c1_r1 := c0_r1 + c1_lo
+  let c1_c1 := if BitVec.ult c1_r1 c1_lo then (1 : Word) else 0
+  let c1_rc := c1_hi + c1_c1
+  let c1_r2a := c0_r2 + c1_rc
+  let c1_cr1 := if BitVec.ult c1_r2a c1_rc then (1 : Word) else 0
+  let c1_lo2 := a1 * b1
+  let c1_hi2 := rv64_mulhu a1 b1
+  let c1_r2 := c1_r2a + c1_lo2
+  let c1_cr2 := if BitVec.ult c1_r2 c1_lo2 then (1 : Word) else 0
+  let c1_rc2 := c1_hi2 + c1_cr2
+  let c1_r3p := c1_cr1 + c1_rc2 + a2 * b1 + c0_r3p
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b1) ** (.x6 ↦ᵣ c0_r3p) ** (.x7 ↦ᵣ c1_cr2) **
+  (.x10 ↦ᵣ c1_r3p) ** (.x11 ↦ᵣ c1_r2) **
+  (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ c1_r3p) **
+  ((sp + 24) ↦ₘ c0_r3p) ** ((sp + 32) ↦ₘ c0_r0) ** ((sp + 40) ↦ₘ c1_r1)
+
+theorem mulCols01Post_unfold (sp a0 a1 a2 a3 b0 b1 : Word) :
+    mulCols01Post sp a0 a1 a2 a3 b0 b1 =
+      (let c0_r0 := a0 * b0
+       let c0_hi_a0b0 := rv64_mulhu a0 b0
+       let c0_lo_a1b0 := a1 * b0
+       let c0_hi_a1b0 := rv64_mulhu a1 b0
+       let c0_r1 := c0_hi_a0b0 + c0_lo_a1b0
+       let c0_c1 := if BitVec.ult c0_r1 c0_lo_a1b0 then (1 : Word) else 0
+       let c0_lo_a2b0 := a2 * b0
+       let c0_hi_a2b0 := rv64_mulhu a2 b0
+       let c0_r2 := c0_hi_a1b0 + c0_c1 + c0_lo_a2b0
+       let c0_c2 := if BitVec.ult c0_r2 c0_lo_a2b0 then (1 : Word) else 0
+       let c0_r3p := c0_hi_a2b0 + c0_c2 + a3 * b0
+       let c1_lo := a0 * b1
+       let c1_hi := rv64_mulhu a0 b1
+       let c1_r1 := c0_r1 + c1_lo
+       let c1_c1 := if BitVec.ult c1_r1 c1_lo then (1 : Word) else 0
+       let c1_rc := c1_hi + c1_c1
+       let c1_r2a := c0_r2 + c1_rc
+       let c1_cr1 := if BitVec.ult c1_r2a c1_rc then (1 : Word) else 0
+       let c1_lo2 := a1 * b1
+       let c1_hi2 := rv64_mulhu a1 b1
+       let c1_r2 := c1_r2a + c1_lo2
+       let c1_cr2 := if BitVec.ult c1_r2 c1_lo2 then (1 : Word) else 0
+       let c1_rc2 := c1_hi2 + c1_cr2
+       let c1_r3p := c1_cr1 + c1_rc2 + a2 * b1 + c0_r3p
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b1) ** (.x6 ↦ᵣ c0_r3p) ** (.x7 ↦ᵣ c1_cr2) **
+       (.x10 ↦ᵣ c1_r3p) ** (.x11 ↦ᵣ c1_r2) **
+       (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ c1_r3p) **
+       ((sp + 24) ↦ₘ c0_r3p) ** ((sp + 32) ↦ₘ c0_r0) ** ((sp + 40) ↦ₘ c1_r1)) := by
+  delta mulCols01Post; rfl
+
+/-- Named-postcondition wrapper for `evm_mul_cols01_spec_within`. 0 statement lets. -/
+theorem evm_mul_cols01_named_spec_within (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 : Word) (v5 v6 v7 v10 v11 : Word) :
+    cpsTripleWithin 44 base (base + 176) (evm_mul_code01 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
+       (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) **
+       ((sp + 24) ↦ₘ a3) ** ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1))
+      (mulCols01Post sp a0 a1 a2 a3 b0 b1) :=
+  cpsTripleWithin_weaken
+    (fun h hp => hp)
+    (fun h hp => by simp only [mulCols01Post_unfold]; exact hp)
+    (evm_mul_cols01_spec_within sp base a0 a1 a2 a3 b0 b1 v5 v6 v7 v10 v11)
 /-- Bundled postcondition for `mul_col1_spec_within`. Hides 13 computation lets. -/
 @[irreducible]
 def mulCol1Post (sp a0 a1 a2 b1 r1_in r2_in r3p0 : Word) : Assertion :=
