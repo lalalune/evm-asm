@@ -165,6 +165,24 @@ theorem divKDiv128ProdCheck2BodyPost_unfold (sp q0 rhat2 dlo un0 : Word) :
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
   delta divKDiv128ProdCheck2BodyPost; rfl
 
+/-- 0-let named wrapper for `divK_div128_prodcheck2_body_spec_within`. -/
+theorem divK_div128_prodcheck2_body_named_spec_within
+    (sp q0 rhat2 v1Old v7Old dlo un0 : Word) (base : Word) :
+    cpsTripleWithin 5 base (base + 20)
+      (CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x7 .x5 .x1))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x1 .x11 32))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x11 .x12 3944))
+       (CodeReq.singleton (base + 16) (.OR .x1 .x1 .x11))))))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) **
+       (.x7 ↦ᵣ v7Old) ** (.x1 ↦ᵣ v1Old) **
+       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
+      (divKDiv128ProdCheck2BodyPost sp q0 rhat2 dlo un0) :=
+  EvmAsm.Rv64.cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => by simp only [divKDiv128ProdCheck2BodyPost_unfold]; exact hp)
+    (divK_div128_prodcheck2_body_spec_within sp q0 rhat2 v1Old v7Old dlo un0 base)
+
 /-- Bundled postcondition for `divK_div128_step2_init_spec_within`.
     Hides `q0` and `rhat2` DIVU/MUL/SUB step-2-init intermediates. -/
 @[irreducible]
