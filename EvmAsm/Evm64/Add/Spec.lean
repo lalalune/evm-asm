@@ -188,4 +188,74 @@ theorem evm_add_named_spec_within (sp base : Word)
     (fun h hp => by simp only [evmAddLimbPost_unfold]; exact hp)
     (evm_add_spec_within sp base a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 v5 v11)
 
+/-- Bundled postcondition for `evm_add_stack_spec_within` (EvmWord level).
+    Hides all 22 limb-extraction and carry-chain lets. -/
+@[irreducible]
+def evmAddStackPost (sp : Word) (a b : EvmWord) : Assertion :=
+  let a0 := a.getLimbN 0; let b0 := b.getLimbN 0
+  let a1 := a.getLimbN 1; let b1 := b.getLimbN 1
+  let a2 := a.getLimbN 2; let b2 := b.getLimbN 2
+  let a3 := a.getLimbN 3; let b3 := b.getLimbN 3
+  let sum0 := a0 + b0
+  let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+  let psum1 := a1 + b1
+  let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+  let result1 := psum1 + carry0
+  let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+  let carry1 := carry1a ||| carry1b
+  let psum2 := a2 + b2
+  let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+  let result2 := psum2 + carry1
+  let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+  let carry2 := carry2a ||| carry2b
+  let psum3 := a3 + b3
+  let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+  let result3 := psum3 + carry2
+  let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+  let carry3 := carry3a ||| carry3b
+  (.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ result3) ** (.x6 ↦ᵣ carry3b) **
+  (.x5 ↦ᵣ carry3) ** (.x11 ↦ᵣ carry3a) **
+  evmWordIs sp a ** evmWordIs (sp + 32) (a + b)
+
+theorem evmAddStackPost_unfold (sp : Word) (a b : EvmWord) :
+    evmAddStackPost sp a b =
+      (let a0 := a.getLimbN 0; let b0 := b.getLimbN 0
+       let a1 := a.getLimbN 1; let b1 := b.getLimbN 1
+       let a2 := a.getLimbN 2; let b2 := b.getLimbN 2
+       let a3 := a.getLimbN 3; let b3 := b.getLimbN 3
+       let sum0 := a0 + b0
+       let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+       let psum1 := a1 + b1
+       let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+       let result1 := psum1 + carry0
+       let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+       let carry1 := carry1a ||| carry1b
+       let psum2 := a2 + b2
+       let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+       let result2 := psum2 + carry1
+       let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+       let carry2 := carry2a ||| carry2b
+       let psum3 := a3 + b3
+       let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+       let result3 := psum3 + carry2
+       let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+       let carry3 := carry3a ||| carry3b
+       (.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ result3) ** (.x6 ↦ᵣ carry3b) **
+       (.x5 ↦ᵣ carry3) ** (.x11 ↦ᵣ carry3a) **
+       evmWordIs sp a ** evmWordIs (sp + 32) (a + b)) := by
+  delta evmAddStackPost; rfl
+
+/-- Named-postcondition wrapper for `evm_add_stack_spec_within`.
+    0 statement-level lets; postcondition is opaque `evmAddStackPost`. -/
+theorem evm_add_stack_named_spec_within (sp base : Word)
+    (a b : EvmWord) (v7 v6 v5 v11 : Word) :
+    cpsTripleWithin 30 base (base + 120) (evm_add_code base)
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b)
+      (evmAddStackPost sp a b) :=
+  cpsTripleWithin_weaken
+    (fun h hp => hp)
+    (fun h hp => by simp only [evmAddStackPost_unfold]; exact hp)
+    (evm_add_stack_spec_within sp base a b v7 v6 v5 v11)
+
 end EvmAsm.Evm64
