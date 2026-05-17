@@ -1466,6 +1466,15 @@ theorem sepConj_extract_pure_end3 {A B C : Assertion} {P : Prop} :
     obtain ⟨_, _, _, _, _, h3⟩ := h2
     exact ((sepConj_pure_right _).1 h3).2
 
+/-- Choose a concrete value from `memOwn` in a leading `memOwn ** B` chain.
+    This is the key building block for the `loopPost → iterPre` bridge:
+    each `memOwn a` atom embeds an existential `∃ v, memIs a v`, so peeling
+    it yields a concrete `memIs a v` together with the rest of the chain. -/
+theorem sepConj_choose_memOwn {a : Word} {B : Assertion} {ps : PartialState}
+    (h : (memOwn a ** B) ps) : ∃ v, (memIs a v ** B) ps := by
+  obtain ⟨ps1, ps2, hd, hu, ⟨v, hv⟩, hB⟩ := h
+  exact ⟨v, ps1, ps2, hd, hu, hv, hB⟩
+
 /-- Push the outer atom of a 4-chain left-associated `(3-chain) ** D`
     into the right-associated 4-chain — the inverse of the tree shape
     `cpsBranch_frameR` produces when framing a 3-atom pre with a
