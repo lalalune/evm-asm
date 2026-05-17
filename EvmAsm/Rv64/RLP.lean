@@ -8,7 +8,7 @@
     Phase 1 — Prefix classifier  (5-way cascade on the first byte)
     Phase 2 — Length extraction  (planned)
     Phase 3 — Single-item decode (in progress: single-byte exit landed)
-    Phase 4 — HINT_READ pipeline (planned)
+    Phase 4 — read_input pipeline (in progress: length wrapper landed)
     Phase 5 — Recursive list decode with explicit stack (planned)
     Phase 6 — Top-level pipeline (planned)
 -/
@@ -27,8 +27,6 @@ import EvmAsm.Rv64.RLP.Phase3LongString
 import EvmAsm.Rv64.RLP.Phase3ShortList
 import EvmAsm.Rv64.RLP.Phase3ShortString
 import EvmAsm.Rv64.RLP.Phase3SingleByte
-import EvmAsm.Rv64.RLP.Phase4HintRead
-import EvmAsm.Rv64.RLP.Phase4HintReadLoop
 import EvmAsm.Rv64.RLP.Phase4HintLen
 import EvmAsm.Rv64.RLP.Phase1Disjoint
 import EvmAsm.Rv64.RLP.Phase1CascadePrefixE2
