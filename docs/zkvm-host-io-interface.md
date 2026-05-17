@@ -56,11 +56,15 @@ The two surfaces are not interchangeable:
   concatenated to form the public output. It does not framepack
   word-pair commits the way SP1's `COMMIT` does.
 
-The verified RISC-V code today still implements the SP1-shaped surface;
-the Lean specs in `EvmAsm/Rv64/HintSpecs.lean`,
-`EvmAsm/Rv64/RLP/Phase4HintLen.lean`, and `EvmAsm/Rv64/RLP/Phase4HintRead.lean`
-encode the streaming hint contract. Migration to the zkvm-standards C
-ABI is tracked under parent bead `evm-asm-96ysd`.
+The SP1-shaped streaming surface (`HINT_LEN`/`HINT_READ`/`COMMIT`) has
+been retired from the Lean code (PR #4618, bead `evm-asm-x2vuw`):
+`EvmAsm/Rv64/HintSpecs.lean` now exposes only the `read_input` spec
+(t0=0xF2, ptr+len-out semantics); `Phase4HintRead.lean` is deleted;
+`Phase4HintLen.lean` retains only the deprecation note. The current
+`EvmAsm/Rv64/Execution.lean` dispatches `read_input` (0xF2) and
+`write_output` (0xF2-family). Any remaining references to the old
+handlers in non-Lean files (docs, PLAN.md comments) are historical notes
+about the migration and do not affect the verified surface.
 
 ## Mapping: current SP1 ECALL handlers ↔ zkvm-standards C ABI
 
@@ -94,12 +98,12 @@ shape changes are:
    reuse `privateInput` plus a new immutable `inputBufBase : Word`
    field carrying the guest-visible base address. Refinement to a
    dedicated read-only memory region is deferred.
-2. **ECALL handlers.** Replace the `HINT_LEN`/`HINT_READ` cases of
-   `step` with a single `read_input` handler (ptr+len-out semantics).
-   Reshape `COMMIT` (and/or `WRITE fd=13`) into a `write_output`
-   handler. The `0x10` branch now has the `write_output(ptr, size)`
-   shape; `WRITE fd=13` remains as a compatibility spelling. Keep SP1 syscall IDs as the dispatch numbers for now;
-   document that the IDs are handler-side, not ABI.
+2. **ECALL handlers.** ✅ **Done (PR #4618).** `HINT_LEN`/`HINT_READ`
+   cases removed from `step`; a `read_input` handler (t0=0xF2,
+   ptr+len-out semantics) is now the sole input entry point. `COMMIT`
+   and `WRITE fd=13` retain their shapes as `write_output`-compatible
+   concatenating outputs. SP1 syscall IDs remain the dispatch numbers;
+   documented as handler-side in §Mapping above.
 3. **RLP wrappers.** Rewrite `Phase4HintLen.lean` and `Phase4HintRead.lean`
    to consume the `read_input` ptr+len once and index into the buffer,
    then re-prove the affected Hoare triples.

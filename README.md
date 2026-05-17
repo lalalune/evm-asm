@@ -142,7 +142,7 @@ EvmAsm/
     ControlFlow.lean          --   if_eq macro, symbolic proofs, pcIndep
     GenericSpecs.lean         --   Generic specs parameterized over instructions
     InstructionSpecs.lean     --   Per-instruction CPS specs
-    SyscallSpecs.lean         --   Syscall specs: HALT, WRITE, HINT_READ
+    SyscallSpecs.lean         --   Syscall specs: HALT, WRITE, read_input
     Tactics/
       PerfTrace.lean          --   Performance tracing infrastructure
       XPerm.lean              --   xperm tactic: AC-permutation of sepConj chains
