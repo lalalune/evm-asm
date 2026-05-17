@@ -15,21 +15,6 @@ open LogArgs
 def mkArgs (offset size : EvmWord) (topics : List EvmWord) : Args :=
   { data := { offset := offset, size := size }, topics := topics }
 
-theorem mkArgs_dataRange (offset size : EvmWord) (topics : List EvmWord) :
-    dataRange (mkArgs offset size topics) = { offset := offset, size := size } := rfl
-
-theorem mkArgs_data_offset (offset size : EvmWord) (topics : List EvmWord) :
-    (dataRange (mkArgs offset size topics)).offset = offset := rfl
-
-theorem mkArgs_data_size (offset size : EvmWord) (topics : List EvmWord) :
-    (dataRange (mkArgs offset size topics)).size = size := rfl
-
-theorem mkArgs_topics (offset size : EvmWord) (topics : List EvmWord) :
-    (mkArgs offset size topics).topics = topics := rfl
-
-theorem mkArgs_topics_length (offset size : EvmWord) (topics : List EvmWord) :
-    (mkArgs offset size topics).topics.length = topics.length := rfl
-
 /--
 Decode LOG-family stack arguments from the top-of-stack list order:
 `offset, size, topic0, topic1, ...`.

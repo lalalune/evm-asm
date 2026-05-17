@@ -202,34 +202,4 @@ theorem evmCodeIs_split_at (base : Word) (bytes : List (BitVec 8)) (dw : Nat)
       rw [List.drop_take, harith3]
 
 -- ============================================================================
--- Alignment bridge lemma
--- ============================================================================
-
-/-- Aligned base: low 3 bits are zero. -/
-abbrev IsAligned8 (addr : Word) : Prop := addr &&& 7#64 = 0#64
-
-/-- An aligned address is unchanged by alignToDword. -/
-theorem alignToDword_of_aligned (base : Word) (h : IsAligned8 base) :
-    alignToDword base = base := by
-  unfold alignToDword
-  have : base &&& ~~~7#64 = base ^^^ (base &&& 7#64) := by bv_decide
-  rw [this, h]; simp [BitVec.xor_zero]
-
--- ============================================================================
--- Byte extraction bridge
--- ============================================================================
-
-/-- Reading byte `k` from the code region: the byte at global index `k` can be
-    extracted from the containing doubleword's `packBytes` using byte offset `k % 8`. -/
-theorem extractByte_codeRegion_at (bytes : List (BitVec 8)) (k : Nat)
-    (hk : k < bytes.length) :
-    extractByte (packBytes ((bytes.drop (k / 8 * 8)).take 8)) (k % 8) = bytes[k] := by
-  have hmod : k % 8 < 8 := Nat.mod_lt k (by omega)
-  have hchunkLen : k % 8 < ((bytes.drop (k / 8 * 8)).take 8).length := by
-    simp; omega
-  rw [extractByte_packBytes _ (k % 8) hmod (by simp; omega)]
-  show ((bytes.drop (k / 8 * 8)).take 8)[k % 8]'hchunkLen = bytes[k]
-  rw [List.getElem_take, List.getElem_drop]
-  congr 1; omega
-
 end EvmAsm.Evm64
