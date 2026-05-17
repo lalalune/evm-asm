@@ -122,5 +122,36 @@ theorem pc_lt_pcAfterPush_of_width_pos {pc n : Nat} (h_pos : 0 < n) :
   unfold pcAfterPush
   omega
 
+-- ============================================================================
+-- Concrete tests (GH #101, bead evm-asm-f0f5.11)
+-- ============================================================================
+
+/-- PUSH1 0x42 pushes the value 0x42 (EvmWord = BitVec.ofNat 256 0x42). -/
+theorem pushImmediateWordFromCode_push1_0x42 :
+    pushImmediateWordFromCode [0x60, 0x42] 0 1 = BitVec.ofNat 256 0x42 := by decide
+
+/-- PUSH2 0xABCD pushes the big-endian 2-byte value 0xABCD. -/
+theorem pushImmediateWordFromCode_push2_0xABCD :
+    pushImmediateWordFromCode [0x61, 0xAB, 0xCD] 0 2 = BitVec.ofNat 256 0xABCD := by decide
+
+/-- PUSH32 with bytes 0x01..0x20 assembles the full 256-bit big-endian value. -/
+theorem pushImmediateWordFromCode_push32_seq :
+    pushImmediateWordFromCode
+      (0x7F :: (List.range 32).map (fun i => BitVec.ofNat 8 (i + 1)))
+      0 32 =
+      BitVec.ofNat 256
+        0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20 := by
+  decide
+
+/-- PUSH1 with EOF zero-padding: missing bytes default to 0x00. -/
+theorem pushImmediateWordFromCode_push1_eof :
+    pushImmediateWordFromCode [0x60] 0 1 = BitVec.ofNat 256 0 := by decide
+
+/-- PUSH1 advances EVM PC by 2 (opcode + 1 immediate byte). -/
+theorem pcAfterPush_push1 (pc : Nat) : pcAfterPush pc 1 = pc + 2 := by simp [pcAfterPush]
+
+/-- PUSH32 advances EVM PC by 33 (opcode + 32 immediate bytes). -/
+theorem pcAfterPush_push32 (pc : Nat) : pcAfterPush pc 32 = pc + 33 := by simp [pcAfterPush]
+
 end PushImmediate
 end EvmAsm.Evm64
