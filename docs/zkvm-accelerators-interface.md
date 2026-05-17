@@ -95,6 +95,28 @@ that register layout, issues an `ECALL`, and reads back the
 `zkvm_status` from `a0`. Concrete bridges live (or will live) under
 `EvmAsm/EL/` next to the existing keccak bridges.
 
+## Sibling: host-I/O C ABI
+
+zkvm-standards also defines a *host I/O* surface — the channel by which
+the guest receives its private input and emits its public output — in a
+separate interface file:
+
+  `EvmAsm/Evm64/zkvm-standards/standards/io-interface/README.md`
+
+That surface (`read_input` / `write_output`) is shape-only, just like
+`zkvm_accelerators.h`: it specifies argument layout and semantics but
+leaves concrete syscall IDs to each host zkVM's dispatch layer.  The
+decision record for adopting this interface is in
+[`docs/zkvm-host-io-interface.md`](zkvm-host-io-interface.md).
+
+The two zkvm-standards interfaces are fully independent:
+- `zkvm_accelerators.h` — cryptographic precompiles and KECCAK256.
+- `io-interface/README.md` (`read_input`/`write_output`) — guest I/O.
+
+Both follow the same philosophy: function set + argument layout come
+from zkvm-standards; ECALL framing follows the RISC-V convention SP1
+also uses; concrete syscall IDs are handler-side.
+
 ## Maintenance
 
 Update this ADR when:
