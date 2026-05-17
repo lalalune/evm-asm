@@ -148,18 +148,6 @@ theorem hasMemoryRangeInvalid :
 theorem hasMemoryRangeSelfdestruct :
     hasMemoryRange .selfdestruct = false := rfl
 
-theorem isSuccessReturn : isSuccess .return_ = true := rfl
-theorem isSuccessStop : isSuccess .stop = true := rfl
-theorem isSuccessRevert : isSuccess .revert = false := rfl
-theorem isSuccessInvalid : isSuccess .invalid = false := rfl
-theorem isSuccessSelfdestruct : isSuccess .selfdestruct = true := rfl
-
-theorem revertsRevert : reverts .revert = true := rfl
-theorem revertsInvalid : reverts .invalid = true := rfl
-theorem revertsReturn : reverts .return_ = false := rfl
-theorem revertsStop : reverts .stop = false := rfl
-theorem revertsSelfdestruct : reverts .selfdestruct = false := rfl
-
 theorem returnArgs_offset (offset size : EvmWord) :
     (returnArgs offset size).data.offset = offset := rfl
 
