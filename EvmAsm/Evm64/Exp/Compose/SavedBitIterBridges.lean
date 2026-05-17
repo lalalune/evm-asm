@@ -7,6 +7,7 @@
   Provides:
   - `expTwoMulIterSkipPost_to_iterPre` (skip/bit=0 path)
   - `expTwoMulIterCondPost_to_iterPre` (cond/bit=1 path)
+  - `expTwoMulIterLoopPost_to_iterPre` (combined: both paths)
 -/
 
 import EvmAsm.Evm64.Exp.Compose.SavedBitIterMerge
