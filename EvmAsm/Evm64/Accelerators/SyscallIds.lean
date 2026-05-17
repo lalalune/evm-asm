@@ -17,8 +17,8 @@
 
       0x00  HALT       (`Rv64.Program.HALT`)
       0x10  write_output  (`Rv64.Execution.step_ecall_write_output`)
-      0xF0  HINT_LEN   (`Rv64.HintSpecs`, `Rv64.RLP.Phase4HintLen`) — Deprecated
-      0xF1  HINT_READ  (removed; `Rv64.RLP.Phase4HintRead` deleted) — Deprecated
+      0xF0  HINT_LEN   (retired; handlers removed from Execution.lean)
+      0xF1  HINT_READ  (retired; `Rv64.RLP.Phase4HintRead` deleted)
 
   We allocate the 19 accelerator IDs in a fresh, contiguous range starting at
   `0x100`, which avoids the existing reservations above and leaves the `0x00`–

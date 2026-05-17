@@ -405,21 +405,6 @@ def step (s : MachineState) : Option MachineState :=
         some (s.setPC (s.pc + 4))  -- other fd: continue
     else if t0 == (0x10 : Word) then  -- write_output syscall
       some ((s.writeOutput (s.getReg .x10) (s.getReg .x11)).setPC (s.pc + 4))
-    else if t0 == (0xF0 : Word) then  -- HINT_LEN syscall
-      -- SP1: returns actual byte count of input stream
-      let len := BitVec.ofNat 64 s.privateInput.length
-      some ((s.setReg .x10 len).setPC (s.pc + 4))
-    else if t0 == (0xF1 : Word) then  -- HINT_READ syscall
-      let addr := s.getReg .x10
-      let nbytes := s.getReg .x11
-      let nbytesVal := nbytes.toNat
-      -- SP1: pops nbytes bytes, groups into 8-byte LE dwords, writes to dword-aligned memory
-      if nbytesVal ≤ s.privateInput.length then
-        let bytes := s.privateInput.take nbytesVal
-        let s' := { s with privateInput := s.privateInput.drop nbytesVal }
-        some ((s'.writeBytesAsWords addr bytes).setPC (s.pc + 4))
-      else
-        none  -- trap: not enough input (SP1: panic)
     else if t0 == (0xF2 : Word) then  -- read_input syscall (zkvm-standards C ABI)
       -- Idempotent: writes (inputBufBase, privateInput.length) to the
       -- two out-pointers supplied in a0/a1. Does not mutate input state.
@@ -633,11 +618,9 @@ theorem step_ecall_continue {s : MachineState}
     (ht0 : s.getReg .x5 ≠ 0)
     (ht0_nw : s.getReg .x5 ≠ (0x02 : Word))
     (ht0_nwo : s.getReg .x5 ≠ (0x10 : Word))
-    (ht0_nhl : s.getReg .x5 ≠ (0xF0 : Word))
-    (ht0_nhr : s.getReg .x5 ≠ (0xF1 : Word))
     (ht0_nri : s.getReg .x5 ≠ (0xF2 : Word)) :
     step s = some (execInstrBr s .ECALL) := by
-  simp only [step, hfetch, beq_iff_eq, ht0, ht0_nw, ht0_nwo, ht0_nhl, ht0_nhr, ht0_nri, ↓reduceIte]
+  simp only [step, hfetch, beq_iff_eq, ht0, ht0_nw, ht0_nwo, ht0_nri, ↓reduceIte]
 
 /-- `write_output` syscall (t0 = 0x10) appends a1 bytes from memory at a0. -/
 theorem step_ecall_write_output {s : MachineState}
@@ -672,34 +655,6 @@ theorem step_ecall_write_other {s : MachineState}
     step s = some (s.setPC (s.pc + 4)) := by
   simp only [step, hfetch, ht0, beq_iff_eq, hfd, ite_false]
   simp (config := { decide := true })
-
-/-- HINT_LEN syscall (SP1 convention: t0 = 0xF0) returns privateInput.length in a0. -/
-theorem step_ecall_hint_len {s : MachineState}
-    (hfetch : s.code s.pc = some .ECALL)
-    (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF0) :
-    step s =
-      some ((s.setReg .x10 (BitVec.ofNat 64 s.privateInput.length)).setPC (s.pc + 4)) := by
-  simp [step, hfetch, ht0]
-
-/-- HINT_READ syscall (SP1 convention: t0 = 0xF1) reads bytes from privateInput into memory as LE dwords. -/
-theorem step_ecall_hint_read {s : MachineState}
-    (hfetch : s.code s.pc = some .ECALL)
-    (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF1)
-    (hsuff : (s.getReg .x11).toNat ≤ s.privateInput.length) :
-    step s =
-      let nbytesVal := (s.getReg .x11).toNat
-      let bytes := s.privateInput.take nbytesVal
-      let s' := { s with privateInput := s.privateInput.drop nbytesVal }
-      some ((s'.writeBytesAsWords (s.getReg .x10) bytes).setPC (s.pc + 4)) := by
-  simp [step, hfetch, ht0, hsuff]
-
-/-- HINT_READ syscall traps when not enough input is available. -/
-theorem step_ecall_hint_read_trap {s : MachineState}
-    (hfetch : s.code s.pc = some .ECALL)
-    (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF1)
-    (hinsuff : ¬ ((s.getReg .x11).toNat ≤ s.privateInput.length)) :
-    step s = none := by
-  simp [step, hfetch, ht0, hinsuff]
 
 /-- `read_input` syscall (zkvm-standards C ABI, t0 = 0xF2): idempotently writes
     (inputBufBase, privateInput.length) to the out-pointers in a0/a1. -/
