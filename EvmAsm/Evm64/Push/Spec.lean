@@ -477,4 +477,10 @@ theorem evm_push_one_byte_spec_within
           rw [evm_push_length]
           omega)))
 
+-- Note: concrete tests for pushImmediateWordFromCode (PUSH1/PUSH2/PUSH32)
+-- and evm_push1_stack_spec_within land in a follow-up bead (evm-asm-f0f5.11)
+-- that imports EvmAsm.Evm64.Push.Immediate (which imports this file).
+-- The cpsTripleWithin proof for PUSH1 requires intermediate-state bridging
+-- between the zero-slot and byte-copy sub-specs.
+
 end EvmAsm.Evm64
