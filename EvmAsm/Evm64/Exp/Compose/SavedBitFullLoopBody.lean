@@ -15,10 +15,18 @@
   This holds at k=0 (r = 1 = base^0) and is maintained by each iteration.
   After 256 iterations, r = EvmWord.exp base exponent.
 
-  Key proof obligation (left as `sorry`):
-  - `hEntry`: bridge from `expTwoMulLoopEntryPost` (initial r=1, iterCount=256)
-    to the first `expTwoMulIterPre` with concrete witnesses.
-  - `hBody`: 256-iteration body proof, needs the semantic invariant at each step.
+  Architecture:
+  - `expFullLoopBodyNSpec`: structural peel wrapper (sorry-free)
+  - `expFullLoopBodySpec`: full 256-iter boundary using the direct loop interface
+    `exp_two_mul_full_loop_boundary_of_bounded_body_spec_within` which takes:
+      hLoop : expTwoMulLoopEntryPost → expTwoMulLoopExitPre
+    directly, without needing the IterPre bridge.
+
+  The remaining `sorry` is the loop invariant proof in `hLoop`:
+  - Start: r = 1, iterCount = 256
+  - After k iterations: r = base^(top k bits of exponent), iterCount = 256-k
+  - End: r = base^exponent, iterCount = 0
+  This requires 256 applications of the single-iteration spec.
 
   Refs: GH #92, parent evm-asm-20z6, bead evm-asm-w5mk.
   Authored by @pirapira; implemented by Claude Code.
@@ -98,15 +106,20 @@ theorem expFullLoopBodyNSpec
     Post: `expTwoMulLoopExitPost sp evmSp 0 r0..r3 baseWord rest exitCond`
           where `exitCond = expResultWord r0..r3 = EvmWord.exp baseWord exponentWord`.
 
-    The two `sorry`-marked proof obligations:
-    1. `hEntry`: bridge from the loop entry state (r=1, iterCount=256, a=baseWord)
-       to the first `expTwoMulIterPre` with concrete witnesses extracted from
-       the loop entry post-state.
-    2. `hBody`: the 256-step body proof from first `expTwoMulIterPre` to
-       `expTwoMulLoopExitPre`. This is built by 256 applications of
-       `expFullLoopBodyNSpec`, threading the semantic invariant
-       (expResultWord r = base^(top k bits of exp) after k iterations)
-       through each exit bridge. -/
+    Proof structure: `exp_two_mul_full_loop_boundary_of_bounded_body_spec_within`
+    wraps boundary prologue/epilogue around `hLoop`. The `hLoop` hypothesis proves:
+      expTwoMulLoopEntryPost → expTwoMulLoopExitPre
+    in ≤ 48384 steps, which is the key semantic obligation.
+
+    The `hLoop` proof requires the 256-iteration invariant:
+    - Initial: r = 1, iterCount = 256
+    - Step k: r = baseWord^(top k bits of exponentWord)
+    - Final: r = EvmWord.exp baseWord exponentWord, iterCount = 0
+
+    Each iteration applies `expFullLoopBodyNSpec` (via the peel lemma).
+
+    This `sorry` is the only remaining obligation: proving the 256-iteration
+    loop body invariant. -/
 theorem expFullLoopBodySpec
     (sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 : Word)
     (baseWord exponentWord : EvmWord) (rest : List EvmWord)
@@ -127,18 +140,19 @@ theorem expFullLoopBodySpec
   let r1 := result.getLimbN 1
   let r2 := result.getLimbN 2
   let r3 := result.getLimbN 3
-  -- Both goals are left as `sorry` pending the semantic invariant proof.
-  -- The actual `P` is `expTwoMulIterPre` with witnesses extracted from the
-  -- loop entry state (iterCount=256, r=1, a=baseWord) per SavedBitLoopEntry.
-  -- hEntry maps `expTwoMulLoopEntryPost` to `P`.
-  -- hBody chains 256 peel applications via `expFullLoopBodyNSpec`.
-  exact @exp_two_mul_full_loop_boundary_of_entry_body_spec_within
-    sorry   -- P: first iteration's expTwoMulIterPre (witnesses from loop entry)
-    sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 0 r0 r1 r2 r3
-    baseWord exponentWord rest
-    (expResultWord r0 r1 r2 r3 = result)
-    base
-    sorry   -- hEntry: expTwoMulLoopEntryPost → expTwoMulIterPre
-    sorry   -- hBody: 256-iteration proof from expTwoMulIterPre to loopExitPre
+  -- Use the bounded-body boundary wrapper.
+  -- The key obligation is `hLoop`: 256 iterations from LoopEntryPost to LoopExitPre.
+  apply exp_two_mul_full_loop_boundary_of_bounded_body_spec_within
+      sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 0 r0 r1 r2 r3
+      baseWord exponentWord rest
+      (expResultWord r0 r1 r2 r3 = result) base
+  -- Bound: expTwoMulFullLoopBodyBound = 48384
+  · exact le_refl _
+  -- hLoop: 256-iteration body proof
+  -- Start: expTwoMulLoopEntryPost (r=1, iterCount=256)
+  -- End: expTwoMulLoopExitPre (r=base^exp, iterCount=0)
+  -- Built by 256 applications of expFullLoopBodyNSpec via the peel lemma,
+  -- threading the semantic invariant at each step.
+  · sorry
 
 end EvmAsm.Evm64.Exp.Compose
