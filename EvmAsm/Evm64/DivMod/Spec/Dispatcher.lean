@@ -185,6 +185,33 @@ theorem modStackDispatchPost_unfold {sp : Word} {a b : EvmWord} :
   delta modStackDispatchPost
   rfl
 
+/-- Final MOD stack-dispatch postcondition with `x1` omitted from the generic
+    owned-register frame. Callable wrappers use this shape when they need to
+    preserve the exact return address for the following `cc_ret`. -/
+@[irreducible]
+def modStackDispatchPostNoX1 (sp : Word) (a b : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x2 **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+  evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
+  divScratchOwnCall sp
+
+theorem modStackDispatchPostNoX1_unfold {sp : Word} {a b : EvmWord} :
+    modStackDispatchPostNoX1 sp a b =
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x2 **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+     evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
+     divScratchOwnCall sp) := by
+  delta modStackDispatchPostNoX1
+  rfl
+
+theorem modStackDispatchPostNoX1_pcFree (sp : Word) (a b : EvmWord) :
+    (modStackDispatchPostNoX1 sp a b).pcFree := by
+  rw [modStackDispatchPostNoX1_unfold]
+  rw [divScratchOwnCall_unfold, divScratchOwn_unfold]
+  pcFree
+
 theorem modStackDispatchPost_weaken
     (sp : Word) (a b : EvmWord)
     {v1 v2 v5 v6 v7 v10 v11 : Word}
@@ -1256,5 +1283,40 @@ theorem evm_div_n3_stack_spec_within_noNop
         a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0
         ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hq)
     hFull
+
+/-- Weaken the framed bzero-MOD postcondition to `modStackDispatchPostNoX1`.
+    Mirrors `modStackDispatchPost_weaken_bzero_frame` but uses the NoX1 variant,
+    keeping `.x1 ↦ᵣ v1` as an explicit post atom instead of absorbing it into
+    `regOwn .x1`. -/
+theorem modStackDispatchPostNoX1_weaken_bzero_frame
+    (sp : Word) (a b : EvmWord)
+    {v2 v6 v7 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
+    ∀ h,
+      ((.x12 ↦ᵣ (sp + 32)) **
+       (.x2 ↦ᵣ v2) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x11 ↦ᵣ v11) **
+       regOwn .x5 ** regOwn .x10 **
+       (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
+       divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0) h →
+      modStackDispatchPostNoX1 sp a b h := by
+  intro h hp
+  rw [modStackDispatchPostNoX1_unfold]
+  apply sepConj_mono_right
+  apply sepConj_mono (regIs_implies_regOwn .x2 (v := v2))
+  apply sepConj_mono_right
+  apply sepConj_mono (regIs_implies_regOwn .x6 (v := v6))
+  apply sepConj_mono (regIs_implies_regOwn .x7 (v := v7))
+  apply sepConj_mono_right
+  apply sepConj_mono (regIs_implies_regOwn .x11 (v := v11))
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  exact divScratchValuesCall_implies_divScratchOwnCall
+    sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+      retMem dMem dloMem scratch_un0
+  xperm_hyp hp
 
 end EvmAsm.Evm64

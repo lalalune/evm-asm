@@ -757,6 +757,39 @@ theorem evm_div_callable_bzero_preserving_x1_spec (sp base raVal : Word)
     nMem shiftMem jMem retMem dMem dloMem scratchUn0
     (DivStackSpecCase.bzero raVal v2 hbz) hStack
 
+/-- MOD callable spec from a no-NOP body proof that preserves the exact incoming
+    `x1` return address. Mirror of `evm_div_callable_spec_from_noNop_preserving_x1`
+    for the MOD callable. -/
+theorem evm_mod_callable_spec_from_noNop_preserving_x1 (sp base raVal : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (branch : ModStackSpecCase base a b)
+    (hStack :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode_noNop base)
+        (divModStackDispatchPre sp a b
+          branch.x1 branch.x2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (modStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal))) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_mod_callable_code base)
+      (divModStackDispatchPre sp a b
+        branch.x1 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (modStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal)) := by
+  have hpcFreePost : (modStackDispatchPostNoX1 sp a b).pcFree :=
+    modStackDispatchPostNoX1_pcFree sp a b
+  have hStackCall :=
+    cpsTripleWithin_extend_code (hmono := modCode_noNop_sub_mod_callable_code) hStack
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_mod_callable_code_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) raVal)
+  have hRetFramed :=
+    cpsTripleWithin_frameL (modStackDispatchPostNoX1 sp a b) hpcFreePost hRet
+  exact cpsTripleWithin_seq_same_cr hStackCall hRetFramed
+
 theorem evm_mod_callable_spec_from_noNop (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
