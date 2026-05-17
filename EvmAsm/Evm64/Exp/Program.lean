@@ -1210,4 +1210,133 @@ theorem evm_exp_msb_saved_bit_two_mul_canonical_byte_length
       squaringMulOff condMulOff).length = 304 := by
   rw [evm_exp_msb_saved_bit_two_mul_canonical_length]
 
+-- ============================================================================
+-- Fixed EXP prologue and iteration body: load exponent into x19 cursor
+-- (GH #92, bead evm-asm-w5mk, bug: x5=1 at loop entry never reads exponent)
+--
+-- BUG ANALYSIS (2026-05-17): The original exp_prologue sets x5=1.
+-- exp_msb_bit_test_block extracts MSB of x5 as the exponent bit.
+-- But the squaring-call unmarshal (LD x5 x12 24) overwrites x5 with
+-- (r^2).limb3 after every iteration. Since r starts at 1={1,0,0,0}
+-- with limb3=0, x5→0 after iter 1 and never changes → bit=0 always.
+-- The original loop computes r=1 for ALL inputs, not base^exp.
+--
+-- FIX DESIGN:
+-- - Use x19 (callee-saved, preserved across mul_callable) as the
+--   exponent cursor, initialized to exponentWord.getLimbN 3.
+-- - Use x6 as per-limb counter (counts down from 64 to 0).
+-- - Use x16 as limb pointer (starts at &exponent.limb3, advances by -8
+--   after each 64-bit limb is exhausted).
+-- - Fixed prologue: load x19=exponent.limb3, x6=64, x16=&exponent.limb2.
+-- - Fixed bit_test: extract from x19, shift x19, decrement x6;
+--   when x6=0, reload x19 from x16 and advance x16.
+-- - The rest of the iteration body (marshal/squaring/cond-mul) is
+--   unchanged: x19 is callee-saved so it survives mul_callable calls.
+-- ============================================================================
+
+/-- Fixed EXP prologue: initialize accumulator to 1, master counter x9=256,
+    per-limb counter x6=64, exponent cursor x19=exponent.getLimbN 3
+    (loaded from x12+56 = evmSp+56 since x12=evmSp before pointer_advance),
+    and limb pointer x16 pointing at the NEXT limb to reload (evmSp+48).
+    10 instructions, 40 bytes. -/
+def exp_prologue_fixed : Program :=
+  ADDI .x9 .x0 256 ;;
+  ADDI .x5 .x0 1 ;;
+  SD .x2 .x5 0 ;;
+  SD .x2 .x0 8 ;;
+  SD .x2 .x0 16 ;;
+  SD .x2 .x0 24 ;;
+  ADDI .x6 .x0 64 ;;
+  ADDI .x16 .x12 56 ;;
+  LD .x19 .x16 0 ;;
+  ADDI .x16 .x16 (-8)
+
+theorem exp_prologue_fixed_length : exp_prologue_fixed.length = 10 := by decide
+
+theorem exp_prologue_fixed_byte_length : 4 * exp_prologue_fixed.length = 40 := by
+  rw [exp_prologue_fixed_length]
+
+/-- Fixed MSB-first bit-test block: extract MSB of x19 (exponent cursor),
+    advance cursor (SLLI x19 x19 1), decrement per-limb counter x6.
+    When x6 = 0 (limb exhausted), reload x19 from x16 and advance x16 by -8.
+    7 instructions (3 core + 4 reload). The reload branch skips 4 instructions
+    (= 16 bytes) when x6 ≠ 0 after decrement. -/
+def exp_msb_bit_test_block_fixed : Program :=
+  SRLI .x10 .x19 63 ;;
+  SLLI .x19 .x19 1 ;;
+  ADDI .x6 .x6 (-1) ;;
+  single (.BNE .x6 .x0 16) ;;
+  LD .x19 .x16 0 ;;
+  ADDI .x16 .x16 (-8) ;;
+  ADDI .x6 .x0 64
+
+theorem exp_msb_bit_test_block_fixed_length :
+    exp_msb_bit_test_block_fixed.length = 7 := by decide
+
+theorem exp_msb_bit_test_block_fixed_byte_length :
+    4 * exp_msb_bit_test_block_fixed.length = 28 := by
+  rw [exp_msb_bit_test_block_fixed_length]
+
+/-- Fixed MSB-first saved-bit full iteration body using the corrected
+    bit-test block (exp_msb_bit_test_block_fixed). All other blocks
+    are unchanged: x19 is callee-saved and survives mul_callable calls. -/
+def exp_iter_body_full_msb_saved_bit_two_mul_fixed
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) : Program :=
+  exp_msb_bit_test_block_fixed ;;
+  exp_save_bit_block ;;
+  exp_squaring_call_block squaringMulOff ;;
+  exp_cond_mul_call_with_saved_bit_skip_block condMulOff skipOff ;;
+  exp_loop_back backOff
+
+theorem exp_iter_body_full_msb_saved_bit_two_mul_fixed_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    (exp_iter_body_full_msb_saved_bit_two_mul_fixed
+      squaringMulOff condMulOff skipOff backOff).length = 63 := by
+  show (((((exp_msb_bit_test_block_fixed ;;
+            exp_save_bit_block) ;;
+           exp_squaring_call_block squaringMulOff) ;;
+          exp_cond_mul_call_with_saved_bit_skip_block condMulOff skipOff) ;;
+         exp_loop_back backOff)).length = 63
+  simp only [seq, Program.length_append,
+    exp_msb_bit_test_block_fixed_length,
+    exp_save_bit_block_length,
+    exp_squaring_call_block_length,
+    exp_cond_mul_call_with_saved_bit_skip_block_length,
+    exp_loop_back_length]
+
+/-- Fixed EXP program with corrected prologue and bit-test block.
+    The MUL call offsets and internal branch offsets are caller-supplied.
+    NOTE: All internal branch offsets (skipOff, backOff) change relative
+    to the original because the prologue is now 40 bytes (was 24) and
+    the loop body is now 252 bytes/iter (was 236). -/
+def evm_exp_msb_saved_bit_two_mul_fixed
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) : Program :=
+  exp_prologue_fixed ;;
+  exp_loop_pointer_advance ;;
+  exp_iter_body_full_msb_saved_bit_two_mul_fixed
+    squaringMulOff condMulOff skipOff backOff ;;
+  exp_loop_pointer_restore ;;
+  exp_epilogue
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    (evm_exp_msb_saved_bit_two_mul_fixed
+      squaringMulOff condMulOff skipOff backOff).length = 84 := by
+  show ((((exp_prologue_fixed ;;
+           exp_loop_pointer_advance) ;;
+          exp_iter_body_full_msb_saved_bit_two_mul_fixed
+            squaringMulOff condMulOff skipOff backOff) ;;
+         exp_loop_pointer_restore) ;;
+        exp_epilogue).length = 84
+  simp only [seq, Program.length_append,
+    exp_prologue_fixed_length,
+    exp_loop_pointer_advance_length,
+    exp_iter_body_full_msb_saved_bit_two_mul_fixed_length,
+    exp_loop_pointer_restore_length,
+    exp_epilogue_length]
+
 end EvmAsm.Evm64
