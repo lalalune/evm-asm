@@ -148,9 +148,9 @@ private theorem addmod_even_and_one_eq_zero (base : BitVec 64) (hbase : base &&&
     rw [BitVec.getLsbD_add (by omega : 0 < 64)]
     have hc : BitVec.carry 0 base (128 : Word) false = false := by
       simp [BitVec.carry, Nat.mod_one]
-    have h128 : (BitVec.getLsbD (128 : Word) 0) = false := by simp [BitVec.getLsbD_ofNat]
+    have h128 : (BitVec.getLsbD (128 : Word) 0) = false := by simp
     rw [h128, hc, Bool.false_xor, Bool.xor_false, hbase0]
-    simp [BitVec.getLsbD_zero]
+    simp
   · have h1i : (BitVec.getLsbD (1 : Word) i) = false := by
       simp only [show (1 : Word) = BitVec.ofNat 64 1 from rfl]
       rw [BitVec.getLsbD_ofNat, decide_eq_true hi, Bool.true_and, Nat.testBit_lt_two_pow]
