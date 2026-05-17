@@ -208,32 +208,4 @@ theorem divKNormAMergeBPost_unfold (sp : Word) (next_off dst_off : BitVec 12)
        ((sp + signExtend12 dst_off) ↦ₘ result)) := by
   delta divKNormAMergeBPost; rfl
 
-/-- 0-let named wrapper for `divK_normA_mergeA_spec_within`. -/
-theorem divK_normA_mergeA_named_spec_within (next_off dst_off : BitVec 12)
-    (sp current next v7 v10 shift antiShift dstOld : Word) (base : Word) :
-    cpsTripleWithin 5 base (base + 20) (divK_normA_mergeA_code next_off dst_off base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ current) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + signExtend12 next_off) ↦ₘ next) **
-       ((sp + signExtend12 dst_off) ↦ₘ dstOld))
-      (divKNormAMergeAPost sp next_off dst_off current next shift antiShift) :=
-  EvmAsm.Rv64.cpsTripleWithin_weaken
-    (fun _ hp => hp)
-    (fun _ hp => by simp only [divKNormAMergeAPost_unfold]; exact hp)
-    (divK_normA_mergeA_spec_within next_off dst_off sp current next v7 v10 shift antiShift dstOld base)
-
-/-- 0-let named wrapper for `divK_normA_mergeB_spec_within`. -/
-theorem divK_normA_mergeB_named_spec_within (next_off dst_off : BitVec 12)
-    (sp current next v5 v10 shift antiShift dstOld : Word) (base : Word) :
-    cpsTripleWithin 5 base (base + 20) (divK_normA_mergeB_code next_off dst_off base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ current) ** (.x10 ↦ᵣ v10) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + signExtend12 next_off) ↦ₘ next) **
-       ((sp + signExtend12 dst_off) ↦ₘ dstOld))
-      (divKNormAMergeBPost sp next_off dst_off current next shift antiShift) :=
-  EvmAsm.Rv64.cpsTripleWithin_weaken
-    (fun _ hp => hp)
-    (fun _ hp => by simp only [divKNormAMergeBPost_unfold]; exact hp)
-    (divK_normA_mergeB_spec_within next_off dst_off sp current next v5 v10 shift antiShift dstOld base)
-
 end EvmAsm.Evm64

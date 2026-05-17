@@ -122,19 +122,6 @@ theorem divKMulsubPartAPost_unfold (sp qHat carryIn v_i : Word) (v_off : BitVec 
        ((sp + signExtend12 v_off) ↦ₘ v_i)) := by
   delta divKMulsubPartAPost; rfl
 
-/-- Named-postcondition wrapper for `divK_mulsub_partA_spec_within`. 0 statement lets. -/
-theorem divK_mulsub_partA_named_spec_within (sp qHat carryIn v5Old v7Old v_i : Word)
-    (v_off : BitVec 12) (base : Word) :
-    cpsTripleWithin 6 base (base + 24) (divKMulsubPartACode v_off base)
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ carryIn) **
-       (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) **
-       ((sp + signExtend12 v_off) ↦ₘ v_i))
-      (divKMulsubPartAPost sp qHat carryIn v_i v_off) :=
-  cpsTripleWithin_weaken
-    (fun h hp => hp)
-    (fun h hp => by simp only [divKMulsubPartAPost_unfold]; exact hp)
-    (divK_mulsub_partA_spec_within sp qHat carryIn v5Old v7Old v_i v_off base)
-
 /-- Code requirement for `divK_mulsub_partB_spec_within`. -/
 abbrev divKMulsubPartBCode (u_off : BitVec 12) (base : Word) : CodeReq :=
   CodeReq.union (CodeReq.singleton base (.LD .x2 .x6 u_off))
@@ -163,18 +150,5 @@ theorem divKMulsubPartBPost_unfold (uBase partialCarry fullSub u_i : Word) (u_of
        (.x5 ↦ᵣ borrowSub) ** (.x7 ↦ᵣ fullSub) ** (.x2 ↦ᵣ uNew) **
        ((uBase + signExtend12 u_off) ↦ₘ uNew)) := by
   delta divKMulsubPartBPost; rfl
-
-/-- Named-postcondition wrapper for `divK_mulsub_partB_spec_within`. 0 statement lets. -/
-theorem divK_mulsub_partB_named_spec_within (uBase partialCarry prodHi fullSub v2Old u_i : Word)
-    (u_off : BitVec 12) (base : Word) :
-    cpsTripleWithin 5 base (base + 20) (divKMulsubPartBCode u_off base)
-      ((.x6 ↦ᵣ uBase) ** (.x10 ↦ᵣ partialCarry) **
-       (.x5 ↦ᵣ prodHi) ** (.x7 ↦ᵣ fullSub) ** (.x2 ↦ᵣ v2Old) **
-       ((uBase + signExtend12 u_off) ↦ₘ u_i))
-      (divKMulsubPartBPost uBase partialCarry fullSub u_i u_off) :=
-  cpsTripleWithin_weaken
-    (fun h hp => hp)
-    (fun h hp => by simp only [divKMulsubPartBPost_unfold]; exact hp)
-    (divK_mulsub_partB_spec_within uBase partialCarry prodHi fullSub v2Old u_i u_off base)
 
 end EvmAsm.Evm64

@@ -167,22 +167,6 @@ theorem divKMulsubLimbPost_unfold (sp qHat carryIn uBase v_i u_i : Word) (v_off 
        ((uBase + signExtend12 u_off) ↦ₘ uNew)) := by
   delta divKMulsubLimbPost; rfl
 
-/-- Named-postcondition wrapper for `divK_mulsub_limb_spec_within`. 0 statement lets. -/
-theorem divK_mulsub_limb_named_spec_within
-    (sp uBase qHat carryIn v5Old v7Old v2Old v_i u_i : Word)
-    (v_off u_off : BitVec 12) (base : Word) :
-    cpsTripleWithin 11 base (base + 44) (divKMulsubLimbCode v_off u_off base)
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) ** (.x10 ↦ᵣ carryIn) **
-       (.x6 ↦ᵣ uBase) ** (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) **
-       (.x2 ↦ᵣ v2Old) **
-       ((sp + signExtend12 v_off) ↦ₘ v_i) **
-       ((uBase + signExtend12 u_off) ↦ₘ u_i))
-      (divKMulsubLimbPost sp qHat carryIn uBase v_i u_i v_off u_off) :=
-  cpsTripleWithin_weaken
-    (fun h hp => hp)
-    (fun h hp => by simp only [divKMulsubLimbPost_unfold]; exact hp)
-    (divK_mulsub_limb_spec_within sp uBase qHat carryIn v5Old v7Old v2Old v_i u_i v_off u_off base)
-
 /-- Code requirement for `divK_addback_limb_spec_within`. -/
 abbrev divKAddbackLimbCode (v_off u_off : BitVec 12) (base : Word) : CodeReq :=
   CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 v_off))
@@ -219,20 +203,5 @@ theorem divKAddbackLimbPost_unfold (sp uBase carryIn v_i u_i : Word) (v_off u_of
        ((sp + signExtend12 v_off) ↦ₘ v_i) **
        ((uBase + signExtend12 u_off) ↦ₘ uNew)) := by
   delta divKAddbackLimbPost; rfl
-
-/-- Named-postcondition wrapper for `divK_addback_limb_spec_within`. 0 statement lets. -/
-theorem divK_addback_limb_named_spec_within
-    (sp uBase carryIn v5Old v2Old v_i u_i : Word)
-    (v_off u_off : BitVec 12) (base : Word) :
-    cpsTripleWithin 8 base (base + 32) (divKAddbackLimbCode v_off u_off base)
-      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ carryIn) **
-       (.x5 ↦ᵣ v5Old) ** (.x2 ↦ᵣ v2Old) **
-       ((sp + signExtend12 v_off) ↦ₘ v_i) **
-       ((uBase + signExtend12 u_off) ↦ₘ u_i))
-      (divKAddbackLimbPost sp uBase carryIn v_i u_i v_off u_off) :=
-  cpsTripleWithin_weaken
-    (fun h hp => hp)
-    (fun h hp => by simp only [divKAddbackLimbPost_unfold]; exact hp)
-    (divK_addback_limb_spec_within sp uBase carryIn v5Old v2Old v_i u_i v_off u_off base)
 
 end EvmAsm.Evm64

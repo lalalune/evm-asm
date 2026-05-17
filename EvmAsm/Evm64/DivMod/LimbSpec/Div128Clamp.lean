@@ -237,36 +237,4 @@ theorem divKDiv128ClampQ0Post_unfold (q0 rhat2 dHi : Word) :
        (.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word))) := by
   delta divKDiv128ClampQ0Post; rfl
 
-/-- 0-let named wrapper for `divK_div128_clamp_q1_merged_spec_within`. -/
-theorem divK_div128_clamp_q1_merged_named_spec_within
-    (q1 rhat dHi v5Old : Word) (base : Word) :
-    cpsTripleWithin 4 base (base + 16)
-      (CodeReq.union (CodeReq.singleton base (.SRLI .x5 .x10 32))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x5 .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x10 .x10 4095))
-       (CodeReq.singleton (base + 12) (.ADD .x7 .x7 .x6)))))
-      ((.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ dHi) **
-       (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0))
-      (divKDiv128ClampQ1Post q1 rhat dHi) :=
-  EvmAsm.Rv64.cpsTripleWithin_weaken
-    (fun _ hp => hp)
-    (fun _ hp => by simp only [divKDiv128ClampQ1Post_unfold]; exact hp)
-    (divK_div128_clamp_q1_merged_spec_within q1 rhat dHi v5Old base)
-
-/-- 0-let named wrapper for `divK_div128_clamp_q0_merged_spec_within`. -/
-theorem divK_div128_clamp_q0_merged_named_spec_within
-    (q0 rhat2 dHi v1Old : Word) (base : Word) :
-    cpsTripleWithin 4 base (base + 16)
-      (CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x1 .x0 12))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x5 .x5 4095))
-       (CodeReq.singleton (base + 12) (.ADD .x11 .x11 .x6)))))
-      ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
-       (.x1 ↦ᵣ v1Old) ** (.x0 ↦ᵣ 0))
-      (divKDiv128ClampQ0Post q0 rhat2 dHi) :=
-  EvmAsm.Rv64.cpsTripleWithin_weaken
-    (fun _ hp => hp)
-    (fun _ hp => by simp only [divKDiv128ClampQ0Post_unfold]; exact hp)
-    (divK_div128_clamp_q0_merged_spec_within q0 rhat2 dHi v1Old base)
-
 end EvmAsm.Evm64
