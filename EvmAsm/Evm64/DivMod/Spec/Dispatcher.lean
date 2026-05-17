@@ -1319,4 +1319,63 @@ theorem modStackDispatchPostNoX1_weaken_bzero_frame
       retMem dMem dloMem scratch_un0
   xperm_hyp hp
 
+/-- Post-bundle for the MOD zero-divisor bzero path that preserves the
+    exact incoming `x1` return address. Mirrors `divBzeroDispatchPostPreservingX1Frame`
+    for the MOD callable. The bundle is the direct framing of
+    `evm_mod_bzero_stack_spec_within_noNop`'s output with the extra register
+    and scratch frame atoms, making the POST-weaken step in
+    `ModBzeroNoNop.lean` trivial. -/
+def modBzeroDispatchPostPreservingX1Frame (sp : Word) (a b : EvmWord)
+    (v1 v2 v6 v7 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x5 ** regOwn .x10 **
+    (.x0 ↦ᵣ (0 : Word)) ** evmWordIs (sp + 32) (EvmWord.mod a b)) **
+  ((.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+    (.x11 ↦ᵣ v11) ** evmWordIs sp a **
+    divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+
+theorem modBzeroDispatchPostPreservingX1Frame_unfold
+    {sp : Word} {a b : EvmWord} {v1 v2 v6 v7 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
+    modBzeroDispatchPostPreservingX1Frame sp a b v1 v2 v6 v7 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 =
+      (((.x12 ↦ᵣ (sp + 32)) ** regOwn .x5 ** regOwn .x10 **
+        (.x0 ↦ᵣ (0 : Word)) ** evmWordIs (sp + 32) (EvmWord.mod a b)) **
+       ((.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+        (.x11 ↦ᵣ v11) ** evmWordIs sp a **
+        divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratch_un0)) := by
+  delta modBzeroDispatchPostPreservingX1Frame
+  rfl
+
+/-- Weaken `modBzeroDispatchPostPreservingX1Frame` to
+    `modStackDispatchPostNoX1 ** (.x1 ↦ᵣ v1)`. This is the MOD-side analog of
+    `divBzeroDispatchPostPreservingX1Frame_weaken_noX1`. -/
+theorem modBzeroDispatchPostPreservingX1Frame_weaken_noX1
+    (sp : Word) (a b : EvmWord)
+    {v1 v2 v6 v7 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
+    ∀ h,
+    modBzeroDispatchPostPreservingX1Frame sp a b v1 v2 v6 v7 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 h →
+    (modStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ v1)) h := by
+  intro h hp
+  rw [modBzeroDispatchPostPreservingX1Frame_unfold] at hp
+  simp only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hp ⊢
+  exact sepConj_mono_left
+    (modStackDispatchPostNoX1_weaken_bzero_frame
+      (v2 := v2) (v6 := v6) (v7 := v7) (v11 := v11)
+      (q0 := q0) (q1 := q1) (q2 := q2) (q3 := q3)
+      (u0 := u0) (u1 := u1) (u2 := u2) (u3 := u3) (u4 := u4)
+      (u5 := u5) (u6 := u6) (u7 := u7) (shiftMem := shiftMem)
+      (nMem := nMem) (jMem := jMem) (retMem := retMem) (dMem := dMem)
+      (dloMem := dloMem) (scratch_un0 := scratch_un0) sp a b)
+    h (by xperm_hyp hp)
+
 end EvmAsm.Evm64
