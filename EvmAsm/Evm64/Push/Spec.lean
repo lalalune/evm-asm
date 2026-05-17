@@ -548,7 +548,7 @@ theorem evm_push1_stack_spec_within
     -- Conclude byteOffset (nsp + 0) = 0
     simp only [byteOffset]
     rw [hse]
-    simp only [show (0:Word) = 0#64 from rfl, show (7:Word) = 7#64 from rfl]
+    simp only [show (0:Word) = 0#64 from rfl]
     rw [BitVec.add_zero]
     rw [show nsp &&& 7#64 = 0 from by rw [show 7#64 = (7:Word) from rfl]; exact h7]
     rfl
@@ -598,7 +598,7 @@ theorem evm_push1_stack_spec_within
     -- Keep pushByteSrcOffset/pushByteDstOffset un-reduced so h_byte/h_dstOff_zero match exactly
     have htrunc8 : ∀ (b : BitVec 8),
         BitVec.truncate 8 (BitVec.zeroExtend 64 b) = b := by
-      intro b; simp [BitVec.truncate_eq_setWidth, BitVec.zeroExtend_eq_setWidth]
+      intro b; simp [BitVec.truncate_eq_setWidth]
     simp only [htrunc8] at hp  -- reduces lets via zeta; htrunc8 fires on truncate arg
     -- Step 2: Apply h_byte and h_dstOff_zero via rw (exact syntactic match after let-reduction)
     rw [h_byte, h_dstOff_zero] at hp
@@ -612,14 +612,11 @@ theorem evm_push1_stack_spec_within
     -- Evaluate pushImmediateLimb 1 (fun _ => byteVal) k for k = 0,1,2,3
     -- For k=0: (1-1-0)/8=0 is true → replaceByte 0 0 byteVal
     -- For k=1,2,3: (1-1-0)/8=k is false → 0
-    simp only [pushImmediateWord_getLimbN_0, pushImmediateWord_getLimbN_1,
-               pushImmediateWord_getLimbN_2, pushImmediateWord_getLimbN_3,
-               pushImmediateLimb, pushByteDstOffset,
+    simp only [pushImmediateLimb, pushByteDstOffset,
                show (1 - 1 - 0 : Nat) = 0 from rfl,
                show (0 : Nat) / 8 = 0 from rfl, show (0 : Nat) % 8 = 0 from rfl,
                show List.range 1 = [0] from rfl,
                List.foldl,
-               show (0 : Nat) = 0 ↔ True from iff_true_intro rfl,
                show (0 : Nat) = 1 ↔ False from by decide,
                show (0 : Nat) = 2 ↔ False from by decide,
                show (0 : Nat) = 3 ↔ False from by decide,
