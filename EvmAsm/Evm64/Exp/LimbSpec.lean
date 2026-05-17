@@ -1111,4 +1111,58 @@ theorem exp_loop_un_marshal_and_restore_ofProg_spec_within
   exact exp_loop_un_marshal_and_restore_spec_within sp evmSp tOld
     r0 r1 r2 r3 d0 d1 d2 d3 base
 
+-- ============================================================================
+-- exp_prologue_fixed code + spec (10 instructions: GH #92, evm-asm-w5mk x5-fix)
+--
+-- Proves that exp_prologue_fixed correctly initializes:
+--   x9 = 256, x5 = 1 (temp), accumulator = {1,0,0,0} at sp+0..24,
+--   x6 = 64 (per-limb counter), x16 = evmSp+48 (next limb pointer),
+--   x19 = exponent.getLimbN 3 (MSB exponent cursor loaded from evmSp+56)
+-- ============================================================================
+
+def exp_prologue_fixed_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base exp_prologue_fixed
+
+/-- Spec for `exp_prologue_fixed` against `CodeReq.ofProg base exp_prologue_fixed`.
+    Requires the exponent's MSB limb (at `evmSp + 56`) to be accessible.
+    The exponent cursor `x19` is loaded from `evmSp + 56 = exponentWord.getLimbN 3`
+    and the limb pointer `x16` is initialized to `evmSp + 48` for the next reload.
+    Refs: GH #92, bead evm-asm-w5mk. -/
+theorem exp_prologue_fixed_spec_within
+    (sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 expLimb3 : Word)
+    (base : Word) :
+    cpsTripleWithin 10 base (base + 40) (exp_prologue_fixed_code base)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
+       (.x6 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ expLimb3))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       (.x12 ↦ᵣ evmSp) **
+       (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+       (.x16 ↦ᵣ evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12)) **
+       (.x19 ↦ᵣ expLimb3) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ expLimb3)) := by
+  have hCounter := addi_spec_gen_within .x9 .x0 cOld (0:Word) (256:BitVec 12) base (by decide)
+  have hOne := addi_spec_gen_within .x5 .x0 tOld (0:Word) (1:BitVec 12) (base+4) (by decide)
+  have hSd0 := generic_sd_spec_within .x2 .x5 sp (0+signExtend12 1) m0 (0:BitVec 12) (base+8)
+  have hSd1 := generic_sd_spec_within .x2 .x0 sp (0:Word) m1 (8:BitVec 12) (base+12)
+  have hSd2 := generic_sd_spec_within .x2 .x0 sp (0:Word) m2 (16:BitVec 12) (base+16)
+  have hSd3 := generic_sd_spec_within .x2 .x0 sp (0:Word) m3 (24:BitVec 12) (base+20)
+  have hC6 := addi_spec_gen_within .x6 .x0 c6Old (0:Word) (64:BitVec 12) (base+24) (by decide)
+  have hLP := addi_spec_gen_within .x16 .x12 c16Old evmSp (56:BitVec 12) (base+28) (by decide)
+  have hLd := ld_spec_gen_within .x19 .x16 (evmSp+signExtend12 56) c19Old expLimb3 (0:BitVec 12) (base+32) (by decide)
+  have hAP := addi_spec_gen_same_within .x16 (evmSp+signExtend12 56) (-8:BitVec 12) (base+36) (by decide)
+  runBlock hCounter hOne hSd0 hSd1 hSd2 hSd3 hC6 hLP hLd hAP
+
 end EvmAsm.Evm64
