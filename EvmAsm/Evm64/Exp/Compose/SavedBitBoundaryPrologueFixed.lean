@@ -221,4 +221,10 @@ theorem exp_prologue_fixed_then_pointer_advance_spec_within
     (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hPrologueF hAdvanceF)
 
+-- Note: A full-stack version of this spec (with `evmStackIs evmSp (base::exp::rest)`
+-- in the PRE and `expTwoMulLoopEntryPostFixed` in the POST) will be added in a
+-- subsequent slice. It requires framing `exp_prologue_fixed_then_pointer_advance_spec_within`
+-- with the remaining stack atoms and then folding with `evmStackIs_cons` and
+-- `exp_prologue_result_word_one`. See bead evm-asm-w5mk.
+
 end EvmAsm.Evm64.Exp.Compose
