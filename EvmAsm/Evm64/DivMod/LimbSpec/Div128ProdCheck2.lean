@@ -296,25 +296,4 @@ theorem divKDiv128ProdCheck2MergedPost_unfold (sp q0 rhat2 dlo un0 : Word) :
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
   delta divKDiv128ProdCheck2MergedPost; rfl
 
-/-- 0-let named wrapper for `divK_div128_prodcheck2_merged_spec_within`. -/
-theorem divK_div128_prodcheck2_merged_named_spec_within
-    (sp q0 rhat2 v1Old v7Old dlo un0 : Word) (base : Word) :
-    cpsTripleWithin 8 base (base + 32)
-      (CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x7 .x5 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x1 .x11 32))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x11 .x12 3944))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.OR .x1 .x1 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.BLTU .x1 .x7 8))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.JAL .x0 8))
-       (CodeReq.singleton (base + 28) (.ADDI .x5 .x5 4095)))))))))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) **
-       (.x7 ↦ᵣ v7Old) ** (.x1 ↦ᵣ v1Old) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (divKDiv128ProdCheck2MergedPost sp q0 rhat2 dlo un0) :=
-  EvmAsm.Rv64.cpsTripleWithin_weaken
-    (fun _ hp => hp)
-    (fun _ hp => by simp only [divKDiv128ProdCheck2MergedPost_unfold]; exact hp)
-    (divK_div128_prodcheck2_merged_spec_within sp q0 rhat2 v1Old v7Old dlo un0 base)
-
 end EvmAsm.Evm64

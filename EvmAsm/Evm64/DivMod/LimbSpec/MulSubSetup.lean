@@ -95,22 +95,3 @@ theorem divKMulsubSetupPost_unfold (sp j qHat : Word) :
        (.x10 ↦ᵣ signExtend12 (0 : BitVec 12)) ** (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3976 ↦ₘ j)) := by
   delta divKMulsubSetupPost; rfl
-
-/-- 0-let named wrapper for `divK_mulsub_setup_spec_within`. -/
-theorem divK_mulsub_setup_named_spec_within (sp qHat j v1Old v5Old v6Old v10Old : Word)
-    (base : Word) :
-    cpsTripleWithin 5 base (base + 20)
-      (CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3976))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.SLLI .x5 .x1 3))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x6 .x12 4056))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SUB .x6 .x6 .x5))
-       (CodeReq.singleton (base + 16) (.ADDI .x10 .x0 0))))))
-      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
-       (.x10 ↦ᵣ v10Old) ** (.x0 ↦ᵣ 0) **
-       (sp + signExtend12 3976 ↦ₘ j))
-      (divKMulsubSetupPost sp j qHat) :=
-  EvmAsm.Rv64.cpsTripleWithin_weaken
-    (fun _ hp => hp)
-    (fun _ hp => by simp only [divKMulsubSetupPost_unfold]; exact hp)
-    (divK_mulsub_setup_spec_within sp qHat j v1Old v5Old v6Old v10Old base)

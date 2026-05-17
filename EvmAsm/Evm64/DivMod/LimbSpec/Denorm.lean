@@ -120,18 +120,4 @@ theorem divKDenormMergePost_unfold (sp : Word) (curr_off next_off : BitVec 12)
        ((sp + signExtend12 next_off) ↦ₘ next)) := by
   delta divKDenormMergePost; rfl
 
-/-- 0-let named wrapper for `divK_denorm_merge_spec_within`. -/
-theorem divK_denorm_merge_named_spec_within (curr_off next_off : BitVec 12)
-    (sp curr next v5 v7 shift antiShift : Word) (base : Word) :
-    cpsTripleWithin 6 base (base + 24) (divK_denorm_merge_code curr_off next_off base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + signExtend12 curr_off) ↦ₘ curr) **
-       ((sp + signExtend12 next_off) ↦ₘ next))
-      (divKDenormMergePost sp curr_off next_off curr next shift antiShift) :=
-  EvmAsm.Rv64.cpsTripleWithin_weaken
-    (fun _ hp => hp)
-    (fun _ hp => by simp only [divKDenormMergePost_unfold]; exact hp)
-    (divK_denorm_merge_spec_within curr_off next_off sp curr next v5 v7 shift antiShift base)
-
 end EvmAsm.Evm64

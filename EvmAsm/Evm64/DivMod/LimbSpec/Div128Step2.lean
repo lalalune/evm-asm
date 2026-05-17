@@ -598,20 +598,6 @@ theorem divKDiv128Step2UptoGuardPost_unfold (sp un21 dHi dlo un0 : Word) :
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
   delta divKDiv128Step2UptoGuardPost; rfl
 
-/-- Named-postcondition wrapper for `divK_div128_step2_upto_guard_spec_within`. 0 statement lets. -/
-theorem divK_div128_step2_upto_guard_named_spec_within
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
-    cpsTripleWithin 7 base (base + 28) (divKDiv128Step2UptoGuardCode base)
-      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (divKDiv128Step2UptoGuardPost sp un21 dHi dlo un0) :=
-  cpsTripleWithin_weaken
-    (fun h hp => hp)
-    (fun h hp => by simp only [divKDiv128Step2UptoGuardPost_unfold]; exact hp)
-    (divK_div128_step2_upto_guard_spec_within sp un21 dHi v1Old v5Old v11Old dlo un0 base)
-
 /-- Bundled 9-instruction code for `divK_div128_step2_thru_guard_spec_within`. -/
 @[irreducible]
 def divKDiv128Step2ThruGuardCode (base : Word) : CodeReq :=
@@ -632,34 +618,6 @@ abbrev divKDiv128Step2ThruGuardRhat2cHi (un21 dHi : Word) : Word :=
   let hi := q0 >>> (32 : BitVec 6).toNat
   let rhat2c := if hi = 0 then rhat2 else rhat2 + dHi
   rhat2c >>> (32 : BitVec 6).toNat
-
-/-- Named cpsBranchWithin wrapper for `divK_div128_step2_thru_guard_spec_within`. 0 statement lets.
-    Both branches use `divKDiv128Step2ThruGuardPost`; the pure facts reference the computed rhat2cHi. -/
-theorem divK_div128_step2_thru_guard_named_spec_within
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
-    cpsBranchWithin 9 base (divKDiv128Step2ThruGuardCode base)
-      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (base + 68)
-        (divKDiv128Step2ThruGuardPost sp un21 dHi dlo un0 **
-         ⌜divKDiv128Step2ThruGuardRhat2cHi un21 dHi ≠ 0⌝)
-      (base + 36)
-        (divKDiv128Step2ThruGuardPost sp un21 dHi dlo un0 **
-         ⌜divKDiv128Step2ThruGuardRhat2cHi un21 dHi = 0⌝) := by
-  have h := divK_div128_step2_thru_guard_spec_within
-    sp un21 dHi v1Old v5Old v11Old dlo un0 base
-  simp only [divKDiv128Step2ThruGuardCode]
-  exact cpsBranchWithin_weaken
-    (fun _ hp => hp)
-    (fun _ hp => by
-      simp (config := { zeta := true }) only [divKDiv128Step2ThruGuardPost_unfold]
-      xperm_hyp hp)
-    (fun _ hp => by
-      simp (config := { zeta := true }) only [divKDiv128Step2ThruGuardPost_unfold]
-      xperm_hyp hp)
-    h
 
 /-- Bundled postcondition for the guard-doesn't-fire + prodcheck2 leg of
     `divK_div128_step2_branch_merged_spec_within`. Hides 8 computation lets. -/
@@ -693,34 +651,5 @@ theorem divKDiv128Step2ProdCheck2Post_unfold (sp un21 dHi dlo un0 : Word) :
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
   delta divKDiv128Step2ProdCheck2Post; rfl
-
-/-- Named cpsBranchWithin wrapper for `divK_div128_step2_branch_merged_spec_within`. 0 statement lets.
-    Branch 1 (guard fires) uses `divKDiv128Step2ThruGuardPost`.
-    Branch 2 (guard doesn't fire + prodcheck2) uses `divKDiv128Step2ProdCheck2Post`. -/
-theorem divK_div128_step2_branch_merged_named_spec_within
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
-    cpsBranchWithin 17 base (divKDiv128Step2Code base)
-      ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
-       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
-       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
-      (base + 68)
-        (divKDiv128Step2ThruGuardPost sp un21 dHi dlo un0 **
-         ⌜divKDiv128Step2ThruGuardRhat2cHi un21 dHi ≠ 0⌝)
-      (base + 68)
-        (divKDiv128Step2ProdCheck2Post sp un21 dHi dlo un0 **
-         ⌜divKDiv128Step2ThruGuardRhat2cHi un21 dHi = 0⌝) := by
-  have h := divK_div128_step2_branch_merged_spec_within
-    sp un21 dHi v1Old v5Old v11Old dlo un0 base
-  simp only [divKDiv128Step2Code]
-  exact cpsBranchWithin_weaken
-    (fun _ hp => hp)
-    (fun _ hp => by
-      simp (config := { zeta := true }) only [divKDiv128Step2ThruGuardPost_unfold]
-      xperm_hyp hp)
-    (fun _ hp => by
-      simp (config := { zeta := true }) only [divKDiv128Step2ProdCheck2Post_unfold]
-      xperm_hyp hp)
-    h
 
 end EvmAsm.Evm64
