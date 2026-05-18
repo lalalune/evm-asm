@@ -78,4 +78,81 @@ theorem expTwoMulFixedAccumulatorInvariant_succ_of_branchResult
     exact expTwoMulFixedAccumulatorStep_eq_target_succ
       baseWord exponentWord hk
 
+/-- Bool-unified no-reload invariant successor.
+
+    This combines the semantic accumulator bridge with the cursor/control
+    successor facts that do not depend on whether the cond-mul branch was
+    taken. -/
+theorem expTwoMulFixedNoReloadInvariants_succ_of_branchResult
+    {baseWord exponentWord : EvmWord} {k : Nat} {bit : Bool}
+    {e c6 ptr nextLimb evmSp a0 a1 a2 a3 r0 r1 r2 r3 : Word}
+    (hk : k < 256)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hBit : bit = expTwoMulFixedProcessedBit exponentWord k)
+    (hCursor : expTwoMulFixedCursorInvariant exponentWord k e)
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0)
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3) :
+    expTwoMulFixedAccumulatorInvariant baseWord exponentWord (k + 1)
+      ((expTwoMulFixedBranchResult bit
+        a0 a1 a2 a3 r0 r1 r2 r3).getLimbN 0)
+      ((expTwoMulFixedBranchResult bit
+        a0 a1 a2 a3 r0 r1 r2 r3).getLimbN 1)
+      ((expTwoMulFixedBranchResult bit
+        a0 a1 a2 a3 r0 r1 r2 r3).getLimbN 2)
+      ((expTwoMulFixedBranchResult bit
+        a0 a1 a2 a3 r0 r1 r2 r3).getLimbN 3) ∧
+    expTwoMulFixedCursorInvariant exponentWord (k + 1)
+      (e <<< (1 : BitVec 6).toNat) ∧
+    expTwoMulFixedControlInvariant exponentWord (k + 1)
+      (c6 + signExtend12 (-1 : BitVec 12)) ptr nextLimb evmSp := by
+  exact
+    ⟨expTwoMulFixedAccumulatorInvariant_succ_of_branchResult
+        hk hBase hBit hInv,
+      expTwoMulFixedCursorInvariant_succ_of_control_no_reload
+        hCursor hControl hC6,
+      expTwoMulFixedControlInvariant_succ_no_reload hControl hC6⟩
+
+/-- Bool-unified reload invariant successor.
+
+    This is the reload counterpart to
+    `expTwoMulFixedNoReloadInvariants_succ_of_branchResult`; only the control
+    and cursor successor shape differs. -/
+theorem expTwoMulFixedReloadInvariants_succ_of_branchResult
+    {baseWord exponentWord : EvmWord} {k : Nat} {bit : Bool}
+    {c6 ptr nextLimb nextNextLimb evmSp
+      a0 a1 a2 a3 r0 r1 r2 r3 : Word}
+    (hk : k < 256)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hBit : bit = expTwoMulFixedProcessedBit exponentWord k)
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) = 0)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3) :
+    expTwoMulFixedAccumulatorInvariant baseWord exponentWord (k + 1)
+      ((expTwoMulFixedBranchResult bit
+        a0 a1 a2 a3 r0 r1 r2 r3).getLimbN 0)
+      ((expTwoMulFixedBranchResult bit
+        a0 a1 a2 a3 r0 r1 r2 r3).getLimbN 1)
+      ((expTwoMulFixedBranchResult bit
+        a0 a1 a2 a3 r0 r1 r2 r3).getLimbN 2)
+      ((expTwoMulFixedBranchResult bit
+        a0 a1 a2 a3 r0 r1 r2 r3).getLimbN 3) ∧
+    expTwoMulFixedCursorInvariant exponentWord (k + 1) nextLimb ∧
+    expTwoMulFixedControlInvariant exponentWord (k + 1)
+      64 (ptr + signExtend12 (-8 : BitVec 12)) nextNextLimb evmSp := by
+  exact
+    ⟨expTwoMulFixedAccumulatorInvariant_succ_of_branchResult
+        hk hBase hBit hInv,
+      expTwoMulFixedCursorInvariant_succ_of_control_reload hControl hC6,
+      expTwoMulFixedControlInvariant_succ_reload
+        hControl hC6 hNextNext⟩
+
 end EvmAsm.Evm64.Exp.Compose
