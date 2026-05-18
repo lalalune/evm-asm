@@ -6,6 +6,7 @@
 
 import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulIter
 import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
+import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
 
 namespace EvmAsm.Evm64.Exp.Compose
 
@@ -355,6 +356,108 @@ theorem exp_squaring_call_block_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_w
   exact cpsTripleWithin_extend_code
     (h := h)
     (hmono := CodeReq.union_sub hSquareSubUnion hMulSubUnion)
+
+/-- Conditional-multiply taken call block lifted to the decomposed fixed
+    iteration body plus the external `mul_callable` code. The leading saved-bit
+    BEQ remains part of the surrounding conditional path proof. -/
+theorem exp_cond_mul_call_block_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
+    (sp evmSp tOld vOld r0 r1 r2 r3 a0 a1 a2 a3 d0 d1 d2 d3 e0 e1 e2 e3
+      v6 v7 v10 v11 mulTarget : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (base : Word)
+    (hbase : base &&& 1 = 0)
+    (hmt : mulTarget = ((base + 140) + 64) + signExtend21 condMulOff)
+    (hd : CodeReq.Disjoint
+            (expIterBodyFullMsbSavedBitTwoMulFixedCode
+              base squaringMulOff condMulOff skipOff backOff)
+            (mul_callable_code mulTarget)) :
+    let r := expResultWord r0 r1 r2 r3
+    let aw := expResultWord a0 a1 a2 a3
+    cpsTripleWithin (17 + 64 + 9) (base + 140) (base + 244)
+      ((expIterBodyFullMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff).union
+        (mul_callable_code mulTarget))
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
+       (.x1 ↦ᵣ vOld))
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
+       (.x5 ↦ᵣ (r * aw).getLimbN 3) **
+       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
+       evmWordIs sp (r * aw) ** evmWordIs (evmSp + 32) (r * aw) **
+       regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+       memOwn evmSp ** memOwn (evmSp + 8) **
+       memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
+       (.x1 ↦ᵣ ((base + 140) + 68))) := by
+  intro r aw
+  have hbase' : (base + 140 : Word) &&& 1 = 0 := by bv_decide
+  have hCondSub : ∀ a i,
+      exp_cond_mul_call_block_code (base + 140) condMulOff a = some i →
+      expIterBodyFullMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff a = some i := by
+    intro a i h
+    have haddr : (base + 136 : Word) + 4 = base + 140 := by bv_addr
+    rw [← haddr] at h
+    exact expIterBodyFullMsbSavedBitTwoMulFixedCode_cond_mul_sub
+      (base := base) (squaringMulOff := squaringMulOff)
+      (condMulOff := condMulOff) (skipOff := skipOff) (backOff := backOff)
+      a i (EvmAsm.Evm64.exp_cond_mul_call_with_saved_bit_skip_block_code_call_sub
+        (base + 136) condMulOff skipOff a i h)
+  have hd_inner : CodeReq.Disjoint
+      (exp_cond_mul_call_block_code (base + 140) condMulOff)
+      (mul_callable_code mulTarget) := by
+    intro a
+    rcases hd a with hExp | hMul
+    · left
+      cases hsub : exp_cond_mul_call_block_code (base + 140) condMulOff a with
+      | none => rfl
+      | some i =>
+        have hev := hCondSub a i hsub
+        exact absurd (hev.symm.trans hExp) (by simp)
+    · right
+      exact hMul
+  have h := EvmAsm.Evm64.exp_cond_mul_call_block_spec_within
+    sp evmSp tOld vOld r0 r1 r2 r3 a0 a1 a2 a3 d0 d1 d2 d3 e0 e1 e2 e3
+    v6 v7 v10 v11 mulTarget condMulOff (base + 140) hbase' hmt hd_inner
+  have haddr : (base + 140 : Word) + 104 = base + 244 := by bv_addr
+  rw [haddr] at h
+  have hCondSubUnion : ∀ a i,
+      exp_cond_mul_call_block_code (base + 140) condMulOff a = some i →
+      ((expIterBodyFullMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff).union
+        (mul_callable_code mulTarget)) a = some i := by
+    intro a i hi
+    simp only [CodeReq.union, hCondSub a i hi]
+  have hMulSubUnion : ∀ a i, mul_callable_code mulTarget a = some i →
+      ((expIterBodyFullMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff).union
+        (mul_callable_code mulTarget)) a = some i := by
+    intro a i hi
+    rcases hd a with hIter | hMul
+    · simp only [CodeReq.union, hIter, hi]
+    · rw [hi] at hMul
+      contradiction
+  exact cpsTripleWithin_extend_code
+    (h := h)
+    (hmono := CodeReq.union_sub hCondSubUnion hMulSubUnion)
 
 /-- Loop-back block lifted to the decomposed fixed iteration body. -/
 theorem exp_loop_back_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
