@@ -189,6 +189,37 @@ EvmAsm/Evm64.lean            -- Evm64 module hub
 execution-specs/              -- Submodule: Ethereum execution specs
 ```
 
+## Codegen & Execution
+
+Verified `Program`s can be emitted as RV64 assembly, assembled, linked,
+and run on the [Zisk](https://0xpolygonhermez.github.io/zisk/) emulator
+(`ziskemu`). See [CODEGEN.md](CODEGEN.md) for the roadmap and status.
+M0–M4 are complete: text emitter, total `Instr` coverage with build-time
+`#guard` round-trip tests, `evm_add` 256-bit round-trip on `ziskemu`
+from both a baked-in `.data` section and from prover input via
+`ziskemu -i`. M5 (tiny EVM interpreter on `PUSH1 1 PUSH1 2 ADD STOP`)
+is the next milestone.
+
+Quick start:
+
+```bash
+# Emit and run a verified evm_add on ziskemu:
+lake exe codegen --program evm_add --halt linux93 -o gen-out/evm_add
+ziskemu -e gen-out/evm_add.elf -o gen-out/evm_add.output
+
+# End-to-end regression scripts:
+scripts/codegen-smoke.sh                            # M0 toolchain validation
+scripts/codegen-evm_add-check.sh                    # M2 verified ADD
+scripts/codegen-evm_add-from-input-check.sh         # M4 ADD from ziskemu -i
+```
+
+Setup requirements: `riscv64-elf-binutils` (or `riscv-gnu-toolchain`)
+and `ziskemu`. The Zisk emulator can be installed with
+`bash <(curl -fsSL https://raw.githubusercontent.com/0xPolygonHermez/zisk/main/ziskup/install.sh)`
+followed by `~/.zisk/bin/ziskup --nokey -y` to skip the proving-key
+download (we only need the emulator). Codegen also has an `--asm-only`
+mode for CI hosts without the cross toolchain.
+
 ## Building
 
 ```bash
@@ -274,10 +305,14 @@ This is a **prototype** demonstrating the approach. Current state:
   LT, GT, EQ, ISZERO, SLT, SGT,
   POP, PUSH0, DUP1-16, SWAP1-16
 - **0 sorry across the entire codebase** (`lake build` clean).
+- **Codegen**: `EvmAsm.Codegen` emits verified `Program`s to runnable
+  RV64 ELFs on `ziskemu`. M0–M4 of [CODEGEN.md](CODEGEN.md) shipped:
+  toolchain validation, `Instr` coverage, `evm_add` round-trip from
+  `.data` and from prover input. M5 (tiny EVM interpreter) planned next.
 - **TODO**: EXP, ADDMOD, MULMOD, SDIV, SMOD,
-  MLOAD, MSTORE, interpreter loop, state transition function, connect to
-  sail-riscv-lean for RISC-V spec compliance, connect to EVM specs in Lean,
-  testing.
+  MLOAD, MSTORE, interpreter loop (M5 of [CODEGEN.md](CODEGEN.md)),
+  state transition function, connect to sail-riscv-lean for RISC-V
+  spec compliance, connect to EVM specs in Lean, testing.
 
 ## Documentation
 

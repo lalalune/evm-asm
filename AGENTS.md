@@ -120,6 +120,31 @@ The project includes concrete test cases using `native_decide`:
 - ECALL/halt termination examples
 - COMMIT-then-halt examples
 
+### Codegen & ziskemu round-trips
+
+Verified `Program`s can be emitted to executable RV64 ELFs and run on
+`ziskemu` — see [`CODEGEN.md`](CODEGEN.md) for the roadmap. Three
+shell scripts under `scripts/` codify the per-milestone end-to-end
+regression:
+
+- `scripts/codegen-smoke.sh` — synthetic `LI/ADD/halt` toolchain check.
+- `scripts/codegen-evm_add-check.sh` — verified 256-bit `evm_add` with
+  operands baked into `.data`.
+- `scripts/codegen-evm_add-from-input-check.sh` — same `evm_add`, but
+  operands loaded at runtime from `ziskemu -i <file>`.
+
+Each script builds via `lake exe codegen`, assembles via
+`riscv64-elf-as -march=rv64imac`, links with
+`-Ttext=0x80000000 -Tdata=0xa0000000`, runs `ziskemu`, and diffs the
+public output against the expected value. They require
+`riscv64-elf-binutils` and `ziskemu` on the host; use `--asm-only` on
+the codegen invocation to skip assembly/link/run.
+
+`EvmAsm/Codegen/RoundTripTests.lean` houses ~60 `#guard` assertions
+covering every `Instr` constructor → GNU-as line; failures abort
+`lake build`. Treat this as the build-time correctness gate for
+`emitInstr` drift.
+
 ## Import Hygiene (`lake exe shake`)
 
 We use Mathlib's `shake` tool to flag unused imports. Configuration lives in

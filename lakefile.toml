@@ -15,3 +15,8 @@ rev = "main"
 
 [[lean_lib]]
 name = "EvmAsm"
+
+[[lean_exe]]
+name = "codegen"
+root = "Main"
+supportInterpreter = true

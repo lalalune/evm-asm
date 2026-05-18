@@ -18,6 +18,14 @@ transactions against the world state.
 Reference spec: `execution-specs/src/ethereum/forks/shanghai/vm/` (Python).
 zkVM standards: `EvmAsm/Evm64/zkvm-standards/` (submodule).
 
+> **Parallel codegen track.** Emitting verified `Program`s as executable
+> RV64 ELFs that run on the Zisk emulator is tracked separately in
+> [`CODEGEN.md`](CODEGEN.md). M0–M4 are done (text emitter, total
+> `Instr` coverage, `evm_add` round-trip on `ziskemu` from both `.data`
+> and `ziskemu -i`); M5 (tiny EVM interpreter on `PUSH1 PUSH1 ADD STOP`)
+> is next. Codegen is purely additive — it does not modify the verified
+> core.
+
 ---
 
 ## Architecture Overview
