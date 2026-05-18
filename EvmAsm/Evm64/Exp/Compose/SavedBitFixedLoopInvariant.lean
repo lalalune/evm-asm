@@ -40,6 +40,39 @@ theorem expTwoMulFixedAccumulatorTarget_full
 def expTwoMulFixedProcessedBit (exponentWord : EvmWord) (k : Nat) : Bool :=
   decide (((exponentWord >>> (255 - k)).toNat % 2) = 1)
 
+def expTwoMulFixedProcessedBitWord (exponentWord : EvmWord) (k : Nat) : Word :=
+  if expTwoMulFixedProcessedBit exponentWord k then 1 else 0
+
+theorem expTwoMulFixedProcessedBitWord_eq_zero_iff
+    (exponentWord : EvmWord) (k : Nat) :
+    expTwoMulFixedProcessedBitWord exponentWord k = 0 ↔
+      expTwoMulFixedProcessedBit exponentWord k = false := by
+  unfold expTwoMulFixedProcessedBitWord
+  cases expTwoMulFixedProcessedBit exponentWord k <;> decide
+
+theorem expTwoMulFixedProcessedBitWord_ne_zero_iff
+    (exponentWord : EvmWord) (k : Nat) :
+    expTwoMulFixedProcessedBitWord exponentWord k ≠ 0 ↔
+      expTwoMulFixedProcessedBit exponentWord k = true := by
+  unfold expTwoMulFixedProcessedBitWord
+  cases expTwoMulFixedProcessedBit exponentWord k <;> decide
+
+theorem expTwoMulFixedProcessedBitWord_add_zero_eq_zero_iff
+    (exponentWord : EvmWord) (k : Nat) :
+    expTwoMulFixedProcessedBitWord exponentWord k +
+        signExtend12 (0 : BitVec 12) = 0 ↔
+      expTwoMulFixedProcessedBit exponentWord k = false := by
+  unfold expTwoMulFixedProcessedBitWord
+  cases expTwoMulFixedProcessedBit exponentWord k <;> decide
+
+theorem expTwoMulFixedProcessedBitWord_add_zero_ne_zero_iff
+    (exponentWord : EvmWord) (k : Nat) :
+    expTwoMulFixedProcessedBitWord exponentWord k +
+        signExtend12 (0 : BitVec 12) ≠ 0 ↔
+      expTwoMulFixedProcessedBit exponentWord k = true := by
+  unfold expTwoMulFixedProcessedBitWord
+  cases expTwoMulFixedProcessedBit exponentWord k <;> decide
+
 theorem expTwoMulFixedProcessedExponent_succ_toNat
     (exponentWord : EvmWord) {k : Nat} (hk : k < 256) :
     (expTwoMulFixedProcessedExponent exponentWord (k + 1)).toNat =
