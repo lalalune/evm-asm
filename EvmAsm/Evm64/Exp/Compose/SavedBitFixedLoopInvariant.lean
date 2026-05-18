@@ -631,9 +631,9 @@ theorem expTwoMulFixedControlInvariant_succ_no_reload
 
 theorem expTwoMulFixedControlInvariant_succ_reload
     {exponentWord : EvmWord} {k : Nat}
-    {c6 ptr nextNextLimb evmSp : Word}
+    {c6 ptr loadedLimb nextNextLimb evmSp : Word}
     (hControl :
-      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextNextLimb evmSp)
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr loadedLimb evmSp)
     (hC6 : c6 + signExtend12 (-1 : BitVec 12) = 0)
     (hNext :
       nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64)) :
@@ -904,6 +904,72 @@ theorem expTwoMulFixedNoReloadInvariants_succ_of_condRw
       expTwoMulFixedCursorInvariant_succ_of_control_no_reload
         hCursor hControl hC6,
       expTwoMulFixedControlInvariant_succ_no_reload hControl hC6⟩
+
+theorem expTwoMulFixedReloadInvariants_succ_of_squareW
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {e c6 ptr nextLimb nextNextLimb evmSp r0 r1 r2 r3 : Word}
+    (hk : k < 256)
+    (hCursor : expTwoMulFixedCursorInvariant exponentWord k e)
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) = 0)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hBitZero : e >>> (63 : BitVec 6).toNat +
+        signExtend12 (0 : BitVec 12) = 0)
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3) :
+    expTwoMulFixedAccumulatorInvariant baseWord exponentWord (k + 1)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 0)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 1)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 2)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3) ∧
+    expTwoMulFixedCursorInvariant exponentWord (k + 1) nextLimb ∧
+    expTwoMulFixedControlInvariant exponentWord (k + 1)
+      64 (ptr + signExtend12 (-8 : BitVec 12)) nextNextLimb evmSp := by
+  exact
+    ⟨expTwoMulFixedAccumulatorInvariant_succ_of_squareW_cursor_branch
+        hk hCursor hBitZero hInv,
+      expTwoMulFixedCursorInvariant_succ_of_control_reload hControl hC6,
+      expTwoMulFixedControlInvariant_succ_reload
+        hControl hC6 hNextNext⟩
+
+theorem expTwoMulFixedReloadInvariants_succ_of_condRw
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {e c6 ptr nextLimb nextNextLimb evmSp
+      a0 a1 a2 a3 r0 r1 r2 r3 : Word}
+    (hk : k < 256)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hCursor : expTwoMulFixedCursorInvariant exponentWord k e)
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) = 0)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hBitNe : e >>> (63 : BitVec 6).toNat +
+        signExtend12 (0 : BitVec 12) ≠ 0)
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3) :
+    expTwoMulFixedAccumulatorInvariant baseWord exponentWord (k + 1)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 0)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 1)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 2)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 3) ∧
+    expTwoMulFixedCursorInvariant exponentWord (k + 1) nextLimb ∧
+    expTwoMulFixedControlInvariant exponentWord (k + 1)
+      64 (ptr + signExtend12 (-8 : BitVec 12)) nextNextLimb evmSp := by
+  exact
+    ⟨expTwoMulFixedAccumulatorInvariant_succ_of_condRw_cursor_branch
+        hk hBase hCursor hBitNe hInv,
+      expTwoMulFixedCursorInvariant_succ_of_control_reload hControl hC6,
+      expTwoMulFixedControlInvariant_succ_reload
+        hControl hC6 hNextNext⟩
 
 @[irreducible]
 def expTwoMulFixedCursorAssertion
