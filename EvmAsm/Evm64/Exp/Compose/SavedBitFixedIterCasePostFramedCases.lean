@@ -16,6 +16,79 @@ theorem expTwoMulFixedIterPointerPost_eq_pointerFrame
       expTwoMulFixedIterPointerFrame ptr nextLimb := by
   rw [expTwoMulFixedIterPointerFrame_unfold]
 
+@[irreducible]
+def expTwoMulFixedIterReloadPointerFrame
+    (ptr nextLimb : Word) : Assertion :=
+  (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
+  ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb)
+
+theorem expTwoMulFixedIterReloadPointerFrame_unfold {ptr nextLimb : Word} :
+    expTwoMulFixedIterReloadPointerFrame ptr nextLimb =
+      ((.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb)) := by
+  delta expTwoMulFixedIterReloadPointerFrame
+  rfl
+
+theorem expTwoMulFixedIterReloadPointerFrame_pcFree {ptr nextLimb : Word} :
+    (expTwoMulFixedIterReloadPointerFrame ptr nextLimb).pcFree := by
+  rw [expTwoMulFixedIterReloadPointerFrame_unfold]
+  pcFree
+
+instance pcFreeInst_expTwoMulFixedIterReloadPointerFrame
+    (ptr nextLimb : Word) :
+    Assertion.PCFree (expTwoMulFixedIterReloadPointerFrame ptr nextLimb) :=
+  ⟨expTwoMulFixedIterReloadPointerFrame_pcFree⟩
+
+abbrev expTwoMulFixedIterReloadCondCountPostScratchSuffixFrame
+    (e c6 ptr nextLimb base : Word) : Assertion :=
+  let bit := e >>> (63 : BitVec 6).toNat
+  let c6New := c6 + signExtend12 (-1 : BitVec 12)
+  expTwoMulFixedIterSkipCondRestScratchSuffix base **
+  (.x19 ↦ᵣ nextLimb) **
+  (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
+  ⌜c6New = 0⌝ **
+  expTwoMulFixedIterReloadPointerFrame ptr nextLimb **
+  ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝
+
+theorem expTwoMulFixedIterReloadCondCountPostScratchSuffix_frame
+    {e c6 ptr nextLimb base : Word} {ps : PartialState}
+    (h :
+      expTwoMulFixedIterReloadCondCountPostScratchSuffix
+        e c6 ptr nextLimb base ps) :
+    expTwoMulFixedIterReloadCondCountPostScratchSuffixFrame
+      e c6 ptr nextLimb base ps := by
+  unfold expTwoMulFixedIterReloadCondCountPostScratchSuffix
+    expTwoMulFixedIterReloadCondFrame at h
+  unfold expTwoMulFixedIterReloadCondCountPostScratchSuffixFrame
+  rw [expTwoMulFixedIterReloadPointerFrame_unfold]
+  sep_perm h
+
+abbrev expTwoMulFixedIterReloadSkipCountPostScratchSuffixFrame
+    (e c6 ptr nextLimb evmSp a0 a1 a2 a3 base : Word) : Assertion :=
+  let bit := e >>> (63 : BitVec 6).toNat
+  let c6New := c6 + signExtend12 (-1 : BitVec 12)
+  (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
+  (.x19 ↦ᵣ nextLimb) **
+  (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
+  ⌜c6New = 0⌝ **
+  expTwoMulFixedIterReloadPointerFrame ptr nextLimb **
+  ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝ **
+  expTwoMulFixedIterBaseFrame evmSp a0 a1 a2 a3
+
+theorem expTwoMulFixedIterReloadSkipCountPostScratchSuffix_frame
+    {e c6 ptr nextLimb evmSp a0 a1 a2 a3 base : Word}
+    {ps : PartialState}
+    (h :
+      expTwoMulFixedIterReloadSkipCountPostScratchSuffix
+        e c6 ptr nextLimb evmSp a0 a1 a2 a3 base ps) :
+    expTwoMulFixedIterReloadSkipCountPostScratchSuffixFrame
+      e c6 ptr nextLimb evmSp a0 a1 a2 a3 base ps := by
+  unfold expTwoMulFixedIterReloadSkipCountPostScratchSuffix
+    expTwoMulFixedIterReloadSkipRestScratchSuffix at h
+  unfold expTwoMulFixedIterReloadSkipCountPostScratchSuffixFrame
+  rw [expTwoMulFixedIterReloadPointerFrame_unfold]
+  sep_perm h
+
 theorem expTwoMulFixedIterCaseLoopPost_scratch_cases_pointerFrame
     {iterCount e c6 ptr nextLimb sp evmSp
       r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
