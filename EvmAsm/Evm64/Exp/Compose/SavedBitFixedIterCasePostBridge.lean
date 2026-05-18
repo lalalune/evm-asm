@@ -288,4 +288,31 @@ theorem exp_fixed_loop_body_final_succ_step_case_posts_bounded
       r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
       v7 v11 base R hbase hzero hExit)
 
+/-- Vacuous bridge from a non-final fixed case-post exit assertion. -/
+theorem exp_fixed_iter_case_exit_vacuous_bridge
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    (hne : expTwoMulIterCountNew iterCount ≠ 0)
+    {Q : PartialState → Prop} :
+    ∀ ps,
+      expTwoMulFixedIterCaseExitPost iterCount e c6 ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base ps →
+      Q ps := by
+  rw [← expTwoMulFixedIterMergedExitPost_eq_caseExitPost]
+  exact exp_fixed_iter_merged_exit_vacuous_bridge hne
+
+/-- Zero-step body spec from a fixed case-post loop-back assertion whose
+    decremented iteration count is zero. -/
+theorem exp_fixed_iter_case_loop_zero_step_vacuous
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    (hzero : expTwoMulIterCountNew iterCount = 0)
+    {Q : Assertion} {entry exit_ : Word} {code : CodeReq} :
+    cpsTripleWithin 0 entry exit_ code
+      (expTwoMulFixedIterCaseLoopPost iterCount e c6 ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base)
+      Q := by
+  rw [← expTwoMulFixedIterMergedLoopPost_eq_caseLoopPost]
+  exact exp_fixed_iter_merged_loop_zero_step_vacuous hzero
+
 end EvmAsm.Evm64.Exp.Compose
