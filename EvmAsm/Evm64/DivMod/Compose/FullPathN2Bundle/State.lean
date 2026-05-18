@@ -76,11 +76,11 @@ def fullDivN2Frame (bltu_2 bltu_1 bltu_0 : Bool)
   ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
   (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
-  (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
+  (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
   (sp + signExtend12 3968 ↦ₘ n2ScratchRet scratch) **
   (sp + signExtend12 3960 ↦ₘ n2ScratchD scratch) **
   (sp + signExtend12 3952 ↦ₘ n2ScratchDLo scratch) **
-  (sp + signExtend12 3944 ↦ₘ n2ScratchUn0 scratch)
+  (sp + signExtend12 3944 ↦ₘ n2ScratchUn0 scratch) ** regOwn .x1
 
 theorem fullDivN2ScratchFinal_unfold (bltu_2 bltu_1 bltu_0 : Bool)
     (base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word) :
@@ -140,11 +140,11 @@ theorem fullDivN2Frame_unfold (bltu_2 bltu_1 bltu_0 : Bool)
     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
     (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
     (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
-    (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
+    (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
     (sp + signExtend12 3968 ↦ₘ n2ScratchRet scratch) **
     (sp + signExtend12 3960 ↦ₘ n2ScratchD scratch) **
     (sp + signExtend12 3952 ↦ₘ n2ScratchDLo scratch) **
-    (sp + signExtend12 3944 ↦ₘ n2ScratchUn0 scratch) := by
+    (sp + signExtend12 3944 ↦ₘ n2ScratchUn0 scratch) ** regOwn .x1 := by
   delta fullDivN2Frame
   rfl
 

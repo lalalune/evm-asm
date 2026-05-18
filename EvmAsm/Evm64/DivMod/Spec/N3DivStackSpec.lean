@@ -100,7 +100,7 @@ theorem evm_div_n3_stack_spec_within_word_exact_x1
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
       (divStackDispatchPostNoX1 sp a b **
-        (.x1 ↦ᵣ (signExtend12 4095 : Word))) := by
+        (.x9 ↦ᵣ (signExtend12 4095 : Word))) := by
   obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
     fullDivN3_hdivs_of_word_eq bltu_1 bltu_0
       a b a0 a1 a2 a3 b0 b1 b2 b3 hdivWord

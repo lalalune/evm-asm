@@ -53,14 +53,14 @@ private theorem d128_sub_mod {base : Word} (k : Nat) (addr : Word) (instr : Inst
 -- ============================================================================
 
 theorem mod_div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1Old v6Old v11Old : Word)
+    (v9Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
     cpsTripleWithin 51 (base + div128Off) retAddr (modCode base)
       (-- Precondition: caller registers + scratch memory
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -102,14 +102,14 @@ theorem mod_div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
   let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo un0
   let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
-  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
+  let x9Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let x11Exit := if rhat2cHi = 0 then un0 else rhat2c
   let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   -- ================================================================
   -- Block 1: Phase 1 (base+1072 → base+1112)
   -- Saves ret/d, splits d and uLo into halves.
   -- ================================================================
-  have hph1 := divK_div128_phase1_spec_within sp retAddr d uLo uHi v1Old v6Old v11Old
+  have hph1 := divK_div128_phase1_spec_within sp retAddr d uLo uHi v9Old v6Old v11Old
     retMem dMem dloMem un0Mem (base + div128Off)
   -- Extend phase1 cr to modCode
   have hph1e := cpsTripleWithin_extend_code (hmono := by
@@ -234,7 +234,7 @@ theorem mod_div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
     hend
   -- Frame end with x7, x6, x1, x0, mem[3960], mem[3952], mem[3944]
   have hendf := cpsTripleWithin_frameR
-    ((.x7 ↦ᵣ x7Exit) ** (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ x1Exit) **
+    ((.x7 ↦ᵣ x7Exit) ** (.x6 ↦ᵣ dHi) ** (.x9 ↦ᵣ x9Exit) **
      (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ un0))

@@ -56,7 +56,7 @@ theorem q_addr_j0 {sp : Word} :
 theorem loopExitPostN4_j0_eq (sp q_f c3 un0F un1F un2F un3F u4F
     v0 v1 v2 v3 : Word) :
     loopExitPostN4 sp (0 : Word) q_f c3 un0F un1F un2F un3F u4F v0 v1 v2 v3 =
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ signExtend12 4095) **
      (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
      (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
      (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -86,7 +86,7 @@ def loopBodyN4SkipJ0Pre
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word) : Assertion :=
   let uBase := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (0 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -106,7 +106,7 @@ theorem loopBodyN4SkipJ0Pre_unfold
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld =
     (let uBase := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
      let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-     (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
+     (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (0 : Word)) **
      (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
      (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
      (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -214,7 +214,7 @@ theorem divK_loop_body_n4_max_skip_j0_norm_modCode_within (sp base : Word)
                   (mulsubN4_c3 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3)
                 then (1 : Word) else 0) = (0 : Word)) :
     cpsTripleWithin 76 (base + loopBodyOff) (base + denormOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
        (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -360,7 +360,7 @@ theorem divK_loop_body_n4_call_skip_j0_norm_modCode_within (sp base : Word)
                   (mulsubN4_c3 (div128Quot uTop u3 v3) v0 v1 v2 v3 u0 u1 u2 u3)
                 then (1 : Word) else 0) = (0 : Word)) :
     cpsTripleWithin 126 (base + loopBodyOff) (base + denormOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
        (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -374,7 +374,7 @@ theorem divK_loop_body_n4_call_skip_j0_norm_modCode_within (sp base : Word)
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (loopBodyN4CallSkipJ0Post sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   have raw := divK_loop_body_n4_call_skip_j0_modCode_within sp jOld v5Old v6Old v7Old
     v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
@@ -434,7 +434,7 @@ theorem divK_loop_body_n4_call_addback_j0_beq_norm_modCode_within (sp base : Wor
                   (mulsubN4_c3 (div128Quot uTop u3 v3) v0 v1 v2 v3 u0 u1 u2 u3)
                 then (1 : Word) else 0) ≠ (0 : Word)) :
     cpsTripleWithin 202 (base + loopBodyOff) (base + denormOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (0 : Word)) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
        (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -448,7 +448,7 @@ theorem divK_loop_body_n4_call_addback_j0_beq_norm_modCode_within (sp base : Wor
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (loopBodyN4CallAddbackBeqJ0Post sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop) := by
   have raw := divK_loop_body_n4_call_addback_j0_beq_modCode_within sp jOld
     v5Old v6Old v7Old v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop

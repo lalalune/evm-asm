@@ -16,8 +16,8 @@ theorem saveRaDivCallBzeroCallablePost_pcFree
       divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).pcFree := by
   rw [saveRaDivCallBzeroCallablePost_unfold]
   dsimp
-  rw [EvmAsm.Evm64.divStackDispatchPostNoX1_unfold,
-    EvmAsm.Evm64.divScratchOwnCall_unfold,
+  rw [EvmAsm.Evm64.divStackDispatchPostCallable_unfold,
+    EvmAsm.Evm64.divScratchOwnCallNoX1_unfold,
     EvmAsm.Evm64.divScratchOwn_unfold]
   pcFree
 

@@ -81,7 +81,7 @@ theorem n1_qa3 {sp : Word} :
 theorem loopExitPostN1_j0_eq (sp q_f c3 un0F un1F un2F un3F u4F
     v0 v1 v2 v3 : Word) :
     loopExitPostN1 sp (0 : Word) q_f c3 un0F un1F un2F un3F u4F v0 v1 v2 v3 =
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ signExtend12 4095) **
      (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
      (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
      (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **

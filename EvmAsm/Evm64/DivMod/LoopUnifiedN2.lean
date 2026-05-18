@@ -58,10 +58,10 @@ theorem divK_loop_n2_iter10_unified_spec_within (bltu_1 bltu_0 : Bool)
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old base
       hbltu_1' hbltu_0' hcarry2
     have hMMF := cpsTripleWithin_frameR
-      ((sp + signExtend12 3968 ↦ₘ retMem) **
-       (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     ((sp + signExtend12 3968 ↦ₘ retMem) **
+      (sp + signExtend12 3960 ↦ₘ dMem) **
+      (sp + signExtend12 3952 ↦ₘ dloMem) **
+      (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (by pcFree) hMM
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => by delta loopN2Iter10PreWithScratch at hp; xperm_hyp hp)
@@ -136,10 +136,10 @@ theorem divK_loop_n2_iter10_unified_spec_within_noNop (bltu_1 bltu_0 : Bool)
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old base
       hbltu_1' hbltu_0' hcarry2
     have hMMF := cpsTripleWithin_frameR
-      ((sp + signExtend12 3968 ↦ₘ retMem) **
-       (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     ((sp + signExtend12 3968 ↦ₘ retMem) **
+      (sp + signExtend12 3960 ↦ₘ dMem) **
+      (sp + signExtend12 3952 ↦ₘ dloMem) **
+      (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (by pcFree) hMM
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => by delta loopN2Iter10PreWithScratch at hp; xperm_hyp hp)
@@ -227,7 +227,7 @@ theorem divK_loop_n2_max_iter10_spec_within (bltu_1 bltu_0 : Bool)
     (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
      ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) J2
   have H10 := divK_loop_n2_iter10_unified_spec_within bltu_1 bltu_0
     sp (2 : Word) ((2 : Word) <<< (3 : BitVec 6).toNat) u_base_2 q_addr_2
@@ -302,7 +302,7 @@ theorem divK_loop_n2_max_iter10_spec_within_noNop (bltu_1 bltu_0 : Bool)
     (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
      ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) J2
   have H10 := divK_loop_n2_iter10_unified_spec_within_noNop bltu_1 bltu_0
     sp (2 : Word) ((2 : Word) <<< (3 : BitVec 6).toNat) u_base_2 q_addr_2

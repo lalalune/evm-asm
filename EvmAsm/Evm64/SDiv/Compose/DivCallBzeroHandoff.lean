@@ -49,38 +49,34 @@ theorem saveRaDivCallDispatchReadyPost_bzero_callable_spec_in_sdivCode
   let divisorSum3 := sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
   let divisorCarry3 := sdivAbsCarry3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
   let resultSign := sdivDivCallResultSign dividendTop divisorTop
-  have hStack :=
-    EvmAsm.Evm64.evm_div_bzero_stack_spec_within_dispatch_noNop_preserving_x1_uni
-      sp (base + wrapperEndOff) dividendAbsWord divisorAbsWord
-      ((base + divCallOff) + 4) v2 v5 v6 divisorSum3 divisorMask divisorCarry3
+  let signFrameNoX9 : EvmAsm.Rv64.Assertion :=
+    ((.x8 ↦ᵣ resultSign) **
+      (.x18 ↦ᵣ (vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12))))
+  have hCallableRaw :=
+    EvmAsm.Evm64.evm_div_callable_bzero_preserving_x1_spec
+      sp (base + wrapperEndOff) divisorSign ((base + divCallOff) + 4)
+      dividendAbsWord divisorAbsWord v2 v5 v6 divisorSum3 divisorMask divisorCarry3
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratchUn0
       (by simpa [divisorAbsWord] using hbz)
-  let branch : EvmAsm.Evm64.DivStackSpecCase (base + wrapperEndOff)
-      dividendAbsWord divisorAbsWord :=
-    EvmAsm.Evm64.DivStackSpecCase.bzero ((base + divCallOff) + 4) v2
-      (by simpa [divisorAbsWord] using hbz)
+  have hCallableCode :=
+    EvmAsm.Rv64.cpsTripleWithin_extend_code
+      (hmono := evm_div_callable_code_sub_sdivCode (base := base)) hCallableRaw
   have hCallableFramed :=
-    evm_div_callable_preserving_branch_return_x1_framed_spec_in_sdivCode
-      (F := saveRaDivCallSignFrame vRa resultSign divisorSign)
-      sp base dividendAbsWord divisorAbsWord v5 v6 divisorSum3 divisorMask divisorCarry3
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0
-      branch
-      (by
-        dsimp [branch]
-        exact hStack)
+    EvmAsm.Rv64.cpsTripleWithin_frameR signFrameNoX9 (by
+      dsimp [signFrameNoX9]
+      pcFree) hCallableCode
   have hCallableExit :
       EvmAsm.Rv64.cpsTripleWithin (EvmAsm.Evm64.unifiedDivBound + 1)
         (base + wrapperEndOff) (base + resultSignFixOff) (sdivCode base)
-        (EvmAsm.Evm64.divModStackDispatchPre sp dividendAbsWord divisorAbsWord
-          ((base + divCallOff) + 4) v2 v5 v6 divisorSum3 divisorMask divisorCarry3
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp dividendAbsWord divisorAbsWord
+          divisorSign ((base + divCallOff) + 4) v2 v5 v6 divisorSum3 divisorMask divisorCarry3
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
-          saveRaDivCallSignFrame vRa resultSign divisorSign)
-        ((EvmAsm.Evm64.divStackDispatchPostNoX1 sp dividendAbsWord divisorAbsWord **
+          signFrameNoX9)
+        (((EvmAsm.Evm64.divStackDispatchPostCallable sp dividendAbsWord divisorAbsWord **
           (.x1 ↦ᵣ ((base + divCallOff) + 4))) **
-          saveRaDivCallSignFrame vRa resultSign divisorSign) := by
+          (.x9 ↦ᵣ divisorSign)) ** signFrameNoX9) := by
     rw [← divCall_return_andn_one_eq_resultSignFixOff base hbase]
     exact hCallableFramed
   exact EvmAsm.Rv64.cpsTripleWithin_weaken (fun h hp => by
@@ -91,10 +87,12 @@ theorem saveRaDivCallDispatchReadyPost_bzero_callable_spec_in_sdivCode
       sdivDivCallResultSign, sdivAbsSign, sdivAbsMask, sdivAbsSum0, sdivAbsCarry0,
       sdivAbsSum1, sdivAbsCarry1, sdivAbsSum2, sdivAbsCarry2, sdivAbsSum3,
       sdivAbsCarry3] at hp ⊢
+    dsimp [signFrameNoX9] at hp ⊢
     exact hp) (fun h hp => by
     rw [saveRaDivCallBzeroCallablePost_unfold]
-    dsimp [dividendAbsWord, divisorAbsWord, divisorSign, resultSign,
+    dsimp [dividendAbsWord, divisorAbsWord, divisorSign, resultSign, signFrameNoX9,
       saveRaDivCallSignFrame, sdivDivCallResultSign, sdivAbsSign] at hp ⊢
-    exact hp) hCallableExit
+    simpa only [EvmAsm.Rv64.sepConj_assoc', EvmAsm.Rv64.sepConj_comm',
+      EvmAsm.Rv64.sepConj_left_comm'] using hp) hCallableExit
 
 end EvmAsm.Evm64.SDiv.Compose

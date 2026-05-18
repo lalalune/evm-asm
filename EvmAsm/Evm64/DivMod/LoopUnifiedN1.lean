@@ -76,7 +76,7 @@ theorem divK_loop_n1_iter10_unified_spec_within (bltu_1 bltu_0 : Bool)
     have J1f := cpsTripleWithin_frameR
       (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (by pcFree) J1
     -- Derive j=0 validity via j=1->j=0 address linking
     -- j=0 max  spec (inputs from j=1 via iterN1Max)
@@ -105,7 +105,7 @@ theorem divK_loop_n1_iter10_unified_spec_within (bltu_1 bltu_0 : Bool)
       (((u_base_1 + signExtend12 4064) ↦ₘ (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
        (q_addr_1 ↦ₘ (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).1) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (by pcFree) J0
     -- Compose j=1 and j=0 via address rewriting
     have full := cpsTripleWithin_seq_perm_same_cr
@@ -146,7 +146,7 @@ theorem divK_loop_n1_iter10_unified_spec_within (bltu_1 bltu_0 : Bool)
     have J1f := cpsTripleWithin_frameR
       (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (by pcFree) J1
     -- j=0 call  spec (includes scratch in pre/post)
     have J0 := divK_loop_body_n1_call_unified_j0_spec_within sp (1 : Word)
@@ -241,7 +241,7 @@ theorem divK_loop_n1_iter10_unified_spec_within (bltu_1 bltu_0 : Bool)
        (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
        (sp + signExtend12 3960 ↦ₘ v0) **
        (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
-       (sp + signExtend12 3944 ↦ₘ div128Un0 u0))
+       (sp + signExtend12 3944 ↦ₘ div128Un0 u0) ** regOwn .x1)
       (by pcFree) J0
     have full := cpsTripleWithin_seq_perm_same_cr
       (fun h hp => by
@@ -367,7 +367,7 @@ theorem divK_loop_n1_iter10_unified_spec_within_noNop (bltu_1 bltu_0 : Bool)
     have J1f := cpsTripleWithin_frameR
       (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (by pcFree) J1
     -- Derive j=0 validity via j=1->j=0 address linking
     -- j=0 max  spec (inputs from j=1 via iterN1Max)
@@ -396,7 +396,7 @@ theorem divK_loop_n1_iter10_unified_spec_within_noNop (bltu_1 bltu_0 : Bool)
       (((u_base_1 + signExtend12 4064) ↦ₘ (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
        (q_addr_1 ↦ₘ (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).1) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (by pcFree) J0
     -- Compose j=1 and j=0 via address rewriting
     have full := cpsTripleWithin_seq_perm_same_cr
@@ -437,7 +437,7 @@ theorem divK_loop_n1_iter10_unified_spec_within_noNop (bltu_1 bltu_0 : Bool)
     have J1f := cpsTripleWithin_frameR
       (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (by pcFree) J1
     -- j=0 call  spec (includes scratch in pre/post)
     have J0 := divK_loop_body_n1_call_unified_j0_spec_within_noNop sp (1 : Word)
@@ -532,7 +532,7 @@ theorem divK_loop_n1_iter10_unified_spec_within_noNop (bltu_1 bltu_0 : Bool)
        (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
        (sp + signExtend12 3960 ↦ₘ v0) **
        (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
-       (sp + signExtend12 3944 ↦ₘ div128Un0 u0))
+       (sp + signExtend12 3944 ↦ₘ div128Un0 u0) ** regOwn .x1)
       (by pcFree) J0
     have full := cpsTripleWithin_seq_perm_same_cr
       (fun h hp => by
@@ -667,7 +667,7 @@ theorem divK_loop_n1_max_iter10_spec_within (bltu_1 bltu_0 : Bool)
     (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
      ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) J2
   -- iter10  unified spec (inputs from j=2 max  output)
   have H10 := divK_loop_n1_iter10_unified_spec_within bltu_1 bltu_0
@@ -747,7 +747,7 @@ theorem divK_loop_n1_max_iter10_spec_within_noNop (bltu_1 bltu_0 : Bool)
     (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
      ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) J2
   -- iter10  unified spec (inputs from j=2 max  output)
   have H10 := divK_loop_n1_iter10_unified_spec_within_noNop bltu_1 bltu_0
@@ -1113,7 +1113,7 @@ theorem divK_loop_n1_max_iter210_spec_within (bltu_2 bltu_1 bltu_0 : Bool)
      ((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
      ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) J3
   -- iter210  unified spec (inputs from j=3 max  output)
   have H210 := divK_loop_n1_iter210_unified_spec_within bltu_2 bltu_1 bltu_0
@@ -1221,7 +1221,7 @@ theorem divK_loop_n1_max_iter210_spec_within_noNop (bltu_2 bltu_1 bltu_0 : Bool)
      ((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
      ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) J3
   -- iter210  unified spec (inputs from j=3 max  output)
   have H210 := divK_loop_n1_iter210_unified_spec_within_noNop bltu_2 bltu_1 bltu_0

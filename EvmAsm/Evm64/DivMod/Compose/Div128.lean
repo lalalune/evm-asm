@@ -119,11 +119,11 @@ def div128SpecPost (sp retAddr d uLo uHi : Word) : Assertion :=
   let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo un0
   let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
-  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
+  let x9Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ q1') **
   (.x5 ↦ᵣ q0') ** (.x7 ↦ᵣ x7Exit) **
-  (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ x1Exit) ** (.x11 ↦ᵣ q) **
+  (.x6 ↦ᵣ dHi) ** (.x9 ↦ᵣ x9Exit) ** (.x11 ↦ᵣ q) **
   (.x0 ↦ᵣ (0 : Word)) **
   (sp + signExtend12 3968 ↦ₘ retAddr) **
   (sp + signExtend12 3960 ↦ₘ d) **
@@ -131,7 +131,7 @@ def div128SpecPost (sp retAddr d uLo uHi : Word) : Assertion :=
   (sp + signExtend12 3944 ↦ₘ un0)
 
 private theorem div128_spec_within_of_sub (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1Old v6Old v11Old : Word)
+    (v9Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr)
     (code : CodeReq)
@@ -144,7 +144,7 @@ private theorem div128_spec_within_of_sub (sp retAddr d uLo uHi : Word) (base : 
       (-- Precondition: caller registers + scratch memory
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -182,14 +182,14 @@ private theorem div128_spec_within_of_sub (sp retAddr d uLo uHi : Word) (base : 
   let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo un0
   let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
-  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
+  let x9Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let x11Exit := if rhat2cHi = 0 then un0 else rhat2c
   let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   -- ================================================================
   -- Block 1: Phase 1 (base+1072 → base+1112)
   -- Saves ret/d, splits d and uLo into halves.
   -- ================================================================
-  have hph1 := divK_div128_phase1_spec_within sp retAddr d uLo uHi v1Old v6Old v11Old
+  have hph1 := divK_div128_phase1_spec_within sp retAddr d uLo uHi v9Old v6Old v11Old
     retMem dMem dloMem un0Mem (base + div128Off)
   -- Extend phase1 cr to sharedDivModCode
   have hph1e := cpsTripleWithin_extend_code (hmono := by
@@ -267,7 +267,7 @@ private theorem div128_spec_within_of_sub (sp retAddr d uLo uHi : Word) (base : 
   -- ================================================================
   -- Block 4: Step 2 (base+1192 → base+1260)
   -- Trial division q0, clamp, Phase 2b guard, product check.
-  -- Params: un21(x7), dHi(x6), v1Old=cu_q1_dlo(x1),
+  -- Params: un21(x7), dHi(x6), v9Old=cu_q1_dlo(x1),
   --         v5Old=cu_rhat_un1(x5), v11Old=un1(x11),
   --         dlo=dLo(mem[3952]), un0(mem[3944])
   -- NOTE: 17 instructions (was 15) — SRLI+BNE guard added between clamp
@@ -320,7 +320,7 @@ private theorem div128_spec_within_of_sub (sp retAddr d uLo uHi : Word) (base : 
     hend
   -- Frame end with x7, x6, x1, x0, mem[3960], mem[3952], mem[3944]
   have hendf := cpsTripleWithin_frameR
-    ((.x7 ↦ᵣ x7Exit) ** (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ x1Exit) **
+    ((.x7 ↦ᵣ x7Exit) ** (.x6 ↦ᵣ dHi) ** (.x9 ↦ᵣ x9Exit) **
      (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ un0))
@@ -335,13 +335,13 @@ private theorem div128_spec_within_of_sub (sp retAddr d uLo uHi : Word) (base : 
     h12345
 
 theorem div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1Old v6Old v11Old : Word)
+    (v9Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
     cpsTripleWithin 51 (base + div128Off) retAddr (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -349,19 +349,19 @@ theorem div128_spec_within (sp retAddr d uLo uHi : Word) (base : Word)
        (sp + signExtend12 3944 ↦ₘ un0Mem))
       (div128SpecPost sp retAddr d uLo uHi) :=
   div128_spec_within_of_sub sp retAddr d uLo uHi base
-    v1Old v6Old v11Old retMem dMem dloMem un0Mem halign
+    v9Old v6Old v11Old retMem dMem dloMem un0Mem halign
     (sharedDivModCode base) d128_sub
 
 /-- `div128_spec_within` replayed over the DIV no-NOP code surface. This is
     the subroutine certificate needed by the no-NOP trial-call composition. -/
 theorem div128_spec_within_noNop (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1Old v6Old v11Old : Word)
+    (v9Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
     cpsTripleWithin 51 (base + div128Off) retAddr (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -369,5 +369,5 @@ theorem div128_spec_within_noNop (sp retAddr d uLo uHi : Word) (base : Word)
        (sp + signExtend12 3944 ↦ₘ un0Mem))
       (div128SpecPost sp retAddr d uLo uHi) :=
   div128_spec_within_of_sub sp retAddr d uLo uHi base
-    v1Old v6Old v11Old retMem dMem dloMem un0Mem halign
+    v9Old v6Old v11Old retMem dMem dloMem un0Mem halign
     (divCode_noNop base) d128_sub_noNop

@@ -438,7 +438,7 @@ private theorem divK_loopSetup_code_sub_divCode_noNop {base : Word} :
 
 /-- BLT singleton at base+loopSetupOff+12 (index 3 of loopSetup) is subsumed by divCode. -/
 private theorem blt_loopSetup_sub_divCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + loopSetupOff + 12) (.BLT .x1 .x0 464)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + loopSetupOff + 12) (.BLT .x9 .x0 464)) a = some i →
       (divCode base) a = some i := by
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + loopSetupOff) (divK_loopSetup 464) 3
@@ -449,7 +449,7 @@ private theorem blt_loopSetup_sub_divCode {base : Word} :
 
 /-- BLT singleton at base+loopSetupOff+12 is subsumed by divCode_noNop. -/
 private theorem blt_loopSetup_sub_divCode_noNop {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + loopSetupOff + 12) (.BLT .x1 .x0 464)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + loopSetupOff + 12) (.BLT .x9 .x0 464)) a = some i →
       (divCode_noNop base) a = some i := by
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + loopSetupOff) (divK_loopSetup 464) 3
@@ -466,14 +466,14 @@ theorem divK_loopSetup_ntaken_spec_within (sp n v1 v5 : Word) (base : Word)
     (hm_ge : ¬BitVec.slt (signExtend12 (4 : BitVec 12) - n) (0 : Word)) :
     let m := signExtend12 (4 : BitVec 12) - n
     cpsTripleWithin 4 (base + loopSetupOff) (base + loopBodyOff) (divCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x9 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x9 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   intro m
   have hbody := divK_loopSetup_body_spec_within sp n v1 v5 464 (base + loopSetupOff)
   have hbodye := cpsTripleWithin_extend_code divK_loopSetup_code_sub_divCode hbody
-  have hblt_raw := blt_spec_gen_within .x1 .x0 464 m (0 : Word) (base + loopSetupOff + 12)
+  have hblt_raw := blt_spec_gen_within .x9 .x0 464 m (0 : Word) (base + loopSetupOff + 12)
   rw [show (base + loopSetupOff + 12 : Word) + signExtend13 464 = base + denormOff from by rv64_addr,
       show (base + loopSetupOff + 12 : Word) + 4 = base + loopBodyOff from by bv_addr] at hblt_raw
   have hblt_clean := cpsBranchWithin_ntakenStripPure2 hblt_raw
@@ -496,13 +496,13 @@ theorem divK_loopSetup_ntaken_spec_within (sp n v1 v5 : Word) (base : Word)
     downstream proofs see an opaque atom instead of the 5-atom sepConj. -/
 @[irreducible]
 def divKLoopSetupNtakenPreNoNop (sp v5 v1 n : Word) : Assertion :=
-  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x9 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
   ((sp + signExtend12 3984) ↦ₘ n)
 
 theorem divKLoopSetupNtakenPreNoNop_unfold
     {sp v5 v1 n : Word} :
     divKLoopSetupNtakenPreNoNop sp v5 v1 n =
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x9 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   delta divKLoopSetupNtakenPreNoNop
   rfl
@@ -511,13 +511,13 @@ theorem divKLoopSetupNtakenPreNoNop_unfold
     `x1 ← m = signExtend12 4 − n`. Wrapped `@[irreducible]`. -/
 @[irreducible]
 def divKLoopSetupNtakenPostNoNop (sp n m : Word) : Assertion :=
-  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x9 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
   ((sp + signExtend12 3984) ↦ₘ n)
 
 theorem divKLoopSetupNtakenPostNoNop_unfold
     {sp n m : Word} :
     divKLoopSetupNtakenPostNoNop sp n m =
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x9 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   delta divKLoopSetupNtakenPostNoNop
   rfl
@@ -532,7 +532,7 @@ theorem divK_loopSetup_ntaken_spec_within_noNop (sp n v1 v5 : Word) (base : Word
   rw [divKLoopSetupNtakenPreNoNop_unfold, divKLoopSetupNtakenPostNoNop_unfold]
   have hbody := divK_loopSetup_body_spec_within sp n v1 v5 464 (base + loopSetupOff)
   have hbodye := cpsTripleWithin_extend_code divK_loopSetup_code_sub_divCode_noNop hbody
-  have hblt_raw := blt_spec_gen_within .x1 .x0 464 m (0 : Word) (base + loopSetupOff + 12)
+  have hblt_raw := blt_spec_gen_within .x9 .x0 464 m (0 : Word) (base + loopSetupOff + 12)
   rw [show (base + loopSetupOff + 12 : Word) + signExtend13 464 = base + denormOff from by rv64_addr,
       show (base + loopSetupOff + 12 : Word) + 4 = base + loopBodyOff from by bv_addr] at hblt_raw
   have hblt_clean := cpsBranchWithin_ntakenStripPure2 hblt_raw
