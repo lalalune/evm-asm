@@ -14,6 +14,14 @@ namespace EvmAsm.Evm64.Exp.Compose
 abbrev expTwoMulNamedIterStepBound : Nat :=
   (((3 + 1 + (17 + 64 + 9) + 1) + 2) + ((17 + 64 + 9) + 2))
 
+/-- Bound for the fixed-x19 no-reload saved-bit two-MUL iteration slice. -/
+abbrev expTwoMulFixedSkipIterStepBound : Nat :=
+  (((((4 + 1) + (17 + 64 + 9)) + 1) + 2) + ((17 + 64 + 9) + 2))
+
+/-- Bound for the fixed-x19 reload saved-bit two-MUL iteration slice. -/
+abbrev expTwoMulFixedReloadIterStepBound : Nat :=
+  (((((7 + 1) + (17 + 64 + 9)) + 1) + 2) + ((17 + 64 + 9) + 2))
+
 /-- Bound for the prologue/pointer-advance boundary before the saved-bit
     two-MUL loop. -/
 abbrev expTwoMulBoundaryPrefixBound : Nat := 6 + 1
@@ -49,6 +57,19 @@ abbrev expTwoMulFullLoopBoundaryBound : Nat :=
 theorem expTwoMulNamedIterStepBound_eq :
     expTwoMulNamedIterStepBound = 189 := by
   norm_num [expTwoMulNamedIterStepBound]
+
+theorem expTwoMulFixedSkipIterStepBound_eq :
+    expTwoMulFixedSkipIterStepBound = 190 := by
+  norm_num [expTwoMulFixedSkipIterStepBound]
+
+theorem expTwoMulFixedReloadIterStepBound_eq :
+    expTwoMulFixedReloadIterStepBound = 193 := by
+  norm_num [expTwoMulFixedReloadIterStepBound]
+
+theorem expTwoMulFixedSkipIterStepBound_le_reload :
+    expTwoMulFixedSkipIterStepBound ≤ expTwoMulFixedReloadIterStepBound := by
+  rw [expTwoMulFixedSkipIterStepBound_eq, expTwoMulFixedReloadIterStepBound_eq]
+  omega
 
 theorem expTwoMulBoundaryLoopBound_eq (nSteps : Nat) :
     expTwoMulBoundaryLoopBound nSteps = nSteps + 17 := by
