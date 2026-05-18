@@ -45,6 +45,45 @@ instance pcFreeInst_expTwoMulFixedIterScratchIs
         d0 d1 d2 d3) :=
   ⟨expTwoMulFixedIterScratchIs_pcFree⟩
 
+theorem expTwoMulFixedIterScratchOwn_choose
+    {evmSp : Word} {ps : PartialState}
+    (h : expTwoMulFixedIterScratchOwn evmSp ps) :
+    ∃ v6 v7 v10 v11 d0 d1 d2 d3,
+      expTwoMulFixedIterScratchIs evmSp v6 v7 v10 v11 d0 d1 d2 d3 ps := by
+  unfold expTwoMulFixedIterScratchOwn at h
+  obtain ⟨v6, h_v6_chain⟩ := sepConj_choose_regOwn h
+  obtain ⟨ps_v6, ps_rest1, h_disjoint_v6, h_union_v6, h_v6, h_rest1⟩ :=
+    h_v6_chain
+  obtain ⟨v7, h_v7_chain⟩ := sepConj_choose_regOwn h_rest1
+  obtain ⟨ps_v7, ps_rest2, h_disjoint_v7, h_union_v7, h_v7, h_rest2⟩ :=
+    h_v7_chain
+  obtain ⟨v10, h_v10_chain⟩ := sepConj_choose_regOwn h_rest2
+  obtain ⟨ps_v10, ps_rest3, h_disjoint_v10, h_union_v10, h_v10, h_rest3⟩ :=
+    h_v10_chain
+  obtain ⟨v11, h_v11_chain⟩ := sepConj_choose_regOwn h_rest3
+  obtain ⟨ps_v11, ps_rest4, h_disjoint_v11, h_union_v11, h_v11, h_rest4⟩ :=
+    h_v11_chain
+  obtain ⟨d0, h_d0_chain⟩ := sepConj_choose_memOwn h_rest4
+  obtain ⟨ps_d0, ps_rest5, h_disjoint_d0, h_union_d0, h_d0, h_rest5⟩ :=
+    h_d0_chain
+  obtain ⟨d1, h_d1_chain⟩ := sepConj_choose_memOwn h_rest5
+  obtain ⟨ps_d1, ps_rest6, h_disjoint_d1, h_union_d1, h_d1, h_rest6⟩ :=
+    h_d1_chain
+  obtain ⟨d2, h_d2_chain⟩ := sepConj_choose_memOwn h_rest6
+  obtain ⟨ps_d2, ps_rest7, h_disjoint_d2, h_union_d2, h_d2, h_rest7⟩ :=
+    h_d2_chain
+  obtain ⟨d3, h_d3⟩ := h_rest7
+  refine ⟨v6, v7, v10, v11, d0, d1, d2, d3, ?_⟩
+  unfold expTwoMulFixedIterScratchIs
+  refine ⟨ps_v6, ps_rest1, h_disjoint_v6, h_union_v6, h_v6, ?_⟩
+  refine ⟨ps_v7, ps_rest2, h_disjoint_v7, h_union_v7, h_v7, ?_⟩
+  refine ⟨ps_v10, ps_rest3, h_disjoint_v10, h_union_v10, h_v10, ?_⟩
+  refine ⟨ps_v11, ps_rest4, h_disjoint_v11, h_union_v11, h_v11, ?_⟩
+  refine ⟨ps_d0, ps_rest5, h_disjoint_d0, h_union_d0, h_d0, ?_⟩
+  refine ⟨ps_d1, ps_rest6, h_disjoint_d1, h_union_d1, h_d1, ?_⟩
+  refine ⟨ps_d2, ps_rest7, h_disjoint_d2, h_union_d2, h_d2, ?_⟩
+  exact h_d3
+
 theorem expTwoMulFixedIterCaseLoopPost_iff
     {iterCount e c6 ptr nextLimb sp evmSp
       r0 r1 r2 r3 a0 a1 a2 a3 base : Word} {ps : PartialState} :
