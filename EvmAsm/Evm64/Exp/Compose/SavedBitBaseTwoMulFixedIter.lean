@@ -335,6 +335,30 @@ theorem exp_msb_bit_test_fixed_skip_then_save_expIterBodyFullMsbSavedBitTwoMulFi
     (fun _ hp => by xperm_hyp hp)
     hSeq
 
+/-- Fixed x19 no-reload bit-test path followed by saved-bit store, lifted to
+    the decomposed fixed iteration body plus external `mul_callable` code. -/
+theorem exp_msb_bit_test_fixed_skip_then_save_expIterBodyFullMsbSavedBitTwoMulFixedCode_union_mul_spec_within
+    (e c6 v10 v18 mulTarget : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (base : Word)
+    (hc6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
+    let bit := e >>> (63 : BitVec 6).toNat
+    let c6New := c6 + signExtend12 (-1 : BitVec 12)
+    cpsTripleWithin (4 + 1) base (base + 32)
+      ((expIterBodyFullMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff).union
+        (mul_callable_code mulTarget))
+      ((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ v10) **
+       (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x6 ↦ᵣ c6New) ** (.x0 ↦ᵣ (0 : Word)) **
+       ⌜c6New ≠ 0⌝ ** (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+       (.x10 ↦ᵣ bit) ** (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12)))) := by
+  exact cpsTripleWithin_extend_code
+    (h := exp_msb_bit_test_fixed_skip_then_save_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
+      e c6 v10 v18 squaringMulOff condMulOff skipOff backOff base hc6)
+    (hmono := fun a i hi => by
+      simp only [CodeReq.union, hi])
+
 /-- Fixed x19 reload bit-test path followed by the saved-bit store. -/
 theorem exp_msb_bit_test_fixed_reload_then_save_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
     (e c6 v10 v18 ptr nextLimb : Word)
@@ -378,6 +402,34 @@ theorem exp_msb_bit_test_fixed_reload_then_save_expIterBodyFullMsbSavedBitTwoMul
     (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp)
     hSeq
+
+/-- Fixed x19 reload bit-test path followed by saved-bit store, lifted to the
+    decomposed fixed iteration body plus external `mul_callable` code. -/
+theorem exp_msb_bit_test_fixed_reload_then_save_expIterBodyFullMsbSavedBitTwoMulFixedCode_union_mul_spec_within
+    (e c6 v10 v18 ptr nextLimb mulTarget : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (base : Word)
+    (hc6 : c6 + signExtend12 (-1 : BitVec 12) = 0) :
+    let bit := e >>> (63 : BitVec 6).toNat
+    cpsTripleWithin (7 + 1) base (base + 32)
+      ((expIterBodyFullMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff).union
+        (mul_callable_code mulTarget))
+      ((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ v10) **
+       (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb))
+      ((.x19 ↦ᵣ nextLimb) **
+       (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+       (.x10 ↦ᵣ bit) ** (.x0 ↦ᵣ (0 : Word)) **
+       ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
+       (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
+       (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12)))) := by
+  exact cpsTripleWithin_extend_code
+    (h := exp_msb_bit_test_fixed_reload_then_save_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
+      e c6 v10 v18 ptr nextLimb squaringMulOff condMulOff skipOff backOff base hc6)
+    (hmono := fun a i hi => by
+      simp only [CodeReq.union, hi])
 
 /-- Squaring-side call block lifted to the decomposed fixed iteration body
     plus the external `mul_callable` code. -/
