@@ -204,4 +204,26 @@ theorem expTwoMulFixedIterCaseExitPost_count_cases
     · exact Or.inr (Or.inr (Or.inl hCond))
     · exact Or.inr (Or.inr (Or.inr hSkipCount))
 
+theorem expTwoMulFixedIterSkipCondCountPost_pures
+    {iterCount e c6 sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {exitCond : Prop} {ps : PartialState}
+    (h :
+      expTwoMulFixedIterSkipCondCountPost iterCount e c6 sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base exitCond ps) :
+    exitCond ∧
+    c6 + signExtend12 (-1 : BitVec 12) ≠ 0 ∧
+    (e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) ≠ 0 := by
+  unfold expTwoMulFixedIterSkipCondCountPost
+    expTwoMulFixedIterSkipCondFrame at h
+  obtain ⟨_, _, _, _, hMain, hFrame⟩ := h
+  obtain ⟨_, _, _, _, hCount, _⟩ := hMain
+  obtain ⟨_, _, _, _, _, hCountTail⟩ := hCount
+  have hExit : exitCond := ((sepConj_pure_right _).1 hCountTail).2
+  obtain ⟨_, _, _, _, _, hFrameTail⟩ := hFrame
+  obtain ⟨_, _, _, _, _, hPureTail⟩ := hFrameTail
+  have hC6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0 :=
+    ((sepConj_pure_left _).1 hPureTail).1
+  obtain ⟨_, hBit⟩ := ((sepConj_pure_left _).1 hPureTail).2
+  exact ⟨hExit, hC6, hBit⟩
+
 end EvmAsm.Evm64.Exp.Compose
