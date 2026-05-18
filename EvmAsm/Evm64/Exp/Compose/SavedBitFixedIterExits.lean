@@ -231,4 +231,32 @@ theorem exp_msb_bit_test_fixed_full_iter_merged_named_branch_evmExpMsbSavedBitTw
           r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
           v7 v11 base hbase)
 
+/-- Closed-form bound variant of the named fixed x19 merged full-iteration
+    branch. -/
+theorem exp_msb_bit_test_fixed_full_iter_merged_named_branch_closed_bound_evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_spec_within
+    (e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word)
+    (base : Word)
+    (hbase : (base + 44 : Word) &&& 1 = 0) :
+    cpsBranchWithin
+      193
+      (base + 44)
+      (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedIterPre e c6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+        v7 v11)
+      (base + 44)
+      (expTwoMulFixedIterMergedLoopPost e c6 iterCount ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base)
+      (base + 296)
+      (expTwoMulFixedIterMergedExitPost e c6 iterCount ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base) := by
+  rw [← expTwoMulFixedReloadIterStepBound_eq]
+  exact
+    exp_msb_bit_test_fixed_full_iter_merged_named_branch_evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_spec_within
+      e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 base hbase
+
 end EvmAsm.Evm64.Exp.Compose
