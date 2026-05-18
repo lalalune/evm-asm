@@ -108,6 +108,36 @@ theorem expTwoMulFixedIterScratchOwn_choose_two_frame
   refine ⟨v6, v7, v10, v11, d0, d1, d2, d3, ?_⟩
   sep_perm hChosen
 
+abbrev expTwoMulFixedIterSkipCondRestScratchPrefix
+    (sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 : Word) : Assertion :=
+  let squareW := expSquaringCallSquareW r0 r1 r2 r3
+  let rw := expTwoMulCondRw squareW a0 a1 a2 a3
+  (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
+  (.x5 ↦ᵣ rw.getLimbN 3) **
+  ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+  ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+  ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+  ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
+  evmWordIs sp rw ** evmWordIs (evmSp + 32) rw
+
+abbrev expTwoMulFixedIterSkipCondRestScratchSuffix (base : Word) : Assertion :=
+  (.x1 ↦ᵣ (((base + 44) + 140) + 68))
+
+theorem expTwoMulFixedIterSkipCondRest_scratch_decomp
+    {sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base : Word} {ps : PartialState}
+    (h :
+      expTwoMulFixedIterSkipCondRest sp evmSp r0 r1 r2 r3
+        a0 a1 a2 a3 base ps) :
+    (expTwoMulFixedIterSkipCondRestScratchPrefix sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 **
+      expTwoMulFixedIterScratchOwn evmSp **
+      expTwoMulFixedIterSkipCondRestScratchSuffix base) ps := by
+  unfold expTwoMulFixedIterSkipCondRest
+    expTwoMulFixedIterSkipCondRestScratchPrefix
+    expTwoMulFixedIterScratchOwn
+    expTwoMulFixedIterSkipCondRestScratchSuffix at *
+  sep_perm h
+
 theorem expTwoMulFixedIterCaseLoopPost_iff
     {iterCount e c6 ptr nextLimb sp evmSp
       r0 r1 r2 r3 a0 a1 a2 a3 base : Word} {ps : PartialState} :
