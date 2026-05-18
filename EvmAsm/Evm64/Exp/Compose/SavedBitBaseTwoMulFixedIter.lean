@@ -299,6 +299,42 @@ theorem exp_save_bit_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
     (h := h)
     (hmono := expIterBodyFullMsbSavedBitTwoMulFixedCode_save_bit_sub)
 
+/-- Fixed x19 no-reload bit-test path followed by the saved-bit store. -/
+theorem exp_msb_bit_test_fixed_skip_then_save_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
+    (e c6 v10 v18 : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
+    (base : Word)
+    (hc6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
+    let bit := e >>> (63 : BitVec 6).toNat
+    let c6New := c6 + signExtend12 (-1 : BitVec 12)
+    cpsTripleWithin (4 + 1) base (base + 32)
+      (expIterBodyFullMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff)
+      ((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ v10) **
+       (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x6 ↦ᵣ c6New) ** (.x0 ↦ᵣ (0 : Word)) **
+       ⌜c6New ≠ 0⌝ ** (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+       (.x10 ↦ᵣ bit) ** (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12)))) := by
+  intro bit c6New
+  have hBit :=
+    exp_msb_bit_test_block_fixed_skip_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
+      e c6 v10 squaringMulOff condMulOff skipOff backOff base hc6
+  have hBitFramed :=
+    cpsTripleWithin_frameR (.x18 ↦ᵣ v18) (by pcFree) hBit
+  have hSave :=
+    exp_save_bit_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
+      bit v18 squaringMulOff condMulOff skipOff backOff base
+  have hSaveFramed := cpsTripleWithin_frameL
+    ((.x6 ↦ᵣ c6New) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c6New ≠ 0⌝ **
+     (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)))
+    (by pcFree) hSave
+  have hSeq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hBitFramed hSaveFramed
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp)
+    hSeq
+
 /-- Squaring-side call block lifted to the decomposed fixed iteration body
     plus the external `mul_callable` code. -/
 theorem exp_squaring_call_block_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
