@@ -171,4 +171,157 @@ theorem exp_loop_from_looppost_induction
           base baseWord rest exitCond hbase hExit hLoop
       exact hSpec R hR s hcr hPR' hpc
 
+/-- Abstract successor step for the generalized loop body target.
+
+    This is the `exp_loop_body_succ_step` shape specialized to the
+    full-stack loop-exit pre-frame used by the generalized EXP boundary proof. -/
+private theorem exp_loop_body_succ_step_general
+    (n : Nat)
+    (e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e0 e1 e2 e3 a0 a1 a2 a3 iterCountFinal tOld out0 out1 out2 out3
+      exitD0 exitD1 exitD2 exitD3 : Word)
+    (base : Word) (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop)
+    (hbase : base &&& 1 = 0)
+    (hExit : ∀ ps,
+        expTwoMulIterExitPost (expTwoMulIterCountNew iterCount)
+          (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+          (expTwoMulSquareW r0 r1 r2 r3)
+          (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3) ps →
+        expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+          out0 out1 out2 out3 exitD0 exitD1 exitD2 exitD3 baseWord rest exitCond ps)
+    (hLoop : cpsTripleWithin (n * 189) (base + 28) (base + 264)
+        (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+        (expTwoMulIterLoopPost (expTwoMulIterCountNew iterCount)
+          (expTwoMulIterBit e) sp evmSp base a0 a1 a2 a3
+          (expTwoMulSquareW r0 r1 r2 r3)
+          (expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3))
+        (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+          out0 out1 out2 out3 exitD0 exitD1 exitD2 exitD3 baseWord rest exitCond)) :
+    cpsTripleWithin ((n + 1) * 189) (base + 28) (base + 264)
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulIterPre e iterCount v18 sp evmSp vOld r0 r1 r2 r3
+        d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3)
+      (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+        out0 out1 out2 out3 exitD0 exitD1 exitD2 exitD3 baseWord rest exitCond) := by
+  rw [← expTwoMulIterationsBodyBound_eq n] at hLoop
+  rw [← expTwoMulIterationsBodyBound_eq (n + 1)]
+  exact
+    exp_two_mul_named_iter_with_continuations_bounded_spec_within
+      e iterCount v18 sp evmSp vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e0 e1 e2 e3 a0 a1 a2 a3 base hbase
+      (expTwoMulNamedIterStepBound_add_max_iterationsBodyBound_zero_le_succ n)
+      hLoop
+      (cpsTripleWithin_extend_code
+        (hmono := by
+          intro a i h
+          cases h)
+        (cpsTripleWithin_refl hExit))
+
+/-- Generalized n-step loop body spec from `expTwoMulIterLoopPost`.
+
+    This mirrors `exp_loop_from_looppost_induction`, but targets
+    `expTwoMulLoopExitFullStackPreFrame` with independent stack payload
+    limbs `d0..d3`.  It is the induction ingredient for the generalized EXP
+    boundary theorem, where the exit stack still contains the original
+    exponent limbs until the epilogue overwrites them with the result. -/
+theorem exp_loop_from_looppost_induction_general
+    (n : Nat)
+    (bit sp evmSp base a0 a1 a2 a3 : Word)
+    (squarW rwW : EvmWord)
+    (iterCount : Word)
+    (hne : iterCount ≠ 0)
+    (hnat : iterCount.toNat = n)
+    (hbase : base &&& 1 = 0)
+    (iterCountFinal tOld out0 out1 out2 out3 d0 d1 d2 d3 : Word)
+    (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop)
+    (hExitUniv : ∀ (bit0 : Word) (squarW0 rwW0 : EvmWord) (ps : PartialState),
+        expTwoMulIterExitPost 0 bit0 sp evmSp base a0 a1 a2 a3 squarW0 rwW0 ps →
+        expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+          out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond ps) :
+    cpsTripleWithin (n * 189) (base + 28) (base + 264)
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulIterLoopPost iterCount bit sp evmSp base a0 a1 a2 a3 squarW rwW)
+      (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+        out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond) := by
+  induction n generalizing bit squarW rwW iterCount with
+  | zero =>
+    exact absurd (BitVec.eq_of_toNat_eq (by simp [hnat])) hne
+  | succ k IH =>
+    have h_icn_toNat : (expTwoMulIterCountNew iterCount).toNat = k :=
+      expTwoMulIterCountNew_toNat (by omega)
+    intro R hR s hcr hLR hpc
+    obtain ⟨hp, hcompat, ps1, ps2, hdisj, hunion, hLP, hR_ps⟩ := hLR
+    obtain ⟨e', v18', vOld', r0', r1', r2', r3', d0', d1', d2', d3',
+            e0', e1', e2', e3', hPre⟩ :=
+      expTwoMulIterLoopPost_to_iterPre hne hLP
+    have hPR' : ((expTwoMulIterPre e' iterCount v18' sp evmSp vOld'
+        r0' r1' r2' r3' d0' d1' d2' d3' e0' e1' e2' e3' a0 a1 a2 a3) ** R).holdsFor s :=
+      ⟨hp, hcompat, ps1, ps2, hdisj, hunion, hPre, hR_ps⟩
+    rcases Nat.eq_zero_or_pos k with rfl | hk_pos
+    · have h_icn_zero : expTwoMulIterCountNew iterCount = 0 :=
+        expTwoMulIterCountNew_eq_zero_of_toNat_one (by omega)
+      have hExit : ∀ ps,
+          expTwoMulIterExitPost (expTwoMulIterCountNew iterCount)
+            (expTwoMulIterBit e') sp evmSp base a0 a1 a2 a3
+            (expTwoMulSquareW r0' r1' r2' r3')
+            (expTwoMulIterRw r0' r1' r2' r3' a0 a1 a2 a3) ps →
+          expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+            out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond ps := by
+        rw [h_icn_zero]
+        exact hExitUniv (expTwoMulIterBit e') (expTwoMulSquareW r0' r1' r2' r3')
+          (expTwoMulIterRw r0' r1' r2' r3' a0 a1 a2 a3)
+      have hLoop0 : cpsTripleWithin (0 * 189) (base + 28) (base + 264)
+          (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+          (expTwoMulIterLoopPost (expTwoMulIterCountNew iterCount)
+            (expTwoMulIterBit e') sp evmSp base a0 a1 a2 a3
+            (expTwoMulSquareW r0' r1' r2' r3')
+            (expTwoMulIterRw r0' r1' r2' r3' a0 a1 a2 a3))
+          (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+            out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond) := by
+        rw [h_icn_zero]; exact exp_loop_body_zero_step_vacuous
+      have hSpec : cpsTripleWithin ((0 + 1) * 189) (base + 28) (base + 264)
+          (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+          (expTwoMulIterPre e' iterCount v18' sp evmSp vOld'
+            r0' r1' r2' r3' d0' d1' d2' d3' e0' e1' e2' e3' a0 a1 a2 a3)
+          (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+            out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond) :=
+        exp_loop_body_succ_step_general 0 e' iterCount v18' sp evmSp vOld'
+          r0' r1' r2' r3' d0' d1' d2' d3' e0' e1' e2' e3' a0 a1 a2 a3
+          iterCountFinal tOld out0 out1 out2 out3 d0 d1 d2 d3
+          base baseWord rest exitCond hbase hExit hLoop0
+      exact hSpec R hR s hcr hPR' hpc
+    · have h_icn_ne : expTwoMulIterCountNew iterCount ≠ 0 :=
+        expTwoMulIterCountNew_ne_zero_of_toNat_pos (by omega) hk_pos
+      have hExit : ∀ ps,
+          expTwoMulIterExitPost (expTwoMulIterCountNew iterCount)
+            (expTwoMulIterBit e') sp evmSp base a0 a1 a2 a3
+            (expTwoMulSquareW r0' r1' r2' r3')
+            (expTwoMulIterRw r0' r1' r2' r3' a0 a1 a2 a3) ps →
+          expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+            out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond ps :=
+        exp_loop_exit_vacuous_bridge h_icn_ne
+      have hLoop : cpsTripleWithin (k * 189) (base + 28) (base + 264)
+          (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+          (expTwoMulIterLoopPost (expTwoMulIterCountNew iterCount)
+            (expTwoMulIterBit e') sp evmSp base a0 a1 a2 a3
+            (expTwoMulSquareW r0' r1' r2' r3')
+            (expTwoMulIterRw r0' r1' r2' r3' a0 a1 a2 a3))
+          (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+            out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond) :=
+        IH (expTwoMulIterBit e') (expTwoMulSquareW r0' r1' r2' r3')
+          (expTwoMulIterRw r0' r1' r2' r3' a0 a1 a2 a3)
+          (expTwoMulIterCountNew iterCount)
+          h_icn_ne h_icn_toNat
+      have hSpec : cpsTripleWithin ((k + 1) * 189) (base + 28) (base + 264)
+          (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+          (expTwoMulIterPre e' iterCount v18' sp evmSp vOld'
+            r0' r1' r2' r3' d0' d1' d2' d3' e0' e1' e2' e3' a0 a1 a2 a3)
+          (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+            out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond) :=
+        exp_loop_body_succ_step_general k e' iterCount v18' sp evmSp vOld'
+          r0' r1' r2' r3' d0' d1' d2' d3' e0' e1' e2' e3' a0 a1 a2 a3
+          iterCountFinal tOld out0 out1 out2 out3 d0 d1 d2 d3
+          base baseWord rest exitCond hbase hExit hLoop
+      exact hSpec R hR s hcr hPR' hpc
+
 end EvmAsm.Evm64.Exp.Compose
