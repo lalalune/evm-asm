@@ -589,6 +589,56 @@ theorem expTwoMulFixedCursorInvariant_highBit_eq_processedBitWord
   rw [hCursor]
   exact expTwoMulFixedCursorWord_highBit_eq_processedBitWord exponentWord hk
 
+theorem expTwoMulFixedAccumulatorInvariant_succ_of_squareW_cursor_branch
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {e r0 r1 r2 r3 : Word}
+    (hk : k < 256)
+    (hCursor : expTwoMulFixedCursorInvariant exponentWord k e)
+    (hBitZero : e >>> (63 : BitVec 6).toNat +
+        signExtend12 (0 : BitVec 12) = 0)
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3) :
+    expTwoMulFixedAccumulatorInvariant baseWord exponentWord (k + 1)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 0)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 1)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 2)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3) := by
+  exact
+    expTwoMulFixedAccumulatorInvariant_succ_of_squareW_branch
+      hk
+      (expTwoMulFixedCursorInvariant_highBit_eq_processedBitWord hCursor hk)
+      hBitZero
+      hInv
+
+theorem expTwoMulFixedAccumulatorInvariant_succ_of_condRw_cursor_branch
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {e a0 a1 a2 a3 r0 r1 r2 r3 : Word}
+    (hk : k < 256)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hCursor : expTwoMulFixedCursorInvariant exponentWord k e)
+    (hBitNe : e >>> (63 : BitVec 6).toNat +
+        signExtend12 (0 : BitVec 12) ≠ 0)
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3) :
+    expTwoMulFixedAccumulatorInvariant baseWord exponentWord (k + 1)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 0)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 1)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 2)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 3) := by
+  exact
+    expTwoMulFixedAccumulatorInvariant_succ_of_condRw_branch
+      hk
+      hBase
+      (expTwoMulFixedCursorInvariant_highBit_eq_processedBitWord hCursor hk)
+      hBitNe
+      hInv
+
 @[irreducible]
 def expTwoMulFixedCursorAssertion
     (exponentWord : EvmWord) (k : Nat) (e : Word) : Assertion :=
