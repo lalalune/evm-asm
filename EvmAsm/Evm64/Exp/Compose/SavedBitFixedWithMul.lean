@@ -724,4 +724,19 @@ theorem cpsNBranchWithin_extend_iter_body_union_evmExpMsbSavedBitTwoMulFixedCano
     (expMsbSavedBitTwoMulFixedCanonicalCode_disjoint_appended_mul base)
     h
 
+/-- The fixed canonical iteration body inside the 336-byte wrapper is disjoint
+    from the appended `mul_callable` body. -/
+theorem expIterBodyFullMsbSavedBitTwoMulFixedCanonicalCode_disjoint_appended_mul
+    (base : Word) :
+    CodeReq.Disjoint
+      (expIterBodyFullMsbSavedBitTwoMulFixedCode
+        (base + 44)
+        EvmAsm.Evm64.canonicalExpSquaringMulOff
+        EvmAsm.Evm64.canonicalExpCondMulOff
+        EvmAsm.Evm64.canonicalExpCondMulSkipOff
+        EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff)
+      (mul_callable_code (base + 336)) :=
+  expIterBodyFullMsbSavedBitTwoMulFixedCode_disjoint_mul_of_fixed_disjoint
+    (expMsbSavedBitTwoMulFixedCanonicalCode_disjoint_appended_mul base)
+
 end EvmAsm.Evm64.Exp.Compose
