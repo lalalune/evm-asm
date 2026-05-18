@@ -645,6 +645,27 @@ theorem cpsTripleWithin_expTwoMulFixedSecondIterPreWithResidual
     exact hSkip v6 v7 v10 v11 d0 d1 d2 d3 R hR s hcr
       ⟨hp, hcompat, psPre, psR, hdisj, hunion, h_concrete_pre, hRps⟩ hpc
 
+theorem cpsTripleWithin_expTwoMulFixedFirstCase_to_secondIterPreWithResidual
+    {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq} {Q : Assertion}
+    {sp evmSp : Word}
+    {baseWord exponentWord : EvmWord} {rest : List EvmWord}
+    {base : Word}
+    (hTail :
+      cpsTripleWithin nSteps entry exit_ cr
+        (expTwoMulFixedSecondIterPreWithResidual
+          sp evmSp baseWord exponentWord rest base)
+        Q) :
+    cpsTripleWithin nSteps entry exit_ cr
+      (expTwoMulFixedFirstIterCaseLoopPostWithResidual
+        sp evmSp baseWord exponentWord rest base)
+      Q := by
+  intro R hR s hcr h_pre_R hpc
+  obtain ⟨hp, hcompat, psPre, psR, hdisj, hunion, h_pre, hRps⟩ := h_pre_R
+  exact hTail R hR s hcr
+    ⟨hp, hcompat, psPre, psR, hdisj, hunion,
+      expTwoMulFixedFirstCase_to_secondIterPreWithResidual h_pre, hRps⟩
+    hpc
+
 /-- Fixed full-loop boundary wrapper whose loop body starts from the named
     existential first-iteration precondition produced by the fixed loop entry
     post. This is the surface needed before destructing the chosen
