@@ -91,9 +91,7 @@ theorem expTwoMulFixedFirstIterPre_unfold_words
   rw [expTwoMulFixedFirstIterPre_unfold, expTwoMulFixedIterPre_unfold,
     expTwoMulIterBaseFrame_unfold]
   unfold evmWordIs
-  simp only [signExtend12_0, signExtend12_8, signExtend12_16,
-    signExtend12_24, signExtend12_32, signExtend12_40, signExtend12_48,
-    signExtend12_56, signExtend12_64,
+  simp only [signExtend12_0, signExtend12_56, signExtend12_64,
     EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg64,
     EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg56,
     EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg48,
@@ -101,7 +99,7 @@ theorem expTwoMulFixedFirstIterPre_unfold_words
     EvmAsm.Rv64.AddrNorm.word_add_zero,
     show (56 : Word) + signExtend12 (-8 : BitVec 12) =
       signExtend12 (-8 : BitVec 12) + 56 from by bv_omega,
-    show (64 : Word) + 32 = 96 from by decide,
+    show (signExtend12 (-8 : BitVec 12) + 56 : Word) = 48 from by decide,
     show (64 : Word) + 18446744073709551552 = 0 from by decide,
     show (64 : Word) + 18446744073709551560 = 8 from by decide,
     show (64 : Word) + 18446744073709551568 = 16 from by decide,
@@ -116,6 +114,65 @@ theorem expTwoMulFixedFirstIterPre_unfold_words
   funext ps
   apply propext
   constructor <;> intro h <;> sep_perm h
+
+/-- First fixed-iteration precondition with the caller-scratch registers left as
+    ownership atoms. This is the direct shape produced by the fixed entry post;
+    a later bridge can choose concrete values for `x10`, `x7`, and `x11`. -/
+@[irreducible]
+def expTwoMulFixedFirstIterPreOwned
+    (sp evmSp v18 vOld : Word)
+    (baseWord exponentWord dWord eWord : EvmWord) : Assertion :=
+  (((((.x19 ↦ᵣ exponentWord.getLimbN 3) **
+    (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+    regOwn .x10 ** (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
+    (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
+    (.x5 ↦ᵣ (1 : Word)) **
+    evmWordIs sp (1 : EvmWord) **
+    evmWordIs (evmSp + 64) dWord **
+    evmWordIs (evmSp + 96) eWord **
+    regOwn .x7 ** regOwn .x11 ** (.x1 ↦ᵣ vOld)) **
+    (.x9 ↦ᵣ (256 : Word))) ** evmWordIs evmSp baseWord) **
+    (expTwoMulFixedIterPointerFrame
+      (evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))
+      (exponentWord.getLimbN 2)))
+
+theorem expTwoMulFixedFirstIterPreOwned_unfold
+    {sp evmSp v18 vOld : Word}
+    {baseWord exponentWord dWord eWord : EvmWord} :
+    expTwoMulFixedFirstIterPreOwned sp evmSp v18 vOld
+        baseWord exponentWord dWord eWord =
+      (((((.x19 ↦ᵣ exponentWord.getLimbN 3) **
+        (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+        regOwn .x10 ** (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
+        (.x5 ↦ᵣ (1 : Word)) **
+        evmWordIs sp (1 : EvmWord) **
+        evmWordIs (evmSp + 64) dWord **
+        evmWordIs (evmSp + 96) eWord **
+        regOwn .x7 ** regOwn .x11 ** (.x1 ↦ᵣ vOld)) **
+        (.x9 ↦ᵣ (256 : Word))) ** evmWordIs evmSp baseWord) **
+        (expTwoMulFixedIterPointerFrame
+          (evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))
+          (exponentWord.getLimbN 2))) := by
+  delta expTwoMulFixedFirstIterPreOwned
+  rfl
+
+theorem expTwoMulFixedFirstIterPreOwned_pcFree
+    {sp evmSp v18 vOld : Word}
+    {baseWord exponentWord dWord eWord : EvmWord} :
+    (expTwoMulFixedFirstIterPreOwned sp evmSp v18 vOld
+      baseWord exponentWord dWord eWord).pcFree := by
+  rw [expTwoMulFixedFirstIterPreOwned_unfold,
+    expTwoMulFixedIterPointerFrame_unfold]
+  pcFree
+
+instance pcFreeInst_expTwoMulFixedFirstIterPreOwned
+    (sp evmSp v18 vOld : Word)
+    (baseWord exponentWord dWord eWord : EvmWord) :
+    Assertion.PCFree
+      (expTwoMulFixedFirstIterPreOwned sp evmSp v18 vOld
+        baseWord exponentWord dWord eWord) :=
+  ⟨expTwoMulFixedFirstIterPreOwned_pcFree⟩
 
 /-- Residual resources from the fixed entry post after the first fixed-iteration
     precondition consumes the accumulator, base word, the first two rest words,
@@ -151,6 +208,39 @@ instance pcFreeInst_expTwoMulFixedFirstIterEntryResidual
     Assertion.PCFree
       (expTwoMulFixedFirstIterEntryResidual evmSp exponentWord rest) :=
   ⟨expTwoMulFixedFirstIterEntryResidual_pcFree⟩
+
+/-- Direct fixed-entry bridge into the owned-scratch first-iteration shape plus
+    the explicitly named residual frame. -/
+theorem expTwoMulLoopEntryPostFixed_to_firstIterPreOwned_frame
+    {sp evmSp vOld v18 : Word}
+    {baseWord exponentWord dWord eWord : EvmWord} {rest : List EvmWord}
+    {ps : PartialState}
+    (h : expTwoMulLoopEntryPostFixed sp evmSp vOld v18
+      baseWord exponentWord (dWord :: eWord :: rest) ps) :
+    (expTwoMulFixedFirstIterPreOwned sp evmSp v18 vOld
+      baseWord exponentWord dWord eWord **
+     expTwoMulFixedFirstIterEntryResidual evmSp exponentWord rest) ps := by
+  rw [expTwoMulLoopEntryPostFixed_unfold_rest2_offsets] at h
+  rw [expTwoMulFixedFirstIterPreOwned_unfold,
+    expTwoMulFixedFirstIterEntryResidual_unfold,
+    expTwoMulFixedIterPointerFrame_unfold]
+  unfold evmWordIs at h ⊢
+  simp only [signExtend12_0, signExtend12_56, signExtend12_64,
+    EvmAsm.Rv64.AddrNorm.word_add_zero,
+    show (56 : Word) + signExtend12 (-8 : BitVec 12) =
+      signExtend12 (-8 : BitVec 12) + 56 from by bv_omega,
+    show (signExtend12 (-8 : BitVec 12) + 56 : Word) = 48 from by decide,
+    show (32 : Word) + 8 = 40 from by decide,
+    show (32 : Word) + 16 = 48 from by decide,
+    show (32 : Word) + 24 = 56 from by decide,
+    show (64 : Word) + 8 = 72 from by decide,
+    show (64 : Word) + 16 = 80 from by decide,
+    show (64 : Word) + 24 = 88 from by decide,
+    show (96 : Word) + 8 = 104 from by decide,
+    show (96 : Word) + 16 = 112 from by decide,
+    show (96 : Word) + 24 = 120 from by decide,
+    BitVec.add_assoc] at h ⊢
+  sep_perm h
 
 theorem expTwoMulFixedFirstIterPre_pcFree
     {sp evmSp v10 v18 vOld v7 v11 : Word}
