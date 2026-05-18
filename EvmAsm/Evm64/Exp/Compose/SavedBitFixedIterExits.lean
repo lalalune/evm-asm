@@ -166,6 +166,106 @@ abbrev expTwoMulFixedIterMergedExitPost
         ⌜expTwoMulIterCountNew iterCount = 0⌝) ** reloadSkipRest) ** baseFrame) h
   fun h => skipExitPost h ∨ reloadExitPost h
 
+/-- The fixed merged loop-back post is unsatisfiable when the decremented
+    iteration count is zero: every loop-back case embeds
+    `⌜expTwoMulIterCountNew iterCount ≠ 0⌝`. -/
+theorem expTwoMulFixedIterMergedLoopPost_zero_count_false
+    {e c6 iterCount ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} {ps : PartialState}
+    (hzero : expTwoMulIterCountNew iterCount = 0) :
+    ¬ expTwoMulFixedIterMergedLoopPost e c6 iterCount ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base ps := by
+  unfold expTwoMulFixedIterMergedLoopPost
+  rintro (hSkipLoop | hReloadLoop)
+  · obtain ⟨_, _, _, _, hSkipCases, _⟩ := hSkipLoop
+    rcases hSkipCases with hCond | hSkip
+    · obtain ⟨_, _, _, _, hHeadRest, _⟩ := hCond
+      obtain ⟨_, _, _, _, hTriple, _⟩ := hHeadRest
+      obtain ⟨_, _, _, _, _, hX0Pure⟩ := hTriple
+      obtain ⟨_, _, _, _, _, hPure⟩ := hX0Pure
+      exact hPure.2 hzero
+    · obtain ⟨_, _, _, _, hHeadRest, _⟩ := hSkip
+      obtain ⟨_, _, _, _, hTriple, _⟩ := hHeadRest
+      obtain ⟨_, _, _, _, _, hX0Pure⟩ := hTriple
+      obtain ⟨_, _, _, _, _, hPure⟩ := hX0Pure
+      exact hPure.2 hzero
+  · rcases hReloadLoop with hCond | hSkip
+    · obtain ⟨_, _, _, _, hHeadRest, _⟩ := hCond
+      obtain ⟨_, _, _, _, hTriple, _⟩ := hHeadRest
+      obtain ⟨_, _, _, _, _, hX0Pure⟩ := hTriple
+      obtain ⟨_, _, _, _, _, hPure⟩ := hX0Pure
+      exact hPure.2 hzero
+    · obtain ⟨_, _, _, _, hHeadRest, _⟩ := hSkip
+      obtain ⟨_, _, _, _, hTriple, _⟩ := hHeadRest
+      obtain ⟨_, _, _, _, _, hX0Pure⟩ := hTriple
+      obtain ⟨_, _, _, _, _, hPure⟩ := hX0Pure
+      exact hPure.2 hzero
+
+/-- The fixed merged exit post is unsatisfiable when the decremented iteration
+    count is nonzero: every exit case embeds
+    `⌜expTwoMulIterCountNew iterCount = 0⌝`. -/
+theorem expTwoMulFixedIterMergedExitPost_nonzero_count_false
+    {e c6 iterCount ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} {ps : PartialState}
+    (hne : expTwoMulIterCountNew iterCount ≠ 0) :
+    ¬ expTwoMulFixedIterMergedExitPost e c6 iterCount ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base ps := by
+  unfold expTwoMulFixedIterMergedExitPost
+  rintro (hSkipExit | hReloadExit)
+  · obtain ⟨_, _, _, _, hSkipCases, _⟩ := hSkipExit
+    rcases hSkipCases with hCond | hSkip
+    · obtain ⟨_, _, _, _, hHeadRest, _⟩ := hCond
+      obtain ⟨_, _, _, _, hTriple, _⟩ := hHeadRest
+      obtain ⟨_, _, _, _, _, hX0Pure⟩ := hTriple
+      obtain ⟨_, _, _, _, _, hPure⟩ := hX0Pure
+      exact hne hPure.2
+    · obtain ⟨_, _, _, _, hHeadRest, _⟩ := hSkip
+      obtain ⟨_, _, _, _, hTriple, _⟩ := hHeadRest
+      obtain ⟨_, _, _, _, _, hX0Pure⟩ := hTriple
+      obtain ⟨_, _, _, _, _, hPure⟩ := hX0Pure
+      exact hne hPure.2
+  · rcases hReloadExit with hCond | hSkip
+    · obtain ⟨_, _, _, _, hHeadRest, _⟩ := hCond
+      obtain ⟨_, _, _, _, hTriple, _⟩ := hHeadRest
+      obtain ⟨_, _, _, _, _, hX0Pure⟩ := hTriple
+      obtain ⟨_, _, _, _, _, hPure⟩ := hX0Pure
+      exact hne hPure.2
+    · obtain ⟨_, _, _, _, hHeadRest, _⟩ := hSkip
+      obtain ⟨_, _, _, _, hTriple, _⟩ := hHeadRest
+      obtain ⟨_, _, _, _, _, hX0Pure⟩ := hTriple
+      obtain ⟨_, _, _, _, _, hPure⟩ := hX0Pure
+      exact hne hPure.2
+
+/-- Vacuous bridge from a non-final fixed merged exit post. -/
+theorem exp_fixed_iter_merged_exit_vacuous_bridge
+    {e c6 iterCount ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    (hne : expTwoMulIterCountNew iterCount ≠ 0)
+    {Q : PartialState → Prop} :
+    ∀ ps,
+      expTwoMulFixedIterMergedExitPost e c6 iterCount ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base ps →
+      Q ps :=
+  fun _ hExit =>
+    absurd hExit (expTwoMulFixedIterMergedExitPost_nonzero_count_false hne)
+
+/-- Zero-step body spec from a fixed merged loop-back post whose decremented
+    iteration count is zero. -/
+theorem exp_fixed_iter_merged_loop_zero_step_vacuous
+    {e c6 iterCount ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    (hzero : expTwoMulIterCountNew iterCount = 0)
+    {Q : Assertion} {entry exit_ : Word} {code : CodeReq} :
+    cpsTripleWithin 0 entry exit_ code
+      (expTwoMulFixedIterMergedLoopPost e c6 iterCount ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base)
+      Q := by
+  intro R _ s _ hPR _
+  exfalso
+  have hP := holdsFor_sepConj_elim_left hPR
+  obtain ⟨_, _, h_looppost⟩ := hP
+  exact expTwoMulFixedIterMergedLoopPost_zero_count_false hzero h_looppost
+
 abbrev expTwoMulFixedIterMergedExits
     (e c6 iterCount ptr nextLimb sp evmSp
       r0 r1 r2 r3 a0 a1 a2 a3 : Word) (base : Word) :
