@@ -68,9 +68,9 @@ def divKTrialCallFullPost (sp j n uHi uLo vTop base : Word) : Assertion :=
   let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo un0Div
   let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
-  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
+  let x9Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ x1Exit) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ x9Exit) ** regOwn .x1 **
   (.x5 ↦ᵣ q0') ** (.x6 ↦ᵣ dHi) **
   (.x7 ↦ᵣ x7Exit) ** (.x10 ↦ᵣ q1') ** (.x11 ↦ᵣ q) **
   (.x2 ↦ᵣ (base + div128CallRetOff)) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -94,7 +94,7 @@ theorem divK_trial_call_full_spec_within
     let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
     cpsTripleWithin 66 (base + loopBodyOff) (base + div128CallRetOff) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
        (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -104,9 +104,11 @@ theorem divK_trial_call_full_spec_within
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ un0Mem))
+       (sp + signExtend12 3944 ↦ₘ un0Mem)) ** regOwn .x1)
       (divKTrialCallFullPost sp j n uHi uLo vTop base) := by
   intro uAddr vtopBase
+  apply cpsTripleWithin_of_forall_regIs_to_regOwn
+  intro v1Old
   -- Define the same lets locally so the proof body (unchanged from before
   -- bundling) can still reference q0', x1Exit, x7Exit, etc. by name. The
   -- goal's post stays `divKTrialCallFullPost ...` (opaque) throughout the
@@ -159,20 +161,20 @@ theorem divK_trial_call_full_spec_within
     (fun h hp => sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp) taken
   -- 3. Trial call path (base+512 → base+516)
-  have TCP := divK_trial_call_path_spec_within sp j uLo uHi vTop vtopBase base
-    v2Old v11Old retMem dMem dloMem un0Mem
+  have TCP := divK_trial_call_path_spec_within_exact_x1 sp j uLo uHi vTop vtopBase base
+    v1Old v2Old v11Old retMem dMem dloMem un0Mem
     halign
   unfold div128SpecPost at TCP
-  -- 4. Frame save_trial_load with x2, x11, x0, scratch memory
+  -- 4. Frame save_trial_load with x1 (v1Old), x2, x11, x0, scratch memory
   have STLf := cpsTripleWithin_frameR
-    ((.x11 ↦ᵣ v11Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+    ((.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3968 ↦ₘ retMem) **
      (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) **
      (sp + signExtend12 3944 ↦ₘ un0Mem))
     (by pcFree) STL
   have taken_framed := cpsTripleWithin_frameR
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) ** (.x1 ↦ᵣ v1Old) **
      (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
      (.x11 ↦ᵣ v11Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3976 ↦ₘ j) **
@@ -214,7 +216,7 @@ theorem divK_trial_call_full_spec_within_noNop
     let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
     cpsTripleWithin 66 (base + loopBodyOff) (base + div128CallRetOff) (divCode_noNop base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
        (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -224,9 +226,11 @@ theorem divK_trial_call_full_spec_within_noNop
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ un0Mem))
+       (sp + signExtend12 3944 ↦ₘ un0Mem)) ** regOwn .x1)
       (divKTrialCallFullPost sp j n uHi uLo vTop base) := by
   intro uAddr vtopBase
+  apply cpsTripleWithin_of_forall_regIs_to_regOwn
+  intro v1Old
   let dHi := vTop >>> (32 : BitVec 6).toNat
   let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
   let un1 := uLo >>> (32 : BitVec 6).toNat
@@ -269,19 +273,19 @@ theorem divK_trial_call_full_spec_within_noNop
     (fun h hp => hp)
     (fun h hp => sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp) taken
-  have TCP := divK_trial_call_path_spec_within_noNop sp j uLo uHi vTop vtopBase base
-    v2Old v11Old retMem dMem dloMem un0Mem
+  have TCP := divK_trial_call_path_spec_within_noNop_exact_x1 sp j uLo uHi vTop vtopBase base
+    v1Old v2Old v11Old retMem dMem dloMem un0Mem
     halign
   unfold div128SpecPost at TCP
   have STLf := cpsTripleWithin_frameR
-    ((.x11 ↦ᵣ v11Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+    ((.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3968 ↦ₘ retMem) **
      (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) **
      (sp + signExtend12 3944 ↦ₘ un0Mem))
     (by pcFree) STL
   have taken_framed := cpsTripleWithin_frameR
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) ** (.x1 ↦ᵣ v1Old) **
      (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
      (.x11 ↦ᵣ v11Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3976 ↦ₘ j) **

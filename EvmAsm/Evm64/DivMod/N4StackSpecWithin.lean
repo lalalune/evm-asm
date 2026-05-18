@@ -38,8 +38,8 @@ theorem divN4CallSkipStackPostNoX1_eq_divStackDispatchPostNoX1
 theorem divN4CallSkipStackPostNoX1_to_divStackDispatchPostNoX1_frame
     (sp : Word) (a b : EvmWord) {v1 : Word} :
     ∀ h,
-      (divN4CallSkipStackPostNoX1 sp a b ** (.x1 ↦ᵣ v1)) h →
-      (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ v1)) h := by
+      (divN4CallSkipStackPostNoX1 sp a b ** (.x9 ↦ᵣ v1)) h →
+      (divStackDispatchPostNoX1 sp a b ** (.x9 ↦ᵣ v1)) h := by
   intro h hp
   rw [← divN4CallSkipStackPostNoX1_eq_divStackDispatchPostNoX1]
   exact hp
@@ -107,7 +107,7 @@ theorem evm_div_n4_stack_spec_within_dispatch_exact_x1 (sp base : Word)
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
       (divStackDispatchPostNoX1 sp a b **
-        (.x1 ↦ᵣ signExtend12 (4095 : BitVec 12))) := by
+        (.x9 ↦ᵣ signExtend12 (4095 : BitVec 12))) := by
   have hN4 := evm_div_n4_stack_spec_exact_x1 sp base a b
     v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0

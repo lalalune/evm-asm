@@ -129,7 +129,7 @@ private theorem divK_mulsub_correction_addback_880_spec_within
     (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
     cpsTripleWithin 91 (base + div128CallRetOff) (base + addbackBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -139,7 +139,7 @@ private theorem divK_mulsub_correction_addback_880_spec_within
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop))
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat') **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ aco3) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ aun3) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -233,7 +233,7 @@ private theorem divK_mulsub_correction_addback_880_spec_within_noNop
     (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
     cpsTripleWithin 91 (base + div128CallRetOff) (base + addbackBeqOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -243,7 +243,7 @@ private theorem divK_mulsub_correction_addback_880_spec_within_noNop
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop))
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat') **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ aco3) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ aun3) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -291,7 +291,7 @@ def n4McaNamed880Post
   let ab    := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - c3) v0 v1 v2 v3
   let qHat' := qHat + signExtend12 4095
   (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat') **
-  (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ ab.2.2.2.2) ** (.x6 ↦ᵣ uBase) **
+  (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ ab.2.2.2.2) ** (.x6 ↦ᵣ uBase) **
   (.x7 ↦ᵣ addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3) **
   (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ ab.2.2.2.1) **
   (.x0 ↦ᵣ 0) **
@@ -311,7 +311,7 @@ theorem n4McaNamed880Post_unfold
        let ab    := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - c3) v0 v1 v2 v3
        let qHat' := qHat + signExtend12 4095
        (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat') **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ ab.2.2.2.2) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ ab.2.2.2.2) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3) **
        (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ ab.2.2.2.1) **
        (.x0 ↦ᵣ 0) **
@@ -335,7 +335,7 @@ theorem divK_mulsub_correction_addback_named_880_spec_within
       (0 : Word) →
     cpsTripleWithin 91 (base + div128CallRetOff) (base + addbackBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -365,7 +365,7 @@ theorem divK_mulsub_correction_addback_named_880_spec_within_noNop
       (0 : Word) →
     cpsTripleWithin 91 (base + div128CallRetOff) (base + addbackBeqOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -445,7 +445,7 @@ theorem divK_mulsub_correction_addback_spec_within
     aco3 ≠ 0 →
     cpsTripleWithin 92 (base + div128CallRetOff) (base + storeLoopOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -455,7 +455,7 @@ theorem divK_mulsub_correction_addback_spec_within
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop))
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat') **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ aco3) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ aun3) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -481,7 +481,7 @@ theorem divK_mulsub_correction_addback_spec_within
   -- 2. Frame BEQ with remaining atoms and compose (880→884)
   have BEQf := cpsTripleWithin_frameR
     ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat') **
-     (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
+     (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
      (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ aun3) **
      (sp + signExtend12 3976 ↦ₘ j) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ aun0) **
@@ -558,7 +558,7 @@ theorem divK_mulsub_correction_addback_spec_within_noNop
     aco3 ≠ 0 →
     cpsTripleWithin 92 (base + div128CallRetOff) (base + storeLoopOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -568,7 +568,7 @@ theorem divK_mulsub_correction_addback_spec_within_noNop
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop))
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat') **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ aco3) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ aun3) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -594,7 +594,7 @@ theorem divK_mulsub_correction_addback_spec_within_noNop
   -- 2. Frame BEQ with remaining atoms and compose (880→884)
   have BEQf := cpsTripleWithin_frameR
     ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat') **
-     (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
+     (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ aun4) ** (.x6 ↦ᵣ uBase) **
      (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ aun3) **
      (sp + signExtend12 3976 ↦ₘ j) **
      ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ aun0) **

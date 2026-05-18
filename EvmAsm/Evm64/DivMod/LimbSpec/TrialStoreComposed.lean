@@ -38,7 +38,7 @@ theorem divK_trial_load_spec_within
     let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
     let cr :=
       CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 3984))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.ADD .x7 .x1 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.ADD .x7 .x9 .x5))
       (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x7 .x7 3))
       (CodeReq.union (CodeReq.singleton (base + 12) (.ADDI .x5 .x12 4056))
       (CodeReq.union (CodeReq.singleton (base + 16) (.SUB .x5 .x5 .x7))
@@ -50,13 +50,13 @@ theorem divK_trial_load_spec_within
       (CodeReq.union (CodeReq.singleton (base + 40) (.ADD .x6 .x12 .x6))
        (CodeReq.singleton (base + 44) (.LD .x10 .x6 32))))))))))))
     cpsTripleWithin 12 base (base + 48) cr
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) **
        (sp + signExtend12 3984 ↦ₘ n) **
        (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
        (vtopBase + signExtend12 32 ↦ₘ vTop))
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
        (sp + signExtend12 3984 ↦ₘ n) **
@@ -68,7 +68,7 @@ theorem divK_trial_load_spec_within
   let u0_base := sp + signExtend12 4056
   have haddr0 : uAddr + signExtend12 (0 : BitVec 12) = uAddr := by rv64_addr
   have I0 := ld_spec_gen_within .x5 .x12 sp v5Old n 3984 base (by nofun)
-  have I1 := add_spec_gen_within .x7 .x1 .x5 j n v7Old (base + 4) (by nofun)
+  have I1 := add_spec_gen_within .x7 .x9 .x5 j n v7Old (base + 4) (by nofun)
   have I2 := slli_spec_gen_same_within .x7 jpn 3 (base + 8) (by nofun)
   have I3 := addi_spec_gen_within .x5 .x12 n sp 4056 (base + 12) (by nofun)
   have I4 := sub_spec_gen_rd_eq_rs1_within .x5 .x7 u0_base jpnX8 (base + 16) (by nofun)
@@ -91,19 +91,19 @@ theorem divK_store_qj_spec_within (sp j qHat v5Old v7Old qOld : Word)
     let jX8 := j <<< (3 : BitVec 6).toNat
     let qAddr := sp + signExtend12 4088 - jX8
     let cr :=
-      CodeReq.union (CodeReq.singleton base (.SLLI .x5 .x1 3))
+      CodeReq.union (CodeReq.singleton base (.SLLI .x5 .x9 3))
       (CodeReq.union (CodeReq.singleton (base + 4) (.ADDI .x7 .x12 4088))
       (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x7 .x7 .x5))
        (CodeReq.singleton (base + 12) (.SD .x7 .x11 0))))
     cpsTripleWithin 4 base (base + 16) cr
-      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) **
        (qAddr ↦ₘ qOld))
-      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ jX8) ** (.x7 ↦ᵣ qAddr) **
        (qAddr ↦ₘ qHat)) := by
   intro jX8 qAddr cr
-  have I0 := slli_spec_gen_within .x5 .x1 v5Old j 3 base (by nofun)
+  have I0 := slli_spec_gen_within .x5 .x9 v5Old j 3 base (by nofun)
   have I1 := addi_spec_gen_within .x7 .x12 v7Old sp 4088 (base + 4) (by nofun)
   have I2 := sub_spec_gen_rd_eq_rs1_within .x7 .x5 (sp + signExtend12 4088) jX8 (base + 8) (by nofun)
   have haddr : qAddr + signExtend12 (0 : BitVec 12) = qAddr := by rv64_addr

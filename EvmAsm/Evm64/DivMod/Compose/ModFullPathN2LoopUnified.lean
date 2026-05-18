@@ -97,7 +97,7 @@ theorem evm_mod_n2_preloop_loop_unified_spec
     cpsTripleWithin 709 base (base + denormOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -115,7 +115,7 @@ theorem evm_mod_n2_preloop_loop_unified_spec
        ((sp + signExtend12 3968) ↦ₘ retMem) **
        ((sp + signExtend12 3960) ↦ₘ dMem) **
        ((sp + signExtend12 3952) ↦ₘ dloMem) **
-       ((sp + signExtend12 3944) ↦ₘ scratch_un0))
+       ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1)
       (preloopN2UnifiedPost bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
         retMem dMem dloMem scratch_un0) := by
   have hPre := evm_mod_n2_to_loopSetup_spec_within sp base
@@ -127,7 +127,7 @@ theorem evm_mod_n2_preloop_loop_unified_spec
      (sp + signExtend12 3968 ↦ₘ retMem) **
      (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) **
-     (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) hPre
   have hLoop := evm_mod_n2_loop_unified_inst bltu_2 bltu_1 bltu_0 sp base
     (clzResult b1).1 (signExtend12 (0 : BitVec 12) - (clzResult b1).1)
@@ -258,7 +258,7 @@ theorem evm_mod_n2_full_unified_spec
     cpsTripleWithin 744 base (base + nopOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -276,7 +276,7 @@ theorem evm_mod_n2_full_unified_spec
        ((sp + signExtend12 3968) ↦ₘ retMem) **
        ((sp + signExtend12 3960) ↦ₘ dMem) **
        ((sp + signExtend12 3952) ↦ₘ dloMem) **
-       ((sp + signExtend12 3944) ↦ₘ scratch_un0))
+       ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1)
       (fullModN2UnifiedPost bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
         retMem dMem dloMem scratch_un0) := by
   have hA := evm_mod_n2_preloop_loop_unified_spec bltu_2 bltu_1 bltu_0 sp base

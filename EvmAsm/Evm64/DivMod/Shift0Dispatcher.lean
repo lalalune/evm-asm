@@ -79,7 +79,7 @@ theorem evm_div_n4_shift0_stack_spec (sp base : Word)
 
 /-- Exact-`x1` variant of `evm_div_n4_shift0_stack_spec`. Both shift=0
     branches leave the same concrete return marker in `x1`, so callers can
-    retain it instead of receiving only `regOwn .x1`. -/
+    retain it instead of receiving only `regOwn .x9`. -/
 theorem evm_div_n4_shift0_stack_spec_exact_x1 (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -94,7 +94,7 @@ theorem evm_div_n4_shift0_stack_spec_exact_x1 (sp base : Word)
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
       (divN4CallSkipStackPostNoX1 sp a b **
-        (.x1 ↦ᵣ signExtend12 (4095 : BitVec 12))) := by
+        (.x9 ↦ᵣ signExtend12 (4095 : BitVec 12))) := by
   by_cases h_skip : isSkipBorrowN4Shift0Evm a b
   · exact cpsTripleWithin_mono_nSteps (by decide) <|
       evm_div_n4_shift0_call_skip_stack_spec_exact_x1 sp base a b

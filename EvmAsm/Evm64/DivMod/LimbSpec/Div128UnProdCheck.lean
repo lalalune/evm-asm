@@ -33,52 +33,52 @@ open EvmAsm.Rv64
 
 /-- div128 un21 = rhat*2^32 + un1 - q1*dLo.
     Loads dLo from scratch memory. -/
-theorem divK_div128_compute_un21_spec_within (sp q1 rhat un1 v1Old v5Old dloMem : Word) (base : Word) :
+theorem divK_div128_compute_un21_spec_within (sp q1 rhat un1 v9Old v5Old dloMem : Word) (base : Word) :
     let rhatHi := rhat <<< (32 : BitVec 6).toNat
     let rhatUn1 := rhatHi ||| un1
     let q1Dlo := q1 * dloMem
     let un21 := rhatUn1 - q1Dlo
     let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
+      CodeReq.union (CodeReq.singleton base (.LD .x9 .x12 3952))
       (CodeReq.union (CodeReq.singleton (base + 4) (.SLLI .x5 .x7 32))
       (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x5 .x5 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.MUL .x1 .x10 .x1))
-       (CodeReq.singleton (base + 16) (.SUB .x7 .x5 .x1)))))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.MUL .x9 .x10 .x9))
+       (CodeReq.singleton (base + 16) (.SUB .x7 .x5 .x9)))))
     cpsTripleWithin 5 base (base + 20) cr
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) **
-       (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) **
+       (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ v5Old) ** (.x9 ↦ᵣ v9Old) **
        (sp + signExtend12 3952 ↦ₘ dloMem))
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ un21) **
-       (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ rhatUn1) ** (.x1 ↦ᵣ q1Dlo) **
+       (.x11 ↦ᵣ un1) ** (.x5 ↦ᵣ rhatUn1) ** (.x9 ↦ᵣ q1Dlo) **
        (sp + signExtend12 3952 ↦ₘ dloMem)) := by
   intro rhatHi rhatUn1 q1Dlo un21 cr
-  have I0 := ld_spec_gen_within .x1 .x12 sp v1Old dloMem 3952 base (by nofun)
+  have I0 := ld_spec_gen_within .x9 .x12 sp v9Old dloMem 3952 base (by nofun)
   have I1 := slli_spec_gen_within .x5 .x7 v5Old rhat 32 (base + 4) (by nofun)
   have I2 := or_spec_gen_rd_eq_rs1_within .x5 .x11 rhatHi un1 (base + 8) (by nofun)
-  have I3 := mul_spec_gen_rd_eq_rs2_within .x1 .x10 q1 dloMem (base + 12) (by nofun)
-  have I4 := sub_spec_gen_within .x7 .x5 .x1 rhatUn1 q1Dlo rhat (base + 16) (by nofun)
+  have I3 := mul_spec_gen_rd_eq_rs2_within .x9 .x10 q1 dloMem (base + 12) (by nofun)
+  have I4 := sub_spec_gen_within .x7 .x5 .x9 rhatUn1 q1Dlo rhat (base + 16) (by nofun)
   runBlock I0 I1 I2 I3 I4
 
 /-- div128 product check body: compute q*dLo and rhat*2^32+un1 for comparison. -/
-theorem divK_div128_prodcheck_body_spec_within (sp q rhat un1 v1Old v5Old dlo : Word) (base : Word) :
+theorem divK_div128_prodcheck_body_spec_within (sp q rhat un1 v9Old v5Old dlo : Word) (base : Word) :
     let qDlo := q * dlo
     let rhatHi := rhat <<< (32 : BitVec 6).toNat
     let rhatUn1 := rhatHi ||| un1
     let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x1 .x7 32))
-       (CodeReq.singleton (base + 12) (.OR .x1 .x1 .x11))))
+      CodeReq.union (CodeReq.singleton base (.LD .x9 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x9 .x7 32))
+       (CodeReq.singleton (base + 12) (.OR .x9 .x9 .x11))))
     cpsTripleWithin 4 base (base + 16) cr
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (sp + signExtend12 3952 ↦ₘ dlo))
+       (.x5 ↦ᵣ v5Old) ** (.x9 ↦ᵣ v9Old) ** (sp + signExtend12 3952 ↦ₘ dlo))
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by
+       (.x5 ↦ᵣ qDlo) ** (.x9 ↦ᵣ rhatUn1) ** (sp + signExtend12 3952 ↦ₘ dlo)) := by
   intro qDlo rhatHi rhatUn1 cr
-  have I0 := ld_spec_gen_within .x1 .x12 sp v1Old dlo 3952 base (by nofun)
-  have I1 := mul_spec_gen_within .x5 .x10 .x1 v5Old q dlo (base + 4) (by nofun)
-  have I2 := slli_spec_gen_within .x1 .x7 dlo rhat 32 (base + 8) (by nofun)
-  have I3 := or_spec_gen_rd_eq_rs1_within .x1 .x11 (rhat <<< (32 : BitVec 6).toNat) un1 (base + 12) (by nofun)
+  have I0 := ld_spec_gen_within .x9 .x12 sp v9Old dlo 3952 base (by nofun)
+  have I1 := mul_spec_gen_within .x5 .x10 .x9 v5Old q dlo (base + 4) (by nofun)
+  have I2 := slli_spec_gen_within .x9 .x7 dlo rhat 32 (base + 8) (by nofun)
+  have I3 := or_spec_gen_rd_eq_rs1_within .x9 .x11 (rhat <<< (32 : BitVec 6).toNat) un1 (base + 12) (by nofun)
   runBlock I0 I1 I2 I3
 
 /-- div128 correction: q-- and rhat += dHi. Generic for q1 (x10) or q0 (x5). -/

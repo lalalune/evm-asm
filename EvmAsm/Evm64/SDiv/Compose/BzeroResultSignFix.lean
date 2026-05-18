@@ -31,7 +31,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_bzero_then_resultSignFix_spec_in_s
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
       (let dividendAbsWord :=
          sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
@@ -59,7 +59,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_bzero_then_resultSignFix_spec_in_s
       (saveRaDivCallBzeroResultSignFixFrame
         vRa sp base divisorSign dividendAbsWord).pcFree := by
     rw [saveRaDivCallBzeroResultSignFixFrame_unfold,
-      EvmAsm.Evm64.divScratchOwnCall_unfold,
+      EvmAsm.Evm64.divScratchOwnCallNoX1_unfold,
       EvmAsm.Evm64.divScratchOwn_unfold]
     pcFree
   have hFix :=
@@ -70,7 +70,9 @@ theorem saveRa_signs_abs_signXor_then_divCall_bzero_then_resultSignFix_spec_in_s
       (resultSignFix_regOwn_scratch_spec_in_sdivCode
         (sp + 32) resultSign 0 0 0 0 base)
   exact EvmAsm.Rv64.cpsTripleWithin_seq_perm_same_cr
-    (fun _ hp => by
+    (fun h (hp : (saveRaDivCallBzeroCallablePost vRa sp base
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop) h) => by
       rw [saveRaDivCallBzeroCallablePost_resultSignFixPreOwnScratch hbz] at hp
       exact hp)
     hPrefix hFix

@@ -96,7 +96,7 @@ def n4MaxSkipSemanticHolds (a b : EvmWord) : Prop :=
     semantic bridge + `divScratchValues_implies_divScratchOwn` weakener. -/
 @[irreducible]
 def divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
-  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** regOwn .x2 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
   evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
@@ -119,7 +119,7 @@ def divN4StackPre (sp : Word) (a b : EvmWord)
   (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
   (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
   (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-  (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+  (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
   (.x11 ↦ᵣ v11) **
   evmWordIs sp a ** evmWordIs (sp + 32) b **
   divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -149,7 +149,7 @@ theorem divN4StackPre_unfold {sp : Word} {a b : EvmWord}
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      (.x11 ↦ᵣ v11) **
      evmWordIs sp a ** evmWordIs (sp + 32) b **
      divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -171,7 +171,7 @@ def divN4StackPreCall (sp : Word) (a b : EvmWord)
   (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
   (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
   (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-  (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+  (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
   (.x11 ↦ᵣ v11) **
   evmWordIs sp a ** evmWordIs (sp + 32) b **
   divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -207,7 +207,7 @@ theorem divN4StackPreCall_unfold {sp : Word} {a b : EvmWord}
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      (.x11 ↦ᵣ v11) **
      evmWordIs sp a ** evmWordIs (sp + 32) b **
      divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -226,7 +226,7 @@ def modN4StackPre (sp : Word) (a b : EvmWord)
   (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
   (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
   (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-  (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+  (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
   (.x11 ↦ᵣ v11) **
   evmWordIs sp a ** evmWordIs (sp + 32) b **
   divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -253,7 +253,7 @@ instance (sp : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     `delta` the only way in at call sites. -/
 theorem divN4MaxSkipStackPost_unfold {sp : Word} {a b : EvmWord} :
     divN4MaxSkipStackPost sp a b =
-    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** regOwn .x2 **
      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
      regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
      evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
@@ -281,7 +281,7 @@ theorem div_n4_max_skip_stack_weaken
      shift_p n_p j_p : Word} :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
-       (.x1 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
+       (.x9 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
        (.x5 ↦ᵣ v5_p) ** (.x6 ↦ᵣ v6_p) ** (.x7 ↦ᵣ v7_p) **
        (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
        (.x0 ↦ᵣ (0 : Word)) **
@@ -321,7 +321,7 @@ theorem evm_div_n4_full_max_skip_stack_pre_spec (sp base : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
        divScratchValues sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old

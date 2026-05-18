@@ -132,7 +132,7 @@ theorem evm_div_n4_call_skip_stack_spec_unconditional_exact_x1 (sp base : Word)
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0)
       (divN4CallSkipStackPostNoX1 sp a b **
-        (.x1 ↦ᵣ signExtend12 (4095 : BitVec 12))) :=
+        (.x9 ↦ᵣ signExtend12 (4095 : BitVec 12))) :=
   evm_div_n4_call_skip_stack_spec_exact_x1 sp base a b v5 v6 v7 v10 v11
     q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0

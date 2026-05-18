@@ -36,7 +36,7 @@ open EvmAsm.Evm64.AddMod.Compose
 
 The bridge lemma connects the prologue postcondition
 `evmAddModPhase1Phase2LimbPost` (for b=N=0) to the mod callable
-precondition `divModStackDispatchPre`. This is the key step enabling
+    precondition `divModStackDispatchPreCallable`. This is the key step enabling
 the N=0 end-to-end proof (bead evm-asm-a32mz).
 
 Key simplification: when b=0 (the second ADDMOD operand = N = 0),
@@ -69,7 +69,7 @@ private theorem evmAddModPhase1Phase2LimbPost_b0_simp
     - Original a at sp..sp+24
 
     Combined with the frame (x2, x10, x0=0, N=0 at sp+64..sp+88, scratch),
-    this gives exactly `divModStackDispatchPre (sp+32) a 0 (base+128) ...`. -/
+      this gives exactly `divModStackDispatchPreCallable (sp+32) a 0 (base+128) ...`. -/
 private theorem evm_addmod_n0_dispatch_bridge
     (sp base : Word) (a : EvmWord)
     (a0 a1 a2 a3 v2 v10 : Word)
@@ -83,15 +83,15 @@ private theorem evm_addmod_n0_dispatch_bridge
        (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + 64) ↦ₘ (0 : Word)) ** ((sp + 72) ↦ₘ (0 : Word)) **
        ((sp + 80) ↦ₘ (0 : Word)) ** ((sp + 88) ↦ₘ (0 : Word)) **
-       divScratchValuesCall (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-         shiftMem nMem jMem retMem dMem dloMem scratchUn0) s) :
-    (divModStackDispatchPre (sp + 32) a (0 : EvmWord) ((base + 124) + 4)
-       v2 0 0 0 v10 0
-       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-       shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0) s) :
+      (divModStackDispatchPreCallable (sp + 32) a (0 : EvmWord) ((base + 124) + 4)
+         v2 0 0 0 v10 0
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
      (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3)) s := by
-  rw [divModStackDispatchPre_unfold]
+  rw [divModStackDispatchPreCallable_unfold]
   rw [evmAddModPhase1Phase2LimbPost_b0_simp] at hpre
   -- Expand evmWordIs (sp+32) a → atoms at sp+32..sp+56
   simp only [evmWordIs_sp32_limbs_eq sp a a0 a1 a2 a3 ha0 ha1 ha2 ha3]
@@ -194,15 +194,15 @@ theorem evm_addmod_b0_n0_spec_within
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs sp a ** evmWordIs (sp + 32) (0 : EvmWord) **
        evmWordIs (sp + 64) (0 : EvmWord) **
-       divScratchValuesCall (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-         shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
       ((.x12 ↦ᵣ (sp + 64)) **
        (.x1 ↦ᵣ ((base + 124) + 4)) **
        regOwn .x2 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
        regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs sp a ** evmWordIs (sp + 32) a **
        evmWordIs (sp + 64) (0 : EvmWord) **
-       divScratchOwnCall (sp + 32)) := by
+         divScratchOwnCallNoX1 (sp + 32)) := by
   subst hcallable
   -- Code-region monotonicity helpers
   have hmono_prog : ∀ ad i,
@@ -230,10 +230,10 @@ theorem evm_addmod_b0_n0_spec_within
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs sp a ** evmWordIs (sp + 32) (0 : EvmWord) **
        evmWordIs (sp + 64) (0 : EvmWord) **
-       divScratchValuesCall (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-         shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-      (divModStackDispatchPre (sp + 32) a (0 : EvmWord) ((base + 124) + 4)
-         v2 0 0 0 v10 0
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (divModStackDispatchPreCallable (sp + 32) a (0 : EvmWord) ((base + 124) + 4)
+           v2 0 0 0 v10 0
          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -244,9 +244,9 @@ theorem evm_addmod_b0_n0_spec_within
           ((.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
            ((sp + 64) ↦ₘ (0 : Word)) ** ((sp + 72) ↦ₘ (0 : Word)) **
            ((sp + 80) ↦ₘ (0 : Word)) ** ((sp + 88) ↦ₘ (0 : Word)) **
-           divScratchValuesCall (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-             shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-          (by rw [divScratchValuesCall_unfold]; pcFree)
+             divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+               shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+            (by rw [divScratchValuesCallNoX1_unfold]; pcFree)
           (evm_addmod_prologue_phase1_phase2_reduce_named_spec_within
             sp base modOff a0 a1 a2 a3 0 0 0 0 v7 v6 v5 v11 v1))))
     · -- PRE weaken: expand evmWordIs atoms to match framed prologue PRE
@@ -268,8 +268,8 @@ theorem evm_addmod_b0_n0_spec_within
   -- Step 2: Callable spec (N=0 bzero) framed with original-a atoms
   -- The callable exits at raVal &&& ~~~1 = (base+124+4) &&& ~~~1 = base+128.
   have hcall_raw :=
-    evm_mod_callable_bzero_preserving_x1_spec
-      (sp + 32) ((base + 124) + signExtend21 modOff) ((base + 124) + 4)
+      evm_mod_callable_bzero_preserving_x1_noX9_spec
+        (sp + 32) ((base + 124) + signExtend21 modOff) ((base + 124) + 4)
       a (0 : EvmWord) v2 0 0 0 v10 0
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 rfl
@@ -285,10 +285,10 @@ theorem evm_addmod_b0_n0_spec_within
   exact cpsTripleWithin_weaken
     (fun _ hp => hp)
     (fun s hpost => by
-      rw [modStackDispatchPostNoX1_unfold, EvmWord.mod_zero_right] at hpost
-      rw [divScratchOwnCall_unfold, divScratchOwn_unfold] at hpost
+      rw [modStackDispatchPostCallable_unfold, EvmWord.mod_zero_right] at hpost
+      rw [divScratchOwnCallNoX1_unfold, divScratchOwn_unfold] at hpost
       rw [evmWordIs_sp_limbs_eq sp a a0 a1 a2 a3 ha0 ha1 ha2 ha3]
-      rw [divScratchOwnCall_unfold, divScratchOwn_unfold]
+      rw [divScratchOwnCallNoX1_unfold, divScratchOwn_unfold]
       simp only [BitVec.add_assoc] at hpost ⊢
       simp only [show (32 : Word) + 32 = 64 from by bv_omega,
         show (124 : Word) + 4 = 128 from by bv_omega] at hpost ⊢

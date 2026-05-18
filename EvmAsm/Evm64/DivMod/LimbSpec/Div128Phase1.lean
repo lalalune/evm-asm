@@ -31,7 +31,7 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 /-- div128 Phase 1a: save x2 (return addr) and x10 (d), compute dHi and dLo. -/
-theorem divK_div128_save_split_d_spec_within (sp retAddr d v1Old v6Old
+theorem divK_div128_save_split_d_spec_within (sp retAddr d v9Old v6Old
     retMem dMem dloMem : Word) (base : Word) :
     let dHi := d >>> (32 : BitVec 6).toNat
     let dLo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
@@ -39,17 +39,17 @@ theorem divK_div128_save_split_d_spec_within (sp retAddr d v1Old v6Old
       CodeReq.union (CodeReq.singleton base (.SD .x12 .x2 3968))
       (CodeReq.union (CodeReq.singleton (base + 4) (.SD .x12 .x10 3960))
       (CodeReq.union (CodeReq.singleton (base + 8) (.SRLI .x6 .x10 32))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SLLI .x1 .x10 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.SRLI .x1 .x1 32))
-       (CodeReq.singleton (base + 20) (.SD .x12 .x1 3952))))))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SLLI .x9 .x10 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.SRLI .x9 .x9 32))
+       (CodeReq.singleton (base + 20) (.SD .x12 .x9 3952))))))
     cpsTripleWithin 6 base (base + 24) cr
       ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) **
+       (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem))
       ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
-       (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ dLo) **
+       (.x6 ↦ᵣ dHi) ** (.x9 ↦ᵣ dLo) **
        (sp + signExtend12 3968 ↦ₘ retAddr) **
        (sp + signExtend12 3960 ↦ₘ d) **
        (sp + signExtend12 3952 ↦ₘ dLo)) := by
@@ -57,9 +57,9 @@ theorem divK_div128_save_split_d_spec_within (sp retAddr d v1Old v6Old
   have I0 := sd_spec_gen_within .x12 .x2 sp retAddr retMem 3968 base
   have I1 := sd_spec_gen_within .x12 .x10 sp d dMem 3960 (base + 4)
   have I2 := srli_spec_gen_within .x6 .x10 v6Old d 32 (base + 8) (by nofun)
-  have I3 := slli_spec_gen_within .x1 .x10 v1Old d 32 (base + 12) (by nofun)
-  have I4 := srli_spec_gen_same_within .x1 (d <<< (32 : BitVec 6).toNat) 32 (base + 16) (by nofun)
-  have I5 := sd_spec_gen_within .x12 .x1 sp dLo dloMem 3952 (base + 20)
+  have I3 := slli_spec_gen_within .x9 .x10 v9Old d 32 (base + 12) (by nofun)
+  have I4 := srli_spec_gen_same_within .x9 (d <<< (32 : BitVec 6).toNat) 32 (base + 16) (by nofun)
+  have I5 := sd_spec_gen_within .x12 .x9 sp dLo dloMem 3952 (base + 20)
   runBlock I0 I1 I2 I3 I4 I5
 
 /-- div128 Phase 1b: split uLo into un1 (x11) and un0 (x5), save un0. -/

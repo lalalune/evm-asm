@@ -31,7 +31,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_then_return_normalized_named_post_
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
       (saveRaDivCallCallableReturnPost vRa sp base
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop

@@ -14,7 +14,7 @@ theorem saveRaDivCallBzeroResultSignFixFrame_pcFree
     (saveRaDivCallBzeroResultSignFixFrame
       vRa sp base divisorSign dividendAbsWord).pcFree := by
   rw [saveRaDivCallBzeroResultSignFixFrame_unfold,
-    EvmAsm.Evm64.divScratchOwnCall_unfold,
+    EvmAsm.Evm64.divScratchOwnCallNoX1_unfold,
     EvmAsm.Evm64.divScratchOwn_unfold]
   pcFree
 
@@ -30,7 +30,7 @@ theorem saveRaDivCallBzeroSavedRaRetFrame_pcFree
     (saveRaDivCallBzeroSavedRaRetFrame
       sp base divisorSign dividendAbsWord).pcFree := by
   rw [saveRaDivCallBzeroSavedRaRetFrame_unfold,
-    EvmAsm.Evm64.divScratchOwnCall_unfold,
+    EvmAsm.Evm64.divScratchOwnCallNoX1_unfold,
     EvmAsm.Evm64.divScratchOwn_unfold]
   pcFree
 

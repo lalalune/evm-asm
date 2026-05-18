@@ -35,7 +35,7 @@ def loopExitPost (n : Word) (sp j q_f c3 un0F un1F un2F un3F u4F
   let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
   let j' := j + signExtend12 4095
   let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j') **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j') **
   (.x5 ↦ᵣ j <<< (3 : BitVec 6).toNat) ** (.x6 ↦ᵣ uBase) **
   (.x7 ↦ᵣ qAddr) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
   (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -53,7 +53,7 @@ theorem loopExitPost_unfold {n: Word} {sp j q_f c3 un0F un1F un2F un3F u4F
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let j' := j + signExtend12 4095
     let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
-    (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j') **
+    (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j') **
     (.x5 ↦ᵣ j <<< (3 : BitVec 6).toNat) ** (.x6 ↦ᵣ uBase) **
     (.x7 ↦ᵣ qAddr) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
     (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -127,7 +127,7 @@ def loopBodyN3CallSkipPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Asser
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Borrow condition for n=3 call+skip: mulsub doesn't overflow. -/
 def isSkipBorrowN3Call (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
@@ -152,7 +152,7 @@ def loopBodyN3CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : As
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Call+addback BEQ postcondition for n=3 at j=0, with double-addback handling. -/
 @[irreducible]
@@ -162,7 +162,7 @@ def loopBodyN3CallAddbackBeqPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Call+addback BEQ postcondition for n=3, generic j, with double-addback handling. -/
 @[irreducible]
@@ -172,7 +172,7 @@ def loopBodyN3CallAddbackBeqPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Bridge: j=0 specific call addback beq = generic-j at j=0. -/
 theorem loopBodyN3CallAddbackBeqPost_eq_J {sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
@@ -195,7 +195,7 @@ def loopBodyN1CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : As
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v0) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u0) ** regOwn .x1
 
 /-- Call+addback BEQ postcondition for n=1, generic j, with double-addback handling. -/
 @[irreducible]
@@ -205,7 +205,7 @@ def loopBodyN1CallAddbackBeqPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v0) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u0) ** regOwn .x1
 
 -- ============================================================================
 -- Generic j versions of n=2 call path postconditions
@@ -221,7 +221,7 @@ def loopBodyN2CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : As
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u1) ** regOwn .x1
 
 /-- Call+addback BEQ postcondition for n=2, generic j, with double-addback handling. -/
 @[irreducible]
@@ -231,7 +231,7 @@ def loopBodyN2CallAddbackBeqPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u1) ** regOwn .x1
 
 -- ============================================================================
 -- Double-addback iteration postconditions
@@ -266,7 +266,7 @@ theorem loopIterPostN1Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v0) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u0) ** regOwn .x1
 
 theorem loopIterPostN1Call_addback {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4_c3 (div128Quot u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3)) :
@@ -318,7 +318,7 @@ theorem loopIterPostN2Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u1) ** regOwn .x1
 
 theorem loopIterPostN2Call_addback {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4_c3 (div128Quot u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3)) :
@@ -367,7 +367,7 @@ theorem loopIterPostN3Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Producer equation: call addback beq postcondition equals loopIterPostN3Call when borrow holds. -/
 theorem loopIterPostN3Call_addback {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
@@ -436,7 +436,7 @@ def loopN3CallMaxPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig : Word) : Ass
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Unified n=3 two-iteration postcondition with double addback. -/
 def loopN3UnifiedPost (bltu_1 bltu_0 : Bool)
@@ -448,7 +448,7 @@ def loopN3UnifiedPost (bltu_1 bltu_0 : Bool)
     (sp + signExtend12 3968 ↦ₘ retMem) **
     (sp + signExtend12 3960 ↦ₘ dMem) **
     (sp + signExtend12 3952 ↦ₘ dloMem) **
-    (sp + signExtend12 3944 ↦ₘ scratch_un0)
+    (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
   | true,  true  => loopN3CallCallPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
   | false, true  => loopN3MaxCallPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
   | true,  false => loopN3CallMaxPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
@@ -499,7 +499,7 @@ def loopN2CallMaxPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig : Word) : Ass
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u1) ** regOwn .x1
 
 /-- Unified n=2 two-iteration postcondition with double addback. -/
 def loopN2Iter10Post (bltu_1 bltu_0 : Bool)
@@ -511,7 +511,7 @@ def loopN2Iter10Post (bltu_1 bltu_0 : Bool)
     (sp + signExtend12 3968 ↦ₘ retMem) **
     (sp + signExtend12 3960 ↦ₘ dMem) **
     (sp + signExtend12 3952 ↦ₘ dloMem) **
-    (sp + signExtend12 3944 ↦ₘ scratch_un0)
+    (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
   | true,  true  => loopN2CallCallPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
   | false, true  => loopN2MaxCallPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
   | true,  false => loopN2CallMaxPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
@@ -560,13 +560,13 @@ def loopN1Iter10Post (bltu_1 bltu_0 : Bool)
     (sp + signExtend12 3968 ↦ₘ retMem) **
     (sp + signExtend12 3960 ↦ₘ dMem) **
     (sp + signExtend12 3952 ↦ₘ dloMem) **
-    (sp + signExtend12 3944 ↦ₘ scratch_un0)
+    (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
   | false, true  => empAssertion
   | true,  false =>
     (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
     (sp + signExtend12 3960 ↦ₘ v0) **
     (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
-    (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
+    (sp + signExtend12 3944 ↦ₘ div128Un0 u0) ** regOwn .x1
   | true,  true  => empAssertion
 
 /-- Postcondition for n=1 three-iteration loop (j=2, j=1, j=0) with double addback.

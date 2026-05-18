@@ -32,7 +32,7 @@ def n4McaBeqPost (sp uBase qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
   let carryOut := if carry = 0 then addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
                   else carry
   (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_out) **
-  (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_out) ** (.x6 ↦ᵣ uBase) **
+  (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ u4_out) ** (.x6 ↦ᵣ uBase) **
   (.x7 ↦ᵣ carryOut) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3Out) **
   (.x0 ↦ᵣ 0) **
   (sp + signExtend12 3976 ↦ₘ j) **
@@ -59,7 +59,7 @@ theorem n4McaBeqPost_unfold {sp uBase qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word
        let carryOut := if carry = 0 then addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3
                        else carry
        (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q_out) **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_out) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ u4_out) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ carryOut) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3Out) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -86,7 +86,7 @@ theorem divK_mulsub_correction_addback_beq_named_spec_within
     (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
     cpsTripleWithin 130 (base + div128CallRetOff) (base + storeLoopOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -117,7 +117,7 @@ theorem divK_mulsub_correction_addback_beq_named_spec_within_noNop
     (if BitVec.ult uTop c3 then (1 : Word) else 0) ≠ (0 : Word) →
     cpsTripleWithin 130 (base + div128CallRetOff) (base + storeLoopOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **

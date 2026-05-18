@@ -32,7 +32,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_bzero_stack_entry_zero_divisor_res
          (.x7 ↦ᵣ dividendValueOld) ** (.x11 ↦ᵣ dividendCarryOld)) **
         evmStackIs sp (dividend :: (0 : EvmWord) :: rest)) **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
       (let result := EvmAsm.Evm64.SDivArgs.sdivResultFromArgs
           (EvmAsm.Evm64.SDivArgs.sdivArgs dividend 0)

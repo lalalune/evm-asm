@@ -665,7 +665,7 @@ def divScratchValuesCall (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
   ((sp + signExtend12 3968) ↦ₘ retMem) **
   ((sp + signExtend12 3960) ↦ₘ dMem) **
   ((sp + signExtend12 3952) ↦ₘ dloMem) **
-  ((sp + signExtend12 3944) ↦ₘ scratch_un0)
+  ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1
 
 /-- Named unfold for `divScratchValuesCall`. -/
 theorem divScratchValuesCall_unfold {sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -676,7 +676,7 @@ theorem divScratchValuesCall_unfold {sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      ((sp + signExtend12 3968) ↦ₘ retMem) **
      ((sp + signExtend12 3960) ↦ₘ dMem) **
      ((sp + signExtend12 3952) ↦ₘ dloMem) **
-     ((sp + signExtend12 3944) ↦ₘ scratch_un0)) := by
+     ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1) := by
   delta divScratchValuesCall; rfl
 
 /-- Value-agnostic counterpart to `divScratchValues`: the same 15 cells but
@@ -739,7 +739,7 @@ def divScratchOwnCall (sp : Word) : Assertion :=
   memOwn (sp + signExtend12 3968) **
   memOwn (sp + signExtend12 3960) **
   memOwn (sp + signExtend12 3952) **
-  memOwn (sp + signExtend12 3944)
+  memOwn (sp + signExtend12 3944) ** regOwn .x1
 
 /-- Named unfold for `divScratchOwnCall`. Parallel to `divScratchOwn_unfold`
     and `divScratchValuesCall_unfold`. -/
@@ -749,12 +749,74 @@ theorem divScratchOwnCall_unfold {sp : Word} :
      memOwn (sp + signExtend12 3968) **
      memOwn (sp + signExtend12 3960) **
      memOwn (sp + signExtend12 3952) **
-     memOwn (sp + signExtend12 3944)) := by
+     memOwn (sp + signExtend12 3944) ** regOwn .x1) := by
   delta divScratchOwnCall; rfl
+
+/-- Callable-ready concrete call scratch bundle, with `x1` kept out of the
+    scratch ownership so wrappers can expose the exact return address as its
+    own atom. This is intentionally separate from `divScratchValuesCall`, whose
+    historical shape includes `regOwn .x1` for public dispatcher posts. -/
+@[irreducible]
+def divScratchValuesCallNoX1 (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem **
+  ((sp + signExtend12 3968) ↦ₘ retMem) **
+  ((sp + signExtend12 3960) ↦ₘ dMem) **
+  ((sp + signExtend12 3952) ↦ₘ dloMem) **
+  ((sp + signExtend12 3944) ↦ₘ scratch_un0)
+
+/-- Named unfold for `divScratchValuesCallNoX1`. -/
+theorem divScratchValuesCallNoX1_unfold {sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
+    divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 =
+      (divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem **
+       ((sp + signExtend12 3968) ↦ₘ retMem) **
+       ((sp + signExtend12 3960) ↦ₘ dMem) **
+       ((sp + signExtend12 3952) ↦ₘ dloMem) **
+       ((sp + signExtend12 3944) ↦ₘ scratch_un0)) := by
+  delta divScratchValuesCallNoX1; rfl
+
+/-- Callable-ready ownership counterpart to `divScratchValuesCallNoX1`;
+    intentionally omits `regOwn .x1`. -/
+@[irreducible]
+def divScratchOwnCallNoX1 (sp : Word) : Assertion :=
+  divScratchOwn sp **
+  memOwn (sp + signExtend12 3968) **
+  memOwn (sp + signExtend12 3960) **
+  memOwn (sp + signExtend12 3952) **
+  memOwn (sp + signExtend12 3944)
+
+/-- Named unfold for `divScratchOwnCallNoX1`. -/
+theorem divScratchOwnCallNoX1_unfold {sp : Word} :
+    divScratchOwnCallNoX1 sp =
+    (divScratchOwn sp **
+     memOwn (sp + signExtend12 3968) **
+     memOwn (sp + signExtend12 3960) **
+     memOwn (sp + signExtend12 3952) **
+     memOwn (sp + signExtend12 3944)) := by
+  delta divScratchOwnCallNoX1; rfl
 
 instance pcFreeInst_divScratchOwn (sp : Word) :
     Assertion.PCFree (divScratchOwn sp) :=
   ⟨pcFree_divScratchOwn⟩
+
+instance pcFreeInst_divScratchValuesCallNoX1
+    (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+      retMem dMem dloMem scratch_un0 : Word) :
+    Assertion.PCFree (divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratch_un0) := by
+  constructor
+  rw [divScratchValuesCallNoX1_unfold]
+  pcFree
+
+instance pcFreeInst_divScratchOwnCallNoX1 (sp : Word) :
+    Assertion.PCFree (divScratchOwnCallNoX1 sp) := by
+  constructor
+  rw [divScratchOwnCallNoX1_unfold, divScratchOwn_unfold]
+  pcFree
 
 /-- Weakening: any concrete scratch state implies ownership of the same 15
     cells. This lets a stack spec hide the scratch values on exit. -/
@@ -782,7 +844,21 @@ theorem divScratchValuesCall_implies_divScratchOwnCall
   -- Head: divScratchValues → divScratchOwn via the 15-cell weakener.
   apply sepConj_mono (divScratchValues_implies_divScratchOwn
     sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
-  -- Tail: 4 memIs → memOwn, same pattern as the 15-cell weakener.
+  -- Tail: 4 memIs → memOwn, preserving the framed return register.
+  iterate 4 apply sepConj_mono memIs_implies_memOwn
+  exact fun _ hp => hp
+
+/-- Callable-ready call-path weakening, keeping `x1` outside the scratch
+    bundle so it can be tracked exactly by wrappers. -/
+theorem divScratchValuesCallNoX1_implies_divScratchOwnCallNoX1
+    (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+     retMem dMem dloMem scratch_un0 : Word) :
+    ∀ h, divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 h →
+      divScratchOwnCallNoX1 sp h := by
+  unfold divScratchValuesCallNoX1 divScratchOwnCallNoX1
+  apply sepConj_mono (divScratchValues_implies_divScratchOwn
+    sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
   iterate 3 apply sepConj_mono memIs_implies_memOwn
   exact memIs_implies_memOwn
 
@@ -805,7 +881,7 @@ def loopSetupPost (sp nVal shift a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ nVal) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
   (.x0 ↦ᵣ (0 : Word)) **
   (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ u0) ** (.x2 ↦ᵣ antiShift) **
-  (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - nVal) **
+  (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - nVal) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
   ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
   ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
@@ -835,7 +911,7 @@ theorem loopSetupPost_unfold {sp nVal shift a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ nVal) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
     (.x0 ↦ᵣ (0 : Word)) **
     (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ u0) ** (.x2 ↦ᵣ antiShift) **
-    (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - nVal) **
+    (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - nVal) **
     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
     ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **

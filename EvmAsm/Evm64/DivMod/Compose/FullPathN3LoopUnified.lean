@@ -159,7 +159,7 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
     cpsTripleWithin 507 base (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -177,7 +177,7 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
        ((sp + signExtend12 3968) ↦ₘ retMem) **
        ((sp + signExtend12 3960) ↦ₘ dMem) **
        ((sp + signExtend12 3952) ↦ₘ dloMem) **
-       ((sp + signExtend12 3944) ↦ₘ scratch_un0))
+       ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1)
       (preloopN3UnifiedPost bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
         retMem dMem dloMem scratch_un0) := by
   -- 1. Pre-loop: base → base+448
@@ -191,7 +191,7 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
      (sp + signExtend12 3968 ↦ₘ retMem) **
      (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) **
-     (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) hPre
   -- 2. Loop: base+448 → base+908 (unified da, with explicit normalized values)
   have hLoop := evm_div_n3_loop_unified_inst bltu_1 bltu_0 sp base
@@ -254,7 +254,7 @@ theorem evm_div_n3_preloop_loop_unified_spec_noNop (bltu_1 bltu_0 : Bool) (sp ba
     cpsTripleWithin 507 base (base + denormOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -272,7 +272,7 @@ theorem evm_div_n3_preloop_loop_unified_spec_noNop (bltu_1 bltu_0 : Bool) (sp ba
        ((sp + signExtend12 3968) ↦ₘ retMem) **
        ((sp + signExtend12 3960) ↦ₘ dMem) **
        ((sp + signExtend12 3952) ↦ₘ dloMem) **
-       ((sp + signExtend12 3944) ↦ₘ scratch_un0))
+       ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1)
       (preloopN3UnifiedPost bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
         retMem dMem dloMem scratch_un0) := by
   have hPre := evm_div_n3_to_loopSetup_spec_within_noNop sp base
@@ -284,7 +284,7 @@ theorem evm_div_n3_preloop_loop_unified_spec_noNop (bltu_1 bltu_0 : Bool) (sp ba
      (sp + signExtend12 3968 ↦ₘ retMem) **
      (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) **
-     (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) hPre
   have hLoop := evm_div_n3_loop_unified_inst_noNop bltu_1 bltu_0 sp base
     (clzResult b2).1 (signExtend12 (0 : BitVec 12) - (clzResult b2).1)
@@ -335,7 +335,7 @@ theorem evm_div_n3_preloop_loop_unified_spec_noNop (bltu_1 bltu_0 : Bool) (sp ba
 theorem loopExitPostN3_j0_eq (sp q_f c3 un0F un1F un2F un3F u4F
     v0 v1 v2 v3 : Word) :
     loopExitPostN3 sp (0 : Word) q_f c3 un0F un1F un2F un3F u4F v0 v1 v2 v3 =
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ signExtend12 4095) **
      (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
      (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
      (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -428,7 +428,7 @@ def fullDivN3Scratch (bltu_1 bltu_0 : Bool)
   (sp + signExtend12 3968 ↦ₘ (if bltu_0 then (base + div128CallRetOff) else scratch_ret1)) **
   (sp + signExtend12 3960 ↦ₘ (if bltu_0 then v.2.2.1 else scratch_d1)) **
   (sp + signExtend12 3952 ↦ₘ (if bltu_0 then div128DLo v.2.2.1 else scratch_dlo1)) **
-  (sp + signExtend12 3944 ↦ₘ (if bltu_0 then div128Un0 r1.2.2.1 else scratch_un01))
+  (sp + signExtend12 3944 ↦ₘ (if bltu_0 then div128Un0 r1.2.2.1 else scratch_un01)) ** regOwn .x1
 
 @[irreducible]
 def fullDivN3DenormPre (bltu_1 bltu_0 : Bool)
@@ -469,7 +469,7 @@ def fullDivN3Frame (bltu_1 bltu_0 : Bool)
   ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
   (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
-  (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
+  (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
   fullDivN3Scratch bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
     retMem dMem dloMem scratch_un0
 
@@ -593,7 +593,7 @@ theorem fullDivN3Frame_unfold (bltu_1 bltu_0 : Bool)
     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
     (sp + signExtend12 3984 ↦ₘ (3 : Word)) **
     (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
-    (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
+    (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
     fullDivN3Scratch bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
       retMem dMem dloMem scratch_un0 := by
   delta fullDivN3Frame
@@ -628,7 +628,7 @@ theorem fullDivN3Scratch_false_true (sp base a0 a1 a2 a3 b0 b1 b2 b3
     ((sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v.2.2.1) **
      (sp + signExtend12 3952 ↦ₘ div128DLo v.2.2.1) **
-     (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.2.1)) := by
+     (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.2.1) ** regOwn .x1) := by
   delta fullDivN3Scratch
   rfl
 
@@ -641,7 +641,7 @@ theorem fullDivN3Scratch_true_false (sp base a0 a1 a2 a3 b0 b1 b2 b3
     ((sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v.2.2.1) **
      (sp + signExtend12 3952 ↦ₘ div128DLo v.2.2.1) **
-     (sp + signExtend12 3944 ↦ₘ div128Un0 u.2.2.2.1)) := by
+     (sp + signExtend12 3944 ↦ₘ div128Un0 u.2.2.2.1) ** regOwn .x1) := by
   delta fullDivN3Scratch
   rfl
 
@@ -654,7 +654,7 @@ theorem fullDivN3Scratch_true_true (sp base a0 a1 a2 a3 b0 b1 b2 b3
     ((sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ v.2.2.1) **
      (sp + signExtend12 3952 ↦ₘ div128DLo v.2.2.1) **
-     (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.2.1)) := by
+     (sp + signExtend12 3944 ↦ₘ div128Un0 r1.2.2.1) ** regOwn .x1) := by
   delta fullDivN3Scratch
   rfl
 
@@ -883,7 +883,7 @@ theorem evm_div_n3_full_unified_spec (bltu_1 bltu_0 : Bool) (sp base : Word)
     cpsTripleWithin 542 base (base + nopOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -901,7 +901,7 @@ theorem evm_div_n3_full_unified_spec (bltu_1 bltu_0 : Bool) (sp base : Word)
        ((sp + signExtend12 3968) ↦ₘ retMem) **
        ((sp + signExtend12 3960) ↦ₘ dMem) **
        ((sp + signExtend12 3952) ↦ₘ dloMem) **
-       ((sp + signExtend12 3944) ↦ₘ scratch_un0))
+       ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1)
       (fullDivN3UnifiedPost bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
         retMem dMem dloMem scratch_un0) := by
   have hshift_nz' : fullDivN3Shift b2 ≠ 0 := by
@@ -954,7 +954,7 @@ theorem evm_div_n3_full_unified_spec_noNop (bltu_1 bltu_0 : Bool) (sp base : Wor
     cpsTripleWithin 542 base (base + nopOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -972,7 +972,7 @@ theorem evm_div_n3_full_unified_spec_noNop (bltu_1 bltu_0 : Bool) (sp base : Wor
        ((sp + signExtend12 3968) ↦ₘ retMem) **
        ((sp + signExtend12 3960) ↦ₘ dMem) **
        ((sp + signExtend12 3952) ↦ₘ dloMem) **
-       ((sp + signExtend12 3944) ↦ₘ scratch_un0))
+       ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1)
       (fullDivN3UnifiedPost bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
         retMem dMem dloMem scratch_un0) := by
   have hshift_nz' : fullDivN3Shift b2 ≠ 0 := by
