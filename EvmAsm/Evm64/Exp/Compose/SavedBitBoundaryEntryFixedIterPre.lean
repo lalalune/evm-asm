@@ -494,6 +494,122 @@ instance pcFreeInst_expTwoMulFixedFirstIterPreWithResidual
         baseWord exponentWord dWord eWord rest) :=
   ⟨expTwoMulFixedFirstIterPreWithResidual_pcFree⟩
 
+@[irreducible]
+def expTwoMulFixedFirstIterPreNWithResidual
+    (sp evmSp v18 vOld : Word)
+    (baseWord exponentWord dWord eWord : EvmWord)
+    (rest : List EvmWord) : Assertion :=
+  fun ps =>
+    ∃ v10 v7 v11,
+      (expTwoMulFixedFirstIterPreN sp evmSp v10 v18 vOld v7 v11
+        baseWord exponentWord dWord eWord **
+       expTwoMulFixedFirstIterEntryResidual evmSp exponentWord rest) ps
+
+theorem expTwoMulFixedFirstIterPreNWithResidual_pcFree
+    {sp evmSp v18 vOld : Word}
+    {baseWord exponentWord dWord eWord : EvmWord} {rest : List EvmWord} :
+    (expTwoMulFixedFirstIterPreNWithResidual sp evmSp v18 vOld
+      baseWord exponentWord dWord eWord rest).pcFree := by
+  intro hpc h_pre
+  rw [expTwoMulFixedFirstIterPreNWithResidual] at h_pre
+  obtain ⟨v10, v7, v11, h_pre_frame⟩ := h_pre
+  exact
+    pcFree_sepConj expTwoMulFixedFirstIterPreN_pcFree
+      expTwoMulFixedFirstIterEntryResidual_pcFree hpc h_pre_frame
+
+instance pcFreeInst_expTwoMulFixedFirstIterPreNWithResidual
+    (sp evmSp v18 vOld : Word)
+    (baseWord exponentWord dWord eWord : EvmWord)
+    (rest : List EvmWord) :
+    Assertion.PCFree
+      (expTwoMulFixedFirstIterPreNWithResidual sp evmSp v18 vOld
+        baseWord exponentWord dWord eWord rest) :=
+  ⟨expTwoMulFixedFirstIterPreNWithResidual_pcFree⟩
+
+theorem expTwoMulFixedFirstIterPreWithResidual_to_firstIterPreNWithResidual
+    {sp evmSp v18 vOld : Word}
+    {baseWord exponentWord dWord eWord : EvmWord} {rest : List EvmWord}
+    {ps : PartialState}
+    (h : expTwoMulFixedFirstIterPreWithResidual sp evmSp v18 vOld
+      baseWord exponentWord dWord eWord rest ps) :
+    expTwoMulFixedFirstIterPreNWithResidual sp evmSp v18 vOld
+      baseWord exponentWord dWord eWord rest ps := by
+  rw [expTwoMulFixedFirstIterPreWithResidual] at h
+  obtain ⟨v10, v7, v11, h_frame⟩ := h
+  rw [expTwoMulFixedFirstIterPreNWithResidual]
+  refine ⟨v10, v7, v11, ?_⟩
+  rw [expTwoMulFixedFirstIterPreN_unfold_invariants,
+    expTwoMulFixedSemanticInvariant_unfold,
+    expTwoMulFixedCursorAssertion_unfold,
+    expTwoMulFixedControlAssertion_unfold]
+  have h_acc :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord 0
+        ((1 : EvmWord).getLimbN 0)
+        ((1 : EvmWord).getLimbN 1)
+        ((1 : EvmWord).getLimbN 2)
+        ((1 : EvmWord).getLimbN 3) := by
+    simpa using
+      (expTwoMulFixedAccumulatorInvariant_zero_one baseWord exponentWord)
+  have h_cursor :
+      expTwoMulFixedCursorInvariant exponentWord 0
+        (exponentWord.getLimbN 3) :=
+    expTwoMulFixedCursorInvariant_zero exponentWord
+  have h_control :
+      expTwoMulFixedControlInvariant exponentWord 0
+        ((0 : Word) + signExtend12 (64 : BitVec 12))
+        (evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))
+        (exponentWord.getLimbN 2)
+        (evmSp + signExtend12 (64 : BitVec 12)) := by
+    simpa using
+      (expTwoMulFixedControlInvariant_zero exponentWord
+        (evmSp + signExtend12 (56 : BitVec 12) +
+          signExtend12 (-8 : BitVec 12))
+        (evmSp + signExtend12 (64 : BitVec 12)))
+  rw [show (⌜expTwoMulFixedAccumulatorInvariant baseWord exponentWord 0
+        ((1 : EvmWord).getLimbN 0)
+        ((1 : EvmWord).getLimbN 1)
+        ((1 : EvmWord).getLimbN 2)
+        ((1 : EvmWord).getLimbN 3)⌝ : Assertion) = empAssertion from by
+      rw [← pure_true_eq_emp]
+      funext ps
+      apply propext
+      constructor
+      · intro hp
+        rcases hp with ⟨h_empty, _⟩
+        exact ⟨h_empty, trivial⟩
+      · intro hp
+        rcases hp with ⟨h_empty, _⟩
+        exact ⟨h_empty, by simpa using h_acc⟩,
+    show (⌜expTwoMulFixedCursorInvariant exponentWord 0
+        (exponentWord.getLimbN 3)⌝ : Assertion) = empAssertion from by
+      rw [← pure_true_eq_emp]
+      funext ps
+      apply propext
+      constructor
+      · intro hp
+        rcases hp with ⟨h_empty, _⟩
+        exact ⟨h_empty, trivial⟩
+      · intro hp
+        rcases hp with ⟨h_empty, _⟩
+        exact ⟨h_empty, h_cursor⟩,
+    show (⌜expTwoMulFixedControlInvariant exponentWord 0
+        ((0 : Word) + signExtend12 (64 : BitVec 12))
+        (evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))
+        (exponentWord.getLimbN 2)
+        (evmSp + signExtend12 (64 : BitVec 12))⌝ : Assertion) = empAssertion from by
+      rw [← pure_true_eq_emp]
+      funext ps
+      apply propext
+      constructor
+      · intro hp
+        rcases hp with ⟨h_empty, _⟩
+        exact ⟨h_empty, trivial⟩
+      · intro hp
+        rcases hp with ⟨h_empty, _⟩
+        exact ⟨h_empty, by simpa using h_control⟩]
+  simp only [sepConj_emp_right']
+  sep_perm h_frame
+
 theorem expTwoMulLoopEntryPostFixed_to_firstIterPreWithResidual
     {sp evmSp vOld v18 : Word}
     {baseWord exponentWord dWord eWord : EvmWord} {rest : List EvmWord}
@@ -504,6 +620,17 @@ theorem expTwoMulLoopEntryPostFixed_to_firstIterPreWithResidual
       baseWord exponentWord dWord eWord rest ps := by
   rw [expTwoMulFixedFirstIterPreWithResidual]
   exact expTwoMulLoopEntryPostFixed_to_firstIterPre_frame h
+
+theorem expTwoMulLoopEntryPostFixed_to_firstIterPreNWithResidual
+    {sp evmSp vOld v18 : Word}
+    {baseWord exponentWord dWord eWord : EvmWord} {rest : List EvmWord}
+    {ps : PartialState}
+    (h : expTwoMulLoopEntryPostFixed sp evmSp vOld v18
+      baseWord exponentWord (dWord :: eWord :: rest) ps) :
+    expTwoMulFixedFirstIterPreNWithResidual sp evmSp v18 vOld
+      baseWord exponentWord dWord eWord rest ps :=
+  expTwoMulFixedFirstIterPreWithResidual_to_firstIterPreNWithResidual
+    (expTwoMulLoopEntryPostFixed_to_firstIterPreWithResidual h)
 
 theorem cpsTripleWithin_expTwoMulFixedFirstIterPreWithResidual
     {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq} {Q : Assertion}
@@ -523,6 +650,28 @@ theorem cpsTripleWithin_expTwoMulFixedFirstIterPreWithResidual
   intro R hR s hcr h_pre_R hpc
   obtain ⟨hp, hcompat, psPre, psR, hdisj, hunion, h_pre, hRps⟩ := h_pre_R
   rw [expTwoMulFixedFirstIterPreWithResidual] at h_pre
+  obtain ⟨v10, v7, v11, h_concrete_pre⟩ := h_pre
+  exact hBody v10 v7 v11 R hR s hcr
+    ⟨hp, hcompat, psPre, psR, hdisj, hunion, h_concrete_pre, hRps⟩ hpc
+
+theorem cpsTripleWithin_expTwoMulFixedFirstIterPreNWithResidual
+    {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq} {Q : Assertion}
+    {sp evmSp v18 vOld : Word}
+    {baseWord exponentWord dWord eWord : EvmWord} {rest : List EvmWord}
+    (hBody :
+      ∀ v10 v7 v11,
+        cpsTripleWithin nSteps entry exit_ cr
+          (expTwoMulFixedFirstIterPreN sp evmSp v10 v18 vOld v7 v11
+            baseWord exponentWord dWord eWord **
+           expTwoMulFixedFirstIterEntryResidual evmSp exponentWord rest)
+          Q) :
+    cpsTripleWithin nSteps entry exit_ cr
+      (expTwoMulFixedFirstIterPreNWithResidual sp evmSp v18 vOld
+        baseWord exponentWord dWord eWord rest)
+      Q := by
+  intro R hR s hcr h_pre_R hpc
+  obtain ⟨hp, hcompat, psPre, psR, hdisj, hunion, h_pre, hRps⟩ := h_pre_R
+  rw [expTwoMulFixedFirstIterPreNWithResidual] at h_pre
   obtain ⟨v10, v7, v11, h_concrete_pre⟩ := h_pre
   exact hBody v10 v7 v11 R hR s hcr
     ⟨hp, hcompat, psPre, psR, hdisj, hunion, h_concrete_pre, hRps⟩ hpc
