@@ -19,9 +19,9 @@
     abPrime_val_eq_amod_pow_s_of_double_addback).
   - Adapter / parent + final stack specs.
 
-  The trailing leaf cluster (qHat = a/b + k sub-stubs and the
-  algCallAddbackBeq_* Word-level Euclideans / val256 bounds) lives in
-  `Spec/CallAddbackSubStubs.lean` (#1078 sub-slice).
+  The former trailing leaf cluster of qHat sub-stubs and Word-level
+  Euclideans was deleted after it was found to depend transitively on the
+  false n=4 addback semantic premise.
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.CallSkip
