@@ -33,6 +33,34 @@ theorem expTwoMulFixedAccumulatorTarget_full
       EvmWord.exp baseWord exponentWord := by
   simp [expTwoMulFixedAccumulatorTarget, expTwoMulFixedProcessedExponent_full]
 
+/-- The next exponent bit consumed by iteration `k`, as a Bool.
+
+    The fixed loop scans most-significant bit first, so iteration `k` consumes
+    source bit `255 - k`. -/
+def expTwoMulFixedProcessedBit (exponentWord : EvmWord) (k : Nat) : Bool :=
+  decide (((exponentWord >>> (255 - k)).toNat % 2) = 1)
+
+theorem expTwoMulFixedProcessedExponent_succ_toNat
+    (exponentWord : EvmWord) {k : Nat} (hk : k < 256) :
+    (expTwoMulFixedProcessedExponent exponentWord (k + 1)).toNat =
+      2 * (expTwoMulFixedProcessedExponent exponentWord k).toNat +
+        if expTwoMulFixedProcessedBit exponentWord k then 1 else 0 := by
+  unfold expTwoMulFixedProcessedExponent expTwoMulFixedProcessedBit
+  simp [Nat.shiftRight_eq_div_pow]
+  set shift := 255 - k
+  have hShift : 256 - k = shift + 1 := by omega
+  rw [hShift]
+  rw [show 2 ^ (shift + 1) = 2 ^ shift * 2 by rw [Nat.pow_succ]]
+  rw [← Nat.div_div_eq_div_mul]
+  let shifted := exponentWord.toNat / 2 ^ shift
+  have hmod : shifted % 2 < 2 := Nat.mod_lt shifted (by decide)
+  have hmod_cases : shifted % 2 = 0 ∨ shifted % 2 = 1 := by omega
+  rcases hmod_cases with h_zero | h_one
+  · simp [shifted, h_zero]
+    omega
+  · simp [shifted, h_one]
+    omega
+
 /-- One Bool-unified semantic accumulator update for the fixed loop.
 
     Every iteration squares the current accumulator. The conditional multiply
@@ -125,6 +153,15 @@ theorem expTwoMulFixedAccumulatorStep_eq_target_of_processedExponent_succ
       (expTwoMulFixedProcessedExponent exponentWord k)
       (expTwoMulFixedProcessedExponent exponentWord (k + 1))
       hNext).symm
+
+theorem expTwoMulFixedAccumulatorStep_eq_target_succ
+    (baseWord exponentWord : EvmWord) {k : Nat} (hk : k < 256) :
+    expTwoMulFixedAccumulatorStep baseWord
+        (expTwoMulFixedAccumulatorTarget baseWord exponentWord k)
+        (expTwoMulFixedProcessedBit exponentWord k) =
+      expTwoMulFixedAccumulatorTarget baseWord exponentWord (k + 1) :=
+  expTwoMulFixedAccumulatorStep_eq_target_of_processedExponent_succ
+    (expTwoMulFixedProcessedExponent_succ_toNat exponentWord hk)
 
 /-- The fixed iteration precondition indexed by the semantic iteration count.
 
