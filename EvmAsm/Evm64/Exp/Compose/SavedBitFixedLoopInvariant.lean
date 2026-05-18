@@ -102,6 +102,30 @@ theorem expTwoMulFixedAccumulatorInvariant_succ_of_step
   unfold expTwoMulFixedAccumulatorInvariant at *
   rw [hStep, hInv, hSemanticStep]
 
+theorem expTwoMulFixedAccumulatorStep_eq_target_of_processedExponent_succ
+    {baseWord exponentWord : EvmWord} {k : Nat} {bit : Bool}
+    (hNext :
+      (expTwoMulFixedProcessedExponent exponentWord (k + 1)).toNat =
+        2 * (expTwoMulFixedProcessedExponent exponentWord k).toNat +
+          if bit then 1 else 0) :
+    expTwoMulFixedAccumulatorStep baseWord
+        (expTwoMulFixedAccumulatorTarget baseWord exponentWord k) bit =
+      expTwoMulFixedAccumulatorTarget baseWord exponentWord (k + 1) := by
+  unfold expTwoMulFixedAccumulatorStep expTwoMulFixedAccumulatorTarget
+  by_cases hbit : bit
+  · simp [hbit] at hNext ⊢
+    exact (EvmWord.exp_double_add_one_right_of_toNat_eq
+      baseWord
+      (expTwoMulFixedProcessedExponent exponentWord k)
+      (expTwoMulFixedProcessedExponent exponentWord (k + 1))
+      hNext).symm
+  · simp [hbit] at hNext ⊢
+    exact (EvmWord.exp_double_right_of_toNat_eq
+      baseWord
+      (expTwoMulFixedProcessedExponent exponentWord k)
+      (expTwoMulFixedProcessedExponent exponentWord (k + 1))
+      hNext).symm
+
 /-- The fixed iteration precondition indexed by the semantic iteration count.
 
     This is the precondition family future fixed-loop induction should recurse

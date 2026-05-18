@@ -101,6 +101,45 @@ theorem exp_succ_right_of_toNat_lt (base exponent : EvmWord)
   rw [Nat.mul_mod]
   rw [Nat.mod_eq_of_lt base.isLt]
 
+/-- Squaring recurrence for EXP when the next exponent is twice the previous
+    exponent. -/
+theorem exp_double_right_of_toNat_eq (base exponent nextExponent : EvmWord)
+    (hNext : nextExponent.toNat = 2 * exponent.toNat) :
+    exp base nextExponent = exp base exponent * exp base exponent := by
+  apply BitVec.eq_of_toNat_eq
+  rw [exp_correct, BitVec.toNat_mul, exp_correct, hNext]
+  rw [show base.toNat ^ (2 * exponent.toNat) =
+      base.toNat ^ exponent.toNat * base.toNat ^ exponent.toNat by
+    rw [show 2 * exponent.toNat = exponent.toNat + exponent.toNat by omega]
+    rw [Nat.pow_add]]
+  rw [← Nat.mul_mod]
+
+/-- Square-and-multiply recurrence for EXP when the next exponent is twice the
+    previous exponent plus one. -/
+theorem exp_double_add_one_right_of_toNat_eq
+    (base exponent nextExponent : EvmWord)
+    (hNext : nextExponent.toNat = 2 * exponent.toNat + 1) :
+    exp base nextExponent = base * (exp base exponent * exp base exponent) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [exp_correct, BitVec.toNat_mul, BitVec.toNat_mul, exp_correct, hNext]
+  rw [show base.toNat ^ (2 * exponent.toNat + 1) =
+      base.toNat * (base.toNat ^ exponent.toNat * base.toNat ^ exponent.toNat) by
+    rw [show 2 * exponent.toNat + 1 =
+        (exponent.toNat + exponent.toNat) + 1 by omega]
+    rw [Nat.pow_succ, Nat.pow_add]
+    rw [Nat.mul_comm
+      (base.toNat ^ exponent.toNat * base.toNat ^ exponent.toNat) base.toNat]]
+  rw [← Nat.mul_mod
+    (base.toNat ^ exponent.toNat) (base.toNat ^ exponent.toNat) (2^256)]
+  rw [Nat.mul_mod
+    (base.toNat) (base.toNat ^ exponent.toNat * base.toNat ^ exponent.toNat)
+    (2^256)]
+  rw [Nat.mul_mod
+    (base.toNat)
+    ((base.toNat ^ exponent.toNat * base.toNat ^ exponent.toNat) % 2^256)
+    (2^256)]
+  rw [Nat.mod_mod]
+
 /-- The GH #92 cross-limb boundary case `EXP(2, 64)`. -/
 theorem exp_two_64 : exp (2 : EvmWord) (64 : EvmWord) =
     BitVec.ofNat 256 (2^64) := by
