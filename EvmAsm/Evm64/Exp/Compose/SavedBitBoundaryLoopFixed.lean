@@ -75,6 +75,25 @@ theorem expTwoMulFixedBoundaryLoopBound_eq (nSteps : Nat) :
     expTwoMulBoundarySuffixBound
   omega
 
+/-- Conservative bound for 256 fixed-x19 saved-bit two-MUL loop iterations,
+    using the reload-path bound for every iteration. -/
+abbrev expTwoMulFixedFullLoopBodyBound : Nat :=
+  256 * expTwoMulFixedReloadIterStepBound
+
+/-- Conservative bound for the fixed-x19 full boundary, including prologue and
+    pointer-restore/epilogue. -/
+abbrev expTwoMulFixedFullLoopBoundaryBound : Nat :=
+  expTwoMulFixedBoundaryLoopBound expTwoMulFixedFullLoopBodyBound
+
+theorem expTwoMulFixedFullLoopBodyBound_eq :
+    expTwoMulFixedFullLoopBodyBound = 49408 := by
+  norm_num [expTwoMulFixedFullLoopBodyBound, expTwoMulFixedReloadIterStepBound_eq]
+
+theorem expTwoMulFixedFullLoopBoundaryBound_eq :
+    expTwoMulFixedFullLoopBoundaryBound = 49429 := by
+  rw [expTwoMulFixedFullLoopBoundaryBound, expTwoMulFixedBoundaryLoopBound_eq,
+    expTwoMulFixedFullLoopBodyBound_eq]
+
 /-- Fixed-code analogue of the general boundary composition: fixed prologue,
     caller-supplied loop proof, and fixed pointer-restore/epilogue. -/
 theorem exp_two_mul_fixed_boundary_loop_epilogue_of_loop_general_spec_within
@@ -240,5 +259,66 @@ theorem exp_two_mul_fixed_boundary_loop_epilogue_of_loop_general_exact_closed_bo
     sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 vOld v18
     iterCountNew r0 r1 r2 r3 d0 d1 d2 d3 baseWord exponentWord rest
     exitCond base (by rfl) hLoop
+
+/-- Fixed full-loop boundary wrapper over a caller-supplied 256-iteration loop
+    proof at the conservative fixed reload-path bound. -/
+theorem exp_two_mul_fixed_full_loop_boundary_of_body_general_spec_within
+    (sp evmSp cOld tOld c6Old c16Old c19Old
+      m0 m1 m2 m3 vOld v18 iterCountNew
+      r0 r1 r2 r3 d0 d1 d2 d3 : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (exitCond : Prop) (base : Word)
+    (hLoop :
+      cpsTripleWithin expTwoMulFixedFullLoopBodyBound (base + 44) (base + 296)
+        (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+        (expTwoMulLoopEntryPostFixed sp evmSp vOld v18
+          baseWord exponentWord rest)
+        (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountNew tOld
+          r0 r1 r2 r3 d0 d1 d2 d3 baseWord rest exitCond)) :
+    cpsTripleWithin expTwoMulFixedFullLoopBoundaryBound base (base + 336)
+      (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulBoundaryPreFixed sp evmSp cOld tOld c6Old c16Old c19Old
+        m0 m1 m2 m3 vOld v18 baseWord exponentWord rest)
+      (expTwoMulLoopExitPost sp evmSp iterCountNew r0 r1 r2 r3
+        baseWord rest exitCond) :=
+  exp_two_mul_fixed_boundary_loop_epilogue_of_loop_general_named_bound_spec_within
+    sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 vOld v18
+    iterCountNew r0 r1 r2 r3 d0 d1 d2 d3 baseWord exponentWord rest
+    exitCond base hLoop
+
+/-- Closed-form fixed full-loop boundary wrapper for a 49408-step loop proof. -/
+theorem exp_two_mul_fixed_full_loop_boundary_of_body_general_closed_bound_spec_within
+    (sp evmSp cOld tOld c6Old c16Old c19Old
+      m0 m1 m2 m3 vOld v18 iterCountNew
+      r0 r1 r2 r3 d0 d1 d2 d3 : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (exitCond : Prop) (base : Word)
+    (hLoop :
+      cpsTripleWithin 49408 (base + 44) (base + 296)
+        (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+        (expTwoMulLoopEntryPostFixed sp evmSp vOld v18
+          baseWord exponentWord rest)
+        (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountNew tOld
+          r0 r1 r2 r3 d0 d1 d2 d3 baseWord rest exitCond)) :
+    cpsTripleWithin 49429 base (base + 336)
+      (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulBoundaryPreFixed sp evmSp cOld tOld c6Old c16Old c19Old
+        m0 m1 m2 m3 vOld v18 baseWord exponentWord rest)
+      (expTwoMulLoopExitPost sp evmSp iterCountNew r0 r1 r2 r3
+        baseWord rest exitCond) := by
+  have hLoopNamed :
+      cpsTripleWithin expTwoMulFixedFullLoopBodyBound (base + 44) (base + 296)
+        (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+        (expTwoMulLoopEntryPostFixed sp evmSp vOld v18
+          baseWord exponentWord rest)
+        (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountNew tOld
+          r0 r1 r2 r3 d0 d1 d2 d3 baseWord rest exitCond) := by
+    rwa [expTwoMulFixedFullLoopBodyBound_eq]
+  rw [← expTwoMulFixedFullLoopBoundaryBound_eq]
+  exact
+    exp_two_mul_fixed_full_loop_boundary_of_body_general_spec_within
+      sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 vOld v18
+      iterCountNew r0 r1 r2 r3 d0 d1 d2 d3 baseWord exponentWord rest
+      exitCond base hLoopNamed
 
 end EvmAsm.Evm64.Exp.Compose
