@@ -183,6 +183,34 @@ theorem expMsbSavedBitTwoMulFixedCode_epilogue_sub {base : Word}
         EvmAsm.Evm64.exp_epilogue_length])
     (by simp [EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_length])
 
+theorem expMsbSavedBitTwoMulFixedCode_block_subs {base : Word}
+    {squaringMulOff condMulOff : BitVec 21} {skipOff backOff : BitVec 13} :
+    (∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue_fixed) a = some i →
+      (expMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 40)
+      EvmAsm.Evm64.exp_loop_pointer_advance) a = some i →
+      (expMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 44)
+      (EvmAsm.Evm64.exp_iter_body_full_msb_saved_bit_two_mul_fixed
+        squaringMulOff condMulOff skipOff backOff)) a = some i →
+      (expMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 296)
+      EvmAsm.Evm64.exp_loop_pointer_restore) a = some i →
+      (expMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff) a = some i) ∧
+    (∀ a i, (CodeReq.ofProg (base + 300) EvmAsm.Evm64.exp_epilogue)
+      a = some i →
+      (expMsbSavedBitTwoMulFixedCode
+        base squaringMulOff condMulOff skipOff backOff) a = some i) := by
+  exact ⟨expMsbSavedBitTwoMulFixedCode_prologue_sub,
+    expMsbSavedBitTwoMulFixedCode_pointer_advance_sub,
+    expMsbSavedBitTwoMulFixedCode_iter_body_sub,
+    expMsbSavedBitTwoMulFixedCode_pointer_restore_sub,
+    expMsbSavedBitTwoMulFixedCode_epilogue_sub⟩
+
 -- ============================================================================
 -- Prologue + pointer-advance spec for the fixed code
 -- ============================================================================
