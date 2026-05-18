@@ -35,7 +35,7 @@ def loopN3Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (1 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -65,7 +65,7 @@ def loopN3PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
-  (sp + signExtend12 3944 ↦ₘ scratch_un0)
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
 
 
 -- ============================================================================
@@ -86,7 +86,7 @@ def loopN2Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (2 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (2 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -116,7 +116,7 @@ def loopN2PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
-  (sp + signExtend12 3944 ↦ₘ scratch_un0)
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
 
 
 -- ============================================================================
@@ -132,7 +132,7 @@ def loopN2Iter10Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (1 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -156,7 +156,7 @@ def loopN2Iter10PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
-  (sp + signExtend12 3944 ↦ₘ scratch_un0)
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
 
 
 -- ============================================================================
@@ -179,7 +179,7 @@ def loopN1Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (3 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (3 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -211,7 +211,7 @@ def loopN1PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
-  (sp + signExtend12 3944 ↦ₘ scratch_un0)
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
 
 
 -- ============================================================================
@@ -227,7 +227,7 @@ def loopN1Iter10Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (1 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -251,7 +251,7 @@ def loopN1Iter10PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
-  (sp + signExtend12 3944 ↦ₘ scratch_un0)
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
 
 
 -- ============================================================================
@@ -271,7 +271,7 @@ def loopN1Iter210Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (2 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (2 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -300,7 +300,7 @@ def loopN1Iter210PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
-  (sp + signExtend12 3944 ↦ₘ scratch_un0)
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
 
 -- (Removed dead defs `loopBodyPre` and `loopBodyPreWithScratch`: shared
 -- one-iteration loop-body preconditions parametric on the stored divisor

@@ -206,7 +206,7 @@ theorem evm_div_n3_to_loopSetup_spec_within_noNop (sp base : Word)
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4) base (base + loopBodyOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -234,7 +234,7 @@ theorem evm_div_n3_to_loopSetup_spec_within_noNop (sp base : Word)
   have hNB := evm_div_n3_to_normB_spec_within_noNop sp base b0 b1 b2 b3 v5 v6 v7 v10
     q0 q1 q2 q3 u5 u6 u7 nMem shiftMem hbnz hb3z hb2nz hshift_nz
   have hNBf := cpsTripleWithin_frameR
-    ((.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+    ((.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
@@ -248,7 +248,7 @@ theorem evm_div_n3_to_loopSetup_spec_within_noNop (sp base : Word)
   simp only [normAFullPost_unfold] at hNormA
   have hNormAf := cpsTripleWithin_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
      ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3') **
      ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
@@ -296,7 +296,7 @@ theorem evm_div_n3_to_loopSetup_spec_within (sp base : Word)
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4) base (base + loopBodyOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -327,7 +327,7 @@ theorem evm_div_n3_to_loopSetup_spec_within (sp base : Word)
 
   have hABCLZf := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
@@ -341,7 +341,7 @@ theorem evm_div_n3_to_loopSetup_spec_within (sp base : Word)
   have hC2f := cpsTripleWithin_frameR
     ((.x5 ↦ᵣ (clzResult b2).2) ** (.x10 ↦ᵣ b3) **
      (.x7 ↦ᵣ (clzResult b2).2 >>> (63 : Nat)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -363,7 +363,7 @@ theorem evm_div_n3_to_loopSetup_spec_within (sp base : Word)
   simp only [normBFullPost_unfold] at hNB
   have hNBf := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
@@ -384,7 +384,7 @@ theorem evm_div_n3_to_loopSetup_spec_within (sp base : Word)
   simp only [normAFullPost_unfold] at hNormA
   have hNormAf := cpsTripleWithin_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
      ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3') **
      ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **

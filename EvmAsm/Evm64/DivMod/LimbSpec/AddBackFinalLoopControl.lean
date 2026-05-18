@@ -55,29 +55,29 @@ theorem divK_loop_control_spec_within (j : Word) (loop_back_off : BitVec 13)
     (base : Word) :
     let j' := j + signExtend12 4095
     let cr :=
-      CodeReq.union (CodeReq.singleton base (.ADDI .x1 .x1 4095))
-       (CodeReq.singleton (base + 4) (.BGE .x1 .x0 loop_back_off))
+      CodeReq.union (CodeReq.singleton base (.ADDI .x9 .x9 4095))
+       (CodeReq.singleton (base + 4) (.BGE .x9 .x0 loop_back_off))
     cpsBranchWithin 2 base cr
-      ((.x1 ↦ᵣ j) ** (.x0 ↦ᵣ 0))
+      ((.x9 ↦ᵣ j) ** (.x0 ↦ᵣ 0))
       (base + 4 + signExtend13 loop_back_off)
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
+      ((.x9 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
       (base + 8)
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) := by
+      ((.x9 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) := by
   intro j' cr
   have hbody : cpsTripleWithin 1 base (base + 4) cr
-      ((.x1 ↦ᵣ j) ** (.x0 ↦ᵣ 0))
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) := by
-    have I0 := addi_spec_gen_same_within .x1 j 4095 base (by nofun)
+      ((.x9 ↦ᵣ j) ** (.x0 ↦ᵣ 0))
+      ((.x9 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) := by
+    have I0 := addi_spec_gen_same_within .x9 j 4095 base (by nofun)
     runBlock I0
-  have hbge_raw := bge_spec_gen_within .x1 .x0 loop_back_off j' 0 (base + 4)
+  have hbge_raw := bge_spec_gen_within .x9 .x0 loop_back_off j' 0 (base + 4)
   have ha1 : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha1] at hbge_raw
   have hbge : cpsBranchWithin 1 (base + 4) _
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
+      ((.x9 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
       ((base + 4) + signExtend13 loop_back_off)
-        ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
+        ((.x9 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
       (base + 8)
-        ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) :=
+        ((.x9 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) :=
     cpsBranchWithin_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right
@@ -86,13 +86,13 @@ theorem divK_loop_control_spec_within (j : Word) (loop_back_off : BitVec 13)
         (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
       hbge_raw
   have hbge_ext : cpsBranchWithin 1 (base + 4) cr
-      ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
-      ((base + 4) + signExtend13 loop_back_off) ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
-      (base + 8) ((.x1 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) :=
+      ((.x9 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
+      ((base + 4) + signExtend13 loop_back_off) ((.x9 ↦ᵣ j') ** (.x0 ↦ᵣ 0))
+      (base + 8) ((.x9 ↦ᵣ j') ** (.x0 ↦ᵣ 0)) :=
     fun R hR s hcr hPR hpc =>
       hbge R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
-        show CodeReq.union (CodeReq.singleton base (.ADDI .x1 .x1 4095))
-          (CodeReq.singleton (base + 4) (.BGE .x1 .x0 loop_back_off)) (base + 4) = _
+        show CodeReq.union (CodeReq.singleton base (.ADDI .x9 .x9 4095))
+          (CodeReq.singleton (base + 4) (.BGE .x9 .x0 loop_back_off)) (base + 4) = _
         simp only [CodeReq.union, CodeReq.singleton]
         have h0 : ¬(base + 4 = base) := by bv_omega
         simp only [beq_iff_eq, h0, ↓reduceIte]))) hPR hpc

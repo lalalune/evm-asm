@@ -38,7 +38,7 @@ def mulsubFullPost (sp uBase qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
   let borrow := if BitVec.ult uTop c3 then (1 : Word) else 0
   let u4_new := uTop - c3
   (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-  (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
+  (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
   (.x7 ↦ᵣ borrow) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3) **
   (.x0 ↦ᵣ (0 : Word)) **
   (sp + signExtend12 3976 ↦ₘ j) **

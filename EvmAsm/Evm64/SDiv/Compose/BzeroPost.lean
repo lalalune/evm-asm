@@ -65,10 +65,40 @@ theorem saveRaDivCallBzeroCallablePost_resultSignFixPreOwnScratch_quotient
          (quotientWord.getLimbN 2) (quotientWord.getLimbN 3) **
        saveRaDivCallBzeroResultSignFixFrame vRa sp base divisorSign dividendAbsWord) := by
   rw [saveRaDivCallBzeroCallablePost_unfold,
-    EvmAsm.Evm64.divStackDispatchPostNoX1_unfold]
+    EvmAsm.Evm64.divStackDispatchPostCallable_unfold]
   dsimp only
   rw [resultSignFixPreOwnScratch_unfold,
     saveRaDivCallBzeroResultSignFixFrame_unfold, evmWordIs_sp32_unfold]
+  rw [show (sp + 32 + EvmAsm.Rv64.signExtend12 (0 : BitVec 12) : Word) = sp + 32 by bv_addr]
+  rw [show (sp + 32 + EvmAsm.Rv64.signExtend12 (8 : BitVec 12) : Word) = sp + 40 by bv_addr]
+  rw [show (sp + 32 + EvmAsm.Rv64.signExtend12 (16 : BitVec 12) : Word) = sp + 48 by bv_addr]
+  rw [show (sp + 32 + EvmAsm.Rv64.signExtend12 (24 : BitVec 12) : Word) = sp + 56 by bv_addr]
+  xperm
+
+theorem saveRaDivCallCallablePostNoX9_resultSignFixPreOwnScratch_quotient
+    {vRa sp base : Word}
+    {dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop : Word} :
+    saveRaDivCallCallablePostNoX9 vRa sp base
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop =
+      (let dividendAbsWord :=
+         sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+       let divisorAbsWord :=
+         sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+       let quotientWord := EvmWord.div dividendAbsWord divisorAbsWord
+       let resultSign :=
+         (dividendTop >>> (63 : BitVec 6).toNat) ^^^
+           (divisorTop >>> (63 : BitVec 6).toNat)
+       resultSignFixPreOwnScratch (sp + 32) resultSign
+         (quotientWord.getLimbN 0) (quotientWord.getLimbN 1)
+         (quotientWord.getLimbN 2) (quotientWord.getLimbN 3) **
+       saveRaDivCallResultSignFixFrameNoX9 vRa sp base dividendAbsWord) := by
+  rw [saveRaDivCallCallablePostNoX9_unfold,
+    EvmAsm.Evm64.divStackDispatchPostCallable_unfold]
+  dsimp only
+  rw [resultSignFixPreOwnScratch_unfold,
+    saveRaDivCallResultSignFixFrameNoX9_unfold, evmWordIs_sp32_unfold]
   rw [show (sp + 32 + EvmAsm.Rv64.signExtend12 (0 : BitVec 12) : Word) = sp + 32 by bv_addr]
   rw [show (sp + 32 + EvmAsm.Rv64.signExtend12 (8 : BitVec 12) : Word) = sp + 40 by bv_addr]
   rw [show (sp + 32 + EvmAsm.Rv64.signExtend12 (16 : BitVec 12) : Word) = sp + 48 by bv_addr]

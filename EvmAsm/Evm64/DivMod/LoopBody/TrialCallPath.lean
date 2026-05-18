@@ -30,21 +30,21 @@ private theorem lb_jal_ret {base : Word} : (base + trialJalOff : Word) + 4 = bas
 /-- Trial call path: JAL x2 560 (instr [16]) + div128 subroutine.
     Entry: base+512, Exit: base+516, CodeReq: sharedDivModCode base.
     Computes qHat = div128(uHi, uLo, vTop). -/
-theorem divK_trial_call_path_spec_within
+theorem divK_trial_call_path_spec_within_exact_x1
     (sp j uLo uHi vTop vtopBase : Word) (base : Word)
-    (v2Old v11Old : Word)
+    (v1Old v2Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff) :
     cpsTripleWithin 52 (base + trialJalOff) (base + div128CallRetOff) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
        (.x2 ↦ᵣ v2Old) ** (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ un0Mem))
-      (div128SpecPost sp (base + div128CallRetOff) vTop uLo uHi) := by
+       (sp + signExtend12 3944 ↦ₘ un0Mem)) ** (.x1 ↦ᵣ v1Old))
+      (div128SpecPost sp (base + div128CallRetOff) vTop uLo uHi ** regOwn .x1) := by
   -- Reuse the bundled `div128SpecPost` from `Compose/Div128.lean`. The
   -- post atoms here are identical to div128's (with retAddr ↦ base+516,
   -- d ↦ vTop) — just a permutation that the final `xperm_hyp` handles.
@@ -77,7 +77,7 @@ theorem divK_trial_call_path_spec_within
   let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo un0
   let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
-  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
+  let x9Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   -- 1. JAL x2 560 at base+512: x2 ← base+516, PC → base+1072
   have J := jal_spec_within .x2 v2Old (560 : BitVec 21) (base + trialJalOff) (by nofun)
@@ -89,9 +89,11 @@ theorem divK_trial_call_path_spec_within
     j vtopBase v11Old retMem dMem dloMem un0Mem
     halign
   unfold div128SpecPost at D
+  -- 2b. Frame div128 with x1; div128 uses x9 as its scratch register.
+  have Df := cpsTripleWithin_frameR (.x1 ↦ᵣ v1Old) (by pcFree) D
   -- 3. Frame JAL with all registers/memory for div128
   have Jf := cpsTripleWithin_frameR
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) ** (.x1 ↦ᵣ v1Old) **
      (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
      (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
      (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -100,32 +102,57 @@ theorem divK_trial_call_path_spec_within
      (sp + signExtend12 3952 ↦ₘ dloMem) **
      (sp + signExtend12 3944 ↦ₘ un0Mem))
     (by pcFree) Je
-  -- 4. Compose JAL + div128
+  -- 4. Compose JAL + div128.
   have full := cpsTripleWithin_seq_perm_same_cr
-    (fun h hp => by xperm_hyp hp) Jf D
+    (fun h hp => by xperm_hyp hp) Jf Df
   -- 5. Final permutation
   exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
-    (fun h hq => by xperm_hyp hq)
+    (fun h hq => by
+      apply sepConj_mono_right (regIs_implies_regOwn .x1) h
+      xperm_hyp hq)
     full
 
-/-- Trial call path over `divCode_noNop`: JAL x2 560 (instr [16]) + div128
-    subroutine. -/
-theorem divK_trial_call_path_spec_within_noNop
+/-- Trial call path: JAL x2 560 (instr [16]) + div128 subroutine.
+    Entry: base+512, Exit: base+516, CodeReq: sharedDivModCode base.
+    Computes qHat = div128(uHi, uLo, vTop), with `x1` existentially owned. -/
+theorem divK_trial_call_path_spec_within
     (sp j uLo uHi vTop vtopBase : Word) (base : Word)
     (v2Old v11Old : Word)
     (retMem dMem dloMem un0Mem : Word)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff) :
-    cpsTripleWithin 52 (base + trialJalOff) (base + div128CallRetOff) (divCode_noNop base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+    cpsTripleWithin 52 (base + trialJalOff) (base + div128CallRetOff) (sharedDivModCode base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
        (.x2 ↦ᵣ v2Old) ** (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ un0Mem))
-      (div128SpecPost sp (base + div128CallRetOff) vTop uLo uHi) := by
+       (sp + signExtend12 3944 ↦ₘ un0Mem)) ** regOwn .x1)
+      (div128SpecPost sp (base + div128CallRetOff) vTop uLo uHi ** regOwn .x1) := by
+  apply cpsTripleWithin_of_forall_regIs_to_regOwn
+  intro v1Old
+  exact divK_trial_call_path_spec_within_exact_x1 sp j uLo uHi vTop vtopBase base
+    v1Old v2Old v11Old retMem dMem dloMem un0Mem halign
+
+/-- Trial call path over `divCode_noNop`: JAL x2 560 (instr [16]) + div128
+    subroutine. -/
+theorem divK_trial_call_path_spec_within_noNop_exact_x1
+    (sp j uLo uHi vTop vtopBase : Word) (base : Word)
+    (v1Old v2Old v11Old : Word)
+    (retMem dMem dloMem un0Mem : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff) :
+    cpsTripleWithin 52 (base + trialJalOff) (base + div128CallRetOff) (divCode_noNop base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
+       (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
+       (.x2 ↦ᵣ v2Old) ** (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem)) ** (.x1 ↦ᵣ v1Old))
+      (div128SpecPost sp (base + div128CallRetOff) vTop uLo uHi ** regOwn .x1) := by
   unfold div128SpecPost
   let dHi := vTop >>> (32 : BitVec 6).toNat
   let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
@@ -153,7 +180,7 @@ theorem divK_trial_call_path_spec_within_noNop
   let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo un0
   let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
-  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
+  let x9Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let q := (q1' <<< (32 : BitVec 6).toNat) ||| q0'
   have J := jal_spec_within .x2 v2Old (560 : BitVec 21) (base + trialJalOff) (by nofun)
   rw [lb_jal_target, lb_jal_ret] at J
@@ -163,8 +190,9 @@ theorem divK_trial_call_path_spec_within_noNop
     j vtopBase v11Old retMem dMem dloMem un0Mem
     halign
   unfold div128SpecPost at D
+  have Df := cpsTripleWithin_frameR (.x1 ↦ᵣ v1Old) (by pcFree) D
   have Jf := cpsTripleWithin_frameR
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) ** (.x1 ↦ᵣ v1Old) **
      (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
      (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
      (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -173,11 +201,36 @@ theorem divK_trial_call_path_spec_within_noNop
      (sp + signExtend12 3952 ↦ₘ dloMem) **
      (sp + signExtend12 3944 ↦ₘ un0Mem))
     (by pcFree) Je
+
   have full := cpsTripleWithin_seq_perm_same_cr
-    (fun h hp => by xperm_hyp hp) Jf D
+    (fun h hp => by xperm_hyp hp) Jf Df
   exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
-    (fun h hq => by xperm_hyp hq)
+    (fun h hq => by
+      apply sepConj_mono_right (regIs_implies_regOwn .x1) h
+      xperm_hyp hq)
     full
+
+/-- Trial call path over `divCode_noNop`: JAL x2 560 (instr [16]) + div128
+    subroutine, with `x1` existentially owned. -/
+theorem divK_trial_call_path_spec_within_noNop
+    (sp j uLo uHi vTop vtopBase : Word) (base : Word)
+    (v2Old v11Old : Word)
+    (retMem dMem dloMem un0Mem : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff) :
+    cpsTripleWithin 52 (base + trialJalOff) (base + div128CallRetOff) (divCode_noNop base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
+       (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
+       (.x2 ↦ᵣ v2Old) ** (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem)) ** regOwn .x1)
+      (div128SpecPost sp (base + div128CallRetOff) vTop uLo uHi ** regOwn .x1) := by
+  apply cpsTripleWithin_of_forall_regIs_to_regOwn
+  intro v1Old
+  exact divK_trial_call_path_spec_within_noNop_exact_x1 sp j uLo uHi vTop vtopBase base
+    v1Old v2Old v11Old retMem dMem dloMem un0Mem halign
 
 end EvmAsm.Evm64

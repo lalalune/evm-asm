@@ -73,14 +73,14 @@ theorem divK_trial_max_full_spec_within
     let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
     cpsTripleWithin 16 (base + loopBodyOff) (base + div128CallRetOff) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
        (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
        (vtopBase + signExtend12 32 ↦ₘ vTop))
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) ** (.x11 ↦ᵣ signExtend12 4095) **
        (.x0 ↦ᵣ (0 : Word)) **
@@ -112,7 +112,7 @@ theorem divK_trial_max_full_spec_within
   have STLf := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word))) (by pcFree) STL
   have ntaken_framed := cpsTripleWithin_frameR
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
      (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
      (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **
@@ -123,7 +123,7 @@ theorem divK_trial_max_full_spec_within
     (fun h hp => by xperm_hyp hp) STLf ntaken_framed
   -- 5. Frame BLTU ntaken result with x0 + memory, compose with trial_max
   have TMf := cpsTripleWithin_frameR
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
      (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
      (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
      (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **
@@ -147,14 +147,14 @@ theorem divK_trial_max_full_spec_within_noNop
     let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
     cpsTripleWithin 16 (base + loopBodyOff) (base + div128CallRetOff) (divCode_noNop base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
        (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
        (vtopBase + signExtend12 32 ↦ₘ vTop))
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) ** (.x11 ↦ᵣ signExtend12 4095) **
        (.x0 ↦ᵣ (0 : Word)) **
@@ -186,7 +186,7 @@ theorem divK_trial_max_full_spec_within_noNop
   have STLf := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word))) (by pcFree) STL
   have ntaken_framed := cpsTripleWithin_frameR
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
      (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
      (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **
@@ -197,7 +197,7 @@ theorem divK_trial_max_full_spec_within_noNop
     (fun h hp => by xperm_hyp hp) STLf ntaken_framed
   -- 5. Frame BLTU ntaken result with x0 + memory, compose with trial_max
   have TMf := cpsTripleWithin_frameR
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
      (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
      (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
      (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **

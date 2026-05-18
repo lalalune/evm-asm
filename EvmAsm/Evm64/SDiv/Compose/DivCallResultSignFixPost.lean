@@ -54,7 +54,7 @@ theorem saveRaDivCallResultSignFixPost_pcFree
   rw [saveRaDivCallResultSignFixPost_unfold]
   dsimp
   rw [resultSignFixPost_unfold, saveRaDivCallBzeroResultSignFixFrame_unfold,
-    EvmAsm.Evm64.divScratchOwnCall_unfold,
+    EvmAsm.Evm64.divScratchOwnCallNoX1_unfold,
     EvmAsm.Evm64.divScratchOwn_unfold]
   pcFree
 
@@ -66,5 +66,56 @@ instance pcFreeInst_saveRaDivCallResultSignFixPost
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop) :=
   ⟨saveRaDivCallResultSignFixPost_pcFree⟩
+
+@[irreducible]
+def saveRaDivCallResultSignFixPostNoX9
+    (vRa sp base dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop : Word) : EvmAsm.Rv64.Assertion :=
+  let dividendAbsWord :=
+    sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+  let divisorAbsWord :=
+    sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+  let quotientWord := EvmWord.div dividendAbsWord divisorAbsWord
+  let resultSign :=
+    (dividendTop >>> (63 : BitVec 6).toNat) ^^^
+      (divisorTop >>> (63 : BitVec 6).toNat)
+  resultSignFixPost (sp + 32) resultSign
+    (quotientWord.getLimbN 0) (quotientWord.getLimbN 1)
+    (quotientWord.getLimbN 2) (quotientWord.getLimbN 3) **
+  saveRaDivCallResultSignFixFrameNoX9 vRa sp base dividendAbsWord
+
+theorem saveRaDivCallResultSignFixPostNoX9_unfold
+    {vRa sp base dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop : Word} :
+    saveRaDivCallResultSignFixPostNoX9 vRa sp base
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop =
+      (let dividendAbsWord :=
+         sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+       let divisorAbsWord :=
+         sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+       let quotientWord := EvmWord.div dividendAbsWord divisorAbsWord
+       let resultSign :=
+         (dividendTop >>> (63 : BitVec 6).toNat) ^^^
+           (divisorTop >>> (63 : BitVec 6).toNat)
+       resultSignFixPost (sp + 32) resultSign
+         (quotientWord.getLimbN 0) (quotientWord.getLimbN 1)
+         (quotientWord.getLimbN 2) (quotientWord.getLimbN 3) **
+       saveRaDivCallResultSignFixFrameNoX9 vRa sp base dividendAbsWord) := by
+  delta saveRaDivCallResultSignFixPostNoX9
+  rfl
+
+theorem saveRaDivCallResultSignFixPostNoX9_pcFree
+    {vRa sp base dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop : Word} :
+    (saveRaDivCallResultSignFixPostNoX9 vRa sp base
+      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).pcFree := by
+  rw [saveRaDivCallResultSignFixPostNoX9_unfold]
+  dsimp
+  rw [resultSignFixPost_unfold, saveRaDivCallResultSignFixFrameNoX9_unfold,
+    EvmAsm.Evm64.divScratchOwnCallNoX1_unfold,
+    EvmAsm.Evm64.divScratchOwn_unfold]
+  pcFree
 
 end EvmAsm.Evm64.SDiv.Compose

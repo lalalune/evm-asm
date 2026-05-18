@@ -58,7 +58,7 @@ theorem divK_mulsub_correction_skip_spec_within
     (if BitVec.ult uTop c3 then (1 : Word) else 0) = (0 : Word) →
     cpsTripleWithin 54 (base + div128CallRetOff) (base + storeLoopOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -68,7 +68,7 @@ theorem divK_mulsub_correction_skip_spec_within
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop))
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -138,7 +138,7 @@ theorem divK_mulsub_correction_skip_spec_within_noNop
     (if BitVec.ult uTop c3 then (1 : Word) else 0) = (0 : Word) →
     cpsTripleWithin 54 (base + div128CallRetOff) (base + storeLoopOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -148,7 +148,7 @@ theorem divK_mulsub_correction_skip_spec_within_noNop
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop))
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -186,7 +186,7 @@ def n4McaNamedSkipPost
   let c3    := ms.2.2.2.2
   let u4_new := uTop - c3
   (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-  (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
+  (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
   (.x7 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ ms.2.2.2.1) **
   (.x0 ↦ᵣ 0) **
   (sp + signExtend12 3976 ↦ₘ j) **
@@ -204,7 +204,7 @@ theorem n4McaNamedSkipPost_unfold
        let c3    := ms.2.2.2.2
        let u4_new := uTop - c3
        (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ ms.2.2.2.1) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -229,7 +229,7 @@ theorem divK_mulsub_correction_skip_named_spec_within_noNop
     (if BitVec.ult uTop c3 then (1 : Word) else 0) = (0 : Word) →
     cpsTripleWithin 54 (base + div128CallRetOff) (base + storeLoopOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **

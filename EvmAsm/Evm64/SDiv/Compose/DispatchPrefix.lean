@@ -31,7 +31,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_dispatchReady_spec_in_sdivCode
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
       (saveRaDivCallDispatchReadyPost vRa sp base
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
@@ -50,8 +50,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_dispatchReady_spec_in_sdivCode
     rw [saveRaSignsAbsSignXorThenDivCallPost_unfold] at hq
     rw [saveRaDivCallDispatchReadyPost_unfold]
     dsimp only at hq ⊢
-    rw [sdivDivCallSignFrame_unfold]
-    rw [divModStackDispatchPre_unfold_explicit_sdiv]
+    rw [divModStackDispatchPreNoX1_unfold_explicit_sdiv]
     simp [sdivAbsDividendWord, sdivAbsDivisorWord, EvmWord.getLimbN,
       EvmWord.getLimb_fromLimbs] at hq ⊢
     xperm_hyp hq) hPrefix
@@ -84,7 +83,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_then_exact_callable_spec_in_sdivCo
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
       callPost := by
   have hPrefixRaw :=
@@ -101,7 +100,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_then_exact_callable_spec_in_sdivCo
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
       (saveRaDivCallDispatchReadyPost vRa sp base
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop

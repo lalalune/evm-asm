@@ -216,7 +216,7 @@ private theorem divK_loopSetup_code_sub_modCode {base : Word} :
 
 /-- BLT singleton at base+loopSetupOff+12 (index 3 of loopSetup) is subsumed by modCode. -/
 private theorem blt_loopSetup_sub_modCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + loopSetupOff + 12) (.BLT .x1 .x0 464)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + loopSetupOff + 12) (.BLT .x9 .x0 464)) a = some i →
       (modCode base) a = some i := by
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + loopSetupOff) (divK_loopSetup 464) 3
@@ -233,14 +233,14 @@ theorem mod_loopSetup_ntaken_spec_within (sp n v1 v5 : Word) (base : Word)
     (hm_ge : ¬BitVec.slt (signExtend12 (4 : BitVec 12) - n) (0 : Word)) :
     let m := signExtend12 (4 : BitVec 12) - n
     cpsTripleWithin 4 (base + loopSetupOff) (base + loopBodyOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x9 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x9 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   intro m
   have hbody := divK_loopSetup_body_spec_within sp n v1 v5 464 (base + loopSetupOff)
   have hbodye := cpsTripleWithin_extend_code divK_loopSetup_code_sub_modCode hbody
-  have hblt_raw := blt_spec_gen_within .x1 .x0 464 m (0 : Word) (base + loopSetupOff + 12)
+  have hblt_raw := blt_spec_gen_within .x9 .x0 464 m (0 : Word) (base + loopSetupOff + 12)
   rw [show (base + loopSetupOff + 12 : Word) + signExtend13 464 = base + denormOff from by rv64_addr,
       show (base + loopSetupOff + 12 : Word) + 4 = base + loopBodyOff from by bv_addr] at hblt_raw
   have hblt_clean := cpsBranchWithin_ntakenStripPure2 hblt_raw

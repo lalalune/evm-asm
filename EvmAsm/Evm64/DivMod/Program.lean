@@ -29,7 +29,8 @@
 
   Register allocation:
     x12 = EVM stack pointer (preserved)
-    x1  = loop counter j / temp
+    x9  = loop counter j
+    x1  = temp (used inside div128 subroutine)
     x2  = antiShift / subroutine return addr
     x5  = general temp
     x6  = general temp / uBase in mul-sub
@@ -52,7 +53,7 @@ open EvmAsm.Rv64
     Called via JAL x2, offset. Returns via JALR x0, x2, 0.
     Input: x7 = uHi (< d), x5 = uLo, x10 = d (normalized, >= 2^63)
     Output: x11 = floor((uHi * 2^64 + uLo) / d)
-    Clobbers: x1, x5, x6, x7, x10, x11. Preserves: x2, x12.
+    Clobbers: .x9, x5, x6, x7, x10, x11. Preserves: x2, x12.
     Uses scratch memory at 3992, 3984, 3976, 3968 (offsets from x12). -/
 def divK_div128 : Program :=
   -- Save return addr and d
@@ -60,8 +61,8 @@ def divK_div128 : Program :=
   SD .x12 .x10 3960 ;;                        -- [1]  save d
   -- Split d: dHi = d >> 32, dLo = (d << 32) >> 32
   SRLI .x6 .x10 32 ;;                         -- [2]  x6 = dHi (>= 2^31)
-  SLLI .x1 .x10 32 ;; SRLI .x1 .x1 32 ;;     -- [3,4] x1 = dLo
-  SD .x12 .x1 3952 ;;                         -- [5]  save dLo
+  SLLI .x9 .x10 32 ;; SRLI .x9 .x9 32 ;;     -- [3,4] x9 = dLo
+  SD .x12 .x9 3952 ;;                         -- [5]  save dLo
   -- Split uLo: un1 = uLo >> 32, un0 = (uLo << 32) >> 32
   SRLI .x11 .x5 32 ;;                         -- [6]  x11 = un1
   SLLI .x5 .x5 32 ;; SRLI .x5 .x5 32 ;;      -- [7,8] x5 = un0
@@ -77,42 +78,42 @@ def divK_div128 : Program :=
   ADDI .x10 .x10 4095 ;;                      -- [15] q1--
   single (.ADD .x7 .x7 .x6) ;;               -- [16] rhat += dHi
   -- [17] Product check: q1*dLo > rhat*2^32 + un1?
-  LD .x1 .x12 3952 ;;                         -- [17] x1 = dLo
-  single (.MUL .x5 .x10 .x1) ;;              -- [18] x5 = q1 * dLo
-  SLLI .x1 .x7 32 ;;                          -- [19] x1 = rhat << 32
-  single (.OR .x1 .x1 .x11) ;;               -- [20] x1 = rhat*2^32 + un1
-  single (.BLTU .x1 .x5 8) ;;                -- [21] if rhs < lhs → correct [23]
+  LD .x9 .x12 3952 ;;                         -- [17] x9 = dLo
+  single (.MUL .x5 .x10 .x9) ;;              -- [18] x5 = q1 * dLo
+  SLLI .x9 .x7 32 ;;                          -- [19] x9 = rhat << 32
+  single (.OR .x9 .x9 .x11) ;;               -- [20] x9 = rhat*2^32 + un1
+  single (.BLTU .x9 .x5 8) ;;                -- [21] if rhs < lhs → correct [23]
   JAL .x0 12 ;;                                -- [22] skip → [25]
   ADDI .x10 .x10 4095 ;;                      -- [23] q1--
   single (.ADD .x7 .x7 .x6) ;;               -- [24] rhat += dHi
   -- Compute un21 = rhat*2^32 + un1 - q1*dLo
-  LD .x1 .x12 3952 ;;                         -- [25] dLo
+  LD .x9 .x12 3952 ;;                         -- [25] dLo
   SLLI .x5 .x7 32 ;;                          -- [26] rhat << 32
   single (.OR .x5 .x5 .x11) ;;               -- [27] x5 = rhat*2^32 + un1
-  single (.MUL .x1 .x10 .x1) ;;              -- [28] x1 = q1 * dLo
-  single (.SUB .x7 .x5 .x1) ;;               -- [29] x7 = un21
+  single (.MUL .x9 .x10 .x9) ;;              -- [28] x9 = q1 * dLo
+  single (.SUB .x7 .x5 .x9) ;;               -- [29] x7 = un21
   -- Step 2: q0 = DIVU(un21, dHi), rhat2 = un21 - q0*dHi
   single (.DIVU .x5 .x7 .x6) ;;              -- [30] x5 = q0
-  single (.MUL .x1 .x5 .x6) ;;               -- [31]
-  single (.SUB .x11 .x7 .x1) ;;              -- [32] x11 = rhat2
+  single (.MUL .x9 .x5 .x6) ;;               -- [31]
+  single (.SUB .x11 .x7 .x9) ;;              -- [32] x11 = rhat2
   -- Refine q0: clamp
-  SRLI .x1 .x5 32 ;;                          -- [33]
-  single (.BEQ .x1 .x0 12) ;;                -- [34] skip if q0 < 2^32 → [37]
+  SRLI .x9 .x5 32 ;;                          -- [33]
+  single (.BEQ .x9 .x0 12) ;;                -- [34] skip if q0 < 2^32 → [37]
   ADDI .x5 .x5 4095 ;;                        -- [35] q0--
   single (.ADD .x11 .x11 .x6) ;;             -- [36] rhat2 += dHi
   -- [37] Phase 2b guard (Knuth TAOCP §4.3.1 Step D3): skip mul-check
   --      when rhat2c ≥ 2^32 to avoid Word `<< 32` truncation causing
   --      the BLTU to false-positive fire. See counterexample at
   --      `/home/zksecurity/.claude/plans/dynamic-strolling-riddle.md`.
-  SRLI .x1 .x11 32 ;;                         -- [37] x1 = rhat2c >> 32
-  single (.BNE .x1 .x0 36) ;;                -- [38] if nonzero → skip to [47]
+  SRLI .x9 .x11 32 ;;                         -- [37] x9 = rhat2c >> 32
+  single (.BNE .x9 .x0 36) ;;                -- [38] if nonzero → skip to [47]
   -- [39] Product check for q0 (only reached when rhat2c < 2^32)
-  LD .x1 .x12 3952 ;;                         -- [39] dLo
-  single (.MUL .x7 .x5 .x1) ;;               -- [40] x7 = q0 * dLo
-  SLLI .x1 .x11 32 ;;                         -- [41] rhat2 << 32
+  LD .x9 .x12 3952 ;;                         -- [39] dLo
+  single (.MUL .x7 .x5 .x9) ;;               -- [40] x7 = q0 * dLo
+  SLLI .x9 .x11 32 ;;                         -- [41] rhat2 << 32
   LD .x11 .x12 3944 ;;                        -- [42] un0
-  single (.OR .x1 .x1 .x11) ;;               -- [43] x1 = rhat2*2^32 + un0
-  single (.BLTU .x1 .x7 8) ;;                -- [44] if rhs < lhs → correct [46]
+  single (.OR .x9 .x9 .x11) ;;               -- [43] x9 = rhat2*2^32 + un0
+  single (.BLTU .x9 .x7 8) ;;                -- [44] if rhs < lhs → correct [46]
   JAL .x0 8 ;;                                 -- [45] skip → [47]
   ADDI .x5 .x5 4095 ;;                        -- [46] q0--
   -- Combine: q = q1*2^32 + q0
@@ -151,8 +152,8 @@ def divK_div128_v2 : Program :=
   SD .x12 .x10 3960 ;;                        -- [1]  save d
   -- Split d: dHi = d >> 32, dLo = (d << 32) >> 32
   SRLI .x6 .x10 32 ;;                         -- [2]  x6 = dHi (>= 2^31)
-  SLLI .x1 .x10 32 ;; SRLI .x1 .x1 32 ;;     -- [3,4] x1 = dLo
-  SD .x12 .x1 3952 ;;                         -- [5]  save dLo
+  SLLI .x9 .x10 32 ;; SRLI .x9 .x9 32 ;;     -- [3,4] x9 = dLo
+  SD .x12 .x9 3952 ;;                         -- [5]  save dLo
   -- Split uLo: un1 = uLo >> 32, un0 = (uLo << 32) >> 32
   SRLI .x11 .x5 32 ;;                         -- [6]  x11 = un1
   SLLI .x5 .x5 32 ;; SRLI .x5 .x5 32 ;;      -- [7,8] x5 = un0
@@ -167,11 +168,11 @@ def divK_div128_v2 : Program :=
   ADDI .x10 .x10 4095 ;;                      -- [15] q1--
   single (.ADD .x7 .x7 .x6) ;;               -- [16] rhat += dHi
   -- [17] Phase 1b 1st D3 correction: q1*dLo > rhat*2^32 + un1?
-  LD .x1 .x12 3952 ;;                         -- [17] x1 = dLo
-  single (.MUL .x5 .x10 .x1) ;;              -- [18] x5 = q1 * dLo
-  SLLI .x1 .x7 32 ;;                          -- [19] x1 = rhat << 32
-  single (.OR .x1 .x1 .x11) ;;               -- [20] x1 = rhat*2^32 + un1
-  single (.BLTU .x1 .x5 8) ;;                -- [21] if rhs < lhs → correct [23]
+  LD .x9 .x12 3952 ;;                         -- [17] x9 = dLo
+  single (.MUL .x5 .x10 .x9) ;;              -- [18] x5 = q1 * dLo
+  SLLI .x9 .x7 32 ;;                          -- [19] x9 = rhat << 32
+  single (.OR .x9 .x9 .x11) ;;               -- [20] x9 = rhat*2^32 + un1
+  single (.BLTU .x9 .x5 8) ;;                -- [21] if rhs < lhs → correct [23]
   JAL .x0 12 ;;                                -- [22] skip → [25]
   ADDI .x10 .x10 4095 ;;                      -- [23] q1--
   single (.ADD .x7 .x7 .x6) ;;               -- [24] rhat += dHi
@@ -179,42 +180,42 @@ def divK_div128_v2 : Program :=
   --      Guard: skip mul-check when rhat ≥ 2^32 (matches Phase 2b's guard
   --      at [47..48] below). Without this, BLTU would false-positive fire
   --      due to `<< 32` truncation. Mirrors Phase 2b structure.
-  SRLI .x1 .x7 32 ;;                          -- [25] x1 = rhat >> 32
-  single (.BNE .x1 .x0 36) ;;                -- [26] if nonzero → skip to [35]
+  SRLI .x9 .x7 32 ;;                          -- [25] x9 = rhat >> 32
+  single (.BNE .x9 .x0 36) ;;                -- [26] if nonzero → skip to [35]
   -- [27] 2nd D3 product check (only when rhat < 2^32)
-  LD .x1 .x12 3952 ;;                         -- [27] dLo
-  single (.MUL .x5 .x10 .x1) ;;              -- [28] x5 = q1 * dLo
-  SLLI .x1 .x7 32 ;;                          -- [29] x1 = rhat << 32
-  single (.OR .x1 .x1 .x11) ;;               -- [30] x1 = rhat*2^32 + un1
-  single (.BLTU .x1 .x5 8) ;;                -- [31] if rhs < lhs → correct [33]
+  LD .x9 .x12 3952 ;;                         -- [27] dLo
+  single (.MUL .x5 .x10 .x9) ;;              -- [28] x5 = q1 * dLo
+  SLLI .x9 .x7 32 ;;                          -- [29] x9 = rhat << 32
+  single (.OR .x9 .x9 .x11) ;;               -- [30] x9 = rhat*2^32 + un1
+  single (.BLTU .x9 .x5 8) ;;                -- [31] if rhs < lhs → correct [33]
   JAL .x0 12 ;;                                -- [32] skip → [35]
   ADDI .x10 .x10 4095 ;;                      -- [33] q1--
   single (.ADD .x7 .x7 .x6) ;;               -- [34] rhat += dHi
   -- [35] Compute un21 = rhat*2^32 + un1 - q1*dLo
-  LD .x1 .x12 3952 ;;                         -- [35] dLo
+  LD .x9 .x12 3952 ;;                         -- [35] dLo
   SLLI .x5 .x7 32 ;;                          -- [36] rhat << 32
   single (.OR .x5 .x5 .x11) ;;               -- [37] x5 = rhat*2^32 + un1
-  single (.MUL .x1 .x10 .x1) ;;              -- [38] x1 = q1 * dLo
-  single (.SUB .x7 .x5 .x1) ;;               -- [39] x7 = un21
+  single (.MUL .x9 .x10 .x9) ;;              -- [38] x9 = q1 * dLo
+  single (.SUB .x7 .x5 .x9) ;;               -- [39] x7 = un21
   -- Step 2: q0 = DIVU(un21, dHi), rhat2 = un21 - q0*dHi
   single (.DIVU .x5 .x7 .x6) ;;              -- [40] x5 = q0
-  single (.MUL .x1 .x5 .x6) ;;               -- [41]
-  single (.SUB .x11 .x7 .x1) ;;              -- [42] x11 = rhat2
+  single (.MUL .x9 .x5 .x6) ;;               -- [41]
+  single (.SUB .x11 .x7 .x9) ;;              -- [42] x11 = rhat2
   -- Refine q0: clamp
-  SRLI .x1 .x5 32 ;;                          -- [43]
-  single (.BEQ .x1 .x0 12) ;;                -- [44] skip if q0 < 2^32 → [47]
+  SRLI .x9 .x5 32 ;;                          -- [43]
+  single (.BEQ .x9 .x0 12) ;;                -- [44] skip if q0 < 2^32 → [47]
   ADDI .x5 .x5 4095 ;;                        -- [45] q0--
   single (.ADD .x11 .x11 .x6) ;;             -- [46] rhat2 += dHi
   -- [47] Phase 2b guard (rhat2c ≥ 2^32 ⟹ skip mul-check)
-  SRLI .x1 .x11 32 ;;                         -- [47] x1 = rhat2c >> 32
-  single (.BNE .x1 .x0 36) ;;                -- [48] if nonzero → skip to [57]
+  SRLI .x9 .x11 32 ;;                         -- [47] x9 = rhat2c >> 32
+  single (.BNE .x9 .x0 36) ;;                -- [48] if nonzero → skip to [57]
   -- [49] Product check for q0
-  LD .x1 .x12 3952 ;;                         -- [49] dLo
-  single (.MUL .x7 .x5 .x1) ;;               -- [50] x7 = q0 * dLo
-  SLLI .x1 .x11 32 ;;                         -- [51] rhat2 << 32
+  LD .x9 .x12 3952 ;;                         -- [49] dLo
+  single (.MUL .x7 .x5 .x9) ;;               -- [50] x7 = q0 * dLo
+  SLLI .x9 .x11 32 ;;                         -- [51] rhat2 << 32
   LD .x11 .x12 3944 ;;                        -- [52] un0
-  single (.OR .x1 .x1 .x11) ;;               -- [53] x1 = rhat2*2^32 + un0
-  single (.BLTU .x1 .x7 8) ;;                -- [54] if rhs < lhs → correct [56]
+  single (.OR .x9 .x9 .x11) ;;               -- [53] x9 = rhat2*2^32 + un0
+  single (.BLTU .x9 .x7 8) ;;                -- [54] if rhs < lhs → correct [56]
   JAL .x0 8 ;;                                 -- [55] skip → [57]
   ADDI .x5 .x5 4095 ;;                        -- [56] q0--
   -- Combine: q = q1*2^32 + q0
@@ -255,8 +256,8 @@ def divK_div128_v4 : Program :=
   SD .x12 .x10 3960 ;;                        -- [1]  save d
   -- Split d: dHi = d >> 32, dLo = (d << 32) >> 32
   SRLI .x6 .x10 32 ;;                         -- [2]  x6 = dHi (>= 2^31)
-  SLLI .x1 .x10 32 ;; SRLI .x1 .x1 32 ;;     -- [3,4] x1 = dLo
-  SD .x12 .x1 3952 ;;                         -- [5]  save dLo
+  SLLI .x9 .x10 32 ;; SRLI .x9 .x9 32 ;;     -- [3,4] x9 = dLo
+  SD .x12 .x9 3952 ;;                         -- [5]  save dLo
   -- Split uLo: un1 = uLo >> 32, un0 = (uLo << 32) >> 32
   SRLI .x11 .x5 32 ;;                         -- [6]  x11 = un1
   SLLI .x5 .x5 32 ;; SRLI .x5 .x5 32 ;;      -- [7,8] x5 = un0
@@ -271,51 +272,51 @@ def divK_div128_v4 : Program :=
   ADDI .x10 .x10 4095 ;;                      -- [15] q1--
   single (.ADD .x7 .x7 .x6) ;;               -- [16] rhat += dHi
   -- [17] Phase 1b 1st D3 correction
-  LD .x1 .x12 3952 ;;                         -- [17] x1 = dLo
-  single (.MUL .x5 .x10 .x1) ;;              -- [18] x5 = q1 * dLo
-  SLLI .x1 .x7 32 ;;                          -- [19] x1 = rhat << 32
-  single (.OR .x1 .x1 .x11) ;;               -- [20] x1 = rhat*2^32 + un1
-  single (.BLTU .x1 .x5 8) ;;                -- [21] if rhs < lhs → correct [23]
+  LD .x9 .x12 3952 ;;                         -- [17] x9 = dLo
+  single (.MUL .x5 .x10 .x9) ;;              -- [18] x5 = q1 * dLo
+  SLLI .x9 .x7 32 ;;                          -- [19] x9 = rhat << 32
+  single (.OR .x9 .x9 .x11) ;;               -- [20] x9 = rhat*2^32 + un1
+  single (.BLTU .x9 .x5 8) ;;                -- [21] if rhs < lhs → correct [23]
   JAL .x0 12 ;;                                -- [22] skip → [25]
   ADDI .x10 .x10 4095 ;;                      -- [23] q1--
   single (.ADD .x7 .x7 .x6) ;;               -- [24] rhat += dHi
   -- [25] Phase 1b 2nd D3 correction
-  SRLI .x1 .x7 32 ;;                          -- [25] x1 = rhat >> 32
-  single (.BNE .x1 .x0 36) ;;                -- [26] if nonzero → skip to [35]
-  LD .x1 .x12 3952 ;;                         -- [27] dLo
-  single (.MUL .x5 .x10 .x1) ;;              -- [28] x5 = q1 * dLo
-  SLLI .x1 .x7 32 ;;                          -- [29] x1 = rhat << 32
-  single (.OR .x1 .x1 .x11) ;;               -- [30] x1 = rhat*2^32 + un1
-  single (.BLTU .x1 .x5 8) ;;                -- [31] if rhs < lhs → correct [33]
+  SRLI .x9 .x7 32 ;;                          -- [25] x9 = rhat >> 32
+  single (.BNE .x9 .x0 36) ;;                -- [26] if nonzero → skip to [35]
+  LD .x9 .x12 3952 ;;                         -- [27] dLo
+  single (.MUL .x5 .x10 .x9) ;;              -- [28] x5 = q1 * dLo
+  SLLI .x9 .x7 32 ;;                          -- [29] x9 = rhat << 32
+  single (.OR .x9 .x9 .x11) ;;               -- [30] x9 = rhat*2^32 + un1
+  single (.BLTU .x9 .x5 8) ;;                -- [31] if rhs < lhs → correct [33]
   JAL .x0 12 ;;                                -- [32] skip → [35]
   ADDI .x10 .x10 4095 ;;                      -- [33] q1--
   single (.ADD .x7 .x7 .x6) ;;               -- [34] rhat += dHi
   -- [35] Compute un21 = rhat*2^32 + un1 - q1*dLo
-  LD .x1 .x12 3952 ;;                         -- [35] dLo
+  LD .x9 .x12 3952 ;;                         -- [35] dLo
   SLLI .x5 .x7 32 ;;                          -- [36] rhat << 32
   single (.OR .x5 .x5 .x11) ;;               -- [37] x5 = rhat*2^32 + un1
-  single (.MUL .x1 .x10 .x1) ;;              -- [38] x1 = q1 * dLo
-  single (.SUB .x7 .x5 .x1) ;;               -- [39] x7 = un21
+  single (.MUL .x9 .x10 .x9) ;;              -- [38] x9 = q1 * dLo
+  single (.SUB .x7 .x5 .x9) ;;               -- [39] x7 = un21
   -- Step 2: q0 = DIVU(un21, dHi), rhat2 = un21 - q0*dHi
   single (.DIVU .x5 .x7 .x6) ;;              -- [40] x5 = q0
-  single (.MUL .x1 .x5 .x6) ;;               -- [41]
-  single (.SUB .x11 .x7 .x1) ;;              -- [42] x11 = rhat2
+  single (.MUL .x9 .x5 .x6) ;;               -- [41]
+  single (.SUB .x11 .x7 .x9) ;;              -- [42] x11 = rhat2
   -- Refine q0: clamp
-  SRLI .x1 .x5 32 ;;                          -- [43]
-  single (.BEQ .x1 .x0 12) ;;                -- [44] skip if q0 < 2^32 → [47]
+  SRLI .x9 .x5 32 ;;                          -- [43]
+  single (.BEQ .x9 .x0 12) ;;                -- [44] skip if q0 < 2^32 → [47]
   ADDI .x5 .x5 4095 ;;                        -- [45] q0--
   single (.ADD .x11 .x11 .x6) ;;             -- [46] rhat2 += dHi
   -- [47] Phase 2b guard (rhat2c ≥ 2^32 ⟹ skip BOTH 1st and 2nd D3)
-  SRLI .x1 .x11 32 ;;                         -- [47] x1 = rhat2c >> 32
-  single (.BNE .x1 .x0 92) ;;                -- [48] if nonzero → skip to [71] (combine)
+  SRLI .x9 .x11 32 ;;                         -- [47] x9 = rhat2c >> 32
+  single (.BNE .x9 .x0 92) ;;                -- [48] if nonzero → skip to [71] (combine)
   -- [49] Phase 2b 1st D3 mul-check
-  LD .x1 .x12 3952 ;;                         -- [49] dLo
-  single (.MUL .x7 .x5 .x1) ;;               -- [50] x7 = q0 * dLo
-  SLLI .x1 .x11 32 ;;                         -- [51] rhat2c << 32
+  LD .x9 .x12 3952 ;;                         -- [49] dLo
+  single (.MUL .x7 .x5 .x9) ;;               -- [50] x7 = q0 * dLo
+  SLLI .x9 .x11 32 ;;                         -- [51] rhat2c << 32
   SD .x12 .x11 3936 ;;                        -- [52] save rhat2c (NEW in v4)
   LD .x11 .x12 3944 ;;                        -- [53] x11 = un0 (clobbers rhat2c)
-  single (.OR .x1 .x1 .x11) ;;               -- [54] x1 = rhat2c*2^32 + un0
-  single (.BLTU .x1 .x7 12) ;;               -- [55] if BLTU fires → correction [58]
+  single (.OR .x9 .x9 .x11) ;;               -- [54] x9 = rhat2c*2^32 + un0
+  single (.BLTU .x9 .x7 12) ;;               -- [55] if BLTU fires → correction [58]
   -- [56] No-correction path
   LD .x11 .x12 3936 ;;                        -- [56] restore rhat2c (unchanged)
   JAL .x0 16 ;;                                -- [57] skip correction → [61] (2nd D3 entry)
@@ -324,14 +325,14 @@ def divK_div128_v4 : Program :=
   LD .x11 .x12 3936 ;;                        -- [59] restore rhat2c
   single (.ADD .x11 .x11 .x6) ;;             -- [60] rhat2c += dHi
   -- [61] Phase 2b 2nd D3 guarded mul-check (NEW in v4 vs v2)
-  SRLI .x1 .x11 32 ;;                         -- [61] x1 = rhat2c >> 32 (post-1st-correction)
-  single (.BNE .x1 .x0 36) ;;                -- [62] if nonzero → skip to [71] (combine)
-  LD .x1 .x12 3952 ;;                         -- [63] dLo
-  single (.MUL .x7 .x5 .x1) ;;               -- [64] x7 = q0 * dLo
-  SLLI .x1 .x11 32 ;;                         -- [65] rhat2c << 32
+  SRLI .x9 .x11 32 ;;                         -- [61] x9 = rhat2c >> 32 (post-1st-correction)
+  single (.BNE .x9 .x0 36) ;;                -- [62] if nonzero → skip to [71] (combine)
+  LD .x9 .x12 3952 ;;                         -- [63] dLo
+  single (.MUL .x7 .x5 .x9) ;;               -- [64] x7 = q0 * dLo
+  SLLI .x9 .x11 32 ;;                         -- [65] rhat2c << 32
   LD .x11 .x12 3944 ;;                        -- [66] x11 = un0 (last use of rhat2c, no save needed)
-  single (.OR .x1 .x1 .x11) ;;               -- [67] x1 = rhat2c*2^32 + un0
-  single (.BLTU .x1 .x7 8) ;;                -- [68] if BLTU fires → 2nd correction [70]
+  single (.OR .x9 .x9 .x11) ;;               -- [67] x9 = rhat2c*2^32 + un0
+  single (.BLTU .x9 .x7 8) ;;                -- [68] if BLTU fires → 2nd correction [70]
   JAL .x0 8 ;;                                 -- [69] skip → [71]
   ADDI .x5 .x5 4095 ;;                        -- [70] 2nd correction: q0--
   -- [71] Combine: q = q1*2^32 + q0
@@ -443,8 +444,8 @@ def divK_copyAU : Program :=
     4 instructions. BLT if j < 0 (signed). -/
 def divK_loopSetup (bltOff : BitVec 13) : Program :=
   LD .x5 .x12 3984 ;;
-  ADDI .x1 .x0 4 ;; single (.SUB .x1 .x1 .x5) ;;
-  single (.BLT .x1 .x0 bltOff)
+  ADDI .x9 .x0 4 ;; single (.SUB .x9 .x9 .x5) ;;
+  single (.BLT .x9 .x0 bltOff)
 
 /-- Loop body: trial quotient + multiply-subtract + correction + store q[j].
     Starts at loop_start. Includes save/restore of j.
@@ -464,11 +465,11 @@ def divK_loopSetup (bltOff : BitVec 13) : Program :=
     110 instructions per loop body. -/
 def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :=
   -- Save j
-  SD .x12 .x1 3976 ;;                         -- [0]
+  SD .x12 .x9 3976 ;;                         -- [0]
 
   -- Load u[j+n] and u[j+n-1]
   LD .x5 .x12 3984 ;;                         -- [1] n
-  single (.ADD .x7 .x1 .x5) ;;               -- [2] x7 = j+n
+  single (.ADD .x7 .x9 .x5) ;;               -- [2] x7 = j+n
   SLLI .x7 .x7 3 ;;                           -- [3] (j+n)*8
   ADDI .x5 .x12 4056 ;;                       -- [4] sp-40 = &u[0]
   single (.SUB .x5 .x5 .x7) ;;               -- [5] &u[j+n]
@@ -489,8 +490,8 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
   JAL .x2 subr_off ;;                          -- [16] call 128/64 subroutine
 
   -- Restore j, compute uBase
-  LD .x1 .x12 3976 ;;                         -- [17] restore j
-  SLLI .x5 .x1 3 ;;                           -- [18] j*8
+  LD .x9 .x12 3976 ;;                         -- [17] restore j
+  SLLI .x5 .x9 3 ;;                           -- [18] j*8
   ADDI .x6 .x12 4056 ;;                       -- [19] sp-40
   single (.SUB .x6 .x6 .x5) ;;               -- [20] x6 = uBase = &u[j]
 
@@ -605,14 +606,14 @@ def divK_loopBody (subr_off : BitVec 21) (loop_back_off : BitVec 13) : Program :
   single (.BEQ .x7 .x0 8044) ;;              -- [108] if carry=0 → [71]
 
   -- STORE q[j]: q[j] at sp - 8 - j*8 = sp + (4088 - j*8)
-  SLLI .x5 .x1 3 ;;                           -- [109] j*8
+  SLLI .x5 .x9 3 ;;                           -- [109] j*8
   ADDI .x7 .x12 4088 ;;                       -- [110] sp-8
   single (.SUB .x7 .x7 .x5) ;;               -- [111] &q[j]
   SD .x7 .x11 0 ;;                            -- [112] q[j] = qHat
 
   -- LOOP CONTROL
-  ADDI .x1 .x1 4095 ;;                        -- [113] j--
-  single (.BGE .x1 .x0 loop_back_off)         -- [114] if j >= 0 → loop
+  ADDI .x9 .x9 4095 ;;                        -- [113] j--
+  single (.BGE .x9 .x0 loop_back_off)         -- [114] if j >= 0 → loop
 
 /-- Phase E: De-normalize remainder. Right-shift u[0..3] by shift amount.
     25 instructions. -/

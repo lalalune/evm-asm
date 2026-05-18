@@ -37,10 +37,10 @@ theorem divK_store_loop_j0_spec_within
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     let j' := (0 : Word) + signExtend12 4095
     cpsTripleWithin 6 (base + storeLoopOff) (base + denormOff) (sharedDivModCode base)
-      ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (qAddr ↦ₘ qOld))
-      ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) **
        (qAddr ↦ₘ qHat)) := by
   intro qAddr j'
@@ -54,12 +54,12 @@ theorem divK_store_loop_j0_spec_within
      (CodeReq.union_sub (lb_sub 111 _ _ (by decide) (by bv_addr) (by decide))
       (lb_sub 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
   -- 2. ADDI x1 x1 4095 at base+900 (instr [113])
-  have haddi := addi_spec_gen_same_within .x1 (0 : Word) 4095 (base + loopControlOff) (by nofun)
+  have haddi := addi_spec_gen_same_within .x9 (0 : Word) 4095 (base + loopControlOff) (by nofun)
   rw [show (base + loopControlOff : Word) + 4 = base + loopBackBgeOff from by bv_addr] at haddi
   have haddi_e := cpsTripleWithin_extend_code (hmono := by
     exact lb_sub 113 _ _ (by decide) (by bv_addr) (by decide)) haddi
   -- 3. BGE x1 x0 7736 at base+904 (instr [114])
-  have hbge_raw := bge_spec_gen_within .x1 .x0 (7736 : BitVec 13) j' (0 : Word) (base + loopBackBgeOff)
+  have hbge_raw := bge_spec_gen_within .x9 .x0 (7736 : BitVec 13) j' (0 : Word) (base + loopBackBgeOff)
   rw [show (base + loopBackBgeOff : Word) + signExtend13 (7736 : BitVec 13) = base + loopBodyOff from by rv64_addr,
       show (base + loopBackBgeOff : Word) + 4 = base + denormOff from by bv_addr] at hbge_raw
   have hbge_ext := cpsBranchWithin_extend_code (hmono := by
@@ -77,9 +77,9 @@ theorem divK_store_loop_j0_spec_within
     hbge_exit_raw
   -- 5. Build store_qj + x0 frame → base+900
   have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + loopControlOff) (sharedDivModCode base)
-      ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qOld))
-      ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ qAddr) **
        (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qHat)) :=
     cpsTripleWithin_weaken
@@ -114,10 +114,10 @@ theorem divK_store_loop_j0_spec_within_noNop
     let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
     let j' := (0 : Word) + signExtend12 4095
     cpsTripleWithin 6 (base + storeLoopOff) (base + denormOff) (divCode_noNop base)
-      ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (qAddr ↦ₘ qOld))
-      ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) **
        (qAddr ↦ₘ qHat)) := by
   intro qAddr j'
@@ -131,12 +131,12 @@ theorem divK_store_loop_j0_spec_within_noNop
      (CodeReq.union_sub (lb_sub_noNop 111 _ _ (by decide) (by bv_addr) (by decide))
       (lb_sub_noNop 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
   -- 2. ADDI x1 x1 4095 at base+900 (instr [113])
-  have haddi := addi_spec_gen_same_within .x1 (0 : Word) 4095 (base + loopControlOff) (by nofun)
+  have haddi := addi_spec_gen_same_within .x9 (0 : Word) 4095 (base + loopControlOff) (by nofun)
   rw [show (base + loopControlOff : Word) + 4 = base + loopBackBgeOff from by bv_addr] at haddi
   have haddi_e := cpsTripleWithin_extend_code (hmono := by
     exact lb_sub_noNop 113 _ _ (by decide) (by bv_addr) (by decide)) haddi
   -- 3. BGE x1 x0 7736 at base+904 (instr [114])
-  have hbge_raw := bge_spec_gen_within .x1 .x0 (7736 : BitVec 13) j' (0 : Word) (base + loopBackBgeOff)
+  have hbge_raw := bge_spec_gen_within .x9 .x0 (7736 : BitVec 13) j' (0 : Word) (base + loopBackBgeOff)
   rw [show (base + loopBackBgeOff : Word) + signExtend13 (7736 : BitVec 13) = base + loopBodyOff from by rv64_addr,
       show (base + loopBackBgeOff : Word) + 4 = base + denormOff from by bv_addr] at hbge_raw
   have hbge_ext := cpsBranchWithin_extend_code (hmono := by
@@ -154,9 +154,9 @@ theorem divK_store_loop_j0_spec_within_noNop
     hbge_exit_raw
   -- 5. Build store_qj + x0 frame → base+900
   have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + loopControlOff) (divCode_noNop base)
-      ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qOld))
-      ((.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ (0 : Word) <<< (3 : BitVec 6).toNat) ** (.x7 ↦ᵣ qAddr) **
        (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qHat)) :=
     cpsTripleWithin_weaken
@@ -192,10 +192,10 @@ theorem divK_store_loop_jgt0_spec_within
     let qAddr := sp + signExtend12 4088 - jX8
     let j' := j + signExtend12 4095
     cpsTripleWithin 6 (base + storeLoopOff) (base + loopBodyOff) (sharedDivModCode base)
-      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (qAddr ↦ₘ qOld))
-      ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ jX8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) **
        (qAddr ↦ₘ qHat)) := by
   intro jX8 qAddr j'
@@ -209,12 +209,12 @@ theorem divK_store_loop_jgt0_spec_within
      (CodeReq.union_sub (lb_sub 111 _ _ (by decide) (by bv_addr) (by decide))
       (lb_sub 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
   -- 2. ADDI x1 x1 4095 at base+900 (instr [113])
-  have haddi := addi_spec_gen_same_within .x1 j 4095 (base + loopControlOff) (by nofun)
+  have haddi := addi_spec_gen_same_within .x9 j 4095 (base + loopControlOff) (by nofun)
   rw [show (base + loopControlOff : Word) + 4 = base + loopBackBgeOff from by bv_addr] at haddi
   have haddi_e := cpsTripleWithin_extend_code (hmono := by
     exact lb_sub 113 _ _ (by decide) (by bv_addr) (by decide)) haddi
   -- 3. BGE x1 x0 7736 at base+904 (instr [114])
-  have hbge_raw := bge_spec_gen_within .x1 .x0 (7736 : BitVec 13) j' (0 : Word) (base + loopBackBgeOff)
+  have hbge_raw := bge_spec_gen_within .x9 .x0 (7736 : BitVec 13) j' (0 : Word) (base + loopBackBgeOff)
   rw [show (base + loopBackBgeOff : Word) + signExtend13 (7736 : BitVec 13) = base + loopBodyOff from by rv64_addr,
       show (base + loopBackBgeOff : Word) + 4 = base + denormOff from by bv_addr] at hbge_raw
   have hbge_ext := cpsBranchWithin_extend_code (hmono := by
@@ -232,9 +232,9 @@ theorem divK_store_loop_jgt0_spec_within
     hbge_exit_raw
   -- 5. Build store_qj + x0 frame → base+900
   have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + loopControlOff) (sharedDivModCode base)
-      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qOld))
-      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ jX8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qHat)) :=
     cpsTripleWithin_weaken
       (fun h hp => by xperm_hyp hp)
@@ -270,10 +270,10 @@ theorem divK_store_loop_jgt0_spec_within_noNop
     let qAddr := sp + signExtend12 4088 - jX8
     let j' := j + signExtend12 4095
     cpsTripleWithin 6 (base + storeLoopOff) (base + loopBodyOff) (divCode_noNop base)
-      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) **
        (qAddr ↦ₘ qOld))
-      ((.x1 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j') ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ jX8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) **
        (qAddr ↦ₘ qHat)) := by
   intro jX8 qAddr j'
@@ -287,12 +287,12 @@ theorem divK_store_loop_jgt0_spec_within_noNop
      (CodeReq.union_sub (lb_sub_noNop 111 _ _ (by decide) (by bv_addr) (by decide))
       (lb_sub_noNop 112 _ _ (by decide) (by bv_addr) (by decide))))) SQ
   -- 2. ADDI x1 x1 4095 at base+900 (instr [113])
-  have haddi := addi_spec_gen_same_within .x1 j 4095 (base + loopControlOff) (by nofun)
+  have haddi := addi_spec_gen_same_within .x9 j 4095 (base + loopControlOff) (by nofun)
   rw [show (base + loopControlOff : Word) + 4 = base + loopBackBgeOff from by bv_addr] at haddi
   have haddi_e := cpsTripleWithin_extend_code (hmono := by
     exact lb_sub_noNop 113 _ _ (by decide) (by bv_addr) (by decide)) haddi
   -- 3. BGE x1 x0 7736 at base+904 (instr [114])
-  have hbge_raw := bge_spec_gen_within .x1 .x0 (7736 : BitVec 13) j' (0 : Word) (base + loopBackBgeOff)
+  have hbge_raw := bge_spec_gen_within .x9 .x0 (7736 : BitVec 13) j' (0 : Word) (base + loopBackBgeOff)
   rw [show (base + loopBackBgeOff : Word) + signExtend13 (7736 : BitVec 13) = base + loopBodyOff from by rv64_addr,
       show (base + loopBackBgeOff : Word) + 4 = base + denormOff from by bv_addr] at hbge_raw
   have hbge_ext := cpsBranchWithin_extend_code (hmono := by
@@ -310,9 +310,9 @@ theorem divK_store_loop_jgt0_spec_within_noNop
     hbge_exit_raw
   -- 5. Build store_qj + x0 frame → base+900
   have SQx0 : cpsTripleWithin 4 (base + storeLoopOff) (base + loopControlOff) (divCode_noNop base)
-      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ v5Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qOld))
-      ((.x1 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
+      ((.x9 ↦ᵣ j) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
        (.x5 ↦ᵣ jX8) ** (.x7 ↦ᵣ qAddr) ** (.x0 ↦ᵣ (0 : Word)) ** (qAddr ↦ₘ qHat)) :=
     cpsTripleWithin_weaken
       (fun h hp => by xperm_hyp hp)

@@ -27,16 +27,16 @@ theorem saveRa_signs_abs_signXor_then_divCall_exact_then_return_normalized_named
         (base + wrapperEndOff)
         ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.divCode_noNop (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPre sp
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp
           (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
           (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-          ((base + divCallOff) + 4) v2 v5 v6
+          (sdivAbsSign divisorTop) ((base + divCallOff) + 4) v2 v5 v6
           (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
           (sdivAbsMask divisorTop)
           (sdivAbsCarry3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (EvmAsm.Evm64.divStackDispatchPostNoX1 sp
+        (EvmAsm.Evm64.divStackDispatchPostCallable sp
           (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
           (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop) **
           (.x1 ↦ᵣ ((base + divCallOff) + 4)))) :
@@ -47,13 +47,20 @@ theorem saveRa_signs_abs_signXor_then_divCall_exact_then_return_normalized_named
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
-      (saveRaDivCallCallableReturnPost vRa sp base
+      (saveRaDivCallCallableReturnPostNoX9 vRa sp base
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop) := by
+  have hExit :
+      (((vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) +
+        EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)) =
+        (vRa &&& ~~~(1 : Word)) := by
+    rw [EvmAsm.Rv64.signExtend12_0]
+    bv_decide
+  rw [← hExit]
   exact
-    saveRa_signs_abs_signXor_then_divCall_then_return_normalized_named_post_of_callable_post_spec_in_sdivCode
+    saveRa_signs_abs_signXor_then_divCall_then_return_of_callable_post_noX9_spec_in_sdivCode
       vRa vSavedOld sp sDividendOld sDivisorOld
       dividendMaskOld dividendValueOld dividendCarryOld
       dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
@@ -84,12 +91,12 @@ theorem saveRa_signs_abs_signXor_then_divCall_exact_then_return_stack_tail_from_
         (base + wrapperEndOff)
         ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.divCode_noNop (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPre sp
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp
           (sdivAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
             (dividend.getLimbN 2) (dividend.getLimbN 3))
           (sdivAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
             (divisor.getLimbN 2) (divisor.getLimbN 3))
-          ((base + divCallOff) + 4) v2 v5 v6
+          (sdivAbsSign (divisor.getLimbN 3)) ((base + divCallOff) + 4) v2 v5 v6
           (sdivAbsSum3 (divisor.getLimbN 0) (divisor.getLimbN 1)
             (divisor.getLimbN 2) (divisor.getLimbN 3))
           (sdivAbsMask (divisor.getLimbN 3))
@@ -97,7 +104,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_exact_then_return_stack_tail_from_
             (divisor.getLimbN 2) (divisor.getLimbN 3))
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (EvmAsm.Evm64.divStackDispatchPostNoX1 sp
+        (EvmAsm.Evm64.divStackDispatchPostCallable sp
           (sdivAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
             (dividend.getLimbN 2) (dividend.getLimbN 3))
           (sdivAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
@@ -111,9 +118,9 @@ theorem saveRa_signs_abs_signXor_then_divCall_exact_then_return_stack_tail_from_
          (.x7 ↦ᵣ dividendValueOld) ** (.x11 ↦ᵣ dividendCarryOld)) **
         evmStackIs sp (dividend :: divisor :: rest)) **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
-      (saveRaDivCallCallableReturnPost vRa sp base
+      (saveRaDivCallCallableReturnPostNoX9 vRa sp base
         (dividend.getLimbN 0) (dividend.getLimbN 1)
         (dividend.getLimbN 2) (dividend.getLimbN 3)
         (divisor.getLimbN 0) (divisor.getLimbN 1)
@@ -121,7 +128,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_exact_then_return_stack_tail_from_
        evmStackIs (sp + 64) rest) := by
   let scratchFrame : EvmAsm.Rv64.Assertion :=
     ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-     EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
        shiftMem nMem jMem retMem dMem dloMem scratchUn0)
   have hBase :=
     saveRa_signs_abs_signXor_then_divCall_exact_then_return_normalized_named_post_from_handoff_spec_in_sdivCode
@@ -168,16 +175,16 @@ theorem saveRa_signs_abs_signXor_then_divCall_exact_then_return_sign_fixed_word_
         (base + wrapperEndOff)
         ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.divCode_noNop (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPre sp
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp
           (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
           (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-          ((base + divCallOff) + 4) v2 v5 v6
+          (sdivAbsSign divisorTop) ((base + divCallOff) + 4) v2 v5 v6
           (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
           (sdivAbsMask divisorTop)
           (sdivAbsCarry3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (EvmAsm.Evm64.divStackDispatchPostNoX1 sp
+        (EvmAsm.Evm64.divStackDispatchPostCallable sp
           (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
           (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop) **
           (.x1 ↦ᵣ ((base + divCallOff) + 4)))) :
@@ -188,13 +195,13 @@ theorem saveRa_signs_abs_signXor_then_divCall_exact_then_return_sign_fixed_word_
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
-      (saveRaDivCallCallableReturnSignFixedWordPost vRa sp base
+      (saveRaDivCallCallableReturnSignFixedWordPostNoX9 vRa sp base
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop) := by
   exact EvmAsm.Rv64.cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => by
-      rw [saveRaDivCallCallableReturnPost_evmWordIs] at hp
+      rw [saveRaDivCallCallableReturnPostNoX9_evmWordIs] at hp
       exact hp)
     (saveRa_signs_abs_signXor_then_divCall_exact_then_return_normalized_named_post_from_handoff_spec_in_sdivCode
       vRa vSavedOld sp sDividendOld sDivisorOld

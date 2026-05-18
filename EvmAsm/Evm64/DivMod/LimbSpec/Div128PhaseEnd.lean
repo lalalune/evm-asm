@@ -33,7 +33,7 @@ open EvmAsm.Rv64
     Input: x12=sp, x2=retAddr, x10=d, x5=uLo, x7=uHi.
     Output: x6=dHi, x11=un1, x5=un0 (saved), x7=uHi (unchanged). -/
 theorem divK_div128_phase1_spec_within
-    (sp retAddr d uLo uHi v1Old v6Old v11Old
+    (sp retAddr d uLo uHi v9Old v6Old v11Old
      retMem dMem dloMem un0Mem : Word) (base : Word) :
     let dHi := d >>> (32 : BitVec 6).toNat
     let dLo := (d <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
@@ -43,23 +43,23 @@ theorem divK_div128_phase1_spec_within
       CodeReq.union (CodeReq.singleton base (.SD .x12 .x2 3968))
       (CodeReq.union (CodeReq.singleton (base + 4) (.SD .x12 .x10 3960))
       (CodeReq.union (CodeReq.singleton (base + 8) (.SRLI .x6 .x10 32))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SLLI .x1 .x10 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.SRLI .x1 .x1 32))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.SD .x12 .x1 3952))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SLLI .x9 .x10 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.SRLI .x9 .x9 32))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.SD .x12 .x9 3952))
       (CodeReq.union (CodeReq.singleton (base + 24) (.SRLI .x11 .x5 32))
       (CodeReq.union (CodeReq.singleton (base + 28) (.SLLI .x5 .x5 32))
       (CodeReq.union (CodeReq.singleton (base + 32) (.SRLI .x5 .x5 32))
        (CodeReq.singleton (base + 36) (.SD .x12 .x5 3944))))))))))
     cpsTripleWithin 10 base (base + 40) cr
       ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ uLo) **
+       (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) ** (.x5 ↦ᵣ uLo) **
        (.x11 ↦ᵣ v11Old) ** (.x7 ↦ᵣ uHi) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
        (sp + signExtend12 3944 ↦ₘ un0Mem))
       ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
-       (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ dLo) ** (.x5 ↦ᵣ un0) **
+       (.x6 ↦ᵣ dHi) ** (.x9 ↦ᵣ dLo) ** (.x5 ↦ᵣ un0) **
        (.x11 ↦ᵣ un1) ** (.x7 ↦ᵣ uHi) **
        (sp + signExtend12 3968 ↦ₘ retAddr) **
        (sp + signExtend12 3960 ↦ₘ d) **
@@ -69,9 +69,9 @@ theorem divK_div128_phase1_spec_within
   have I0 := sd_spec_gen_within .x12 .x2 sp retAddr retMem 3968 base
   have I1 := sd_spec_gen_within .x12 .x10 sp d dMem 3960 (base + 4)
   have I2 := srli_spec_gen_within .x6 .x10 v6Old d 32 (base + 8) (by nofun)
-  have I3 := slli_spec_gen_within .x1 .x10 v1Old d 32 (base + 12) (by nofun)
-  have I4 := srli_spec_gen_same_within .x1 (d <<< (32 : BitVec 6).toNat) 32 (base + 16) (by nofun)
-  have I5 := sd_spec_gen_within .x12 .x1 sp dLo dloMem 3952 (base + 20)
+  have I3 := slli_spec_gen_within .x9 .x10 v9Old d 32 (base + 12) (by nofun)
+  have I4 := srli_spec_gen_same_within .x9 (d <<< (32 : BitVec 6).toNat) 32 (base + 16) (by nofun)
+  have I5 := sd_spec_gen_within .x12 .x9 sp dLo dloMem 3952 (base + 20)
   have I6 := srli_spec_gen_within .x11 .x5 v11Old uLo 32 (base + 24) (by nofun)
   have I7 := slli_spec_gen_same_within .x5 uLo 32 (base + 28) (by nofun)
   have I8 := srli_spec_gen_same_within .x5 (uLo <<< (32 : BitVec 6).toNat) 32 (base + 32) (by nofun)

@@ -202,7 +202,7 @@ theorem evm_div_n2_preloop_loop_unified_spec
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 606) base (base + denormOff) (divCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -220,7 +220,7 @@ theorem evm_div_n2_preloop_loop_unified_spec
        ((sp + signExtend12 3968) ↦ₘ retMem) **
        ((sp + signExtend12 3960) ↦ₘ dMem) **
        ((sp + signExtend12 3952) ↦ₘ dloMem) **
-       ((sp + signExtend12 3944) ↦ₘ scratch_un0))
+       ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1)
       (preloopN2UnifiedPost bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
         retMem dMem dloMem scratch_un0) := by
   -- 1. Pre-loop: base → base+448
@@ -236,7 +236,7 @@ theorem evm_div_n2_preloop_loop_unified_spec
      (sp + signExtend12 3968 ↦ₘ retMem) **
      (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) **
-     (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) hPre
   -- 2. Loop: base+448 → base+904 (unified da, with explicit normalized values)
   have hLoop := evm_div_n2_loop_unified_inst bltu_2 bltu_1 bltu_0 sp base
@@ -303,7 +303,7 @@ theorem evm_div_n2_preloop_loop_unified_spec_noNop
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 606) base (base + denormOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -321,7 +321,7 @@ theorem evm_div_n2_preloop_loop_unified_spec_noNop
        ((sp + signExtend12 3968) ↦ₘ retMem) **
        ((sp + signExtend12 3960) ↦ₘ dMem) **
        ((sp + signExtend12 3952) ↦ₘ dloMem) **
-       ((sp + signExtend12 3944) ↦ₘ scratch_un0))
+       ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1)
       (preloopN2UnifiedPost bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
         retMem dMem dloMem scratch_un0) := by
   -- 1. Pre-loop: base → base+448
@@ -337,7 +337,7 @@ theorem evm_div_n2_preloop_loop_unified_spec_noNop
      (sp + signExtend12 3968 ↦ₘ retMem) **
      (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) **
-     (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) hPre
   -- 2. Loop: base+448 → base+904 (unified da, with explicit normalized values)
   have hLoop := evm_div_n2_loop_unified_inst_noNop bltu_2 bltu_1 bltu_0 sp base

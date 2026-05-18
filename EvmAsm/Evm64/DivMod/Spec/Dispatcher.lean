@@ -25,7 +25,7 @@ def divModStackDispatchPre (sp : Word) (a b : EvmWord)
     (v1 v2 v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) : Assertion :=
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
   (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
   (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
   evmWordIs sp a ** evmWordIs (sp + 32) b **
@@ -39,7 +39,7 @@ theorem divModStackDispatchPre_unfold {sp : Word} {a b : EvmWord}
     divModStackDispatchPre sp a b v1 v2 v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
       retMem dMem dloMem scratch_un0 =
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
      (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
      evmWordIs sp a ** evmWordIs (sp + 32) b **
@@ -48,10 +48,74 @@ theorem divModStackDispatchPre_unfold {sp : Word} {a b : EvmWord}
   delta divModStackDispatchPre
   rfl
 
+/-- Callable-ready dispatch precondition shared by DIV and MOD.
+
+Unlike `divModStackDispatchPre`, this keeps `x1` as an exact register atom
+instead of hiding it inside the scratch bundle. `x9` is also explicit so
+callers that carry wrapper-private state in `x9` across the bzero path can
+frame it directly. -/
+@[irreducible]
+def divModStackDispatchPreNoX1 (sp : Word) (a b : EvmWord)
+    (x9Val x1Val v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ x9Val) ** (.x1 ↦ᵣ x1Val) ** (.x2 ↦ᵣ v2) **
+  (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+  (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+  evmWordIs sp a ** evmWordIs (sp + 32) b **
+  divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0
+
+theorem divModStackDispatchPreNoX1_unfold {sp : Word} {a b : EvmWord}
+    {x9Val x1Val v2 v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+     retMem dMem dloMem scratch_un0 : Word} :
+    divModStackDispatchPreNoX1 sp a b x9Val x1Val v2 v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+      retMem dMem dloMem scratch_un0 =
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ x9Val) ** (.x1 ↦ᵣ x1Val) ** (.x2 ↦ᵣ v2) **
+     (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+     (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+     evmWordIs sp a ** evmWordIs (sp + 32) b **
+     divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+       shiftMem nMem jMem retMem dMem dloMem scratch_un0) := by
+  delta divModStackDispatchPreNoX1
+  rfl
+
+/-- Callable-ready dispatch precondition for callers that need exact `x1` but
+    do not carry any `x9` state across the bzero path. -/
+@[irreducible]
+def divModStackDispatchPreCallable (sp : Word) (a b : EvmWord)
+    (x1Val v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ x1Val) ** (.x2 ↦ᵣ v2) **
+  (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+  (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+  evmWordIs sp a ** evmWordIs (sp + 32) b **
+  divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0
+
+theorem divModStackDispatchPreCallable_unfold {sp : Word} {a b : EvmWord}
+    {x1Val v2 v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+     retMem dMem dloMem scratch_un0 : Word} :
+    divModStackDispatchPreCallable sp a b x1Val v2 v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+      retMem dMem dloMem scratch_un0 =
+    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ x1Val) ** (.x2 ↦ᵣ v2) **
+     (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+     (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+     evmWordIs sp a ** evmWordIs (sp + 32) b **
+     divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+       shiftMem nMem jMem retMem dMem dloMem scratch_un0) := by
+  delta divModStackDispatchPreCallable
+  rfl
+
 /-- Final DIV stack-dispatch postcondition. -/
 @[irreducible]
 def divStackDispatchPost (sp : Word) (a b : EvmWord) : Assertion :=
-  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** regOwn .x2 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
   evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
@@ -59,7 +123,7 @@ def divStackDispatchPost (sp : Word) (a b : EvmWord) : Assertion :=
 
 theorem divStackDispatchPost_unfold {sp : Word} {a b : EvmWord} :
     divStackDispatchPost sp a b =
-    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** regOwn .x2 **
      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
      regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
      evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
@@ -88,6 +152,33 @@ theorem divStackDispatchPostNoX1_unfold {sp : Word} {a b : EvmWord} :
   delta divStackDispatchPostNoX1
   rfl
 
+/-- Callable-ready DIV postcondition that omits both exact `x1` and exact `x9`.
+    Callers frame those registers explicitly around the no-NOP body and return
+    instruction. -/
+@[irreducible]
+def divStackDispatchPostCallable (sp : Word) (a b : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x2 **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+  evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+  divScratchOwnCallNoX1 sp
+
+theorem divStackDispatchPostCallable_unfold {sp : Word} {a b : EvmWord} :
+    divStackDispatchPostCallable sp a b =
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x2 **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+     evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+     divScratchOwnCallNoX1 sp) := by
+  delta divStackDispatchPostCallable
+  rfl
+
+theorem divStackDispatchPostCallable_pcFree (sp : Word) (a b : EvmWord) :
+    (divStackDispatchPostCallable sp a b).pcFree := by
+  rw [divStackDispatchPostCallable_unfold, divScratchOwnCallNoX1_unfold,
+    divScratchOwn_unfold]
+  pcFree
+
 theorem divStackDispatchPost_weaken
     (sp : Word) (a b : EvmWord)
     {v1 v2 v5 v6 v7 v10 v11 : Word}
@@ -95,7 +186,7 @@ theorem divStackDispatchPost_weaken
      shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
-       (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x9 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
        (.x0 ↦ᵣ (0 : Word)) **
@@ -127,8 +218,8 @@ theorem divStackDispatchPostNoX1_weaken_frame
         evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
         divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratch_un0) **
-       (.x1 ↦ᵣ v1)) h →
-      (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ v1)) h := by
+       (.x9 ↦ᵣ v1)) h →
+      (divStackDispatchPostNoX1 sp a b ** (.x9 ↦ᵣ v1)) h := by
   intro h hp
   rw [divStackDispatchPostNoX1_unfold]
   apply sepConj_mono_left _ h hp
@@ -155,13 +246,13 @@ theorem divStackDispatchPostNoX1_weaken
      shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
-       (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x9 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
        evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
        divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
          shiftMem nMem jMem retMem dMem dloMem scratch_un0) h →
-      (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ v1)) h := by
+      (divStackDispatchPostNoX1 sp a b ** (.x9 ↦ᵣ v1)) h := by
   intro h hp
   exact divStackDispatchPostNoX1_weaken_frame (sp := sp) (a := a) (b := b) h
     (by xperm_hyp hp)
@@ -169,7 +260,7 @@ theorem divStackDispatchPostNoX1_weaken
 /-- Final MOD stack-dispatch postcondition. -/
 @[irreducible]
 def modStackDispatchPost (sp : Word) (a b : EvmWord) : Assertion :=
-  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** regOwn .x2 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
   evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
@@ -177,7 +268,7 @@ def modStackDispatchPost (sp : Word) (a b : EvmWord) : Assertion :=
 
 theorem modStackDispatchPost_unfold {sp : Word} {a b : EvmWord} :
     modStackDispatchPost sp a b =
-    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** regOwn .x2 **
      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
      regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
      evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
@@ -206,6 +297,31 @@ theorem modStackDispatchPostNoX1_unfold {sp : Word} {a b : EvmWord} :
   delta modStackDispatchPostNoX1
   rfl
 
+/-- Callable-ready MOD postcondition that omits both exact `x1` and exact `x9`. -/
+@[irreducible]
+def modStackDispatchPostCallable (sp : Word) (a b : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x2 **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+  evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
+  divScratchOwnCallNoX1 sp
+
+theorem modStackDispatchPostCallable_unfold {sp : Word} {a b : EvmWord} :
+    modStackDispatchPostCallable sp a b =
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x2 **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+     evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
+     divScratchOwnCallNoX1 sp) := by
+  delta modStackDispatchPostCallable
+  rfl
+
+theorem modStackDispatchPostCallable_pcFree (sp : Word) (a b : EvmWord) :
+    (modStackDispatchPostCallable sp a b).pcFree := by
+  rw [modStackDispatchPostCallable_unfold, divScratchOwnCallNoX1_unfold,
+    divScratchOwn_unfold]
+  pcFree
+
 theorem modStackDispatchPostNoX1_pcFree (sp : Word) (a b : EvmWord) :
     (modStackDispatchPostNoX1 sp a b).pcFree := by
   rw [modStackDispatchPostNoX1_unfold]
@@ -219,7 +335,7 @@ theorem modStackDispatchPost_weaken
      shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
-       (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x9 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
        (.x0 ↦ᵣ (0 : Word)) **
@@ -334,7 +450,7 @@ theorem fullDivN1UnifiedPost_to_divStackDispatchPostNoX1
       fullDivN1UnifiedPost bltu_3 bltu_2 bltu_1 bltu_0 sp base
         a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 h →
       (divStackDispatchPostNoX1 sp a b **
-        (.x1 ↦ᵣ (signExtend12 4095 : Word))) h := by
+        (.x9 ↦ᵣ (signExtend12 4095 : Word))) h := by
   intro h hq
   let shift := fullDivN1Shift b0
   let antiShift := signExtend12 (0 : BitVec 12) - shift
@@ -715,7 +831,7 @@ theorem evm_div_n1_stack_spec_within_word_exact_x1
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
       (divStackDispatchPostNoX1 sp a b **
-        (.x1 ↦ᵣ (signExtend12 4095 : Word))) := by
+        (.x9 ↦ᵣ (signExtend12 4095 : Word))) := by
   obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
     fullDivN1_hdivs_of_word_eq bltu_3 bltu_2 bltu_1 bltu_0
       a b a0 a1 a2 a3 b0 b1 b2 b3 hdivWord
@@ -1123,7 +1239,7 @@ theorem fullDivN3UnifiedPost_to_divStackDispatchPostNoX1
       fullDivN3UnifiedPost bltu_1 bltu_0 sp base
         a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 h →
       (divStackDispatchPostNoX1 sp a b **
-        (.x1 ↦ᵣ (signExtend12 4095 : Word))) h := by
+        (.x9 ↦ᵣ (signExtend12 4095 : Word))) h := by
   intro h hq
   let shift := fullDivN3Shift b2
   let antiShift := signExtend12 (0 : BitVec 12) - shift
@@ -1286,8 +1402,8 @@ theorem evm_div_n3_stack_spec_within_noNop
 
 /-- Weaken the framed bzero-MOD postcondition to `modStackDispatchPostNoX1`.
     Mirrors `modStackDispatchPost_weaken_bzero_frame` but uses the NoX1 variant,
-    keeping `.x1 ↦ᵣ v1` as an explicit post atom instead of absorbing it into
-    `regOwn .x1`. -/
+    keeping `.x9 ↦ᵣ v1` as an explicit post atom instead of absorbing it into
+    `regOwn .x9`. -/
 theorem modStackDispatchPostNoX1_weaken_bzero_frame
     (sp : Word) (a b : EvmWord)
     {v2 v6 v7 v11 : Word}
@@ -1331,7 +1447,7 @@ def modBzeroDispatchPostPreservingX1Frame (sp : Word) (a b : EvmWord)
      shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) : Assertion :=
   ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x5 ** regOwn .x10 **
     (.x0 ↦ᵣ (0 : Word)) ** evmWordIs (sp + 32) (EvmWord.mod a b)) **
-  ((.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+  ((.x9 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
     (.x11 ↦ᵣ v11) ** evmWordIs sp a **
     divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       shiftMem nMem jMem retMem dMem dloMem scratch_un0)
@@ -1345,7 +1461,7 @@ theorem modBzeroDispatchPostPreservingX1Frame_unfold
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 =
       (((.x12 ↦ᵣ (sp + 32)) ** regOwn .x5 ** regOwn .x10 **
         (.x0 ↦ᵣ (0 : Word)) ** evmWordIs (sp + 32) (EvmWord.mod a b)) **
-       ((.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       ((.x9 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
         (.x11 ↦ᵣ v11) ** evmWordIs sp a **
         divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratch_un0)) := by
@@ -1353,7 +1469,7 @@ theorem modBzeroDispatchPostPreservingX1Frame_unfold
   rfl
 
 /-- Weaken `modBzeroDispatchPostPreservingX1Frame` to
-    `modStackDispatchPostNoX1 ** (.x1 ↦ᵣ v1)`. This is the MOD-side analog of
+    `modStackDispatchPostNoX1 ** (.x9 ↦ᵣ v1)`. This is the MOD-side analog of
     `divBzeroDispatchPostPreservingX1Frame_weaken_noX1`. -/
 theorem modBzeroDispatchPostPreservingX1Frame_weaken_noX1
     (sp : Word) (a b : EvmWord)
@@ -1364,7 +1480,7 @@ theorem modBzeroDispatchPostPreservingX1Frame_weaken_noX1
     modBzeroDispatchPostPreservingX1Frame sp a b v1 v2 v6 v7 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 h →
-    (modStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ v1)) h := by
+    (modStackDispatchPostNoX1 sp a b ** (.x9 ↦ᵣ v1)) h := by
   intro h hp
   rw [modBzeroDispatchPostPreservingX1Frame_unfold] at hp
   simp only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hp ⊢

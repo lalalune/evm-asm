@@ -31,7 +31,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_bzero_stack_entry_zero_spec_in_sdi
          (.x7 ↦ᵣ dividendValueOld) ** (.x11 ↦ᵣ dividendCarryOld)) **
         evmStackIs sp (dividend :: divisor :: rest)) **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-        EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0))
       (let dividendAbsWord :=
          sdivAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
@@ -57,7 +57,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_bzero_stack_entry_zero_spec_in_sdi
   exact EvmAsm.Rv64.cpsTripleWithin_weaken (fun h hp => by
       let scratchFrame : EvmAsm.Rv64.Assertion :=
         ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
-         EvmAsm.Evm64.divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
            shiftMem nMem jMem retMem dMem dloMem scratchUn0)
       have h_old :
           ((saveRaSignsAbsSignXorThenDivCallPre

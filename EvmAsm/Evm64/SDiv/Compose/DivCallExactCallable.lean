@@ -17,7 +17,7 @@ open EvmAsm.Rv64.Tactics
     `DivStackSpecCase.x1`, whose nonzero constructors use the dispatcher-local
     scratch value `0` instead of the wrapper return address. -/
 theorem evm_div_callable_preserving_x1_exact_pre_spec_in_sdivCode
-    (sp base raVal : Word) (a b : EvmWord) (v2 v5 v6 v7 v10 v11 : Word)
+    (sp base x9Val raVal : Word) (a b : EvmWord) (v2 v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
     (hStack :
@@ -25,18 +25,18 @@ theorem evm_div_callable_preserving_x1_exact_pre_spec_in_sdivCode
         (base + wrapperEndOff)
         ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.divCode_noNop (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPre sp a b
-          raVal v2 v5 v6 v7 v10 v11
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp a b
+          x9Val raVal v2 v5 v6 v7 v10 v11
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal))) :
+        (EvmAsm.Evm64.divStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal))) :
     EvmAsm.Rv64.cpsTripleWithin (EvmAsm.Evm64.unifiedDivBound + 1)
       (base + wrapperEndOff) (raVal &&& ~~~1) (sdivCode base)
-      (EvmAsm.Evm64.divModStackDispatchPre sp a b
-        raVal v2 v5 v6 v7 v10 v11
+      (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp a b
+        x9Val raVal v2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-      (EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal)) := by
+      (EvmAsm.Evm64.divStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) := by
   have hStackCallDiv :=
     EvmAsm.Rv64.cpsTripleWithin_extend_code
       (hmono := EvmAsm.Evm64.divCode_noNop_sub_div_callable_code)
@@ -56,8 +56,8 @@ theorem evm_div_callable_preserving_x1_exact_pre_spec_in_sdivCode
       hRetDiv
   have hRetFramed :=
     EvmAsm.Rv64.cpsTripleWithin_frameL
-      (EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b)
-      (divStackDispatchPostNoX1_pcFree (sp := sp) (a := a) (b := b))
+      (EvmAsm.Evm64.divStackDispatchPostCallable sp a b)
+      (EvmAsm.Evm64.divStackDispatchPostCallable_pcFree sp a b)
       hRet
   exact EvmAsm.Rv64.cpsTripleWithin_seq_same_cr hStackCall hRetFramed
 
@@ -138,7 +138,7 @@ theorem evm_div_callable_preserving_branch_return_x1_framed_spec_in_sdivCode
     frame. -/
 theorem evm_div_callable_preserving_x1_exact_pre_framed_spec_in_sdivCode
     {F : EvmAsm.Rv64.Assertion} [EvmAsm.Rv64.Assertion.PCFree F]
-    (sp base raVal : Word) (a b : EvmWord) (v2 v5 v6 v7 v10 v11 : Word)
+    (sp base x9Val raVal : Word) (a b : EvmWord) (v2 v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
     (hStack :
@@ -146,22 +146,22 @@ theorem evm_div_callable_preserving_x1_exact_pre_framed_spec_in_sdivCode
         (base + wrapperEndOff)
         ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.divCode_noNop (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPre sp a b
-          raVal v2 v5 v6 v7 v10 v11
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp a b
+          x9Val raVal v2 v5 v6 v7 v10 v11
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal))) :
+        (EvmAsm.Evm64.divStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal))) :
     EvmAsm.Rv64.cpsTripleWithin (EvmAsm.Evm64.unifiedDivBound + 1)
       (base + wrapperEndOff) (raVal &&& ~~~1) (sdivCode base)
-      (EvmAsm.Evm64.divModStackDispatchPre sp a b
-        raVal v2 v5 v6 v7 v10 v11
+      (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp a b
+        x9Val raVal v2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** F)
-      ((EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal)) ** F) := by
+      ((EvmAsm.Evm64.divStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) ** F) := by
   exact
     EvmAsm.Rv64.cpsTripleWithin_frameR F (by pcFree)
       (evm_div_callable_preserving_x1_exact_pre_spec_in_sdivCode
-        sp base raVal a b v2 v5 v6 v7 v10 v11
+        sp base x9Val raVal a b v2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         nMem shiftMem jMem retMem dMem dloMem scratchUn0 hStack)
 

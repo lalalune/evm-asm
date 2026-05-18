@@ -618,7 +618,7 @@ set_option maxRecDepth 4096 in
     Entry: base+516, Exit: base+728, CodeReq: sharedDivModCode base. -/
 private theorem divK_mulsub_full_spec_within_of_sub
     (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
-    (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
+    (v9Old v5Old v6Old v7Old v10Old v2Old : Word)
     (base : Word)
     (code : CodeReq)
     (hsub : ∀ (k : Nat) (addr : Word) (instr : Instr)
@@ -665,7 +665,7 @@ private theorem divK_mulsub_full_spec_within_of_sub
     let u4_new := uTop - c3
     cpsTripleWithin 53 (base + div128CallRetOff) (base + correctionSkipBeqOff) code
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v9Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -675,7 +675,7 @@ private theorem divK_mulsub_full_spec_within_of_sub
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop))
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ borrow) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -691,7 +691,7 @@ private theorem divK_mulsub_full_spec_within_of_sub
         p3_lo p3_hi fs3 ba3 pc3 bs3 un3 c3
         borrow u4_new
   -- 1. Mulsub setup: instrs [17]-[21] at base+516
-  have S := divK_mulsub_setup_spec_within sp qHat j v1Old v5Old v6Old v10Old (base + div128CallRetOff)
+  have S := divK_mulsub_setup_spec_within sp qHat j v9Old v5Old v6Old v10Old (base + div128CallRetOff)
   rw [lb_ms_setup] at S
   have Se := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (hsub 17 _ _ (by decide) (by bv_addr) (by decide))
@@ -732,7 +732,7 @@ private theorem divK_mulsub_full_spec_within_of_sub
 
 theorem divK_mulsub_full_spec_within
     (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
-    (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
+    (v9Old v5Old v6Old v7Old v10Old v2Old : Word)
     (base : Word) :
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let p0_lo := qHat * v0
@@ -771,7 +771,7 @@ theorem divK_mulsub_full_spec_within
     let u4_new := uTop - c3
     cpsTripleWithin 53 (base + div128CallRetOff) (base + correctionSkipBeqOff) (sharedDivModCode base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v9Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -781,7 +781,7 @@ theorem divK_mulsub_full_spec_within
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop))
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ borrow) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -791,12 +791,12 @@ theorem divK_mulsub_full_spec_within
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3) **
        ((uBase + signExtend12 4064) ↦ₘ u4_new)) :=
   divK_mulsub_full_spec_within_of_sub sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    v1Old v5Old v6Old v7Old v10Old v2Old base (sharedDivModCode base) lb_sub
+    v9Old v5Old v6Old v7Old v10Old v2Old base (sharedDivModCode base) lb_sub
 
 /-- `divK_mulsub_full_spec_within` replayed over the DIV no-NOP code surface. -/
 theorem divK_mulsub_full_spec_within_noNop
     (sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
-    (v1Old v5Old v6Old v7Old v10Old v2Old : Word)
+    (v9Old v5Old v6Old v7Old v10Old v2Old : Word)
     (base : Word) :
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let p0_lo := qHat * v0
@@ -835,7 +835,7 @@ theorem divK_mulsub_full_spec_within_noNop
     let u4_new := uTop - c3
     cpsTripleWithin 53 (base + div128CallRetOff) (base + correctionSkipBeqOff) (divCode_noNop base)
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ v1Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x9 ↦ᵣ v9Old) ** (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x2 ↦ᵣ v2Old) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -845,7 +845,7 @@ theorem divK_mulsub_full_spec_within_noNop
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
        ((uBase + signExtend12 4064) ↦ₘ uTop))
       ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ qHat) **
-       (.x1 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
+       (.x9 ↦ᵣ j) ** (.x5 ↦ᵣ u4_new) ** (.x6 ↦ᵣ uBase) **
        (.x7 ↦ᵣ borrow) ** (.x10 ↦ᵣ c3) ** (.x2 ↦ᵣ un3) **
        (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -855,7 +855,7 @@ theorem divK_mulsub_full_spec_within_noNop
        ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3) **
        ((uBase + signExtend12 4064) ↦ₘ u4_new)) :=
   divK_mulsub_full_spec_within_of_sub sp qHat j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    v1Old v5Old v6Old v7Old v10Old v2Old base (divCode_noNop base) lb_sub_noNop
+    v9Old v5Old v6Old v7Old v10Old v2Old base (divCode_noNop base) lb_sub_noNop
 
 theorem lb_beq_taken {base : Word} : (base + correctionSkipBeqOff : Word) + signExtend13 (156 : BitVec 13) = base + storeLoopOff := by
   rv64_addr
@@ -1041,14 +1041,14 @@ theorem divK_save_trial_load_spec_within
     let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
     cpsTripleWithin 13 (base + loopBodyOff) (base + trialCallOff) (sharedDivModCode base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) **
        (sp + signExtend12 3976 ↦ₘ jOld) **
        (sp + signExtend12 3984 ↦ₘ n) **
        (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
        (vtopBase + signExtend12 32 ↦ₘ vTop))
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
        (sp + signExtend12 3976 ↦ₘ j) **
@@ -1103,14 +1103,14 @@ theorem divK_save_trial_load_spec_within_noNop
     let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
     let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
     cpsTripleWithin 13 (base + loopBodyOff) (base + trialCallOff) (divCode_noNop base)
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
        (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) **
        (sp + signExtend12 3976 ↦ₘ jOld) **
        (sp + signExtend12 3984 ↦ₘ n) **
        (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
        (vtopBase + signExtend12 32 ↦ₘ vTop))
-      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
        (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
        (.x7 ↦ᵣ uHi) ** (.x10 ↦ᵣ vTop) **
        (sp + signExtend12 3976 ↦ₘ j) **

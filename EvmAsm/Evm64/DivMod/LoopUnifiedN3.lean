@@ -59,7 +59,7 @@ theorem divK_loop_n3_unified_spec_within (bltu_1 bltu_0 : Bool)
       ((sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (by pcFree) hMM
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => by delta loopN3PreWithScratch at hp; xperm_hyp hp)
@@ -131,7 +131,7 @@ theorem divK_loop_n3_unified_spec_within_noNop (bltu_1 bltu_0 : Bool)
       ((sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
        (sp + signExtend12 3952 ↦ₘ dloMem) **
-       (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (by pcFree) hMM
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun h hp => by delta loopN3PreWithScratch at hp; xperm_hyp hp)
