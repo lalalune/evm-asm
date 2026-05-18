@@ -13,6 +13,33 @@ namespace EvmAsm.Evm64.Exp.Compose
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
+private theorem word_add_even_and_one_eq_zero
+    (base k : Word) (hbase : base &&& 1 = 0) (hk0 : k.getLsbD 0 = false) :
+    (base + k : Word) &&& 1 = 0 := by
+  have hbase0 : base.getLsbD 0 = false := by
+    have h := congr_arg (·.getLsbD 0) hbase
+    simp only [BitVec.getLsbD_and,
+      show (BitVec.getLsbD (1 : Word) 0) = true from by simp,
+      Bool.and_true] at h
+    exact h
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  simp only [BitVec.getLsbD_and]
+  rcases Nat.eq_zero_or_pos i with rfl | hi0
+  · rw [show (BitVec.getLsbD (1 : Word) 0) = true from by simp, Bool.and_true]
+    rw [BitVec.getLsbD_add (by omega : 0 < 64)]
+    have h_carry : BitVec.carry 0 base k false = false := by
+      simp [BitVec.carry, Nat.mod_one]
+    rw [hk0, h_carry, Bool.false_xor, Bool.xor_false, hbase0]
+    simp
+  · have h1i : (BitVec.getLsbD (1 : Word) i) = false := by
+      simp only [show (1 : Word) = BitVec.ofNat 64 1 from rfl]
+      rw [BitVec.getLsbD_ofNat, decide_eq_true hi, Bool.true_and,
+        Nat.testBit_lt_two_pow]
+      exact (Nat.pow_lt_pow_right (by norm_num) hi0).trans_le le_rfl
+    rw [h1i, Bool.and_false]
+    simp [BitVec.getLsbD_zero]
+
 /-- CodeReq decomposition for the fixed saved-bit iteration with separate
     MUL-call offsets at the squaring and conditional-multiply JAL sites. -/
 abbrev expIterBodyFullMsbSavedBitTwoMulFixedCode (base : Word)
@@ -313,8 +340,9 @@ theorem exp_squaring_call_block_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_w
        memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
        (.x1 ↦ᵣ ((base + 32) + 68))) := by
   intro squareW
-  have hbase' : (base + 32 : Word) &&& 1 = 0 := by bv_decide
-  have hSquareSub : ∀ a i,
+  have hbase' : (base + 32 : Word) &&& 1 = 0 :=
+    word_add_even_and_one_eq_zero base (32 : Word) hbase (by simp)
+  have h_square_sub : ∀ a i,
       exp_squaring_call_block_code (base + 32) squaringMulOff a = some i →
       expIterBodyFullMsbSavedBitTwoMulFixedCode
         base squaringMulOff condMulOff skipOff backOff a = some i :=
@@ -323,39 +351,39 @@ theorem exp_squaring_call_block_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_w
       (exp_squaring_call_block_code (base + 32) squaringMulOff)
       (mul_callable_code mulTarget) := by
     intro a
-    rcases hd a with hExp | hMul
+    rcases hd a with h_exp | h_mul
     · left
       cases hsub : exp_squaring_call_block_code (base + 32) squaringMulOff a with
       | none => rfl
       | some i =>
-        have hev := hSquareSub a i hsub
-        exact absurd (hev.symm.trans hExp) (by simp)
+        have h_ev := h_square_sub a i hsub
+        exact absurd (h_ev.symm.trans h_exp) (by simp)
     · right
-      exact hMul
+      exact h_mul
   have h := EvmAsm.Evm64.exp_squaring_call_block_spec_within
     sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
     v6 v7 v10 v11 mulTarget squaringMulOff (base + 32) hbase' hmt hd_inner
   have haddr : (base + 32 : Word) + 104 = base + 136 := by bv_addr
   rw [haddr] at h
-  have hSquareSubUnion : ∀ a i,
+  have h_square_sub_union : ∀ a i,
       exp_squaring_call_block_code (base + 32) squaringMulOff a = some i →
       ((expIterBodyFullMsbSavedBitTwoMulFixedCode
         base squaringMulOff condMulOff skipOff backOff).union
         (mul_callable_code mulTarget)) a = some i := by
     intro a i hi
-    simp only [CodeReq.union, hSquareSub a i hi]
-  have hMulSubUnion : ∀ a i, mul_callable_code mulTarget a = some i →
+    simp only [CodeReq.union, h_square_sub a i hi]
+  have h_mul_sub_union : ∀ a i, mul_callable_code mulTarget a = some i →
       ((expIterBodyFullMsbSavedBitTwoMulFixedCode
         base squaringMulOff condMulOff skipOff backOff).union
         (mul_callable_code mulTarget)) a = some i := by
     intro a i hi
-    rcases hd a with hIter | hMul
-    · simp only [CodeReq.union, hIter, hi]
-    · rw [hi] at hMul
+    rcases hd a with h_iter | h_mul
+    · simp only [CodeReq.union, h_iter, hi]
+    · rw [hi] at h_mul
       contradiction
   exact cpsTripleWithin_extend_code
     (h := h)
-    (hmono := CodeReq.union_sub hSquareSubUnion hMulSubUnion)
+    (hmono := CodeReq.union_sub h_square_sub_union h_mul_sub_union)
 
 /-- Conditional-multiply taken call block lifted to the decomposed fixed
     iteration body plus the external `mul_callable` code. The leading saved-bit
@@ -408,8 +436,9 @@ theorem exp_cond_mul_call_block_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_w
        memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
        (.x1 ↦ᵣ ((base + 140) + 68))) := by
   intro r aw
-  have hbase' : (base + 140 : Word) &&& 1 = 0 := by bv_decide
-  have hCondSub : ∀ a i,
+  have hbase' : (base + 140 : Word) &&& 1 = 0 :=
+    word_add_even_and_one_eq_zero base (140 : Word) hbase (by simp)
+  have h_cond_sub : ∀ a i,
       exp_cond_mul_call_block_code (base + 140) condMulOff a = some i →
       expIterBodyFullMsbSavedBitTwoMulFixedCode
         base squaringMulOff condMulOff skipOff backOff a = some i := by
@@ -425,39 +454,39 @@ theorem exp_cond_mul_call_block_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_w
       (exp_cond_mul_call_block_code (base + 140) condMulOff)
       (mul_callable_code mulTarget) := by
     intro a
-    rcases hd a with hExp | hMul
+    rcases hd a with h_exp | h_mul
     · left
       cases hsub : exp_cond_mul_call_block_code (base + 140) condMulOff a with
       | none => rfl
       | some i =>
-        have hev := hCondSub a i hsub
-        exact absurd (hev.symm.trans hExp) (by simp)
+        have h_ev := h_cond_sub a i hsub
+        exact absurd (h_ev.symm.trans h_exp) (by simp)
     · right
-      exact hMul
+      exact h_mul
   have h := EvmAsm.Evm64.exp_cond_mul_call_block_spec_within
     sp evmSp tOld vOld r0 r1 r2 r3 a0 a1 a2 a3 d0 d1 d2 d3 e0 e1 e2 e3
     v6 v7 v10 v11 mulTarget condMulOff (base + 140) hbase' hmt hd_inner
   have haddr : (base + 140 : Word) + 104 = base + 244 := by bv_addr
   rw [haddr] at h
-  have hCondSubUnion : ∀ a i,
+  have h_cond_sub_union : ∀ a i,
       exp_cond_mul_call_block_code (base + 140) condMulOff a = some i →
       ((expIterBodyFullMsbSavedBitTwoMulFixedCode
         base squaringMulOff condMulOff skipOff backOff).union
         (mul_callable_code mulTarget)) a = some i := by
     intro a i hi
-    simp only [CodeReq.union, hCondSub a i hi]
-  have hMulSubUnion : ∀ a i, mul_callable_code mulTarget a = some i →
+    simp only [CodeReq.union, h_cond_sub a i hi]
+  have h_mul_sub_union : ∀ a i, mul_callable_code mulTarget a = some i →
       ((expIterBodyFullMsbSavedBitTwoMulFixedCode
         base squaringMulOff condMulOff skipOff backOff).union
         (mul_callable_code mulTarget)) a = some i := by
     intro a i hi
-    rcases hd a with hIter | hMul
-    · simp only [CodeReq.union, hIter, hi]
-    · rw [hi] at hMul
+    rcases hd a with h_iter | h_mul
+    · simp only [CodeReq.union, h_iter, hi]
+    · rw [hi] at h_mul
       contradiction
   exact cpsTripleWithin_extend_code
     (h := h)
-    (hmono := CodeReq.union_sub hCondSubUnion hMulSubUnion)
+    (hmono := CodeReq.union_sub h_cond_sub_union h_mul_sub_union)
 
 /-- Loop-back block lifted to the decomposed fixed iteration body. -/
 theorem exp_loop_back_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
@@ -477,15 +506,15 @@ theorem exp_loop_back_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
           ⌜expTwoMulIterCountNew c = 0⌝) := by
   have h := EvmAsm.Evm64.exp_loop_back_spec_within c backOff (base + 244)
     target htarget
-  have hLifted := cpsBranchWithin_extend_code (h := h)
+  have h_lifted := cpsBranchWithin_extend_code (h := h)
     (hmono := fun a i hi =>
       expIterBodyFullMsbSavedBitTwoMulFixedCode_loop_back_sub
         (base := base) (squaringMulOff := squaringMulOff)
         (condMulOff := condMulOff) (skipOff := skipOff) (backOff := backOff)
         a i hi)
   have haddr : (base + 244 : Word) + 8 = base + 252 := by bv_addr
-  rw [haddr] at hLifted
+  rw [haddr] at h_lifted
   simpa [expTwoMulIterCountNew] using
-    hLifted
+    h_lifted
 
 end EvmAsm.Evm64.Exp.Compose
