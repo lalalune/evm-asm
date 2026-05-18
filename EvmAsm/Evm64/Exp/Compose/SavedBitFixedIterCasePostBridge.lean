@@ -50,6 +50,24 @@ theorem expTwoMulFixedIterMergedExits_eq_caseExits
       r0 r1 r2 r3 a0 a1 a2 a3 base := by
   rfl
 
+theorem expTwoMulFixedIterCaseLoopPost_zero_count_false
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} {ps : PartialState}
+    (hzero : expTwoMulIterCountNew iterCount = 0) :
+    ¬ expTwoMulFixedIterCaseLoopPost iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base ps := by
+  rw [← expTwoMulFixedIterMergedLoopPost_eq_caseLoopPost]
+  exact expTwoMulFixedIterMergedLoopPost_zero_count_false hzero
+
+theorem expTwoMulFixedIterCaseExitPost_nonzero_count_false
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} {ps : PartialState}
+    (hne : expTwoMulIterCountNew iterCount ≠ 0) :
+    ¬ expTwoMulFixedIterCaseExitPost iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base ps := by
+  rw [← expTwoMulFixedIterMergedExitPost_eq_caseExitPost]
+  exact expTwoMulFixedIterMergedExitPost_nonzero_count_false hne
+
 /-- Named-exit-list view of one fixed x19 merged iteration, stated directly
     with case-post loop and exit assertions. -/
 theorem exp_msb_bit_test_fixed_full_iter_case_posts_nbranch_evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_spec_within
