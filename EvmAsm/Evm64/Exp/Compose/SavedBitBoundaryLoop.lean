@@ -567,6 +567,58 @@ theorem exp_two_mul_full_loop_boundary_of_body_general_spec_within
       sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 iterCountNew
       r0 r1 r2 r3 d0 d1 d2 d3 baseWord exponentWord rest exitCond base hLoop
 
+/-- Generalized boundary wrapper that factors out the loop-entry assertion
+    bridge.
+
+    Downstream full-loop wire-up can instantiate `P` with the concrete first
+    iteration precondition produced from `expTwoMulLoopEntryPost`, while the
+    body proof targets the generalized full-stack loop-exit pre-frame. -/
+theorem exp_two_mul_full_loop_boundary_of_entry_body_general_spec_within
+    {P : Assertion}
+    (sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 iterCountNew
+      r0 r1 r2 r3 d0 d1 d2 d3 : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (exitCond : Prop) (base : Word)
+    (hEntry :
+      ∀ hp,
+        expTwoMulLoopEntryPost sp evmSp vOld v18 baseWord exponentWord rest hp →
+        P hp)
+    (hBody :
+      cpsTripleWithin expTwoMulFullLoopBodyBound (base + 28) (base + 264)
+        (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+        P
+        (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountNew tOld
+          r0 r1 r2 r3 d0 d1 d2 d3 baseWord rest exitCond)) :
+    cpsTripleWithin expTwoMulFullLoopBoundaryBound base (base + 304)
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulBoundaryPre sp evmSp cOld tOld m0 m1 m2 m3 vOld v18
+        baseWord exponentWord rest)
+      (expTwoMulLoopExitPost sp evmSp iterCountNew r0 r1 r2 r3
+        baseWord rest exitCond) := by
+  have hEntryTriple :
+      cpsTripleWithin 0 (base + 28) (base + 28)
+        (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+        (expTwoMulLoopEntryPost sp evmSp vOld v18 baseWord exponentWord rest)
+        P :=
+    cpsTripleWithin_extend_code
+      (hmono := by
+        intro a i h
+        cases h)
+      (cpsTripleWithin_refl hEntry)
+  have hLoop :
+      cpsTripleWithin (0 + expTwoMulFullLoopBodyBound)
+        (base + 28) (base + 264)
+        (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+        (expTwoMulLoopEntryPost sp evmSp vOld v18 baseWord exponentWord rest)
+        (expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountNew tOld
+          r0 r1 r2 r3 d0 d1 d2 d3 baseWord rest exitCond) :=
+    cpsTripleWithin_seq_same_cr hEntryTriple hBody
+  exact
+    exp_two_mul_full_loop_boundary_of_body_general_spec_within
+      sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 iterCountNew
+      r0 r1 r2 r3 d0 d1 d2 d3 baseWord exponentWord rest exitCond base
+      (by simpa using hLoop)
+
 /-- Closed-form variant of
     `exp_two_mul_full_loop_boundary_of_body_general_spec_within`. -/
 theorem exp_two_mul_full_loop_boundary_of_body_general_closed_bound_spec_within
