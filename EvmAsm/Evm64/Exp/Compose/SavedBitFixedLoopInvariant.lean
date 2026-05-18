@@ -247,6 +247,57 @@ theorem expTwoMulFixedAccumulatorStep_true_eq_condRw
     expSquaringCallSquareW, expTwoMulIterAw]
   ac_rfl
 
+theorem expTwoMulFixedAccumulatorInvariant_succ_of_squareW_false
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {r0 r1 r2 r3 : Word}
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3)
+    (hSemanticStep :
+      expTwoMulFixedAccumulatorStep baseWord
+        (expTwoMulFixedAccumulatorTarget baseWord exponentWord k) false =
+        expTwoMulFixedAccumulatorTarget baseWord exponentWord (k + 1)) :
+    expTwoMulFixedAccumulatorInvariant baseWord exponentWord (k + 1)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 0)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 1)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 2)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3) := by
+  exact
+    expTwoMulFixedAccumulatorInvariant_succ_of_step
+      hInv
+      (by
+        rw [expResultWord_getLimbN_self,
+          expTwoMulFixedAccumulatorStep_false_eq_squareW])
+      hSemanticStep
+
+theorem expTwoMulFixedAccumulatorInvariant_succ_of_condRw_true
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {a0 a1 a2 a3 r0 r1 r2 r3 : Word}
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3)
+    (hSemanticStep :
+      expTwoMulFixedAccumulatorStep baseWord
+        (expTwoMulFixedAccumulatorTarget baseWord exponentWord k) true =
+        expTwoMulFixedAccumulatorTarget baseWord exponentWord (k + 1)) :
+    expTwoMulFixedAccumulatorInvariant baseWord exponentWord (k + 1)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 0)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 1)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 2)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+        a0 a1 a2 a3).getLimbN 3) := by
+  exact
+    expTwoMulFixedAccumulatorInvariant_succ_of_step
+      hInv
+      (by
+        rw [expResultWord_getLimbN_self,
+          expTwoMulFixedAccumulatorStep_true_eq_condRw hBase])
+      hSemanticStep
+
 /-- Semantic accumulator obtained by running `n` generic fixed-loop updates
     starting from the target at iteration `k`.
 
