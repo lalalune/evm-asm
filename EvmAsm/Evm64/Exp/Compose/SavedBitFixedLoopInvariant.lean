@@ -33,6 +33,23 @@ theorem expTwoMulFixedAccumulatorTarget_full
       EvmWord.exp baseWord exponentWord := by
   simp [expTwoMulFixedAccumulatorTarget, expTwoMulFixedProcessedExponent_full]
 
+theorem expTwoMulFixedProcessedExponent_zero (exponentWord : EvmWord) :
+    expTwoMulFixedProcessedExponent exponentWord 0 = 0 := by
+  unfold expTwoMulFixedProcessedExponent
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+  exact Nat.div_eq_of_lt exponentWord.isLt
+
+theorem expTwoMulFixedAccumulatorTarget_zero
+    (baseWord exponentWord : EvmWord) :
+    expTwoMulFixedAccumulatorTarget baseWord exponentWord 0 = 1 := by
+  rw [expTwoMulFixedAccumulatorTarget, expTwoMulFixedProcessedExponent_zero]
+  exact EvmWord.exp_zero_right baseWord
+
+theorem expResultWord_one_zero_zero_zero :
+    expResultWord 1 0 0 0 = (1 : EvmWord) := by
+  native_decide
+
 /-- The next exponent bit consumed by iteration `k`, as a Bool.
 
     The fixed loop scans most-significant bit first, so iteration `k` consumes
@@ -110,6 +127,13 @@ def expTwoMulFixedAccumulatorInvariant
     (r0 r1 r2 r3 : Word) : Prop :=
   expResultWord r0 r1 r2 r3 =
     expTwoMulFixedAccumulatorTarget baseWord exponentWord k
+
+theorem expTwoMulFixedAccumulatorInvariant_zero_one
+    (baseWord exponentWord : EvmWord) :
+    expTwoMulFixedAccumulatorInvariant baseWord exponentWord 0 1 0 0 0 := by
+  unfold expTwoMulFixedAccumulatorInvariant
+  rw [expResultWord_one_zero_zero_zero,
+    expTwoMulFixedAccumulatorTarget_zero]
 
 @[irreducible]
 def expTwoMulFixedSemanticInvariant
