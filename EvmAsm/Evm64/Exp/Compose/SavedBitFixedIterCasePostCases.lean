@@ -168,6 +168,33 @@ theorem expTwoMulFixedIterSkipRest_scratch_decomp
     expTwoMulFixedIterSkipRestScratchSuffix at *
   sep_perm h
 
+abbrev expTwoMulFixedIterReloadSkipRestScratchSuffix
+    (e c6 ptr nextLimb base : Word) : Assertion :=
+  let bit := e >>> (63 : BitVec 6).toNat
+  let c6New := c6 + signExtend12 (-1 : BitVec 12)
+  (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
+  (.x19 ↦ᵣ nextLimb) **
+  (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
+  ⌜c6New = 0⌝ **
+  (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
+  ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
+  ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝
+
+theorem expTwoMulFixedIterReloadSkipRest_scratch_decomp
+    {e c6 ptr nextLimb sp evmSp r0 r1 r2 r3 base : Word}
+    {ps : PartialState}
+    (h :
+      expTwoMulFixedIterReloadSkipRest e c6 ptr nextLimb sp evmSp
+        r0 r1 r2 r3 base ps) :
+    (expTwoMulFixedIterSkipRestScratchPrefix sp evmSp r0 r1 r2 r3 **
+      expTwoMulFixedIterScratchOwn evmSp **
+      expTwoMulFixedIterReloadSkipRestScratchSuffix e c6 ptr nextLimb base) ps := by
+  unfold expTwoMulFixedIterReloadSkipRest
+    expTwoMulFixedIterSkipRestScratchPrefix
+    expTwoMulFixedIterScratchOwn
+    expTwoMulFixedIterReloadSkipRestScratchSuffix at *
+  sep_perm h
+
 theorem expTwoMulFixedIterCaseLoopPost_iff
     {iterCount e c6 ptr nextLimb sp evmSp
       r0 r1 r2 r3 a0 a1 a2 a3 base : Word} {ps : PartialState} :
