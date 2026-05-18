@@ -2,13 +2,10 @@
   EvmAsm.Codegen.Programs
 
   Registry of programs the codegen tool knows how to emit.
-
-  M0 registers only the synthetic smoke target. M1+ will add `evm_add`
-  (`EvmAsm/Evm64/Add/Program.lean`) and friends, plus the tiny-interpreter
-  composite in M5.
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Evm64.Add.Program
 
 namespace EvmAsm.Codegen
 
@@ -24,10 +21,11 @@ def smoke : Program :=
 /-- Look up a program by name. Returns `none` for unknown names so the CLI
     can produce a clean error. -/
 def lookupProgram : String → Option Program
-  | "smoke" => some smoke
-  | _       => none
+  | "smoke"   => some smoke
+  | "evm_add" => some EvmAsm.Evm64.evm_add
+  | _         => none
 
 /-- List of known program names, for use in CLI usage strings. -/
-def knownProgramNames : List String := ["smoke"]
+def knownProgramNames : List String := ["smoke", "evm_add"]
 
 end EvmAsm.Codegen
