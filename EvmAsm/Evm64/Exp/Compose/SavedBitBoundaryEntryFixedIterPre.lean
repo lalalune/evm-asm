@@ -12,6 +12,30 @@ namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
 
+theorem expTwoMulFixedFirstIterCountNew_eq :
+    expTwoMulIterCountNew (256 : Word) = 255 := by
+  decide
+
+theorem expTwoMulFixedFirstIterCountNew_ne_zero :
+    expTwoMulIterCountNew (256 : Word) ≠ 0 := by
+  rw [expTwoMulFixedFirstIterCountNew_eq]
+  decide
+
+theorem expTwoMulFixedFirstIterC6_decrement_eq :
+    ((0 : Word) + signExtend12 (64 : BitVec 12)) +
+      signExtend12 (-1 : BitVec 12) = 63 := by
+  decide
+
+theorem expTwoMulFixedFirstIterPointer_eq {evmSp : Word} :
+    evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12) =
+      evmSp + 48 := by
+  bv_addr
+
+theorem expTwoMulFixedFirstIterBodyBase_aligned
+    {base : Word} (hbase : base &&& 1 = 0) :
+    (base + 44 : Word) &&& 1 = 0 :=
+  EvmAsm.Evm64.Exp.AddrNorm.expBaseAdd44Aligned base hbase
+
 /-- Canonical fixed-loop first-iteration precondition after the prologue.
     The first two words below the EXP operands become the `d`/`e` limb groups
     at the advanced iteration stack pointer `evmSp + 64`. -/
