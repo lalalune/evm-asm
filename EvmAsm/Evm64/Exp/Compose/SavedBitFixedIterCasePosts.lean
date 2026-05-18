@@ -189,4 +189,168 @@ abbrev expTwoMulFixedIterCaseExitPost
     expTwoMulFixedIterReloadExitPost iterCount e c6 ptr nextLimb sp evmSp
       r0 r1 r2 r3 a0 a1 a2 a3 base ps
 
+private theorem pcFree_disj {P Q : Assertion} (hP : P.pcFree) (hQ : Q.pcFree) :
+    Assertion.pcFree (fun ps => P ps ∨ Q ps) := by
+  intro h hp
+  rcases hp with hp | hp
+  · exact hP h hp
+  · exact hQ h hp
+
+theorem expTwoMulFixedIterBaseFrame_pcFree {evmSp a0 a1 a2 a3 : Word} :
+    (expTwoMulFixedIterBaseFrame evmSp a0 a1 a2 a3).pcFree := by
+  unfold expTwoMulFixedIterBaseFrame
+  pcFree
+
+theorem expTwoMulFixedIterPointerPost_pcFree {ptr nextLimb : Word} :
+    (expTwoMulFixedIterPointerPost ptr nextLimb).pcFree := by
+  unfold expTwoMulFixedIterPointerPost
+  pcFree
+
+theorem expTwoMulFixedIterSkipCondFrame_pcFree {e c6 : Word} :
+    (expTwoMulFixedIterSkipCondFrame e c6).pcFree := by
+  unfold expTwoMulFixedIterSkipCondFrame
+  pcFree
+
+theorem expTwoMulFixedIterSkipRest_pcFree
+    {e c6 sp evmSp r0 r1 r2 r3 base : Word} :
+    (expTwoMulFixedIterSkipRest e c6 sp evmSp r0 r1 r2 r3 base).pcFree := by
+  unfold expTwoMulFixedIterSkipRest
+  pcFree
+
+theorem expTwoMulFixedIterSkipCondRest_pcFree
+    {sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base : Word} :
+    (expTwoMulFixedIterSkipCondRest sp evmSp r0 r1 r2 r3
+      a0 a1 a2 a3 base).pcFree := by
+  unfold expTwoMulFixedIterSkipCondRest
+  pcFree
+
+theorem expTwoMulFixedIterReloadCondFrame_pcFree
+    {e c6 ptr nextLimb : Word} :
+    (expTwoMulFixedIterReloadCondFrame e c6 ptr nextLimb).pcFree := by
+  unfold expTwoMulFixedIterReloadCondFrame
+  pcFree
+
+theorem expTwoMulFixedIterReloadSkipRest_pcFree
+    {e c6 ptr nextLimb sp evmSp r0 r1 r2 r3 base : Word} :
+    (expTwoMulFixedIterReloadSkipRest e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 base).pcFree := by
+  unfold expTwoMulFixedIterReloadSkipRest
+  pcFree
+
+theorem expTwoMulFixedIterSkipCondCountPost_pcFree
+    {iterCount e c6 sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {exitCond : Prop} :
+    (expTwoMulFixedIterSkipCondCountPost iterCount e c6 sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base exitCond).pcFree := by
+  unfold expTwoMulFixedIterSkipCondCountPost expTwoMulFixedIterSkipCondRest
+    expTwoMulFixedIterSkipCondFrame
+  pcFree
+
+theorem expTwoMulFixedIterSkipCountPost_pcFree
+    {iterCount e c6 sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {exitCond : Prop} :
+    (expTwoMulFixedIterSkipCountPost iterCount e c6 sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base exitCond).pcFree := by
+  unfold expTwoMulFixedIterSkipCountPost expTwoMulFixedIterSkipRest
+    expTwoMulFixedIterBaseFrame
+  pcFree
+
+theorem expTwoMulFixedIterReloadCondCountPost_pcFree
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} {exitCond : Prop} :
+    (expTwoMulFixedIterReloadCondCountPost iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base exitCond).pcFree := by
+  unfold expTwoMulFixedIterReloadCondCountPost expTwoMulFixedIterSkipCondRest
+    expTwoMulFixedIterReloadCondFrame
+  pcFree
+
+theorem expTwoMulFixedIterReloadSkipCountPost_pcFree
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} {exitCond : Prop} :
+    (expTwoMulFixedIterReloadSkipCountPost iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base exitCond).pcFree := by
+  unfold expTwoMulFixedIterReloadSkipCountPost expTwoMulFixedIterReloadSkipRest
+    expTwoMulFixedIterBaseFrame
+  pcFree
+
+theorem expTwoMulFixedIterSkipLoopPost_pcFree
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} :
+    (expTwoMulFixedIterSkipLoopPost iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base).pcFree := by
+  unfold expTwoMulFixedIterSkipLoopPost
+  exact pcFree_sepConj
+    (pcFree_disj
+      expTwoMulFixedIterSkipCondCountPost_pcFree
+      expTwoMulFixedIterSkipCountPost_pcFree)
+    expTwoMulFixedIterPointerPost_pcFree
+
+theorem expTwoMulFixedIterReloadLoopPost_pcFree
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} :
+    (expTwoMulFixedIterReloadLoopPost iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base).pcFree := by
+  unfold expTwoMulFixedIterReloadLoopPost
+  exact pcFree_disj
+    expTwoMulFixedIterReloadCondCountPost_pcFree
+    expTwoMulFixedIterReloadSkipCountPost_pcFree
+
+theorem expTwoMulFixedIterSkipExitPost_pcFree
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} :
+    (expTwoMulFixedIterSkipExitPost iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base).pcFree := by
+  unfold expTwoMulFixedIterSkipExitPost
+  exact pcFree_sepConj
+    (pcFree_disj
+      expTwoMulFixedIterSkipCondCountPost_pcFree
+      expTwoMulFixedIterSkipCountPost_pcFree)
+    expTwoMulFixedIterPointerPost_pcFree
+
+theorem expTwoMulFixedIterReloadExitPost_pcFree
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} :
+    (expTwoMulFixedIterReloadExitPost iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base).pcFree := by
+  unfold expTwoMulFixedIterReloadExitPost
+  exact pcFree_disj
+    expTwoMulFixedIterReloadCondCountPost_pcFree
+    expTwoMulFixedIterReloadSkipCountPost_pcFree
+
+theorem expTwoMulFixedIterCaseLoopPost_pcFree
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} :
+    (expTwoMulFixedIterCaseLoopPost iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base).pcFree := by
+  unfold expTwoMulFixedIterCaseLoopPost
+  exact pcFree_disj
+    expTwoMulFixedIterSkipLoopPost_pcFree
+    expTwoMulFixedIterReloadLoopPost_pcFree
+
+theorem expTwoMulFixedIterCaseExitPost_pcFree
+    {iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word} :
+    (expTwoMulFixedIterCaseExitPost iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base).pcFree := by
+  unfold expTwoMulFixedIterCaseExitPost
+  exact pcFree_disj
+    expTwoMulFixedIterSkipExitPost_pcFree
+    expTwoMulFixedIterReloadExitPost_pcFree
+
+instance pcFreeInst_expTwoMulFixedIterCaseLoopPost
+    (iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word) :
+    Assertion.PCFree
+      (expTwoMulFixedIterCaseLoopPost iterCount e c6 ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base) :=
+  ⟨expTwoMulFixedIterCaseLoopPost_pcFree⟩
+
+instance pcFreeInst_expTwoMulFixedIterCaseExitPost
+    (iterCount e c6 ptr nextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word) :
+    Assertion.PCFree
+      (expTwoMulFixedIterCaseExitPost iterCount e c6 ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base) :=
+  ⟨expTwoMulFixedIterCaseExitPost_pcFree⟩
+
 end EvmAsm.Evm64.Exp.Compose
