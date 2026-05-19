@@ -197,4 +197,48 @@ theorem expTwoMulFixedIterPreNWithControlFrame_to_iterPre_frame
   simp only [sepConj_emp_right'] at h
   exact h
 
+theorem expTwoMulFixedIterPreNWithControlFrame_to_iterPreN_frame_of_control_eq_machine
+    {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
+    {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word}
+    {frame : Assertion} {ps : PartialState}
+    (hControlMachine : controlC6 = machineC6)
+    (h :
+      expTwoMulFixedIterPreNWithControlFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 frame ps) :
+    expTwoMulFixedIterPreNWithFrame k baseWord exponentWord
+      e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+      tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+      a0 a1 a2 a3 v7 v11 frame ps := by
+  subst controlC6
+  rw [expTwoMulFixedIterPreNWithControlFrame_unfold,
+    expTwoMulFixedIterPreNWithControl_unfold] at h
+  rw [expTwoMulFixedIterPreNWithFrame_unfold,
+    expTwoMulFixedIterPreN_unfold]
+  exact h
+
+theorem expTwoMulFixedIterPreNWithFrame_to_iterPreNWithControlFrame
+    {k : Nat} {baseWord exponentWord : EvmWord}
+    {e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word}
+    {frame : Assertion} {ps : PartialState}
+    (h :
+      expTwoMulFixedIterPreNWithFrame k baseWord exponentWord
+        e c6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 frame ps) :
+    expTwoMulFixedIterPreNWithControlFrame k baseWord exponentWord
+      c6 e c6 iterCount v10 v18 ptr nextLimb sp evmSp
+      tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+      a0 a1 a2 a3 v7 v11 frame ps := by
+  rw [expTwoMulFixedIterPreNWithControlFrame_unfold,
+    expTwoMulFixedIterPreNWithControl_unfold]
+  rw [expTwoMulFixedIterPreNWithFrame_unfold,
+    expTwoMulFixedIterPreN_unfold] at h
+  exact h
+
 end EvmAsm.Evm64.Exp.Compose
