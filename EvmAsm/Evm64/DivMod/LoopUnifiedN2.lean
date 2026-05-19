@@ -409,7 +409,10 @@ theorem divK_loop_n2_call_iter10_spec_within (bltu_1 bltu_0 : Bool)
       xperm_hyp hp)
     J2f H10f
   exact cpsTripleWithin_weaken
-    (fun h hp => by delta loopN2PreWithScratch loopN2Pre at hp; xperm_hyp hp)
+    (fun h hp => by
+      delta loopN2PreWithScratch loopN2Pre at hp
+      rw [loopBodyN2J2CallPre_unfold]
+      xperm_hyp hp)
     (fun h hp => by
       delta loopN2UnifiedPost loopN2Iter10Post at hp ⊢
       simp only [iterN2_true, ite_true] at hp ⊢
@@ -480,7 +483,10 @@ theorem divK_loop_n2_call_iter10_spec_within_noNop (bltu_1 bltu_0 : Bool)
       xperm_hyp hp)
     J2f H10f
   exact cpsTripleWithin_weaken
-    (fun h hp => by delta loopN2PreWithScratch loopN2Pre at hp; xperm_hyp hp)
+    (fun h hp => by
+      delta loopN2PreWithScratch loopN2Pre at hp
+      rw [loopBodyN2J2CallPre_unfold]
+      xperm_hyp hp)
     (fun h hp => by
       delta loopN2UnifiedPost loopN2Iter10Post at hp ⊢
       simp only [iterN2_true, ite_true] at hp ⊢
