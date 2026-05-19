@@ -209,6 +209,29 @@ theorem expTwoMulFixedReloadTailFrameN_second_eq_succ_reload_limb
   · rw [Nat.sub_eq_zero_of_le (Nat.zero_le (k / 64)),
       Nat.sub_eq_zero_of_le (by omega : 1 ≤ k / 64 + 1)]
 
+theorem expTwoMulFixedReloadTailFrameN_handoff
+    {exponentWord : EvmWord} {k : Nat} {ptr : Word}
+    (hMod : k % 64 = 63) :
+    expTwoMulFixedReloadTailFrameN exponentWord k ptr =
+      (expTwoMulFixedReloadLimbFrameN exponentWord k ptr **
+        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+          (ptr + signExtend12 (-8 : BitVec 12))) := by
+  rw [expTwoMulFixedReloadTailFrameN_unfold,
+    expTwoMulFixedReloadTailFrameN_second_eq_succ_reload_limb hMod]
+
+theorem expTwoMulFixedReloadTailFrameN_handoff_of_control
+    {exponentWord : EvmWord} {k : Nat}
+    {c6 ptr nextLimb evmSp : Word}
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) = 0) :
+    expTwoMulFixedReloadTailFrameN exponentWord k ptr =
+      (expTwoMulFixedReloadLimbFrameN exponentWord k ptr **
+        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+          (ptr + signExtend12 (-8 : BitVec 12))) :=
+  expTwoMulFixedReloadTailFrameN_handoff
+    (expTwoMulFixedControlInvariant_reload_mod hControl hC6)
+
 theorem expTwoMulFixedControlInvariant_nextLimb
     {exponentWord : EvmWord} {k : Nat}
     {c6 ptr nextLimb evmSp : Word}
