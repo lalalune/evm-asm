@@ -21,6 +21,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopIterN1.Max
+import EvmAsm.Evm64.DivMod.LoopIterN1.MaxV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN1.Call
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN1.MaxBeq
