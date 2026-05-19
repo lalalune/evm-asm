@@ -107,4 +107,56 @@ theorem expTwoMulFixedIterCaseLoopPost_to_stepPostNWithControlFrame
     expTwoMulFixedIterCaseLoopPost_branchPreNWithControl_or_branchReloadWithControlFrame
       hk hBase hCursor hControl hNextNext hInv h
 
+theorem expTwoMulFixedIterCaseLoopPost_to_stepPostNWithControl
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {ps : PartialState}
+    (hk : k < 256)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hCursor : expTwoMulFixedCursorInvariant exponentWord k e)
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3)
+    (h :
+      expTwoMulFixedIterCaseLoopPost iterCount e c6 ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base ps) :
+    expTwoMulFixedIterStepPostNWithControlFrame k baseWord exponentWord
+      iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base empAssertion ps := by
+  apply
+    expTwoMulFixedIterCaseLoopPost_to_stepPostNWithControlFrame
+      (frame := empAssertion) hk hBase hCursor hControl hNextNext hInv
+  simpa [sepConj_emp_right'] using h
+
+theorem cpsTripleWithin_expTwoMulFixedIterCaseLoopPost_to_stepPostNWithControl
+    (addr : Word)
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    (hk : k < 256)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hCursor : expTwoMulFixedCursorInvariant exponentWord k e)
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3) :
+    cpsTripleWithin 0 addr addr CodeReq.empty
+      (expTwoMulFixedIterCaseLoopPost iterCount e c6 ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base)
+      (expTwoMulFixedIterStepPostNWithControlFrame k baseWord exponentWord
+        iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base empAssertion) :=
+  cpsTripleWithin_refl
+    (fun _hp h =>
+      expTwoMulFixedIterCaseLoopPost_to_stepPostNWithControl
+        hk hBase hCursor hControl hNextNext hInv h)
+
 end EvmAsm.Evm64.Exp.Compose
