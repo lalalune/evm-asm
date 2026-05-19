@@ -145,6 +145,67 @@ theorem cpsTripleWithin_expTwoMulFixedIterPre_to_stepPostNWithControlFrame
       (fun _ h => expTwoMulFixedIterStepPostNWithControlFrame_attach_frame h)
       hFramed
 
+theorem cpsTripleWithin_expTwoMulFixedIterPreNWithControlFrame_to_stepPost_of_control_eq_machine
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    (controlC6 e machineC6 iterCount v10 v18 ptr nextLimb
+      nextNextLimb sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 : Word)
+    (base : Word)
+    (frame : Assertion)
+    (hFrame : frame.pcFree)
+    (hbase : (base + 44 : Word) &&& 1 = 0)
+    (hControlMachine : controlC6 = machineC6)
+    (hne : expTwoMulIterCountNew iterCount ≠ 0)
+    (hk : k < 256)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64)) :
+    cpsTripleWithin 193 (base + 44) (base + 44)
+      (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedIterPreNWithControlFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 frame)
+      (expTwoMulFixedIterStepPostNWithControlFrame k baseWord exponentWord
+        iterCount e controlC6 ptr nextLimb nextNextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base frame) := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, psPre, psR, hDisjoint, hUnion, hPreN, hR_ps⟩ := hPR
+  rcases expTwoMulFixedIterPreNWithControlFrame_pures hPreN with
+    ⟨hInv, hCursor, hControl⟩
+  have hControlMachineInv :
+      expTwoMulFixedControlInvariant exponentWord k
+        machineC6 ptr nextLimb evmSp := by
+    simpa [hControlMachine] using hControl
+  have hPreFrame :
+      (expTwoMulFixedIterPre e machineC6 iterCount v10 v18 ptr nextLimb
+        sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 **
+        frame) psPre :=
+    expTwoMulFixedIterPreNWithControlFrame_to_iterPre_frame hPreN
+  have hPR' :
+      ((expTwoMulFixedIterPre e machineC6 iterCount v10 v18 ptr nextLimb
+        sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 **
+        frame) ** R).holdsFor s :=
+    ⟨hp, hcompat, psPre, psR, hDisjoint, hUnion, hPreFrame, hR_ps⟩
+  have hSpec :
+      cpsTripleWithin 193 (base + 44) (base + 44)
+        (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+        (expTwoMulFixedIterPre e machineC6 iterCount v10 v18 ptr nextLimb
+          sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+          a0 a1 a2 a3 v7 v11 **
+          frame)
+        (expTwoMulFixedIterStepPostNWithControlFrame k baseWord exponentWord
+          iterCount e machineC6 ptr nextLimb nextNextLimb sp evmSp
+          r0 r1 r2 r3 a0 a1 a2 a3 base frame) :=
+    cpsTripleWithin_expTwoMulFixedIterPre_to_stepPostNWithControlFrame
+      e machineC6 iterCount v10 v18 ptr nextLimb nextNextLimb sp evmSp
+      tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+      a0 a1 a2 a3 v7 v11 base frame hFrame hbase hne hk hBase hCursor
+      hControlMachineInv hNextNext hInv
+  simpa [← hControlMachine] using hSpec R hR s hcr hPR' hpc
+
 theorem cpsTripleWithin_expTwoMulFixedIterPre_seq_stepPostNWithControl
     {baseWord exponentWord : EvmWord} {k : Nat}
     {nSteps : Nat} {exit : Word} {Q : Assertion}
