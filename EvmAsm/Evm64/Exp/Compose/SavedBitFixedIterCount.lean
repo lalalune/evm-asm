@@ -36,6 +36,12 @@ theorem expTwoMulFixedRemainingIterations_succ_pos
   unfold expTwoMulFixedRemainingIterations
   omega
 
+theorem expTwoMulFixedRemainingIterations_pos
+    {k : Nat} (hk : k < 256) :
+    0 < expTwoMulFixedRemainingIterations k := by
+  unfold expTwoMulFixedRemainingIterations
+  omega
+
 theorem expTwoMulFixedRemainingIterations_succ_final :
     expTwoMulFixedRemainingIterations (255 + 1) = 0 := by
   rfl
@@ -90,6 +96,19 @@ theorem expTwoMulFixedIterCountInvariant_succ
     rw [hCount, expTwoMulFixedRemainingIterations_succ hk]
   exact expTwoMulIterCountNew_toNat_of_eq_succ h_succ
 
+theorem expTwoMulFixedIterCountInvariant_ne_zero
+    {k : Nat} {iterCount : Word}
+    (hk : k < 256)
+    (hCount : expTwoMulFixedIterCountInvariant k iterCount) :
+    iterCount ≠ 0 := by
+  intro h_zero
+  unfold expTwoMulFixedIterCountInvariant at hCount
+  have h_toNat : iterCount.toNat = 0 := by
+    simp [h_zero]
+  rw [hCount] at h_toNat
+  have h_pos := expTwoMulFixedRemainingIterations_pos hk
+  omega
+
 theorem expTwoMulFixedIterCountInvariant_succ_ne_zero
     {k : Nat} {iterCount : Word}
     (hk : k + 1 < 256)
@@ -103,6 +122,13 @@ theorem expTwoMulFixedIterCountInvariant_succ_ne_zero
     rw [hCount, expTwoMulFixedRemainingIterations_succ hk_lt]
   exact expTwoMulIterCountNew_ne_zero_of_toNat_succ_pos h_succ
     (expTwoMulFixedRemainingIterations_succ_pos hk)
+
+theorem expTwoMulFixedIterCountInvariant_succ_ne_zero_of_lt_255
+    {k : Nat} {iterCount : Word}
+    (hk : k < 255)
+    (hCount : expTwoMulFixedIterCountInvariant k iterCount) :
+    expTwoMulIterCountNew iterCount ≠ 0 := by
+  exact expTwoMulFixedIterCountInvariant_succ_ne_zero (by omega) hCount
 
 theorem expTwoMulFixedIterCountInvariant_succ_eq_zero
     {iterCount : Word}
