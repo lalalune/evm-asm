@@ -488,6 +488,64 @@ theorem cpsTripleWithin_expTwoMulFixedIterStepPostNWithControlFrame_branchState_
         (hBranch bit v6 v7 v10 v11 d0 d1 d2 d3))
     hReload
 
+/-- CPS eliminator whose ordinary and reload continuations are both stated
+    over successor-state surfaces. -/
+theorem cpsTripleWithin_expTwoMulFixedIterStepPostNWithControlFrame_state_elim
+    {nSteps : Nat} {addr exit : Word} {cr : CodeReq}
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {iterCount e controlC6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {frame Q : Assertion}
+    (hk : k < 256)
+    (hCount : expTwoMulFixedIterCountInvariant k iterCount)
+    (hBranch :
+      ∀ (bit : Bool)
+        (v6 v7 v10 v11 d0 d1 d2 d3 : Word),
+        cpsTripleWithin nSteps addr exit cr
+          (let outW := expTwoMulFixedBranchResult bit
+            a0 a1 a2 a3 r0 r1 r2 r3
+          expTwoMulFixedIterPreNWithStateFrame (k + 1) baseWord exponentWord
+            (controlC6 + signExtend12 (-1 : BitVec 12))
+            (e <<< (1 : BitVec 6).toNat)
+            v6
+            (expTwoMulIterCountNew iterCount)
+            v10
+            ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
+            ptr nextLimb sp evmSp
+            (outW.getLimbN 3)
+            (expTwoMulFixedBranchReturnPc bit base)
+            (outW.getLimbN 0) (outW.getLimbN 1) (outW.getLimbN 2)
+            (outW.getLimbN 3)
+            d0 d1 d2 d3
+            (outW.getLimbN 0) (outW.getLimbN 1) (outW.getLimbN 2)
+            (outW.getLimbN 3)
+            a0 a1 a2 a3 v7 v11
+            frame)
+          Q)
+    (hReload :
+      ∀ (bit : Bool)
+        (v6 v7 v10 v11 d0 d1 d2 d3 : Word),
+        cpsTripleWithin nSteps addr exit cr
+          (expTwoMulFixedReloadBranchResidualWithStateFrame bit (k := k)
+            baseWord exponentWord iterCount e controlC6 ptr nextLimb
+            nextNextLimb sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base
+            v6 v7 v10 v11 d0 d1 d2 d3 frame)
+          Q) :
+    cpsTripleWithin nSteps addr exit cr
+      (expTwoMulFixedIterStepPostNWithControlFrame k baseWord exponentWord
+        iterCount e controlC6 ptr nextLimb nextNextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base frame)
+      Q :=
+  cpsTripleWithin_expTwoMulFixedIterStepPostNWithControlFrame_branchState_elim
+    hk hCount hBranch
+    (fun bit v6 v7 v10 v11 d0 d1 d2 d3 =>
+      cpsTripleWithin_weaken
+        (fun _ h =>
+          expTwoMulFixedReloadBranchResidualWithControlFrame_to_stateFrame
+            (bit := bit) (expTwoMulFixedIterCountInvariant_succ hk hCount) h)
+        (fun _ h => h)
+        (hReload bit v6 v7 v10 v11 d0 d1 d2 d3))
+
 /-- CPS case-loop bridge for the fixed-loop induction.  The non-reload
     recursive edge is presented as a `WithStateFrame (k+1)` precondition;
     reload-pointer edges stay as residuals for the existing reload handlers. -/
@@ -548,6 +606,67 @@ theorem cpsTripleWithin_expTwoMulFixedIterCaseLoopPost_branchState_elim
       (cpsTripleWithin_expTwoMulFixedIterCaseLoopPost_to_stepPostNWithControlFrame
         addr frame hk hBase hState.2.1 hState.2.2.1 hNextNext hState.1)
       (cpsTripleWithin_expTwoMulFixedIterStepPostNWithControlFrame_branchState_elim
+        hk hState.2.2.2 hBranch hReload)
+
+/-- CPS case-loop bridge with both recursive edge shapes carrying the
+    successor iteration state. -/
+theorem cpsTripleWithin_expTwoMulFixedIterCaseLoopPost_state_elim
+    {nSteps : Nat} {addr exit : Word} {cr : CodeReq}
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {iterCount e controlC6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {frame Q : Assertion}
+    (hk : k < 256)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hState :
+      expTwoMulFixedIterStateInvariant baseWord exponentWord k
+        iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3)
+    (hBranch :
+      ∀ (bit : Bool)
+        (v6 v7 v10 v11 d0 d1 d2 d3 : Word),
+        cpsTripleWithin nSteps addr exit cr
+          (let outW := expTwoMulFixedBranchResult bit
+            a0 a1 a2 a3 r0 r1 r2 r3
+          expTwoMulFixedIterPreNWithStateFrame (k + 1) baseWord exponentWord
+            (controlC6 + signExtend12 (-1 : BitVec 12))
+            (e <<< (1 : BitVec 6).toNat)
+            v6
+            (expTwoMulIterCountNew iterCount)
+            v10
+            ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
+            ptr nextLimb sp evmSp
+            (outW.getLimbN 3)
+            (expTwoMulFixedBranchReturnPc bit base)
+            (outW.getLimbN 0) (outW.getLimbN 1) (outW.getLimbN 2)
+            (outW.getLimbN 3)
+            d0 d1 d2 d3
+            (outW.getLimbN 0) (outW.getLimbN 1) (outW.getLimbN 2)
+            (outW.getLimbN 3)
+            a0 a1 a2 a3 v7 v11
+            frame)
+          Q)
+    (hReload :
+      ∀ (bit : Bool)
+        (v6 v7 v10 v11 d0 d1 d2 d3 : Word),
+        cpsTripleWithin nSteps addr exit cr
+          (expTwoMulFixedReloadBranchResidualWithStateFrame bit (k := k)
+            baseWord exponentWord iterCount e controlC6 ptr nextLimb
+            nextNextLimb sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base
+            v6 v7 v10 v11 d0 d1 d2 d3 frame)
+          Q) :
+    cpsTripleWithin nSteps addr exit cr
+      (expTwoMulFixedIterCaseLoopPost iterCount e controlC6 ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base **
+        frame)
+      Q := by
+  simpa [Nat.zero_add, CodeReq.union_empty_left] using
+    cpsTripleWithin_seq
+      (CodeReq.Disjoint.empty_left cr)
+      (cpsTripleWithin_expTwoMulFixedIterCaseLoopPost_to_stepPostNWithControlFrame
+        addr frame hk hBase hState.2.1 hState.2.2.1 hNextNext hState.1)
+      (cpsTripleWithin_expTwoMulFixedIterStepPostNWithControlFrame_state_elim
         hk hState.2.2.2 hBranch hReload)
 
 /-- Bounded one-step wrapper whose nonzero decremented-count premise comes
