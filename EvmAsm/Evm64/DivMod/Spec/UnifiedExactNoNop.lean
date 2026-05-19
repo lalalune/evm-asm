@@ -221,4 +221,56 @@ theorem evm_div_n3_stack_spec_within_word_exact_x1_noNop_uni
       ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2nz
       hshift_nz halign hbltu_1 hbltu_0 hcarry2 hdivWord)
 
+/-- Single named exact-`x1` DIV stack spec over `divCode_noNop`. -/
+theorem evm_div_stack_spec_exact_x1_noNop (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (branch : DivStackSpecCase base a b) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+      (divModStackDispatchPre sp a b
+        branch.x9 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPostNoX1 sp a b ** (.x9 ↦ᵣ branch.returnX1)) := by
+  cases branch with
+  | bzero v1 v2 hbz =>
+      exact evm_div_bzero_stack_spec_within_dispatch_noNop_preserving_x1_uni
+        sp base a b v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0 hbz
+  | n1Full bltu_3 bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1z hshift_nz halign
+      hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n1_stack_spec_within_word_exact_x1_noNop_uni
+        bltu_3 bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1z hshift_nz halign
+        hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  | n2Full bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1nz hshift_nz halign
+      hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n2_stack_spec_within_word_exact_x1_noNop_uni
+        bltu_2 bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2z hb1nz hshift_nz halign
+        hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  | n3Full bltu_1 bltu_0 hbnz hb3z hb2nz hshift_nz halign
+      hbltu_1 hbltu_0 hcarry2 hmulsub hge =>
+      exact evm_div_n3_stack_spec_within_word_exact_x1_noNop_uni
+        bltu_1 bltu_0 sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0
+        rfl rfl rfl rfl rfl rfl rfl rfl
+        hbnz hb3z hb2nz hshift_nz halign
+        hbltu_1 hbltu_0 hcarry2 hmulsub hge
+
 end EvmAsm.Evm64
