@@ -190,7 +190,14 @@ case "$MODE" in
       echo "PROGRESS.md missing; run scripts/progress-report.sh --write" >&2
       exit 1
     fi
-    if ! diff -u PROGRESS.md "$TMP"; then
+    # Ignore the `> Snapshot:` header line in the drift comparison. The
+    # snapshot SHA/date is sourced from `git rev-parse HEAD` at regen
+    # time and therefore changes with every commit. The intent of that
+    # line is to give human readers an anchor point for the most recent
+    # regeneration — it is NOT meant to lock PROGRESS.md to a specific
+    # commit. Without -I, the drift gate would fire on every PR by
+    # construction, even when no registry content has changed.
+    if ! diff -u -I '^> Snapshot:' PROGRESS.md "$TMP"; then
       cat >&2 <<'EOF2'
 
 PROGRESS.md is out of date relative to the kernel-checked registry in
