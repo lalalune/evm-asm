@@ -1,21 +1,17 @@
 /-
   EvmAsm.Evm64.DivMod.LoopDefs.IterV4
 
-  Fully-corrected div128 trial quotient `div128Quot_v4` — Knuth's
-  classical Algorithm D with up to 2 D3 corrections in BOTH the
-  high-half (Phase-1b) and low-half (Phase-2) trial divisions.
+  v4 div128 trial quotient `div128Quot_v4` — the RV64 v4 program quotient.
 
   Bug history (v1, v2 deprecated; v3 removed in this PR):
   - `div128Quot` (v1): only 1 D3 correction in Phase-1b. Buggy on
     inputs where Knuth's classical D3 loop needs 2 iterations.
-  - `div128Quot_v2`: added a 2nd Phase-1b correction, but the 1st
-    correction had a truncation bug (no `rhatc >> 32 = 0` guard).
+  - `div128Quot_v2`: added a 2nd Phase-1b correction.
   - (v3 was a half-step that fixed Phase-1b but kept 1-correction
     Phase-2; obsolete since `phase2_no_wrap_lo` sub-case b was proven
     FALSE under 1-correction Phase-2.)
-  - `div128Quot_v4` (this file): full 2-correction in both phases.
-    With Knuth's full classical 2-correction loop, the output
-    `qHat = q*_full` exactly — no per-phase overshoot.
+  - `div128Quot_v4` (this file): keeps the v2 Phase-1b chain and adds the
+    Phase-2 2nd D3 correction implemented by `divK_div128_v4`.
 
   Why v4 matters:
   - `phase2_no_wrap_lo_under_runtime` was sorry'd in v2/v3 because
@@ -33,7 +29,7 @@
   Issue #1337 algorithm fix migration / Issue #61 stack spec closure.
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
+import EvmAsm.Evm64.DivMod.LoopDefs.Iter
 
 namespace EvmAsm.Evm64
 
@@ -43,12 +39,8 @@ open EvmAsm.Rv64
     Algorithm D Step D3 with up to 2 correction iterations in BOTH the
     high-half (Phase-1b) and low-half (Phase-2) trial divisions.
 
-    With 2 D3 iterations in each phase, the output `qHat = q*_full =
-    ⌊(uHi*2^64+uLo)/vTop⌋` exactly — no per-phase overshoot.
-
-    Each correction is delegated to `div128Quot_phase2b_q0'` (which has
-    the `rhat' < 2^32` guard built in), so all corrections are idempotent
-    on inputs where the trial quotient is already correct. -/
+    Phase 1b is intentionally identical to the v2 executable/spec surface;
+    the v4 change is the second Phase-2 D3 correction. -/
 def div128Quot_v4 (uHi uLo vTop : Word) : Word :=
   let dHi := vTop >>> (32 : BitVec 6).toNat
   let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
@@ -59,15 +51,11 @@ def div128Quot_v4 (uHi uLo vTop : Word) : Word :=
   let hi1 := q1 >>> (32 : BitVec 6).toNat
   let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
   let rhatc := if hi1 = 0 then rhat else rhat + dHi
-  -- Phase 1b: 1st D3 correction (same as v3 — guarded helper).
-  let q1' := div128Quot_phase2b_q0' q1c rhatc dLo div_un1
-  let rhat' :=
-    if rhatc >>> (32 : BitVec 6).toNat = 0 then
-      let qDlo := q1c * dLo
-      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
-      if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
-    else rhatc
-  -- Phase 1b: 2nd D3 correction (same as v3).
+  -- Phase 1b: v2's first and second D3 corrections.
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
   let q1'' := div128Quot_phase2b_q0' q1' rhat' dLo div_un1
   let rhat'' :=
     if rhat' >>> (32 : BitVec 6).toNat = 0 then
@@ -96,5 +84,11 @@ def div128Quot_v4 (uHi uLo vTop : Word) : Word :=
     else rhat2c
   let q0'' := div128Quot_phase2b_q0' q0' rhat2' dLo div_un0
   (q1'' <<< (32 : BitVec 6).toNat) ||| q0''
+
+/-- Borrow condition for n=1 call+skip with the fully-corrected v4
+    trial quotient: mulsub does not overflow. -/
+def isSkipBorrowN1CallV4 (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
+  let qHat := div128Quot_v4 u1 u0 v0
+  (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word)
 
 end EvmAsm.Evm64
