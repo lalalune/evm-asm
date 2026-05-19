@@ -339,6 +339,41 @@ theorem expTwoMulFixedIterPreNWithStateFrame_to_iterPreNWithControlFrame
   simp only [sepConj_emp_right']
   exact h
 
+theorem expTwoMulFixedIterPreNWithControlFrame_to_iterPreNWithStateFrame
+    {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
+    {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word}
+    {frame : Assertion} {ps : PartialState}
+    (hCount : expTwoMulFixedIterCountInvariant k iterCount)
+    (h :
+      expTwoMulFixedIterPreNWithControlFrame k baseWord exponentWord controlC6
+        e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+        r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3 v7 v11
+        frame ps) :
+    expTwoMulFixedIterPreNWithStateFrame k baseWord exponentWord controlC6
+      e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3 v7 v11
+      frame ps := by
+  rcases expTwoMulFixedIterPreNWithControlFrame_pures h with
+    ⟨h_acc, h_cursor, h_control⟩
+  rw [expTwoMulFixedIterPreNWithControlFrame_unfold,
+    expTwoMulFixedIterPreNWithControl_unfold,
+    expTwoMulFixedSemanticInvariant_unfold,
+    expTwoMulFixedCursorAssertion_unfold,
+    expTwoMulFixedControlAssertion_unfold] at h
+  rw [pure_assertion_eq_emp_of_true h_acc,
+    pure_assertion_eq_emp_of_true h_cursor,
+    pure_assertion_eq_emp_of_true h_control] at h
+  simp only [sepConj_emp_right'] at h
+  rw [expTwoMulFixedIterPreNWithStateFrame_unfold,
+    expTwoMulFixedIterPreNWithState_unfold,
+    expTwoMulFixedIterStateAssertion_unfold]
+  rw [pure_assertion_eq_emp_of_true
+    ⟨h_acc, h_cursor, h_control, hCount⟩]
+  simp only [sepConj_emp_right']
+  exact h
+
 theorem expTwoMulFixedIterPreNWithState_to_iterPreNWithControl
     {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
     {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
