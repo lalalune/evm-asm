@@ -463,4 +463,104 @@ theorem cpsTripleWithin_expTwoMulFixedIterPre_stepPostNWithControl_bit_elim
     (cpsTripleWithin_expTwoMulFixedIterStepPostNWithControlFrame_bit_elim
       hBranchTrue hBranchFalse hReloadTrue hReloadFalse)
 
+theorem cpsTripleWithin_expTwoMulFixedIterPre_stepPostNWithControlFrame_bit_elim
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {nSteps : Nat} {exit : Word} {frame Q : Assertion}
+    (e c6 iterCount v10 v18 ptr nextLimb nextNextLimb sp evmSp
+      tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+      a0 a1 a2 a3 v7 v11 : Word)
+    (base : Word)
+    (hFrame : frame.pcFree)
+    (hbase : (base + 44 : Word) &&& 1 = 0)
+    (hne : expTwoMulIterCountNew iterCount ≠ 0)
+    (hk : k < 256)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hCursor : expTwoMulFixedCursorInvariant exponentWord k e)
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3)
+    (hBranchTrue :
+      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        cpsTripleWithin nSteps (base + 44) exit
+          (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+          (let rw := expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+            a0 a1 a2 a3
+          expTwoMulFixedIterPreNWithControlFrame (k + 1) baseWord exponentWord
+            (c6 + signExtend12 (-1 : BitVec 12))
+            (e <<< (1 : BitVec 6).toNat)
+            v6'
+            (expTwoMulIterCountNew iterCount)
+            v10'
+            ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
+            ptr nextLimb sp evmSp
+            (rw.getLimbN 3)
+            (((base + 44) + 140) + 68)
+            (rw.getLimbN 0) (rw.getLimbN 1) (rw.getLimbN 2)
+            (rw.getLimbN 3)
+            d0' d1' d2' d3'
+            (rw.getLimbN 0) (rw.getLimbN 1) (rw.getLimbN 2)
+            (rw.getLimbN 3)
+            a0 a1 a2 a3 v7' v11'
+            frame)
+          Q)
+    (hBranchFalse :
+      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        cpsTripleWithin nSteps (base + 44) exit
+          (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+          (let squareW := expSquaringCallSquareW r0 r1 r2 r3
+          expTwoMulFixedIterPreNWithControlFrame (k + 1) baseWord exponentWord
+            (c6 + signExtend12 (-1 : BitVec 12))
+            (e <<< (1 : BitVec 6).toNat)
+            v6'
+            (expTwoMulIterCountNew iterCount)
+            v10'
+            ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
+            ptr nextLimb sp evmSp
+            (squareW.getLimbN 3)
+            (((base + 44) + 32) + 68)
+            (squareW.getLimbN 0) (squareW.getLimbN 1)
+            (squareW.getLimbN 2) (squareW.getLimbN 3)
+            d0' d1' d2' d3'
+            (squareW.getLimbN 0) (squareW.getLimbN 1)
+            (squareW.getLimbN 2) (squareW.getLimbN 3)
+            a0 a1 a2 a3 v7' v11'
+            frame)
+          Q)
+    (hReloadTrue :
+      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        cpsTripleWithin nSteps (base + 44) exit
+          (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+          (expTwoMulFixedReloadBranchResidualWithControlFrame true (k := k)
+            baseWord exponentWord iterCount e c6 ptr nextLimb nextNextLimb
+            sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base
+            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+          Q)
+    (hReloadFalse :
+      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        cpsTripleWithin nSteps (base + 44) exit
+          (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+          (expTwoMulFixedReloadBranchResidualWithControlFrame false (k := k)
+            baseWord exponentWord iterCount e c6 ptr nextLimb nextNextLimb
+            sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base
+            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+          Q) :
+    cpsTripleWithin (193 + nSteps) (base + 44) exit
+      (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedIterPre e c6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 **
+        frame)
+      Q :=
+  cpsTripleWithin_expTwoMulFixedIterPre_seq_stepPostNWithControlFrame
+    e c6 iterCount v10 v18 ptr nextLimb nextNextLimb sp evmSp
+    tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+    a0 a1 a2 a3 v7 v11 base hFrame hbase hne hk hBase hCursor
+    hControl hNextNext hInv
+    (cpsTripleWithin_expTwoMulFixedIterStepPostNWithControlFrame_bit_elim
+      hBranchTrue hBranchFalse hReloadTrue hReloadFalse)
+
 end EvmAsm.Evm64.Exp.Compose
