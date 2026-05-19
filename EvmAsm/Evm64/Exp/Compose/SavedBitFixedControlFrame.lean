@@ -10,6 +10,54 @@ namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
 
+@[irreducible]
+def expTwoMulFixedSavedNextLimbFrame
+    (ptr nextNextLimb : Word) : Assertion :=
+  (((ptr + signExtend12 (-8 : BitVec 12)) +
+    signExtend12 (0 : BitVec 12)) ↦ₘ nextNextLimb)
+
+theorem expTwoMulFixedSavedNextLimbFrame_unfold
+    {ptr nextNextLimb : Word} :
+    expTwoMulFixedSavedNextLimbFrame ptr nextNextLimb =
+      ((((ptr + signExtend12 (-8 : BitVec 12)) +
+        signExtend12 (0 : BitVec 12)) ↦ₘ nextNextLimb)) := by
+  delta expTwoMulFixedSavedNextLimbFrame
+  rfl
+
+theorem expTwoMulFixedSavedNextLimbFrame_pcFree
+    (ptr nextNextLimb : Word) :
+    (expTwoMulFixedSavedNextLimbFrame ptr nextNextLimb).pcFree := by
+  rw [expTwoMulFixedSavedNextLimbFrame_unfold]
+  pcFree
+
+instance pcFreeInst_expTwoMulFixedSavedNextLimbFrame
+    (ptr nextNextLimb : Word) :
+    Assertion.PCFree
+      (expTwoMulFixedSavedNextLimbFrame ptr nextNextLimb) :=
+  ⟨expTwoMulFixedSavedNextLimbFrame_pcFree ptr nextNextLimb⟩
+
+@[irreducible]
+def expTwoMulFixedSavedNextLimbFrameN
+    (exponentWord : EvmWord) (k : Nat) (ptr : Word) : Assertion :=
+  expTwoMulFixedSavedNextLimbFrame ptr
+    (exponentWord.getLimbN (2 - (k + 1) / 64))
+
+theorem expTwoMulFixedSavedNextLimbFrameN_unfold
+    {exponentWord : EvmWord} {k : Nat} {ptr : Word} :
+    expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr =
+      expTwoMulFixedSavedNextLimbFrame ptr
+        (exponentWord.getLimbN (2 - (k + 1) / 64)) := by
+  delta expTwoMulFixedSavedNextLimbFrameN
+  rfl
+
+theorem expTwoMulFixedSavedNextLimbFrameN_eq_of_nextNext
+    {exponentWord : EvmWord} {k : Nat} {ptr nextNextLimb : Word}
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64)) :
+    expTwoMulFixedSavedNextLimbFrame ptr nextNextLimb =
+      expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr := by
+  rw [expTwoMulFixedSavedNextLimbFrameN_unfold, hNextNext]
+
 theorem expTwoMulFixedControlInvariant_nextLimb
     {exponentWord : EvmWord} {k : Nat}
     {c6 ptr nextLimb evmSp : Word}
