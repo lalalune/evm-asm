@@ -116,6 +116,20 @@ theorem expTwoMulFixedReloadLimbFrameN_eq_of_reload_nextNext
   · rw [Nat.sub_eq_zero_of_le (by omega : 2 ≤ k / 64 + 1),
       Nat.sub_eq_zero_of_le (by omega : 1 ≤ k / 64)]
 
+theorem expTwoMulFixedReloadLimbFrameN_eq_of_control_reload_nextNext
+    {exponentWord : EvmWord} {k : Nat}
+    {c6 ptr nextLimb nextNextLimb evmSp : Word}
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) = 0)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64)) :
+    expTwoMulFixedSavedNextLimbFrame ptr nextNextLimb =
+      expTwoMulFixedReloadLimbFrameN exponentWord k ptr :=
+  expTwoMulFixedReloadLimbFrameN_eq_of_reload_nextNext
+    (expTwoMulFixedControlInvariant_reload_mod hControl hC6)
+    hNextNext
+
 theorem expTwoMulFixedControlInvariant_nextLimb
     {exponentWord : EvmWord} {k : Nat}
     {c6 ptr nextLimb evmSp : Word}
