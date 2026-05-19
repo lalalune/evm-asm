@@ -892,4 +892,94 @@ theorem cpsTripleWithin_expTwoMulFixedIterCaseLoopPost_stepPostNWithControlFrame
       (cpsTripleWithin_expTwoMulFixedIterStepPostNWithControlFrame_elim
         hBranch hReload)
 
+theorem cpsTripleWithin_expTwoMulFixedIterCaseLoopPost_stepPostNWithControlFrame_bit_elim
+    {nSteps : Nat} {addr exit : Word} {cr : CodeReq}
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {frame Q : Assertion}
+    (hk : k < 256)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hCursor : expTwoMulFixedCursorInvariant exponentWord k e)
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hInv :
+      expTwoMulFixedAccumulatorInvariant baseWord exponentWord k
+        r0 r1 r2 r3)
+    (hBranchTrue :
+      ∀ (v6 v7 v10 v11 d0 d1 d2 d3 : Word),
+        cpsTripleWithin nSteps addr exit cr
+          (let rw := expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+            a0 a1 a2 a3
+          expTwoMulFixedIterPreNWithControlFrame (k + 1) baseWord exponentWord
+            (c6 + signExtend12 (-1 : BitVec 12))
+            (e <<< (1 : BitVec 6).toNat)
+            v6
+            (expTwoMulIterCountNew iterCount)
+            v10
+            ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
+            ptr nextLimb sp evmSp
+            (rw.getLimbN 3)
+            (((base + 44) + 140) + 68)
+            (rw.getLimbN 0) (rw.getLimbN 1) (rw.getLimbN 2)
+            (rw.getLimbN 3)
+            d0 d1 d2 d3
+            (rw.getLimbN 0) (rw.getLimbN 1) (rw.getLimbN 2)
+            (rw.getLimbN 3)
+            a0 a1 a2 a3 v7 v11
+            frame)
+          Q)
+    (hBranchFalse :
+      ∀ (v6 v7 v10 v11 d0 d1 d2 d3 : Word),
+        cpsTripleWithin nSteps addr exit cr
+          (let squareW := expSquaringCallSquareW r0 r1 r2 r3
+          expTwoMulFixedIterPreNWithControlFrame (k + 1) baseWord exponentWord
+            (c6 + signExtend12 (-1 : BitVec 12))
+            (e <<< (1 : BitVec 6).toNat)
+            v6
+            (expTwoMulIterCountNew iterCount)
+            v10
+            ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
+            ptr nextLimb sp evmSp
+            (squareW.getLimbN 3)
+            (((base + 44) + 32) + 68)
+            (squareW.getLimbN 0) (squareW.getLimbN 1)
+            (squareW.getLimbN 2) (squareW.getLimbN 3)
+            d0 d1 d2 d3
+            (squareW.getLimbN 0) (squareW.getLimbN 1)
+            (squareW.getLimbN 2) (squareW.getLimbN 3)
+            a0 a1 a2 a3 v7 v11
+            frame)
+          Q)
+    (hReloadTrue :
+      ∀ (v6 v7 v10 v11 d0 d1 d2 d3 : Word),
+        cpsTripleWithin nSteps addr exit cr
+          (expTwoMulFixedReloadBranchResidualWithControlFrame true (k := k)
+            baseWord exponentWord iterCount e c6 ptr nextLimb nextNextLimb
+            sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base
+            v6 v7 v10 v11 d0 d1 d2 d3 frame)
+          Q)
+    (hReloadFalse :
+      ∀ (v6 v7 v10 v11 d0 d1 d2 d3 : Word),
+        cpsTripleWithin nSteps addr exit cr
+          (expTwoMulFixedReloadBranchResidualWithControlFrame false (k := k)
+            baseWord exponentWord iterCount e c6 ptr nextLimb nextNextLimb
+            sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base
+            v6 v7 v10 v11 d0 d1 d2 d3 frame)
+          Q) :
+    cpsTripleWithin nSteps addr exit cr
+      (expTwoMulFixedIterCaseLoopPost iterCount e c6 ptr nextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base **
+        frame)
+      Q := by
+  simpa [Nat.zero_add, CodeReq.union_empty_left] using
+    cpsTripleWithin_seq
+      (CodeReq.Disjoint.empty_left cr)
+      (cpsTripleWithin_expTwoMulFixedIterCaseLoopPost_to_stepPostNWithControlFrame
+        addr frame hk hBase hCursor hControl hNextNext hInv)
+      (cpsTripleWithin_expTwoMulFixedIterStepPostNWithControlFrame_bit_elim
+        hBranchTrue hBranchFalse hReloadTrue hReloadFalse)
+
 end EvmAsm.Evm64.Exp.Compose
