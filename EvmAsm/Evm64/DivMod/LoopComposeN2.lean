@@ -121,12 +121,15 @@ theorem divK_loop_body_n2_max_unified_j2_spec_within
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
     have J2 := divK_loop_body_n2_max_addback_jgt0_beq_spec_within (2 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
-      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
-      hcarry2_nz
+        sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
+        hcarry2_nz
     intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J2Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J2Pre_unfold] at hp
+        rw [loopBodyN2MaxJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_addback hb]; exact hp)
       (J2 hborrow)
@@ -139,7 +142,10 @@ theorem divK_loop_body_n2_max_unified_j2_spec_within
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
     intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J2Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J2Pre_unfold] at hp
+        rw [loopBodyN2MaxJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J2 hborrow)
@@ -160,12 +166,15 @@ theorem divK_loop_body_n2_max_unified_j2_spec_within_noNop
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
     have J2 := divK_loop_body_n2_max_addback_jgt0_beq_spec_within_noNop (2 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
-      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
-      hcarry2_nz
+        sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
+        hcarry2_nz
     intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J2Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J2Pre_unfold] at hp
+        rw [loopBodyN2MaxJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_addback hb]; exact hp)
       (J2 hborrow)
@@ -177,7 +186,10 @@ theorem divK_loop_body_n2_max_unified_j2_spec_within_noNop
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
     intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J2Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J2Pre_unfold] at hp
+        rw [loopBodyN2MaxJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J2 hborrow)
@@ -238,12 +250,15 @@ theorem divK_loop_body_n2_max_unified_j1_spec_within
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
     have J1 := divK_loop_body_n2_max_addback_jgt0_beq_spec_within (1 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
-      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
-      hcarry2_nz
+        sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
+        hcarry2_nz
     intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J1Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J1Pre_unfold] at hp
+        rw [loopBodyN2MaxJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_addback hb]; exact hp)
       (J1 hborrow)
@@ -257,7 +272,10 @@ theorem divK_loop_body_n2_max_unified_j1_spec_within
       hbltu
     intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J1Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J1Pre_unfold] at hp
+        rw [loopBodyN2MaxJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J1 hborrow)
@@ -278,12 +296,15 @@ theorem divK_loop_body_n2_max_unified_j1_spec_within_noNop
                     then (1 : Word) else 0) ≠ (0 : Word) := by rw [if_pos hb]; decide
     have J1 := divK_loop_body_n2_max_addback_jgt0_beq_spec_within_noNop (1 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
-      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
-      hcarry2_nz
+        sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
+        hcarry2_nz
     intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J1Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J1Pre_unfold] at hp
+        rw [loopBodyN2MaxJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_addback hb]; exact hp)
       (J1 hborrow)
@@ -296,7 +317,10 @@ theorem divK_loop_body_n2_max_unified_j1_spec_within_noNop
       hbltu
     intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J1Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J1Pre_unfold] at hp
+        rw [loopBodyN2MaxJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J1 hborrow)
@@ -361,7 +385,7 @@ theorem divK_loop_body_n2_max_unified_j0_spec_within
       hcarry2_nz
     intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J0Pre_unfold] at hp; exact hp)
+      (fun _ hp => by rw [loopBodyN2J0Pre_unfold] at hp; rw [loopBodyN2MaxSkipJ0Pre_unfold]; exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_addback hb]; exact hp)
       (J0 hborrow)
@@ -373,10 +397,7 @@ theorem divK_loop_body_n2_max_unified_j0_spec_within
       hbltu
     intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by
-        rw [loopBodyN2J0Pre_unfold] at hp
-        rw [loopBodyN2MaxSkipJ0Pre_unfold]
-        exact hp)
+      (fun _ hp => by rw [loopBodyN2J0Pre_unfold] at hp; rw [loopBodyN2MaxSkipJ0Pre_unfold]; exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J0 hborrow)
@@ -401,7 +422,10 @@ theorem divK_loop_body_n2_max_unified_j0_spec_within_noNop
       hcarry2_nz
     intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J0Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J0Pre_unfold] at hp
+        rw [loopBodyN2MaxSkipJ0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_addback hb]; exact hp)
       (J0 hborrow)
@@ -499,7 +523,7 @@ theorem divK_loop_body_n2_call_unified_j2_spec_within
       hcarry2_nz
     intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J2CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by rw [loopBodyN2J2CallPre_unfold] at hp; rw [loopBodyN2CallJgt0Pre_unfold]; exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_addback hb]; exact hp)
       J2
@@ -508,12 +532,15 @@ theorem divK_loop_body_n2_call_unified_j2_spec_within
     have J2 := divK_loop_body_n2_call_skip_jgt0_spec_within (2 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
-      halign
-      hbltu hborrow
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
+        halign
+        hbltu hborrow
     intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J2CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J2CallPre_unfold] at hp
+        rw [loopBodyN2CallJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_skip hb]; exact hp)
       J2
@@ -543,7 +570,7 @@ theorem divK_loop_body_n2_call_unified_j2_spec_within_noNop
       hcarry2_nz
     intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J2CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by rw [loopBodyN2J2CallPre_unfold] at hp; rw [loopBodyN2CallJgt0Pre_unfold]; exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_addback hb]; exact hp)
       J2
@@ -551,12 +578,15 @@ theorem divK_loop_body_n2_call_unified_j2_spec_within_noNop
     have J2 := divK_loop_body_n2_call_skip_jgt0_spec_within_noNop (2 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
-      halign
-      hbltu hborrow
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
+        halign
+        hbltu hborrow
     intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J2CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J2CallPre_unfold] at hp
+        rw [loopBodyN2CallJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_skip hb]; exact hp)
       J2
@@ -635,7 +665,7 @@ theorem divK_loop_body_n2_call_unified_j1_spec_within
       hcarry2_nz
     intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J1CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by rw [loopBodyN2J1CallPre_unfold] at hp; rw [loopBodyN2CallJgt0Pre_unfold]; exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_addback hb]; exact hp)
       J1
@@ -644,12 +674,15 @@ theorem divK_loop_body_n2_call_unified_j1_spec_within
     have J1 := divK_loop_body_n2_call_skip_jgt0_spec_within (1 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
-      halign
-      hbltu hborrow
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
+        halign
+        hbltu hborrow
     intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J1CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J1CallPre_unfold] at hp
+        rw [loopBodyN2CallJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_skip hb]; exact hp)
       J1
@@ -679,7 +712,7 @@ theorem divK_loop_body_n2_call_unified_j1_spec_within_noNop
       hcarry2_nz
     intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J1CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by rw [loopBodyN2J1CallPre_unfold] at hp; rw [loopBodyN2CallJgt0Pre_unfold]; exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_addback hb]; exact hp)
       J1
@@ -687,12 +720,15 @@ theorem divK_loop_body_n2_call_unified_j1_spec_within_noNop
     have J1 := divK_loop_body_n2_call_skip_jgt0_spec_within_noNop (1 : Word)
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
-      halign
-      hbltu hborrow
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
+        halign
+        hbltu hborrow
     intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J1CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J1CallPre_unfold] at hp
+        rw [loopBodyN2CallJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_skip hb]; exact hp)
       J1
@@ -769,7 +805,7 @@ theorem divK_loop_body_n2_call_unified_j0_spec_within
       hcarry2_nz
     intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J0CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by rw [loopBodyN2J0CallPre_unfold] at hp; rw [loopBodyN2CallSkipJ0Pre_unfold]; exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_addback hb]; exact hp)
       J0
@@ -781,7 +817,7 @@ theorem divK_loop_body_n2_call_unified_j0_spec_within
       hbltu hborrow
     intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J0CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by rw [loopBodyN2J0CallPre_unfold] at hp; rw [loopBodyN2CallSkipJ0Pre_unfold]; exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_skip hb]; exact hp)
       J0
@@ -808,7 +844,10 @@ theorem divK_loop_body_n2_call_unified_j0_spec_within_noNop
       hcarry2_nz
     intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J0CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J0CallPre_unfold] at hp
+        rw [loopBodyN2CallSkipJ0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_addback hb]; exact hp)
       J0
@@ -819,7 +858,10 @@ theorem divK_loop_body_n2_call_unified_j0_spec_within_noNop
       hbltu hborrow
     intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J0CallPre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J0CallPre_unfold] at hp
+        rw [loopBodyN2CallSkipJ0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Call_skip hb]; exact hp)
       J0
