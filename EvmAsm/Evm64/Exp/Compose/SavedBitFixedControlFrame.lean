@@ -58,6 +58,19 @@ theorem expTwoMulFixedSavedNextLimbFrameN_eq_of_nextNext
       expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr := by
   rw [expTwoMulFixedSavedNextLimbFrameN_unfold, hNextNext]
 
+theorem expTwoMulFixedSavedNextLimbFrameN_succ_no_reload
+    {exponentWord : EvmWord} {k : Nat} {ptr : Word}
+    (hMod : k % 64 < 62) :
+    expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr =
+      expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1) ptr := by
+  rw [expTwoMulFixedSavedNextLimbFrameN_unfold,
+    expTwoMulFixedSavedNextLimbFrameN_unfold]
+  congr 1
+  congr 1
+  have hdiv : (k + 2) / 64 = (k + 1) / 64 := by
+    omega
+  rw [show (k + 1 + 1) / 64 = (k + 2) / 64 by omega, hdiv]
+
 theorem expTwoMulFixedControlInvariant_nextLimb
     {exponentWord : EvmWord} {k : Nat}
     {c6 ptr nextLimb evmSp : Word}
