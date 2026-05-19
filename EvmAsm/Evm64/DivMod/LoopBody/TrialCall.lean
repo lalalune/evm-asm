@@ -82,17 +82,27 @@ def divKTrialCallFullPost (sp j n uHi uLo vTop base : Word) : Assertion :=
   (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ un0Div)
 
-/-- Bundled postcondition for the v4 trial-call path. This mirrors
-    `divKTrialCallFullPost`, but tracks the extra v4 scratch cell and the
-    second D3 correction values from `div128V4SpecPost`. -/
 @[irreducible]
-def divKTrialCallFullPostV4 (sp j n uHi uLo vTop base scratchMem : Word) : Assertion :=
-  let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
-  let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
-  let dHi := vTop >>> (32 : BitVec 6).toNat
-  let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
-  let un1 := uLo >>> (32 : BitVec 6).toNat
-  let un0Div := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+def divKTrialCallV4DHi (vTop : Word) : Word :=
+  vTop >>> (32 : BitVec 6).toNat
+
+@[irreducible]
+def divKTrialCallV4DLo (vTop : Word) : Word :=
+  (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+
+@[irreducible]
+def divKTrialCallV4Un1 (uLo : Word) : Word :=
+  uLo >>> (32 : BitVec 6).toNat
+
+@[irreducible]
+def divKTrialCallV4Un0 (uLo : Word) : Word :=
+  (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+
+@[irreducible]
+def divKTrialCallV4Q1dd (uHi uLo vTop : Word) : Word :=
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
   let q1 := rv64_divu uHi dHi
   let rhat := uHi - q1 * dHi
   let hi1 := q1 >>> (32 : BitVec 6).toNat
@@ -105,37 +115,133 @@ def divKTrialCallFullPostV4 (sp j n uHi uLo vTop base scratchMem : Word) : Asser
   let rhatHi2 := rhat' >>> (32 : BitVec 6).toNat
   let qDlo2 := q1' * dLo
   let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| un1
-  let q1'' := if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2
-              then q1' + signExtend12 4095 else q1'
-  let rhat'' := if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2
-                then rhat' + dHi else rhat'
+  if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2 then q1' + signExtend12 4095 else q1'
+
+@[irreducible]
+def divKTrialCallV4Rhatdd (uHi uLo vTop : Word) : Word :=
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
+  let q1 := rv64_divu uHi dHi
+  let rhat := uHi - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+  let rhatc := if hi1 = 0 then rhat else rhat + dHi
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+  let rhatHi2 := rhat' >>> (32 : BitVec 6).toNat
+  let qDlo2 := q1' * dLo
+  let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| un1
+  if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
+
+@[irreducible]
+def divKTrialCallV4Un21 (uHi uLo vTop : Word) : Word :=
+  let un1 := divKTrialCallV4Un1 uLo
+  let q1'' := divKTrialCallV4Q1dd uHi uLo vTop
+  let rhat'' := divKTrialCallV4Rhatdd uHi uLo vTop
   let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| un1
-  let cu_q1_dlo := q1'' * dLo
-  let un21 := cu_rhat_un1 - cu_q1_dlo
+  let cu_q1_dlo := q1'' * divKTrialCallV4DLo vTop
+  cu_rhat_un1 - cu_q1_dlo
+
+@[irreducible]
+def divKTrialCallV4Rhat2c (uHi uLo vTop : Word) : Word :=
+  let dHi := divKTrialCallV4DHi vTop
+  let un21 := divKTrialCallV4Un21 uHi uLo vTop
   let q0 := rv64_divu un21 dHi
   let rhat2 := un21 - q0 * dHi
   let hi2 := q0 >>> (32 : BitVec 6).toNat
-  let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
-  let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
-  let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo un0Div
+  if hi2 = 0 then rhat2 else rhat2 + dHi
+
+@[irreducible]
+def divKTrialCallV4Q0c (uHi uLo vTop : Word) : Word :=
+  let dHi := divKTrialCallV4DHi vTop
+  let un21 := divKTrialCallV4Un21 uHi uLo vTop
+  let q0 := rv64_divu un21 dHi
+  let hi2 := q0 >>> (32 : BitVec 6).toNat
+  if hi2 = 0 then q0 else q0 + signExtend12 4095
+
+@[irreducible]
+def divKTrialCallV4Q0d (uHi uLo vTop : Word) : Word :=
+  div128Quot_phase2b_q0'
+    (divKTrialCallV4Q0c uHi uLo vTop)
+    (divKTrialCallV4Rhat2c uHi uLo vTop)
+    (divKTrialCallV4DLo vTop)
+    (divKTrialCallV4Un0 uLo)
+
+@[irreducible]
+def divKTrialCallV4Rhat2d (uHi uLo vTop : Word) : Word :=
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un0Div := divKTrialCallV4Un0 uLo
+  let q0c := divKTrialCallV4Q0c uHi uLo vTop
+  let rhat2c := divKTrialCallV4Rhat2c uHi uLo vTop
   let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
   let q0Dlo1 := q0c * dLo
   let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0Div
-  let rhat2' :=
-    if rhat2cHi = 0 then
-      if BitVec.ult rhat2Un0 q0Dlo1 then rhat2c + dHi else rhat2c
-    else rhat2c
+  if rhat2cHi = 0 then
+    if BitVec.ult rhat2Un0 q0Dlo1 then rhat2c + dHi else rhat2c
+  else rhat2c
+
+@[irreducible]
+def divKTrialCallV4Q0dd (uHi uLo vTop : Word) : Word :=
+  div128Quot_phase2b_q0'
+    (divKTrialCallV4Q0d uHi uLo vTop)
+    (divKTrialCallV4Rhat2d uHi uLo vTop)
+    (divKTrialCallV4DLo vTop)
+    (divKTrialCallV4Un0 uLo)
+
+@[irreducible]
+def divKTrialCallV4QHat (uHi uLo vTop : Word) : Word :=
+  (divKTrialCallV4Q1dd uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+    divKTrialCallV4Q0dd uHi uLo vTop
+
+@[irreducible]
+def divKTrialCallV4X7Exit (uHi uLo vTop : Word) : Word :=
+  let dLo := divKTrialCallV4DLo vTop
+  let un21 := divKTrialCallV4Un21 uHi uLo vTop
+  let q0c := divKTrialCallV4Q0c uHi uLo vTop
+  let q0' := divKTrialCallV4Q0d uHi uLo vTop
+  let rhat2c := divKTrialCallV4Rhat2c uHi uLo vTop
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  let q0Dlo1 := q0c * dLo
+  let rhat2' := divKTrialCallV4Rhat2d uHi uLo vTop
   let rhat2'Hi := rhat2' >>> (32 : BitVec 6).toNat
   let q0Dlo2 := q0' * dLo
+  if rhat2cHi ≠ 0 then un21 else if rhat2'Hi ≠ 0 then q0Dlo1 else q0Dlo2
+
+@[irreducible]
+def divKTrialCallV4X9Exit (uHi uLo vTop : Word) : Word :=
+  let un0Div := divKTrialCallV4Un0 uLo
+  let rhat2c := divKTrialCallV4Rhat2c uHi uLo vTop
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  let rhat2' := divKTrialCallV4Rhat2d uHi uLo vTop
+  let rhat2'Hi := rhat2' >>> (32 : BitVec 6).toNat
   let rhat2'Un0 := (rhat2' <<< (32 : BitVec 6).toNat) ||| un0Div
-  let q0'' := div128Quot_phase2b_q0' q0' rhat2' dLo un0Div
-  let x7Exit := if rhat2cHi ≠ 0 then un21
-                else if rhat2'Hi ≠ 0 then q0Dlo1
-                else q0Dlo2
-  let x9Exit := if rhat2cHi ≠ 0 then rhat2cHi
-                else if rhat2'Hi ≠ 0 then rhat2'Hi
-                else rhat2'Un0
-  let q := (q1'' <<< (32 : BitVec 6).toNat) ||| q0''
+  if rhat2cHi ≠ 0 then rhat2cHi else if rhat2'Hi ≠ 0 then rhat2'Hi else rhat2'Un0
+
+@[irreducible]
+def divKTrialCallV4ScratchOut (uHi uLo vTop scratchMem : Word) : Word :=
+  let rhat2c := divKTrialCallV4Rhat2c uHi uLo vTop
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  if rhat2cHi ≠ 0 then scratchMem else rhat2c
+
+/-- Bundled postcondition for the v4 trial-call path. This mirrors
+    `divKTrialCallFullPost`, but tracks the extra v4 scratch cell and the
+    second D3 correction values from `div128V4SpecPost`. -/
+@[irreducible]
+def divKTrialCallFullPostV4 (sp j n uHi uLo vTop base scratchMem : Word) : Assertion :=
+  let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un0Div := divKTrialCallV4Un0 uLo
+  let q1'' := divKTrialCallV4Q1dd uHi uLo vTop
+  let q0'' := divKTrialCallV4Q0dd uHi uLo vTop
+  let x7Exit := divKTrialCallV4X7Exit uHi uLo vTop
+  let x9Exit := divKTrialCallV4X9Exit uHi uLo vTop
+  let q := divKTrialCallV4QHat uHi uLo vTop
   (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ x9Exit) ** regOwn .x1 **
   (.x5 ↦ᵣ q0'') ** (.x6 ↦ᵣ dHi) **
   (.x7 ↦ᵣ x7Exit) ** (.x10 ↦ᵣ q1'') ** (.x11 ↦ᵣ q) **
@@ -147,7 +253,7 @@ def divKTrialCallFullPostV4 (sp j n uHi uLo vTop base scratchMem : Word) : Asser
   (sp + signExtend12 3960 ↦ₘ vTop) **
   (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ un0Div) **
-  (sp + signExtend12 3936 ↦ₘ (if rhat2cHi ≠ 0 then scratchMem else rhat2c))
+  (sp + signExtend12 3936 ↦ₘ divKTrialCallV4ScratchOut uHi uLo vTop scratchMem)
 
 private theorem tc_lb_save_j {base : Word} :
     (base + loopBodyOff : Word) + 4 = base + (loopBodyOff + 4) := by
@@ -473,7 +579,13 @@ theorem divK_trial_call_full_v4_spec_within
   unfold divKTrialCallFullPostV4
   exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
-    (fun h hq => by xperm_hyp hq)
+    (fun h hq => by
+      simp only [divKTrialCallV4DHi, divKTrialCallV4DLo, divKTrialCallV4Un1, divKTrialCallV4Un0,
+        divKTrialCallV4Q1dd, divKTrialCallV4Rhatdd, divKTrialCallV4Un21,
+        divKTrialCallV4Rhat2c, divKTrialCallV4Q0c, divKTrialCallV4Q0d,
+        divKTrialCallV4Rhat2d, divKTrialCallV4Q0dd, divKTrialCallV4QHat,
+        divKTrialCallV4X7Exit, divKTrialCallV4X9Exit, divKTrialCallV4ScratchOut]
+      xperm_hyp hq)
     full
 
 /-- Trial quotient call path over `divCode_noNop`: save j + load + BLTU
@@ -665,7 +777,13 @@ theorem divK_trial_call_full_v4_spec_within_noNop
   unfold divKTrialCallFullPostV4
   exact cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
-    (fun h hq => by xperm_hyp hq)
+    (fun h hq => by
+      simp only [divKTrialCallV4DHi, divKTrialCallV4DLo, divKTrialCallV4Un1, divKTrialCallV4Un0,
+        divKTrialCallV4Q1dd, divKTrialCallV4Rhatdd, divKTrialCallV4Un21,
+        divKTrialCallV4Rhat2c, divKTrialCallV4Q0c, divKTrialCallV4Q0d,
+        divKTrialCallV4Rhat2d, divKTrialCallV4Q0dd, divKTrialCallV4QHat,
+        divKTrialCallV4X7Exit, divKTrialCallV4X9Exit, divKTrialCallV4ScratchOut]
+      xperm_hyp hq)
     full
 
 end EvmAsm.Evm64
