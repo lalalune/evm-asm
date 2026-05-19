@@ -532,6 +532,44 @@ theorem expTwoMulFixedIterStepPostNWithControlFrame_elim
       ⟨bit, v6, v7, v10, v11, d0, d1, d2, d3, hResidual⟩
     exact hReload bit v6 v7 v10 v11 d0 d1 d2 d3 hResidual
 
+theorem expTwoMulFixedIterStepPostNWithControlFrame_attach_frame
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {frame : Assertion} {ps : PartialState}
+    (h :
+      (expTwoMulFixedIterStepPostNWithControlFrame k baseWord exponentWord
+        iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base empAssertion **
+        frame) ps) :
+    expTwoMulFixedIterStepPostNWithControlFrame k baseWord exponentWord
+      iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base frame ps := by
+  obtain ⟨psStep, psFrame, hDisjoint, hUnion, hStep, hFrame⟩ := h
+  apply expTwoMulFixedIterStepPostNWithControlFrame_elim
+    (Q := fun ps' =>
+      ps' = psStep →
+      expTwoMulFixedIterStepPostNWithControlFrame k baseWord exponentWord
+        iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base frame ps)
+    (fun bit v6 v7 v10 v11 d0 d1 d2 d3 hNext _hEq => by
+      apply expTwoMulFixedIterStepPostNWithControlFrame_branch (bit := bit)
+      simp only [expTwoMulFixedIterPreNWithControlFrame_unfold] at hNext ⊢
+      exact ⟨psStep, psFrame, hDisjoint, hUnion,
+        (by simpa [sepConj_emp_right'] using hNext), hFrame⟩)
+    (fun bit v6 v7 v10 v11 d0 d1 d2 d3 hResidual _hEq => by
+      cases bit
+      · rw [expTwoMulFixedReloadBranchResidualWithControlFrame_false] at hResidual
+        apply expTwoMulFixedIterStepPostNWithControlFrame_reload_false
+        exact ⟨psStep, psFrame, hDisjoint, hUnion,
+          (by simpa [sepConj_emp_right'] using hResidual), hFrame⟩
+      · rw [expTwoMulFixedReloadBranchResidualWithControlFrame_true] at hResidual
+        apply expTwoMulFixedIterStepPostNWithControlFrame_reload_true
+        exact ⟨psStep, psFrame, hDisjoint, hUnion,
+          (by simpa [sepConj_emp_right'] using hResidual), hFrame⟩)
+    hStep
+    rfl
+
 theorem cpsTripleWithin_expTwoMulFixedIterStepPostNWithControlFrame_elim
     {nSteps : Nat} {addr exit : Word} {cr : CodeReq}
     {baseWord exponentWord : EvmWord} {k : Nat}
