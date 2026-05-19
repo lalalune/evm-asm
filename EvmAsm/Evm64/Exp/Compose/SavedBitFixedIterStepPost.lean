@@ -80,6 +80,93 @@ theorem expTwoMulFixedIterStepPostNWithControlFrame_unfold
   delta expTwoMulFixedIterStepPostNWithControlFrame
   rfl
 
+theorem expTwoMulFixedIterStepPostNWithControlFrame_pcFree
+    {k : Nat} {baseWord exponentWord : EvmWord}
+    {iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {frame : Assertion} [Assertion.PCFree frame] :
+    (expTwoMulFixedIterStepPostNWithControlFrame k baseWord exponentWord
+      iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base frame).pcFree := by
+  intro ps hps
+  rw [expTwoMulFixedIterStepPostNWithControlFrame_unfold] at hps
+  rcases hps with hPre | hReload
+  · rcases hPre with ⟨bit, v6, v7, v10, v11, d0, d1, d2, d3, hPre⟩
+    exact
+      (inferInstance :
+        Assertion.PCFree
+          (let outW := expTwoMulFixedBranchResult bit
+            a0 a1 a2 a3 r0 r1 r2 r3
+          expTwoMulFixedIterPreNWithControlFrame (k + 1) baseWord exponentWord
+            (c6 + signExtend12 (-1 : BitVec 12))
+            (e <<< (1 : BitVec 6).toNat)
+            v6
+            (expTwoMulIterCountNew iterCount)
+            v10
+            ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
+            ptr nextLimb sp evmSp
+            (outW.getLimbN 3)
+            (expTwoMulFixedBranchReturnPc bit base)
+            (outW.getLimbN 0) (outW.getLimbN 1) (outW.getLimbN 2)
+            (outW.getLimbN 3)
+            d0 d1 d2 d3
+            (outW.getLimbN 0) (outW.getLimbN 1) (outW.getLimbN 2)
+            (outW.getLimbN 3)
+            a0 a1 a2 a3 v7 v11
+            frame)).proof ps hPre
+  · rcases hReload with ⟨bit, v6, v7, v10, v11, d0, d1, d2, d3, hReload⟩
+    cases bit
+    · rw [expTwoMulFixedReloadBranchResidualWithControlFrame_false] at hReload
+      have hPc :
+          (let squareW := expSquaringCallSquareW r0 r1 r2 r3
+          (((((expTwoMulFixedIterSkipCountPostScratchPrefix iterCount sp evmSp
+            r0 r1 r2 r3
+            (expTwoMulIterCountNew iterCount ≠ 0) **
+            expTwoMulFixedIterScratchIs evmSp v6 v7 v10 v11 d0 d1 d2 d3 **
+            expTwoMulFixedIterReloadSkipCountPostScratchSuffixFrame
+              e c6 ptr nextLimb evmSp a0 a1 a2 a3 base) **
+            expTwoMulFixedSemanticInvariant baseWord exponentWord (k + 1)
+              (squareW.getLimbN 0) (squareW.getLimbN 1)
+              (squareW.getLimbN 2) (squareW.getLimbN 3)) **
+            expTwoMulFixedCursorAssertion exponentWord (k + 1) nextLimb) **
+            expTwoMulFixedControlAssertion exponentWord (k + 1)
+              64 (ptr + signExtend12 (-8 : BitVec 12)) nextNextLimb evmSp) **
+            frame)).pcFree := by
+        dsimp
+        pcFree
+      exact hPc ps hReload
+    · rw [expTwoMulFixedReloadBranchResidualWithControlFrame_true] at hReload
+      have hPc :
+          (let rw := expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
+            a0 a1 a2 a3
+          (((((expTwoMulFixedIterSkipCondCountPostScratchPrefix iterCount sp evmSp
+            r0 r1 r2 r3 a0 a1 a2 a3
+            (expTwoMulIterCountNew iterCount ≠ 0) **
+            expTwoMulFixedIterScratchIs evmSp v6 v7 v10 v11 d0 d1 d2 d3 **
+            expTwoMulFixedIterReloadCondCountPostScratchSuffixFrame
+              e c6 ptr nextLimb base) **
+            expTwoMulFixedSemanticInvariant baseWord exponentWord (k + 1)
+              (rw.getLimbN 0) (rw.getLimbN 1) (rw.getLimbN 2)
+              (rw.getLimbN 3)) **
+            expTwoMulFixedCursorAssertion exponentWord (k + 1) nextLimb) **
+            expTwoMulFixedControlAssertion exponentWord (k + 1)
+              64 (ptr + signExtend12 (-8 : BitVec 12)) nextNextLimb evmSp) **
+            frame)).pcFree := by
+        dsimp
+        pcFree
+      exact hPc ps hReload
+
+instance pcFreeInst_expTwoMulFixedIterStepPostNWithControlFrame
+    (k : Nat) (baseWord exponentWord : EvmWord)
+    (iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word)
+    (frame : Assertion) [Assertion.PCFree frame] :
+    Assertion.PCFree
+      (expTwoMulFixedIterStepPostNWithControlFrame k baseWord exponentWord
+        iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base frame) :=
+  ⟨expTwoMulFixedIterStepPostNWithControlFrame_pcFree⟩
+
 theorem expTwoMulFixedIterCaseLoopPost_to_stepPostNWithControlFrame
     {baseWord exponentWord : EvmWord} {k : Nat}
     {iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
