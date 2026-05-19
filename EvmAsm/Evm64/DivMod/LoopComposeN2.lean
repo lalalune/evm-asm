@@ -139,7 +139,10 @@ theorem divK_loop_body_n2_max_unified_j2_spec_within
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
     intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J2Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J2Pre_unfold] at hp
+        rw [loopBodyN2MaxSkipJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J2 hborrow)
@@ -177,7 +180,10 @@ theorem divK_loop_body_n2_max_unified_j2_spec_within_noNop
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
     intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J2Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J2Pre_unfold] at hp
+        rw [loopBodyN2MaxSkipJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J2 hborrow)
@@ -257,7 +263,10 @@ theorem divK_loop_body_n2_max_unified_j1_spec_within
       hbltu
     intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J1Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J1Pre_unfold] at hp
+        rw [loopBodyN2MaxSkipJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J1 hborrow)
@@ -296,7 +305,10 @@ theorem divK_loop_body_n2_max_unified_j1_spec_within_noNop
       hbltu
     intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
-      (fun _ hp => by rw [loopBodyN2J1Pre_unfold] at hp; exact hp)
+      (fun _ hp => by
+        rw [loopBodyN2J1Pre_unfold] at hp
+        rw [loopBodyN2MaxSkipJgt0Pre_unfold]
+        exact hp)
       (fun h hp => by
         rw [← loopIterPostN2Max_skip hb]; exact hp)
       (J1 hborrow)
