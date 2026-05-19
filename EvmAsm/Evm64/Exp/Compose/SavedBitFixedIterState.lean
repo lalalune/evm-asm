@@ -117,6 +117,25 @@ theorem expTwoMulFixedIterStateInvariant_full_count_zero
   apply BitVec.eq_of_toNat_eq
   exact hState.2.2.2
 
+theorem expTwoMulFixedIterStateInvariant_succ_count_ne_zero
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 : Word}
+    (hk : k + 1 < 256)
+    (hState :
+      expTwoMulFixedIterStateInvariant baseWord exponentWord k
+        iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3) :
+    expTwoMulIterCountNew iterCount ≠ 0 :=
+  expTwoMulFixedIterCountInvariant_succ_ne_zero hk hState.2.2.2
+
+theorem expTwoMulFixedIterStateInvariant_succ_count_eq_zero
+    {baseWord exponentWord : EvmWord}
+    {iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 : Word}
+    (hState :
+      expTwoMulFixedIterStateInvariant baseWord exponentWord 255
+        iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3) :
+    expTwoMulIterCountNew iterCount = 0 :=
+  expTwoMulFixedIterCountInvariant_succ_eq_zero hState.2.2.2
+
 @[irreducible]
 def expTwoMulFixedIterStateAssertion
     (baseWord exponentWord : EvmWord) (k : Nat)
@@ -183,6 +202,29 @@ theorem expTwoMulFixedIterStateAssertion_full_count_zero
         iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 ps) :
     iterCount = 0 :=
   expTwoMulFixedIterStateInvariant_full_count_zero
+    (expTwoMulFixedIterStateAssertion_pure h)
+
+theorem expTwoMulFixedIterStateAssertion_succ_count_ne_zero
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 : Word}
+    {ps : PartialState}
+    (hk : k + 1 < 256)
+    (h :
+      expTwoMulFixedIterStateAssertion baseWord exponentWord k
+        iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 ps) :
+    expTwoMulIterCountNew iterCount ≠ 0 :=
+  expTwoMulFixedIterStateInvariant_succ_count_ne_zero hk
+    (expTwoMulFixedIterStateAssertion_pure h)
+
+theorem expTwoMulFixedIterStateAssertion_succ_count_eq_zero
+    {baseWord exponentWord : EvmWord}
+    {iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 : Word}
+    {ps : PartialState}
+    (h :
+      expTwoMulFixedIterStateAssertion baseWord exponentWord 255
+        iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 ps) :
+    expTwoMulIterCountNew iterCount = 0 :=
+  expTwoMulFixedIterStateInvariant_succ_count_eq_zero
     (expTwoMulFixedIterStateAssertion_pure h)
 
 theorem expTwoMulFixedIterStateAssertion_succ_no_reload
