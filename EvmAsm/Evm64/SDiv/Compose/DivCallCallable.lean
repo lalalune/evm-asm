@@ -54,6 +54,29 @@ theorem evm_div_callable_spec_in_sdivCode
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack)
 
+/-- Branch-certificate callable DIV wrapper embedded in `sdivCode`, with the
+    no-NOP body proof discharged by `DivStackSpecCase`. This is the SDIV-code
+    version of `evm_div_callable_spec_from_branch_noNop`. -/
+theorem evm_div_callable_spec_from_branch_noNop_in_sdivCode
+    (sp base raVal : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (branch : EvmAsm.Evm64.DivStackSpecCase (base + wrapperEndOff) a b) :
+    EvmAsm.Rv64.cpsTripleWithin (EvmAsm.Evm64.unifiedDivBound + 1)
+      (base + wrapperEndOff) (raVal &&& ~~~1) (sdivCode base)
+      (EvmAsm.Evm64.divModStackDispatchPre sp a b
+        branch.x1 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+        (.x1 ↦ᵣ raVal))
+      (EvmAsm.Evm64.divStackDispatchPost sp a b ** (.x1 ↦ᵣ raVal)) := by
+  exact EvmAsm.Rv64.cpsTripleWithin_extend_code
+    (hmono := evm_div_callable_code_sub_sdivCode (base := base))
+    (EvmAsm.Evm64.evm_div_callable_spec_from_branch_noNop
+      sp (base + wrapperEndOff) raVal a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch)
+
 theorem evm_div_callable_preserving_x1_spec_in_sdivCode
     (sp base raVal : Word) (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
