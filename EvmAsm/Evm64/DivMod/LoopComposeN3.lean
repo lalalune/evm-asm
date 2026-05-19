@@ -443,6 +443,7 @@ theorem divK_loop_body_n3_call_unified_j0_spec_within
     exact cpsTripleWithin_weaken
       (fun h hp => by
         rw [loopBodyN3CallUnifiedPre_unfold] at hp
+        rw [loopBodyN3CallSkipJ0Pre_unfold]
         exact hp)
       (fun h hp => by
         delta loopIterPostN3Call iterN3Call iterWithDoubleAddback
@@ -491,6 +492,7 @@ theorem divK_loop_body_n3_call_unified_j0_spec_within_noNop
     exact cpsTripleWithin_weaken
       (fun h hp => by
         rw [loopBodyN3CallUnifiedPre_unfold] at hp
+        rw [loopBodyN3CallSkipJ0Pre_unfold]
         exact hp)
       (fun h hp => by
         delta loopIterPostN3Call iterN3Call iterWithDoubleAddback
