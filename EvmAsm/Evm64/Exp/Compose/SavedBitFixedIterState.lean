@@ -163,6 +163,28 @@ theorem expTwoMulFixedIterStateAssertion_pure
   rw [expTwoMulFixedIterStateAssertion_unfold] at h
   exact h.2
 
+theorem expTwoMulFixedIterStateAssertion_full_result
+    {baseWord exponentWord : EvmWord}
+    {iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 : Word}
+    {ps : PartialState}
+    (h :
+      expTwoMulFixedIterStateAssertion baseWord exponentWord 256
+        iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 ps) :
+    expResultWord r0 r1 r2 r3 = EvmWord.exp baseWord exponentWord :=
+  expTwoMulFixedIterStateInvariant_full_result
+    (expTwoMulFixedIterStateAssertion_pure h)
+
+theorem expTwoMulFixedIterStateAssertion_full_count_zero
+    {baseWord exponentWord : EvmWord}
+    {iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 : Word}
+    {ps : PartialState}
+    (h :
+      expTwoMulFixedIterStateAssertion baseWord exponentWord 256
+        iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 ps) :
+    iterCount = 0 :=
+  expTwoMulFixedIterStateInvariant_full_count_zero
+    (expTwoMulFixedIterStateAssertion_pure h)
+
 theorem expTwoMulFixedIterStateAssertion_succ_no_reload
     {baseWord exponentWord : EvmWord} {k : Nat} {bit : Bool}
     {iterCount e controlC6 ptr nextLimb evmSp
