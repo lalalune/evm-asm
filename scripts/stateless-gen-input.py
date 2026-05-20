@@ -178,14 +178,31 @@ def main() -> int:
 
     if args.hash_out is not None:
         from Crypto.Hash import keccak
+        # PR-K6: the guest hashes the `witness.headers` SSZ section
+        # bytes (not the whole input). Extract those via the outer
+        # offsets, then keccak256 them.
+        import struct as _struct
+        offset_1 = _struct.unpack_from("<I", blob, 4)[0]
+        offset_3 = _struct.unpack_from("<I", blob, 16)[0]
+        witness_start = offset_1
+        witness_end = offset_3
+        # Inner offset_2 lives at witness_start + 8 within the SSZ
+        # blob (third u32 of the witness container).
+        inner_off2 = _struct.unpack_from("<I", blob, witness_start + 8)[0]
+        headers_start = witness_start + inner_off2
+        headers_end = witness_end
+        headers_section = blob[headers_start:headers_end]
         h = keccak.new(digest_bits=256)
-        h.update(blob)
+        h.update(headers_section)
         digest = h.hexdigest()
         args.hash_out.parent.mkdir(parents=True, exist_ok=True)
         with args.hash_out.open("w") as fh:
             fh.write(digest)
-        print(f"wrote {args.hash_out}: keccak256(SSZ blob) = {digest}",
-              file=sys.stderr)
+        print(
+            f"wrote {args.hash_out}: "
+            f"keccak256(witness.headers, {len(headers_section)}B) = {digest}",
+            file=sys.stderr,
+        )
 
     return 0
 

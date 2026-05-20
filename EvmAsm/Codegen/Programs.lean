@@ -1063,13 +1063,28 @@ def ziskKeccak256FromInputProbeUnit : BuildUnit := {
     into the encoder pipeline end-to-end. Once PR-S series lands,
     the SHA-256 hash_tree_root replaces this keccak. -/
 def statelessGuestEpilogue : String :=
-  "  # PR-K5: overwrite OUTPUT[0..32] zero-stub with\n" ++
-  "  # keccak256 of the SSZ input bytes.\n" ++
+  "  # PR-K6: overwrite OUTPUT[0..32] with keccak256 of\n" ++
+  "  # witness.headers SSZ section bytes (navigated from the\n" ++
+  "  # outer container offsets). Chain:\n" ++
+  "  #   ssz_start  = INPUT_ADDR + 16\n" ++
+  "  #   offset_1   = LWU at ssz_start +  4    (witness offset)\n" ++
+  "  #   witness    = ssz_start + offset_1\n" ++
+  "  #   inner_off2 = LWU at witness  +  8    (headers offset)\n" ++
+  "  #   hdrs_start = witness + inner_off2\n" ++
+  "  #   offset_3   = LWU at ssz_start + 16   (public_keys offset == witness end)\n" ++
+  "  #   hdrs_end   = ssz_start + offset_3\n" ++
+  "  #   hdrs_len   = hdrs_end - hdrs_start\n" ++
   "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000           # INPUT_ADDR\n" ++
-  "  ld a1, 8(a3)                # length (u64 LE)\n" ++
-  "  addi a0, a3, 16             # data ptr\n" ++
-  "  li a2, 0xa0010000           # OUTPUT_ADDR (hash field)\n" ++
+  "  li t3, 0x40000000\n" ++
+  "  addi t3, t3, 16             # t3 = ssz_start\n" ++
+  "  lwu t4, 4(t3)               # outer offset_1\n" ++
+  "  add t5, t3, t4              # t5 = witness_addr\n" ++
+  "  lwu t6, 8(t5)               # inner offset_2 (headers offset)\n" ++
+  "  add a0, t5, t6              # a0 = headers_section_addr (data ptr)\n" ++
+  "  lwu t6, 16(t3)              # outer offset_3 (witness end)\n" ++
+  "  add t6, t3, t6              # t6 = headers_section_end\n" ++
+  "  sub a1, t6, a0              # a1 = headers_section_len\n" ++
+  "  li a2, 0xa0010000           # a2 = OUTPUT_ADDR (hash field)\n" ++
   "  jal ra, zkvm_keccak256\n" ++
   "  j .Lsg_done\n" ++
   zkvmKeccak256Function ++ "\n" ++
