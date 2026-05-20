@@ -312,6 +312,27 @@ theorem loopIterPostN1Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u0) ** regOwn .x1
 
+@[irreducible] def loopIterPostN1CallNoX1
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
+  let r := iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let qHat := div128Quot u1 u0 v0
+  let c3 := (mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+  loopExitPostN1 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3 **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v0) **
+  (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
+
+theorem loopIterPostN1CallNoX1_to_loopIterPostN1Call
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    ∀ h,
+      (loopIterPostN1CallNoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+        regOwn .x1) h →
+      loopIterPostN1Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop h := by
+  intro h hp
+  delta loopIterPostN1CallNoX1 loopIterPostN1Call at hp ⊢
+  simpa only [sepConj_assoc'] using hp
+
 theorem loopIterPostN1Call_addback {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4_c3 (div128Quot u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3)) :
     loopBodyN1CallAddbackBeqPostJ sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop =
