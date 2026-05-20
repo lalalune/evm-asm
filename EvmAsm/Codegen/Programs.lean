@@ -7,6 +7,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
+import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Push.Program
 import EvmAsm.Codegen.Layout
 
@@ -404,6 +405,123 @@ def tinyInterpDispatchAddUnit : BuildUnit :=
 def tinyInterpDispatchAdd2Unit : BuildUnit :=
   tinyInterpDispatchUnit tinyInterpAdd2Bytecode
 
+/-! ## evm_div — M2 first DIV end-to-end through ziskemu
+
+    NOTE: `evm_div` is not yet proven correct in Lean — the spec
+    composition (Phase 2a, see bead `evm-asm-9iqmw`) is still in
+    flight. The scripts under `scripts/codegen-evm_div*` provide
+    empirical confirmation by running the codegen output on ziskemu.
+
+    `evm_div` shares ADD's `x12`-points-at-operands convention: before,
+    `x12 = sp` with dividend `a` at `sp+0..32` and divisor `b` at
+    `sp+32..64`; after, the quotient lives at `sp+32..64` and `x12 = sp+32`.
+    So `evmAddEpilogue` (which copies `[x12, x12+32)` to `OUTPUT_ADDR`)
+    works unchanged for DIV.
+
+    Unlike ADD, `evm_div` also uses scratch at "negative" offsets from
+    `x12` — the body encodes them as the unsigned bit pattern of
+    12-bit signed negatives (`3936..4088 ≡ -160..-8`). The `.data`
+    layout therefore places a 256-byte zero-filled `div_scratch:` block
+    *before* the `operands:` label so that `x12 - 160..-8` lands in
+    writable RAM.
+
+    `evm_div`'s body lays out main code, then a NOP "exit PC" at index
+    267, then the 75-instruction `divK_div128_v4` subroutine. When the
+    main path completes (via `divK_div_epilogue`'s JAL +24 to the NOP)
+    it falls through into the subroutine instead of halting — and the
+    codegen's halt stub, appended after the body, is unreachable. We
+    splice the body to replace that NOP with `JAL .x0 +304`, which
+    skips over the 75 subroutine instructions (75·4 + 4 = 304 bytes)
+    and lands at the start of `evmAddEpilogue`. The in-loop callers of
+    the subroutine still use the original `jal x2, +560` offsets, which
+    remain correct because we only replaced the NOP, not the
+    subroutine's position relative to its callers. -/
+
+/-- `EvmAsm.Evm64.evm_div` with the NOP "exit PC" at internal index 267
+    replaced by a forward JAL that skips the 75-instruction subroutine
+    and lands at the instruction immediately following the body — i.e.
+    the start of whatever `Program` is appended next (`evmAddEpilogue`
+    in both DIV BuildUnits below). -/
+def evmDivPatched : Program :=
+  (EvmAsm.Evm64.evm_div : List Instr).take 267 ++
+  [Instr.JAL .x0 (304 : BitVec 21)] ++
+  (EvmAsm.Evm64.evm_div : List Instr).drop 268
+
+/-- Dividend as four LE limbs. 2^64, exercises the phase-B n=2 cascade
+    plus the normalize/loop path (not an early-exit). -/
+def evmDivDividend : List UInt64 := [0, 1, 0, 0]
+
+/-- Divisor as four LE limbs. 2. -/
+def evmDivDivisor : List UInt64 := [2, 0, 0, 0]
+
+/-- Expected quotient = 2^64 / 2 = 2^63, LE limbs. The actual on-disk
+    expected hex is asserted by `scripts/codegen-evm_div-check.sh`; this
+    constant is documentation. -/
+def evmDivExpectedQuotient : List UInt64 := [0x8000000000000000, 0, 0, 0]
+
+/-- Same `la x12, operands` as ADD — points the EVM stack pointer at
+    the dividend, with the divisor packed directly after it. -/
+def evmDivPrologue : String :=
+  "  la x12, operands"
+
+/-- `.data` section: 256 bytes of zero-filled scratch labeled
+    `div_scratch:` *first*, then `operands:` with dividend ++ divisor
+    (eight LE dwords). The scratch comes first so that `x12 - 160..-8`
+    (the DIV body's scratch range, encoded as unsigned 12-bit offsets
+    `3936..4088`) falls inside writable RAM.
+
+    Written as raw asm rather than `emitDataLabel` because the layout
+    mixes `.zero` and `.dword`. -/
+def evmDivDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "div_scratch:\n" ++
+  "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "operands:\n" ++
+  String.intercalate "\n"
+    ((evmDivDividend ++ evmDivDivisor).map emitDword)
+
+def evmDivUnit : BuildUnit := {
+  body        := evmDivPatched ++ evmAddEpilogue
+  prologueAsm := evmDivPrologue
+  dataAsm     := evmDivDataSection
+}
+
+/-! ## evm_div_from_input — M4 prover-supplied DIV operands
+
+    Same wrapping as `evmDivUnit`, but operands arrive at runtime from
+    the ziskemu `-i` input region instead of being baked into `.data`.
+    Lets one ELF cover many test vectors. Layout is identical to
+    `evm_add_from_input` plus the 256 B `div_scratch:` block in front
+    of `operands_ram:`. -/
+
+def evm_div_from_input : Program :=
+  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
+  copy64 .x12 .x5 .x6 ++
+  evmDivPatched ++
+  evmAddEpilogue
+
+def evmDivFromInputPrologue : String :=
+  "  la x12, operands_ram"
+
+/-- `.data` section: 256 B of writable `div_scratch:` *before*
+    `operands_ram:` (64 B reserved zero, overwritten at runtime). -/
+def evmDivFromInputDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "div_scratch:\n" ++
+  "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "operands_ram:\n" ++
+  "  .zero 64"
+
+def evmDivFromInputUnit : BuildUnit := {
+  body        := evm_div_from_input
+  prologueAsm := evmDivFromInputPrologue
+  dataAsm     := evmDivFromInputDataSection
+}
+
 /-! ## registry -/
 
 /-- Look up a program by name. Returns `none` for unknown names so the CLI
@@ -411,6 +529,8 @@ def tinyInterpDispatchAdd2Unit : BuildUnit :=
 def lookupProgram : String → Option BuildUnit
   | "smoke"                     => some smokeUnit
   | "evm_add"                   => some evmAddUnit
+  | "evm_div"                   => some evmDivUnit
+  | "evm_div_from_input"        => some evmDivFromInputUnit
   | "input_echo"                => some inputEchoUnit
   | "evm_add_from_input"        => some evmAddFromInputUnit
   | "tiny_interp_add"           => some tinyInterpAddUnit
@@ -421,7 +541,8 @@ def lookupProgram : String → Option BuildUnit
 
 /-- List of known program names, for use in CLI usage strings. -/
 def knownProgramNames : List String :=
-  ["smoke", "evm_add", "input_echo", "evm_add_from_input",
+  ["smoke", "evm_add", "evm_div", "input_echo",
+   "evm_add_from_input", "evm_div_from_input",
    "tiny_interp_add", "tiny_interp_add2",
    "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2"]
 
