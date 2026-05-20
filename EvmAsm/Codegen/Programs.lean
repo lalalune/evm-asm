@@ -758,7 +758,7 @@ def lookupProgram : String → Option BuildUnit
 
 /-- List of known program names, for use in CLI usage strings. -/
 def knownProgramNames : List String :=
-  ["smoke", "evm_add", "evm_div", "evm_mod", "input_echo",
+  ["smoke", "evm_add", "evm_div", "evm_mod", "evm_sdiv_v4", "input_echo",
    "evm_add_from_input", "evm_div_from_input", "evm_mod_from_input",
    "evm_sdiv", "evm_sdiv_from_input",
    "evm_sdiv_v4", "evm_sdiv_v4_from_input",
