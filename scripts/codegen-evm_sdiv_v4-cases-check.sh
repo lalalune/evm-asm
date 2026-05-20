@@ -27,18 +27,21 @@ fi
 
 mkdir -p gen-out
 
+SDIV_PROGRAM="${SDIV_PROGRAM:-evm_sdiv_v4_from_input}"
+SDIV_ARTIFACT="${SDIV_ARTIFACT:-${SDIV_PROGRAM}}"
+
 echo "==> lake build codegen"
 lake build codegen
 
-echo "==> emit evm_sdiv_v4_from_input ELF"
-lake exe codegen --program evm_sdiv_v4_from_input --halt linux93 \
-  -o gen-out/evm_sdiv_v4_from_input
+echo "==> emit ${SDIV_PROGRAM} ELF"
+lake exe codegen --program "${SDIV_PROGRAM}" --halt linux93 \
+  -o "gen-out/${SDIV_ARTIFACT}"
 
-ELF=gen-out/evm_sdiv_v4_from_input.elf
-INPUT=gen-out/evm_sdiv_v4_from_input.input.bin
-OUTPUT=gen-out/evm_sdiv_v4_from_input.output
+ELF="gen-out/${SDIV_ARTIFACT}.elf"
+INPUT="gen-out/${SDIV_ARTIFACT}.input.bin"
+OUTPUT="gen-out/${SDIV_ARTIFACT}.output"
 
-export ZISKEMU ELF INPUT OUTPUT
+export ZISKEMU ELF INPUT OUTPUT SDIV_ARTIFACT
 
 python3 <<'PY'
 import os, struct, subprocess, sys, pathlib
@@ -47,6 +50,7 @@ ZISKEMU = os.environ["ZISKEMU"]
 ELF     = os.environ["ELF"]
 INPUT   = os.environ["INPUT"]
 OUTPUT  = os.environ["OUTPUT"]
+ARTIFACT = os.environ["SDIV_ARTIFACT"]
 
 MASK256 = (1 << 256) - 1
 SIGNBIT = 1 << 255
