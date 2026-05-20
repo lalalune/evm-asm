@@ -1059,6 +1059,52 @@ def ziskZkvmKeccak256ProbeUnit : BuildUnit := {
   dataAsm     := ziskZkvmKeccak256DataSection
 }
 
+/-! ## zisk_keccak256_from_input — PR-K4 host-supplied input
+
+    First real-shape consumer of the parameterised
+    `zkvm_keccak256` from PR-K3: hash an arbitrary byte buffer
+    that the host streamed in via `ziskemu -i <file>`. ziskemu
+    places file bytes 0..8 (the u64 LE length prefix) at
+    `INPUT_ADDR + 8..16` and file bytes 8.. (the data) at
+    `INPUT_ADDR + 16..`. The probe reads the length, points at
+    the data, calls `zkvm_keccak256`, writes the 32-byte digest
+    at OUTPUT_ADDR.
+
+    Designed to test header-shaped inputs (typical Ethereum
+    header RLP is ~530-540 bytes), but accepts any byte stream.
+    The Python harness (`scripts/keccak256-gen-input.py`)
+    SSZ/RLP-encodes a real Header dataclass and emits the
+    ziskemu-formatted input file. The test script runs ziskemu,
+    diffs the OUTPUT digest against the Python-computed
+    reference hash. -/
+def ziskKeccak256FromInputPrologue : String :=
+  "  # set up stack\n" ++
+  "  li sp, 0xa0050000\n" ++
+  "  # read length and data ptr from ziskemu input region\n" ++
+  "  li a3, 0x40000000           # INPUT_ADDR\n" ++
+  "  ld a1, 8(a3)                # a1 = length (u64 LE at INPUT_ADDR + 8)\n" ++
+  "  addi a0, a3, 16             # a0 = data ptr (INPUT_ADDR + 16)\n" ++
+  "  li a2, 0xa0010000           # a2 = OUTPUT_ADDR\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  j .Lzk4_done\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  ".Lzk4_done:"
+
+/-- `.data` for the from-input probe: 200-byte state buffer used
+    by `zkvm_keccak256`. Input data lives in the
+    `INPUT_ADDR` region (host-supplied via `ziskemu -i`), not in
+    `.data`. -/
+def ziskKeccak256FromInputDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200"
+
+def ziskKeccak256FromInputProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskKeccak256FromInputPrologue
+  dataAsm     := ziskKeccak256FromInputDataSection
+}
+
 /-! ## registry -/
 
 /-- Look up a program by name. Returns `none` for unknown names so the CLI
@@ -1082,6 +1128,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit
   | "zisk_keccak256_abc"        => some ziskKeccak256AbcProbeUnit
   | "zisk_zkvm_keccak256"       => some ziskZkvmKeccak256ProbeUnit
+  | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
   | _                           => none
 
 /-- List of known program names, for use in CLI usage strings. -/
@@ -1095,6 +1142,7 @@ def knownProgramNames : List String :=
    "zisk_keccak_probe",
    "zisk_keccak256_empty",
    "zisk_keccak256_abc",
-   "zisk_zkvm_keccak256"]
+   "zisk_zkvm_keccak256",
+   "zisk_keccak256_from_input"]
 
 end EvmAsm.Codegen
