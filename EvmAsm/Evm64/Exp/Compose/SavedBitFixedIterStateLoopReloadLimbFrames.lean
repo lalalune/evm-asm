@@ -36,6 +36,12 @@ theorem expReloadDirectTailFrame_unfold
         signExtend12 (0 : BitVec 12)) ↦ₘ nextNextLimb) ** frame) := by
   rw [expReloadDirectTailFrame, expReloadLimbDirectTailFrame_unfold]
 
+theorem expReloadDirectTailFrame_emp
+    {ptr nextNextLimb : Word} :
+    expReloadDirectTailFrame ptr nextNextLimb empAssertion =
+      expReloadLimbDirectTailFrame ptr nextNextLimb := by
+  rw [expReloadDirectTailFrame, sepConj_emp_right']
+
 @[irreducible]
 def expReloadLimbDirectFalseFrame
     (controlC6 e iterCount ptr nextLimb : Word) : Assertion :=
@@ -60,18 +66,32 @@ theorem expReloadLimbDirectFalseFrame_unfold
 def expReloadDirectFalseFrame
     (controlC6 e iterCount ptr nextLimb : Word)
     (frame : Assertion) : Assertion :=
-  expReloadLimbDirectFalseFrame controlC6 e iterCount ptr nextLimb ** frame
+  (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
+    ⌜expTwoMulIterCountNew iterCount ≠ 0⌝ **
+    ⌜controlC6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
+    ⌜(e >>> (63 : BitVec 6).toNat) +
+      signExtend12 (0 : BitVec 12) = 0⌝ **
+    frame)
 
 theorem expReloadDirectFalseFrame_unfold
     {controlC6 e iterCount ptr nextLimb : Word} {frame : Assertion} :
     expReloadDirectFalseFrame controlC6 e iterCount ptr nextLimb frame =
-      ((((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
-          ⌜expTwoMulIterCountNew iterCount ≠ 0⌝ **
-          ⌜controlC6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
-          ⌜(e >>> (63 : BitVec 6).toNat) +
-            signExtend12 (0 : BitVec 12) = 0⌝) **
+      (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
+        ⌜expTwoMulIterCountNew iterCount ≠ 0⌝ **
+        ⌜controlC6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
+        ⌜(e >>> (63 : BitVec 6).toNat) +
+          signExtend12 (0 : BitVec 12) = 0⌝ **
         frame) := by
-  rw [expReloadDirectFalseFrame, expReloadLimbDirectFalseFrame_unfold]
+  delta expReloadDirectFalseFrame
+  rfl
+
+theorem expReloadDirectFalseFrame_emp
+    {controlC6 e iterCount ptr nextLimb : Word} :
+    expReloadDirectFalseFrame controlC6 e iterCount ptr nextLimb
+        empAssertion =
+      expReloadLimbDirectFalseFrame controlC6 e iterCount ptr nextLimb := by
+  rw [expReloadDirectFalseFrame_unfold, expReloadLimbDirectFalseFrame_unfold,
+    sepConj_emp_right']
 
 @[irreducible]
 def expReloadLimbDirectTrueFrame
@@ -97,17 +117,31 @@ theorem expReloadLimbDirectTrueFrame_unfold
 def expReloadDirectTrueFrame
     (controlC6 e iterCount ptr nextLimb : Word)
     (frame : Assertion) : Assertion :=
-  expReloadLimbDirectTrueFrame controlC6 e iterCount ptr nextLimb ** frame
+  (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
+    ⌜expTwoMulIterCountNew iterCount ≠ 0⌝ **
+    ⌜controlC6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
+    ⌜(e >>> (63 : BitVec 6).toNat) +
+      signExtend12 (0 : BitVec 12) ≠ 0⌝ **
+    frame)
 
 theorem expReloadDirectTrueFrame_unfold
     {controlC6 e iterCount ptr nextLimb : Word} {frame : Assertion} :
     expReloadDirectTrueFrame controlC6 e iterCount ptr nextLimb frame =
-      ((((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
-          ⌜expTwoMulIterCountNew iterCount ≠ 0⌝ **
-          ⌜controlC6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
-          ⌜(e >>> (63 : BitVec 6).toNat) +
-            signExtend12 (0 : BitVec 12) ≠ 0⌝) **
+      (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
+        ⌜expTwoMulIterCountNew iterCount ≠ 0⌝ **
+        ⌜controlC6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
+        ⌜(e >>> (63 : BitVec 6).toNat) +
+          signExtend12 (0 : BitVec 12) ≠ 0⌝ **
         frame) := by
-  rw [expReloadDirectTrueFrame, expReloadLimbDirectTrueFrame_unfold]
+  delta expReloadDirectTrueFrame
+  rfl
+
+theorem expReloadDirectTrueFrame_emp
+    {controlC6 e iterCount ptr nextLimb : Word} :
+    expReloadDirectTrueFrame controlC6 e iterCount ptr nextLimb
+        empAssertion =
+      expReloadLimbDirectTrueFrame controlC6 e iterCount ptr nextLimb := by
+  rw [expReloadDirectTrueFrame_unfold, expReloadLimbDirectTrueFrame_unfold,
+    sepConj_emp_right']
 
 end EvmAsm.Evm64.Exp.Compose

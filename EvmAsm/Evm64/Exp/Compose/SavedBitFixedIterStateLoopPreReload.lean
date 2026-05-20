@@ -171,10 +171,10 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_head_reloadDirect_p
       (fun _ h => by
         rw [hPreReloadEq] at h
         rw [← hFrameEq, expTwoMulFixedSavedNextLimbFrame_unfold] at h
-        exact h)
+        simpa only [expReloadDirectTailFrame_unfold] using h)
       (fun _ h => by
         rw [hPreReloadEq, ← hFrameEq, expTwoMulFixedSavedNextLimbFrame_unfold]
-        exact h)
+        simpa only [expReloadDirectTailFrame_unfold] using h)
       (cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_head_reloadDirect_from_pre
         controlC6 e machineC6 iterCount v10 v18 ptr nextLimb nextNextLimb
         sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
@@ -188,15 +188,20 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_head_reloadDirect_p
         hbase hControlMachine hk hBase hNextNext
         (fun hk_lt bit v6' v7' v10' v11' d0' d1' d2' d3' => by
           simpa only [expReloadDirectBranchPre,
+            expReloadDirectTailFrame_unfold,
             expPreReloadDirectTailFrameN_unfold] using
             hBranch hk_lt bit v6' v7' v10' v11' d0' d1' d2' d3')
         (fun hk_lt v6' v7' v10' v11' d0' d1' d2' d3' => by
           simpa only [expReloadDirectFalsePre,
+            expReloadDirectFalseFrame_unfold,
+            expReloadDirectTailFrame_unfold,
             expPreReloadDirectFalseFrameN_unfold,
             expPreReloadDirectTailFrameN_unfold] using
             hReloadFalse hk_lt v6' v7' v10' v11' d0' d1' d2' d3')
         (fun hk_lt v6' v7' v10' v11' d0' d1' d2' d3' => by
           simpa only [expReloadDirectTruePre,
+            expReloadDirectTrueFrame_unfold,
+            expReloadDirectTailFrame_unfold,
             expPreReloadDirectTrueFrameN_unfold,
             expPreReloadDirectTailFrameN_unfold] using
             hReloadTrue hk_lt v6' v7' v10' v11' d0' d1' d2' d3')
