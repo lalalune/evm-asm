@@ -1521,6 +1521,155 @@ def ziskSszZeroHashesProbeUnit : BuildUnit := {
   dataAsm     := sszZeroHashesDataSection
 }
 
+/-! ## ssz_merkleize_pow2 — PR-S6 pair-hash reduction loop
+
+    SSZ pairwise merkleization for a power-of-two chunk count.
+    Implements:
+
+        while n > 1:
+            for i in 0..n/2:
+                chunks[i] = sha256_pair(chunks[2i], chunks[2i+1])
+            n = n / 2
+        root = chunks[0]
+
+    Reads `n * 32` bytes from the caller's input pointer into
+    `ssz_merkleize_scratch` (a 1024-byte working buffer), then
+    reduces in place. Final root is copied to the caller's output
+    pointer; the scratch buffer's first 32 bytes hold the same
+    root after the call (intentional, reusable by chained
+    merkleizers).
+
+    Calling convention:
+      a0 (input)  : ptr to `n * 32` chunk bytes
+      a1 (input)  : n (power of two; 1 ≤ n ≤ 32)
+      a2 (input)  : 32-byte output ptr
+      ra (input)  : return
+      a0 (output) : 0 (ZKVM_EOK)
+
+    Clobbers t0..t6, a0..a2. Saves/restores s0..s6 and ra via
+    its own 64-byte stack frame. Requires `sp` to point at
+    writable RAM. -/
+def sszMerkleizePow2Function : String :=
+  "ssz_merkleize_pow2:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  sd s1, 16(sp)\n" ++
+  "  sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp)\n" ++
+  "  sd s5, 48(sp)\n" ++
+  "  sd s6, 56(sp)\n" ++
+  "  # s0 = n (current chunk count); s5 = scratch base; s6 = caller out ptr\n" ++
+  "  mv s0, a1\n" ++
+  "  mv s6, a2\n" ++
+  "  la s5, ssz_merkleize_scratch\n" ++
+  "  # copy n*32 input bytes into scratch (in 8-byte units)\n" ++
+  "  mv t0, a0\n" ++
+  "  mv t1, s5\n" ++
+  "  slli t2, s0, 5             # t2 = n * 32 bytes to copy\n" ++
+  ".Lmrk_copy:\n" ++
+  "  beqz t2, .Lmrk_iter\n" ++
+  "  ld t3, 0(t0)\n" ++
+  "  sd t3, 0(t1)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, -8\n" ++
+  "  j .Lmrk_copy\n" ++
+  ".Lmrk_iter:\n" ++
+  "  # if n == 1: root is at scratch[0..32]\n" ++
+  "  li t0, 1\n" ++
+  "  beq s0, t0, .Lmrk_done\n" ++
+  "  # pair-hash adjacent chunks into the lower half of scratch\n" ++
+  "  srli s1, s0, 1             # s1 = n/2 = pair count\n" ++
+  "  mv s2, s5                  # s2 = src pair ptr (64-byte step)\n" ++
+  "  mv s3, s5                  # s3 = dst slot ptr (32-byte step)\n" ++
+  ".Lmrk_pair:\n" ++
+  "  beqz s1, .Lmrk_advance\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  li a1, 64\n" ++
+  "  jal ra, zkvm_sha256\n" ++
+  "  addi s2, s2, 64\n" ++
+  "  addi s3, s3, 32\n" ++
+  "  addi s1, s1, -1\n" ++
+  "  j .Lmrk_pair\n" ++
+  ".Lmrk_advance:\n" ++
+  "  srli s0, s0, 1             # n /= 2\n" ++
+  "  j .Lmrk_iter\n" ++
+  ".Lmrk_done:\n" ++
+  "  # copy 32 bytes scratch[0..32] -> caller out ptr (s6)\n" ++
+  "  ld t0,  0(s5);  sd t0,  0(s6)\n" ++
+  "  ld t0,  8(s5);  sd t0,  8(s6)\n" ++
+  "  ld t0, 16(s5);  sd t0, 16(s6)\n" ++
+  "  ld t0, 24(s5);  sd t0, 24(s6)\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  ld s1, 16(sp)\n" ++
+  "  ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp)\n" ++
+  "  ld s5, 48(sp)\n" ++
+  "  ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_ssz_merkleize_pow2`: probe BuildUnit that reads `n`
+    from `INPUT_ADDR + 8` (u64 LE) and `n * 32` chunk bytes
+    starting at `INPUT_ADDR + 16`, then calls `ssz_merkleize_pow2`
+    and writes the 32-byte root to `OUTPUT_ADDR`.
+
+    Test fixtures (in `scripts/codegen-zisk-ssz-merkleize-pow2-check.sh`):
+      * n = 1, single zero chunk           → Z_0
+      * n = 2, two zero chunks             → Z_1
+      * n = 4, four zero chunks            → Z_2
+      * n = 8, eight zero chunks           → Z_3
+      * n = 16, sixteen zero chunks        → Z_4
+      * n = 32, thirty-two zero chunks     → Z_5
+
+    These align with the PR-S5 `Z_d` table values, so a passing
+    probe confirms the merkleize loop walks the tree correctly. -/
+def ziskSszMerkleizePow2Prologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000           # INPUT_ADDR\n" ++
+  "  ld a1, 8(a3)                # a1 = n\n" ++
+  "  addi a0, a3, 16             # a0 = chunks ptr\n" ++
+  "  li a2, 0xa0010000           # a2 = OUTPUT_ADDR\n" ++
+  "  jal ra, ssz_merkleize_pow2\n" ++
+  "  j .Lzs6_done\n" ++
+  zkvmSha256Function ++ "\n" ++
+  sszMerkleizePow2Function ++ "\n" ++
+  ".Lzs6_done:"
+
+def ziskSszMerkleizePow2DataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "sha256_w_iv:\n" ++
+  "  .quad 0xbb67ae856a09e667\n" ++
+  "  .quad 0xa54ff53a3c6ef372\n" ++
+  "  .quad 0x9b05688c510e527f\n" ++
+  "  .quad 0x5be0cd191f83d9ab\n" ++
+  ".balign 8\n" ++
+  "sha256_w_state:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "sha256_w_input:\n" ++
+  "  .zero 64\n" ++
+  ".balign 8\n" ++
+  "sha256_w_params:\n" ++
+  "  .quad sha256_w_state\n" ++
+  "  .quad sha256_w_input\n" ++
+  ".balign 32\n" ++
+  "ssz_merkleize_scratch:\n" ++
+  "  .zero 1024"
+
+def ziskSszMerkleizePow2ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskSszMerkleizePow2Prologue
+  dataAsm     := ziskSszMerkleizePow2DataSection
+}
+
 /-! ## stateless_guest body — PR-K5 keccak hash field
 
     Replaces the zero-stub `new_payload_request_root` field in
@@ -1638,6 +1787,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
+  | "zisk_ssz_merkleize_pow2"   => some ziskSszMerkleizePow2ProbeUnit
   | _                           => none
 
 /-- List of known program names, for use in CLI usage strings. -/
@@ -1656,6 +1806,7 @@ def knownProgramNames : List String :=
    "zisk_zkvm_sha256",
    "zisk_keccak256_from_input",
    "zisk_ssz_pair_hash",
-   "zisk_ssz_zero_hashes"]
+   "zisk_ssz_zero_hashes",
+   "zisk_ssz_merkleize_pow2"]
 
 end EvmAsm.Codegen
