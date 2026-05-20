@@ -51,3 +51,4 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4CallV4NoNop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNop
