@@ -28,19 +28,37 @@ import sys
 from pathlib import Path
 
 
-def build_ssz_blob(chain_id: int, with_empty_header: bool) -> bytes:
+def build_ssz_blob(
+    chain_id: int,
+    with_empty_header: bool,
+    with_empty_state_node: bool,
+) -> bytes:
     """SSZ-encode an `SszStatelessInput`.
 
     `chain_config.chain_id` is set from `chain_id`. Other fields are
-    empty defaults, except when `with_empty_header` is `True`: then
-    `witness.headers` carries one zero-length entry, growing the
-    witness body from 12 bytes (the offsets table alone) to 16 bytes
-    (offsets + a 4-byte inner offsets entry for the single empty
-    header). This is the fixture the guest's
-    `decode_validation_bit` uses to flip its bool to `0`."""
+    empty defaults, with optional witness mutations:
+
+    - `with_empty_header=True` puts one zero-length entry in
+      `witness.headers`. The witness body grows from 12 bytes
+      (offsets only) to 16 bytes (offsets + a 4-byte inner offsets
+      entry for the empty header).
+    - `with_empty_state_node=True` puts one zero-length entry in
+      `witness.state`. The witness body grows the same way, but the
+      mutation lives in `state` -- `witness.headers` stays empty.
+
+    The combinations let the test harness distinguish:
+      (A) empty witness                 -> headers empty
+      (B) one empty header              -> headers NON-empty
+      (C) one empty state node          -> headers empty
+                                           (state non-empty, but the
+                                            guest's PR5 bool only
+                                            tracks headers)
+    """
     from ethereum.forks.amsterdam.stateless_ssz import (
         MAX_BYTES_PER_HEADER,
+        MAX_BYTES_PER_WITNESS_NODE,
         MAX_WITNESS_HEADERS,
+        MAX_WITNESS_NODES,
         SszChainConfig,
         SszExecutionWitness,
         SszNewPayloadRequest,
@@ -49,13 +67,16 @@ def build_ssz_blob(chain_id: int, with_empty_header: bool) -> bytes:
     from remerkleable.byte_arrays import ByteList
     from remerkleable.complex import List as SszList
 
+    witness_kwargs = {}
     if with_empty_header:
-        headers = SszList[ByteList[MAX_BYTES_PER_HEADER], MAX_WITNESS_HEADERS](
-            ByteList[MAX_BYTES_PER_HEADER]()
-        )
-        witness = SszExecutionWitness(headers=headers)
-    else:
-        witness = SszExecutionWitness()
+        witness_kwargs["headers"] = SszList[
+            ByteList[MAX_BYTES_PER_HEADER], MAX_WITNESS_HEADERS
+        ](ByteList[MAX_BYTES_PER_HEADER]())
+    if with_empty_state_node:
+        witness_kwargs["state"] = SszList[
+            ByteList[MAX_BYTES_PER_WITNESS_NODE], MAX_WITNESS_NODES
+        ](ByteList[MAX_BYTES_PER_WITNESS_NODE]())
+    witness = SszExecutionWitness(**witness_kwargs)
 
     ssz_input = SszStatelessInput(
         new_payload_request=SszNewPayloadRequest(),
@@ -77,14 +98,26 @@ def main() -> int:
         "--with-empty-header",
         action="store_true",
         help=(
-            "Inject one zero-length entry into `witness.headers` so the "
-            "guest's decode_validation_bit yields 0 (non-empty witness)."
+            "Inject one zero-length entry into `witness.headers` so "
+            "the guest's PR5 decode_validation_bit yields 0 "
+            "(headers list non-empty)."
+        ),
+    )
+    parser.add_argument(
+        "--with-empty-state-node",
+        action="store_true",
+        help=(
+            "Inject one zero-length entry into `witness.state`. PR5's "
+            "bool tracks headers only, so this fixture stays at 1 "
+            "(differentiates PR5 logic from PR4 logic)."
         ),
     )
     args = parser.parse_args()
 
     chain_id = int(args.chain_id, 0)
-    blob = build_ssz_blob(chain_id, args.with_empty_header)
+    blob = build_ssz_blob(
+        chain_id, args.with_empty_header, args.with_empty_state_node
+    )
 
     # ziskemu reads the input file in u64 chunks and rejects sizes that
     # aren't a multiple of 8 ("EmuContext::new() input size must be a
