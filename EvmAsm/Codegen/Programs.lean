@@ -699,6 +699,66 @@ def ziskKeccakProbeUnit : BuildUnit := {
   dataAsm     := ziskKeccakProbeDataSection
 }
 
+/-! ## zisk_keccak256_empty — PR-K2 keccak256 sponge over empty input
+
+    First wrapper around PR-K1's intrinsic: the keccak256 sponge
+    construction applied to a zero-byte message. Concretely:
+
+      1. Zero the 200-byte state buffer.
+      2. Pad: set byte 0 = 0x01, byte 135 = 0x80
+         (Ethereum Keccak padding; rate = 1088 bits = 136 bytes).
+      3. Trigger `_opcode_keccak` (csrs 0x800, a0).
+      4. Copy the first 32 bytes of state to OUTPUT_ADDR -- those
+         are the 256-bit hash digest.
+
+    Expected output (32 bytes):
+      c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+
+    Matches the canonical keccak256("") hash and the value produced
+    by `eth_utils.keccak(b"")` / `Cryptodome.Hash.keccak.new(...).digest()`.
+    This is the simplest possible exercise of the full sponge wrapper:
+    no input blocks to absorb, just the final padded block. Future
+    PRs extend this to one-block ("abc") and multi-block inputs. -/
+
+/-- Asm prologue: zero state, apply Ethereum Keccak padding for the
+    empty-message case, call the keccak-f intrinsic, copy the 32-byte
+    digest to OUTPUT_ADDR. -/
+def ziskKeccak256EmptyPrologue : String :=
+  "  la s0, k256e_state\n" ++
+  "  # zero state (25 × u64)\n" ++
+  "  mv t3, s0\n" ++
+  "  li t4, 25\n" ++
+  ".Lk256e_zero:\n" ++
+  "  sd zero, 0(t3)\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lk256e_zero\n" ++
+  "  # apply Ethereum Keccak padding to empty message\n" ++
+  "  li t0, 0x01\n" ++
+  "  sb t0, 0(s0)              # state[0] = 0x01\n" ++
+  "  li t0, 0x80\n" ++
+  "  sb t0, 135(s0)            # state[135] = 0x80\n" ++
+  "  # call keccak-f via PR-K1 intrinsic (csrs 0x800, a0)\n" ++
+  "  mv a0, s0\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  # copy first 32 bytes of state to OUTPUT_ADDR\n" ++
+  "  li t0, 0xa0010000         # OUTPUT_ADDR\n" ++
+  "  ld t1, 0(s0);  sd t1, 0(t0)\n" ++
+  "  ld t1, 8(s0);  sd t1, 8(t0)\n" ++
+  "  ld t1, 16(s0); sd t1, 16(t0)\n" ++
+  "  ld t1, 24(s0); sd t1, 24(t0)"
+
+def ziskKeccak256EmptyDataSection : String :=
+  ".section .data\n" ++
+  "k256e_state:\n" ++
+  "  .zero 200"
+
+def ziskKeccak256EmptyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskKeccak256EmptyPrologue
+  dataAsm     := ziskKeccak256EmptyDataSection
+}
+
 /-! ## registry -/
 
 /-- Look up a program by name. Returns `none` for unknown names so the CLI
@@ -718,6 +778,7 @@ def lookupProgram : String → Option BuildUnit
   | "tiny_interp_dispatch_add2" => some tinyInterpDispatchAdd2Unit
   | "stateless_guest"           => some statelessGuestUnit
   | "zisk_keccak_probe"         => some ziskKeccakProbeUnit
+  | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit
   | _                           => none
 
 /-- List of known program names, for use in CLI usage strings. -/
@@ -727,6 +788,7 @@ def knownProgramNames : List String :=
    "tiny_interp_add", "tiny_interp_add2",
    "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2",
    "stateless_guest",
-   "zisk_keccak_probe"]
+   "zisk_keccak_probe",
+   "zisk_keccak256_empty"]
 
 end EvmAsm.Codegen
