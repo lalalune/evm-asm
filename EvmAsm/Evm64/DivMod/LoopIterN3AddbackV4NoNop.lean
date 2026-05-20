@@ -35,9 +35,8 @@ def loopBodyN3CallAddbackJgt0PreV4
     (j sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word) : Assertion :=
-  loopBodyN3CallSkipPre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    j v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 **
-  (sp + signExtend12 3936 ↦ₘ scratchMem)
+  loopBodyN3CallPreV4 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    j v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem
 
 @[irreducible]
 def loopBodyN3CallAddbackJgt0PostV4
@@ -230,10 +229,10 @@ theorem divK_loop_body_n3_call_addback_j0_beq_v4_spec_within_noNop
     (hborrow : loopBodyN3CallAddbackBorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop)
     (hcarry2_nz : loopBodyN3CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     cpsTripleWithin 224 (base + loopBodyOff) (base + denormOff) (sharedDivModCodeNoNop_v4 base)
-      (loopBodyN3CallSkipJ0PreV4 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
-        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem)
+      (loopBodyN3CallPreV4 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem)
       (loopBodyN3CallAddbackJ0PostV4 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem) := by
-  unfold loopBodyN3CallSkipJ0PreV4
+  unfold loopBodyN3CallPreV4
   let uBase := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let qAddr := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
   let dHi := divKTrialCallV4DHi v2
@@ -305,7 +304,7 @@ theorem divK_loop_body_n3_call_addback_j0_beq_v4_spec_within_noNop
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0f SLf
   exact cpsTripleWithin_weaken
     (fun h hp => by
-      rw [loopBodyN3CallSkipPre_unfold] at hp
+      unfold loopBodyN3CallPreV4 at hp
       xperm_hyp hp)
     (fun h hp => by
       unfold loopBodyN3CallAddbackJ0PostV4
@@ -401,7 +400,7 @@ theorem divK_loop_body_n3_call_addback_jgt0_beq_v4_spec_within_noNop (j : Word)
     (fun h hp => by rw [sepConj_assoc'] at hp; xperm_hyp hp) TFfMCA0f SLf
   exact cpsTripleWithin_weaken
     (fun h hp => by
-      rw [loopBodyN3CallSkipPre_unfold] at hp
+      unfold loopBodyN3CallPreV4 at hp
       xperm_hyp hp)
     (fun h hp => by
       unfold loopBodyN3CallAddbackJgt0PostV4
