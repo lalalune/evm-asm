@@ -45,15 +45,14 @@
     `OUTPUT_ADDR + 0..N`.
   - Halts with the codegen halt stub.
 
-  ## PR4 status
+  ## PR5 status
 
   Decode + light validation:
     - `Stateless.SSZ.Decode.read_chain_id` reads `chain_id` from the
       host-supplied `SszStatelessInput` on `INPUT_ADDR` into `x10`.
-    - `Stateless.SSZ.Decode.decode_validation_bit` reads `offset_1`
-      and `offset_3` from the SSZ container header, computes
-      `witness_body_length = offset_3 - offset_1`, and sets `x11` to
-      `1` iff the witness is empty (body length `== 12`).
+    - `Stateless.SSZ.Decode.decode_validation_bit` chases the outer
+      SSZ → witness → headers offset chain and sets `x11 = 1` iff
+      `witness.headers` is empty (regardless of `state` / `codes`).
 
   Encode:
     - `Stateless.SSZ.Encode.serialize_stateless_output` writes the

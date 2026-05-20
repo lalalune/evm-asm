@@ -37,34 +37,43 @@
 
   ## Memory layout (preconditions)
   - `INPUT_BASE = 0x40000000` (matches `EvmAsm.Codegen.INPUT_ADDR`).
-  - `[INPUT_BASE + 16, INPUT_BASE + 36)` lies inside the input zone
-    (`INPUT_MEM_START..INPUT_MEM_END`, see issue #5164).
-  - The host writes a length-prefixed SSZ blob of at least 20 data
-    bytes (the full SszStatelessInput fixed header).
+  - `[INPUT_BASE + 16, INPUT_BASE + 16 + N)` is host-supplied SSZ
+    data; PR5 reads bytes 0..4 (offset_1), 16..20 (offset_3), and
+    inside the witness section at byte 8..12 (offset_headers).
+  - The input zone (`INPUT_MEM_START..INPUT_MEM_END`, see #5164)
+    admits all of these.
+  - All reads are 4-byte aligned: the SSZ blob starts at the
+    8-byte-aligned `INPUT_BASE + 16`, every nested container's
+    fixed header begins on a 4-byte boundary in our fixtures, and
+    the offsets we read all target 4-byte-aligned positions.
 
   ## Side effects
   - `read_chain_id` loads `chain_id` (u64 LE) into `x10`; clobbers
     `x11`.
-  - `decode_validation_bit` reads offset_1 and offset_3 from the
-    fixed header (u32 LE each), computes
-    `witness_body_length = offset_3 - offset_1`, and writes
-    `1` into `x11` iff that length equals `12` (the size of an empty
-    `SszExecutionWitness`, which is just its 3-entry offsets table).
-    Clobbers `x12..x14`.
+  - `decode_validation_bit` chases offset_1 (outer SSZ →
+    witness_addr), the witness section's third inner u32
+    (witness_addr → headers_addr), and offset_3 (outer SSZ →
+    public_keys_addr = headers_end_addr). It then writes `1` into
+    `x11` iff `headers_end_addr - headers_addr == 0`, i.e. the
+    `witness.headers` SSZ list section is empty. Clobbers
+    `x12..x15`.
 
-  ## PR4 framing of the bool
+  ## PR5 framing of the bool
 
-  An empty witness body (state = codes = headers = empty lists) has
-  exactly 12 bytes on the wire: the three u32 offsets, each pointing
-  at byte 12 (= end of the offsets table, start of the empty body).
-  PR4 surfaces "witness is empty" as the `successful_validation`
-  flag in the output. Future PRs replace this with the real STF
-  verdict.
+  PR4 set the bool from whether the **whole** `SszExecutionWitness`
+  body was empty (length 12). PR5 narrows this: the bool reflects
+  whether `witness.headers` specifically is empty, regardless of
+  what's in `state` or `codes`. This is the first piece of
+  header-aware navigation in the guest, and the offset-chain
+  primitives stay useful for header iteration in later PRs.
+
+  Future PRs replace this bool with the real STF verdict.
 
   ## Frame
   - `read_chain_id`: 2 instructions (1 LI + 1 LD).
-  - `decode_validation_bit`: 6 instructions
-    (1 LI + 2 LWU + 1 SUB + 1 XORI + 1 SLTIU).
+  - `decode_validation_bit`: 10 instructions
+    (1 LI + 1 LWU + 1 ADDI + 1 ADD + 1 LWU + 1 ADD + 1 LWU + 1 ADD
+     + 1 SUB + 1 SLTIU).
 -/
 
 import EvmAsm.Rv64.Program
@@ -85,18 +94,24 @@ def INPUT_BASE : Word := 0x40000000
 -/
 def CHAIN_ID_BYTE_OFFSET : BitVec 12 := 24
 
-/-- Byte offset (from `INPUT_BASE`) of `offset_1` (the SSZ header
-    pointer to the `witness` field): `16 + 4 = 20`. -/
-def WITNESS_OFFSET_BYTE : BitVec 12 := 20
+/-- ziskemu's 16-byte preamble at `INPUT_ADDR`: 8 bytes of zero
+    metadata + 8 bytes of u64 length prefix. The SSZ blob proper
+    starts at `INPUT_BASE + INPUT_DATA_OFFSET`. -/
+def INPUT_DATA_OFFSET : BitVec 12 := 16
 
-/-- Byte offset (from `INPUT_BASE`) of `offset_3` (the SSZ header
-    pointer to the `public_keys` field, == the end of `witness`):
-    `16 + 16 = 32`. -/
-def PUBLIC_KEYS_OFFSET_BYTE : BitVec 12 := 32
+/-- SSZ byte offset of `offset_1` (the outer-container pointer to
+    the `witness` field). Relative to the SSZ blob start. -/
+def OUTER_WITNESS_OFFSET_SSZ : BitVec 12 := 4
 
-/-- Size in bytes of an empty `SszExecutionWitness` body (just the
-    three u32 offsets for `state`, `codes`, `headers`). -/
-def EMPTY_WITNESS_BODY_LEN : BitVec 12 := 12
+/-- SSZ byte offset of `offset_3` (the outer-container pointer to
+    the `public_keys` field, == end of the `witness` section).
+    Relative to the SSZ blob start. -/
+def OUTER_PUBLIC_KEYS_OFFSET_SSZ : BitVec 12 := 16
+
+/-- Byte offset within an `SszExecutionWitness` section of its
+    third u32 (`offset_2` = `headers` offset). The witness's fixed
+    header is three u32s: `state`, `codes`, `headers`. -/
+def WITNESS_HEADERS_INNER_OFFSET : BitVec 12 := 8
 
 /-- Read `chain_config.chain_id` from `INPUT_BASE` into `x10`.
 
@@ -106,18 +121,30 @@ def read_chain_id : Program :=
   LI .x11 INPUT_BASE ;;
   LD .x10 .x11 CHAIN_ID_BYTE_OFFSET
 
-/-- Compute the PR4 `successful_validation` bit by reading the outer
-    `SszStatelessInput` offsets table and checking whether the
-    `witness` body is empty (length 12).
+/-- Compute the PR5 `successful_validation` bit by chasing the outer
+    SszStatelessInput → witness → headers offset chain and checking
+    whether the `witness.headers` list section is empty.
 
-    Postcondition: `x11` holds `1` if `offset_3 - offset_1 == 12`,
-    otherwise `0`. Clobbers `x12`, `x13`, `x14`. -/
+    Register usage:
+      x12 : INPUT_BASE, then INPUT_BASE + INPUT_DATA_OFFSET
+            (start of the SSZ blob in memory)
+      x13 : offset_1, then witness_addr
+      x14 : offset_headers, then headers_addr, then
+            headers_byte_length = headers_end_addr - headers_addr
+      x15 : offset_3, then headers_end_addr
+
+    Postcondition: `x11 = 1` iff `headers_byte_length == 0`, else 0.
+    Clobbers `x12..x15`. -/
 def decode_validation_bit : Program :=
   LI .x12 INPUT_BASE ;;
-  LWU .x13 .x12 WITNESS_OFFSET_BYTE ;;
-  LWU .x14 .x12 PUBLIC_KEYS_OFFSET_BYTE ;;
-  SUB .x14 .x14 .x13 ;;
-  XORI .x14 .x14 EMPTY_WITNESS_BODY_LEN ;;
+  LWU .x13 .x12 (INPUT_DATA_OFFSET + OUTER_WITNESS_OFFSET_SSZ) ;;
+  ADDI .x12 .x12 INPUT_DATA_OFFSET ;;
+  ADD .x13 .x12 .x13 ;;
+  LWU .x14 .x13 WITNESS_HEADERS_INNER_OFFSET ;;
+  ADD .x14 .x13 .x14 ;;
+  LWU .x15 .x12 OUTER_PUBLIC_KEYS_OFFSET_SSZ ;;
+  ADD .x15 .x12 .x15 ;;
+  SUB .x14 .x15 .x14 ;;
   SLTIU .x11 .x14 1
 
 end EvmAsm.Stateless.SSZ.Decode

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# codegen-stateless-roundtrip-check.sh -- Stateless guest PR4 verification.
+# codegen-stateless-roundtrip-check.sh -- Stateless guest PR5 verification.
 #
 # Builds the `stateless_guest` program through codegen -> as -> ld,
 # generates SSZ-encoded `SszStatelessInput`s (via the
@@ -12,17 +12,21 @@
 # What's exercised:
 #   * `Stateless.SSZ.Decode.read_chain_id` -- u64 LE at byte 24 of
 #     INPUT_ADDR.
-#   * `Stateless.SSZ.Decode.decode_validation_bit` -- reads
-#     offset_1 and offset_3 from the outer container header (u32 LE
-#     at bytes 20 and 32) and sets `x11 = 1` iff
-#     `offset_3 - offset_1 == 12` (empty SszExecutionWitness body).
+#   * `Stateless.SSZ.Decode.decode_validation_bit` -- chases the
+#     outer SSZ → witness → headers offset chain and sets `x11 = 1`
+#     iff the `witness.headers` list section is empty (regardless of
+#     what's in `state` or `codes`).
 #   * `Stateless.SSZ.Encode.serialize_stateless_output` -- packs both
 #     into the 41-byte SSZ result at OUTPUT_ADDR.
 #
-# Fixtures:
-#   1. chain_id = 1,                  empty witness     -> bool=1
-#   2. chain_id = 0x1234567890ABCDEF, empty witness     -> bool=1
-#   3. chain_id = 0xDEADBEEF,         one empty header  -> bool=0
+# Fixtures (the 4th one distinguishes PR5 from PR4 -- under PR4 it
+# would have flipped to bool=0 because the witness body is non-empty,
+# but under PR5 it stays at bool=1 because the headers list itself
+# is still empty):
+#   1. chain_id = 1,                  empty witness        -> bool=1
+#   2. chain_id = 0x1234567890ABCDEF, empty witness        -> bool=1
+#   3. chain_id = 0xDEADBEEF,         one empty header     -> bool=0
+#   4. chain_id = 0xC0FFEE,           one empty state node -> bool=1
 #
 # Exit:
 #   0 -- all fixtures match expected
@@ -116,6 +120,8 @@ run_fixture "empty_witness_chain1" 1 "01"                          || fail=1
 run_fixture "empty_witness_chain_big" 0x1234567890ABCDEF "01"      || fail=1
 run_fixture "one_empty_header_chain_dead" 0xDEADBEEF "00" \
             --with-empty-header                                    || fail=1
+run_fixture "one_empty_state_node_chain_coffee" 0xC0FFEE "01" \
+            --with-empty-state-node                                || fail=1
 
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all stateless_guest fixtures match expected SSZ output"

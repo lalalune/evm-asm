@@ -997,6 +997,12 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   Encoder ORs `x11` into the packed `bool || chain_id` word.
   Third fixture (`--with-empty-header`) flips the bool to 0;
   output round-trips through Python's SSZ decoder.
+- ✅ PR5 headers-emptiness bit: `decode_validation_bit` now chases
+  the inner offset chain (outer offset_1 → witness_addr → inner
+  offset_headers → headers_addr; outer offset_3 → headers_end) and
+  sets `x11 = 1` iff `witness.headers` is empty regardless of
+  state/codes. Fourth fixture (`--with-empty-state-node`) keeps
+  bool=1 under PR5 vs. 0 under PR4 -- confirms the deeper walk.
 
 ### Cross-references
 
