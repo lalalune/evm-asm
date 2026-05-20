@@ -507,14 +507,63 @@ all still exit 0. Full M7 suite runs in **~57 s** — just under
 the 60 s threshold; the next milestone that materially grows the
 dispatcher ELF should consider the runtime-bytecode optimization.
 
+### M8 — Unsigned division (DIV, MOD) through the dispatcher (M) — **DONE (2026-05-20)**
+
+Routes the verified `evm_div` (0x04) and `evm_mod` (0x06) bodies
+through `tinyInterpRegistry` using the existing `evmDivPatched` /
+`evmModPatched` NOP-splice helpers (lifted out of the M2 standalone
+DIV/MOD wrappers and hoisted before the M5b registry section).
+
+**Delivered:**
+- `EvmAsm/Codegen/Programs.lean`:
+  - Hoisted `evmDivPatched` / `evmModPatched` above the M5b
+    registry so both the M2 standalone wrappers (`evmDivUnit`,
+    `evmModUnit`, etc.) and the new M8 dispatcher handlers can
+    reference them.
+  - New `divModHandlers : List OpcodeHandlerSpec` with two entries
+    (`h_DIV`, `h_MOD`). Both use `preBody := "  mv x14, x10"` and a
+    custom tail (`divModTail`) that restores via `mv x10, x14`.
+    **`x14` instead of `x9`** because `evm_div` / `evm_mod` use `x9`
+    as the Knuth-D loop counter `j` (94 references); the standard
+    M6b `mv x9, x10` save would be destroyed mid-body.
+- `EvmAsm/Codegen/Tests/Cases.lean`: two new cases — `div_basic`
+  (10/2 = 5) and `mod_basic` (10%3 = 1). Total now 26.
+
+**Discovered scope reduction.** SDIV (0x05) and SMOD (0x07) ended up
+deferred. The earlier plan assumed they'd ride the same wrapping
+pattern, but their verified bodies (`evm_sdiv` / `evm_smod`) end with
+a "saved-ra-ret" pattern — `JALR x0, x18, 0` after the wrapper has
+copied `x1` into `x18` at the start — which **bypasses the dispatcher's
+standard wrapper tail entirely**. Integrating them needs a
+trampoline-style wrapper: set `x18` to point at a per-handler restore
+stub *before* the body runs, and splice off the body's initial
+`save_ra_block` so the trampoline target sticks. That's a new
+infrastructure surface; tracked as a separate codegen PR (M8.5 or
+M9-prep).
+
+**Register clobber audit lesson.** M6b's `mv x9, x10` save trick
+isn't universal — it assumed `x9` was unused by the verified body.
+For DIV/MOD (which use `x9` as `j`) we picked `x14` instead. **The
+M7-and-beyond habit of `grep -c '\.x10\b'` before adding a handler
+needs to extend to the chosen save register too:** verify
+`grep -c '\.<save-reg>\b'` is zero across the body's `Program.lean`
+and any callable subroutines.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-check.sh` exits 0 with all 26 cases PASS
+(24 prior + 2 new). Pre-existing scripts unchanged. Full M8 suite
+runs in **~60 s** — at the threshold. The next opcode batch (M9
+self-calling, or M8.5 SDIV/SMOD via trampoline) should bundle the
+runtime-bytecode optimization to keep the suite snappy.
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
-emission unreadable. M7 unblocks M8 (hint-dependent opcodes
-through the dispatcher) and any non-trivial EVM bytecode that
-exercises memory.
+emission unreadable. M8 (DIV/MOD only) is followed by M8.5 / M9
+which need new "callable" / "trampoline" handler ABI extensions
+for SDIV/SMOD and ADDMOD/EXP.
 
 ## Tricky bits / open questions
 
@@ -599,19 +648,33 @@ exercises memory.
   `.data` region and `x13` = memory-base in the dispatcher prologue.
   MSIZE deferred pending verified memory-expansion bookkeeping.
   Suite runtime: ~57 s (just under the 60 s threshold).
+- **M8.** ✅ `scripts/codegen-opcodes-check.sh` exits 0 with **26
+  test cases** PASS (validated 2026-05-20). DIV (0x04) and MOD (0x06)
+  routed through `tinyInterpRegistry` using the
+  `evmDivPatched` / `evmModPatched` NOP-splice helpers. Save register
+  switched from `x9` to `x14` for these two handlers because the
+  verified bodies use `x9` as the Knuth-D loop counter. SDIV/SMOD
+  deferred — their bodies use a saved-ra-ret pattern that bypasses
+  the dispatcher's wrapper tail.
 
-## Future work (post-M7)
+## Future work (post-M8)
 
-Near-term (builds directly on M6a's registry; no new design surface):
-- **M8 — hint-input demo via `evm_div` / `evm_mod`.** Closes the loop
-  on M4's prover-hint infrastructure. The standalone `evm_div` /
-  `evm_mod` wrappers in `Programs.lean` already exercise the
-  hint-input path end-to-end through ziskemu (with `evm_div_from_input`
-  / `evm_mod_from_input`); M8 routes them through the dispatcher
-  instead, so the same bytecode that runs ADD can also run DIV.
-  Likely needs a `callableLabel?` extension to `OpcodeHandlerSpec`
-  to expose distinct entry points for opcodes that are also
-  near-called from within other handlers.
+Near-term (builds directly on M6a's registry):
+
+- **M8.5 / M9 — SDIV / SMOD + self-calling opcodes (ADDMOD, EXP)
+  + runtime-bytecode optimization.** Three concerns that should
+  bundle:
+  - **Trampoline wrapper** for handlers whose bodies end with a
+    saved-ra-ret (SDIV, SMOD): pre-stage the saved-ra register
+    to point at a per-handler restore stub, splice off the body's
+    initial save_ra_block.
+  - **`callableLabel?` field** on `OpcodeHandlerSpec` for opcodes
+    also near-called from within other handlers (ADDMOD calls MOD,
+    EXP calls MUL).
+  - **Runtime-bytecode optimization** (Cross-cutting section below):
+    M8 puts the suite at ~60 s; the next opcode batch will tip it
+    over. Building the dispatcher ELF once + varying bytecode via
+    `ziskemu -i <file>` is the cleanest unblock.
 
 Longer-term (genuine new design surface):
 
