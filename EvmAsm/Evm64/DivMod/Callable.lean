@@ -83,7 +83,9 @@ def evm_mod_callable : Program :=
   divK_div128
 
 /-- v4 LP64-callable wrapper for `evm_div`, using the corrected
-    `divK_div128_v4` subroutine. -/
+    `divK_div128_v4` subroutine. This is a code-surface helper for the v4
+    migration; existing callable specs remain on `evm_div_callable` until the
+    dispatcher proofs are lifted to v4. -/
 def evm_div_callable_v4 : Program :=
   divK_phaseA 1020 ;;
   divK_phaseB ;;
