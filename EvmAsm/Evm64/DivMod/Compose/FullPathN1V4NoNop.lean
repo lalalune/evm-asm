@@ -1103,4 +1103,22 @@ theorem divK_loop_body_n1_call_j3_exact_loopIterScratch_v4_noNop (sp base : Word
     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
     retMem dMem dloMem scratchUn0 scratchMem halign hbltu hcarry2_nz
 
+/-- Explicit no-`x1` post for the N1 path where j=3 uses the v4 call path
+    and j=2/j=1/j=0 all use max. The extra v4 div128 scratch cell is
+    retained as caller frame state. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxScratchPostNoX1 (sp base : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 scratchMem : Word) : Assertion :=
+  let r3 := iterWithDoubleAddback (divKTrialCallV4QHat u1 u0 v0)
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let u_base_3 := sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_3 := sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
+  loopN1Iter210PostNoX1 false false false sp base v0 v1 v2 v3
+    u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+    u0Orig1 u0Orig0
+    (base + div128CallRetOff) v0 (divKTrialCallV4DLo v0) (divKTrialCallV4Un0 u0) **
+  ((u_base_3 + signExtend12 4064) ↦ₘ r3.2.2.2.2.2) ** (q_addr_3 ↦ₘ r3.1) **
+  (sp + signExtend12 3936 ↦ₘ divKTrialCallV4ScratchOut u1 u0 v0 scratchMem)
+
 end EvmAsm.Evm64
