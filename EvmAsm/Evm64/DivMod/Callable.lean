@@ -31,6 +31,7 @@
 
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.DivMod.Compose.Base
+import EvmAsm.Evm64.DivMod.Compose.V4NoNop
 import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.Spec.ModBzeroNoNop
 import EvmAsm.Evm64.CallingConvention

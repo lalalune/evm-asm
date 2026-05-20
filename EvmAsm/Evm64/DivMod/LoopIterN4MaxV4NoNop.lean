@@ -1,9 +1,3 @@
-/-
-  EvmAsm.Evm64.DivMod.LoopIterN4MaxV4NoNop
-
-  No-NOP/v4 replay for the n=4 max+skip loop-body spec.
--/
-
 import EvmAsm.Evm64.DivMod.LoopIterN4
 
 open EvmAsm.Rv64.Tactics
@@ -12,7 +6,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-- No-NOP/v4 variant of `divK_loop_body_n4_max_skip_j0_spec_within_noNop`. -/
+/-- No-NOP/v4 loop body cpsTripleWithin for n=4, max+skip, j=0. -/
 theorem divK_loop_body_n4_max_skip_j0_v4_spec_within_noNop
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -95,8 +89,7 @@ theorem divK_loop_body_n4_max_skip_j0_v4_spec_within_noNop
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by
       delta loopBodyN4SkipPost loopBodySkipPost mulsubN4 loopExitPostN4 loopExitPost
-      rw [sepConj_assoc'] at hp
-      xperm_hyp hp)
+      rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
 end EvmAsm.Evm64
