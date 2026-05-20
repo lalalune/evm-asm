@@ -446,11 +446,27 @@ private theorem callable_b13_div {b : Word} :
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlockCC; exact CodeReq.union_mono_left
 
+private theorem callable_b12_div_v4 {b : Word} :
+    ∀ a i, (cc_ret_code (b + nopOff)) a = some i →
+      (evm_div_callable_code_v4 b) a = some i := by
+  unfold evm_div_callable_code_v4; simp only [CodeReq.unionAll_cons]
+  skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC
+  skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC
+  exact CodeReq.union_mono_left
+
 theorem evm_div_callable_code_ret_sub {base : Word} :
     ∀ a i, (CodeReq.singleton (base + nopOff) (.JALR .x0 .x1 0)) a = some i →
       (evm_div_callable_code base) a = some i := by
   intro a i h
   apply callable_b12_div
+  unfold cc_ret_code cc_ret
+  simpa [CodeReq.ofProg] using h
+
+theorem evm_div_callable_code_v4_ret_sub {base : Word} :
+    ∀ a i, (CodeReq.singleton (base + nopOff) (.JALR .x0 .x1 0)) a = some i →
+      (evm_div_callable_code_v4 base) a = some i := by
+  intro a i h
+  apply callable_b12_div_v4
   unfold cc_ret_code cc_ret
   simpa [CodeReq.ofProg] using h
 
