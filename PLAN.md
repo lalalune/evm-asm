@@ -977,9 +977,14 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
 
 - ✅ PR1 scaffold committed: `EvmAsm/Stateless/` with
   `MemoryLayout.lean`, `Unimplemented.lean`, `Entry.lean`,
-  `EntrySpec.lean`, and the `Stateless.lean` umbrella. `Entry`'s body
-  is one `LI` + `unimplemented_exit`, so the codegen path is live but
-  every input lands on the 0xFE marker.
+  `EntrySpec.lean`, and the `Stateless.lean` umbrella.
+- ✅ #5164 resolved: `isValidMemAddr` is a 3-region predicate
+  (legacy + INPUT + RAM); existing proofs unaffected.
+- ✅ PR2 SSZ output encoder + roundtrip: `Stateless/SSZ/Encode/`
+  emits the 41-byte SSZ encoding of `StatelessValidationResult(root=0,
+  valid=false, chain_id=1)` at `OUTPUT_ADDR`; bytes verified identical
+  to Python's `serialize_stateless_output` reference encoder via
+  `scripts/codegen-stateless-roundtrip-check.sh` on ziskemu.
 
 ### Cross-references
 
