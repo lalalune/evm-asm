@@ -213,6 +213,16 @@ theorem evm_sdiv_call_target_byte_offset :
 def evm_sdiv_legacy : EvmAsm.Rv64.Program :=
   evm_sdiv_wrapper ;; evm_div_callable
 
+theorem evm_sdiv_legacy_length : evm_sdiv_legacy.length = 390 := by
+  native_decide
+
+theorem evm_sdiv_legacy_byte_length : 4 * evm_sdiv_legacy.length = 1560 := by
+  rw [evm_sdiv_legacy_length]
+
+/-- Full SDIV code region (non-v4). -/
+def evm_sdiv : EvmAsm.Rv64.Program :=
+  evm_sdiv_wrapper ;; evm_div_callable
+
 /-- v4 full SDIV code region. This keeps the same SDIV wrapper and swaps the
     appended unsigned DIV callable to the corrected v4 divider body. -/
 def evm_sdiv_v4 : EvmAsm.Rv64.Program :=
