@@ -1152,6 +1152,9 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit
   | "zisk_keccak256_abc"        => some ziskKeccak256AbcProbeUnit
   | "zisk_zkvm_keccak256"       => some ziskZkvmKeccak256ProbeUnit
+  | "zisk_sha256_probe_le"      => some ziskSha256ProbeLeUnit
+  | "zisk_zkvm_sha256"          => some ziskZkvmSha256ProbeUnit
+  | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
   | _                           => none
 
 /-- List of known program names, for use in CLI usage strings. -/
@@ -1166,6 +1169,9 @@ def knownProgramNames : List String :=
    "zisk_keccak_probe",
    "zisk_keccak256_empty",
    "zisk_keccak256_abc",
-   "zisk_zkvm_keccak256"]
+   "zisk_zkvm_keccak256",
+   "zisk_sha256_probe_le",
+   "zisk_zkvm_sha256",
+   "zisk_keccak256_from_input"]
 
 end EvmAsm.Codegen
