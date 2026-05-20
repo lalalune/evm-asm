@@ -784,6 +784,37 @@ theorem evm_div_n1_denorm_epilogue_bundled_spec_noNop
       xperm_hyp hq)
     h
 
+/-- No-NOP n=1 denormalization epilogue with exact caller-framed `x1`
+    carried outside the full-path frame. -/
+theorem evm_div_n1_denorm_epilogue_bundled_spec_noNop_exact_x1
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (retMem dMem dloMem scratch_un0 raVal : Word)
+    (hshift_nz : fullDivN1Shift b0 ≠ 0) :
+    cpsTripleWithin (2 + 23 + 10) (base + denormOff) (base + nopOff) (divCode_noNop base)
+      (fullDivN1DenormPre bltu_3 bltu_2 bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3 **
+       fullDivN1FrameNoX1 bltu_3 bltu_2 bltu_1 bltu_0 sp base
+         a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 **
+       (.x1 ↦ᵣ raVal))
+      (fullDivN1UnifiedPostNoX1 bltu_3 bltu_2 bltu_1 bltu_0 sp base
+        a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 **
+       (.x1 ↦ᵣ raVal)) := by
+  have hDenorm :=
+    evm_div_n1_denorm_epilogue_bundled_spec_noNop
+      bltu_3 bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
+      hshift_nz
+  have hFramed := cpsTripleWithin_frameR
+    (fullDivN1FrameNoX1 bltu_3 bltu_2 bltu_1 bltu_0 sp base
+      a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 **
+     (.x1 ↦ᵣ raVal))
+    (by pcFree) hDenorm
+  exact cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by
+      delta fullDivN1UnifiedPostNoX1
+      xperm_hyp hq)
+    hFramed
+
 theorem fullDivN1UnifiedPost_weaken (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word)
     (h : PartialState)
