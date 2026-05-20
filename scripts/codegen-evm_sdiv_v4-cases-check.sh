@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
-# codegen-evm_sdiv_v4-cases-check.sh - M4 corner-case verification for SDIV v4.
+# codegen-evm_sdiv_v4-cases-check.sh - ziskemu corner-case verification for SDIV v4.
 #
-# Builds the `evm_sdiv_v4_from_input` ELF once, then loops over signed
-# (dividend, divisor) pairs: packs each into a ziskemu `-i` input file as
-# 256-bit two's-complement little-endian words, runs the ELF, and diffs the
-# first 32 bytes of output against the expected signed quotient.
-#
-# EVM SDIV truncates toward zero. Do not use Python's `//` directly for
-# negative values because it rounds toward minus infinity.
+# Builds the `evm_sdiv_v4_from_input` ELF once, then loops over a list of
+# raw 256-bit EVM word pairs: packs each into a ziskemu `-i` input file,
+# runs the ELF, and diffs the first 32 bytes of output against EVM signed
+# division semantics.
 #
 # Exit:
 #   0 - every case matched its expected signed quotient
@@ -55,52 +52,65 @@ INPUT   = os.environ["INPUT"]
 OUTPUT  = os.environ["OUTPUT"]
 ARTIFACT = os.environ["SDIV_ARTIFACT"]
 
-MIN_INT = -(1 << 255)
-MAX_INT = (1 << 255) - 1
 MASK256 = (1 << 256) - 1
+SIGNBIT = 1 << 255
+MIN_INT = -(1 << 255)
 
-# (label, signed dividend, signed divisor). Values are packed as EVM
-# 256-bit two's-complement words. Expected quotient follows EVM SDIV:
-# zero on divisor 0, otherwise sign(abs(a) // abs(b)), modulo 2^256.
-cases = [
-    ("pos_pos_smoke",        100,                               7),
-    ("neg_pos",             -100,                              7),
-    ("pos_neg",             100,                              -7),
-    ("neg_neg",             -100,                             -7),
-    ("sdiv_by_zero",        -42,                                0),
-    ("zero_dividend",       0,                                 -7),
-    ("evm_overflow",        MIN_INT,                           -1),
-    ("min_div_one",         MIN_INT,                            1),
-    ("min_div_two",         MIN_INT,                            2),
-    # High-limb signed values near the SDIV absolute-value boundary.
-    ("hi_neg_pos",          -((1 << 254) + (1 << 130)),        (1 << 129) + 3),
-    ("hi_pos_neg",          (1 << 254) - 12345,               -((1 << 128) + 5)),
-    ("max_pos_div_three",   MAX_INT,                            3),
-    ("min_plus_one_neg",    MIN_INT + 1,                       -3),
-]
-
-def to_word(x: int) -> int:
+def word(x: int) -> int:
     return x & MASK256
 
-def pack_input(a: int, b: int) -> bytes:
-    blob = to_word(a).to_bytes(32, "little") + to_word(b).to_bytes(32, "little")
+def signed(u: int) -> int:
+    assert 0 <= u <= MASK256, "operands must fit in 256 bits"
+    return u - (1 << 256) if u >= SIGNBIT else u
+
+# Raw v1 DIV counterexamples, reused here with signed interpretation to
+# cover the v4 div128 path under SDIV's sign wrapper.
+v1_counter1_a = ((1 << 63) + (1 << 33)) << 192
+v1_counter1_b = (1 << 192) + ((1 << 33) - 1) * (1 << 128)
+v1_counter2_a = ((1 << 64) - 2) << 192
+v1_counter2_b = (1 << 192) + ((1 << 64) - 2) * (1 << 128)
+
+# (label, dividend_word, divisor_word). Operands are raw EVM words; expected
+# values are computed after converting them to signed 256-bit integers.
+cases = [
+    ("pos_pos_smoke",         word(100),                         word(7)),
+    ("neg_pos",               word(-100),                        word(7)),
+    ("pos_neg",               word(100),                         word(-7)),
+    ("neg_neg",               word(-100),                        word(-7)),
+    ("sdiv_by_zero",          word(-42),                         word(0)),
+    ("zero_dividend",         word(0),                           word(-7)),
+    ("evm_overflow",          word(MIN_INT),                     word(-1)),
+    ("min_div_one",           word(MIN_INT),                     word(1)),
+    ("min_div_two",           word(MIN_INT),                     word(2)),
+    ("a_lt_b_signed",         word(7),                           word(-100)),
+    ("dense_neg_neg",         word(-0xfedcba9876543210_0f1e2d3c4b5a6978),
+                              word(-0x0000000000000003_0000000000000005)),
+    ("v1_counter1_raw",       v1_counter1_a,                     v1_counter1_b),
+    ("v1_counter1_flip_b",    v1_counter1_a,                     word(-signed(v1_counter1_b))),
+    ("v1_counter2_raw",       v1_counter2_a,                     v1_counter2_b),
+    ("v1_counter2_flip_a",    word(-signed(v1_counter2_a)),      v1_counter2_b),
+]
+
+def pack_input(a_word: int, b_word: int) -> bytes:
+    assert 0 <= a_word <= MASK256 and 0 <= b_word <= MASK256, "operands must fit in 256 bits"
+    blob = a_word.to_bytes(32, "little") + b_word.to_bytes(32, "little")
     return struct.pack("<Q", len(blob)) + blob
 
-def expected_sdiv_word(a: int, b: int) -> int:
+def evm_sdiv_word(a_word: int, b_word: int) -> int:
+    a = signed(a_word)
+    b = signed(b_word)
     if b == 0:
         return 0
+    if a == MIN_INT and b == -1:
+        return word(MIN_INT)
     sign = -1 if (a < 0) ^ (b < 0) else 1
-    q = sign * (abs(a) // abs(b))
-    return to_word(q)
-
-def expected_sdiv_hex(a: int, b: int) -> str:
-    return expected_sdiv_word(a, b).to_bytes(32, "little").hex()
+    return word(sign * (abs(a) // abs(b)))
 
 failures = []
-for label, a, b in cases:
-    pathlib.Path(INPUT).write_bytes(pack_input(a, b))
-    expected = expected_sdiv_hex(a, b)
-    log = pathlib.Path(f"gen-out/{ARTIFACT}.{label}.emu.log")
+for label, a_word, b_word in cases:
+    pathlib.Path(INPUT).write_bytes(pack_input(a_word, b_word))
+    expected = evm_sdiv_word(a_word, b_word).to_bytes(32, "little").hex()
+    log = pathlib.Path(f"gen-out/evm_sdiv_v4_from_input.{label}.emu.log")
     try:
         subprocess.run(
             [ZISKEMU, "-e", ELF, "-i", INPUT, "-o", OUTPUT, "-n", "1000000"],
@@ -114,8 +124,8 @@ for label, a, b in cases:
     status = "PASS" if actual == expected else "FAIL"
     print(f"  [{status}] {label}")
     if actual != expected:
-        print(f"         a = {a}")
-        print(f"         b = {b}")
+        print(f"         a = 0x{a_word:064x} ({signed(a_word)})")
+        print(f"         b = 0x{b_word:064x} ({signed(b_word)})")
         print(f"    expected = {expected}")
         print(f"      actual = {actual}")
         failures.append(label)
