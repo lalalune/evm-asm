@@ -24,6 +24,7 @@ import EvmAsm.Evm64.Or.Program
 import EvmAsm.Evm64.Pop.Program
 import EvmAsm.Evm64.Push.Program
 import EvmAsm.Evm64.SDiv.Program
+import EvmAsm.Evm64.SMod.Program
 import EvmAsm.Evm64.Sgt.Program
 import EvmAsm.Evm64.Shift.Program
 import EvmAsm.Evm64.SignExtend.Program
@@ -715,32 +716,29 @@ def evmModFromInputUnit : BuildUnit := {
   dataAsm     := evmModFromInputDataSection
 }
 
-/-! ## evm_sdiv_v4 — SDIV through the corrected callable divider
+/-! ## evm_sdiv_v4 — signed DIV end-to-end through ziskemu
 
-    `evm_sdiv_v4` is a callable-style body: it saves the incoming `ra` in
-    `x18`, calls the unsigned DIV callable, then returns through `x18`.
-    A standalone codegen unit therefore needs a two-instruction trampoline:
-    call into the SDIV body, and when it returns, jump over the body to the
-    output epilogue. -/
+    `evm_sdiv_v4` uses the SDIV sign-handling wrapper and the corrected v4
+    unsigned callable divider. Unlike standalone DIV/MOD, the wrapper returns
+    via the caller return address saved in `x18`, so codegen seeds `x1` with a
+    raw-asm label immediately after the verified body. -/
 
-def evmSdivV4CallSkip : Program :=
-  JAL .x1 (8 : BitVec 21) ;;
-  JAL .x0 (1660 : BitVec 21)
+def evmSdivV4Dividend : List UInt64 := [0xffffffffffffff9c, 0xffffffffffffffff,
+  0xffffffffffffffff, 0xffffffffffffffff]
 
-def evmSdivV4Standalone : Program :=
-  evmSdivV4CallSkip ++ EvmAsm.Evm64.evm_sdiv_v4
+def evmSdivV4Divisor : List UInt64 := [7, 0, 0, 0]
 
-/-- Dividend = -100 encoded as a 256-bit two's-complement little-endian word. -/
-def evmSdivDividend : List UInt64 :=
-  [0xFFFFFFFFFFFFFF9C, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF]
+def evmSdivV4ExpectedQuotient : List UInt64 := [0xfffffffffffffff2,
+  0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff]
 
-/-- Divisor = 7. Expected signed quotient is -14. -/
-def evmSdivDivisor : List UInt64 := [7, 0, 0, 0]
-
-def evmSdivPrologue : String :=
+def evmSdivV4Prologue : String :=
+  "  la x1, after_sdiv\n" ++
   "  la x12, operands"
 
-def evmSdivDataSection : String :=
+def evmSdivV4Epilogue : String :=
+  "after_sdiv:\n" ++ emitProgram evmAddEpilogue
+
+def evmSdivV4DataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "div_scratch:\n" ++
@@ -748,21 +746,24 @@ def evmSdivDataSection : String :=
   ".balign 8\n" ++
   "operands:\n" ++
   String.intercalate "\n"
-    ((evmSdivDividend ++ evmSdivDivisor).map emitDword)
+    ((evmSdivV4Dividend ++ evmSdivV4Divisor).map emitDword)
 
 def evmSdivV4Unit : BuildUnit := {
-  body        := evmSdivV4Standalone ++ evmAddEpilogue
-  prologueAsm := evmSdivPrologue
-  dataAsm     := evmSdivDataSection
+  body        := EvmAsm.Evm64.evm_sdiv_v4
+  prologueAsm := evmSdivV4Prologue
+  epilogueAsm := evmSdivV4Epilogue
+  dataAsm     := evmSdivV4DataSection
 }
+
+/-! ## evm_sdiv_v4_from_input — prover-supplied signed DIV operands -/
 
 def evm_sdiv_v4_from_input : Program :=
   LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
   copy64 .x12 .x5 .x6 ++
-  evmSdivV4Standalone ++
-  evmAddEpilogue
+  EvmAsm.Evm64.evm_sdiv_v4
 
 def evmSdivV4FromInputPrologue : String :=
+  "  la x1, after_sdiv\n" ++
   "  la x12, operands_ram"
 
 def evmSdivV4FromInputDataSection : String :=
@@ -777,7 +778,69 @@ def evmSdivV4FromInputDataSection : String :=
 def evmSdivV4FromInputUnit : BuildUnit := {
   body        := evm_sdiv_v4_from_input
   prologueAsm := evmSdivV4FromInputPrologue
+  epilogueAsm := evmSdivV4Epilogue
   dataAsm     := evmSdivV4FromInputDataSection
+}
+
+/-! ## evm_smod_v4 — signed MOD end-to-end through ziskemu -/
+
+def evmSmodV4Dividend : List UInt64 := [0xffffffffffffff9c, 0xffffffffffffffff,
+  0xffffffffffffffff, 0xffffffffffffffff]
+
+def evmSmodV4Divisor : List UInt64 := [7, 0, 0, 0]
+
+def evmSmodV4ExpectedRemainder : List UInt64 := [0xfffffffffffffffd,
+  0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff]
+
+def evmSmodV4Prologue : String :=
+  "  la x1, after_smod\n" ++
+  "  la x12, operands"
+
+def evmSmodV4Epilogue : String :=
+  "after_smod:\n" ++ emitProgram evmAddEpilogue
+
+def evmSmodV4DataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "div_scratch:\n" ++
+  "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "operands:\n" ++
+  String.intercalate "\n"
+    ((evmSmodV4Dividend ++ evmSmodV4Divisor).map emitDword)
+
+def evmSmodV4Unit : BuildUnit := {
+  body        := EvmAsm.Evm64.evm_smod_v4
+  prologueAsm := evmSmodV4Prologue
+  epilogueAsm := evmSmodV4Epilogue
+  dataAsm     := evmSmodV4DataSection
+}
+
+/-! ## evm_smod_v4_from_input — prover-supplied signed MOD operands -/
+
+def evm_smod_v4_from_input : Program :=
+  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
+  copy64 .x12 .x5 .x6 ++
+  EvmAsm.Evm64.evm_smod_v4
+
+def evmSmodV4FromInputPrologue : String :=
+  "  la x1, after_smod\n" ++
+  "  la x12, operands_ram"
+
+def evmSmodV4FromInputDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "div_scratch:\n" ++
+  "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "operands_ram:\n" ++
+  "  .zero 64"
+
+def evmSmodV4FromInputUnit : BuildUnit := {
+  body        := evm_smod_v4_from_input
+  prologueAsm := evmSmodV4FromInputPrologue
+  epilogueAsm := evmSmodV4Epilogue
+  dataAsm     := evmSmodV4FromInputDataSection
 }
 
 /-! ## stateless_guest — PR2 SSZ-output stub
@@ -1527,6 +1590,10 @@ def lookupProgram : String → Option BuildUnit
   | "evm_sdiv_from_input"       => some evmSdivV4FromInputUnit
   | "evm_sdiv_v4"               => some evmSdivV4Unit
   | "evm_sdiv_v4_from_input"    => some evmSdivV4FromInputUnit
+  | "evm_smod"                  => some evmSmodV4Unit
+  | "evm_smod_from_input"       => some evmSmodV4FromInputUnit
+  | "evm_smod_v4"               => some evmSmodV4Unit
+  | "evm_smod_v4_from_input"    => some evmSmodV4FromInputUnit
   | "input_echo"                => some inputEchoUnit
   | "evm_add_from_input"        => some evmAddFromInputUnit
   | "tiny_interp_add"           => some tinyInterpAddUnit
@@ -1549,6 +1616,8 @@ def knownProgramNames : List String :=
   ["smoke", "evm_add", "evm_div", "evm_mod", "evm_sdiv", "evm_sdiv_v4", "input_echo",
    "evm_add_from_input", "evm_div_from_input", "evm_mod_from_input",
    "evm_sdiv_from_input", "evm_sdiv_v4_from_input",
+   "evm_smod", "evm_smod_from_input",
+   "evm_smod_v4", "evm_smod_v4_from_input",
    "tiny_interp_add", "tiny_interp_add2",
    "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2",
    "runtime_dispatcher",
