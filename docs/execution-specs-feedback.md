@@ -42,6 +42,34 @@ calls
 [`_new_payload_request_to_ssz`](https://github.com/ethereum/execution-specs/blob/ec23140720d6a9257a907c470ba1874623bd7b50/src/ethereum/forks/amsterdam/stateless_ssz.py#L357-L367)
 before taking `hash_tree_root`.
 
+Concrete guest call sequence in the pinned execution-specs tree
+(the Amsterdam guest entry point is named `run_stateless_guest`;
+this is the same call path downstream notes sometimes call
+`execute_stateless_guest`):
+
+1. [`run_stateless_guest`](https://github.com/ethereum/execution-specs/blob/ec23140720d6a9257a907c470ba1874623bd7b50/src/ethereum/forks/amsterdam/stateless_guest.py#L33-L41)
+   deserializes the SSZ guest input and calls
+   [`verify_stateless_new_payload`](https://github.com/ethereum/execution-specs/blob/ec23140720d6a9257a907c470ba1874623bd7b50/src/ethereum/forks/amsterdam/stateless.py#L194-L203).
+2. `verify_stateless_new_payload` computes
+   `new_payload_request_root` before any STF checks by calling
+   `compute_new_payload_request_root(stateless_input)`.
+3. `compute_new_payload_request_root` converts
+   `stateless_input.new_payload_request` to
+   [`SszNewPayloadRequest`](https://github.com/ethereum/execution-specs/blob/ec23140720d6a9257a907c470ba1874623bd7b50/src/ethereum/forks/amsterdam/stateless_ssz.py#L357-L367)
+   and then calls `ssz_npr.hash_tree_root()`.
+4. `hash_tree_root()` is the SSZ Merkle-root operation supplied
+   by the `ethereum-types` dependency pinned by
+   [`pyproject.toml`](https://github.com/ethereum/execution-specs/blob/ec23140720d6a9257a907c470ba1874623bd7b50/pyproject.toml#L27)
+   / [`uv.lock`](https://github.com/ethereum/execution-specs/blob/ec23140720d6a9257a907c470ba1874623bd7b50/uv.lock#L1193-L1201).
+   SSZ Merkleization is SHA-256 based, so this public-output root
+   is the non-EVM-precompile SHA-256 dependency in the guest.
+
+This is separate from the ordinary EVM SHA-256 precompile:
+[`SHA256_ADDRESS`](https://github.com/ethereum/execution-specs/blob/ec23140720d6a9257a907c470ba1874623bd7b50/src/ethereum/forks/amsterdam/vm/precompiled_contracts/mapping.py#L57-L61)
+dispatches to
+[`vm/precompiled_contracts/sha256.py`](https://github.com/ethereum/execution-specs/blob/ec23140720d6a9257a907c470ba1874623bd7b50/src/ethereum/forks/amsterdam/vm/precompiled_contracts/sha256.py#L28-L49),
+which hashes EVM call data when a transaction calls address `0x02`.
+
 ### Why this is unusual for a zkVM guest
 
 Hash functions are typically the largest single cost in a zkVM
