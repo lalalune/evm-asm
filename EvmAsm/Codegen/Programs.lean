@@ -7,10 +7,33 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
+import EvmAsm.Evm64.And.Program
+import EvmAsm.Evm64.Byte.Program
 import EvmAsm.Evm64.DivMod.Program
+import EvmAsm.Evm64.Dup.Program
+import EvmAsm.Evm64.Eq.Program
+import EvmAsm.Evm64.Gt.Program
+import EvmAsm.Evm64.IsZero.Program
+import EvmAsm.Evm64.Lt.Program
+import EvmAsm.Evm64.MLoad.Program
+import EvmAsm.Evm64.MStore.Program
+import EvmAsm.Evm64.MStore8.Program
+import EvmAsm.Evm64.Multiply.Program
+import EvmAsm.Evm64.Not.Program
+import EvmAsm.Evm64.Or.Program
+import EvmAsm.Evm64.Pop.Program
 import EvmAsm.Evm64.Push.Program
 import EvmAsm.Evm64.SDiv.Program
+import EvmAsm.Evm64.Sgt.Program
+import EvmAsm.Evm64.Shift.Program
+import EvmAsm.Evm64.SignExtend.Program
+import EvmAsm.Evm64.Slt.Program
+import EvmAsm.Evm64.Sub.Program
+import EvmAsm.Evm64.Swap.Program
+import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Dispatch
+import EvmAsm.Stateless.Entry
 
 namespace EvmAsm.Codegen
 
@@ -279,132 +302,242 @@ def tinyInterpAdd2Unit : BuildUnit := {
   dataAsm     := tinyInterpDataSection tinyInterpAdd2Bytecode
 }
 
+/-! ## divK NOP-splice helpers (used by both M2 standalone DIV/MOD
+    wrappers and the M8 dispatcher handlers, so hoisted above the
+    M5b registry section that references them) -/
+
+/-- `EvmAsm.Evm64.evm_div` with the NOP "exit PC" at internal index 267
+    replaced by a forward `JAL .x0 +304` that skips the 75-instruction
+    inline `divK_div128_v4` subroutine and lands at the instruction
+    immediately following the body. In the M2 standalone wrapper that
+    landing site is the start of `evmAddEpilogue`; in the M8
+    dispatcher wrapper (M5b registry) it is the `mv x10, x9` of the
+    handler's `x10RestoreAdvance1` tail. -/
+def evmDivPatched : Program :=
+  (EvmAsm.Evm64.evm_div : List Instr).take 267 ++
+  [Instr.JAL .x0 (304 : BitVec 21)] ++
+  (EvmAsm.Evm64.evm_div : List Instr).drop 268
+
+/-- `EvmAsm.Evm64.evm_mod` with the same NOP-splice as `evmDivPatched`.
+    Same +304 byte offset because the MOD body has the identical
+    343-instruction layout (267 main + NOP + 75 subroutine). -/
+def evmModPatched : Program :=
+  (EvmAsm.Evm64.evm_mod : List Instr).take 267 ++
+  [Instr.JAL .x0 (304 : BitVec 21)] ++
+  (EvmAsm.Evm64.evm_mod : List Instr).drop 268
+
 /-! ## tiny_interp_dispatch — M5b runtime fetch/decode/dispatch loop
 
     Same EVM bytecodes as M5a, but routed through an actual RISC-V
-    dispatch loop instead of an unrolled chain. Per CODEGEN.md
-    §Tricky bits #9 ("Codegen is not verified") the loop scaffold
-    lives as raw asm; the verified opcode `Program`s are wrapped
-    one-by-one in `h_*` subroutines (`<emitProgram body>` + raw asm
-    `addi x10, x10, <width>` + `ret`). The body of each handler stays
-    verbatim what the verified core produced.
+    dispatch loop. The dispatcher scaffolding (loop body, 256-entry
+    jump table, `h_invalid` fallback, `.exit_label`) now lives in
+    `EvmAsm.Codegen.Dispatch`; this section declares only the opcode
+    handler registry.
+
+    **Adding a new opcode = adding one `OpcodeHandlerSpec` entry below.**
 
     Calling convention (informal):
-      x10  EVM code pointer  (preserved across handler calls; the
-                              wrapper advances it by the opcode's byte
-                              width before returning)
+      x10  EVM code pointer  (preserved across handler calls; each
+                              handler with `tail := .advanceAndRet n`
+                              advances `x10` by `n` before returning)
       x12  EVM stack pointer (handlers update freely; persistent
                               across the loop)
       x1   return address    (clobbered by `jalr ra, ...`; each
-                              handler must end in `ret`)
+                              `advanceAndRet` handler ends in `ret`)
       x5, x6, x7   scratch   (clobbered by both the dispatcher's
                               fetch/lookup *and* the verified handler
-                              bodies — see `evm_add` which uses
-                              x5/x6/x7/x11; the dispatcher reloads
-                              from x10 and the table base on every
-                              iteration, so no preservation needed)
+                              bodies; the dispatcher reloads from x10
+                              and the table base on every iteration,
+                              so no preservation needed)
 
-    Coverage: PUSH1, ADD, STOP. All other opcode bytes fall to
-    `h_invalid`, which (for this first slice) takes the same exit
-    path as STOP. -/
+    Coverage (M6b): 81 opcodes wired —
+      - **PUSH0..PUSH32** (33) via `pushHandlers`
+      - **DUP1..DUP16** (16) via `dupHandlers`
+      - **SWAP1..SWAP16** (16) via `swapHandlers`
+      - **16 fixed-shape singletons** via `singletonHandlers`:
+        SUB, MUL, SIGNEXTEND, AND, OR, XOR, NOT, LT, GT, SLT, SGT,
+        EQ, ISZERO, BYTE, SHR, POP — each a parameter-free verified
+        `Program` with the standard `<body>` + `addi x10, x10, 1` +
+        `ret` ABI.
+      - **STOP** via `stopHandler` (jumps to `.exit_label` instead
+        of returning to the dispatcher).
 
-/-- Label for the handler that bytes `b` dispatches to. Bytes not in
-    the table map to `h_invalid`. -/
-def opcodeHandlerLabel : Nat → String
-  | 0x00 => "h_STOP"
-  | 0x01 => "h_ADD"
-  | 0x60 => "h_PUSH1"
-  | _    => "h_invalid"
+    All other opcode bytes fall to `h_invalid` (emitted automatically
+    by `emitDispatcherEpilogue`), which takes the same exit path as
+    STOP. -/
 
-/-- Emit a 256-entry jump table, one `.dword` per opcode byte, where
-    entry `b` is the address of the handler `opcodeHandlerLabel b`.
-    Lives in `.data` (alongside the bytecode + stack scratch) so the
-    `-Tdata=0xa0000000` link argument places it in writable RAM —
-    GNU `as` doesn't require the table to be writable, but keeping
-    everything in one section is simpler than adding `-Trodata=…`. -/
-def emitOpcodeHandlerTable : String :=
-  let entries :=
-    (List.range 256).map (fun b => s!"  .dword {opcodeHandlerLabel b}")
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "opcode_handlers:\n" ++
-  String.intercalate "\n" entries
+/-- PUSH0..PUSH32. Opcode byte = `0x5f + n`; the handler advances
+    `x10` by `1 + n` (one opcode byte + `n` immediate bytes). -/
+def pushHandlers : List OpcodeHandlerSpec :=
+  (List.range 33).map (fun n =>
+    { label   := s!"h_PUSH{n}"
+      opcodes := [0x5f + n]
+      body    := EvmAsm.Evm64.evm_push n
+      tail    := .advanceAndRet (1 + n) })
 
-/-- Dispatcher prologue: init the EVM pointers and enter the main
-    fetch/decode/dispatch loop. Each iteration:
-      1. `lbu x5, 0(x10)`            — fetch opcode byte at code[x10]
-      2. `la x6, opcode_handlers`    — base of jump table
-      3. `slli x5, x5, 3`            — opcode * 8 (entry stride)
-      4. `add x6, x6, x5`            — &opcode_handlers[opcode]
-      5. `ld x7, 0(x6)`              — load handler address
-      6. `jalr x1, x7, 0`            — call handler (saves return PC in x1)
-      7. on return: `j .dispatch_loop`
+/-- DUP1..DUP16. Opcode byte = `0x7f + n` (so DUP1 = `0x80`);
+    width 1. `evm_dup n` duplicates the n-th stack item (1-indexed
+    from top) onto the top. -/
+def dupHandlers : List OpcodeHandlerSpec :=
+  (List.range 16).map (fun i =>
+    let n := i + 1
+    { label   := s!"h_DUP{n}"
+      opcodes := [0x7f + n]
+      body    := EvmAsm.Evm64.evm_dup n
+      tail    := .advanceAndRet 1 })
 
-    Handlers themselves bake in the PC-advance + `ret`. STOP and
-    `invalid` handlers `j .exit_label` instead of returning. -/
-def tinyInterpDispatchPrologue : String :=
-  "  la x10, evm_code\n" ++
-  "  la x12, evm_stack_top\n" ++
-  ".dispatch_loop:\n" ++
-  "  lbu x5, 0(x10)\n" ++
-  "  la x6, opcode_handlers\n" ++
-  "  slli x5, x5, 3\n" ++
-  "  add x6, x6, x5\n" ++
-  "  ld x7, 0(x6)\n" ++
-  "  jalr x1, x7, 0\n" ++
-  "  j .dispatch_loop"
+/-- SWAP1..SWAP16. Opcode byte = `0x8f + n` (so SWAP1 = `0x90`);
+    width 1. `evm_swap n` swaps the top with the (n+1)-th stack
+    item. -/
+def swapHandlers : List OpcodeHandlerSpec :=
+  (List.range 16).map (fun i =>
+    let n := i + 1
+    { label   := s!"h_SWAP{n}"
+      opcodes := [0x8f + n]
+      body    := EvmAsm.Evm64.evm_swap n
+      tail    := .advanceAndRet 1 })
 
-/-- Dispatcher epilogue: handler subroutines + exit path. Order
-    matters — handlers come first (each ends with `ret` or `j
-    .exit_label`, so they don't fall through), then `.exit_label`
-    runs `evmAddEpilogue` and falls through to the halt stub that
-    `emitBuildUnit` appends. -/
-def tinyInterpDispatchEpilogue : String :=
-  -- h_PUSH1: verified evm_push 1 body, then advance x10 by 2 (opcode + 1 imm byte)
-  "h_PUSH1:\n" ++
-  emitProgram (EvmAsm.Evm64.evm_push 1) ++ "\n" ++
-  "  addi x10, x10, 2\n" ++
-  "  ret\n" ++
-  -- h_ADD: verified evm_add body, then advance x10 by 1 (opcode-only)
-  "h_ADD:\n" ++
-  emitProgram EvmAsm.Evm64.evm_add ++ "\n" ++
-  "  addi x10, x10, 1\n" ++
-  "  ret\n" ++
-  -- h_STOP: jump to exit (doesn't return to dispatcher)
-  "h_STOP:\n" ++
-  "  j .exit_label\n" ++
-  -- h_invalid: same exit path as STOP for this slice; future revs
-  -- may write a marker byte before exiting so the diff catches it.
-  "h_invalid:\n" ++
-  "  j .exit_label\n" ++
-  -- .exit_label: copy result limbs from [x12] to OUTPUT_ADDR, then
-  -- fall through to the linux93 halt stub appended by emitBuildUnit.
-  ".exit_label:\n" ++
-  emitProgram evmAddEpilogue
+/-- Tail used by handlers whose verified body clobbers `x10` (the
+    EVM code pointer in our dispatcher convention). Restores `x10`
+    from `x9` (saved via `preBody`), then advances by 1 and returns. -/
+private def x10RestoreAdvance1 : HandlerTail :=
+  .custom "  mv x10, x9\n  addi x10, x10, 1\n  ret"
 
-/-- `.data` section: bytecode + stack scratch (M5a layout) followed
-    by the 256-entry jump table. GNU `as` is fine with multiple
-    `.section .data` directives — they coalesce. -/
-def tinyInterpDispatchDataSection (bytecodeBytes : String) : String :=
-  tinyInterpDataSection bytecodeBytes ++ "\n" ++
-  emitOpcodeHandlerTable
+/-- Fixed-shape singleton opcodes: parameter-free verified `Program`s
+    that fit the standard `<body>` + `addi x10, x10, 1` + `ret` ABI.
 
-/-- Build a dispatch `BuildUnit` for a given bytecode. Reuses the
-    M5a `tinyInterpAddBytecode` / `tinyInterpAdd2Bytecode` literals
-    so M5a and M5b run on identical input bytes and produce identical
-    expected outputs. -/
-def tinyInterpDispatchUnit (bytecodeBytes : String) : BuildUnit := {
-  body        := []
-  prologueAsm := tinyInterpDispatchPrologue
-  epilogueAsm := tinyInterpDispatchEpilogue
-  dataAsm     := tinyInterpDispatchDataSection bytecodeBytes
-}
+    Four bodies (`evm_mul`, `evm_signextend`, `evm_byte`, `evm_shr`)
+    use `x10` as an internal scratch / accumulator register, which
+    clobbers our dispatcher's preserved EVM code pointer. They carry
+    `preBody := "  mv x9, x10"` to stash x10 in x9 (a register no
+    verified opcode body touches) and use `x10RestoreAdvance1` as
+    the tail to restore before advancing. -/
+def singletonHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_ADD"        , opcodes := [0x01], body := EvmAsm.Evm64.evm_add       , tail := .advanceAndRet 1 }
+  , { label := "h_MUL"        , opcodes := [0x02], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_mul       , tail := x10RestoreAdvance1 }
+  , { label := "h_SUB"        , opcodes := [0x03], body := EvmAsm.Evm64.evm_sub       , tail := .advanceAndRet 1 }
+  , { label := "h_SIGNEXTEND" , opcodes := [0x0b], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_signextend, tail := x10RestoreAdvance1 }
+  , { label := "h_LT"         , opcodes := [0x10], body := EvmAsm.Evm64.evm_lt        , tail := .advanceAndRet 1 }
+  , { label := "h_GT"         , opcodes := [0x11], body := EvmAsm.Evm64.evm_gt        , tail := .advanceAndRet 1 }
+  , { label := "h_SLT"        , opcodes := [0x12], body := EvmAsm.Evm64.evm_slt       , tail := .advanceAndRet 1 }
+  , { label := "h_SGT"        , opcodes := [0x13], body := EvmAsm.Evm64.evm_sgt       , tail := .advanceAndRet 1 }
+  , { label := "h_EQ"         , opcodes := [0x14], body := EvmAsm.Evm64.evm_eq        , tail := .advanceAndRet 1 }
+  , { label := "h_ISZERO"     , opcodes := [0x15], body := EvmAsm.Evm64.evm_iszero    , tail := .advanceAndRet 1 }
+  , { label := "h_AND"        , opcodes := [0x16], body := EvmAsm.Evm64.evm_and       , tail := .advanceAndRet 1 }
+  , { label := "h_OR"         , opcodes := [0x17], body := EvmAsm.Evm64.evm_or        , tail := .advanceAndRet 1 }
+  , { label := "h_XOR"        , opcodes := [0x18], body := EvmAsm.Evm64.evm_xor       , tail := .advanceAndRet 1 }
+  , { label := "h_NOT"        , opcodes := [0x19], body := EvmAsm.Evm64.evm_not       , tail := .advanceAndRet 1 }
+  , { label := "h_BYTE"       , opcodes := [0x1a], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_byte      , tail := x10RestoreAdvance1 }
+  , { label := "h_SHR"        , opcodes := [0x1c], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_shr       , tail := x10RestoreAdvance1 }
+  , { label := "h_POP"        , opcodes := [0x50], body := EvmAsm.Evm64.evm_pop       , tail := .advanceAndRet 1 } ]
+
+/-- M7 memory opcodes. Register-parameterized; the dispatcher
+    prologue sets up `x13 = &evm_memory` (see
+    `EvmAsm/Codegen/Dispatch.lean`). The scratch registers `x14..x18`
+    are caller-saved across the `jalr` from the dispatcher loop;
+    nothing else in the registry preserves them.
+
+    Stack-pointer bookkeeping is internal to the verified bodies:
+    `evm_mload` is net stack-neutral, while `evm_mstore` and
+    `evm_mstore8` each end with `ADDI .x12 .x12 64` so the wrapper
+    uses the standard `.advanceAndRet 1` tail. None of the memory
+    opcodes touch `x10`, so no `preBody` is needed. -/
+def memoryHandlers : List OpcodeHandlerSpec :=
+  [ -- MLOAD: pop offset, push value. memBase=x13;
+    -- scratch: offReg=x15, byteReg=x16, accReg=x17, addrReg=x18.
+    { label   := "h_MLOAD"
+      opcodes := [0x51]
+      body    := EvmAsm.Evm64.evm_mload .x15 .x16 .x17 .x18 .x13
+      tail    := .advanceAndRet 1 }
+  , -- MSTORE: pop offset + value, write 32 bytes BE to memory.
+    -- valReg=x14 (scratch; placeholder per evm_mstore docstring).
+    { label   := "h_MSTORE"
+      opcodes := [0x52]
+      body    := EvmAsm.Evm64.evm_mstore .x15 .x14 .x16 .x17 .x18 .x13
+      tail    := .advanceAndRet 1 }
+  , -- MSTORE8: pop offset + value, write 1 byte to memory.
+    { label   := "h_MSTORE8"
+      opcodes := [0x53]
+      body    := EvmAsm.Evm64.evm_mstore8 .x15 .x14 .x18 .x13
+      tail    := .advanceAndRet 1 } ]
+
+/-- M8 unsigned division opcodes. Both `evm_div` and `evm_mod` carry
+    a 75-instruction `divK_div128_v4` subroutine appended after a
+    NOP "exit PC" at body index 267; the `evmDivPatched` /
+    `evmModPatched` helpers (above) replace that NOP with `JAL .x0
+    (304 : BitVec 21)` so the main path skips the inline subroutine
+    and lands at the handler's wrapper tail.
+
+    Both bodies clobber `x10` heavily (Knuth-D quotient accumulator,
+    69 references) AND `x9` heavily (loop counter `j`, 94 refs).
+    So we can't reuse the standard `x9`-as-save pattern from M6b —
+    DIV/MOD save `x10` to **`x14`** instead, with a custom tail that
+    restores from `x14`. `x14` is unused by `evm_div` / `evm_mod` (and
+    their internal subroutine `divK_div128_v4`), and it's outside the
+    dispatcher's preserved set, so clobbering it post-handler is fine.
+
+    Stack-scratch: `evm_div` writes to negative `x12` offsets down to
+    `-152` bytes (per `divK_*` scratch layout). The dispatcher's
+    256-byte `evm_stack_low` block leaves 192 bytes below `x12`
+    after two PUSH ops — comfortably > 152.
+
+    **SDIV / SMOD are deferred to M8.5 / M9.** Their verified bodies
+    end with a "saved-ra-ret" pattern (`JALR x0, x18, 0`) that
+    bypasses the dispatcher's standard wrapper tail; integrating them
+    needs a trampoline-style wrapper (set `x18` to a per-handler
+    "restore" stub before the body runs, splice off the body's
+    initial save_ra_block). Tracked as the next codegen PR. -/
+private def divModTail : HandlerTail :=
+  .custom "  mv x10, x14\n  addi x10, x10, 1\n  ret"
+
+def divModHandlers : List OpcodeHandlerSpec :=
+  [ { label   := "h_DIV"
+      opcodes := [0x04]
+      preBody := "  mv x14, x10"
+      body    := evmDivPatched
+      tail    := divModTail }
+  , { label   := "h_MOD"
+      opcodes := [0x06]
+      preBody := "  mv x14, x10"
+      body    := evmModPatched
+      tail    := divModTail } ]
+
+/-- STOP: transitions out of the dispatcher loop instead of returning
+    to it. The body is empty; the dispatcher's `jalr` lands on
+    `h_STOP:` which jumps to `.exit_label`. -/
+def stopHandler : OpcodeHandlerSpec :=
+  { label   := "h_STOP"
+    opcodes := [0x00]
+    body    := []
+    tail    := .custom "  j .exit_label" }
+
+/-- M5b dispatch registry. Order doesn't affect correctness — the
+    256-entry jump table is built by `jumpTargetLabel`, which scans
+    the list for a spec whose `opcodes` contains the byte. -/
+def tinyInterpRegistry : List OpcodeHandlerSpec :=
+  pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
+  memoryHandlers ++ divModHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
-  tinyInterpDispatchUnit tinyInterpAddBytecode
+  buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode
 
 def tinyInterpDispatchAdd2Unit : BuildUnit :=
-  tinyInterpDispatchUnit tinyInterpAdd2Bytecode
+  buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAdd2Bytecode
+
+/-! ## runtime_dispatcher — M8.5 runtime-bytecode dispatcher
+
+    Same `tinyInterpRegistry` and `evmAddEpilogue` as the
+    `tiny_interp_dispatch_*` units, but the dispatcher prologue
+    reads `x10` from `INPUT_ADDR + INPUT_DATA_OFFSET = 0x40000010`
+    instead of an in-`.data` label. One ELF runs any bytecode; the
+    bash test harness packs each per-case bytecode into a
+    ziskemu `-i <file>` payload and reuses the same dispatcher
+    ELF for every case.
+
+    See `EvmAsm/Codegen/Dispatch.lean` for `buildRuntimeDispatchUnit`
+    and the runtime prologue/data-section helpers. -/
+def runtimeDispatcherUnit : BuildUnit :=
+  buildRuntimeDispatchUnit tinyInterpRegistry evmAddEpilogue
 
 /-! ## evm_div — M2 first DIV end-to-end through ziskemu
 
@@ -437,16 +570,6 @@ def tinyInterpDispatchAdd2Unit : BuildUnit :=
     the subroutine still use the original `jal x2, +560` offsets, which
     remain correct because we only replaced the NOP, not the
     subroutine's position relative to its callers. -/
-
-/-- `EvmAsm.Evm64.evm_div` with the NOP "exit PC" at internal index 267
-    replaced by a forward JAL that skips the 75-instruction subroutine
-    and lands at the instruction immediately following the body — i.e.
-    the start of whatever `Program` is appended next (`evmAddEpilogue`
-    in both DIV BuildUnits below). -/
-def evmDivPatched : Program :=
-  (EvmAsm.Evm64.evm_div : List Instr).take 267 ++
-  [Instr.JAL .x0 (304 : BitVec 21)] ++
-  (EvmAsm.Evm64.evm_div : List Instr).drop 268
 
 /-- Dividend as four LE limbs. 2^64, exercises the phase-B n=2 cascade
     plus the normalize/loop path (not an early-exit). -/
@@ -533,15 +656,6 @@ def evmDivFromInputUnit : BuildUnit := {
     same NOP-splice fix applies. Like `evm_div`, `evm_mod` is not yet
     proven correct in Lean — the scripts under `scripts/codegen-evm_mod*`
     provide empirical confirmation by running on ziskemu. -/
-
-/-- `EvmAsm.Evm64.evm_mod` with the NOP "exit PC" at index 267 replaced
-    by a forward JAL skipping the 75-instruction subroutine to land at
-    `evmAddEpilogue`. Same +304 byte offset as `evmDivPatched` because
-    the MOD body has the identical 343-instruction layout. -/
-def evmModPatched : Program :=
-  (EvmAsm.Evm64.evm_mod : List Instr).take 267 ++
-  [Instr.JAL .x0 (304 : BitVec 21)] ++
-  (EvmAsm.Evm64.evm_mod : List Instr).drop 268
 
 /-- Dividend as four LE limbs. 2^64, exercises the phase-B n=1 cascade
     on the divisor (b=3, limb 0 only) plus the loop body. -/
@@ -666,6 +780,738 @@ def evmSdivV4FromInputUnit : BuildUnit := {
   dataAsm     := evmSdivV4FromInputDataSection
 }
 
+/-! ## stateless_guest — PR2 SSZ-output stub
+
+    See the definition of `statelessGuestUnit` below
+    (after `zkvmKeccak256Function`, which the epilogue inlines). -/
+
+/-! ## zisk_keccak_probe — PR-K1 ziskemu Keccak-f[1600] intrinsic probe
+
+    Emits a raw-asm probe that triggers ziskemu's built-in
+    Keccak-f[1600] accelerator (`_opcode_keccak` in
+    `~/.zisk/zisk/emulator-asm/src/emu.c:507`). The accelerator is
+    invoked by writing the state pointer into a non-standard CSR at
+    address 0x800 -- which is the syscall ID the Zisk compiler
+    expects, per `ziskos/entrypoint/src/syscalls/keccakf.rs` (uses
+    `csrs 0x800, <reg>` via the `ziskos_syscall!` macro).
+
+    GNU-as `csrs csr, rs1` expands to `csrrs x0, csr, rs1`. The
+    32-bit encoding for `csrs 0x800, a0`:
+
+      csr(0x800)    rs1(x10=01010)  f3(010)  rd(x0)    op(0x73)
+      [31..20]      [19..15]        [14..12] [11..7]   [6..0]
+      = 0x80052073
+
+    We emit this as a raw `.4byte` directive rather than the
+    `csrs` mnemonic so the existing
+    `riscv64-unknown-elf-as -march=rv64imac` toolchain string
+    works without enabling the `Zicsr` extension. The 32-bit value
+    is what `as -march=rv64imac_zicsr` produces for the same
+    mnemonic; pinning it here is the whole point of PR-K1.
+
+    Probe sequence:
+      la a0, zisk_keccak_state    # state pointer
+      .4byte 0x80052073           # csrs 0x800, a0 -> _opcode_keccak
+      <copy 200 bytes to OUTPUT_ADDR>
+      <halt>
+
+    Verified Program body is a single NOP -- everything observable
+    happens in raw asm, so the verified semantics carry no claim
+    about the probe yet. PR-K2 wires this through verified Instrs
+    once the CSR instruction is added to `Rv64.Instr`. -/
+
+/-- Asm prologue: probe the keccak intrinsic and stream the
+    post-permutation 200-byte state to ziskemu's public-output
+    region. Hard-codes `OUTPUT_ADDR = 0xa0010000` (mirrors the
+    constant above). -/
+def ziskKeccakProbePrologue : String :=
+  "  la a0, zisk_keccak_state\n" ++
+  "  .4byte 0x80052073           # csrs 0x800, a0\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  li t1, 25\n" ++
+  ".Lzkp_copy_loop:\n" ++
+  "  ld t2, 0(a0)\n" ++
+  "  sd t2, 0(t0)\n" ++
+  "  addi a0, a0, 8\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  bnez t1, .Lzkp_copy_loop"
+
+/-- `.data` section: 200 zero bytes labeled `zisk_keccak_state`.
+    Lands in ziskemu RAM (0xa0000000..0xc0000000) via the standard
+    `-Tdata=0xa0000000` link flag from `Codegen/Driver.lean`. -/
+def ziskKeccakProbeDataSection : String :=
+  ".section .data\n" ++
+  "zisk_keccak_state:\n" ++
+  "  .zero 200"
+
+def ziskKeccakProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskKeccakProbePrologue
+  dataAsm     := ziskKeccakProbeDataSection
+}
+
+/-! ## zisk_keccak256_empty — PR-K2 keccak256 sponge over empty input
+
+    First wrapper around PR-K1's intrinsic: the keccak256 sponge
+    construction applied to a zero-byte message. Concretely:
+
+      1. Zero the 200-byte state buffer.
+      2. Pad: set byte 0 = 0x01, byte 135 = 0x80
+         (Ethereum Keccak padding; rate = 1088 bits = 136 bytes).
+      3. Trigger `_opcode_keccak` (csrs 0x800, a0).
+      4. Copy the first 32 bytes of state to OUTPUT_ADDR -- those
+         are the 256-bit hash digest.
+
+    Expected output (32 bytes):
+      c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+
+    Matches the canonical keccak256("") hash and the value produced
+    by `eth_utils.keccak(b"")` / `Cryptodome.Hash.keccak.new(...).digest()`.
+    This is the simplest possible exercise of the full sponge wrapper:
+    no input blocks to absorb, just the final padded block. Future
+    PRs extend this to one-block ("abc") and multi-block inputs. -/
+
+/-- Asm prologue: zero state, apply Ethereum Keccak padding for the
+    empty-message case, call the keccak-f intrinsic, copy the 32-byte
+    digest to OUTPUT_ADDR. -/
+def ziskKeccak256EmptyPrologue : String :=
+  "  la s0, k256e_state\n" ++
+  "  # zero state (25 × u64)\n" ++
+  "  mv t3, s0\n" ++
+  "  li t4, 25\n" ++
+  ".Lk256e_zero:\n" ++
+  "  sd zero, 0(t3)\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lk256e_zero\n" ++
+  "  # apply Ethereum Keccak padding to empty message\n" ++
+  "  li t0, 0x01\n" ++
+  "  sb t0, 0(s0)              # state[0] = 0x01\n" ++
+  "  li t0, 0x80\n" ++
+  "  sb t0, 135(s0)            # state[135] = 0x80\n" ++
+  "  # call keccak-f via PR-K1 intrinsic (csrs 0x800, a0)\n" ++
+  "  mv a0, s0\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  # copy first 32 bytes of state to OUTPUT_ADDR\n" ++
+  "  li t0, 0xa0010000         # OUTPUT_ADDR\n" ++
+  "  ld t1, 0(s0);  sd t1, 0(t0)\n" ++
+  "  ld t1, 8(s0);  sd t1, 8(t0)\n" ++
+  "  ld t1, 16(s0); sd t1, 16(t0)\n" ++
+  "  ld t1, 24(s0); sd t1, 24(t0)"
+
+def ziskKeccak256EmptyDataSection : String :=
+  ".section .data\n" ++
+  "k256e_state:\n" ++
+  "  .zero 200"
+
+def ziskKeccak256EmptyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskKeccak256EmptyPrologue
+  dataAsm     := ziskKeccak256EmptyDataSection
+}
+
+/-! ## zisk_keccak256_abc — PR-K2a single-block input
+
+    Same sponge skeleton as PR-K2 but with the 3-byte input "abc"
+    (RFC test vector) XORed into state positions 0..3 before the
+    padding bytes (`0x01` at byte 3, `0x80` at byte 135). Single
+    absorb block, single keccak-f call, then squeeze.
+
+    Expected:
+      keccak256(b"abc") =
+        4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
+
+    Demonstrates the single-block absorb path (input ≤ rate). The
+    multi-block path lands in a follow-up. -/
+def ziskKeccak256AbcPrologue : String :=
+  "  la s0, k256a_state\n" ++
+  "  # zero state\n" ++
+  "  mv t3, s0\n" ++
+  "  li t4, 25\n" ++
+  ".Lk256a_zero:\n" ++
+  "  sd zero, 0(t3)\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lk256a_zero\n" ++
+  "  # input \"abc\" at state[0..3]\n" ++
+  "  li t0, 0x61; sb t0, 0(s0)\n" ++
+  "  li t0, 0x62; sb t0, 1(s0)\n" ++
+  "  li t0, 0x63; sb t0, 2(s0)\n" ++
+  "  # Ethereum Keccak padding (length 3 < rate 136)\n" ++
+  "  li t0, 0x01; sb t0, 3(s0)\n" ++
+  "  li t0, 0x80; sb t0, 135(s0)\n" ++
+  "  # call keccak-f\n" ++
+  "  mv a0, s0\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  # squeeze 32 bytes to OUTPUT_ADDR\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  ld t1, 0(s0);  sd t1, 0(t0)\n" ++
+  "  ld t1, 8(s0);  sd t1, 8(t0)\n" ++
+  "  ld t1, 16(s0); sd t1, 16(t0)\n" ++
+  "  ld t1, 24(s0); sd t1, 24(t0)"
+
+def ziskKeccak256AbcDataSection : String :=
+  ".section .data\n" ++
+  "k256a_state:\n" ++
+  "  .zero 200"
+
+def ziskKeccak256AbcProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskKeccak256AbcPrologue
+  dataAsm     := ziskKeccak256AbcDataSection
+}
+
+/-! ## zisk_sha256_probe_le — PR-K15 SHA-256 intrinsic probe (LE-u32 layout)
+
+    Earlier PR-S1 v1 (`task #17`) tried the SHA-256 intrinsic at
+    CSR `0x805` with the 0.15.0-documented BE-per-u64 packing
+    (state[0] = (h0 BE-u32 << 32) | h1 BE-u32, stored LE as a
+    single u64). Output didn't match `sha256(b"")`.
+
+    Hypothesis: the installed ziskemu (0.18.0) uses a different
+    state packing -- specifically LE-u32 within u64 (state bytes
+    are u32 BE in spec, stored as LE u32s -- so the 64-bit memory
+    layout is `LE(h0) || LE(h1)` = bytes `67 e6 09 6a 85 ae 67 bb`
+    for the first u64). As a u64 value this is
+    `0xbb67ae856a09e667`.
+
+    Probe re-runs the empty-message compression with this
+    alternative layout. If it matches `sha256(b"")`, the 0.18.0
+    intrinsic layout is pinned; if not, document further.
+
+    Expected on success (SHA-256("") in LE-u32 packed memory):
+      67 e6 09 6a 85 ae 67 bb 72 f3 6e 3c 3a f5 4f a5
+      7f 52 0e 51 8c 68 05 9b ab d9 83 1f 19 cd e0 5b
+    Then post-compression state should be SHA-256("")'s words
+    packed the same way:
+      sha256(empty) = e3 b0 c4 42 98 fc 1c 14 9a fb f4 c8 99 6f
+                      b9 24 27 ae 41 e4 64 9b 93 4c a4 95 99 1b
+                      78 52 b8 55
+    As LE-u32 within u64 (per-byte memory order):
+      42 c4 b0 e3 14 1c fc 98 c8 f4 fb 9a 24 b9 6f 99
+      e4 41 ae 27 4c 93 9b 64 1b 99 95 a4 55 b8 52 78
+-/
+def ziskSha256ProbeLePrologue : String :=
+  "  la a0, sha256_le_params\n" ++
+  "  .4byte 0x80552073           # csrs 0x805, a0\n" ++
+  "  # copy 32-byte post-compression state to OUTPUT_ADDR\n" ++
+  "  la t0, sha256_le_state\n" ++
+  "  li t1, 0xa0010000\n" ++
+  "  ld t2, 0(t0);  sd t2, 0(t1)\n" ++
+  "  ld t2, 8(t0);  sd t2, 8(t1)\n" ++
+  "  ld t2, 16(t0); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t0); sd t2, 24(t1)"
+
+def ziskSha256ProbeLeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "sha256_le_state:\n" ++
+  "  # state[0..4] = LE-u32-pack (each u32 stored LE in memory)\n" ++
+  "  .quad 0xbb67ae856a09e667    # LE(h0) || LE(h1)\n" ++
+  "  .quad 0xa54ff53a3c6ef372    # LE(h2) || LE(h3)\n" ++
+  "  .quad 0x9b05688c510e527f    # LE(h4) || LE(h5)\n" ++
+  "  .quad 0x5be0cd191f83d9ab    # LE(h6) || LE(h7)\n" ++
+  ".balign 8\n" ++
+  "sha256_le_input:\n" ++
+  "  # input[0] = LE-u32-pack of message u32[0..2]\n" ++
+  "  # padded empty: u32[0] = 0x80 (LE bytes [80 00 00 00]) || u32[1] = 0\n" ++
+  "  .quad 0x80\n" ++
+  "  .quad 0\n" ++
+  "  .quad 0\n" ++
+  "  .quad 0\n" ++
+  "  .quad 0\n" ++
+  "  .quad 0\n" ++
+  "  .quad 0\n" ++
+  "  .quad 0                     # u32[15] = length BE bits = 0\n" ++
+  ".balign 8\n" ++
+  "sha256_le_params:\n" ++
+  "  .quad sha256_le_state\n" ++
+  "  .quad sha256_le_input"
+
+def ziskSha256ProbeLeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskSha256ProbeLePrologue
+  dataAsm     := ziskSha256ProbeLeDataSection
+}
+
+/-! ## zkvm_sha256 — PR-S2 Merkle-Damgård wrapper
+
+    Parameterised SHA-256 callable matching the zkvm-standards C
+    signature:
+
+        zkvm_status zkvm_sha256(const uint8_t* data, size_t len,
+                                zkvm_sha256_hash* output);
+
+    Sister to PR-K3's `zkvm_keccak256`. Composes the LE-u32
+    intrinsic pinned in PR-S1 (#5286) with the FIPS 180-4
+    Merkle-Damgård wrapper:
+
+      1. Initialise state to the SHA-256 IV (LE-u32 packing).
+      2. For each full 64-byte input block: copy into the
+         intrinsic's `sha256_input` buffer, `csrs 0x805, a0` to
+         compress.
+      3. Final block: copy <64 remainder bytes, append 0x80,
+         append 8-byte big-endian bit-length at offset 56..64.
+         If remainder >= 56, use two blocks (current + a fresh
+         length-only block).
+      4. Squeeze: byte-swap each u32 of the LE-packed state to
+         produce canonical SHA-256 wire bytes
+         (`e3b0c442 98fc1c14 ...` byte order). The byte-swap uses
+         the `xori 3` index trick (within each 4-byte group,
+         byte j maps to byte (3 ^ j)).
+
+    Calling convention (RV64 ABI, mirrors `zkvm_keccak256`):
+      a0 = data ptr; a1 = len; a2 = output ptr;
+      ra = return; returns a0 = ZKVM_EOK = 0. -/
+
+def zkvmSha256Function : String :=
+  "zkvm_sha256:\n" ++
+  "  # save callee-saved regs (s0..s5)\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd s0, 0(sp)\n" ++
+  "  sd s1, 8(sp)\n" ++
+  "  sd s2, 16(sp)\n" ++
+  "  sd s3, 24(sp)\n" ++
+  "  sd s4, 32(sp)\n" ++
+  "  sd s5, 40(sp)\n" ++
+  "  # s0 = state ptr; s1 = data ptr; s2 = remaining len;\n" ++
+  "  # s3 = output ptr (= caller's a2); s4 = bit-length;\n" ++
+  "  # s5 = sha256_input buffer base.\n" ++
+  "  la s0, sha256_w_state\n" ++
+  "  mv s1, a0\n" ++
+  "  mv s2, a1\n" ++
+  "  mv s3, a2\n" ++
+  "  slli s4, a1, 3\n" ++
+  "  la s5, sha256_w_input\n" ++
+  "  # initialise state from IV (LE-u32 packed, 4 × u64)\n" ++
+  "  la t0, sha256_w_iv\n" ++
+  "  ld t1, 0(t0);  sd t1, 0(s0)\n" ++
+  "  ld t1, 8(t0);  sd t1, 8(s0)\n" ++
+  "  ld t1, 16(t0); sd t1, 16(s0)\n" ++
+  "  ld t1, 24(t0); sd t1, 24(s0)\n" ++
+  "  # absorb full 64-byte blocks\n" ++
+  ".Lzkv_sha_loop:\n" ++
+  "  li t0, 64\n" ++
+  "  blt s2, t0, .Lzkv_sha_final\n" ++
+  "  ld t0, 0(s1);  sd t0, 0(s5)\n" ++
+  "  ld t0, 8(s1);  sd t0, 8(s5)\n" ++
+  "  ld t0, 16(s1); sd t0, 16(s5)\n" ++
+  "  ld t0, 24(s1); sd t0, 24(s5)\n" ++
+  "  ld t0, 32(s1); sd t0, 32(s5)\n" ++
+  "  ld t0, 40(s1); sd t0, 40(s5)\n" ++
+  "  ld t0, 48(s1); sd t0, 48(s5)\n" ++
+  "  ld t0, 56(s1); sd t0, 56(s5)\n" ++
+  "  la a0, sha256_w_params\n" ++
+  "  .4byte 0x80552073           # csrs 0x805, a0\n" ++
+  "  addi s1, s1, 64\n" ++
+  "  addi s2, s2, -64\n" ++
+  "  j .Lzkv_sha_loop\n" ++
+  ".Lzkv_sha_final:\n" ++
+  "  # zero the input buffer\n" ++
+  "  sd zero, 0(s5);  sd zero, 8(s5);  sd zero, 16(s5); sd zero, 24(s5)\n" ++
+  "  sd zero, 32(s5); sd zero, 40(s5); sd zero, 48(s5); sd zero, 56(s5)\n" ++
+  "  # byte-copy remaining s2 bytes from s1 to s5\n" ++
+  "  mv t0, s5\n" ++
+  "  mv t1, s1\n" ++
+  "  mv t2, s2\n" ++
+  ".Lzkv_sha_bcopy:\n" ++
+  "  beqz t2, .Lzkv_sha_pad\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  sb  t3, 0(t0)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lzkv_sha_bcopy\n" ++
+  ".Lzkv_sha_pad:\n" ++
+  "  # write 0x80 at offset s2 in input buffer\n" ++
+  "  add t0, s5, s2\n" ++
+  "  li  t1, 0x80\n" ++
+  "  sb  t1, 0(t0)\n" ++
+  "  # if remainder < 56: single final block; else two-block path\n" ++
+  "  li  t0, 56\n" ++
+  "  blt s2, t0, .Lzkv_sha_writelen\n" ++
+  "  # two-block: compress this block (data + 0x80, no length yet)\n" ++
+  "  la  a0, sha256_w_params\n" ++
+  "  .4byte 0x80552073\n" ++
+  "  # zero input buffer for the second (length-only) block\n" ++
+  "  sd zero, 0(s5);  sd zero, 8(s5);  sd zero, 16(s5); sd zero, 24(s5)\n" ++
+  "  sd zero, 32(s5); sd zero, 40(s5); sd zero, 48(s5); sd zero, 56(s5)\n" ++
+  ".Lzkv_sha_writelen:\n" ++
+  "  # 8-byte BE bit-length at offset 56..64 of input buffer\n" ++
+  "  addi t0, s5, 56\n" ++
+  "  srli t1, s4, 56; sb t1, 0(t0)\n" ++
+  "  srli t1, s4, 48; sb t1, 1(t0)\n" ++
+  "  srli t1, s4, 40; sb t1, 2(t0)\n" ++
+  "  srli t1, s4, 32; sb t1, 3(t0)\n" ++
+  "  srli t1, s4, 24; sb t1, 4(t0)\n" ++
+  "  srli t1, s4, 16; sb t1, 5(t0)\n" ++
+  "  srli t1, s4,  8; sb t1, 6(t0)\n" ++
+  "  sb   s4, 7(t0)\n" ++
+  "  # compress final block\n" ++
+  "  la  a0, sha256_w_params\n" ++
+  "  .4byte 0x80552073\n" ++
+  "  # squeeze: byte-swap each u32 of state into output\n" ++
+  "  # output[i] = state[i ^ 3]   (reverses bytes within each 4-byte group)\n" ++
+  "  li  t0, 0\n" ++
+  ".Lzkv_sha_squeeze:\n" ++
+  "  li  t1, 32\n" ++
+  "  beq t0, t1, .Lzkv_sha_return\n" ++
+  "  xori t2, t0, 3\n" ++
+  "  add t3, s0, t2\n" ++
+  "  lbu t4, 0(t3)\n" ++
+  "  add t5, s3, t0\n" ++
+  "  sb  t4, 0(t5)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lzkv_sha_squeeze\n" ++
+  ".Lzkv_sha_return:\n" ++
+  "  li  a0, 0\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskZkvmSha256Prologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  # call 1: sha256(empty)\n" ++
+  "  la a0, zsha_empty\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0xa0010000\n" ++
+  "  jal ra, zkvm_sha256\n" ++
+  "  # call 2: sha256(\"abc\")\n" ++
+  "  la a0, zsha_abc\n" ++
+  "  li a1, 3\n" ++
+  "  li a2, 0xa0010020\n" ++
+  "  jal ra, zkvm_sha256\n" ++
+  "  # call 3: sha256(0xaa × 200)\n" ++
+  "  la a0, zsha_aa\n" ++
+  "  li a1, 200\n" ++
+  "  li a2, 0xa0010040\n" ++
+  "  jal ra, zkvm_sha256\n" ++
+  "  j .Lzkv_sha_done\n" ++
+  zkvmSha256Function ++ "\n" ++
+  ".Lzkv_sha_done:"
+
+def ziskZkvmSha256DataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "sha256_w_iv:\n" ++
+  "  .quad 0xbb67ae856a09e667    # LE(h0) || LE(h1)\n" ++
+  "  .quad 0xa54ff53a3c6ef372    # LE(h2) || LE(h3)\n" ++
+  "  .quad 0x9b05688c510e527f    # LE(h4) || LE(h5)\n" ++
+  "  .quad 0x5be0cd191f83d9ab    # LE(h6) || LE(h7)\n" ++
+  ".balign 8\n" ++
+  "sha256_w_state:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "sha256_w_input:\n" ++
+  "  .zero 64\n" ++
+  ".balign 8\n" ++
+  "sha256_w_params:\n" ++
+  "  .quad sha256_w_state\n" ++
+  "  .quad sha256_w_input\n" ++
+  "zsha_empty:\n" ++
+  "  .byte 0\n" ++
+  "zsha_abc:\n" ++
+  "  .ascii \"abc\"\n" ++
+  "zsha_aa:\n" ++
+  "  .fill 200, 1, 0xaa"
+
+def ziskZkvmSha256ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskZkvmSha256Prologue
+  dataAsm     := ziskZkvmSha256DataSection
+}
+
+/-! ## zisk_zkvm_keccak256 — PR-K3 parameterised wrapper
+
+    Refactors the three hardcoded sponge probes (PR-K2 empty,
+    PR-K2a "abc", PR-K2b multi-block) into a single jal-callable
+    function matching the zkvm-standards C signature:
+
+        zkvm_status zkvm_keccak256(const uint8_t* data, size_t len,
+                                   zkvm_keccak256_hash* output);
+
+    Calling convention (RV64 ABI):
+      a0 = data ptr
+      a1 = len
+      a2 = output ptr (32 bytes will be written)
+      ra = return address
+      returns: a0 = 0 on success (ZKVM_EOK = 0)
+
+    Internally clobbers t0..t6, a0..a2. Saves s0/s1/s2/s4 on the
+    stack and restores them before returning. Caller is
+    responsible for sp pointing at usable RAM.
+
+    The build unit's test driver initialises sp, then makes three
+    calls (empty / "abc" / 200×0xaa) writing the three 32-byte
+    digests to OUTPUT[0..96]. After the third call, jumps past
+    the function definition and falls through to halt.
+
+    Expected OUTPUT[0..96]:
+      0..32  : keccak256(b"")               = c5d2460186f7233c...
+      32..64 : keccak256(b"abc")            = 4e03657aea45a94f...
+      64..96 : keccak256(b"\xaa" * 200)     = ebad1a3694934 0cb... -/
+
+/-- The parameterised `zkvm_keccak256` function definition (raw
+    asm). Lives in the prologue after the test driver, guarded by
+    a forward jump so it isn't executed on _start fall-through. -/
+def zkvmKeccak256Function : String :=
+  "zkvm_keccak256:\n" ++
+  "  # save s0/s1/s2/s4 (callee-saved per RV64 ABI)\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd s0, 0(sp)\n" ++
+  "  sd s1, 8(sp)\n" ++
+  "  sd s2, 16(sp)\n" ++
+  "  sd s4, 24(sp)\n" ++
+  "  # stash args (a0/a1/a2 get clobbered during the absorb loop)\n" ++
+  "  mv s4, a0                # data ptr\n" ++
+  "  mv s1, a1                # remaining length\n" ++
+  "  mv s2, a2                # output ptr\n" ++
+  "  la s0, zk3_state\n" ++
+  "  # zero state (25 × u64)\n" ++
+  "  mv t3, s0\n" ++
+  "  li t4, 25\n" ++
+  ".Lzk3_zero:\n" ++
+  "  sd zero, 0(t3)\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lzk3_zero\n" ++
+  "  # absorb full blocks (rate = 136 bytes)\n" ++
+  ".Lzk3_full:\n" ++
+  "  li t4, 136\n" ++
+  "  blt s1, t4, .Lzk3_final\n" ++
+  "  mv t3, s0\n" ++
+  "  mv t5, s4\n" ++
+  "  li t6, 17\n" ++
+  ".Lzk3_xor:\n" ++
+  "  ld t0, 0(t5)\n" ++
+  "  ld t1, 0(t3)\n" ++
+  "  xor t1, t1, t0\n" ++
+  "  sd t1, 0(t3)\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  addi t5, t5, 8\n" ++
+  "  addi t6, t6, -1\n" ++
+  "  bnez t6, .Lzk3_xor\n" ++
+  "  mv a0, s0\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  addi s4, s4, 136\n" ++
+  "  addi s1, s1, -136\n" ++
+  "  j .Lzk3_full\n" ++
+  ".Lzk3_final:\n" ++
+  "  mv t3, s0\n" ++
+  "  mv t5, s4\n" ++
+  "  beqz s1, .Lzk3_pad\n" ++
+  ".Lzk3_bxor:\n" ++
+  "  lbu t0, 0(t5)\n" ++
+  "  lbu t1, 0(t3)\n" ++
+  "  xor t0, t0, t1\n" ++
+  "  sb t0, 0(t3)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  addi s1, s1, -1\n" ++
+  "  bnez s1, .Lzk3_bxor\n" ++
+  ".Lzk3_pad:\n" ++
+  "  lbu t0, 0(t3)\n" ++
+  "  xori t0, t0, 0x01\n" ++
+  "  sb t0, 0(t3)\n" ++
+  "  addi t3, s0, 135\n" ++
+  "  lbu t0, 0(t3)\n" ++
+  "  xori t0, t0, 0x80\n" ++
+  "  sb t0, 0(t3)\n" ++
+  "  mv a0, s0\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  # squeeze 32 bytes to s2 (= output ptr)\n" ++
+  "  ld t0, 0(s0);  sd t0, 0(s2)\n" ++
+  "  ld t0, 8(s0);  sd t0, 8(s2)\n" ++
+  "  ld t0, 16(s0); sd t0, 16(s2)\n" ++
+  "  ld t0, 24(s0); sd t0, 24(s2)\n" ++
+  "  # return ZKVM_EOK\n" ++
+  "  li a0, 0\n" ++
+  "  ld s0, 0(sp)\n" ++
+  "  ld s1, 8(sp)\n" ++
+  "  ld s2, 16(sp)\n" ++
+  "  ld s4, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- Test driver: initialises sp, calls `zkvm_keccak256` three times
+    with the empty / abc / 200×0xaa inputs, then jumps over the
+    function definition so we fall through to halt. -/
+def ziskZkvmKeccak256Prologue : String :=
+  "  # set up a usable stack pointer in RAM\n" ++
+  "  li sp, 0xa0050000\n" ++
+  "  # call 1: keccak256(empty)\n" ++
+  "  la a0, zk3_empty_marker\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0xa0010000\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # call 2: keccak256(\"abc\")\n" ++
+  "  la a0, zk3_abc_input\n" ++
+  "  li a1, 3\n" ++
+  "  li a2, 0xa0010020\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # call 3: keccak256(0xaa × 200)\n" ++
+  "  la a0, zk3_aa_input\n" ++
+  "  li a1, 200\n" ++
+  "  li a2, 0xa0010040\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # skip over the function definition, fall through to halt\n" ++
+  "  j .Lzk3_done\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  ".Lzk3_done:"
+
+def ziskZkvmKeccak256DataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "zk3_empty_marker:\n" ++
+  "  .byte 0\n" ++
+  "zk3_abc_input:\n" ++
+  "  .ascii \"abc\"\n" ++
+  "zk3_aa_input:\n" ++
+  "  .fill 200, 1, 0xaa"
+
+def ziskZkvmKeccak256ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskZkvmKeccak256Prologue
+  dataAsm     := ziskZkvmKeccak256DataSection
+}
+
+/-! ## zisk_keccak256_from_input — PR-K4 host-supplied input
+
+    First real-shape consumer of the parameterised
+    `zkvm_keccak256` from PR-K3: hash an arbitrary byte buffer
+    that the host streamed in via `ziskemu -i <file>`. ziskemu
+    places file bytes 0..8 (the u64 LE length prefix) at
+    `INPUT_ADDR + 8..16` and file bytes 8.. (the data) at
+    `INPUT_ADDR + 16..`. The probe reads the length, points at
+    the data, calls `zkvm_keccak256`, writes the 32-byte digest
+    at OUTPUT_ADDR.
+
+    Designed to test header-shaped inputs (typical Ethereum
+    header RLP is ~530-540 bytes), but accepts any byte stream.
+    The Python harness (`scripts/keccak256-gen-input.py`)
+    SSZ/RLP-encodes a real Header dataclass and emits the
+    ziskemu-formatted input file. The test script runs ziskemu,
+    diffs the OUTPUT digest against the Python-computed
+    reference hash. -/
+def ziskKeccak256FromInputPrologue : String :=
+  "  # set up stack\n" ++
+  "  li sp, 0xa0050000\n" ++
+  "  # read length and data ptr from ziskemu input region\n" ++
+  "  li a3, 0x40000000           # INPUT_ADDR\n" ++
+  "  ld a1, 8(a3)                # a1 = length (u64 LE at INPUT_ADDR + 8)\n" ++
+  "  addi a0, a3, 16             # a0 = data ptr (INPUT_ADDR + 16)\n" ++
+  "  li a2, 0xa0010000           # a2 = OUTPUT_ADDR\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  j .Lzk4_done\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  ".Lzk4_done:"
+
+/-- `.data` for the from-input probe: 200-byte state buffer used
+    by `zkvm_keccak256`. Input data lives in the
+    `INPUT_ADDR` region (host-supplied via `ziskemu -i`), not in
+    `.data`. -/
+def ziskKeccak256FromInputDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200"
+
+def ziskKeccak256FromInputProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskKeccak256FromInputPrologue
+  dataAsm     := ziskKeccak256FromInputDataSection
+}
+
+/-! ## stateless_guest body — PR-K5 keccak hash field
+
+    Replaces the zero-stub `new_payload_request_root` field in
+    `Stateless.Entry.run_stateless_guest`'s SSZ output with the
+    keccak256 of the entire SSZ-input byte string the host
+    streamed in via `ziskemu -i`. Concretely:
+
+    - Body: the unchanged `Stateless.Entry.run_stateless_guest`
+      Program. It writes:
+        bytes  0..32 : zero hash (placeholder)
+        byte      32 : successful_validation (PR4/PR5 derived)
+        bytes 33..41 : chain_id (PR3 from-decode)
+        bytes 41..48 : zero gap
+        bytes 48..56 : header_count diagnostic (PR6 from-decode)
+    - Epilogue (raw asm): set up sp, load (data ptr, len) from
+      INPUT_ADDR + (16, 8), set output = OUTPUT_ADDR + 0, and
+      `jal ra, zkvm_keccak256`. The function overwrites
+      OUTPUT[0..32] with keccak256(input bytes), clobbering the
+      zero stub.
+
+    The host-side `compute_new_payload_request_root` per the spec
+    is SSZ `hash_tree_root` (SHA-256), not Keccak. PR-K5 stamps a
+    *content-dependent* hash there so the test harness has a
+    non-trivial value to verify and the keccak bridge is wired
+    into the encoder pipeline end-to-end. Once PR-S series lands,
+    the SHA-256 hash_tree_root replaces this keccak. -/
+def statelessGuestEpilogue : String :=
+  "  # PR-K7: overwrite OUTPUT[0..32] with keccak256 of the FIRST\n" ++
+  "  # element of witness.headers (witness.headers[0]) if the list\n" ++
+  "  # is non-empty; else keccak256(empty).\n" ++
+  "  # \n" ++
+  "  # Navigation:\n" ++
+  "  #   ssz_start  = INPUT_ADDR + 16\n" ++
+  "  #   offset_1   = LWU @ ssz_start +  4   (witness offset)\n" ++
+  "  #   witness    = ssz_start + offset_1\n" ++
+  "  #   inner_off2 = LWU @ witness  +  8   (headers offset)\n" ++
+  "  #   hdrs_start = witness + inner_off2\n" ++
+  "  #   offset_3   = LWU @ ssz_start + 16  (witness end)\n" ++
+  "  #   hdrs_end   = ssz_start + offset_3\n" ++
+  "  #   hdrs_len   = hdrs_end - hdrs_start\n" ++
+  "  #   if hdrs_len > 0:\n" ++
+  "  #     first_off  = LWU @ hdrs_start    (inner offset[0] = 4 * N)\n" ++
+  "  #     el0_start  = hdrs_start + first_off\n" ++
+  "  #     if first_off == 4 (N == 1):\n" ++
+  "  #       el0_end  = hdrs_end\n" ++
+  "  #     else (N >= 2):\n" ++
+  "  #       el0_end  = hdrs_start + LWU @ hdrs_start + 4 (inner offset[1])\n" ++
+  "  #     el0_len    = el0_end - el0_start\n" ++
+  "  #   else:\n" ++
+  "  #     hash empty (el0_len = 0)\n" ++
+  "  li sp, 0xa0050000\n" ++
+  "  li t3, 0x40000000\n" ++
+  "  addi t3, t3, 16             # t3 = ssz_start\n" ++
+  "  lwu t4, 4(t3)               # outer offset_1\n" ++
+  "  add t5, t3, t4              # t5 = witness_addr\n" ++
+  "  lwu t6, 8(t5)               # inner offset_2 (headers offset)\n" ++
+  "  add a0, t5, t6              # a0 = hdrs_start (tentative data ptr)\n" ++
+  "  lwu t6, 16(t3)              # outer offset_3 (witness end)\n" ++
+  "  add t6, t3, t6              # t6 = hdrs_end\n" ++
+  "  sub a1, t6, a0              # a1 = hdrs_len (tentative len)\n" ++
+  "  beqz a1, .Lsg_call_keccak   # empty headers: hash empty\n" ++
+  "  # Non-empty headers: read first inner offset to find element 0\n" ++
+  "  lwu t4, 0(a0)               # t4 = first_inner_offset = 4 * N\n" ++
+  "  add t5, a0, t4              # t5 = el0_start\n" ++
+  "  li t3, 4\n" ++
+  "  beq t4, t3, .Lsg_one_elem   # N == 1 → el0_end = hdrs_end (t6 already)\n" ++
+  "  lwu t4, 4(a0)               # t4 = second_inner_offset\n" ++
+  "  add t6, a0, t4              # t6 = el0_end (override)\n" ++
+  ".Lsg_one_elem:\n" ++
+  "  sub a1, t6, t5              # a1 = el0_len\n" ++
+  "  mv a0, t5                   # a0 = el0_start\n" ++
+  ".Lsg_call_keccak:\n" ++
+  "  li a2, 0xa0010000           # a2 = OUTPUT_ADDR (hash field)\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  j .Lsg_done\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  ".Lsg_done:"
+
+def statelessGuestDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200"
+
+def statelessGuestUnit : BuildUnit := {
+  body        := EvmAsm.Stateless.run_stateless_guest
+  epilogueAsm := statelessGuestEpilogue
+  dataAsm     := statelessGuestDataSection
+}
+
 /-! ## registry -/
 
 /-- Look up a program by name. Returns `none` for unknown names so the CLI
@@ -687,6 +1533,15 @@ def lookupProgram : String → Option BuildUnit
   | "tiny_interp_add2"          => some tinyInterpAdd2Unit
   | "tiny_interp_dispatch_add"  => some tinyInterpDispatchAddUnit
   | "tiny_interp_dispatch_add2" => some tinyInterpDispatchAdd2Unit
+  | "runtime_dispatcher"        => some runtimeDispatcherUnit
+  | "stateless_guest"           => some statelessGuestUnit
+  | "zisk_keccak_probe"         => some ziskKeccakProbeUnit
+  | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit
+  | "zisk_keccak256_abc"        => some ziskKeccak256AbcProbeUnit
+  | "zisk_zkvm_keccak256"       => some ziskZkvmKeccak256ProbeUnit
+  | "zisk_sha256_probe_le"      => some ziskSha256ProbeLeUnit
+  | "zisk_zkvm_sha256"          => some ziskZkvmSha256ProbeUnit
+  | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
   | _                           => none
 
 /-- List of known program names, for use in CLI usage strings. -/
@@ -695,6 +1550,15 @@ def knownProgramNames : List String :=
    "evm_add_from_input", "evm_div_from_input", "evm_mod_from_input",
    "evm_sdiv_from_input", "evm_sdiv_v4_from_input",
    "tiny_interp_add", "tiny_interp_add2",
-   "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2"]
+   "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2",
+   "runtime_dispatcher",
+   "stateless_guest",
+   "zisk_keccak_probe",
+   "zisk_keccak256_empty",
+   "zisk_keccak256_abc",
+   "zisk_zkvm_keccak256",
+   "zisk_sha256_probe_le",
+   "zisk_zkvm_sha256",
+   "zisk_keccak256_from_input"]
 
 end EvmAsm.Codegen
