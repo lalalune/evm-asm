@@ -45,15 +45,16 @@
     `OUTPUT_ADDR + 0..N`.
   - Halts with the codegen halt stub.
 
-  ## PR2 stub
+  ## PR3 status
 
-  The decode / validate / execute pipeline is not yet implemented;
-  the body is just `serialize_stateless_output_stub`, which writes the
+  Decode (`Stateless.SSZ.Decode.read_chain_id`) reads `chain_id` from
+  the host-supplied `SszStatelessInput` on `INPUT_ADDR`; encode
+  (`Stateless.SSZ.Encode.serialize_stateless_output`) writes the
   41-byte SSZ encoding of
-  `StatelessValidationResult(root = 0, valid = false, chain_id = 1)`
-  at `OUTPUT_ADDR`, then falls through to the codegen halt stub. This
-  is enough for a Python harness to diff `ziskemu`'s public output
-  against the reference SSZ encoder.
+  `StatelessValidationResult(root = 0, valid = false,
+                             chain_id = <decoded>)`
+  at `OUTPUT_ADDR`. The rest of the pipeline (header validation,
+  witness DBs, STF execution) is still stubbed.
 
   Module paths that aren't implemented yet still call
   `EvmAsm.Stateless.unimplemented_exit` with a distinct reason code
@@ -62,17 +63,22 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Stateless.SSZ.Decode.Program
 import EvmAsm.Stateless.SSZ.Encode.Program
 
 namespace EvmAsm.Stateless
 
 open EvmAsm.Rv64
 
-/-- PR2 stub: emit the 41-byte stub `StatelessValidationResult` to
-    `OUTPUT_ADDR` and fall through to the halt stub. Replaced in
-    successor PRs by the full decode → validate → execute → encode
-    pipeline. -/
+/-- PR3 body: decode `chain_id` from `INPUT_ADDR`, then encode the
+    `StatelessValidationResult` (with `root = 0`, `valid = false`,
+    and the decoded `chain_id`) at `OUTPUT_ADDR`. Falls through to the
+    halt stub appended by `emitBuildUnit`.
+
+    Replaced in successor PRs by the full decode → validate → execute
+    → encode pipeline. -/
 def run_stateless_guest : Program :=
-  EvmAsm.Stateless.SSZ.Encode.serialize_stateless_output_stub
+  EvmAsm.Stateless.SSZ.Decode.read_chain_id ++
+  EvmAsm.Stateless.SSZ.Encode.serialize_stateless_output
 
 end EvmAsm.Stateless
