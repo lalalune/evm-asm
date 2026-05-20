@@ -25,6 +25,13 @@ import EvmAsm.Evm64.Pop.Program
 import EvmAsm.Evm64.Push.Program
 import EvmAsm.Evm64.SDiv.Program
 import EvmAsm.Evm64.SMod.Program
+import EvmAsm.Evm64.Sgt.Program
+import EvmAsm.Evm64.Shift.Program
+import EvmAsm.Evm64.SignExtend.Program
+import EvmAsm.Evm64.Slt.Program
+import EvmAsm.Evm64.Sub.Program
+import EvmAsm.Evm64.Swap.Program
+import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Stateless.Entry
@@ -834,6 +841,351 @@ def evmSmodV4FromInputUnit : BuildUnit := {
   prologueAsm := evmSmodV4FromInputPrologue
   epilogueAsm := evmSmodV4Epilogue
   dataAsm     := evmSmodV4FromInputDataSection
+}
+
+/-! ## stateless_guest — PR2 SSZ-output stub
+
+    Renders the stub `StatelessValidationResult(root = 0,
+    valid = false, chain_id = 1)` as 41 SSZ bytes at `OUTPUT_ADDR`,
+    then falls through to the codegen halt stub.
+
+    Body lives in `EvmAsm/Stateless/Entry.lean`. No prologue, no
+    `.data`, no epilogue -- the encoder owns the entire post-`_start`
+    sequence. -/
+def statelessGuestUnit : BuildUnit := {
+  body := EvmAsm.Stateless.run_stateless_guest
+}
+
+/-! ## zisk_keccak_probe — PR-K1 ziskemu Keccak-f[1600] intrinsic probe
+
+    Emits a raw-asm probe that triggers ziskemu's built-in
+    Keccak-f[1600] accelerator (`_opcode_keccak` in
+    `~/.zisk/zisk/emulator-asm/src/emu.c:507`). The accelerator is
+    invoked by writing the state pointer into a non-standard CSR at
+    address 0x800 -- which is the syscall ID the Zisk compiler
+    expects, per `ziskos/entrypoint/src/syscalls/keccakf.rs` (uses
+    `csrs 0x800, <reg>` via the `ziskos_syscall!` macro).
+
+    GNU-as `csrs csr, rs1` expands to `csrrs x0, csr, rs1`. The
+    32-bit encoding for `csrs 0x800, a0`:
+
+      csr(0x800)    rs1(x10=01010)  f3(010)  rd(x0)    op(0x73)
+      [31..20]      [19..15]        [14..12] [11..7]   [6..0]
+      = 0x80052073
+
+    We emit this as a raw `.4byte` directive rather than the
+    `csrs` mnemonic so the existing
+    `riscv64-unknown-elf-as -march=rv64imac` toolchain string
+    works without enabling the `Zicsr` extension. The 32-bit value
+    is what `as -march=rv64imac_zicsr` produces for the same
+    mnemonic; pinning it here is the whole point of PR-K1.
+
+    Probe sequence:
+      la a0, zisk_keccak_state    # state pointer
+      .4byte 0x80052073           # csrs 0x800, a0 -> _opcode_keccak
+      <copy 200 bytes to OUTPUT_ADDR>
+      <halt>
+
+    Verified Program body is a single NOP -- everything observable
+    happens in raw asm, so the verified semantics carry no claim
+    about the probe yet. PR-K2 wires this through verified Instrs
+    once the CSR instruction is added to `Rv64.Instr`. -/
+
+/-- Asm prologue: probe the keccak intrinsic and stream the
+    post-permutation 200-byte state to ziskemu's public-output
+    region. Hard-codes `OUTPUT_ADDR = 0xa0010000` (mirrors the
+    constant above). -/
+def ziskKeccakProbePrologue : String :=
+  "  la a0, zisk_keccak_state\n" ++
+  "  .4byte 0x80052073           # csrs 0x800, a0\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  li t1, 25\n" ++
+  ".Lzkp_copy_loop:\n" ++
+  "  ld t2, 0(a0)\n" ++
+  "  sd t2, 0(t0)\n" ++
+  "  addi a0, a0, 8\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  bnez t1, .Lzkp_copy_loop"
+
+/-- `.data` section: 200 zero bytes labeled `zisk_keccak_state`.
+    Lands in ziskemu RAM (0xa0000000..0xc0000000) via the standard
+    `-Tdata=0xa0000000` link flag from `Codegen/Driver.lean`. -/
+def ziskKeccakProbeDataSection : String :=
+  ".section .data\n" ++
+  "zisk_keccak_state:\n" ++
+  "  .zero 200"
+
+def ziskKeccakProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskKeccakProbePrologue
+  dataAsm     := ziskKeccakProbeDataSection
+}
+
+/-! ## zisk_keccak256_empty — PR-K2 keccak256 sponge over empty input
+
+    First wrapper around PR-K1's intrinsic: the keccak256 sponge
+    construction applied to a zero-byte message. Concretely:
+
+      1. Zero the 200-byte state buffer.
+      2. Pad: set byte 0 = 0x01, byte 135 = 0x80
+         (Ethereum Keccak padding; rate = 1088 bits = 136 bytes).
+      3. Trigger `_opcode_keccak` (csrs 0x800, a0).
+      4. Copy the first 32 bytes of state to OUTPUT_ADDR -- those
+         are the 256-bit hash digest.
+
+    Expected output (32 bytes):
+      c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+
+    Matches the canonical keccak256("") hash and the value produced
+    by `eth_utils.keccak(b"")` / `Cryptodome.Hash.keccak.new(...).digest()`.
+    This is the simplest possible exercise of the full sponge wrapper:
+    no input blocks to absorb, just the final padded block. Future
+    PRs extend this to one-block ("abc") and multi-block inputs. -/
+
+/-- Asm prologue: zero state, apply Ethereum Keccak padding for the
+    empty-message case, call the keccak-f intrinsic, copy the 32-byte
+    digest to OUTPUT_ADDR. -/
+def ziskKeccak256EmptyPrologue : String :=
+  "  la s0, k256e_state\n" ++
+  "  # zero state (25 × u64)\n" ++
+  "  mv t3, s0\n" ++
+  "  li t4, 25\n" ++
+  ".Lk256e_zero:\n" ++
+  "  sd zero, 0(t3)\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lk256e_zero\n" ++
+  "  # apply Ethereum Keccak padding to empty message\n" ++
+  "  li t0, 0x01\n" ++
+  "  sb t0, 0(s0)              # state[0] = 0x01\n" ++
+  "  li t0, 0x80\n" ++
+  "  sb t0, 135(s0)            # state[135] = 0x80\n" ++
+  "  # call keccak-f via PR-K1 intrinsic (csrs 0x800, a0)\n" ++
+  "  mv a0, s0\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  # copy first 32 bytes of state to OUTPUT_ADDR\n" ++
+  "  li t0, 0xa0010000         # OUTPUT_ADDR\n" ++
+  "  ld t1, 0(s0);  sd t1, 0(t0)\n" ++
+  "  ld t1, 8(s0);  sd t1, 8(t0)\n" ++
+  "  ld t1, 16(s0); sd t1, 16(t0)\n" ++
+  "  ld t1, 24(s0); sd t1, 24(t0)"
+
+def ziskKeccak256EmptyDataSection : String :=
+  ".section .data\n" ++
+  "k256e_state:\n" ++
+  "  .zero 200"
+
+def ziskKeccak256EmptyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskKeccak256EmptyPrologue
+  dataAsm     := ziskKeccak256EmptyDataSection
+}
+
+/-! ## zisk_keccak256_abc — PR-K2a single-block input
+
+    Same sponge skeleton as PR-K2 but with the 3-byte input "abc"
+    (RFC test vector) XORed into state positions 0..3 before the
+    padding bytes (`0x01` at byte 3, `0x80` at byte 135). Single
+    absorb block, single keccak-f call, then squeeze.
+
+    Expected:
+      keccak256(b"abc") =
+        4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
+
+    Demonstrates the single-block absorb path (input ≤ rate). The
+    multi-block path lands in a follow-up. -/
+def ziskKeccak256AbcPrologue : String :=
+  "  la s0, k256a_state\n" ++
+  "  # zero state\n" ++
+  "  mv t3, s0\n" ++
+  "  li t4, 25\n" ++
+  ".Lk256a_zero:\n" ++
+  "  sd zero, 0(t3)\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lk256a_zero\n" ++
+  "  # input \"abc\" at state[0..3]\n" ++
+  "  li t0, 0x61; sb t0, 0(s0)\n" ++
+  "  li t0, 0x62; sb t0, 1(s0)\n" ++
+  "  li t0, 0x63; sb t0, 2(s0)\n" ++
+  "  # Ethereum Keccak padding (length 3 < rate 136)\n" ++
+  "  li t0, 0x01; sb t0, 3(s0)\n" ++
+  "  li t0, 0x80; sb t0, 135(s0)\n" ++
+  "  # call keccak-f\n" ++
+  "  mv a0, s0\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  # squeeze 32 bytes to OUTPUT_ADDR\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  ld t1, 0(s0);  sd t1, 0(t0)\n" ++
+  "  ld t1, 8(s0);  sd t1, 8(t0)\n" ++
+  "  ld t1, 16(s0); sd t1, 16(t0)\n" ++
+  "  ld t1, 24(s0); sd t1, 24(t0)"
+
+def ziskKeccak256AbcDataSection : String :=
+  ".section .data\n" ++
+  "k256a_state:\n" ++
+  "  .zero 200"
+
+def ziskKeccak256AbcProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskKeccak256AbcPrologue
+  dataAsm     := ziskKeccak256AbcDataSection
+}
+
+/-! ## zisk_zkvm_keccak256 — PR-K3 parameterised wrapper
+
+    Refactors the three hardcoded sponge probes (PR-K2 empty,
+    PR-K2a "abc", PR-K2b multi-block) into a single jal-callable
+    function matching the zkvm-standards C signature:
+
+        zkvm_status zkvm_keccak256(const uint8_t* data, size_t len,
+                                   zkvm_keccak256_hash* output);
+
+    Calling convention (RV64 ABI):
+      a0 = data ptr
+      a1 = len
+      a2 = output ptr (32 bytes will be written)
+      ra = return address
+      returns: a0 = 0 on success (ZKVM_EOK = 0)
+
+    Internally clobbers t0..t6, a0..a2. Saves s0/s1/s2/s4 on the
+    stack and restores them before returning. Caller is
+    responsible for sp pointing at usable RAM.
+
+    The build unit's test driver initialises sp, then makes three
+    calls (empty / "abc" / 200×0xaa) writing the three 32-byte
+    digests to OUTPUT[0..96]. After the third call, jumps past
+    the function definition and falls through to halt.
+
+    Expected OUTPUT[0..96]:
+      0..32  : keccak256(b"")               = c5d2460186f7233c...
+      32..64 : keccak256(b"abc")            = 4e03657aea45a94f...
+      64..96 : keccak256(b"\xaa" * 200)     = ebad1a3694934 0cb... -/
+
+/-- The parameterised `zkvm_keccak256` function definition (raw
+    asm). Lives in the prologue after the test driver, guarded by
+    a forward jump so it isn't executed on _start fall-through. -/
+def zkvmKeccak256Function : String :=
+  "zkvm_keccak256:\n" ++
+  "  # save s0/s1/s2/s4 (callee-saved per RV64 ABI)\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd s0, 0(sp)\n" ++
+  "  sd s1, 8(sp)\n" ++
+  "  sd s2, 16(sp)\n" ++
+  "  sd s4, 24(sp)\n" ++
+  "  # stash args (a0/a1/a2 get clobbered during the absorb loop)\n" ++
+  "  mv s4, a0                # data ptr\n" ++
+  "  mv s1, a1                # remaining length\n" ++
+  "  mv s2, a2                # output ptr\n" ++
+  "  la s0, zk3_state\n" ++
+  "  # zero state (25 × u64)\n" ++
+  "  mv t3, s0\n" ++
+  "  li t4, 25\n" ++
+  ".Lzk3_zero:\n" ++
+  "  sd zero, 0(t3)\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lzk3_zero\n" ++
+  "  # absorb full blocks (rate = 136 bytes)\n" ++
+  ".Lzk3_full:\n" ++
+  "  li t4, 136\n" ++
+  "  blt s1, t4, .Lzk3_final\n" ++
+  "  mv t3, s0\n" ++
+  "  mv t5, s4\n" ++
+  "  li t6, 17\n" ++
+  ".Lzk3_xor:\n" ++
+  "  ld t0, 0(t5)\n" ++
+  "  ld t1, 0(t3)\n" ++
+  "  xor t1, t1, t0\n" ++
+  "  sd t1, 0(t3)\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  addi t5, t5, 8\n" ++
+  "  addi t6, t6, -1\n" ++
+  "  bnez t6, .Lzk3_xor\n" ++
+  "  mv a0, s0\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  addi s4, s4, 136\n" ++
+  "  addi s1, s1, -136\n" ++
+  "  j .Lzk3_full\n" ++
+  ".Lzk3_final:\n" ++
+  "  mv t3, s0\n" ++
+  "  mv t5, s4\n" ++
+  "  beqz s1, .Lzk3_pad\n" ++
+  ".Lzk3_bxor:\n" ++
+  "  lbu t0, 0(t5)\n" ++
+  "  lbu t1, 0(t3)\n" ++
+  "  xor t0, t0, t1\n" ++
+  "  sb t0, 0(t3)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  addi s1, s1, -1\n" ++
+  "  bnez s1, .Lzk3_bxor\n" ++
+  ".Lzk3_pad:\n" ++
+  "  lbu t0, 0(t3)\n" ++
+  "  xori t0, t0, 0x01\n" ++
+  "  sb t0, 0(t3)\n" ++
+  "  addi t3, s0, 135\n" ++
+  "  lbu t0, 0(t3)\n" ++
+  "  xori t0, t0, 0x80\n" ++
+  "  sb t0, 0(t3)\n" ++
+  "  mv a0, s0\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  # squeeze 32 bytes to s2 (= output ptr)\n" ++
+  "  ld t0, 0(s0);  sd t0, 0(s2)\n" ++
+  "  ld t0, 8(s0);  sd t0, 8(s2)\n" ++
+  "  ld t0, 16(s0); sd t0, 16(s2)\n" ++
+  "  ld t0, 24(s0); sd t0, 24(s2)\n" ++
+  "  # return ZKVM_EOK\n" ++
+  "  li a0, 0\n" ++
+  "  ld s0, 0(sp)\n" ++
+  "  ld s1, 8(sp)\n" ++
+  "  ld s2, 16(sp)\n" ++
+  "  ld s4, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- Test driver: initialises sp, calls `zkvm_keccak256` three times
+    with the empty / abc / 200×0xaa inputs, then jumps over the
+    function definition so we fall through to halt. -/
+def ziskZkvmKeccak256Prologue : String :=
+  "  # set up a usable stack pointer in RAM\n" ++
+  "  li sp, 0xa0050000\n" ++
+  "  # call 1: keccak256(empty)\n" ++
+  "  la a0, zk3_empty_marker\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0xa0010000\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # call 2: keccak256(\"abc\")\n" ++
+  "  la a0, zk3_abc_input\n" ++
+  "  li a1, 3\n" ++
+  "  li a2, 0xa0010020\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # call 3: keccak256(0xaa × 200)\n" ++
+  "  la a0, zk3_aa_input\n" ++
+  "  li a1, 200\n" ++
+  "  li a2, 0xa0010040\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # skip over the function definition, fall through to halt\n" ++
+  "  j .Lzk3_done\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  ".Lzk3_done:"
+
+def ziskZkvmKeccak256DataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "zk3_empty_marker:\n" ++
+  "  .byte 0\n" ++
+  "zk3_abc_input:\n" ++
+  "  .ascii \"abc\"\n" ++
+  "zk3_aa_input:\n" ++
+  "  .fill 200, 1, 0xaa"
+
+def ziskZkvmKeccak256ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskZkvmKeccak256Prologue
+  dataAsm     := ziskZkvmKeccak256DataSection
 }
 
 /-! ## registry -/
