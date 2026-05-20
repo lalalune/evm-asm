@@ -24,6 +24,7 @@ import EvmAsm.Evm64.DivMod.SpecCall
 import EvmAsm.Evm64.DivMod.N4StackSpec
 import EvmAsm.Evm64.DivMod.N4StackSpecWithin
 import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeq
+import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeqV4NoNop
 import EvmAsm.Evm64.DivMod.LoopBody.MulsubFull
 import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddback
 import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeqNamed
