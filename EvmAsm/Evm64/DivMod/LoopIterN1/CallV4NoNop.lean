@@ -13,6 +13,78 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 @[irreducible]
+def loopBodyN1CallSkipJgt0PreV4NoX1
+    (sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratch_un0 scratchMem : Word) : Assertion :=
+  let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
+  let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+  ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+   (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
+   ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+   ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+   ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+   ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+   ((uBase + signExtend12 4064) ↦ₘ uTop) **
+   (qAddr ↦ₘ qOld) **
+   (sp + signExtend12 3968 ↦ₘ retMem) **
+   (sp + signExtend12 3960 ↦ₘ dMem) **
+   (sp + signExtend12 3952 ↦ₘ dloMem) **
+   (sp + signExtend12 3944 ↦ₘ scratch_un0) **
+   (sp + signExtend12 3936 ↦ₘ scratchMem))
+
+theorem loopBodyN1CallSkipJgt0PreV4NoX1_pcFree
+    (sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratch_un0 scratchMem : Word) :
+    (loopBodyN1CallSkipJgt0PreV4NoX1 sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 scratchMem).pcFree := by
+  delta loopBodyN1CallSkipJgt0PreV4NoX1
+  pcFree
+
+instance pcFreeInst_loopBodyN1CallSkipJgt0PreV4NoX1
+    (sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratch_un0 scratchMem : Word) :
+    Assertion.PCFree
+      (loopBodyN1CallSkipJgt0PreV4NoX1 sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 scratchMem) :=
+  ⟨loopBodyN1CallSkipJgt0PreV4NoX1_pcFree sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 scratchMem⟩
+
+theorem loopBodyN1CallSkipJgt0PreV4NoX1_to_legacy
+    (sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratch_un0 scratchMem : Word) :
+    let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
+    let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+    ∀ h,
+      (loopBodyN1CallSkipJgt0PreV4NoX1 sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 scratchMem **
+        regOwn .x1) h →
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (1 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+       ((uBase + signExtend12 4064) ↦ₘ uTop) **
+       (qAddr ↦ₘ qOld) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ scratch_un0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) ** regOwn .x1) h) := by
+  intro uBase qAddr h hp
+  simpa only [loopBodyN1CallSkipJgt0PreV4NoX1, sepConj_assoc'] using hp
+
+@[irreducible]
 def loopBodyN1CallSkipJgt0PostV4
     (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) : Assertion :=
   let dLo := divKTrialCallV4DLo v0
@@ -26,6 +98,60 @@ def loopBodyN1CallSkipJgt0PostV4
   (sp + signExtend12 3944 ↦ₘ div_un0) **
   (sp + signExtend12 3936 ↦ₘ scratchOut) **
   regOwn .x1
+
+@[irreducible]
+def loopBodyN1CallSkipJgt0PostV4NoX1
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) : Assertion :=
+  let dLo := divKTrialCallV4DLo v0
+  let div_un0 := divKTrialCallV4Un0 u0
+  let qHat := divKTrialCallV4QHat u1 u0 v0
+  let scratchOut := divKTrialCallV4ScratchOut u1 u0 v0 scratchMem
+  loopBodyN1SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v0) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ div_un0) **
+  (sp + signExtend12 3936 ↦ₘ scratchOut)
+
+theorem loopBodyN1CallSkipJgt0PostV4NoX1_unfold
+    {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word} :
+    loopBodyN1CallSkipJgt0PostV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem =
+    (
+    let dLo := divKTrialCallV4DLo v0
+    let div_un0 := divKTrialCallV4Un0 u0
+    let qHat := divKTrialCallV4QHat u1 u0 v0
+    let scratchOut := divKTrialCallV4ScratchOut u1 u0 v0 scratchMem
+    loopBodyN1SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+    (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+    (sp + signExtend12 3960 ↦ₘ v0) **
+    (sp + signExtend12 3952 ↦ₘ dLo) **
+    (sp + signExtend12 3944 ↦ₘ div_un0) **
+    (sp + signExtend12 3936 ↦ₘ scratchOut)) := by
+  delta loopBodyN1CallSkipJgt0PostV4NoX1
+  rfl
+
+theorem loopBodyN1CallSkipJgt0PostV4NoX1_pcFree
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) :
+    (loopBodyN1CallSkipJgt0PostV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem).pcFree := by
+  delta loopBodyN1CallSkipJgt0PostV4NoX1 loopBodyN1SkipPost
+        loopBodySkipPost mulsubN4 loopExitPostN1 loopExitPost
+  pcFree
+
+instance pcFreeInst_loopBodyN1CallSkipJgt0PostV4NoX1
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) :
+    Assertion.PCFree
+      (loopBodyN1CallSkipJgt0PostV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem) :=
+  ⟨loopBodyN1CallSkipJgt0PostV4NoX1_pcFree sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem⟩
+
+theorem loopBodyN1CallSkipJgt0PostV4NoX1_to_loopBodyN1CallSkipJgt0PostV4
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) :
+    ∀ h,
+      (loopBodyN1CallSkipJgt0PostV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem **
+        regOwn .x1) h →
+      loopBodyN1CallSkipJgt0PostV4 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem h := by
+  intro h hp
+  delta loopBodyN1CallSkipJgt0PostV4NoX1 loopBodyN1CallSkipJgt0PostV4 at hp ⊢
+  simpa only [sepConj_assoc'] using hp
 
 /-- No-NOP/v4 loop body cpsTripleWithin for n=1, call+skip, j=0.
     This consumes the v4 div128 call path and exits to denorm. -/
@@ -129,6 +255,35 @@ theorem divK_loop_body_n1_call_skip_j0_v4_spec_within_noNop
       dsimp only []
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
+
+/-- No-NOP/v4 n=1 call+skip j=0 spec with the call frame split so future
+    callers can keep `x1` outside the loop-body assertion. -/
+theorem divK_loop_body_n1_call_skip_j0_v4_spec_within_noNop_noX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratch_un0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult u1 v0)
+    (hborrow : loopBodyN1CallSkipJ0BorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 148 (base + loopBodyOff) (base + denormOff) (sharedDivModCodeNoNop_v4 base)
+      (loopBodyN1CallSkipJ0PreV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 scratchMem **
+        regOwn .x1)
+      (loopBodyN1CallSkipJ0PostV4NoX1 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem **
+        regOwn .x1) := by
+  exact cpsTripleWithin_weaken
+    (loopBodyN1CallSkipJ0PreV4NoX1_to_loopBodyN1CallSkipJ0PreV4
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 scratchMem)
+    (fun h hp => by
+      unfold loopBodyN1CallSkipJ0PostV4 at hp
+      unfold loopBodyN1CallSkipJ0PostV4NoX1
+      simpa only [sepConj_assoc'] using hp)
+    (divK_loop_body_n1_call_skip_j0_v4_spec_within_noNop
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
+      retMem dMem dloMem scratch_un0 scratchMem base halign hbltu hborrow)
 
 /-- No-NOP/v4 loop body cpsTripleWithin for n=1, call+skip, j>0.
     This consumes the v4 div128 call path and loops back to the loop body. -/
@@ -246,5 +401,37 @@ theorem divK_loop_body_n1_call_skip_jgt0_v4_spec_within_noNop (j : Word)
       dsimp only []
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
+
+/-- No-NOP/v4 n=1 call+skip j>0 spec with the call frame split so future
+    callers can keep `x1` outside the loop-body assertion. -/
+theorem divK_loop_body_n1_call_skip_jgt0_v4_spec_within_noNop_noX1 (j : Word)
+    (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratch_un0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult u1 v0)
+    (hborrow : mulsubN4NoBorrow (divKTrialCallV4QHat u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 148 (base + loopBodyOff) (base + loopBodyOff) (sharedDivModCodeNoNop_v4 base)
+      (loopBodyN1CallSkipJgt0PreV4NoX1 sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 scratchMem **
+        regOwn .x1)
+      (loopBodyN1CallSkipJgt0PostV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem **
+        regOwn .x1) := by
+  have legacy := divK_loop_body_n1_call_skip_jgt0_v4_spec_within_noNop j hpos
+    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
+    retMem dMem dloMem scratch_un0 scratchMem base halign hbltu hborrow
+  dsimp only [] at legacy
+  exact cpsTripleWithin_weaken
+    (loopBodyN1CallSkipJgt0PreV4NoX1_to_legacy
+      sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 scratchMem)
+    (fun h hp => by
+      unfold loopBodyN1CallSkipJgt0PostV4 at hp
+      unfold loopBodyN1CallSkipJgt0PostV4NoX1
+      simpa only [sepConj_assoc'] using hp)
+    legacy
 
 end EvmAsm.Evm64
