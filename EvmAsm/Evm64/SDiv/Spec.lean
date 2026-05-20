@@ -540,6 +540,38 @@ theorem evm_sdiv_zero_divisor_handler_stack_of_eq_spec_within
     q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     shiftMem nMem jMem retMem dMem dloMem scratchUn0 base hbase
 
+/-- v4 zero-divisor SDIV handler-stack bridge with the zero divisor supplied
+    as a variable plus an equality proof. -/
+theorem evm_sdiv_zero_divisor_handler_stack_of_eq_v4_spec_within
+    (vRa vSavedOld sp sDividendOld sDivisorOld
+      dividendMaskOld dividendValueOld dividendCarryOld
+      v2 v5 v6 : Word)
+    (state : EvmState) (dividend divisor : EvmWord) (rest : List EvmWord)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (base : Word) (hbase : base &&& 1 = 0)
+    (hDivisorZero : divisor = 0) :
+    EvmAsm.Rv64.cpsTripleWithin (((49 + (EvmAsm.Evm64.unifiedDivBound + 1)) + 21) + 1)
+      base (vRa &&& ~~~(1 : Word)) (sdivCodeV4 base)
+      ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ vSavedOld) ** (.x12 ↦ᵣ sp) **
+         (.x8 ↦ᵣ sDividendOld) ** (.x9 ↦ᵣ sDivisorOld) **
+         (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ dividendMaskOld) **
+         (.x7 ↦ᵣ dividendValueOld) ** (.x11 ↦ᵣ dividendCarryOld)) **
+        evmStackIs sp (dividend :: divisor :: rest)) **
+       ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0))
+      (sdivZeroDivisorPost sp vRa base dividend
+        (ArithmeticHandlers.sdivHandler
+          { state with stack := dividend :: divisor :: rest }).stack) := by
+  subst divisor
+  exact evm_sdiv_zero_divisor_handler_stack_v4_spec_within
+    vRa vSavedOld sp sDividendOld sDivisorOld
+    dividendMaskOld dividendValueOld dividendCarryOld
+    v2 v5 v6 state dividend rest
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratchUn0 base hbase
+
 /-- Zero-divisor SDIV handler-stack bridge viewed through the exact-path
     quotient/sign-fix postcondition.
 
@@ -583,6 +615,51 @@ theorem evm_sdiv_zero_divisor_handler_stack_exact_post_of_eq_spec_within
       rw [hSum3] at hp ⊢
       exact Or.inl (by simpa using hp))
     (evm_sdiv_zero_divisor_handler_stack_spec_within
+      vRa vSavedOld sp sDividendOld sDivisorOld
+      dividendMaskOld dividendValueOld dividendCarryOld
+      v2 v5 v6 state dividend rest
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratchUn0 base hbase)
+
+/-- v4 zero-divisor SDIV handler-stack bridge viewed through the exact-path
+    quotient/sign-fix postcondition. -/
+theorem evm_sdiv_zero_divisor_handler_stack_exact_post_of_eq_v4_spec_within
+    (vRa vSavedOld sp sDividendOld sDivisorOld
+      dividendMaskOld dividendValueOld dividendCarryOld
+      v2 v5 v6 : Word)
+    (state : EvmState) (dividend divisor : EvmWord) (rest : List EvmWord)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (base : Word) (hbase : base &&& 1 = 0)
+    (hDivisorZero : divisor = 0) :
+    EvmAsm.Rv64.cpsTripleWithin (((49 + (EvmAsm.Evm64.unifiedDivBound + 1)) + 21) + 1)
+      base (vRa &&& ~~~(1 : Word)) (sdivCodeV4 base)
+      ((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ vSavedOld) ** (.x12 ↦ᵣ sp) **
+         (.x8 ↦ᵣ sDividendOld) ** (.x9 ↦ᵣ sDivisorOld) **
+         (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ dividendMaskOld) **
+         (.x7 ↦ᵣ dividendValueOld) ** (.x11 ↦ᵣ dividendCarryOld)) **
+        evmStackIs sp (dividend :: divisor :: rest)) **
+       ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0))
+      (sdivExactHandlerPost sp vRa base dividend divisor
+        (ArithmeticHandlers.sdivHandler
+          { state with stack := dividend :: divisor :: rest }).stack) := by
+  subst divisor
+  exact EvmAsm.Rv64.cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => by
+      rw [sdivExactHandlerPost_unfold]
+      rw [sdivZeroDivisorPost_unfold] at hp
+      simp only [EvmWord.getLimbN_zero] at hp ⊢
+      have hDivisorAbs :
+          sdivAbsDivisorWord (0 : Word) (0 : Word) (0 : Word) (0 : Word) = 0 := by
+        exact sdivAbsDivisorWord_zero
+      rw [hDivisorAbs, EvmWord.div_zero_right]
+      simp only [EvmWord.getLimbN_zero] at hp ⊢
+      have hSum3 := sdivResultSign_fixZeroWordLimb3 (dividend.getLimbN 3) (0 : Word)
+      simp only [EvmWord.getLimbN_zero] at hSum3
+      rw [hSum3] at hp ⊢
+      exact Or.inl (by simpa using hp))
+    (evm_sdiv_zero_divisor_handler_stack_v4_spec_within
       vRa vSavedOld sp sDividendOld sDivisorOld
       dividendMaskOld dividendValueOld dividendCarryOld
       v2 v5 v6 state dividend rest
