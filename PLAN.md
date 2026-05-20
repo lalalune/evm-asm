@@ -985,6 +985,12 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   valid=false, chain_id=1)` at `OUTPUT_ADDR`; bytes verified identical
   to Python's `serialize_stateless_output` reference encoder via
   `scripts/codegen-stateless-roundtrip-check.sh` on ziskemu.
+- ✅ PR3 SSZ chain_id decoder: `Stateless/SSZ/Decode/` reads
+  `chain_id` from `INPUT_ADDR + 24` (SSZ container header byte 8).
+  Encoder parameterised on `x10`; the decoded `chain_id` flows
+  through to `OUTPUT_ADDR`. Roundtrip test feeds Python-generated
+  SSZ blobs with `chain_id ∈ {1, 0x1234567890ABCDEF}`; both pass on
+  ziskemu.
 
 ### Cross-references
 
