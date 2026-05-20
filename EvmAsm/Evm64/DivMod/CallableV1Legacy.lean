@@ -119,4 +119,123 @@ theorem evm_mod_callable_code_v1_ret_sub {base : Word} :
   simpa [evm_mod_callable_code_v1_eq_current]
     using evm_mod_callable_code_ret_sub (base := base)
 
+theorem evm_div_callable_v1_spec_from_noNop (sp base raVal : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (branch : DivStackSpecCase base a b)
+    (hStack :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+        (divModStackDispatchPre sp a b
+          branch.x1 branch.x2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (divStackDispatchPost sp a b)) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_div_callable_code_v1 base)
+      (divModStackDispatchPre sp a b
+        branch.x1 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** (.x1 ↦ᵣ raVal))
+      (divStackDispatchPost sp a b ** (.x1 ↦ᵣ raVal)) := by
+  simpa [evm_div_callable_code_v1_eq_current]
+    using evm_div_callable_spec_from_noNop
+      sp base raVal a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+
+theorem evm_div_callable_v1_spec_from_branch_noNop (sp base raVal : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (branch : DivStackSpecCase base a b) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_div_callable_code_v1 base)
+      (divModStackDispatchPre sp a b
+        branch.x1 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** (.x1 ↦ᵣ raVal))
+      (divStackDispatchPost sp a b ** (.x1 ↦ᵣ raVal)) := by
+  simpa [evm_div_callable_code_v1_eq_current]
+    using evm_div_callable_spec_from_branch_noNop
+      sp base raVal a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch
+
+theorem evm_div_callable_v1_spec_from_noNop_preserving_x1 (sp base raVal : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (branch : DivStackSpecCase base a b)
+    (hStack :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+        (divModStackDispatchPre sp a b
+          branch.x1 branch.x2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal))) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_div_callable_code_v1 base)
+      (divModStackDispatchPre sp a b
+        branch.x1 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal)) := by
+  simpa [evm_div_callable_code_v1_eq_current]
+    using evm_div_callable_spec_from_noNop_preserving_x1
+      sp base raVal a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+
+theorem evm_div_callable_v1_spec_from_noNop_branch_return_x1 (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (branch : DivStackSpecCase base a b)
+    (hStack :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+        (divModStackDispatchPre sp a b
+          branch.returnX1 branch.x2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ branch.returnX1))) :
+    cpsTripleWithin (unifiedDivBound + 1) base (branch.returnX1 &&& ~~~1)
+      (evm_div_callable_code_v1 base)
+      (divModStackDispatchPre sp a b
+        branch.returnX1 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ branch.returnX1)) := by
+  simpa [evm_div_callable_code_v1_eq_current]
+    using evm_div_callable_spec_from_noNop_branch_return_x1
+      sp base a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+
+theorem evm_div_callable_v1_spec_from_noNop_branch_return_x1_framed
+    {F : Assertion} [Assertion.PCFree F] (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (branch : DivStackSpecCase base a b)
+    (hStack :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+        (divModStackDispatchPre sp a b
+          branch.returnX1 branch.x2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ branch.returnX1))) :
+    cpsTripleWithin (unifiedDivBound + 1) base (branch.returnX1 &&& ~~~1)
+      (evm_div_callable_code_v1 base)
+      (divModStackDispatchPre sp a b
+        branch.returnX1 branch.x2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** F)
+      ((divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ branch.returnX1)) ** F) := by
+  simpa [evm_div_callable_code_v1_eq_current]
+    using evm_div_callable_spec_from_noNop_branch_return_x1_framed
+      (F := F) sp base a b v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+
 end EvmAsm.Evm64
