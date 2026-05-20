@@ -9,6 +9,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Push.Program
+import EvmAsm.Evm64.SDiv.Program
 import EvmAsm.Codegen.Layout
 
 namespace EvmAsm.Codegen
@@ -600,6 +601,72 @@ def evmModFromInputUnit : BuildUnit := {
   dataAsm     := evmModFromInputDataSection
 }
 
+/-! ## evm_sdiv_v4 — signed DIV end-to-end through ziskemu
+
+    `evm_sdiv_v4` uses the SDIV sign-handling wrapper and the corrected v4
+    unsigned callable divider. Unlike standalone DIV/MOD, the wrapper returns
+    via the caller return address saved in `x18`, so codegen seeds `x1` with a
+    raw-asm label immediately after the verified body. -/
+
+def evmSdivV4Dividend : List UInt64 := [0xffffffffffffff9c, 0xffffffffffffffff,
+  0xffffffffffffffff, 0xffffffffffffffff]
+
+def evmSdivV4Divisor : List UInt64 := [7, 0, 0, 0]
+
+def evmSdivV4ExpectedQuotient : List UInt64 := [0xfffffffffffffff2,
+  0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff]
+
+def evmSdivV4Prologue : String :=
+  "  la x1, after_sdiv\n" ++
+  "  la x12, operands"
+
+def evmSdivV4Epilogue : String :=
+  "after_sdiv:\n" ++ emitProgram evmAddEpilogue
+
+def evmSdivV4DataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "div_scratch:\n" ++
+  "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "operands:\n" ++
+  String.intercalate "\n"
+    ((evmSdivV4Dividend ++ evmSdivV4Divisor).map emitDword)
+
+def evmSdivV4Unit : BuildUnit := {
+  body        := EvmAsm.Evm64.evm_sdiv_v4
+  prologueAsm := evmSdivV4Prologue
+  epilogueAsm := evmSdivV4Epilogue
+  dataAsm     := evmSdivV4DataSection
+}
+
+/-! ## evm_sdiv_v4_from_input — prover-supplied signed DIV operands -/
+
+def evm_sdiv_v4_from_input : Program :=
+  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
+  copy64 .x12 .x5 .x6 ++
+  EvmAsm.Evm64.evm_sdiv_v4
+
+def evmSdivV4FromInputPrologue : String :=
+  "  la x1, after_sdiv\n" ++
+  "  la x12, operands_ram"
+
+def evmSdivV4FromInputDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "div_scratch:\n" ++
+  "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "operands_ram:\n" ++
+  "  .zero 64"
+
+def evmSdivV4FromInputUnit : BuildUnit := {
+  body        := evm_sdiv_v4_from_input
+  prologueAsm := evmSdivV4FromInputPrologue
+  epilogueAsm := evmSdivV4Epilogue
+  dataAsm     := evmSdivV4FromInputDataSection
+}
+
 /-! ## registry -/
 
 /-- Look up a program by name. Returns `none` for unknown names so the CLI
@@ -611,6 +678,8 @@ def lookupProgram : String → Option BuildUnit
   | "evm_div_from_input"        => some evmDivFromInputUnit
   | "evm_mod"                   => some evmModUnit
   | "evm_mod_from_input"        => some evmModFromInputUnit
+  | "evm_sdiv_v4"               => some evmSdivV4Unit
+  | "evm_sdiv_v4_from_input"    => some evmSdivV4FromInputUnit
   | "input_echo"                => some inputEchoUnit
   | "evm_add_from_input"        => some evmAddFromInputUnit
   | "tiny_interp_add"           => some tinyInterpAddUnit
@@ -623,6 +692,7 @@ def lookupProgram : String → Option BuildUnit
 def knownProgramNames : List String :=
   ["smoke", "evm_add", "evm_div", "evm_mod", "input_echo",
    "evm_add_from_input", "evm_div_from_input", "evm_mod_from_input",
+   "evm_sdiv_v4", "evm_sdiv_v4_from_input",
    "tiny_interp_add", "tiny_interp_add2",
    "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2"]
 
