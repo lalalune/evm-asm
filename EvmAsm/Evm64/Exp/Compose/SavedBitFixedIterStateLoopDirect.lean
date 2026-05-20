@@ -176,23 +176,27 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_head_reloadDirect_f
       (fun hk_lt bit v6' v7' v10' v11' d0' d1' d2' d3' => by
         cases bit
         · exact
-            cpsTripleWithin_expTwoMulFixedReloadBranchResidualWithStateFrame_false_to_iterPreNWithStateFrame
-              (by
-                simpa only [
-                  expTwoMulFixedReloadResidualFalseNextPre,
-                  expReloadDirectFalsePre,
-                  expReloadDirectFalseFrame_unfold,
-                  expReloadDirectTailFrame_unfold] using
-                  hReloadFalse hk_lt v6' v7' v10' v11' d0' d1' d2' d3')
+            (by
+              simpa only [expReloadDirectTailFrame_unfold] using
+                cpsTripleWithin_expTwoMulFixedReloadBranchResidualWithStateFrame_false_to_iterPreNWithStateFrame
+                  (by
+                    simpa only [
+                      expTwoMulFixedReloadResidualFalseNextPre,
+                      expReloadDirectFalsePre,
+                      expReloadDirectFalseFrame_unfold,
+                      expReloadDirectTailFrame_unfold] using
+                      hReloadFalse hk_lt v6' v7' v10' v11' d0' d1' d2' d3'))
         · exact
-            cpsTripleWithin_expTwoMulFixedReloadBranchResidualWithStateFrame_true_to_iterPreNWithStateFrame
-              (by
-                simpa only [
-                  expTwoMulFixedReloadResidualTrueNextPre,
-                  expReloadDirectTruePre,
-                  expReloadDirectTrueFrame_unfold,
-                  expReloadDirectTailFrame_unfold] using
-                  hReloadTrue hk_lt v6' v7' v10' v11' d0' d1' d2' d3'))
+            (by
+              simpa only [expReloadDirectTailFrame_unfold] using
+                cpsTripleWithin_expTwoMulFixedReloadBranchResidualWithStateFrame_true_to_iterPreNWithStateFrame
+                  (by
+                    simpa only [
+                      expTwoMulFixedReloadResidualTrueNextPre,
+                      expReloadDirectTruePre,
+                      expReloadDirectTrueFrame_unfold,
+                      expReloadDirectTailFrame_unfold] using
+                      hReloadTrue hk_lt v6' v7' v10' v11' d0' d1' d2' d3')))
       hExit
 
 /-- Convenience form of
