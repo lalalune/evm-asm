@@ -33,6 +33,7 @@ import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Stateless.Entry
+import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 
 namespace EvmAsm.Codegen
 
@@ -1357,6 +1358,84 @@ def ziskKeccak256FromInputProbeUnit : BuildUnit := {
   dataAsm     := ziskKeccak256FromInputDataSection
 }
 
+/-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
+
+    First consumer of the SSZ `hash_tree_root` shim:
+    `sha256_pair(L, R) = sha256(L ‖ R)`.
+
+    The shim lives at `Stateless/SSZ/HashTreeRoot/Program.lean`
+    (`sszPairHashCallAsm`); this BuildUnit is the executable that
+    exercises it end-to-end on ziskemu. The driver reads two
+    32-byte values from the host-supplied input region (laid out
+    contiguously at INPUT_ADDR + 16..80 so they're already in
+    L ‖ R order), passes the buffer base in `a0` and the OUTPUT
+    pointer in `a2`, and lets the shim hand off to the PR-S2
+    `zkvm_sha256` wrapper.
+
+    ### Fixture (32-byte SSZ "zero leaf" pair)
+
+      L = 0x00..00 (32 bytes)
+      R = 0x00..00 (32 bytes)
+
+    Expected (this is `Z_1` in the SSZ zero-hashes sequence):
+
+      sha256(0x00 * 64) =
+        f5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b
+
+    The test script feeds those 64 zero bytes via `ziskemu -i` and
+    diffs the 32-byte digest at OUTPUT_ADDR against Python's
+    `hashlib.sha256(b"\\x00" * 64).digest()`.
+
+    ### Why this isn't redundant with the PR-S2 in-data fixture
+
+    PR-S2 tested `zkvm_sha256` on `.data`-resident constants;
+    PR-S3 tested it on host-supplied input. PR-S4 additionally
+    pins the `ssz_pair_hash` *symbol* -- the named entry point
+    that higher SSZ machinery (PR-S5+ merkleize, mix_in_length)
+    will call. Once that symbol exists, the merkleize loop is a
+    straightforward "load chunk, call `ssz_pair_hash`, store
+    result" iteration; no further sha256 layout decisions.
+-/
+def ziskSszPairHashPrologue : String :=
+  "  # set up stack\n" ++
+  "  li sp, 0xa0050000\n" ++
+  "  # point at the 64-byte L||R buffer in host input region\n" ++
+  "  li a3, 0x40000000           # INPUT_ADDR\n" ++
+  "  addi a0, a3, 16             # a0 = L||R ptr (INPUT_ADDR + 16)\n" ++
+  "  li a2, 0xa0010000           # a2 = OUTPUT_ADDR\n" ++
+  EvmAsm.Stateless.SSZ.HashTreeRoot.sszPairHashCallAsm ++ "\n" ++
+  "  j .Lzs4_done\n" ++
+  zkvmSha256Function ++ "\n" ++
+  ".Lzs4_done:"
+
+/-- `.data` for the SSZ pair-hash probe: same scratch buffers
+    used by `zkvm_sha256` (IV, state, input block, params). The
+    L‖R bytes come from host input, not from `.data`. -/
+def ziskSszPairHashDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "sha256_w_iv:\n" ++
+  "  .quad 0xbb67ae856a09e667    # LE(h0) || LE(h1)\n" ++
+  "  .quad 0xa54ff53a3c6ef372    # LE(h2) || LE(h3)\n" ++
+  "  .quad 0x9b05688c510e527f    # LE(h4) || LE(h5)\n" ++
+  "  .quad 0x5be0cd191f83d9ab    # LE(h6) || LE(h7)\n" ++
+  ".balign 8\n" ++
+  "sha256_w_state:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "sha256_w_input:\n" ++
+  "  .zero 64\n" ++
+  ".balign 8\n" ++
+  "sha256_w_params:\n" ++
+  "  .quad sha256_w_state\n" ++
+  "  .quad sha256_w_input"
+
+def ziskSszPairHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskSszPairHashPrologue
+  dataAsm     := ziskSszPairHashDataSection
+}
+
 /-! ## stateless_guest body — PR-K5 keccak hash field
 
     Replaces the zero-stub `new_payload_request_root` field in
@@ -1472,6 +1551,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_sha256_probe_le"      => some ziskSha256ProbeLeUnit
   | "zisk_zkvm_sha256"          => some ziskZkvmSha256ProbeUnit
   | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
+  | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | _                           => none
 
 /-- List of known program names, for use in CLI usage strings. -/
@@ -1488,6 +1568,7 @@ def knownProgramNames : List String :=
    "zisk_zkvm_keccak256",
    "zisk_sha256_probe_le",
    "zisk_zkvm_sha256",
-   "zisk_keccak256_from_input"]
+   "zisk_keccak256_from_input",
+   "zisk_ssz_pair_hash"]
 
 end EvmAsm.Codegen
