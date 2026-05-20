@@ -462,6 +462,60 @@ theorem expTwoMulFixedInductionFrameN_ordinary
     exact False.elim (hC6 hZero)
   · rfl
 
+theorem expTwoMulFixedInductionFrameN_reload_of_control
+    {exponentWord : EvmWord} {k : Nat} {c6 ptr : Word}
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) = 0) :
+    expTwoMulFixedInductionFrameN exponentWord k c6 ptr =
+      expTwoMulFixedReloadTailFrameN exponentWord k ptr :=
+  expTwoMulFixedInductionFrameN_reload (by
+    rw [expTwoMulFixedControlDec_unfold]
+    exact hC6)
+
+theorem expTwoMulFixedInductionFrameN_pre_reload_of_control
+    {exponentWord : EvmWord} {k : Nat} {c6 ptr : Word}
+    (hC6 : (c6 + signExtend12 (-1 : BitVec 12)).toNat = 1) :
+    expTwoMulFixedInductionFrameN exponentWord k c6 ptr =
+      expTwoMulFixedPreReloadFrameN exponentWord k ptr :=
+  expTwoMulFixedInductionFrameN_pre_reload (by
+    rw [expTwoMulFixedControlDec_unfold]
+    exact hC6)
+
+theorem expTwoMulFixedInductionFrameN_ordinary_of_control
+    {exponentWord : EvmWord} {k : Nat} {c6 ptr : Word}
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0)
+    (hNotPre : (c6 + signExtend12 (-1 : BitVec 12)).toNat ≠ 1) :
+    expTwoMulFixedInductionFrameN exponentWord k c6 ptr =
+      expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr :=
+  expTwoMulFixedInductionFrameN_ordinary
+    (by
+      rw [expTwoMulFixedControlDec_unfold]
+      exact hC6)
+    (by
+      rw [expTwoMulFixedControlDec_unfold]
+      exact hNotPre)
+
+theorem expTwoMulFixedInductionFrameN_step_cases_of_control
+    {exponentWord : EvmWord} {k : Nat}
+    {c6 ptr nextLimb evmSp : Word}
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp) :
+    expTwoMulFixedInductionFrameN exponentWord k c6 ptr =
+        expTwoMulFixedReloadTailFrameN exponentWord k ptr ∨
+      expTwoMulFixedInductionFrameN exponentWord k c6 ptr =
+        expTwoMulFixedPreReloadFrameN exponentWord k ptr ∨
+      (expTwoMulFixedInductionFrameN exponentWord k c6 ptr =
+          expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr ∧
+        k % 64 < 62) := by
+  rcases expTwoMulFixedControlInvariant_step_cases hControl with
+    hReload | hPre | ⟨hOrd, hNotPre, hMod⟩
+  · exact Or.inl
+      (expTwoMulFixedInductionFrameN_reload_of_control hReload)
+  · exact Or.inr (Or.inl
+      (expTwoMulFixedInductionFrameN_pre_reload_of_control hPre))
+  · exact Or.inr (Or.inr
+      ⟨expTwoMulFixedInductionFrameN_ordinary_of_control hOrd hNotPre,
+        hMod⟩)
+
 theorem expTwoMulFixedInductionFrameN_pcFree
     (exponentWord : EvmWord) (k : Nat) (c6 ptr : Word) :
     (expTwoMulFixedInductionFrameN exponentWord k c6 ptr).pcFree := by
