@@ -10,6 +10,7 @@ import EvmAsm.Evm64.Add.Program
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Push.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Dispatch
 
 namespace EvmAsm.Codegen
 
@@ -281,129 +282,53 @@ def tinyInterpAdd2Unit : BuildUnit := {
 /-! ## tiny_interp_dispatch — M5b runtime fetch/decode/dispatch loop
 
     Same EVM bytecodes as M5a, but routed through an actual RISC-V
-    dispatch loop instead of an unrolled chain. Per CODEGEN.md
-    §Tricky bits #9 ("Codegen is not verified") the loop scaffold
-    lives as raw asm; the verified opcode `Program`s are wrapped
-    one-by-one in `h_*` subroutines (`<emitProgram body>` + raw asm
-    `addi x10, x10, <width>` + `ret`). The body of each handler stays
-    verbatim what the verified core produced.
+    dispatch loop. The dispatcher scaffolding (loop body, 256-entry
+    jump table, `h_invalid` fallback, `.exit_label`) now lives in
+    `EvmAsm.Codegen.Dispatch`; this section declares only the opcode
+    handler registry.
+
+    **Adding a new opcode = adding one `OpcodeHandlerSpec` entry below.**
 
     Calling convention (informal):
-      x10  EVM code pointer  (preserved across handler calls; the
-                              wrapper advances it by the opcode's byte
-                              width before returning)
+      x10  EVM code pointer  (preserved across handler calls; each
+                              handler with `tail := .advanceAndRet n`
+                              advances `x10` by `n` before returning)
       x12  EVM stack pointer (handlers update freely; persistent
                               across the loop)
       x1   return address    (clobbered by `jalr ra, ...`; each
-                              handler must end in `ret`)
+                              `advanceAndRet` handler ends in `ret`)
       x5, x6, x7   scratch   (clobbered by both the dispatcher's
                               fetch/lookup *and* the verified handler
-                              bodies — see `evm_add` which uses
-                              x5/x6/x7/x11; the dispatcher reloads
-                              from x10 and the table base on every
-                              iteration, so no preservation needed)
+                              bodies; the dispatcher reloads from x10
+                              and the table base on every iteration,
+                              so no preservation needed)
 
     Coverage: PUSH1, ADD, STOP. All other opcode bytes fall to
-    `h_invalid`, which (for this first slice) takes the same exit
-    path as STOP. -/
+    `h_invalid` (emitted automatically by `emitDispatcherEpilogue`),
+    which takes the same exit path as STOP. -/
 
-/-- Label for the handler that bytes `b` dispatches to. Bytes not in
-    the table map to `h_invalid`. -/
-def opcodeHandlerLabel : Nat → String
-  | 0x00 => "h_STOP"
-  | 0x01 => "h_ADD"
-  | 0x60 => "h_PUSH1"
-  | _    => "h_invalid"
-
-/-- Emit a 256-entry jump table, one `.dword` per opcode byte, where
-    entry `b` is the address of the handler `opcodeHandlerLabel b`.
-    Lives in `.data` (alongside the bytecode + stack scratch) so the
-    `-Tdata=0xa0000000` link argument places it in writable RAM —
-    GNU `as` doesn't require the table to be writable, but keeping
-    everything in one section is simpler than adding `-Trodata=…`. -/
-def emitOpcodeHandlerTable : String :=
-  let entries :=
-    (List.range 256).map (fun b => s!"  .dword {opcodeHandlerLabel b}")
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "opcode_handlers:\n" ++
-  String.intercalate "\n" entries
-
-/-- Dispatcher prologue: init the EVM pointers and enter the main
-    fetch/decode/dispatch loop. Each iteration:
-      1. `lbu x5, 0(x10)`            — fetch opcode byte at code[x10]
-      2. `la x6, opcode_handlers`    — base of jump table
-      3. `slli x5, x5, 3`            — opcode * 8 (entry stride)
-      4. `add x6, x6, x5`            — &opcode_handlers[opcode]
-      5. `ld x7, 0(x6)`              — load handler address
-      6. `jalr x1, x7, 0`            — call handler (saves return PC in x1)
-      7. on return: `j .dispatch_loop`
-
-    Handlers themselves bake in the PC-advance + `ret`. STOP and
-    `invalid` handlers `j .exit_label` instead of returning. -/
-def tinyInterpDispatchPrologue : String :=
-  "  la x10, evm_code\n" ++
-  "  la x12, evm_stack_top\n" ++
-  ".dispatch_loop:\n" ++
-  "  lbu x5, 0(x10)\n" ++
-  "  la x6, opcode_handlers\n" ++
-  "  slli x5, x5, 3\n" ++
-  "  add x6, x6, x5\n" ++
-  "  ld x7, 0(x6)\n" ++
-  "  jalr x1, x7, 0\n" ++
-  "  j .dispatch_loop"
-
-/-- Dispatcher epilogue: handler subroutines + exit path. Order
-    matters — handlers come first (each ends with `ret` or `j
-    .exit_label`, so they don't fall through), then `.exit_label`
-    runs `evmAddEpilogue` and falls through to the halt stub that
-    `emitBuildUnit` appends. -/
-def tinyInterpDispatchEpilogue : String :=
-  -- h_PUSH1: verified evm_push 1 body, then advance x10 by 2 (opcode + 1 imm byte)
-  "h_PUSH1:\n" ++
-  emitProgram (EvmAsm.Evm64.evm_push 1) ++ "\n" ++
-  "  addi x10, x10, 2\n" ++
-  "  ret\n" ++
-  -- h_ADD: verified evm_add body, then advance x10 by 1 (opcode-only)
-  "h_ADD:\n" ++
-  emitProgram EvmAsm.Evm64.evm_add ++ "\n" ++
-  "  addi x10, x10, 1\n" ++
-  "  ret\n" ++
-  -- h_STOP: jump to exit (doesn't return to dispatcher)
-  "h_STOP:\n" ++
-  "  j .exit_label\n" ++
-  -- h_invalid: same exit path as STOP for this slice; future revs
-  -- may write a marker byte before exiting so the diff catches it.
-  "h_invalid:\n" ++
-  "  j .exit_label\n" ++
-  -- .exit_label: copy result limbs from [x12] to OUTPUT_ADDR, then
-  -- fall through to the linux93 halt stub appended by emitBuildUnit.
-  ".exit_label:\n" ++
-  emitProgram evmAddEpilogue
-
-/-- `.data` section: bytecode + stack scratch (M5a layout) followed
-    by the 256-entry jump table. GNU `as` is fine with multiple
-    `.section .data` directives — they coalesce. -/
-def tinyInterpDispatchDataSection (bytecodeBytes : String) : String :=
-  tinyInterpDataSection bytecodeBytes ++ "\n" ++
-  emitOpcodeHandlerTable
-
-/-- Build a dispatch `BuildUnit` for a given bytecode. Reuses the
-    M5a `tinyInterpAddBytecode` / `tinyInterpAdd2Bytecode` literals
-    so M5a and M5b run on identical input bytes and produce identical
-    expected outputs. -/
-def tinyInterpDispatchUnit (bytecodeBytes : String) : BuildUnit := {
-  body        := []
-  prologueAsm := tinyInterpDispatchPrologue
-  epilogueAsm := tinyInterpDispatchEpilogue
-  dataAsm     := tinyInterpDispatchDataSection bytecodeBytes
-}
+/-- M5b dispatch registry. Order doesn't affect correctness — the
+    256-entry jump table is built by `jumpTargetLabel`, which scans
+    the list for a spec whose `opcodes` contains the byte. -/
+def tinyInterpRegistry : List OpcodeHandlerSpec :=
+  [ { label   := "h_PUSH1"
+      opcodes := [0x60]
+      body    := EvmAsm.Evm64.evm_push 1
+      tail    := .advanceAndRet 2 }
+  , { label   := "h_ADD"
+      opcodes := [0x01]
+      body    := EvmAsm.Evm64.evm_add
+      tail    := .advanceAndRet 1 }
+  , { label   := "h_STOP"
+      opcodes := [0x00]
+      body    := []
+      tail    := .custom "  j .exit_label" } ]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
-  tinyInterpDispatchUnit tinyInterpAddBytecode
+  buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode
 
 def tinyInterpDispatchAdd2Unit : BuildUnit :=
-  tinyInterpDispatchUnit tinyInterpAdd2Bytecode
+  buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAdd2Bytecode
 
 /-! ## evm_div — M2 first DIV end-to-end through ziskemu
 

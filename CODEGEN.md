@@ -38,12 +38,14 @@ untouched. Generated artifacts go in `gen-out/` (gitignored).
 | `EvmAsm/Codegen.lean` | Top-level umbrella (mirrors `EvmAsm/Rv64.lean`, `EvmAsm/Evm64.lean`). |
 | `EvmAsm/Codegen/Emit.lean` | Pure `emitReg`, `emitInstr`, `emitProgram` — `Instr → String`. No `IO`. |
 | `EvmAsm/Codegen/Layout.lean` | `HaltConv` enum, halt stubs, `_start` preamble, `.option norvc`, `MEM_START`/`MEM_END` constants, `BuildUnit` struct + `emitBuildUnit`/`emitDataLabel` helpers. |
-| `EvmAsm/Codegen/Programs.lean` | Registry (`smoke`, `evm_add`, `input_echo`, `evm_add_from_input`, `tiny_interp_{add,add2}`, `tiny_interp_dispatch_{add,add2}` → `BuildUnit`). Also hosts the M5b dispatcher scaffold (prologue/epilogue + 256-entry jump table generator) and shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`). |
-| `EvmAsm/Codegen/Cli.lean` | Argument parsing (`--program`, `--halt`, `--out`, `--asm-only`). |
+| `EvmAsm/Codegen/Dispatch.lean` | M5b dispatcher scaffolding: `OpcodeHandlerSpec` + `HandlerTail` types, `emitDispatcherPrologue`/`Epilogue`/`DataSection` and `buildDispatchUnit` helpers. Pure (no IO). |
+| `EvmAsm/Codegen/Programs.lean` | Registry (`smoke`, `evm_add`, `evm_div`, `evm_mod`, `input_echo`, `evm_add_from_input`, `evm_div_from_input`, `evm_mod_from_input`, `tiny_interp_{add,add2}`, `tiny_interp_dispatch_{add,add2}` → `BuildUnit`) plus the M5b opcode handler registry (`tinyInterpRegistry`) and shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched` for the DIV/MOD NOP-splice). |
+| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list. Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
+| `EvmAsm/Codegen/Cli.lean` | Argument parsing (`--program`, `--test-case`, `--list-test-cases`, `--halt`, `--out`, `--asm-only`). |
 | `EvmAsm/Codegen/Driver.lean` | `IO`: shells out to `as`/`ld` if available; `--asm-only` for CI without the cross toolchain. |
 | `Main.lean` | Already exists as `import EvmAsm`; extend to call `EvmAsm.Codegen.Cli.main`. |
 | `lakefile.toml` | Add `[[lean_exe]] name = "codegen"; root = "Main"; supportInterpreter = true`. |
-| `scripts/codegen-*.sh` | Per-milestone round-trip checks: `codegen-smoke.sh` (M0), `codegen-evm_add-check.sh` (M2), `codegen-evm_add-from-input-check.sh` (M4), `codegen-tiny-interp-check.sh` (M5a), `codegen-tiny-interp-dispatch-check.sh` (M5b). |
+| `scripts/codegen-*.sh` | Per-milestone round-trip checks: `codegen-smoke.sh` (M0), `codegen-evm_add-check.sh` (M2), `codegen-evm_add-from-input-check.sh` (M4), `codegen-tiny-interp-check.sh` (M5a), `codegen-tiny-interp-dispatch-check.sh` (M5b), `codegen-opcodes-check.sh` (M6a; canonical opcode regression runner), `codegen-evm_div-check.sh` / `codegen-evm_div-cases-check.sh` / `codegen-evm_mod-check.sh` / `codegen-evm_mod-cases-check.sh` (standalone DIV/MOD wrappers — not yet routed through the dispatcher). |
 | `gen-out/` | Generated `.s`/`.elf`/`.input`; gitignored. |
 
 ## Milestones
@@ -364,13 +366,55 @@ explicit reserved tail before the jump table.
 `scripts/codegen-tiny-interp-dispatch-check.sh` exits 0; both M5a
 and M5b produce identical bytes through `ziskemu`'s public output.
 
+### M6a — Opcode registry + test harness (S/M) — **DONE (2026-05-20)**
+
+Pure-infrastructure refactor of M5b's hand-written dispatcher
+scaffolding into a declarative registry, plus a generic per-opcode
+test harness. Zero behavior change: M5a, M5b, and M2 scripts all
+still pass; the dispatcher emits the same handler subroutines in
+the same order.
+
+**Delivered:**
+- New `EvmAsm/Codegen/Dispatch.lean`: `OpcodeHandlerSpec` struct
+  (`label`, `opcodes : List Nat`, `body : Program`, `tail :
+  HandlerTail`) plus `emitDispatcherPrologue / Epilogue /
+  DataSection` helpers that consume `List OpcodeHandlerSpec`.
+  `buildDispatchUnit` produces a complete `BuildUnit` from a
+  registry, an exit body (`evmAddEpilogue`), and a bytecode payload.
+- `EvmAsm/Codegen/Programs.lean` M5b section is now a 3-entry
+  registry (`tinyInterpRegistry`):
+    ```lean
+    [ { label := "h_PUSH1"; opcodes := [0x60]; body := evm_push 1; tail := .advanceAndRet 2 }
+    , { label := "h_ADD"  ; opcodes := [0x01]; body := evm_add    ; tail := .advanceAndRet 1 }
+    , { label := "h_STOP" ; opcodes := [0x00]; body := []         ; tail := .custom "  j .exit_label" } ]
+    ```
+  Adding an opcode now = adding one record.
+- New `EvmAsm/Codegen/Tests/Cases.lean`: `OpcodeTestCase` struct
+  (`name`, `bytecode`, `expectedOutHex`) + `opcodeTestCases : List
+  OpcodeTestCase` registry. Two M5b bytecodes migrated as
+  `add_basic` / `add_chain`. `lookupTestCase` + `buildTestCaseUnit`
+  let the CLI emit any case via the M5b dispatcher.
+- `EvmAsm/Codegen/Cli.lean` extended with `--test-case <name>` and
+  `--list-test-cases`. The list flag emits TSV (`name\thex`) so the
+  bash runner reads expected outputs straight from Lean — single
+  source of truth, no hex duplication.
+- `scripts/codegen-opcodes-check.sh`: portable (bash 3.2-safe)
+  runner. Calls `--list-test-cases`, iterates, emits + runs + diffs.
+  Adding a regression test = appending one record to
+  `opcodeTestCases`.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-check.sh` exits 0 (both migrated cases
+pass); `scripts/codegen-tiny-interp{,-dispatch}-check.sh` continue
+to exit 0; M2/M4 scripts unchanged.
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅. M3 is deferred;
-revisit only if a future milestone (full opcode coverage, JUMP/JUMPI,
-or the binary encoder) makes label-free emission unreadable. M4
-unblocked M5; M5a pinned down the `x10`/`x12` calling convention that
-M5b's dispatcher relies on.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅.
+M3 is deferred; revisit only if a future milestone (full opcode
+coverage, JUMP/JUMPI, or the binary encoder) makes label-free
+emission unreadable. M6a unblocks mass opcode wire-up (M6b) by
+making each new opcode a one-record registry append.
 
 ## Tricky bits / open questions
 
@@ -435,20 +479,37 @@ M5b's dispatcher relies on.
   through a 256-entry jump table + handler subroutines (`jalr ra,
   …`) instead of an unrolled chain. Output bytes match M5a's, which
   cross-checks the dispatcher against the unrolled reference.
+- **M6a.** ✅ `scripts/codegen-opcodes-check.sh` exits 0 (validated
+  2026-05-20). Generic harness driven by Lean-declared
+  `opcodeTestCases`; the two M5b bytecodes (`add_basic`,
+  `add_chain`) migrated as the seed regression suite. `--list-test-cases`
+  emits TSV with expected outputs so the bash runner stays in sync
+  with `Tests/Cases.lean` automatically.
 
-## Future work (post-M5)
+## Future work (post-M6a)
 
-Near-term (builds directly on M5b's dispatcher; no new design surface):
+Near-term (builds directly on M6a's registry; no new design surface):
 
-- **Broaden opcode coverage.** Wire more verified handlers into the M5b
-  dispatch loop — `evm_push n` generically (PUSH2..32), stack ops
-  (`POP`, `DUP1`, `SWAP1`), and additional arithmetic (`SUB`, `MUL`) as
-  the corresponding verified `Program`s land. Pure registry expansion
-  against the existing jump table + handler-wrapper pattern.
-- **Hint-input demo via `evm_div`.** Closes the loop on M4's prover-hint
-  infrastructure once `evm_div` is a verified `Program` in the registry.
-  Guest reads `(q, r)` from `INPUT_ADDR + INPUT_DATA_OFFSET`, verifies
-  `q · d + r = n ∧ r < d`, writes `q` to `OUTPUT_ADDR`.
+- **M6b — mass wire-up of fixed-shape opcodes.** SUB, MUL, AND, OR,
+  XOR, NOT, LT, GT, SLT, SGT, EQ, ISZERO, BYTE, SHR, POP, PUSH0
+  (one `OpcodeHandlerSpec` each), then parametric PUSH2..32 / DUP1..16
+  / SWAP1..16 builders. ~80 opcodes wired with one batch + a test
+  case per family. Pure registry expansion against M6a's
+  `tinyInterpRegistry`.
+- **M7 — memory opcodes.** MLOAD / MSTORE / MSTORE8 / MSIZE are
+  register-parameterized verified `Program`s (take a `memBase` /
+  `sizeReg`). Need to extend `emitDispatcherPrologue` to init an
+  additional EVM-memory base register (likely `x13`) and a size
+  register (`x14`), and declare a 64 KB `evm_memory:` `.data` block.
+- **M8 — hint-input demo via `evm_div` / `evm_mod`.** Closes the loop
+  on M4's prover-hint infrastructure. The standalone `evm_div` /
+  `evm_mod` wrappers in `Programs.lean` already exercise the
+  hint-input path end-to-end through ziskemu (with `evm_div_from_input`
+  / `evm_mod_from_input`); M8 routes them through the dispatcher
+  instead, so the same bytecode that runs ADD can also run DIV.
+  Likely needs a `callableLabel?` extension to `OpcodeHandlerSpec`
+  to expose distinct entry points for opcodes that are also
+  near-called from within other handlers.
 
 Longer-term (genuine new design surface):
 
