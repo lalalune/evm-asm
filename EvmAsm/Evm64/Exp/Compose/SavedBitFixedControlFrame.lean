@@ -164,6 +164,26 @@ theorem expTwoMulFixedControlInvariant_ordinary_no_reload_mod
   apply hNotPre
   rw [hDec, hNat, hMod]
 
+theorem expTwoMulFixedControlInvariant_step_cases
+    {exponentWord : EvmWord} {k : Nat}
+    {c6 ptr nextLimb evmSp : Word}
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp) :
+    c6 + signExtend12 (-1 : BitVec 12) = 0 ∨
+      (c6 + signExtend12 (-1 : BitVec 12)).toNat = 1 ∨
+      (c6 + signExtend12 (-1 : BitVec 12) ≠ 0 ∧
+        (c6 + signExtend12 (-1 : BitVec 12)).toNat ≠ 1 ∧
+        k % 64 < 62) := by
+  by_cases hZero : c6 + signExtend12 (-1 : BitVec 12) = 0
+  · exact Or.inl hZero
+  · by_cases hPre :
+        (c6 + signExtend12 (-1 : BitVec 12)).toNat = 1
+    · exact Or.inr (Or.inl hPre)
+    · exact Or.inr (Or.inr
+        ⟨hZero, hPre,
+          expTwoMulFixedControlInvariant_ordinary_no_reload_mod
+            hControl hZero hPre⟩)
+
 theorem expTwoMulFixedSavedNextLimbFrameN_eq_succ_reload_limb_of_pre_reload
     {exponentWord : EvmWord} {k : Nat} {ptr : Word}
     (hMod : k % 64 = 62) :
