@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # codegen-evm_div-check.sh — M2 verification for DIV.
 #
-# Builds the verified `evm_div` program through codegen → as → ld,
+# Builds the `evm_div` program through codegen → as → ld,
 # runs the resulting ELF on ziskemu, and diffs the first 32 bytes of
 # ziskemu's public output against the expected 256-bit quotient.
 #

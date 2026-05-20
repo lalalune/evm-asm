@@ -405,7 +405,12 @@ def tinyInterpDispatchAddUnit : BuildUnit :=
 def tinyInterpDispatchAdd2Unit : BuildUnit :=
   tinyInterpDispatchUnit tinyInterpAdd2Bytecode
 
-/-! ## evm_div — M2 first verified DIV end-to-end
+/-! ## evm_div — M2 first DIV end-to-end through ziskemu
+
+    NOTE: `evm_div` is not yet proven correct in Lean — the spec
+    composition (Phase 2a, see bead `evm-asm-9iqmw`) is still in
+    flight. The scripts under `scripts/codegen-evm_div*` provide
+    empirical confirmation by running the codegen output on ziskemu.
 
     `evm_div` shares ADD's `x12`-points-at-operands convention: before,
     `x12 = sp` with dividend `a` at `sp+0..32` and divisor `b` at
@@ -414,8 +419,8 @@ def tinyInterpDispatchAdd2Unit : BuildUnit :=
     works unchanged for DIV.
 
     Unlike ADD, `evm_div` also uses scratch at "negative" offsets from
-    `x12` — the verified body encodes them as the unsigned bit pattern
-    of 12-bit signed negatives (`3936..4088 ≡ -160..-8`). The `.data`
+    `x12` — the body encodes them as the unsigned bit pattern of
+    12-bit signed negatives (`3936..4088 ≡ -160..-8`). The `.data`
     layout therefore places a 256-byte zero-filled `div_scratch:` block
     *before* the `operands:` label so that `x12 - 160..-8` lands in
     writable RAM.
@@ -427,7 +432,7 @@ def tinyInterpDispatchAdd2Unit : BuildUnit :=
     codegen's halt stub, appended after the body, is unreachable. We
     splice the body to replace that NOP with `JAL .x0 +304`, which
     skips over the 75 subroutine instructions (75·4 + 4 = 304 bytes)
-    and lands at the start of `evmAddEpilogue`. The verified callers of
+    and lands at the start of `evmAddEpilogue`. The in-loop callers of
     the subroutine still use the original `jal x2, +560` offsets, which
     remain correct because we only replaced the NOP, not the
     subroutine's position relative to its callers. -/
@@ -462,8 +467,8 @@ def evmDivPrologue : String :=
 /-- `.data` section: 256 bytes of zero-filled scratch labeled
     `div_scratch:` *first*, then `operands:` with dividend ++ divisor
     (eight LE dwords). The scratch comes first so that `x12 - 160..-8`
-    (the verified body's scratch range, encoded as unsigned 12-bit
-    offsets `3936..4088`) falls inside writable RAM.
+    (the DIV body's scratch range, encoded as unsigned 12-bit offsets
+    `3936..4088`) falls inside writable RAM.
 
     Written as raw asm rather than `emitDataLabel` because the layout
     mixes `.zero` and `.dword`. -/
