@@ -29,6 +29,7 @@ import EvmAsm.Evm64.Swap.Program
 import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Stateless.Entry
 
 namespace EvmAsm.Codegen
 
@@ -619,6 +620,19 @@ def evmModFromInputUnit : BuildUnit := {
   dataAsm     := evmModFromInputDataSection
 }
 
+/-! ## stateless_guest — PR2 SSZ-output stub
+
+    Renders the stub `StatelessValidationResult(root = 0,
+    valid = false, chain_id = 1)` as 41 SSZ bytes at `OUTPUT_ADDR`,
+    then falls through to the codegen halt stub.
+
+    Body lives in `EvmAsm/Stateless/Entry.lean`. No prologue, no
+    `.data`, no epilogue -- the encoder owns the entire post-`_start`
+    sequence. -/
+def statelessGuestUnit : BuildUnit := {
+  body := EvmAsm.Stateless.run_stateless_guest
+}
+
 /-! ## registry -/
 
 /-- Look up a program by name. Returns `none` for unknown names so the CLI
@@ -636,6 +650,7 @@ def lookupProgram : String → Option BuildUnit
   | "tiny_interp_add2"          => some tinyInterpAdd2Unit
   | "tiny_interp_dispatch_add"  => some tinyInterpDispatchAddUnit
   | "tiny_interp_dispatch_add2" => some tinyInterpDispatchAdd2Unit
+  | "stateless_guest"           => some statelessGuestUnit
   | _                           => none
 
 /-- List of known program names, for use in CLI usage strings. -/
@@ -643,6 +658,7 @@ def knownProgramNames : List String :=
   ["smoke", "evm_add", "evm_div", "evm_mod", "input_echo",
    "evm_add_from_input", "evm_div_from_input", "evm_mod_from_input",
    "tiny_interp_add", "tiny_interp_add2",
-   "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2"]
+   "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2",
+   "stateless_guest"]
 
 end EvmAsm.Codegen

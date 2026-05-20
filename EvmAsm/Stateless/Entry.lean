@@ -3,14 +3,11 @@
 
   Top-level `run_stateless_guest` Program. Mirrors the Python
   `execution-specs/src/ethereum/forks/amsterdam/stateless_guest.py:33`
-  entry point, but with the body stubbed to `unimplemented_exit
-  REASON_STF_BODY` until the SSZ codec, header validator, MPT walker,
-  and EVM interpreter land in subsequent PRs.
+  entry point.
 
-  Once `Stateless.SSZ.Decode`, `Stateless.SSZ.Encode`,
-  `Stateless.Headers`, `Stateless.Witness`, `Stateless.Block`,
-  `Stateless.Transaction`, and `Stateless.VM` are populated, this file
-  will compose them in the canonical order:
+  Once `Stateless.SSZ.Decode`, `Stateless.Headers`, `Stateless.Witness`,
+  `Stateless.Block`, `Stateless.Transaction`, and `Stateless.VM` are
+  populated, this file will compose them in the canonical order:
 
   ```
   read_input from INPUT_ADDR + INPUT_DATA_OFFSET
@@ -46,28 +43,36 @@
   ## Side effects (postconditions when fully implemented)
   - Writes the SSZ encoding of `StatelessValidationResult` to
     `OUTPUT_ADDR + 0..N`.
-  - Halts with `t0 = 0`.
+  - Halts with the codegen halt stub.
 
-  Current PR1 stub: jumps straight to `unimplemented_exit` with
-  `REASON_STF_BODY` so the build wires together and the codegen path
-  produces a runnable ELF whose output marker can be diffed by the
-  Python harness.
+  ## PR2 stub
+
+  The decode / validate / execute pipeline is not yet implemented;
+  the body is just `serialize_stateless_output_stub`, which writes the
+  41-byte SSZ encoding of
+  `StatelessValidationResult(root = 0, valid = false, chain_id = 1)`
+  at `OUTPUT_ADDR`, then falls through to the codegen halt stub. This
+  is enough for a Python harness to diff `ziskemu`'s public output
+  against the reference SSZ encoder.
+
+  Module paths that aren't implemented yet still call
+  `EvmAsm.Stateless.unimplemented_exit` with a distinct reason code
+  (precompiles, missing witness nodes, etc.) -- see
+  `EvmAsm/Stateless/Unimplemented.lean`.
 -/
 
 import EvmAsm.Rv64.Program
-import EvmAsm.Stateless.MemoryLayout
-import EvmAsm.Stateless.Unimplemented
+import EvmAsm.Stateless.SSZ.Encode.Program
 
 namespace EvmAsm.Stateless
 
 open EvmAsm.Rv64
 
-/-- PR1 stub: load `REASON_STF_BODY` into `a0` and fall through to
-    `unimplemented_exit`. The whole stateless guest body is one
-    `LI` instruction followed by the 6-instruction `unimplemented_exit`
-    sequence. -/
+/-- PR2 stub: emit the 41-byte stub `StatelessValidationResult` to
+    `OUTPUT_ADDR` and fall through to the halt stub. Replaced in
+    successor PRs by the full decode → validate → execute → encode
+    pipeline. -/
 def run_stateless_guest : Program :=
-  LI .x10 REASON_STF_BODY ;;
-  unimplemented_exit
+  EvmAsm.Stateless.SSZ.Encode.serialize_stateless_output_stub
 
 end EvmAsm.Stateless
