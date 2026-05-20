@@ -213,6 +213,12 @@ theorem evm_sdiv_call_target_byte_offset :
 def evm_sdiv_legacy : EvmAsm.Rv64.Program :=
   evm_sdiv_wrapper ;; evm_div_callable
 
+theorem evm_sdiv_legacy_length : evm_sdiv_legacy.length = 390 := by
+  native_decide
+
+theorem evm_sdiv_legacy_byte_length : 4 * evm_sdiv_legacy.length = 1560 := by
+  rw [evm_sdiv_legacy_length]
+
 /-- Full SDIV code region (non-v4). -/
 def evm_sdiv : EvmAsm.Rv64.Program :=
   evm_sdiv_wrapper ;; evm_div_callable
