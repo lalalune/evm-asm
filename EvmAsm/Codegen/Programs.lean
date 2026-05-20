@@ -1129,11 +1129,6 @@ def ziskZkvmKeccak256ProbeUnit : BuildUnit := {
 
 /-- Look up a program by name. Returns `none` for unknown names so the CLI
     can produce a clean error. -/
-
-/-! ## registry -/
-
-/-- Look up a program by name. Returns `none` for unknown names so the CLI
-    can produce a clean error. -/
 def lookupProgram : String → Option BuildUnit
   | "smoke"                     => some smokeUnit
   | "evm_add"                   => some evmAddUnit
