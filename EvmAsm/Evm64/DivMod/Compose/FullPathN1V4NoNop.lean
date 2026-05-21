@@ -1103,6 +1103,21 @@ theorem divK_loop_body_n1_call_j3_exact_loopIterScratch_v4_noNop (sp base : Word
     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
     retMem dMem dloMem scratchUn0 scratchMem halign hbltu hcarry2_nz
 
+/-- Explicit no-`x1` precondition for the N1 path where j=3 uses the v4
+    call path and j=2/j=1/j=0 all use max. It extends the ordinary no-X1
+    loop precondition with the extra v4 div128 scratch cell. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxScratchPreNoX1 (sp : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word) : Assertion :=
+  loopN1PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old
+    retMem dMem dloMem scratchUn0 **
+  (sp + signExtend12 3936 ↦ₘ scratchMem)
+
 /-- Explicit no-`x1` post for the N1 path where j=3 uses the v4 call path
     and j=2/j=1/j=0 all use max. The extra v4 div128 scratch cell is
     retained as caller frame state. -/
