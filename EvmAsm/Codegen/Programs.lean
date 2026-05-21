@@ -6054,6 +6054,82 @@ def ziskTxEip7702DecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskTxEip7702DecodeDataSection
 }
 
+/-! ## intrinsic_gas_legacy -- PR-K46 base + creation + data gas
+
+    Compute the intrinsic gas cost portion of a legacy /
+    EIP-2930 / EIP-1559 transaction that depends only on the
+    `data` payload and the creation flag. Higher-fork-specific
+    extras (access-list address/slot costs, EIP-7702 auth
+    entries, EIP-7623 floor data cost) are NOT included here --
+    callers compose them.
+
+    Formula (EIP-2028 / EIP-2 base):
+
+      gas = 21000
+          + (32000 if creation else 0)
+          + sum(4 if b == 0 else 16 for b in data)
+
+    Calling convention:
+      a0 (input)  : data ptr
+      a1 (input)  : data byte length
+      a2 (input)  : is_creation (0 = call, 1 = creation)
+      ra (input)  : return
+      a0 (output) : u64 intrinsic gas
+
+    Pure register arithmetic, no scratch memory, leaf-callable.
+    Cannot overflow u64 in practice: even at max gas_limit ~30M,
+    data length << 2^59, so 16 * data_len is well within u64. -/
+def intrinsicGasLegacyFunction : String :=
+  "intrinsic_gas_legacy:\n" ++
+  "  li t0, 21000               # base\n" ++
+  "  beqz a2, .Ligl_skip_creation\n" ++
+  "  li t1, 32000\n" ++
+  "  add t0, t0, t1\n" ++
+  ".Ligl_skip_creation:\n" ++
+  "  mv t2, a0                  # data cursor\n" ++
+  "  add t3, a0, a1             # data end\n" ++
+  ".Ligl_loop:\n" ++
+  "  bgeu t2, t3, .Ligl_done\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  beqz t4, .Ligl_zero\n" ++
+  "  addi t0, t0, 16\n" ++
+  "  j .Ligl_step\n" ++
+  ".Ligl_zero:\n" ++
+  "  addi t0, t0, 4\n" ++
+  ".Ligl_step:\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  j .Ligl_loop\n" ++
+  ".Ligl_done:\n" ++
+  "  mv a0, t0\n" ++
+  "  ret"
+
+/-- `zisk_intrinsic_gas_legacy`: probe BuildUnit. Reads
+    (data_len, is_creation, data_bytes) from host input, writes
+    the u64 intrinsic gas to OUTPUT. -/
+def ziskIntrinsicGasLegacyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # data_len\n" ++
+  "  ld a2, 16(a3)               # is_creation\n" ++
+  "  addi a0, a3, 24             # data ptr\n" ++
+  "  jal ra, intrinsic_gas_legacy\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # gas\n" ++
+  "  j .Ligl_pdone\n" ++
+  intrinsicGasLegacyFunction ++ "\n" ++
+  ".Ligl_pdone:"
+
+def ziskIntrinsicGasLegacyDataSection : String :=
+  ".section .data\n" ++
+  "igl_pad:\n" ++
+  "  .zero 8"
+
+def ziskIntrinsicGasLegacyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskIntrinsicGasLegacyPrologue
+  dataAsm     := ziskIntrinsicGasLegacyDataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -7315,6 +7391,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
+  | "zisk_intrinsic_gas_legacy" => some ziskIntrinsicGasLegacyProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -7374,6 +7451,7 @@ def knownProgramNames : List String :=
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
+   "zisk_intrinsic_gas_legacy",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
