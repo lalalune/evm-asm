@@ -230,6 +230,40 @@ theorem smodCodeV4_modCallable_sub {base : Word} :
     (by native_decide)
     (by rw [EvmAsm.Evm64.evm_smod_v4_length]; norm_num)
 
+theorem smodCode_block_subs {base : Word} :
+    (∀ a i, (saveRaCode base) a = some i → (smodCode base) a = some i) ∧
+    (∀ a i, (dividendSignCode base) a = some i → (smodCode base) a = some i) ∧
+    (∀ a i, (preserveDividendSignCode base) a = some i → (smodCode base) a = some i) ∧
+    (∀ a i, (divisorSignCode base) a = some i → (smodCode base) a = some i) ∧
+    (∀ a i, (dividendAbsCode base) a = some i → (smodCode base) a = some i) ∧
+    (∀ a i, (divisorAbsCode base) a = some i → (smodCode base) a = some i) ∧
+    (∀ a i, (modCallCode base) a = some i → (smodCode base) a = some i) ∧
+    (∀ a i, (resultSignFixCode base) a = some i → (smodCode base) a = some i) ∧
+    (∀ a i, (savedRaRetCode base) a = some i → (smodCode base) a = some i) ∧
+    (∀ a i, (modCallableCode base) a = some i → (smodCode base) a = some i) := by
+  exact ⟨smodCode_saveRa_sub, smodCode_dividendSign_sub,
+    smodCode_preserveDividendSign_sub, smodCode_divisorSign_sub,
+    smodCode_dividendAbs_sub, smodCode_divisorAbs_sub, smodCode_modCall_sub,
+    smodCode_resultSignFix_sub, smodCode_savedRaRet_sub,
+    smodCode_modCallable_sub⟩
+
+theorem smodCodeV4_block_subs {base : Word} :
+    (∀ a i, (saveRaCode base) a = some i → (smodCodeV4 base) a = some i) ∧
+    (∀ a i, (dividendSignCode base) a = some i → (smodCodeV4 base) a = some i) ∧
+    (∀ a i, (preserveDividendSignCode base) a = some i → (smodCodeV4 base) a = some i) ∧
+    (∀ a i, (divisorSignCode base) a = some i → (smodCodeV4 base) a = some i) ∧
+    (∀ a i, (dividendAbsCode base) a = some i → (smodCodeV4 base) a = some i) ∧
+    (∀ a i, (divisorAbsCode base) a = some i → (smodCodeV4 base) a = some i) ∧
+    (∀ a i, (modCallCode base) a = some i → (smodCodeV4 base) a = some i) ∧
+    (∀ a i, (resultSignFixCode base) a = some i → (smodCodeV4 base) a = some i) ∧
+    (∀ a i, (savedRaRetCode base) a = some i → (smodCodeV4 base) a = some i) ∧
+    (∀ a i, (modCallableCodeV4 base) a = some i → (smodCodeV4 base) a = some i) := by
+  exact ⟨smodCodeV4_saveRa_sub, smodCodeV4_dividendSign_sub,
+    smodCodeV4_preserveDividendSign_sub, smodCodeV4_divisorSign_sub,
+    smodCodeV4_dividendAbs_sub, smodCodeV4_divisorAbs_sub, smodCodeV4_modCall_sub,
+    smodCodeV4_resultSignFix_sub, smodCodeV4_savedRaRet_sub,
+    smodCodeV4_modCallable_sub⟩
+
 /-- Bundled top-level SMOD code subsumptions for the wrapper and appended
     legacy v1 unsigned MOD callable. -/
 theorem smodCode_top_level_subs {base : Word} :
