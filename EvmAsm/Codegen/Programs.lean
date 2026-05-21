@@ -7,17 +7,24 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
+import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.And.Program
 import EvmAsm.Evm64.Byte.Program
+import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
 import EvmAsm.Evm64.Eq.Program
+-- EXP wrapper is parametric over caller-saved registers (x6, x16)
+-- that mul_callable clobbers; deferred until upstream lands a
+-- fully callee-saved variant. import re-added when wiring lands.
+-- import EvmAsm.Evm64.Exp.Program
 import EvmAsm.Evm64.Gt.Program
 import EvmAsm.Evm64.IsZero.Program
 import EvmAsm.Evm64.Lt.Program
 import EvmAsm.Evm64.MLoad.Program
 import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
+-- import EvmAsm.Evm64.Multiply.Callable -- only needed by EXP (deferred)
 import EvmAsm.Evm64.Multiply.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
@@ -528,7 +535,7 @@ def divModHandlers : List OpcodeHandlerSpec :=
     code pointer by 1, then jump directly to `.dispatch_loop`
     rather than `ret`-ing. The standard `ret` (= `jalr x0, x1, 0`)
     won't work for these handlers because the wrapper's inner
-    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable`
+    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable_v4`
     clobbers `x1` mid-body — `x1` no longer holds the dispatcher's
     continuation by the time control reaches this tail. -/
 private def signedDivModTail : HandlerTail :=
@@ -546,7 +553,7 @@ private def signedDivModTail : HandlerTail :=
     1. `preBody` saves `x10` to `x14` (same register convention as
        M8 DIV/MOD; `x14` is untouched by both the SDIV/SMOD
        wrappers and the inner `evm_div_callable_v4` /
-       `evm_mod_callable`) AND loads `x18` with the address of the
+       `evm_mod_callable_v4`) AND loads `x18` with the address of the
        per-handler `postBodyLabel` stub via `la x18, h_<NAME>_done`.
     2. The verified body is `evmSdivPatched` / `evmSmodPatched`,
        which is the verified `evm_sdiv` / `evm_smod` with the
@@ -562,11 +569,9 @@ private def signedDivModTail : HandlerTail :=
        `ret` because the inner `JAL` into the divider clobbered
        `x1` (so `ret` would jump to garbage).
 
-    SMOD note: `evm_smod` still uses the legacy non-v4
-    `evm_mod_callable` (SDIV migrated to v4 in commit `43bb53070`,
-    SMOD's surface hasn't flipped yet). When the verification
-    track migrates SMOD to `evm_mod_callable_v4`, this entry
-    rebinds to the new symbol without other changes. -/
+    Both canonical signed wrappers now route through the v4 callable
+    divider/modulo bodies; the trampoline shape is unchanged by that
+    migration because the saved-ra return convention is the same. -/
 def signedDivModHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_SDIV"
       opcodes       := [0x05]
@@ -579,6 +584,74 @@ def signedDivModHandlers : List OpcodeHandlerSpec :=
       preBody       := "  mv x14, x10\n  la x18, h_SMOD_done"
       body          := evmSmodPatched
       postBodyLabel := some "h_SMOD_done"
+      tail          := signedDivModTail } ]
+
+/-! ## M10 self-calling opcode — ADDMOD (0x08)
+
+    `evm_addmod` is parametric over a JAL byte offset that targets
+    a callable variant of another handler (`evm_mod_callable_v4`).
+    The natural composition is `<wrapper>(<offset>) ++ <callable>`
+    — the callable is inlined in the same handler subroutine; the
+    offset is chosen so the wrapper's JAL lands on the callable's
+    first instruction.
+
+    Unlike SDIV/SMOD's M9 trampoline, ADDMOD doesn't have a
+    saved-ra-ret pattern. It DOES clobber `x1` (via the inner
+    `JAL .x1` into the callable), so the wrapper tail must use
+    `j .dispatch_loop` instead of `ret` — reusing M9's
+    `signedDivModTail` helper. It also clobbers `x10` via the
+    inline mod callable, so `preBody` saves `x10` to `x14`.
+
+    EXP (0x0a) was planned for this milestone but is deferred. The
+    `evm_exp_msb_saved_bit_two_mul_fixed` wrapper uses `x6` and
+    `x16` as per-limb counter / limb pointer, but those are LP64
+    caller-saved registers — `mul_callable` clobbers `x6` 39 times
+    per call. The "fix" only addresses `x19` (cursor) clobber, not
+    `x6`/`x16`. A complete fix requires a `_fixed_fixed` variant
+    using callee-saved registers (e.g. `x20`/`x21`) for the
+    per-limb counter and limb pointer; until that lands upstream,
+    EXP can't run through the dispatcher. -/
+
+/-- ADDMOD handler body. **Skips `evm_addmod_epilogue` deliberately**:
+    the verified `evm_addmod` composes prologue + phase1_carry +
+    phase2_reduce + epilogue, but the epilogue does `ADDI x12, x12, 32`
+    on TOP of the `ADDI x12, x12, 32` already done by
+    `divK_mod_epilogue` inside `evm_mod_callable_v4`. Including both
+    over-advances `x12` by 32, leaving the result outside the EVM
+    stack. (The verified `evm_addmod` is a slice 3a skeleton; slice
+    3c hasn't been implemented.)
+
+    Composition:
+      - prologue (`evm_add`): 30 instr (120 B), pops 2 / pushes 1, x12 += 32
+      - phase1_carry: 1 instr (4 B), `ADDI x7, x5, 0`
+      - phase2_reduce 8: 1 instr (4 B), `JAL .x1 +8` → mod_callable_v4
+      - skip-JAL: 1 instr (4 B), `JAL .x0 +1372` → past callable to tail
+      - `evm_mod_callable_v4`: 343 instr (1372 B), advances x12 by 32
+
+    Net x12 advance: 32 (prologue) + 32 (callable) = 64 B (= 3 pops -
+    1 push). ✓
+
+    modOff for phase2_reduce: JAL at byte 124, callable at byte 132,
+    offset = 8 bytes. Skip-JAL at byte 128, target = byte 128 + 1376
+    = 1504 (end of body, just past the callable), offset = 1376 bytes
+    (= 4 bytes for the skip-JAL itself + 1372 bytes for the callable). -/
+def evmAddmodComposed : Program :=
+  EvmAsm.Evm64.evm_addmod_prologue ;;
+  EvmAsm.Evm64.evm_addmod_phase1_carry ;;
+  EvmAsm.Evm64.evm_addmod_phase2_reduce 8 ;;
+  single (Instr.JAL .x0 (1376 : BitVec 21)) ;;
+  EvmAsm.Evm64.evm_mod_callable_v4
+
+/-- M10 self-calling handlers. Currently just ADDMOD; EXP is
+    deferred (see the milestone-header comment). Reuses
+    `signedDivModTail` because the wrapper's inner `JAL .x1` into
+    the inline callable clobbers `x1`, so the standard `ret` (=
+    `jalr x0, x1, 0`) would jump to garbage. -/
+def selfCallingHandlers : List OpcodeHandlerSpec :=
+  [ { label         := "h_ADDMOD"
+      opcodes       := [0x08]
+      preBody       := "  mv x14, x10"
+      body          := evmAddmodComposed
       tail          := signedDivModTail } ]
 
 /-- STOP: transitions out of the dispatcher loop instead of returning
@@ -595,7 +668,8 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ divModHandlers ++ signedDivModHandlers ++ [stopHandler]
+  memoryHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
   buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode
@@ -5319,6 +5393,198 @@ def ziskTxTypeDispatchProbeUnit : BuildUnit := {
   dataAsm     := ziskTxTypeDispatchDataSection
 }
 
+/-! ## tx_eip1559_decode -- PR-K41 full 12-field EIP-1559 decoder
+
+    Decode the inner (post-type-byte) RLP body of an EIP-1559
+    (type-2) transaction into a flat 248-byte output struct.
+    Inner RLP shape (12 fields):
+
+      rlp([
+        chain_id, nonce,
+        max_priority_fee_per_gas, max_fee_per_gas,
+        gas_limit, to, value, data, access_list,
+        y_parity, r, s
+      ])
+
+    Output struct (248 bytes):
+       0..  8  chain_id              (u64 LE)
+       8.. 16  nonce                 (u64 LE)
+      16.. 48  max_priority_fee_per_gas (u256 BE)
+      48.. 80  max_fee_per_gas       (u256 BE)
+      80.. 88  gas_limit             (u64 LE)
+      88..108  to (20-byte address; zero for creation)
+     108..112  to_present (u32; 0 = creation, 1 = call)
+     112..144  value                 (u256 BE)
+     144..152  data_offset           (u64 within inner RLP)
+     152..160  data_length           (u64)
+     160..168  access_list_offset    (u64; whole encoded item incl. prefix)
+     168..176  access_list_length    (u64; whole encoded item incl. prefix)
+     176..184  y_parity              (u64; 0 or 1)
+     184..216  r                     (u256 BE)
+     216..248  s                     (u256 BE)
+
+    Caller passes the inner RLP body -- after stripping the 0x02
+    type byte that PR-K40 `tx_type_dispatch` reports via
+    `inner_offset`.
+
+    access_list semantics: per `rlp_list_nth_item`'s contract for
+    list items, the returned (offset, length) span the *full*
+    encoded sub-list including its RLP prefix, so the caller can
+    recurse into it with another `rlp_list_nth_item` call.
+
+    Calling convention:
+      a0 (input)  : inner_rlp ptr
+      a1 (input)  : inner_rlp byte length
+      a2 (input)  : output struct ptr (248 bytes)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail -/
+def txEip1559DecodeFunction : String :=
+  "tx_eip1559_decode:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # inner_rlp ptr\n" ++
+  "  mv s1, a1                  # inner_rlp_len\n" ++
+  "  mv s2, a2                  # struct out\n" ++
+  "  # Field 0: chain_id (u64 at offset 0)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  # Field 1: nonce (u64 at offset 8)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
+  "  addi a3, s2, 8\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  # Field 2: max_priority_fee_per_gas (u256 at offset 16)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  addi a3, s2, 16\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  # Field 3: max_fee_per_gas (u256 at offset 48)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
+  "  addi a3, s2, 48\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  # Field 4: gas_limit (u64 at offset 80)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
+  "  addi a3, s2, 80\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  # Field 5: to (0 or 20 bytes at offset 88; to_present u32 at 108)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
+  "  la a3, t1d_offset; la a4, t1d_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  la t0, t1d_length; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lt1d_to_creation\n" ++
+  "  li t2, 20\n" ++
+  "  bne t1, t2, .Lt1d_fail\n" ++
+  "  la t0, t1d_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  addi t4, s2, 88\n" ++
+  "  ld t5,  0(t3); sd t5, 0(t4)\n" ++
+  "  ld t5,  8(t3); sd t5, 8(t4)\n" ++
+  "  lwu t5, 16(t3); sw t5, 16(t4)\n" ++
+  "  li t5, 1\n" ++
+  "  sw t5, 108(s2)             # to_present = 1\n" ++
+  "  j .Lt1d_after_to\n" ++
+  ".Lt1d_to_creation:\n" ++
+  "  addi t4, s2, 88\n" ++
+  "  sd zero, 0(t4); sd zero, 8(t4); sw zero, 16(t4)\n" ++
+  "  sw zero, 108(s2)           # to_present = 0\n" ++
+  ".Lt1d_after_to:\n" ++
+  "  # Field 6: value (u256 at offset 112)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 6\n" ++
+  "  addi a3, s2, 112\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  # Field 7: data (offset+length stored at 144/152)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
+  "  la a3, t1d_offset; la a4, t1d_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  la t0, t1d_offset; ld t1, 0(t0); sd t1, 144(s2)\n" ++
+  "  la t0, t1d_length; ld t1, 0(t0); sd t1, 152(s2)\n" ++
+  "  # Field 8: access_list (offset+length at 160/168; full encoded item)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
+  "  la a3, t1d_offset; la a4, t1d_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  la t0, t1d_offset; ld t1, 0(t0); sd t1, 160(s2)\n" ++
+  "  la t0, t1d_length; ld t1, 0(t0); sd t1, 168(s2)\n" ++
+  "  # Field 9: y_parity (u64 at offset 176)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 9\n" ++
+  "  addi a3, s2, 176\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  # Field 10: r (u256 at offset 184)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
+  "  addi a3, s2, 184\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  # Field 11: s (u256 at offset 216)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
+  "  addi a3, s2, 216\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  bnez a0, .Lt1d_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lt1d_ret\n" ++
+  ".Lt1d_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lt1d_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_tx_eip1559_decode`: probe BuildUnit. Reads (inner_len,
+    inner_bytes) from host input -- caller is expected to have
+    stripped the 0x02 type byte. Writes (status, 248-byte struct)
+    to OUTPUT (256 bytes total, matching ziskemu's output cap). -/
+def ziskTxEip1559DecodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # inner_len\n" ++
+  "  addi a0, a3, 16             # inner ptr\n" ++
+  "  li a2, 0xa0010008           # struct at OUTPUT + 8\n" ++
+  "  # Pre-zero 248 bytes (31 × 8 dwords).\n" ++
+  "  mv t0, a2\n" ++
+  "  li t1, 31\n" ++
+  ".Lt1d_zinit:\n" ++
+  "  beqz t1, .Lt1d_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lt1d_zinit\n" ++
+  ".Lt1d_zdone:\n" ++
+  "  jal ra, tx_eip1559_decode\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lt1d_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txEip1559DecodeFunction ++ "\n" ++
+  ".Lt1d_pdone:"
+
+def ziskTxEip1559DecodeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t1d_offset:\n" ++
+  "  .zero 8\n" ++
+  "t1d_length:\n" ++
+  "  .zero 8"
+
+def ziskTxEip1559DecodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxEip1559DecodePrologue
+  dataAsm     := ziskTxEip1559DecodeDataSection
+}
+
 /-! ## tx_eip2930_decode -- PR-K42 full 11-field EIP-2930 decoder
 
     Decode the inner (post-type-byte) RLP body of an EIP-2930
@@ -6759,6 +7025,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_field_to_u64"     => some ziskRlpFieldToU64ProbeUnit
   | "zisk_rlp_field_to_u256_be" => some ziskRlpFieldToU256BeProbeUnit
   | "zisk_tx_legacy_decode"     => some ziskTxLegacyDecodeProbeUnit
+  | "zisk_tx_eip1559_decode"    => some ziskTxEip1559DecodeProbeUnit
   | "zisk_derive_chain_id_from_v" => some ziskDeriveChainIdFromVProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
@@ -6815,6 +7082,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_field_to_u64",
    "zisk_rlp_field_to_u256_be",
    "zisk_tx_legacy_decode",
+   "zisk_tx_eip1559_decode",
    "zisk_derive_chain_id_from_v",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
