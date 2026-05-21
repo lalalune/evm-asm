@@ -28,6 +28,7 @@ import EvmAsm.Evm64.SMod.Compose.ModCallGenericHandoff
 import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
 import EvmAsm.Evm64.SMod.Compose.ResultSignFixPCFree
 import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwn
+import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixPost
 
 namespace EvmAsm.Evm64.SMod.Compose
 
