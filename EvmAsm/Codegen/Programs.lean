@@ -328,6 +328,26 @@ def evmModPatched : Program :=
   [Instr.JAL .x0 (304 : BitVec 21)] ++
   (EvmAsm.Evm64.evm_mod : List Instr).drop 268
 
+/-- `EvmAsm.Evm64.evm_sdiv` with the leading `ADDI .x18 .x1 0`
+    save_ra_block removed (413 instructions instead of 414). The
+    M9 trampoline handler sets `x18 = &h_SDIV_done` in `preBody`;
+    the body's existing `JALR x0, x18, 0` then jumps to our
+    restore stub instead of clobbering `x18` with `x1`.
+
+    The first instruction of `evm_sdiv_wrapper` is
+    `evm_sdiv_save_ra_block .x18` = `ADDI .x18 .x1 0`
+    (`EvmAsm/Evm64/SDiv/Program.lean:180`). Splicing it off lets
+    our trampoline target stick. -/
+def evmSdivPatched : Program :=
+  (EvmAsm.Evm64.evm_sdiv : List Instr).drop 1
+
+/-- `EvmAsm.Evm64.evm_smod` with the same leading-save_ra splice
+    as `evmSdivPatched`. SMOD's wrapper is structurally identical
+    to SDIV's at the entry/exit boundary (only the conditional-
+    negate path differs). -/
+def evmSmodPatched : Program :=
+  (EvmAsm.Evm64.evm_smod : List Instr).drop 1
+
 /-! ## tiny_interp_dispatch — M5b runtime fetch/decode/dispatch loop
 
     Same EVM bytecodes as M5a, but routed through an actual RISC-V
@@ -504,6 +524,63 @@ def divModHandlers : List OpcodeHandlerSpec :=
       body    := evmModPatched
       tail    := divModTail } ]
 
+/-- Tail for SDIV/SMOD: restore `x10` from `x14`, advance the EVM
+    code pointer by 1, then jump directly to `.dispatch_loop`
+    rather than `ret`-ing. The standard `ret` (= `jalr x0, x1, 0`)
+    won't work for these handlers because the wrapper's inner
+    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable`
+    clobbers `x1` mid-body — `x1` no longer holds the dispatcher's
+    continuation by the time control reaches this tail. -/
+private def signedDivModTail : HandlerTail :=
+  .custom "  mv x10, x14\n  addi x10, x10, 1\n  j .dispatch_loop"
+
+/-- M9 signed division handlers: SDIV (0x05) and SMOD (0x07).
+
+    Different wrapping than M8's DIV/MOD because `evm_sdiv` /
+    `evm_smod` end with a "saved-ra-ret" pattern (`JALR x0, x18, 0`
+    after the wrapper copies `x1` into `x18` at entry) — this
+    bypasses the dispatcher's standard `.advanceAndRet` / `divModTail`
+    tail entirely.
+
+    **Trampoline pattern:**
+    1. `preBody` saves `x10` to `x14` (same register convention as
+       M8 DIV/MOD; `x14` is untouched by both the SDIV/SMOD
+       wrappers and the inner `evm_div_callable_v4` /
+       `evm_mod_callable`) AND loads `x18` with the address of the
+       per-handler `postBodyLabel` stub via `la x18, h_<NAME>_done`.
+    2. The verified body is `evmSdivPatched` / `evmSmodPatched`,
+       which is the verified `evm_sdiv` / `evm_smod` with the
+       leading `ADDI .x18 .x1 0` save_ra_block dropped. Without
+       the splice, that instruction would overwrite the `x18` we
+       just set up in `preBody`.
+    3. When the body's `JALR x0, x18, 0` fires (mid-body, at the
+       wrapper's `evm_sdiv_saved_ra_ret_block`), control jumps to
+       our `postBodyLabel` stub (one of `h_SDIV_done` /
+       `h_SMOD_done`).
+    4. `signedDivModTail` restores `x10` from `x14`, advances the
+       EVM PC, then `j .dispatch_loop` — bypassing the standard
+       `ret` because the inner `JAL` into the divider clobbered
+       `x1` (so `ret` would jump to garbage).
+
+    SMOD note: `evm_smod` still uses the legacy non-v4
+    `evm_mod_callable` (SDIV migrated to v4 in commit `43bb53070`,
+    SMOD's surface hasn't flipped yet). When the verification
+    track migrates SMOD to `evm_mod_callable_v4`, this entry
+    rebinds to the new symbol without other changes. -/
+def signedDivModHandlers : List OpcodeHandlerSpec :=
+  [ { label         := "h_SDIV"
+      opcodes       := [0x05]
+      preBody       := "  mv x14, x10\n  la x18, h_SDIV_done"
+      body          := evmSdivPatched
+      postBodyLabel := some "h_SDIV_done"
+      tail          := signedDivModTail }
+  , { label         := "h_SMOD"
+      opcodes       := [0x07]
+      preBody       := "  mv x14, x10\n  la x18, h_SMOD_done"
+      body          := evmSmodPatched
+      postBodyLabel := some "h_SMOD_done"
+      tail          := signedDivModTail } ]
+
 /-- STOP: transitions out of the dispatcher loop instead of returning
     to it. The body is empty; the dispatcher's `jalr` lands on
     `h_STOP:` which jumps to `.exit_label`. -/
@@ -518,7 +595,7 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ divModHandlers ++ [stopHandler]
+  memoryHandlers ++ divModHandlers ++ signedDivModHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
   buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode
