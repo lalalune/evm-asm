@@ -5288,6 +5288,84 @@ def ziskHeaderExtendedDecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtendedDecodeDataSection
 }
 
+/-! ## validate_header_basic -- PR-K43 per-header semantic checks
+
+    Three u64 invariants from `validate_header` (Python:
+    `forks/amsterdam/fork.py`):
+
+      1. gas_used <= gas_limit
+      2. number == parent.number + 1
+      3. timestamp > parent.timestamp
+
+    Both inputs are 128-byte extended-header structs as produced
+    by PR-K39 `header_extended_decode`. Only the u64 fields at
+    offsets 64 (number), 72 (timestamp), 80 (gas_limit), 88
+    (gas_used) are read; the hash fields (parent_hash,
+    state_root) and base_fee_per_gas are ignored here -- those
+    are checked elsewhere (PR-K18 `validate_chain` for the hash
+    chain, future PR for the EIP-1559 base-fee formula).
+
+    Calling convention:
+      a0 (input)  : header_ptr (128-byte struct, this header)
+      a1 (input)  : parent_ptr (128-byte struct, parent header)
+      ra (input)  : return
+      a0 (output) : 0 ok
+                    1 gas_used > gas_limit
+                    2 number != parent.number + 1
+                    3 timestamp <= parent.timestamp
+
+    Pure register arithmetic, no scratch memory, leaf-callable. -/
+def validateHeaderBasicFunction : String :=
+  "validate_header_basic:\n" ++
+  "  ld t0, 88(a0)              # this.gas_used\n" ++
+  "  ld t1, 80(a0)              # this.gas_limit\n" ++
+  "  bgtu t0, t1, .Lvhb_fail_gas\n" ++
+  "  ld t0, 64(a0)              # this.number\n" ++
+  "  ld t1, 64(a1)              # parent.number\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  bne t0, t1, .Lvhb_fail_number\n" ++
+  "  ld t0, 72(a0)              # this.timestamp\n" ++
+  "  ld t1, 72(a1)              # parent.timestamp\n" ++
+  "  bgeu t1, t0, .Lvhb_fail_timestamp  # parent_ts >= this_ts → fail\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lvhb_fail_gas:\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Lvhb_fail_number:\n" ++
+  "  li a0, 2\n" ++
+  "  ret\n" ++
+  ".Lvhb_fail_timestamp:\n" ++
+  "  li a0, 3\n" ++
+  "  ret"
+
+/-- `zisk_validate_header_basic`: probe BuildUnit. Reads two
+    128-byte extended-header structs from host input (after an
+    8-byte tag) and writes the 8-byte status to OUTPUT. -/
+def ziskValidateHeaderBasicPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  # Input layout: [pad u64][header 128B][parent 128B]\n" ++
+  "  addi a0, a3, 8              # header_ptr\n" ++
+  "  addi a1, a3, 136            # parent_ptr (8 + 128)\n" ++
+  "  jal ra, validate_header_basic\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lvhb_pdone\n" ++
+  validateHeaderBasicFunction ++ "\n" ++
+  ".Lvhb_pdone:"
+
+def ziskValidateHeaderBasicDataSection : String :=
+  ".section .data\n" ++
+  "vhb_pad:\n" ++
+  "  .zero 8"
+
+def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateHeaderBasicPrologue
+  dataAsm     := ziskValidateHeaderBasicDataSection
+}
+
 /-! ## tx_type_dispatch -- PR-K40 typed-tx prefix detector
 
     Read the first byte of an RLP/typed-tx-encoded transaction
@@ -7029,6 +7107,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_derive_chain_id_from_v" => some ziskDeriveChainIdFromVProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
+  | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
@@ -7086,6 +7165,7 @@ def knownProgramNames : List String :=
    "zisk_derive_chain_id_from_v",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
+   "zisk_validate_header_basic",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_sha256_from_input",
