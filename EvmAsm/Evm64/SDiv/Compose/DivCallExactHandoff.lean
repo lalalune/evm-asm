@@ -598,6 +598,53 @@ theorem saveRaDivCallDispatchReadyPost_exact_callable_x9out_divCode_frame_transf
       signFrameNoX9, sdivDivCallResultSign, sdivAbsSign] at hp ⊢
     exact hp) hCallableExit
 
+/-- Named-post variant of
+    `saveRaDivCallDispatchReadyPost_exact_callable_x9out_divCode_frame_transform_spec_in_sdivCodeV4`. -/
+theorem saveRaDivCallDispatchReadyPost_exact_frame_x9out_divCode_frame_transform_spec_in_sdivCodeV4
+    {FPre FPost : EvmAsm.Rv64.Assertion} [EvmAsm.Rv64.Assertion.PCFree FPost]
+    (vRa sp base
+      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+      v2 v5 v6 x9Out : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hbase : base &&& 1 = 0)
+    (hStack :
+      EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
+        (base + wrapperEndOff)
+        ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
+        (EvmAsm.Evm64.divCode_noNop_v4 (base + wrapperEndOff))
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp
+          (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
+          (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+          (sdivAbsSign divisorTop) ((base + divCallOff) + 4) v2 v5 v6
+          (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+          (sdivAbsMask divisorTop)
+          (sdivAbsCarry3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** FPre)
+        (EvmAsm.Evm64.divStackDispatchPostCallableExactFrame sp
+          (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
+          (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+          ((base + divCallOff) + 4) x9Out ** FPost)) :
+    EvmAsm.Rv64.cpsTripleWithin (EvmAsm.Evm64.unifiedDivBound + 1)
+      (base + wrapperEndOff) (base + resultSignFixOff) (sdivCodeV4 base)
+      (saveRaDivCallDispatchReadyPost vRa sp base
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+        v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** FPre)
+      (((saveRaDivCallCallablePostNoX9 vRa sp base
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
+        (.x9 ↦ᵣ x9Out)) ** FPost)) := by
+  rw [EvmAsm.Evm64.divStackDispatchPostCallableExactFrame_unfold] at hStack
+  exact saveRaDivCallDispatchReadyPost_exact_callable_x9out_divCode_frame_transform_spec_in_sdivCodeV4
+    vRa sp base dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+    divisorLimb0 divisorLimb1 divisorLimb2 divisorTop v2 v5 v6 x9Out
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratchUn0 hbase hStack
+
 /-- v4 exact callable handoff for full `divCode_noNop_v4` body proofs whose
     precondition has the N1-style zero `x9` value. This specializes the generic
     SDIV handoff to the branch where the saved divisor sign is zero. -/
