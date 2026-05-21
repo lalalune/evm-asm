@@ -16,7 +16,7 @@
               := … ;; cc_ret                 ;; divK_div128_v4
 
   Same total instruction count (1:1 NOP↔cc_ret swap), same byte length
-  (1332 bytes = 333 instructions), same exit PC (the slot that holds
+  (1372 bytes = 343 instructions), same exit PC (the slot that holds
   the swapped instruction sits at the same byte offset as the original
   NOP).
 
@@ -120,6 +120,49 @@ def evm_mod_callable_v4 : Program :=
   divK_zeroPath ;;
   cc_ret ;;
   divK_div128_v4
+
+/-- `cc_ret = JALR x0 x1 0` is exactly one instruction. -/
+theorem cc_ret_len : cc_ret.length = 1 := by decide
+
+theorem evm_div_callable_length : evm_div_callable.length = 343 := by
+  simp only [evm_div_callable, seq, Program.length_append, divK_phaseA_len,
+    divK_phaseB_len, divK_clz_len, divK_phaseC2_len, divK_normB_len,
+    divK_normA_len, divK_copyAU_len, divK_loopSetup_len, divK_loopBody_len,
+    divK_denorm_len, divK_divEpilogue_len, divK_zeroPath_len,
+    cc_ret_len, divK_div128_v4_len]
+
+theorem evm_mod_callable_length : evm_mod_callable.length = 343 := by
+  simp only [evm_mod_callable, seq, Program.length_append, divK_phaseA_len,
+    divK_phaseB_len, divK_clz_len, divK_phaseC2_len, divK_normB_len,
+    divK_normA_len, divK_copyAU_len, divK_loopSetup_len, divK_loopBody_len,
+    divK_denorm_len, divK_modEpilogue_len, divK_zeroPath_len,
+    cc_ret_len, divK_div128_v4_len]
+
+theorem evm_div_callable_byte_length : 4 * evm_div_callable.length = 1372 := by
+  rw [evm_div_callable_length]
+
+theorem evm_mod_callable_byte_length : 4 * evm_mod_callable.length = 1372 := by
+  rw [evm_mod_callable_length]
+
+theorem evm_div_callable_v4_length : evm_div_callable_v4.length = 343 := by
+  simp only [evm_div_callable_v4, seq, Program.length_append, divK_phaseA_len,
+    divK_phaseB_len, divK_clz_len, divK_phaseC2_len, divK_normB_len,
+    divK_normA_len, divK_copyAU_len, divK_loopSetup_len, divK_loopBody_len,
+    divK_denorm_len, divK_divEpilogue_len, divK_zeroPath_len,
+    cc_ret_len, divK_div128_v4_len]
+
+theorem evm_mod_callable_v4_length : evm_mod_callable_v4.length = 343 := by
+  simp only [evm_mod_callable_v4, seq, Program.length_append, divK_phaseA_len,
+    divK_phaseB_len, divK_clz_len, divK_phaseC2_len, divK_normB_len,
+    divK_normA_len, divK_copyAU_len, divK_loopSetup_len, divK_loopBody_len,
+    divK_denorm_len, divK_modEpilogue_len, divK_zeroPath_len,
+    cc_ret_len, divK_div128_v4_len]
+
+theorem evm_div_callable_v4_byte_length : 4 * evm_div_callable_v4.length = 1372 := by
+  rw [evm_div_callable_v4_length]
+
+theorem evm_mod_callable_v4_byte_length : 4 * evm_mod_callable_v4.length = 1372 := by
+  rw [evm_mod_callable_v4_length]
 
 -- ============================================================================
 -- CodeReq abbreviations
@@ -295,9 +338,6 @@ theorem evm_div_callable_code_eq_ofProg (base : Word) :
 -- instead of the NOP — the offset is identical (both length 1), so the
 -- disjointness side conditions match modulo a `cc_ret.length = 1` fact.
 -- ============================================================================
-
-/-- `cc_ret = JALR x0 x1 0` is exactly one instruction. -/
-theorem cc_ret_len : cc_ret.length = 1 := by decide
 
 /-- Variant of `skipBlock` (from `Compose.Base`) that also knows
     `cc_ret.length = 1`. Needed when the block-being-skipped is
