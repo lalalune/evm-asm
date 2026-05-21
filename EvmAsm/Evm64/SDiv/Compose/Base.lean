@@ -61,8 +61,8 @@ theorem sdivCode_div_callable_v1_sub {base : Word} :
     ∀ a i, (evm_div_callable_code_v1 (base + 284)) a = some i →
       (sdivCode base) a = some i := by
   intro a i h
-  rw [evm_div_callable_code_v1_eq_current (base + 284)] at h
-  rw [evm_div_callable_code_eq_ofProg (base + 284)] at h
+  rw [evm_div_callable_code_v1_eq_ofProg (base + 284)] at h
+  rw [evm_div_callable_v1_eq_current] at h
   unfold sdivCode
   exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + 284)
     evm_sdiv_legacy evm_div_callable 71
