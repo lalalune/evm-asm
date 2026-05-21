@@ -14,6 +14,7 @@ import EvmAsm.Evm64.SMod.AddrNorm
 import EvmAsm.Evm64.SMod.Compose.BaseOffsets
 import EvmAsm.Evm64.SMod.Compose.CodeHandles
 import EvmAsm.Evm64.SMod.Compose.BaseCode
+import EvmAsm.Evm64.SMod.Compose.DispatchReadyPost
 
 namespace EvmAsm.Evm64.SMod.Compose
 
