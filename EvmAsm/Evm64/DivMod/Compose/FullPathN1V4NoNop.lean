@@ -158,6 +158,102 @@ theorem evm_div_n1_to_loopSetup_spec_v4_noNop (sp base : Word)
     (fun h hq => by delta loopSetupPost; xperm_hyp hq)
     hFull
 
+/-- Full n=1 path from entry to loop body start over `divCode_noNop_v4`,
+    generalized over the incoming value of `x9`. The loop setup code overwrites
+    `x9` with `4 - n`; earlier stages only carry it as a frame. -/
+theorem evm_div_n1_to_loopSetup_spec_v4_noNop_x9In (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 x9In : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4) base (base + loopBodyOff)
+      (divCode_noNop_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
+       (.x9 ↦ᵣ x9In) **
+       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
+       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+       ((sp + signExtend12 4024) ↦ₘ u4Old) **
+       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
+       ((sp + signExtend12 3992) ↦ₘ shiftMem))
+      (loopSetupPost sp (1 : Word) (clzResult b0).1 a0 a1 a2 a3 b0 b1 b2 b3) := by
+  let shift := (clzResult b0).1
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+  let b0' := b0 <<< (shift.toNat % 64)
+  let u4 := a3 >>> (antiShift.toNat % 64)
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+  let u0 := a0 <<< (shift.toNat % 64)
+  have hNB := evm_div_phaseAB_n1_clz_c2_normB_spec_v4_noNop sp base
+    b0 b1 b2 b3 v5 v6 v7 v10 q0 q1 q2 q3 u5 u6 u7 nMem shiftMem
+    hbnz hb3z hb2z hb1z hshift_nz
+  simp only [evmDivPhaseABN1ClzC2NormBPre_unfold,
+      evmDivPhaseABN1ClzC2NormBFullPost_unfold] at hNB
+  have hNBf := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ x9In) **
+     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+     ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+     ((sp + signExtend12 4024) ↦ₘ u4Old))
+    (by pcFree) hNB
+  have hNormA := divK_normA_full_spec_within_v4_noNop sp a0 a1 a2 a3
+    b0' (b0 >>> (antiShift.toNat % 64)) b3 shift antiShift
+    u0Old u1Old u2Old u3Old u4Old base
+  rw [divKNormAFullPreNoNop_unfold] at hNormA
+  simp only [normAFullPost_unfold] at hNormA
+  have hNormAf := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) **
+     (.x9 ↦ᵣ x9In) **
+     ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
+     ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3') **
+     ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (1 : Word)) **
+     ((sp + signExtend12 3992) ↦ₘ shift))
+    (by pcFree) hNormA
+  have hNA := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hNBf hNormAf
+  have hLS := divK_loopSetup_ntaken_spec_within_v4_noNop sp (1 : Word)
+    x9In u1 base (by decide)
+  simp only [divKLoopSetupNtakenPreNoNop_unfold,
+      divKLoopSetupNtakenPostNoNop_unfold] at hLS
+  have hLSf := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
+     (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ u0) ** (.x2 ↦ᵣ antiShift) **
+     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
+     ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3') **
+     ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4072) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+     ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+     ((sp + signExtend12 4024) ↦ₘ u4) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 3992) ↦ₘ shift))
+    (by pcFree) hLS
+  have hFull := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hNA hLSf
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by delta loopSetupPost; xperm_hyp hq)
+    hFull
+
 /-- v4/no-NOP n=1 preloop setup with the exact caller-framed `x1` and
     the loop scratch handoff frame carried explicitly. -/
 theorem evm_div_n1_to_loopSetup_spec_v4_noNop_exact_x1_scratch_frame
@@ -203,6 +299,67 @@ theorem evm_div_n1_to_loopSetup_spec_v4_noNop_exact_x1_scratch_frame
   have hPre :=
     evm_div_n1_to_loopSetup_spec_v4_noNop sp base
       a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+      hbnz hb3z hb2z hb1z hshift_nz
+  have hFramed := cpsTripleWithin_frameR
+    (((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+      (sp + signExtend12 3968 ↦ₘ retMem) **
+      (sp + signExtend12 3960 ↦ₘ dMem) **
+      (sp + signExtend12 3952 ↦ₘ dloMem) **
+      (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+      (sp + signExtend12 3936 ↦ₘ scratchMem) **
+      (.x1 ↦ᵣ raVal)))
+    (by pcFree) hPre
+  exact cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    hFramed
+
+/-- v4/no-NOP n=1 preloop setup with arbitrary incoming `x9`, exact
+    caller-framed `x1`, and the loop scratch handoff frame carried explicitly. -/
+theorem evm_div_n1_to_loopSetup_spec_v4_noNop_x9In_exact_x1_scratch_frame
+    (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
+    (jMem retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4) base (base + loopBodyOff)
+      (divCode_noNop_v4 base)
+      (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
+        (.x9 ↦ᵣ x9In) **
+        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+        ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
+        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+        ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+        ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+        ((sp + signExtend12 4024) ↦ₘ u4Old) **
+        ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
+        ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
+        ((sp + signExtend12 3992) ↦ₘ shiftMem)) **
+       ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal)))
+      (loopSetupPost sp (1 : Word) (clzResult b0).1 a0 a1 a2 a3 b0 b1 b2 b3 **
+       ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal))) := by
+  have hPre :=
+    evm_div_n1_to_loopSetup_spec_v4_noNop_x9In sp base
+      a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 x9In
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
       hbnz hb3z hb2z hb1z hshift_nz
   have hFramed := cpsTripleWithin_frameR
@@ -1606,6 +1763,147 @@ def fullDivN1CallMaxmaxmaxDenormFrameNoX1 (sp base : Word)
   (sp + signExtend12 3944 ↦ₘ divKTrialCallV4Un0 u0) **
   (sp + signExtend12 3936 ↦ₘ divKTrialCallV4ScratchOut u1 u0 v0 scratchMem)
 
+theorem fullDivN1CallMaxmaxmaxDenormFrameNoX1_pcFree (sp base : Word)
+    (a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 scratchMem : Word) :
+    (fullDivN1CallMaxmaxmaxDenormFrameNoX1 sp base
+      a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig2 u0Orig1 u0Orig0 scratchMem).pcFree := by
+  delta fullDivN1CallMaxmaxmaxDenormFrameNoX1
+  pcFree
+
+instance pcFreeInst_fullDivN1CallMaxmaxmaxDenormFrameNoX1
+    (sp base : Word)
+    (a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 scratchMem : Word) :
+    Assertion.PCFree
+      (fullDivN1CallMaxmaxmaxDenormFrameNoX1 sp base
+        a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig2 u0Orig1 u0Orig0 scratchMem) :=
+  ⟨fullDivN1CallMaxmaxmaxDenormFrameNoX1_pcFree sp base
+    a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    u0Orig2 u0Orig1 u0Orig0 scratchMem⟩
+
+/-- Denormalization+DIV-epilogue postcondition for the N1 path where j=3
+    uses the v4 call path and j=2/j=1/j=0 all use max. -/
+@[irreducible]
+def fullDivN1CallMaxmaxmaxDenormPost (sp shift : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word) :
+    Assertion :=
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  let r0 := iterN1Max v0 v1 v2 v3 u0Orig0
+    r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1
+    r0.1 r1.1 r2.1 r3.1 **
+  ((sp + signExtend12 3992) ↦ₘ shift)
+
+@[irreducible]
+def fullDivN1CallMaxmaxmaxUnifiedPostNoX1 (sp base shift : Word)
+    (a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 scratchMem : Word) : Assertion :=
+  fullDivN1CallMaxmaxmaxDenormPost sp shift
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 **
+  fullDivN1CallMaxmaxmaxDenormFrameNoX1 sp base
+    a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    u0Orig2 u0Orig1 u0Orig0 scratchMem
+
+theorem fullDivN1CallMaxmaxmaxUnifiedPostNoX1_pcFree (sp base shift : Word)
+    (a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 scratchMem : Word) :
+    (fullDivN1CallMaxmaxmaxUnifiedPostNoX1 sp base shift
+      a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig2 u0Orig1 u0Orig0 scratchMem).pcFree := by
+  delta fullDivN1CallMaxmaxmaxUnifiedPostNoX1
+  pcFree
+  · delta fullDivN1CallMaxmaxmaxDenormPost
+    pcFree
+  · delta fullDivN1CallMaxmaxmaxDenormFrameNoX1
+    pcFree
+
+instance pcFreeInst_fullDivN1CallMaxmaxmaxUnifiedPostNoX1
+    (sp base shift : Word)
+    (a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 scratchMem : Word) :
+    Assertion.PCFree
+      (fullDivN1CallMaxmaxmaxUnifiedPostNoX1 sp base shift
+        a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig2 u0Orig1 u0Orig0 scratchMem) :=
+  ⟨fullDivN1CallMaxmaxmaxUnifiedPostNoX1_pcFree sp base shift
+    a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    u0Orig2 u0Orig1 u0Orig0 scratchMem⟩
+
+/-- v4 no-NOP N1 denormalization and DIV epilogue for the path where j=3
+    uses the call path and j=2/j=1/j=0 all use max. -/
+theorem evm_div_n1_call_maxmaxmax_denorm_epilogue_spec_v4_noNop
+    (sp base shift : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
+    (hshift_nz : shift ≠ 0) :
+    cpsTripleWithin (2 + 23 + 10) (base + denormOff) (base + nopOff) (divCode_noNop_v4 base)
+      (fullDivN1CallMaxmaxmaxDenormPre sp shift
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0)
+      (fullDivN1CallMaxmaxmaxDenormPost sp shift
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) := by
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  let r0 := iterN1Max v0 v1 v2 v3 u0Orig0
+    r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  let c0 := (mulsubN4 (signExtend12 4095 : Word) v0 v1 v2 v3
+    u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2
+  have h := evm_div_preamble_denorm_epilogue_spec_v4_noNop sp base
+    r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 shift
+    r0.2.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
+    c0 r0.1 r1.1 r2.1 r3.1
+    v0 v1 v2 v3 hshift_nz
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      subst r3; subst r2; subst r1; subst r0; subst c0
+      delta fullDivN1CallMaxmaxmaxDenormPre at hp
+      simp only [se12_32, se12_40, se12_48, se12_56] at hp
+      xperm_hyp hp)
+    (fun h hq => by
+      subst r3; subst r2; subst r1; subst r0
+      delta fullDivN1CallMaxmaxmaxDenormPost
+      xperm_hyp hq)
+    h
+
+/-- Exact-`x1` framed v4 no-NOP N1 denormalization and DIV epilogue for
+    the call/max/max/max path. -/
+theorem evm_div_n1_call_maxmaxmax_denorm_epilogue_spec_v4_noNop_exact_x1
+    (sp base shift : Word)
+    (a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 scratchMem raVal : Word)
+    (hshift_nz : shift ≠ 0) :
+    cpsTripleWithin (2 + 23 + 10) (base + denormOff) (base + nopOff) (divCode_noNop_v4 base)
+      (fullDivN1CallMaxmaxmaxDenormPre sp shift
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 **
+       fullDivN1CallMaxmaxmaxDenormFrameNoX1 sp base
+        a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig2 u0Orig1 u0Orig0 scratchMem **
+       (.x1 ↦ᵣ raVal))
+      (fullDivN1CallMaxmaxmaxUnifiedPostNoX1 sp base shift
+        a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig2 u0Orig1 u0Orig0 scratchMem **
+       (.x1 ↦ᵣ raVal)) := by
+  have hDenorm :=
+    evm_div_n1_call_maxmaxmax_denorm_epilogue_spec_v4_noNop
+      sp base shift v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig2 u0Orig1 u0Orig0 hshift_nz
+  have hFramed := cpsTripleWithin_frameR
+    (fullDivN1CallMaxmaxmaxDenormFrameNoX1 sp base
+      a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig2 u0Orig1 u0Orig0 scratchMem **
+     (.x1 ↦ᵣ raVal))
+    (by pcFree) hDenorm
+  exact cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by
+      delta fullDivN1CallMaxmaxmaxUnifiedPostNoX1
+      xperm_hyp hq)
+    hFramed
+
 /-- Repackage the explicit v4 call/max/max/max loop post as the denorm entry
     surface plus retained caller frame. -/
 theorem loopN1CallMaxmaxmaxScratchPostNoX1_to_denormPre_frame
@@ -2599,6 +2897,53 @@ def fullDivN1PreloopCallMaxmaxmaxExactSpec (sp base : Word)
       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
       ((sp + signExtend12 3992) ↦ₘ (clzResult b0).1)))
 
+/-- Opaque full-DIV n=1 v4/no-NOP preloop plus call/max/max/max path,
+    generalized over the incoming `x9` value. -/
+@[irreducible]
+def fullDivN1PreloopCallMaxmaxmaxExactSpecX9In (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
+    (jMem retMem dMem dloMem scratchUn0 scratchMem raVal : Word) : Prop :=
+  cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 780) base (base + denormOff)
+    (divCode_noNop_v4 base)
+    ((((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
+       (.x9 ↦ᵣ x9In) **
+       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
+       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+       ((sp + signExtend12 4024) ↦ₘ u4Old) **
+       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
+       ((sp + signExtend12 3992) ↦ₘ shiftMem)) **
+      ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) **
+       (.x1 ↦ᵣ raVal))))
+    ((loopN1CallMaxmaxmaxScratchPostNoX1 sp base
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).1
+      scratchMem ** (.x1 ↦ᵣ raVal)) **
+     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+      ((sp + signExtend12 3992) ↦ₘ (clzResult b0).1)))
+
 /-- Full-DIV n=1 v4/no-NOP preloop composed with the call/max/max/max
     exact loop path. -/
 theorem fullDivN1_preloop_call_maxmaxmax_exact_x1_scratch_v4_noNop_of_bltu
@@ -2688,5 +3033,362 @@ theorem fullDivN1_preloop_call_maxmaxmax_exact_x1_scratch_v4_noNop_of_bltu
         sp a0 a1 a2 a3 b0 b1 b2 b3 v11Old
         jMem retMem dMem dloMem scratchUn0 scratchMem raVal h hp)
     hPre hLoopF
+
+/-- Full-DIV n=1 v4/no-NOP preloop with arbitrary incoming `x9`, composed
+    with the call/max/max/max loop path. -/
+theorem fullDivN1_preloop_call_maxmaxmax_exact_x1_scratch_v4_noNop_x9In_of_bltu
+    (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
+    (jMem retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : fullDivN1CallMaxmaxmaxExactInputAligned sp base
+      jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+      a0 a1 a2 a3 b0 b1 b2 b3
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hbltu3 : isTrialN1_j3 true a3 b0)
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    fullDivN1PreloopCallMaxmaxmaxExactSpecX9In sp base
+      a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+      jMem retMem dMem dloMem scratchUn0 scratchMem raVal := by
+  unfold fullDivN1PreloopCallMaxmaxmaxExactSpecX9In
+  have hPre := evm_div_n1_to_loopSetup_spec_v4_noNop_x9In_exact_x1_scratch_frame
+    sp base a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+    hbnz hb3z hb2z hb1z hshift_nz
+  have hLoop := fullDivN1_call_maxmaxmax_exact_x1_scratch_v4_noNop_of_bltu
+    sp base
+    jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+    (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+    a0 a1 a2 a3 b0 b1 b2 b3
+    (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+    retMem dMem dloMem scratchUn0 scratchMem raVal
+    halign hbltu3 hbltu2 hbltu1 hbltu0 hcarry2
+  unfold fullDivN1CallMaxmaxmaxExactInputSpec at hLoop
+  unfold loopN1CallMaxmaxmaxExactInputSpec at hLoop
+  unfold loopN1CallMaxmaxmaxExactX1ScratchSpec at hLoop
+  unfold fullDivN1CallMaxmaxmaxExactInputs at hLoop
+  dsimp only at hLoop
+  have hLoopF := cpsTripleWithin_frameR
+    (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 3992) ↦ₘ (clzResult b0).1))
+    (by pcFree) hLoop
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      exact loopSetupPost_to_fullDivN1CallMaxmaxmaxScratchPreNoX1_framed
+        sp a0 a1 a2 a3 b0 b1 b2 b3 v11Old
+        jMem retMem dMem dloMem scratchUn0 scratchMem raVal h hp)
+    hPre hLoopF
+
+/-- Full-DIV n=1 v4/no-NOP preloop, call/max/max/max loop path, and
+    denormalization+DIV epilogue, with caller `x1` retained exactly. -/
+theorem fullDivN1_preloop_call_maxmaxmax_denorm_epilogue_exact_x1_v4_noNop_of_bltu
+    (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
+    (jMem retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : fullDivN1CallMaxmaxmaxExactInputAligned sp base
+      jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+      a0 a1 a2 a3 b0 b1 b2 b3
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hbltu3 : isTrialN1_j3 true a3 b0)
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    cpsTripleWithin ((8 + 21 + 24 + 4 + 21 + 21 + 4 + 780) + (2 + 23 + 10))
+      base (base + nopOff) (divCode_noNop_v4 base)
+      ((((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+         (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
+         (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+         ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+         ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+         ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+         ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
+         ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+         ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+         ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+         ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+         ((sp + signExtend12 4024) ↦ₘ u4Old) **
+         ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
+         ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
+         ((sp + signExtend12 3992) ↦ₘ shiftMem)) **
+        ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+         (sp + signExtend12 3968 ↦ₘ retMem) **
+         (sp + signExtend12 3960 ↦ₘ dMem) **
+         (sp + signExtend12 3952 ↦ₘ dloMem) **
+         (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+         (sp + signExtend12 3936 ↦ₘ scratchMem) **
+         (.x1 ↦ᵣ raVal))))
+      (fullDivN1CallMaxmaxmaxUnifiedPostNoX1 sp base (clzResult b0).1
+        a0 a1 a2 a3
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        (0 : Word) (0 : Word) (0 : Word)
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).1
+        scratchMem **
+       (.x1 ↦ᵣ raVal)) := by
+  have hA := fullDivN1_preloop_call_maxmaxmax_exact_x1_scratch_v4_noNop_of_bltu
+    sp base
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+    hbnz hb3z hb2z hb1z hshift_nz halign hbltu3 hbltu2 hbltu1 hbltu0 hcarry2
+  unfold fullDivN1PreloopCallMaxmaxmaxExactSpec at hA
+  have hB := evm_div_n1_call_maxmaxmax_denorm_epilogue_spec_v4_noNop_exact_x1
+    sp base (clzResult b0).1
+    a0 a1 a2 a3
+    (fullDivN1NormV b0 b1 b2 b3).1
+    (fullDivN1NormV b0 b1 b2 b3).2.1
+    (fullDivN1NormV b0 b1 b2 b3).2.2.1
+    (fullDivN1NormV b0 b1 b2 b3).2.2.2
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    (0 : Word) (0 : Word) (0 : Word)
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+    (fullDivN1NormU a0 a1 a2 a3 b0).1
+    scratchMem raVal hshift_nz
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      have hpBridge := loopN1CallMaxmaxmaxScratchPostNoX1_to_denormPre_frame
+        sp base
+        a0 a1 a2 a3
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        (0 : Word) (0 : Word) (0 : Word)
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).1
+        scratchMem (clzResult b0).1 raVal h hp
+      xperm_hyp hpBridge)
+    hA hB
+
+/-- Full-DIV n=1 v4/no-NOP preloop, call/max/max/max loop path, and
+    denormalization+DIV epilogue, with arbitrary incoming `x9` and caller
+    `x1` retained exactly. -/
+theorem fullDivN1_preloop_call_maxmaxmax_denorm_epilogue_exact_x1_v4_noNop_x9In_of_bltu
+    (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
+    (jMem retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : fullDivN1CallMaxmaxmaxExactInputAligned sp base
+      jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+      a0 a1 a2 a3 b0 b1 b2 b3
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hbltu3 : isTrialN1_j3 true a3 b0)
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    cpsTripleWithin ((8 + 21 + 24 + 4 + 21 + 21 + 4 + 780) + (2 + 23 + 10))
+      base (base + nopOff) (divCode_noNop_v4 base)
+      ((((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+         (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
+         (.x9 ↦ᵣ x9In) **
+         ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+         ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+         ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+         ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
+         ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+         ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+         ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+         ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+         ((sp + signExtend12 4024) ↦ₘ u4Old) **
+         ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
+         ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
+         ((sp + signExtend12 3992) ↦ₘ shiftMem)) **
+        ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+         (sp + signExtend12 3968 ↦ₘ retMem) **
+         (sp + signExtend12 3960 ↦ₘ dMem) **
+         (sp + signExtend12 3952 ↦ₘ dloMem) **
+         (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+         (sp + signExtend12 3936 ↦ₘ scratchMem) **
+         (.x1 ↦ᵣ raVal))))
+      (fullDivN1CallMaxmaxmaxUnifiedPostNoX1 sp base (clzResult b0).1
+        a0 a1 a2 a3
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        (0 : Word) (0 : Word) (0 : Word)
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).1
+        scratchMem **
+       (.x1 ↦ᵣ raVal)) := by
+  have hA := fullDivN1_preloop_call_maxmaxmax_exact_x1_scratch_v4_noNop_x9In_of_bltu
+    sp base
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+    hbnz hb3z hb2z hb1z hshift_nz halign hbltu3 hbltu2 hbltu1 hbltu0 hcarry2
+  unfold fullDivN1PreloopCallMaxmaxmaxExactSpecX9In at hA
+  have hB := evm_div_n1_call_maxmaxmax_denorm_epilogue_spec_v4_noNop_exact_x1
+    sp base (clzResult b0).1
+    a0 a1 a2 a3
+    (fullDivN1NormV b0 b1 b2 b3).1
+    (fullDivN1NormV b0 b1 b2 b3).2.1
+    (fullDivN1NormV b0 b1 b2 b3).2.2.1
+    (fullDivN1NormV b0 b1 b2 b3).2.2.2
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    (0 : Word) (0 : Word) (0 : Word)
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+    (fullDivN1NormU a0 a1 a2 a3 b0).1
+    scratchMem raVal hshift_nz
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      have hpBridge := loopN1CallMaxmaxmaxScratchPostNoX1_to_denormPre_frame
+        sp base
+        a0 a1 a2 a3
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        (0 : Word) (0 : Word) (0 : Word)
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).1
+        scratchMem (clzResult b0).1 raVal h hp
+      xperm_hyp hpBridge)
+    hA hB
 
 end EvmAsm.Evm64
