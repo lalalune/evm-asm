@@ -1,9 +1,10 @@
 /-
   EvmAsm.Codegen
 
-  Umbrella re-export for the codegen tool. See CODEGEN.md for the M0–M5
-  roadmap. Codegen is purely additive — it does not modify the verified core
-  and carries no proofs.
+  Umbrella re-export for the codegen tool. See CODEGEN.md for the
+  roadmap. Codegen was originally purely-additive (no proofs); since
+  the Phase 1 codegen-proofs PR, it also carries kernel-checked
+  invariants of the dispatcher registry (see `RegistryInvariants`).
 -/
 
 import EvmAsm.Codegen.Emit
@@ -12,3 +13,4 @@ import EvmAsm.Codegen.Programs
 import EvmAsm.Codegen.Driver
 import EvmAsm.Codegen.Cli
 import EvmAsm.Codegen.RoundTripTests
+import EvmAsm.Codegen.Proofs
