@@ -175,6 +175,24 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mod_basic"
       bytecode       := "0x60, 0x03, 0x60, 0x0a, 0x06, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M9 signed division opcodes (trampoline wrapper for saved-ra-ret)
+  , -- PUSH1 0x02; PUSH1 0x05; SDIV; STOP — signed 5 / 2 = 2 (positive path)
+    { name           := "sdiv_basic"
+      bytecode       := "0x60, 0x02, 0x60, 0x05, 0x05, 0x00"
+      expectedOutHex := "0200000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x02; PUSH1 0x01; NOT; SDIV; STOP
+    -- Stack at SDIV: top = NOT(1) = -2 (= 0xff..fe), second = 2.
+    -- EVM SDIV pops `a` (top) then `b`; computes `a / b` in two's
+    -- complement. -2 / 2 = -1 (= 0xff..ff).
+    { name           := "sdiv_negative"
+      bytecode       := "0x60, 0x02, 0x60, 0x01, 0x19, 0x05, 0x00"
+      expectedOutHex := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+  , -- PUSH1 0x05; PUSH1 0x01; NOT; SMOD; STOP
+    -- Stack at SMOD: top = -2, second = 5. EVM SMOD: a % b with
+    -- sign(result) = sign(a). -2 % 5 = -2 (= 0xff..fe).
+    { name           := "smod_negative"
+      bytecode       := "0x60, 0x05, 0x60, 0x01, 0x19, 0x07, 0x00"
+      expectedOutHex := "feffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
   ]
 
 /-- Find a test case by name. -/
