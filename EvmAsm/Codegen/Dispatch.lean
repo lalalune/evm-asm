@@ -54,7 +54,16 @@ structure OpcodeHandlerSpec where
   /-- Verified RV64 body, rendered verbatim via `emitProgram`.
       May be empty (e.g. STOP has no work to do before exiting). -/
   body    : Program
-  /-- Tail emitted after the body. -/
+  /-- Optional label emitted *between* the verified body and the tail.
+      Used by M9's trampoline pattern for handlers whose verified
+      bodies end with a saved-ra-ret (`JALR x0, x18, 0`): the body's
+      ret-jump targets this label (set in `preBody` via
+      `la x18, <postBodyLabel>`), and the tail then restores `x10`
+      and falls through. Handlers that return cleanly via the
+      standard `addi; ret` tail leave this `none` — emission is then
+      byte-identical to pre-M9. -/
+  postBodyLabel : Option String := none
+  /-- Tail emitted after the body (or after `postBodyLabel:` if set). -/
   tail    : HandlerTail
 
 namespace OpcodeHandlerSpec
@@ -67,12 +76,17 @@ def emitTail : HandlerTail → String
 /-- Render the handler as a labeled subroutine. Empty bodies (STOP,
     INVALID-style entries) skip the body line entirely to avoid a
     blank line after the label. `preBody` is inserted between the
-    label and the body (used for clobber-saving). -/
+    label and the body (used for clobber-saving). `postBodyLabel`,
+    when set, emits an additional label between the body and the
+    tail (M9 trampoline pattern). -/
 def emitSubroutine (h : OpcodeHandlerSpec) : String :=
   let preLine  := if h.preBody.isEmpty then "" else h.preBody ++ "\n"
   let bodyText := emitProgram h.body
   let bodyLine := if bodyText.isEmpty then "" else bodyText ++ "\n"
-  s!"{h.label}:\n" ++ preLine ++ bodyLine ++ emitTail h.tail
+  let postLine := match h.postBodyLabel with
+                  | some lbl => s!"{lbl}:\n"
+                  | none     => ""
+  s!"{h.label}:\n" ++ preLine ++ bodyLine ++ postLine ++ emitTail h.tail
 
 end OpcodeHandlerSpec
 
