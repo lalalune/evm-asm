@@ -95,29 +95,221 @@ theorem evm_mod_callable_code_v1_eq_current (base : Word) :
     evm_mod_callable_code_v1 base = evm_mod_callable_code base := by
   rfl
 
+-- ----------------------------------------------------------------------------
+-- Legacy v1 code subsumption lemmas
+-- ----------------------------------------------------------------------------
+
+private theorem callable_b0_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg b (divK_phaseA 1020)) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  exact CodeReq.union_mono_left
+private theorem callable_b1_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseBOff) divK_phaseB) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b2_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + clzOff) divK_clz) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b3_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseC2Off) (divK_phaseC2 172)) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b4_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normBOff) divK_normB) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b5_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normAOff) (divK_normA 40)) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b6_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + copyAUOff) divK_copyAU) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b7_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopSetupOff) (divK_loopSetup 464)) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  exact CodeReq.union_mono_left
+private theorem callable_b8_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopBodyOff) (divK_loopBody 560 7736)) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  exact CodeReq.union_mono_left
+private theorem callable_b9_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + denormOff) divK_denorm) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b10_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + epilogueOff) (divK_div_epilogue 24)) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b11_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + zeroPathOff) divK_zeroPath) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b12_div_v1 {b : Word} :
+    ∀ a i, (cc_ret_code (b + nopOff)) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC
+  skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC
+  exact CodeReq.union_mono_left
+private theorem callable_b13_div_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + div128Off) divK_div128) a = some i →
+      (evm_div_callable_code_v1 b) a = some i := by
+  unfold evm_div_callable_code_v1; simp only [CodeReq.unionAll_cons, cc_ret_code]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlockCC; exact CodeReq.union_mono_left
+
+private theorem callable_b0_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg b (divK_phaseA 1020)) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  exact CodeReq.union_mono_left
+private theorem callable_b1_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseBOff) divK_phaseB) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b2_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + clzOff) divK_clz) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b3_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseC2Off) (divK_phaseC2 172)) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b4_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normBOff) divK_normB) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b5_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normAOff) (divK_normA 40)) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b6_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + copyAUOff) divK_copyAU) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b7_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopSetupOff) (divK_loopSetup 464)) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  exact CodeReq.union_mono_left
+private theorem callable_b8_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopBodyOff) (divK_loopBody 560 7736)) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  exact CodeReq.union_mono_left
+private theorem callable_b9_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + denormOff) divK_denorm) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b10_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + epilogueOff) (divK_mod_epilogue 24)) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b11_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + zeroPathOff) divK_zeroPath) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem callable_b12_mod_v1 {b : Word} :
+    ∀ a i, (cc_ret_code (b + nopOff)) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons]
+  skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC
+  skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC; skipBlockCC
+  exact CodeReq.union_mono_left
+private theorem callable_b13_mod_v1 {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + div128Off) divK_div128) a = some i →
+      (evm_mod_callable_code_v1 b) a = some i := by
+  unfold evm_mod_callable_code_v1; simp only [CodeReq.unionAll_cons, cc_ret_code]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlockCC; exact CodeReq.union_mono_left
+
 theorem divCode_noNop_sub_div_callable_code_v1 {base : Word} :
     ∀ a i, (divCode_noNop base) a = some i →
            (evm_div_callable_code_v1 base) a = some i := by
-  simpa [evm_div_callable_code_v1_eq_current]
-    using divCode_noNop_sub_div_callable_code (base := base)
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]
+  exact CodeReq.union_split_mono callable_b0_div_v1
+    (CodeReq.union_split_mono callable_b1_div_v1
+    (CodeReq.union_split_mono callable_b2_div_v1
+    (CodeReq.union_split_mono callable_b3_div_v1
+    (CodeReq.union_split_mono callable_b4_div_v1
+    (CodeReq.union_split_mono callable_b5_div_v1
+    (CodeReq.union_split_mono callable_b6_div_v1
+    (CodeReq.union_split_mono callable_b7_div_v1
+    (CodeReq.union_split_mono callable_b8_div_v1
+    (CodeReq.union_split_mono callable_b9_div_v1
+    (CodeReq.union_split_mono callable_b10_div_v1
+    (CodeReq.union_split_mono callable_b11_div_v1
+    (CodeReq.union_split_mono callable_b13_div_v1
+    (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
 
 theorem modCode_noNop_sub_mod_callable_code_v1 {base : Word} :
     ∀ a i, (modCode_noNop base) a = some i →
            (evm_mod_callable_code_v1 base) a = some i := by
-  simpa [evm_mod_callable_code_v1_eq_current]
-    using modCode_noNop_sub_mod_callable_code (base := base)
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]
+  exact CodeReq.union_split_mono callable_b0_mod_v1
+    (CodeReq.union_split_mono callable_b1_mod_v1
+    (CodeReq.union_split_mono callable_b2_mod_v1
+    (CodeReq.union_split_mono callable_b3_mod_v1
+    (CodeReq.union_split_mono callable_b4_mod_v1
+    (CodeReq.union_split_mono callable_b5_mod_v1
+    (CodeReq.union_split_mono callable_b6_mod_v1
+    (CodeReq.union_split_mono callable_b7_mod_v1
+    (CodeReq.union_split_mono callable_b8_mod_v1
+    (CodeReq.union_split_mono callable_b9_mod_v1
+    (CodeReq.union_split_mono callable_b10_mod_v1
+    (CodeReq.union_split_mono callable_b11_mod_v1
+    (CodeReq.union_split_mono callable_b13_mod_v1
+    (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
 
 theorem evm_div_callable_code_v1_ret_sub {base : Word} :
     ∀ a i, (CodeReq.singleton (base + nopOff) (.JALR .x0 .x1 0)) a = some i →
       (evm_div_callable_code_v1 base) a = some i := by
-  simpa [evm_div_callable_code_v1_eq_current]
-    using evm_div_callable_code_ret_sub (base := base)
+  intro a i h
+  apply callable_b12_div_v1
+  unfold cc_ret_code cc_ret
+  simpa [CodeReq.ofProg] using h
 
 theorem evm_mod_callable_code_v1_ret_sub {base : Word} :
     ∀ a i, (CodeReq.singleton (base + nopOff) (.JALR .x0 .x1 0)) a = some i →
       (evm_mod_callable_code_v1 base) a = some i := by
-  simpa [evm_mod_callable_code_v1_eq_current]
-    using evm_mod_callable_code_ret_sub (base := base)
+  intro a i h
+  apply callable_b12_mod_v1
+  unfold cc_ret_code cc_ret
+  simpa [CodeReq.ofProg] using h
 
 theorem evm_div_callable_v1_spec_from_noNop (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
