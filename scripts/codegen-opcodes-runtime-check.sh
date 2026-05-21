@@ -76,7 +76,7 @@ while IFS=$'\t' read -r name expected bytecode_csv; do
 
   echo "==> ziskemu -e runtime_dispatcher.elf -i gen-out/$name.input"
   "$ZISKEMU" -e gen-out/runtime_dispatcher.elf -i "gen-out/$name.input" \
-    -o "gen-out/$name.output" -n 200000 \
+    -o "gen-out/$name.output" -n 500000 \
     >"gen-out/$name.emu.log" 2>&1
 
   actual="$(xxd -p -c 64 -l 32 "gen-out/$name.output" | tr -d '\n')"

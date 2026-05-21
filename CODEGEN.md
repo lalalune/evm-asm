@@ -38,7 +38,7 @@ untouched. Generated artifacts go in `gen-out/` (gitignored).
 | `EvmAsm/Codegen.lean` | Top-level umbrella (mirrors `EvmAsm/Rv64.lean`, `EvmAsm/Evm64.lean`). |
 | `EvmAsm/Codegen/Emit.lean` | Pure `emitReg`, `emitInstr`, `emitProgram` — `Instr → String`. No `IO`. |
 | `EvmAsm/Codegen/Layout.lean` | `HaltConv` enum, halt stubs, `_start` preamble, `.option norvc`, `MEM_START`/`MEM_END` constants, `BuildUnit` struct + `emitBuildUnit`/`emitDataLabel` helpers. |
-| `EvmAsm/Codegen/Dispatch.lean` | M5b dispatcher scaffolding: `OpcodeHandlerSpec` (with optional `preBody` for x10-clobbering handlers) + `HandlerTail` types, `emitDispatcherPrologue`/`Epilogue`/`DataSection` and `buildDispatchUnit` helpers. M8.5 adds the parallel runtime-bytecode helpers (`emitRuntimeDispatcherPrologue` / `emitRuntimeDispatcherDataSection` / `buildRuntimeDispatchUnit`) that read bytecode from `INPUT_ADDR + INPUT_DATA_OFFSET` at runtime. Pure (no IO). |
+| `EvmAsm/Codegen/Dispatch.lean` | M5b dispatcher scaffolding: `OpcodeHandlerSpec` (optional `preBody` for x10-clobbering handlers + optional `postBodyLabel` for M9's trampoline pattern) + `HandlerTail` types, `emitDispatcherPrologue`/`Epilogue`/`DataSection` and `buildDispatchUnit` helpers. M8.5 adds the parallel runtime-bytecode helpers (`emitRuntimeDispatcherPrologue` / `emitRuntimeDispatcherDataSection` / `buildRuntimeDispatchUnit`) that read bytecode from `INPUT_ADDR + INPUT_DATA_OFFSET` at runtime. Pure (no IO). |
 | `EvmAsm/Codegen/Programs.lean` | Registry (`smoke`, `evm_add`, `evm_div`, `evm_mod`, `input_echo`, `evm_add_from_input`, `evm_div_from_input`, `evm_mod_from_input`, `tiny_interp_{add,add2}`, `tiny_interp_dispatch_{add,add2}` → `BuildUnit`) plus the M5b opcode handler registry (`tinyInterpRegistry`) composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (17 fixed-shape opcodes), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `stopHandler`; shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched` for the DIV/MOD NOP-splice). |
 | `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list. Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
 | `EvmAsm/Codegen/Cli.lean` | Argument parsing (`--program`, `--test-case`, `--list-test-cases`, `--halt`, `--out`, `--asm-only`). |
@@ -617,14 +617,73 @@ cases PASS. Pre-existing M2/M4/M5/M7/M8 scripts unchanged.
 PROGRESS.md regenerated (program count 16 → 17, script count
 14 → 15).
 
+### M9 — SDIV / SMOD via trampoline wrapper (M) — **DONE (2026-05-21)**
+
+Closes the M8 scope-reduction debt: SDIV (0x05) and SMOD (0x07)
+now route through `tinyInterpRegistry`. New trampoline wrapper
+pattern via a `postBodyLabel : Option String` field on
+`OpcodeHandlerSpec` — generalisable to any future opcode whose
+verified body ends with a saved-ra-ret (`JALR x0, x18, 0`).
+
+**Delivered:**
+- `EvmAsm/Codegen/Dispatch.lean` — extended `OpcodeHandlerSpec`
+  with `postBodyLabel : Option String := none`. `emitSubroutine`
+  emits an optional label between body and tail. Handlers that
+  leave this `none` (all M5b–M8 handlers) emit byte-identical
+  asm.
+- `EvmAsm/Codegen/Programs.lean` — new helpers:
+  - `evmSdivPatched := (evm_sdiv : List Instr).drop 1` — strips
+    the leading `ADDI .x18 .x1 0` save_ra_block (413 instructions
+    instead of 414).
+  - `evmSmodPatched := (evm_smod : List Instr).drop 1` — same.
+  - `signedDivModTail` — restores `x10` from `x14`, advances PC,
+    then `j .dispatch_loop` (NOT `ret`: the wrapper's inner
+    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable`
+    clobbers x1, so a standard `ret` would jump to garbage).
+  - `signedDivModHandlers` — two entries (`h_SDIV`, `h_SMOD`).
+    Each carries `preBody := "  mv x14, x10\n  la x18, h_<NAME>_done"`,
+    `postBodyLabel := some "h_<NAME>_done"`, and `tail := signedDivModTail`.
+  - `tinyInterpRegistry` appends `signedDivModHandlers` between
+    `divModHandlers` and `[stopHandler]`.
+- `EvmAsm/Codegen/Tests/Cases.lean` — three new cases:
+  `sdiv_basic` (5/2 = 2, positive path), `sdiv_negative` (NOT trick
+  → −2 / 2 = −1, exercises sign-extract + conditional-negate),
+  `smod_negative` (NOT trick → −2 % 5 = −2, sign(result) = sign(a)
+  per EVM SMOD semantics).
+- `scripts/codegen-opcodes-runtime-check.sh` — bumped per-case
+  step budget from 200K to 500K. SDIV/SMOD's Knuth-D inner loop
+  plus the trampoline overhead pushes beyond 200K even for small
+  operands; the legacy `codegen-evm_div-check.sh` already used 500K.
+
+**Trampoline mechanics gotcha.** First attempt used `divModTail`
+(= `mv x10, x14; addi; ret`) for the SDIV/SMOD restore stub —
+ziskemu hung with `EmulationNoCompleted`. Cause: the wrapper's
+inner `JAL .x1` into the callable divider clobbers `x1`, so by
+the time control reaches the restore stub, `x1` no longer points
+at the dispatcher's continuation. Fix: replaced `ret` with
+`j .dispatch_loop` (a direct jump to the dispatcher loop entry,
+bypassing the `x1`-mediated return).
+
+**SMOD v4 caveat (carried over from M8).** `evm_smod` still uses
+the legacy non-v4 `evm_mod_callable`. SDIV migrated to v4 in
+commit `43bb53070`; SMOD's surface hasn't flipped yet. When the
+verification track migrates SMOD, this entry rebinds to the new
+symbol with no other changes.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 29
+cases PASS (26 prior + 3 new). Legacy `codegen-opcodes-check.sh`
+also exits 0. Pre-existing M2/M4/M5/M7/M8/M8.5 scripts unchanged.
+PROGRESS.md needs only a snapshot-line bump (ignored by CI's
+drift check) — no commit.
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
-emission unreadable. M8.5 unblocks the next opcode batches (M9
-SDIV/SMOD trampoline, M10 ADDMOD/EXP callable, M11 control flow)
-by keeping the test suite fast.
+emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
+`callableLabel?`) and the rest of the long arc.
 
 ## Tricky bits / open questions
 
@@ -724,15 +783,17 @@ by keeping the test suite fast.
   of baking it into `.data`. Suite runtime dropped from ~60 s to
   ~20 s (3× speedup). Legacy `codegen-opcodes-check.sh` still
   passes as the fallback.
+- **M9.** ✅ `scripts/codegen-opcodes-runtime-check.sh` exits 0 with
+  **29 test cases** PASS (validated 2026-05-21). SDIV (0x05) and
+  SMOD (0x07) wired via the new trampoline pattern + the
+  `OpcodeHandlerSpec.postBodyLabel : Option String` field.
+  `signedDivModTail` uses `j .dispatch_loop` instead of `ret`
+  because the wrapper's inner `JAL .x1` clobbers x1 mid-body.
 
-## Future work (post-M8.5)
+## Future work (post-M9)
 
 Near-term:
 
-- **M9 — SDIV / SMOD trampoline.** Adds 2 opcodes. New trampoline
-  wrapper for handlers whose verified bodies end with a saved-ra-ret
-  (`JALR x0, x18, 0`): pre-stage `x18` to a per-handler restore stub
-  before the body runs, splice off the body's initial save_ra_block.
 - **M10 — ADDMOD / EXP via `callableLabel?`.** Adds 2 opcodes that
   internally `JAL` to callable variants of other handlers (`evm_mul`
   for EXP, MOD for ADDMOD). Needs a new `callableLabel?` field on
