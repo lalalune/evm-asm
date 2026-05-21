@@ -15,7 +15,7 @@
   Issue #1337 algorithm fix migration / Issue #61 stack spec closure.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Div128
+import EvmAsm.Evm64.DivMod.Compose.Div128Post
 import EvmAsm.Evm64.DivMod.Compose.V4NoNop
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2v4
 import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
