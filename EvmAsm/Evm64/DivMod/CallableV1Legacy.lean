@@ -417,11 +417,18 @@ theorem evm_div_callable_v1_spec_from_noNop_branch_return_x1 (sp base : Word)
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0)
       (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ branch.returnX1)) := by
-  simpa [evm_div_callable_code_v1_eq_current]
-    using evm_div_callable_spec_from_noNop_branch_return_x1
-      sp base a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+  have hpcFreePost : (divStackDispatchPostNoX1 sp a b).pcFree := by
+    rw [divStackDispatchPostNoX1_unfold]
+    rw [divScratchOwnCall_unfold, divScratchOwn_unfold]
+    pcFree
+  have hStackCall :=
+    cpsTripleWithin_extend_code (hmono := divCode_noNop_sub_div_callable_code_v1) hStack
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_div_callable_code_v1_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) branch.returnX1)
+  have hRetFramed :=
+    cpsTripleWithin_frameL (divStackDispatchPostNoX1 sp a b) hpcFreePost hRet
+  exact cpsTripleWithin_seq_same_cr hStackCall hRetFramed
 
 theorem evm_div_callable_v1_spec_from_noNop_branch_return_x1_framed
     {F : Assertion} [Assertion.PCFree F] (sp base : Word)
