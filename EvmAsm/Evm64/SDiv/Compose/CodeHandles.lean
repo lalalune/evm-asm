@@ -10,7 +10,7 @@ import EvmAsm.Evm64.SDiv.Compose.BaseOffsets
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
-/-- Legacy verified SDIV code region handle: wrapper followed by `evm_div_callable`. -/
+/-- Legacy verified SDIV code region handle: wrapper followed by `evm_div_callable_v1`. -/
 abbrev sdivCode (base : Word) : EvmAsm.Rv64.CodeReq :=
   EvmAsm.Rv64.CodeReq.ofProg base EvmAsm.Evm64.evm_sdiv_legacy
 
@@ -50,7 +50,7 @@ abbrev divisorAbsCode (base : Word) : EvmAsm.Rv64.CodeReq :=
 abbrev signXorCode (base : Word) : EvmAsm.Rv64.CodeReq :=
   EvmAsm.Rv64.CodeReq.ofProg (base + signXorOff) (EvmAsm.Rv64.XOR' .x8 .x8 .x9)
 
-/-- Code handle for the near call into `evm_div_callable`. -/
+/-- Code handle for the near call into the legacy v1 DIV callable. -/
 abbrev divCallCode (base : Word) : EvmAsm.Rv64.CodeReq :=
   EvmAsm.Rv64.CodeReq.ofProg (base + divCallOff)
     (EvmAsm.Evm64.evm_sdiv_div_call_block EvmAsm.Evm64.evm_sdivCallOff)
@@ -66,9 +66,9 @@ abbrev savedRaRetCode (base : Word) : EvmAsm.Rv64.CodeReq :=
   EvmAsm.Rv64.CodeReq.ofProg (base + savedRaRetOff)
     (EvmAsm.Evm64.evm_sdiv_saved_ra_ret_block .x18)
 
-/-- Code handle for the appended unsigned divider callable. -/
+/-- Code handle for the appended legacy v1 unsigned divider callable. -/
 abbrev divCallableCode (base : Word) : EvmAsm.Rv64.CodeReq :=
-  EvmAsm.Rv64.CodeReq.ofProg (base + wrapperEndOff) EvmAsm.Evm64.evm_div_callable
+  EvmAsm.Rv64.CodeReq.ofProg (base + wrapperEndOff) EvmAsm.Evm64.evm_div_callable_v1
 
 /-- Code handle for the appended v4 unsigned divider callable. -/
 abbrev divCallableCodeV4 (base : Word) : EvmAsm.Rv64.CodeReq :=
