@@ -416,7 +416,6 @@ theorem divK_loop_body_n1_call_skip_j0_v4_spec_within
       rw [sepConj_assoc'] at hp; xperm_hyp hp)
     full
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=1, call+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 theorem divK_loop_body_n1_call_skip_j0_spec_within
