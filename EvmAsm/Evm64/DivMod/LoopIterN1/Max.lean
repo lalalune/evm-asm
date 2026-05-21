@@ -17,7 +17,6 @@ open EvmAsm.Rv64
 -- n=1, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=1, max+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 theorem divK_loop_body_n1_max_skip_j0_spec_within
