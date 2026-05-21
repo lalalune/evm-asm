@@ -1213,6 +1213,15 @@ def isAddbackCarry2NzN1CallV4
   isAddbackCarry2Nz (divKTrialCallV4QHat u1 u0 v0)
     v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
+/-- Specialize the universal double-addback carry hypothesis to the quotient
+    selected by the v4 n=1 call path. -/
+theorem isAddbackCarry2NzN1CallV4_of_carry2All
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
+    isAddbackCarry2NzN1CallV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  unfold isAddbackCarry2NzN1CallV4
+  exact hcarry2 (divKTrialCallV4QHat u1 u0 v0) u0 u1 u2 u3 uTop
+
 /-- Expand the compact v4 n=1 call carry predicate into the raw
     double-addback progress hypothesis expected by the j=3 call-body spec. -/
 theorem isAddbackCarry2NzN1CallV4_raw
@@ -1377,6 +1386,21 @@ def loopN1CallMaxmaxmaxExactHypotheses
   Carry2NzAll v0 v1 v2 v3 ∧
   isAddbackCarry2NzN1CallV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
+/-- Build the compact N1 call/max/max/max exact-path hypothesis bundle from
+    the branch facts plus the universal carry2 assumption. -/
+theorem loopN1CallMaxmaxmaxExactHypotheses_of_branches
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
+    (hbltu3 : BitVec.ult u1 v0)
+    (hbranches : loopN1CallMaxmaxmaxBranchFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1)
+    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
+    loopN1CallMaxmaxmaxExactHypotheses
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 := by
+  unfold loopN1CallMaxmaxmaxExactHypotheses
+  exact ⟨hbltu3, hbranches, hcarry2,
+    isAddbackCarry2NzN1CallV4_of_carry2All
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop hcarry2⟩
+
 /-- Project the j=3 BLTU-taken fact from the compact N1 call/max/max/max hypotheses. -/
 theorem loopN1CallMaxmaxmaxExactHypotheses_hbltu3
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
@@ -1467,6 +1491,20 @@ def loopN1CallMaxmaxmaxExactInputHypotheses
   loopN1CallMaxmaxmaxExactHypotheses
     I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1
 
+/-- Build the bundled N1 call/max/max/max exact-path hypothesis wrapper
+    from the bundled branch facts plus the universal carry2 assumption. -/
+theorem loopN1CallMaxmaxmaxExactInputHypotheses_of_branches
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hbltu3 : BitVec.ult I.u1 I.v0)
+    (hbranches : loopN1CallMaxmaxmaxBranchFacts
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1)
+    (hcarry2 : Carry2NzAll I.v0 I.v1 I.v2 I.v3) :
+    loopN1CallMaxmaxmaxExactInputHypotheses I := by
+  unfold loopN1CallMaxmaxmaxExactInputHypotheses
+  exact loopN1CallMaxmaxmaxExactHypotheses_of_branches
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1
+    hbltu3 hbranches hcarry2
+
 /-- Project the j=3 BLTU-taken fact from bundled N1 call/max/max/max inputs. -/
 theorem loopN1CallMaxmaxmaxExactInputHypotheses_hbltu3
     (I : LoopN1CallMaxmaxmaxExactInputs)
@@ -1536,5 +1574,319 @@ theorem loopN1CallMaxmaxmaxExactInputHypotheses_hbltu0
   exact loopN1CallMaxmaxmaxBranchFacts_hbltu0
     I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1
     (loopN1CallMaxmaxmaxExactInputHypotheses_branches I h)
+
+/-- Bundled alignment condition for the v4 div128 call return address. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxExactInputAligned
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Prop :=
+  ((I.base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+    ~~~(1 : Word) = I.base + div128CallRetOff
+
+/-- Unpack bundled alignment into the raw equality expected by the j=3 call step. -/
+theorem loopN1CallMaxmaxmaxExactInputAligned_raw
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (h : loopN1CallMaxmaxmaxExactInputAligned I) :
+    ((I.base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+      ~~~(1 : Word) = I.base + div128CallRetOff := by
+  unfold loopN1CallMaxmaxmaxExactInputAligned at h
+  exact h
+
+/-- Bundled statement for the first j=3 call-body step of the N1
+    call/max/max/max exact path. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxJ3ExactInputSpec
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Prop :=
+  cpsTripleWithin 224 (I.base + loopBodyOff) (I.base + loopBodyOff)
+    (divCode_noNop_v4 I.base)
+    (loopN1CallMaxmaxmaxScratchPreNoX1 I.sp
+      I.jOld I.v5Old I.v6Old I.v7Old I.v10Old I.v11Old I.v2Old
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+      I.u0Orig2 I.u0Orig1 I.u0Orig0 I.q3Old I.q2Old I.q1Old I.q0Old
+      I.retMem I.dMem I.dloMem I.scratchUn0 I.scratchMem ** (.x1 ↦ᵣ I.raVal))
+    (loopIterPostN1CallScratchNoX1 I.sp I.base (3 : Word)
+      (divKTrialCallV4QHat I.u1 I.u0 I.v0)
+      (divKTrialCallV4DLo I.v0)
+      (divKTrialCallV4Un0 I.u0)
+      (divKTrialCallV4ScratchOut I.u1 I.u0 I.v0 I.scratchMem)
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop **
+      (.x1 ↦ᵣ I.raVal) **
+      ((I.sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat +
+        signExtend12 0) ↦ₘ I.u0Orig2) **
+      ((I.sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ I.q2Old) **
+      ((I.sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat +
+        signExtend12 0) ↦ₘ I.u0Orig1) **
+      ((I.sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ I.q1Old) **
+      ((I.sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat +
+        signExtend12 0) ↦ₘ I.u0Orig0) **
+      ((I.sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ I.q0Old))
+
+/-- Prove the bundled first j=3 call-body step from the bundled input
+    alignment and branch/carry hypotheses. -/
+theorem divK_loop_n1_call_j3_exact_x1_framed_v4_noNop_input
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (halign : loopN1CallMaxmaxmaxExactInputAligned I)
+    (hh : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    loopN1CallMaxmaxmaxJ3ExactInputSpec I := by
+  unfold loopN1CallMaxmaxmaxJ3ExactInputSpec
+  exact divK_loop_n1_call_j3_exact_x1_framed_v4_noNop I.sp I.base
+    I.jOld I.v5Old I.v6Old I.v7Old I.v10Old I.v11Old I.v2Old
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+    I.u0Orig2 I.u0Orig1 I.u0Orig0 I.q3Old I.q2Old I.q1Old I.q0Old
+    I.retMem I.dMem I.dloMem I.scratchUn0 I.scratchMem I.raVal
+    (loopN1CallMaxmaxmaxExactInputAligned_raw I halign)
+    (loopN1CallMaxmaxmaxExactInputHypotheses_hbltu3 I hh)
+    (isAddbackCarry2NzN1CallV4_raw I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+      (loopN1CallMaxmaxmaxExactInputHypotheses_carry2Call I hh))
+
+/-- Bundled statement for the j=2/j=1/j=0 all-max tail after the first
+    j=3 call-body step in the N1 call/max/max/max exact path. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxIter210ExactInputSpec
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Prop :=
+  let r3 := loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+  cpsTripleWithin 556 (I.base + loopBodyOff) (I.base + denormOff)
+    (divCode_noNop_v4 I.base)
+    (loopN1Iter210PreWithScratchNoX1 I.sp
+      I.jOld I.v5Old I.v6Old I.v7Old I.v10Old I.v11Old I.v2Old
+      I.v0 I.v1 I.v2 I.v3
+      I.u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+      I.u0Orig1 I.u0Orig0 I.q2Old I.q1Old I.q0Old
+      (I.base + div128CallRetOff) I.v0 (divKTrialCallV4DLo I.v0)
+      (divKTrialCallV4Un0 I.u0) ** (.x1 ↦ᵣ I.raVal))
+    (loopN1Iter210PostNoX1 false false false I.sp I.base I.v0 I.v1 I.v2 I.v3
+      I.u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+      I.u0Orig1 I.u0Orig0 (I.base + div128CallRetOff) I.v0
+      (divKTrialCallV4DLo I.v0) (divKTrialCallV4Un0 I.u0) ** (.x1 ↦ᵣ I.raVal))
+
+/-- Prove the bundled all-max tail after the first j=3 call-body step. -/
+theorem divK_loop_n1_call_iter210_exact_x1_framed_v4_noNop_input
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    loopN1CallMaxmaxmaxIter210ExactInputSpec I := by
+  unfold loopN1CallMaxmaxmaxIter210ExactInputSpec
+  let r3 := loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+  exact divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop I.sp I.base
+    I.jOld I.v5Old I.v6Old I.v7Old I.v10Old I.v11Old I.v2Old
+    I.v0 I.v1 I.v2 I.v3
+    I.u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+    I.u0Orig1 I.u0Orig0 I.q2Old I.q1Old I.q0Old
+    (I.base + div128CallRetOff) I.v0 (divKTrialCallV4DLo I.v0)
+    (divKTrialCallV4Un0 I.u0) I.raVal
+    (by
+      dsimp only [r3]
+      exact loopN1CallMaxmaxmaxExactInputHypotheses_hbltu2 I hh)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxExactInputHypotheses_hbltu1 I hh
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxExactInputHypotheses_hbltu0 I hh
+      unfold loopN1CallMaxmaxmaxR1 at h
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (loopN1CallMaxmaxmaxExactInputHypotheses_carry2 I hh)
+
+/-- Actual assertion produced by the bundled j=3 call-body step, including
+    the cells framed for the following all-max tail. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxJ3PostInput
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Assertion :=
+  loopIterPostN1CallScratchNoX1 I.sp I.base (3 : Word)
+    (divKTrialCallV4QHat I.u1 I.u0 I.v0)
+    (divKTrialCallV4DLo I.v0)
+    (divKTrialCallV4Un0 I.u0)
+    (divKTrialCallV4ScratchOut I.u1 I.u0 I.v0 I.scratchMem)
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop **
+  (.x1 ↦ᵣ I.raVal) **
+  ((I.sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat +
+    signExtend12 0) ↦ₘ I.u0Orig2) **
+  ((I.sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ I.q2Old) **
+  ((I.sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat +
+    signExtend12 0) ↦ₘ I.u0Orig1) **
+  ((I.sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ I.q1Old) **
+  ((I.sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat +
+    signExtend12 0) ↦ₘ I.u0Orig0) **
+  ((I.sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ I.q0Old)
+
+/-- Frame cells carried around the j=2/j=1/j=0 all-max tail after the
+    bundled j=3 call-body step. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxIter210FrameInput
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Assertion :=
+  let r3 := loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+  let uBase3 := I.sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
+  let qAddr3 := I.sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
+  ((uBase3 + signExtend12 4064) ↦ₘ r3.2.2.2.2.2) **
+  (qAddr3 ↦ₘ r3.1) **
+  (I.sp + signExtend12 3936 ↦ₘ divKTrialCallV4ScratchOut I.u1 I.u0 I.v0 I.scratchMem)
+
+/-- The j=3 frame carried around the all-max tail is PC-free. -/
+theorem loopN1CallMaxmaxmaxIter210FrameInput_pcFree
+    (I : LoopN1CallMaxmaxmaxExactInputs) :
+    (loopN1CallMaxmaxmaxIter210FrameInput I).pcFree := by
+  delta loopN1CallMaxmaxmaxIter210FrameInput
+  pcFree
+
+instance pcFreeInst_loopN1CallMaxmaxmaxIter210FrameInput
+    (I : LoopN1CallMaxmaxmaxExactInputs) :
+    Assertion.PCFree (loopN1CallMaxmaxmaxIter210FrameInput I) :=
+  ⟨loopN1CallMaxmaxmaxIter210FrameInput_pcFree I⟩
+
+/-- Bundled framed all-max tail from the actual j=3 post to the final
+    N1 call/max/max/max scratch post. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxIter210FramedExactInputSpec
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Prop :=
+  cpsTripleWithin 556 (I.base + loopBodyOff) (I.base + denormOff)
+    (divCode_noNop_v4 I.base)
+    (loopN1CallMaxmaxmaxJ3PostInput I)
+    (loopN1CallMaxmaxmaxScratchPostNoX1 I.sp I.base
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+      I.u0Orig2 I.u0Orig1 I.u0Orig0 I.scratchMem ** (.x1 ↦ᵣ I.raVal))
+
+/-- The precondition required by the framed all-max tail after the actual
+    bundled j=3 call-body step. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxIter210FramedPreInput
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Assertion :=
+  let r3 := loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+  let c3 := (mulsubN4 (divKTrialCallV4QHat I.u1 I.u0 I.v0)
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3).2.2.2.2
+  let uBase3 := I.sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
+  let qAddr3 := I.sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
+  (loopN1Iter210PreWithScratchNoX1 I.sp
+    (3 : Word) ((3 : Word) <<< (3 : BitVec 6).toNat) uBase3 qAddr3 c3 r3.1
+    r3.2.2.2.2.1
+    I.v0 I.v1 I.v2 I.v3
+    I.u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+    I.u0Orig1 I.u0Orig0 I.q2Old I.q1Old I.q0Old
+    (I.base + div128CallRetOff) I.v0 (divKTrialCallV4DLo I.v0)
+    (divKTrialCallV4Un0 I.u0) ** (.x1 ↦ᵣ I.raVal)) **
+  loopN1CallMaxmaxmaxIter210FrameInput I
+
+/-- Rearrange the actual bundled j=3 post into the framed all-max tail
+    precondition. -/
+theorem loopN1CallMaxmaxmaxJ3PostInput_to_iter210FramedPre
+    (I : LoopN1CallMaxmaxmaxExactInputs) :
+    ∀ h,
+      loopN1CallMaxmaxmaxJ3PostInput I h →
+      loopN1CallMaxmaxmaxIter210FramedPreInput I h := by
+  intro h hp
+  delta loopN1CallMaxmaxmaxJ3PostInput loopN1CallMaxmaxmaxIter210FramedPreInput
+    loopN1CallMaxmaxmaxIter210FrameInput at hp ⊢
+  delta loopIterPostN1CallScratchNoX1 loopN1Iter210PreWithScratchNoX1
+    loopN1Iter210Pre loopExitPostN1 loopExitPost at hp ⊢
+  dsimp only at hp ⊢
+  have hj' := jpred_3
+  rw [hj', u_n1_j3_0_eq_j2_4088, u_n1_j3_4088_eq_j2_4080,
+      u_n1_j3_4080_eq_j2_4072, u_n1_j3_4072_eq_j2_4064] at hp
+  simp only [se12_32, se12_40, se12_48, se12_56] at hp ⊢
+  unfold loopN1CallMaxmaxmaxR3
+  rw [sepConj_assoc'] at hp
+  xperm_hyp hp
+
+/-- The post produced by framing the bundled all-max tail with the j=3
+    q/top/scratch cells. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxIter210FramedPostInput
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Assertion :=
+  let r3 := loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+  (loopN1Iter210PostNoX1 false false false I.sp I.base I.v0 I.v1 I.v2 I.v3
+    I.u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+    I.u0Orig1 I.u0Orig0 (I.base + div128CallRetOff) I.v0
+    (divKTrialCallV4DLo I.v0) (divKTrialCallV4Un0 I.u0) ** (.x1 ↦ᵣ I.raVal)) **
+  loopN1CallMaxmaxmaxIter210FrameInput I
+
+/-- Rearrange the framed all-max tail post into the final bundled N1
+    call/max/max/max scratch post. -/
+theorem loopN1CallMaxmaxmaxIter210FramedPostInput_to_scratchPost
+    (I : LoopN1CallMaxmaxmaxExactInputs) :
+    ∀ h,
+      loopN1CallMaxmaxmaxIter210FramedPostInput I h →
+      (loopN1CallMaxmaxmaxScratchPostNoX1 I.sp I.base
+        I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2 I.u0Orig1 I.u0Orig0 I.scratchMem ** (.x1 ↦ᵣ I.raVal)) h := by
+  intro h hp
+  delta loopN1CallMaxmaxmaxIter210FramedPostInput
+    loopN1CallMaxmaxmaxIter210FrameInput loopN1CallMaxmaxmaxScratchPostNoX1 at hp ⊢
+  unfold loopN1CallMaxmaxmaxR3 at hp
+  rw [sepConj_assoc'] at hp
+  xperm_hyp hp
+
+/-- The framed all-max tail over the compact pre/post assertions that sit
+    between the j=3 call-body step and the final scratch post. -/
+theorem divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_noNop_input
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    cpsTripleWithin 556 (I.base + loopBodyOff) (I.base + denormOff)
+      (divCode_noNop_v4 I.base)
+      (loopN1CallMaxmaxmaxIter210FramedPreInput I)
+      (loopN1CallMaxmaxmaxIter210FramedPostInput I) := by
+  unfold loopN1CallMaxmaxmaxIter210FramedPreInput
+    loopN1CallMaxmaxmaxIter210FramedPostInput
+  let r3 := loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+  let c3 := (mulsubN4 (divKTrialCallV4QHat I.u1 I.u0 I.v0)
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3).2.2.2.2
+  let uBase3 := I.sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
+  let qAddr3 := I.sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
+  have H210 := divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop I.sp I.base
+    (3 : Word) ((3 : Word) <<< (3 : BitVec 6).toNat) uBase3 qAddr3 c3 r3.1
+    r3.2.2.2.2.1
+    I.v0 I.v1 I.v2 I.v3
+    I.u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+    I.u0Orig1 I.u0Orig0 I.q2Old I.q1Old I.q0Old
+    (I.base + div128CallRetOff) I.v0 (divKTrialCallV4DLo I.v0)
+    (divKTrialCallV4Un0 I.u0) I.raVal
+    (by
+      dsimp only [r3]
+      exact loopN1CallMaxmaxmaxExactInputHypotheses_hbltu2 I hh)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxExactInputHypotheses_hbltu1 I hh
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxExactInputHypotheses_hbltu0 I hh
+      unfold loopN1CallMaxmaxmaxR1 at h
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (loopN1CallMaxmaxmaxExactInputHypotheses_carry2 I hh)
+  have H210f := cpsTripleWithin_frameR
+    (loopN1CallMaxmaxmaxIter210FrameInput I) (by pcFree) H210
+  exact H210f
+
+/-- Framed all-max tail from the actual bundled j=3 post to the final N1
+    call/max/max/max scratch post. -/
+theorem divK_loop_n1_call_iter210_framed_exact_x1_v4_noNop_input
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    loopN1CallMaxmaxmaxIter210FramedExactInputSpec I := by
+  unfold loopN1CallMaxmaxmaxIter210FramedExactInputSpec
+  exact cpsTripleWithin_weaken
+    (loopN1CallMaxmaxmaxJ3PostInput_to_iter210FramedPre I)
+    (loopN1CallMaxmaxmaxIter210FramedPostInput_to_scratchPost I)
+    (divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_noNop_input I hh)
+
+/-- Full bundled N1 call/max/max/max exact path: j=3 uses the v4 call
+    path and j=2/j=1/j=0 all use the all-max path. -/
+theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_noNop
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (halign : loopN1CallMaxmaxmaxExactInputAligned I)
+    (hh : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    loopN1CallMaxmaxmaxExactInputSpec I := by
+  unfold loopN1CallMaxmaxmaxExactInputSpec
+  unfold loopN1CallMaxmaxmaxExactX1ScratchSpec
+  have J3 := divK_loop_n1_call_j3_exact_x1_framed_v4_noNop_input I halign hh
+  unfold loopN1CallMaxmaxmaxJ3ExactInputSpec at J3
+  have Htail := divK_loop_n1_call_iter210_framed_exact_x1_v4_noNop_input I hh
+  unfold loopN1CallMaxmaxmaxIter210FramedExactInputSpec at Htail
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      unfold loopN1CallMaxmaxmaxJ3PostInput
+      exact hp)
+    J3 Htail
 
 end EvmAsm.Evm64
