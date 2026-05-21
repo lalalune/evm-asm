@@ -1274,6 +1274,28 @@ def loopN1CallMaxmaxmaxBranchFacts
   ¬BitVec.ult r2.2.1 v0 ∧
   ¬BitVec.ult r1.2.1 v0
 
+/-- Build the compact all-max branch-fact bundle from the three branch
+    conditions that follow the j=3 v4 call iteration. -/
+theorem loopN1CallMaxmaxmaxBranchFacts_of_bltu
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2).2.1 v0)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig2 u0Orig1).2.1 v0) :
+    loopN1CallMaxmaxmaxBranchFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 := by
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  unfold loopN1CallMaxmaxmaxBranchFacts
+  change (¬BitVec.ult r3.2.1 v0 ∧ ¬BitVec.ult r2.2.1 v0 ∧
+      ¬BitVec.ult r1.2.1 v0)
+  exact ⟨by simpa [r3] using hbltu2, by
+    exact ⟨by simpa [r2] using hbltu1, by simpa [r1] using hbltu0⟩⟩
+
 /-- The j=2 all-max branch fact packaged in
     `loopN1CallMaxmaxmaxBranchFacts`. -/
 theorem loopN1CallMaxmaxmaxBranchFacts_hbltu2
@@ -1474,6 +1496,69 @@ structure LoopN1CallMaxmaxmaxExactInputs where
   scratchMem : Word
   raVal : Word
 
+/-- Canonical bundled inputs for the full-DIV n=1 branch where the j=3
+    iteration uses the v4 call path and j=2/j=1/j=0 use all-max. -/
+def fullDivN1CallMaxmaxmaxExactInputs (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word) :
+    LoopN1CallMaxmaxmaxExactInputs :=
+  let v := fullDivN1NormV b0 b1 b2 b3
+  let u := fullDivN1NormU a0 a1 a2 a3 b0
+  { sp := sp
+    base := base
+    jOld := jOld
+    v5Old := v5Old
+    v6Old := v6Old
+    v7Old := v7Old
+    v10Old := v10Old
+    v11Old := v11Old
+    v2Old := v2Old
+    v0 := v.1
+    v1 := v.2.1
+    v2 := v.2.2.1
+    v3 := v.2.2.2
+    u0 := u.2.2.2.1
+    u1 := u.2.2.2.2
+    u2 := 0
+    u3 := 0
+    uTop := 0
+    u0Orig2 := u.2.2.1
+    u0Orig1 := u.2.1
+    u0Orig0 := u.1
+    q3Old := q3Old
+    q2Old := q2Old
+    q1Old := q1Old
+    q0Old := q0Old
+    retMem := retMem
+    dMem := dMem
+    dloMem := dloMem
+    scratchUn0 := scratchUn0
+    scratchMem := scratchMem
+    raVal := raVal }
+
+/-- The full-DIV n=1 j=3 trial predicate gives the j=3 taken branch fact
+    for the canonical call/max/max/max bundled inputs. -/
+theorem fullDivN1CallMaxmaxmaxExactInputs_hbltu3
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbltu3 : isTrialN1_j3 true a3 b0) :
+    BitVec.ult
+      (fullDivN1CallMaxmaxmaxExactInputs sp base
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        a0 a1 a2 a3 b0 b1 b2 b3
+        q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal).u1
+      (fullDivN1CallMaxmaxmaxExactInputs sp base
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        a0 a1 a2 a3 b0 b1 b2 b3
+        q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal).v0 := by
+  unfold isTrialN1_j3 at hbltu3
+  unfold fullDivN1CallMaxmaxmaxExactInputs fullDivN1NormU fullDivN1NormV
+    fullDivN1AntiShift fullDivN1Shift
+  simpa using hbltu3.symm
+
 /-- Spec wrapper specialized to bundled N1 call/max/max/max inputs. -/
 @[irreducible]
 def loopN1CallMaxmaxmaxExactInputSpec
@@ -1504,6 +1589,28 @@ theorem loopN1CallMaxmaxmaxExactInputHypotheses_of_branches
   exact loopN1CallMaxmaxmaxExactHypotheses_of_branches
     I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1
     hbltu3 hbranches hcarry2
+
+/-- Build the bundled N1 call/max/max/max exact-path hypotheses directly
+    from the four path branch facts and the universal carry2 assumption. -/
+theorem loopN1CallMaxmaxmaxExactInputHypotheses_of_bltu
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hbltu3 : BitVec.ult I.u1 I.v0)
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop).2.1
+      I.v0)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2).2.1 I.v0)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2 I.u0Orig1).2.1 I.v0)
+    (hcarry2 : Carry2NzAll I.v0 I.v1 I.v2 I.v3) :
+    loopN1CallMaxmaxmaxExactInputHypotheses I := by
+  exact loopN1CallMaxmaxmaxExactInputHypotheses_of_branches I hbltu3
+    (loopN1CallMaxmaxmaxBranchFacts_of_bltu
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1
+      hbltu2 hbltu1 hbltu0)
+    hcarry2
 
 /-- Project the j=3 BLTU-taken fact from bundled N1 call/max/max/max inputs. -/
 theorem loopN1CallMaxmaxmaxExactInputHypotheses_hbltu3
@@ -1888,5 +1995,26 @@ theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_noNop
       unfold loopN1CallMaxmaxmaxJ3PostInput
       exact hp)
     J3 Htail
+
+/-- Final bundled N1 call/max/max/max exact path, with hypotheses supplied
+    directly as path branch facts plus the universal carry2 assumption. -/
+theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_noNop_of_bltu
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (halign : loopN1CallMaxmaxmaxExactInputAligned I)
+    (hbltu3 : BitVec.ult I.u1 I.v0)
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop).2.1
+      I.v0)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2).2.1 I.v0)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2 I.u0Orig1).2.1 I.v0)
+    (hcarry2 : Carry2NzAll I.v0 I.v1 I.v2 I.v3) :
+    loopN1CallMaxmaxmaxExactInputSpec I := by
+  exact divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_noNop I halign
+    (loopN1CallMaxmaxmaxExactInputHypotheses_of_bltu I
+      hbltu3 hbltu2 hbltu1 hbltu0 hcarry2)
 
 end EvmAsm.Evm64
