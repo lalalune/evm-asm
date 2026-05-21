@@ -638,7 +638,7 @@ verified body ends with a saved-ra-ret (`JALR x0, x18, 0`).
   - `evmSmodPatched := (evm_smod : List Instr).drop 1` — same.
   - `signedDivModTail` — restores `x10` from `x14`, advances PC,
     then `j .dispatch_loop` (NOT `ret`: the wrapper's inner
-    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable`
+    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable_v4`
     clobbers x1, so a standard `ret` would jump to garbage).
   - `signedDivModHandlers` — two entries (`h_SDIV`, `h_SMOD`).
     Each carries `preBody := "  mv x14, x10\n  la x18, h_<NAME>_done"`,
@@ -664,11 +664,10 @@ at the dispatcher's continuation. Fix: replaced `ret` with
 `j .dispatch_loop` (a direct jump to the dispatcher loop entry,
 bypassing the `x1`-mediated return).
 
-**SMOD v4 caveat (carried over from M8).** `evm_smod` still uses
-the legacy non-v4 `evm_mod_callable`. SDIV migrated to v4 in
-commit `43bb53070`; SMOD's surface hasn't flipped yet. When the
-verification track migrates SMOD, this entry rebinds to the new
-symbol with no other changes.
+**SMOD v4 status.** `evm_smod` now uses the corrected
+`evm_mod_callable_v4` surface, matching the SDIV migration to
+`evm_div_callable_v4`. The runtime-dispatcher SMOD handler therefore
+exercises the migrated signed MOD implementation directly.
 
 **Exit criteria (met).**
 `scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 29
