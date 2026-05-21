@@ -81,4 +81,27 @@ theorem evm_div_callable_bzero_v4_preserving_x1_framed_spec
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         nMem shiftMem jMem retMem dMem dloMem scratchUn0 hbz)
 
+/-- v4 zero-divisor DIV callable wrapper with exact `x1` and no `x9` frame. -/
+theorem evm_div_callable_bzero_v4_preserving_x1_noX9_spec (sp base raVal : Word)
+    (a b : EvmWord) (v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hbz : b = 0) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_div_callable_code_v4 base)
+      (divModStackDispatchPreCallable sp a b
+        raVal v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (divStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) := by
+  exact
+    evm_div_callable_v4_spec_from_noNop_preserving_x1_noX9
+      sp base raVal a b v2 v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0
+      (evm_div_bzero_stack_spec_within_dispatch_noNop_v4_callable_x1_uni
+        sp base a b raVal v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0 hbz)
+
 end EvmAsm.Evm64
