@@ -5366,6 +5366,70 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderBasicDataSection
 }
 
+/-! ## u256_eq -- PR-K53 equality companion to PR-K50 u256_lt
+
+    Equality predicate on two 32-byte big-endian `u256` buffers.
+    Returns `1` if `a == b`, else `0`. Pair to PR-K50 `u256_lt`
+    so callers can express `a >= b` as `!u256_lt(a, b)` plus
+    optionally `u256_eq` for equality discrimination, or `a > b`
+    as `u256_lt(b, a)`, etc.
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u256 b ptr (32 bytes, BE)
+      ra (input)  : return
+      a0 (output) : 1 if a == b, 0 otherwise.
+
+    Pure register arithmetic, no scratch memory, leaf-callable.
+    Walks at most 32 bytes; short-circuits on the first
+    differing byte. -/
+def u256EqFunction : String :=
+  "u256_eq:\n" ++
+  "  li t0, 0                   # byte index\n" ++
+  "  li t6, 32\n" ++
+  ".Lu256eq_loop:\n" ++
+  "  beq t0, t6, .Lu256eq_yes   # 32 bytes equal → a == b\n" ++
+  "  add t1, a0, t0\n" ++
+  "  add t2, a1, t0\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bne t3, t4, .Lu256eq_no\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lu256eq_loop\n" ++
+  ".Lu256eq_yes:\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Lu256eq_no:\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_u256_eq`: probe BuildUnit. Reads (32B a, 32B b) from
+    host input, writes the u64 result. -/
+def ziskU256EqPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a2, 0x40000000\n" ++
+  "  addi a0, a2, 8              # a ptr\n" ++
+  "  addi a1, a2, 40             # b ptr (a + 32)\n" ++
+  "  jal ra, u256_eq\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # result\n" ++
+  "  j .Lu256eq_pdone\n" ++
+  u256EqFunction ++ "\n" ++
+  ".Lu256eq_pdone:"
+
+def ziskU256EqDataSection : String :=
+  ".section .data\n" ++
+  "u256eq_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256EqProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256EqPrologue
+  dataAsm     := ziskU256EqDataSection
+}
+
 /-! ## tx_type_dispatch -- PR-K40 typed-tx prefix detector
 
     Read the first byte of an RLP/typed-tx-encoded transaction
@@ -7527,6 +7591,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
+  | "zisk_u256_eq"              => some ziskU256EqProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -7587,6 +7652,7 @@ def knownProgramNames : List String :=
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_validate_header_basic",
+   "zisk_u256_eq",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
