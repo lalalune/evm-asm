@@ -66,7 +66,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_bzero_callable_spec_in_sdivCode
     ((.x8 ↦ᵣ resultSign) **
       (.x18 ↦ᵣ (vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12))))
   have hCallableRaw :=
-    EvmAsm.Evm64.evm_div_callable_bzero_preserving_x1_spec
+    EvmAsm.Evm64.evm_div_callable_bzero_v1_preserving_x1_spec
       sp (base + wrapperEndOff) divisorSign ((base + divCallOff) + 4)
       dividendAbsWord divisorAbsWord v2 v5 v6 divisorSum3 divisorMask divisorCarry3
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
