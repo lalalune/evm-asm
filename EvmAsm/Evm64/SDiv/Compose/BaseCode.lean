@@ -113,7 +113,7 @@ theorem sdivCode_divCallable_sub {base : Word} :
     ∀ a i, (divCallableCode base) a = some i → (sdivCode base) a = some i := by
   unfold divCallableCode sdivCode
   exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + wrapperEndOff)
-    EvmAsm.Evm64.evm_sdiv_legacy EvmAsm.Evm64.evm_div_callable 71
+    EvmAsm.Evm64.evm_sdiv_legacy EvmAsm.Evm64.evm_div_callable_v1 71
     (by simp [wrapperEndOff])
     (by native_decide)
     (by native_decide)
