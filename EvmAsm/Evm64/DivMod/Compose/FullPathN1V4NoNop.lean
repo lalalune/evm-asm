@@ -1205,4 +1205,167 @@ def loopN1CallMaxmaxmaxScratchPostNoX1 (sp base : Word)
   ((u_base_3 + signExtend12 4064) ↦ₘ r3.2.2.2.2.2) ** (q_addr_3 ↦ₘ r3.1) **
   (sp + signExtend12 3936 ↦ₘ divKTrialCallV4ScratchOut u1 u0 v0 scratchMem)
 
+/-- Double-addback progress for the v4 n=1 call path, using the quotient
+    selected by `divKTrialCallV4QHat`. -/
+@[irreducible]
+def isAddbackCarry2NzN1CallV4
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
+  isAddbackCarry2Nz (divKTrialCallV4QHat u1 u0 v0)
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+/-- Expand the compact v4 n=1 call carry predicate into the raw
+    double-addback progress hypothesis expected by the j=3 call-body spec. -/
+theorem isAddbackCarry2NzN1CallV4_raw
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hcarry2 : isAddbackCarry2NzN1CallV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let qHat := divKTrialCallV4QHat u1 u0 v0
+    let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
+    let c3 := ms.2.2.2.2
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - c3) v0 v1 v2 v3
+    carry = 0 → addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0 := by
+  simpa [isAddbackCarry2NzN1CallV4, isAddbackCarry2Nz] using hcarry2
+
+/-- Result of the j=3 v4 call iteration in the N1 call/max/max/max path. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxR3
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  iterWithDoubleAddback (divKTrialCallV4QHat u1 u0 v0)
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+/-- Result of the following j=2 all-max iteration in the N1 call/max/max/max path. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxR2
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  iterN1Max v0 v1 v2 v3 u0Orig2
+    r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+
+/-- Result of the following j=1 all-max iteration in the N1 call/max/max/max path. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxR1
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  iterN1Max v0 v1 v2 v3 u0Orig1
+    r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+
+/-- Compact all-max branch facts after the j=3 v4 call iteration in the
+    N1 call/max/max/max path. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxBranchFacts
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 : Word) : Prop :=
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  ¬BitVec.ult r3.2.1 v0 ∧
+  ¬BitVec.ult r2.2.1 v0 ∧
+  ¬BitVec.ult r1.2.1 v0
+
+/-- The j=2 all-max branch fact packaged in
+    `loopN1CallMaxmaxmaxBranchFacts`. -/
+theorem loopN1CallMaxmaxmaxBranchFacts_hbltu2
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
+    (hbranches : loopN1CallMaxmaxmaxBranchFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1) :
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0 := by
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  have hbranches' := hbranches
+  unfold loopN1CallMaxmaxmaxBranchFacts at hbranches'
+  change (¬BitVec.ult r3.2.1 v0 ∧ ¬BitVec.ult r2.2.1 v0 ∧
+      ¬BitVec.ult r1.2.1 v0) at hbranches'
+  simpa [r3] using hbranches'.1
+
+/-- The j=1 all-max branch fact packaged in
+    `loopN1CallMaxmaxmaxBranchFacts`. -/
+theorem loopN1CallMaxmaxmaxBranchFacts_hbltu1
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
+    (hbranches : loopN1CallMaxmaxmaxBranchFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1) :
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2).2.1 v0 := by
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  have hbranches' := hbranches
+  unfold loopN1CallMaxmaxmaxBranchFacts at hbranches'
+  change (¬BitVec.ult r3.2.1 v0 ∧ ¬BitVec.ult r2.2.1 v0 ∧
+      ¬BitVec.ult r1.2.1 v0) at hbranches'
+  simpa [r2] using hbranches'.2.1
+
+/-- The j=0 all-max branch fact packaged in
+    `loopN1CallMaxmaxmaxBranchFacts`. -/
+theorem loopN1CallMaxmaxmaxBranchFacts_hbltu0
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
+    (hbranches : loopN1CallMaxmaxmaxBranchFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1) :
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig2 u0Orig1).2.1 v0 := by
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  have hbranches' := hbranches
+  unfold loopN1CallMaxmaxmaxBranchFacts at hbranches'
+  change (¬BitVec.ult r3.2.1 v0 ∧ ¬BitVec.ult r2.2.1 v0 ∧
+      ¬BitVec.ult r1.2.1 v0) at hbranches'
+  simpa [r1] using hbranches'.2.2
+
+/-- The named scratch precondition is PC-free, so later composed call/max
+    surfaces can use it under `cpsTripleWithin_frameR`. -/
+theorem loopN1CallMaxmaxmaxScratchPreNoX1_pcFree (sp : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word) :
+    (loopN1CallMaxmaxmaxScratchPreNoX1 sp
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old
+      retMem dMem dloMem scratchUn0 scratchMem).pcFree := by
+  delta loopN1CallMaxmaxmaxScratchPreNoX1
+  pcFree
+
+instance pcFreeInst_loopN1CallMaxmaxmaxScratchPreNoX1 (sp : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word) :
+    Assertion.PCFree
+      (loopN1CallMaxmaxmaxScratchPreNoX1 sp
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old
+        retMem dMem dloMem scratchUn0 scratchMem) :=
+  ⟨loopN1CallMaxmaxmaxScratchPreNoX1_pcFree sp
+    jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old
+    retMem dMem dloMem scratchUn0 scratchMem⟩
+
+/-- Opaque statement wrapper for the N1 path where j=3 uses the v4 call path
+    and j=2/j=1/j=0 all use max. Keeping this triple behind a name avoids
+    repeatedly elaborating the full pre/post shape at downstream theorem
+    declarations. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxExactX1ScratchSpec (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem raVal : Word) : Prop :=
+  cpsTripleWithin 780 (base + loopBodyOff) (base + denormOff) (divCode_noNop_v4 base)
+    (loopN1CallMaxmaxmaxScratchPreNoX1 sp
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old
+      retMem dMem dloMem scratchUn0 scratchMem ** (.x1 ↦ᵣ raVal))
+    (loopN1CallMaxmaxmaxScratchPostNoX1 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig2 u0Orig1 u0Orig0 scratchMem ** (.x1 ↦ᵣ raVal))
+
 end EvmAsm.Evm64
