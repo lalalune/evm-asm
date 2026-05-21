@@ -95,6 +95,56 @@ theorem evm_mod_callable_code_v1_eq_current (base : Word) :
     evm_mod_callable_code_v1 base = evm_mod_callable_code base := by
   rfl
 
+open EvmAsm.Rv64.CodeReq in
+theorem evm_div_callable_code_v1_eq_ofProg (base : Word) :
+    evm_div_callable_code_v1 base = CodeReq.ofProg base evm_div_callable_v1 := by
+  unfold evm_div_callable_code_v1 evm_div_callable_v1 cc_ret_code
+  simp only [unionAll_cons, unionAll_nil, union_empty_right]
+  unfold seq
+  unfold Program
+  symm
+  rw [ofProg_append]
+  rw [show base + BitVec.ofNat 64 (4 * (divK_phaseA 1020).length) =
+        base + phaseBOff by rw [divK_phaseA_len]; rfl]
+  rw [ofProg_append]
+  rw [show (base + phaseBOff) + BitVec.ofNat 64 (4 * divK_phaseB.length) =
+        base + clzOff by rw [divK_phaseB_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + clzOff) + BitVec.ofNat 64 (4 * divK_clz.length) =
+        base + phaseC2Off by rw [divK_clz_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + phaseC2Off) + BitVec.ofNat 64 (4 * (divK_phaseC2 172).length) =
+        base + normBOff by rw [divK_phaseC2_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + normBOff) + BitVec.ofNat 64 (4 * divK_normB.length) =
+        base + normAOff by rw [divK_normB_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + normAOff) + BitVec.ofNat 64 (4 * (divK_normA 40).length) =
+        base + copyAUOff by rw [divK_normA_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + copyAUOff) + BitVec.ofNat 64 (4 * divK_copyAU.length) =
+        base + loopSetupOff by rw [divK_copyAU_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + loopSetupOff) + BitVec.ofNat 64 (4 * (divK_loopSetup 464).length) =
+        base + loopBodyOff by rw [divK_loopSetup_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + loopBodyOff) + BitVec.ofNat 64 (4 * (divK_loopBody 560 7736).length) =
+        base + denormOff by rw [divK_loopBody_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + denormOff) + BitVec.ofNat 64 (4 * divK_denorm.length) =
+        base + epilogueOff by rw [divK_denorm_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + epilogueOff) + BitVec.ofNat 64 (4 * (divK_div_epilogue 24).length) =
+        base + zeroPathOff by rw [divK_divEpilogue_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + zeroPathOff) + BitVec.ofNat 64 (4 * divK_zeroPath.length) =
+        base + nopOff by rw [divK_zeroPath_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + nopOff) + BitVec.ofNat 64 (4 * cc_ret.length) =
+        base + div128Off by
+    show (base + nopOff) + BitVec.ofNat 64 (4 * 1) = base + div128Off
+    bv_omega]
+
 -- ----------------------------------------------------------------------------
 -- Legacy v1 code subsumption lemmas
 -- ----------------------------------------------------------------------------
@@ -330,11 +380,20 @@ theorem evm_div_callable_v1_spec_from_noNop (sp base raVal : Word)
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** (.x1 ↦ᵣ raVal))
       (divStackDispatchPost sp a b ** (.x1 ↦ᵣ raVal)) := by
-  simpa [evm_div_callable_code_v1_eq_current]
-    using evm_div_callable_spec_from_noNop
-      sp base raVal a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+  have hpcFreePost : (divStackDispatchPost sp a b).pcFree := by
+    rw [divStackDispatchPost_unfold]
+    rw [divScratchOwnCall_unfold, divScratchOwn_unfold]
+    pcFree
+  have hStackCall :=
+    cpsTripleWithin_extend_code (hmono := divCode_noNop_sub_div_callable_code_v1) hStack
+  have hStackFramed :=
+    cpsTripleWithin_frameR (.x1 ↦ᵣ raVal) (by pcFree) hStackCall
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_div_callable_code_v1_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) raVal)
+  have hRetFramed :=
+    cpsTripleWithin_frameL (divStackDispatchPost sp a b) hpcFreePost hRet
+  exact cpsTripleWithin_seq_same_cr hStackFramed hRetFramed
 
 theorem evm_div_callable_v1_spec_from_branch_noNop (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
@@ -348,11 +407,14 @@ theorem evm_div_callable_v1_spec_from_branch_noNop (sp base raVal : Word)
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** (.x1 ↦ᵣ raVal))
       (divStackDispatchPost sp a b ** (.x1 ↦ᵣ raVal)) := by
-  simpa [evm_div_callable_code_v1_eq_current]
-    using evm_div_callable_spec_from_branch_noNop
-      sp base raVal a b v5 v6 v7 v10 v11
+  exact evm_div_callable_v1_spec_from_noNop
+    sp base raVal a b v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch
+    (evm_div_stack_spec_noNop
+      sp base a b v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch)
 
 theorem evm_div_callable_v1_spec_from_noNop_preserving_x1 (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
@@ -373,11 +435,18 @@ theorem evm_div_callable_v1_spec_from_noNop_preserving_x1 (sp base raVal : Word)
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0)
       (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal)) := by
-  simpa [evm_div_callable_code_v1_eq_current]
-    using evm_div_callable_spec_from_noNop_preserving_x1
-      sp base raVal a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+  have hpcFreePost : (divStackDispatchPostNoX1 sp a b).pcFree := by
+    rw [divStackDispatchPostNoX1_unfold]
+    rw [divScratchOwnCall_unfold, divScratchOwn_unfold]
+    pcFree
+  have hStackCall :=
+    cpsTripleWithin_extend_code (hmono := divCode_noNop_sub_div_callable_code_v1) hStack
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_div_callable_code_v1_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) raVal)
+  have hRetFramed :=
+    cpsTripleWithin_frameL (divStackDispatchPostNoX1 sp a b) hpcFreePost hRet
+  exact cpsTripleWithin_seq_same_cr hStackCall hRetFramed
 
 theorem evm_div_callable_v1_spec_from_noNop_branch_return_x1 (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
@@ -398,11 +467,18 @@ theorem evm_div_callable_v1_spec_from_noNop_branch_return_x1 (sp base : Word)
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0)
       (divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ branch.returnX1)) := by
-  simpa [evm_div_callable_code_v1_eq_current]
-    using evm_div_callable_spec_from_noNop_branch_return_x1
-      sp base a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+  have hpcFreePost : (divStackDispatchPostNoX1 sp a b).pcFree := by
+    rw [divStackDispatchPostNoX1_unfold]
+    rw [divScratchOwnCall_unfold, divScratchOwn_unfold]
+    pcFree
+  have hStackCall :=
+    cpsTripleWithin_extend_code (hmono := divCode_noNop_sub_div_callable_code_v1) hStack
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_div_callable_code_v1_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) branch.returnX1)
+  have hRetFramed :=
+    cpsTripleWithin_frameL (divStackDispatchPostNoX1 sp a b) hpcFreePost hRet
+  exact cpsTripleWithin_seq_same_cr hStackCall hRetFramed
 
 theorem evm_div_callable_v1_spec_from_noNop_branch_return_x1_framed
     {F : Assertion} [Assertion.PCFree F] (sp base : Word)
@@ -424,11 +500,12 @@ theorem evm_div_callable_v1_spec_from_noNop_branch_return_x1_framed
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** F)
       ((divStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ branch.returnX1)) ** F) := by
-  simpa [evm_div_callable_code_v1_eq_current]
-    using evm_div_callable_spec_from_noNop_branch_return_x1_framed
-      (F := F) sp base a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+  exact
+    cpsTripleWithin_frameR F (by pcFree)
+      (evm_div_callable_v1_spec_from_noNop_branch_return_x1
+        sp base a b v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack)
 
 theorem evm_mod_callable_v1_spec_from_noNop_preserving_x1 (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
@@ -449,11 +526,16 @@ theorem evm_mod_callable_v1_spec_from_noNop_preserving_x1 (sp base raVal : Word)
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0)
       (modStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal)) := by
-  simpa [evm_mod_callable_code_v1_eq_current]
-    using evm_mod_callable_spec_from_noNop_preserving_x1
-      sp base raVal a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+  have hpcFreePost : (modStackDispatchPostNoX1 sp a b).pcFree :=
+    modStackDispatchPostNoX1_pcFree sp a b
+  have hStackCall :=
+    cpsTripleWithin_extend_code (hmono := modCode_noNop_sub_mod_callable_code_v1) hStack
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_mod_callable_code_v1_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) raVal)
+  have hRetFramed :=
+    cpsTripleWithin_frameL (modStackDispatchPostNoX1 sp a b) hpcFreePost hRet
+  exact cpsTripleWithin_seq_same_cr hStackCall hRetFramed
 
 theorem evm_mod_callable_v1_spec_from_noNop (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
@@ -474,10 +556,19 @@ theorem evm_mod_callable_v1_spec_from_noNop (sp base raVal : Word)
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** (.x1 ↦ᵣ raVal))
       (modStackDispatchPost sp a b ** (.x1 ↦ᵣ raVal)) := by
-  simpa [evm_mod_callable_code_v1_eq_current]
-    using evm_mod_callable_spec_from_noNop
-      sp base raVal a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+  have hpcFreePost : (modStackDispatchPost sp a b).pcFree := by
+    rw [modStackDispatchPost_unfold]
+    rw [divScratchOwnCall_unfold, divScratchOwn_unfold]
+    pcFree
+  have hStackCall :=
+    cpsTripleWithin_extend_code (hmono := modCode_noNop_sub_mod_callable_code_v1) hStack
+  have hStackFramed :=
+    cpsTripleWithin_frameR (.x1 ↦ᵣ raVal) (by pcFree) hStackCall
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_mod_callable_code_v1_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) raVal)
+  have hRetFramed :=
+    cpsTripleWithin_frameL (modStackDispatchPost sp a b) hpcFreePost hRet
+  exact cpsTripleWithin_seq_same_cr hStackFramed hRetFramed
 
 end EvmAsm.Evm64
