@@ -11,6 +11,29 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- Public no-NOP DIV callable post with exact caller-framed `x1` and `x9`.
+    This is the target surface needed by SDIV's callable handoff. -/
+@[irreducible]
+def divStackDispatchPostCallableExactFrame
+    (sp : Word) (a b : EvmWord) (raVal x9Val : Word) : Assertion :=
+  (divStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) **
+    (.x9 ↦ᵣ x9Val)
+
+theorem divStackDispatchPostCallableExactFrame_unfold
+    {sp : Word} {a b : EvmWord} {raVal x9Val : Word} :
+    divStackDispatchPostCallableExactFrame sp a b raVal x9Val =
+      ((divStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) **
+        (.x9 ↦ᵣ x9Val)) := by
+  delta divStackDispatchPostCallableExactFrame
+  rfl
+
+theorem divStackDispatchPostCallableExactFrame_pcFree
+    (sp : Word) (a b : EvmWord) (raVal x9Val : Word) :
+    (divStackDispatchPostCallableExactFrame sp a b raVal x9Val).pcFree := by
+  rw [divStackDispatchPostCallableExactFrame_unfold,
+    divStackDispatchPostCallable_unfold, divScratchOwnCallNoX1_unfold]
+  pcFree
+
 /-- Concrete no-NOP DIV callable post bundle produced by the bzero and
     branch-local dispatcher proofs before weakening to the public callable
     postcondition. -/
@@ -223,6 +246,19 @@ theorem divStackDispatchPostCallable_exact_x1_weaken_own_x1_frame_x9
   exact sepConj_mono_left
     (sepConj_mono_right (regIs_implies_regOwn .x1 (v := raVal)))
     h hp
+
+/-- Weaken the named exact callable DIV post frame to the ownership-only
+    callable post shape. -/
+theorem divStackDispatchPostCallableExactFrame_weaken_own_x1_frame_x9
+    (sp : Word) (a b : EvmWord) (raVal x9Val : Word) :
+  ∀ h : PartialState,
+      divStackDispatchPostCallableExactFrame sp a b raVal x9Val h →
+      ((divStackDispatchPostCallable sp a b ** regOwn .x1) **
+        (.x9 ↦ᵣ x9Val)) h := by
+  intro h hp
+  rw [divStackDispatchPostCallableExactFrame_unfold] at hp
+  exact divStackDispatchPostCallable_exact_x1_weaken_own_x1_frame_x9
+    sp a b raVal x9Val h hp
 
 /-- Concrete no-NOP MOD callable post bundle before weakening. -/
 @[irreducible]
