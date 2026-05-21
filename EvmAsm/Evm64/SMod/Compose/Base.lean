@@ -37,6 +37,7 @@ import EvmAsm.Evm64.SMod.Compose.SavedRaRetFrame
 import EvmAsm.Evm64.SMod.Compose.ModCallReturnGeneric
 import EvmAsm.Evm64.SMod.Compose.ModCallReturnNamedPost
 import EvmAsm.Evm64.SMod.Compose.ModCallReturnNormalized
+import EvmAsm.Evm64.SMod.Compose.SaveRa
 
 namespace EvmAsm.Evm64.SMod.Compose
 
