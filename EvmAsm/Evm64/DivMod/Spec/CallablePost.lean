@@ -95,6 +95,21 @@ theorem divConcretePostNoX1_weaken_callable_frame
       exact fun _ hp => hp
   exact by xperm_hyp hOwn
 
+/-- Split the historical no-`x1` DIV stack post into the callable public post
+    plus separate `x1` ownership. This is the ownership-only bridge; exact
+    return-address preservation requires a stronger upstream post. -/
+theorem divStackDispatchPostNoX1_weaken_callable_own_x1
+    (sp : Word) (a b : EvmWord) :
+  ∀ h : PartialState,
+      divStackDispatchPostNoX1 sp a b h →
+      (divStackDispatchPostCallable sp a b ** regOwn .x1) h := by
+  intro h hp
+  rw [divStackDispatchPostNoX1_unfold] at hp
+  rw [divStackDispatchPostCallable_unfold]
+  rw [divScratchOwnCall_unfold] at hp
+  rw [divScratchOwnCallNoX1_unfold]
+  xperm_hyp hp
+
 /-- Concrete no-NOP MOD callable post bundle before weakening. -/
 @[irreducible]
 def modConcretePostNoX1Frame (sp : Word) (a b : EvmWord)
