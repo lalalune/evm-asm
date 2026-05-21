@@ -14,12 +14,11 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 
 -- ============================================================================
--- BEQ variants: call path addback with double-addback handling (no sorry)
+-- BEQ variants: call path addback with double-addback handling.
 -- ============================================================================
 
 -- n=1, call+addback BEQ, j=0
 
-set_option maxRecDepth 4096 in
 theorem divK_loop_body_n1_call_addback_j0_beq_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
