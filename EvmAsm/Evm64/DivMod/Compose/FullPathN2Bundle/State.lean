@@ -105,6 +105,23 @@ def fullDivN2FrameNoX1 (bltu_2 bltu_1 bltu_0 : Bool)
   (sp + signExtend12 3952 ↦ₘ n2ScratchDLo scratch) **
   (sp + signExtend12 3944 ↦ₘ n2ScratchUn0 scratch)
 
+theorem fullDivN2FrameNoX1_pcFree
+    (bltu_2 bltu_1 bltu_0 : Bool)
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word) :
+    (fullDivN2FrameNoX1 bltu_2 bltu_1 bltu_0 sp base
+      a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0).pcFree := by
+  delta fullDivN2FrameNoX1
+  pcFree
+
+instance pcFreeInst_fullDivN2FrameNoX1
+    (bltu_2 bltu_1 bltu_0 : Bool)
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word) :
+    Assertion.PCFree
+      (fullDivN2FrameNoX1 bltu_2 bltu_1 bltu_0 sp base
+        a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0) :=
+  ⟨fullDivN2FrameNoX1_pcFree bltu_2 bltu_1 bltu_0 sp base
+    a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0⟩
+
 /-- Bundled n=2 full-path postcondition. -/
 @[irreducible]
 def fullDivN2UnifiedPost (bltu_2 bltu_1 bltu_0 : Bool)
@@ -123,6 +140,27 @@ def fullDivN2UnifiedPostNoX1 (bltu_2 bltu_1 bltu_0 : Bool)
   fullDivN2DenormPost bltu_2 bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3 **
   fullDivN2FrameNoX1 bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
     retMem dMem dloMem scratch_un0
+
+theorem fullDivN2UnifiedPostNoX1_pcFree
+    (bltu_2 bltu_1 bltu_0 : Bool)
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word) :
+    (fullDivN2UnifiedPostNoX1 bltu_2 bltu_1 bltu_0 sp base
+      a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0).pcFree := by
+  delta fullDivN2UnifiedPostNoX1
+  pcFree
+  · delta fullDivN2DenormPost denormDivPost
+    pcFree
+  · exact fullDivN2FrameNoX1_pcFree bltu_2 bltu_1 bltu_0 sp base
+      a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0
+
+instance pcFreeInst_fullDivN2UnifiedPostNoX1
+    (bltu_2 bltu_1 bltu_0 : Bool)
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word) :
+    Assertion.PCFree
+      (fullDivN2UnifiedPostNoX1 bltu_2 bltu_1 bltu_0 sp base
+        a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0) :=
+  ⟨fullDivN2UnifiedPostNoX1_pcFree bltu_2 bltu_1 bltu_0 sp base
+    a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0⟩
 
 theorem fullDivN2ScratchFinal_unfold (bltu_2 bltu_1 bltu_0 : Bool)
     (base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word) :

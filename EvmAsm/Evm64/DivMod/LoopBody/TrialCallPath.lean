@@ -16,6 +16,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopBody
+import EvmAsm.Evm64.DivMod.Compose.Div128
 import EvmAsm.Evm64.DivMod.Compose.Div128V4
 
 open EvmAsm.Rv64.Tactics
@@ -46,7 +47,7 @@ theorem divK_trial_call_path_spec_within_exact_x1
        (sp + signExtend12 3952 ↦ₘ dloMem) **
        (sp + signExtend12 3944 ↦ₘ un0Mem)) ** (.x1 ↦ᵣ v1Old))
       (div128SpecPost sp (base + div128CallRetOff) vTop uLo uHi ** regOwn .x1) := by
-  -- Reuse the bundled `div128SpecPost` from `Compose/Div128.lean`. The
+  -- Reuse the bundled `div128SpecPost` from `Compose/Div128Post.lean`. The
   -- post atoms here are identical to div128's (with retAddr ↦ base+516,
   -- d ↦ vTop) — just a permutation that the final `xperm_hyp` handles.
   -- Re-introduce the lets so the proof body can reference q1', q0', etc.
