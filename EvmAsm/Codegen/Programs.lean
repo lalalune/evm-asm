@@ -7,17 +7,24 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
+import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.And.Program
 import EvmAsm.Evm64.Byte.Program
+import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
 import EvmAsm.Evm64.Eq.Program
+-- EXP wrapper is parametric over caller-saved registers (x6, x16)
+-- that mul_callable clobbers; deferred until upstream lands a
+-- fully callee-saved variant. import re-added when wiring lands.
+-- import EvmAsm.Evm64.Exp.Program
 import EvmAsm.Evm64.Gt.Program
 import EvmAsm.Evm64.IsZero.Program
 import EvmAsm.Evm64.Lt.Program
 import EvmAsm.Evm64.MLoad.Program
 import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
+-- import EvmAsm.Evm64.Multiply.Callable -- only needed by EXP (deferred)
 import EvmAsm.Evm64.Multiply.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
@@ -579,6 +586,74 @@ def signedDivModHandlers : List OpcodeHandlerSpec :=
       postBodyLabel := some "h_SMOD_done"
       tail          := signedDivModTail } ]
 
+/-! ## M10 self-calling opcode — ADDMOD (0x08)
+
+    `evm_addmod` is parametric over a JAL byte offset that targets
+    a callable variant of another handler (`evm_mod_callable_v4`).
+    The natural composition is `<wrapper>(<offset>) ++ <callable>`
+    — the callable is inlined in the same handler subroutine; the
+    offset is chosen so the wrapper's JAL lands on the callable's
+    first instruction.
+
+    Unlike SDIV/SMOD's M9 trampoline, ADDMOD doesn't have a
+    saved-ra-ret pattern. It DOES clobber `x1` (via the inner
+    `JAL .x1` into the callable), so the wrapper tail must use
+    `j .dispatch_loop` instead of `ret` — reusing M9's
+    `signedDivModTail` helper. It also clobbers `x10` via the
+    inline mod callable, so `preBody` saves `x10` to `x14`.
+
+    EXP (0x0a) was planned for this milestone but is deferred. The
+    `evm_exp_msb_saved_bit_two_mul_fixed` wrapper uses `x6` and
+    `x16` as per-limb counter / limb pointer, but those are LP64
+    caller-saved registers — `mul_callable` clobbers `x6` 39 times
+    per call. The "fix" only addresses `x19` (cursor) clobber, not
+    `x6`/`x16`. A complete fix requires a `_fixed_fixed` variant
+    using callee-saved registers (e.g. `x20`/`x21`) for the
+    per-limb counter and limb pointer; until that lands upstream,
+    EXP can't run through the dispatcher. -/
+
+/-- ADDMOD handler body. **Skips `evm_addmod_epilogue` deliberately**:
+    the verified `evm_addmod` composes prologue + phase1_carry +
+    phase2_reduce + epilogue, but the epilogue does `ADDI x12, x12, 32`
+    on TOP of the `ADDI x12, x12, 32` already done by
+    `divK_mod_epilogue` inside `evm_mod_callable_v4`. Including both
+    over-advances `x12` by 32, leaving the result outside the EVM
+    stack. (The verified `evm_addmod` is a slice 3a skeleton; slice
+    3c hasn't been implemented.)
+
+    Composition:
+      - prologue (`evm_add`): 30 instr (120 B), pops 2 / pushes 1, x12 += 32
+      - phase1_carry: 1 instr (4 B), `ADDI x7, x5, 0`
+      - phase2_reduce 8: 1 instr (4 B), `JAL .x1 +8` → mod_callable_v4
+      - skip-JAL: 1 instr (4 B), `JAL .x0 +1372` → past callable to tail
+      - `evm_mod_callable_v4`: 343 instr (1372 B), advances x12 by 32
+
+    Net x12 advance: 32 (prologue) + 32 (callable) = 64 B (= 3 pops -
+    1 push). ✓
+
+    modOff for phase2_reduce: JAL at byte 124, callable at byte 132,
+    offset = 8 bytes. Skip-JAL at byte 128, target = byte 128 + 1376
+    = 1504 (end of body, just past the callable), offset = 1376 bytes
+    (= 4 bytes for the skip-JAL itself + 1372 bytes for the callable). -/
+def evmAddmodComposed : Program :=
+  EvmAsm.Evm64.evm_addmod_prologue ;;
+  EvmAsm.Evm64.evm_addmod_phase1_carry ;;
+  EvmAsm.Evm64.evm_addmod_phase2_reduce 8 ;;
+  single (Instr.JAL .x0 (1376 : BitVec 21)) ;;
+  EvmAsm.Evm64.evm_mod_callable_v4
+
+/-- M10 self-calling handlers. Currently just ADDMOD; EXP is
+    deferred (see the milestone-header comment). Reuses
+    `signedDivModTail` because the wrapper's inner `JAL .x1` into
+    the inline callable clobbers `x1`, so the standard `ret` (=
+    `jalr x0, x1, 0`) would jump to garbage. -/
+def selfCallingHandlers : List OpcodeHandlerSpec :=
+  [ { label         := "h_ADDMOD"
+      opcodes       := [0x08]
+      preBody       := "  mv x14, x10"
+      body          := evmAddmodComposed
+      tail          := signedDivModTail } ]
+
 /-- STOP: transitions out of the dispatcher loop instead of returning
     to it. The body is empty; the dispatcher's `jalr` lands on
     `h_STOP:` which jumps to `.exit_label`. -/
@@ -593,7 +668,8 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ divModHandlers ++ signedDivModHandlers ++ [stopHandler]
+  memoryHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
   buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode
