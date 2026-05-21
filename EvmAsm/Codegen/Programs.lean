@@ -4949,6 +4949,133 @@ def ziskDeriveChainIdFromVProbeUnit : BuildUnit := {
   dataAsm     := ziskDeriveChainIdFromVDataSection
 }
 
+/-! ## header_minimal_decode -- PR-K38
+
+    Decode the 4 STF-essential fields of an RLP-encoded
+    Ethereum block header into a flat 96-byte output struct:
+
+       0..32   parent_hash    (RLP field 0)
+      32..64   state_root     (RLP field 3)
+      64..72   number (u64)   (RLP field 8)
+      72..80   timestamp(u64) (RLP field 11; rejected if > 8 B)
+
+    Header RLP field count varies by fork (15..22 fields).
+    This decoder reads only the first 12 fields' indices, so
+    it works on any post-Berlin header.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 96-byte output struct ptr
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail (not an RLP list,
+                    parent_hash or state_root not 32 bytes,
+                    or timestamp > 8 bytes BE).
+
+    Composes PR-K20 `rlp_list_nth_item` + PR-K34
+    `rlp_field_to_u64`. The hash fields are copied via 4 ×
+    8-byte `ld`/`sd` (each 32-byte hash). -/
+def headerMinimalDecodeFunction : String :=
+  "header_minimal_decode:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_len\n" ++
+  "  mv s2, a2                  # struct out\n" ++
+  "  # Field 0: parent_hash (32 bytes)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
+  "  la a3, hmd_offset; la a4, hmd_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhmd_fail\n" ++
+  "  la t0, hmd_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhmd_fail\n" ++
+  "  la t0, hmd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  # Field 3: state_root (32 bytes at struct + 32)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
+  "  la a3, hmd_offset; la a4, hmd_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhmd_fail\n" ++
+  "  la t0, hmd_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhmd_fail\n" ++
+  "  la t0, hmd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  addi t4, s2, 32\n" ++
+  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
+  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
+  "  ld t5, 16(t3); sd t5, 16(t4)\n" ++
+  "  ld t5, 24(t3); sd t5, 24(t4)\n" ++
+  "  # Field 8: number (u64 at struct + 64)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
+  "  addi a3, s2, 64\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lhmd_fail\n" ++
+  "  # Field 11: timestamp (u64 at struct + 72)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
+  "  addi a3, s2, 72\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lhmd_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhmd_ret\n" ++
+  ".Lhmd_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lhmd_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_minimal_decode`: probe BuildUnit. Reads
+    (header_len, header_bytes) from host input, writes
+    (status, 96-byte struct) to OUTPUT. -/
+def ziskHeaderMinimalDecodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  li a2, 0xa0010008           # struct at OUTPUT + 8\n" ++
+  "  # Pre-zero 96 bytes.\n" ++
+  "  mv t0, a2; li t1, 12\n" ++
+  ".Lhmd_zinit:\n" ++
+  "  beqz t1, .Lhmd_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lhmd_zinit\n" ++
+  ".Lhmd_zdone:\n" ++
+  "  jal ra, header_minimal_decode\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhmd_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerMinimalDecodeFunction ++ "\n" ++
+  ".Lhmd_pdone:"
+
+def ziskHeaderMinimalDecodeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "hmd_offset:\n" ++
+  "  .zero 8\n" ++
+  "hmd_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderMinimalDecodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderMinimalDecodePrologue
+  dataAsm     := ziskHeaderMinimalDecodeDataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -6203,6 +6330,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_field_to_u256_be" => some ziskRlpFieldToU256BeProbeUnit
   | "zisk_tx_legacy_decode"     => some ziskTxLegacyDecodeProbeUnit
   | "zisk_derive_chain_id_from_v" => some ziskDeriveChainIdFromVProbeUnit
+  | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -6255,6 +6383,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_field_to_u256_be",
    "zisk_tx_legacy_decode",
    "zisk_derive_chain_id_from_v",
+   "zisk_header_minimal_decode",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
