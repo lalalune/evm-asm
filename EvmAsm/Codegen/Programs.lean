@@ -6128,6 +6128,85 @@ def ziskU256MinProbeUnit : BuildUnit := {
   dataAsm     := ziskU256MinDataSection
 }
 
+/-! ## u256_max -- PR-K60 maximum of two BE u256 buffers
+
+    Direct companion to PR-K59 `u256_min`. Compares two 32-byte
+    big-endian `u256` buffers and copies the larger (or `a` on
+    equality) into `out`. Same byte-walk + inline pick logic as
+    `u256_min` with inverted selection; no separate `u256_lt`
+    dependency.
+
+    Direct use case — EIP-1559 base-fee delta floor:
+
+      base_fee_delta = u256_max(target_fee_delta_div_8,
+                                u256_from_u64(1))
+
+    (Per Python `calculate_base_fee_per_gas`'s `max(..., 1)`
+    when parent.gas_used > parent_gas_target.)
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u256 b ptr (32 bytes, BE)
+      a2 (input)  : u256 out ptr (may alias a or b)
+      ra (input)  : return
+      a0 (output) : 0.
+
+    Short-circuits on the first differing byte. Pure register
+    arithmetic + 4 × (ld + sd) chunk copy. Leaf-callable.
+    Aliasing safe. -/
+def u256MaxFunction : String :=
+  "u256_max:\n" ++
+  "  li t0, 0                   # byte index\n" ++
+  "  li t6, 32\n" ++
+  ".Lumax_loop:\n" ++
+  "  beq t0, t6, .Lumax_pick_a  # all bytes equal → return a\n" ++
+  "  add t1, a0, t0\n" ++
+  "  add t2, a1, t0\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bgtu t3, t4, .Lumax_pick_a # a > b → return a\n" ++
+  "  bltu t3, t4, .Lumax_pick_b # a < b → return b\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lumax_loop\n" ++
+  ".Lumax_pick_a:\n" ++
+  "  mv t0, a0\n" ++
+  "  j .Lumax_copy\n" ++
+  ".Lumax_pick_b:\n" ++
+  "  mv t0, a1\n" ++
+  ".Lumax_copy:\n" ++
+  "  ld t1,  0(t0); sd t1,  0(a2)\n" ++
+  "  ld t1,  8(t0); sd t1,  8(a2)\n" ++
+  "  ld t1, 16(t0); sd t1, 16(a2)\n" ++
+  "  ld t1, 24(t0); sd t1, 24(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_u256_max`: probe BuildUnit. Reads (32B a, 32B b) from
+    host input, writes the 32B max into OUTPUT. -/
+def ziskU256MaxPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # a ptr\n" ++
+  "  addi a1, a3, 40             # b ptr\n" ++
+  "  li a2, 0xa0010000           # out ptr at OUTPUT\n" ++
+  "  jal ra, u256_max\n" ++
+  "  j .Lumax_pdone\n" ++
+  u256MaxFunction ++ "\n" ++
+  ".Lumax_pdone:"
+
+def ziskU256MaxDataSection : String :=
+  ".section .data\n" ++
+  "umax_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256MaxProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256MaxPrologue
+  dataAsm     := ziskU256MaxDataSection
+}
+
 
 /-! ## u256_eq -- PR-K53 equality companion to PR-K50 u256_lt
 
@@ -8814,6 +8893,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
   | "zisk_u256_min"             => some ziskU256MinProbeUnit
+  | "zisk_u256_max"             => some ziskU256MaxProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -8887,6 +8967,7 @@ def knownProgramNames : List String :=
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero",
    "zisk_u256_min",
+   "zisk_u256_max",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
