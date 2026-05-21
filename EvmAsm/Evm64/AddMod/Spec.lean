@@ -18,12 +18,14 @@
   - After cc_ret, the epilogue at base+128 advances x12 by 32.
   - Net: x12 goes sp → sp+32 (prologue) → sp+32 (zeroPath) → sp+64 (epilogue).
   - Result (zero) sits at sp+64 = final x12. Correct for ADDMOD pop-3-push-1.
-  - Infrastructure available: evm_mod_callable_bzero_preserving_x1_spec
-    (from DivMod/Callable.lean, PR #4616) enables the proof.
+  - Infrastructure available: evm_mod_callable_bzero_v1_preserving_x1_noX9_spec
+    (from DivMod/CallableV1Legacy.lean) enables the proof while the
+    ADDMOD implementation remains pinned to the legacy callable.
 -/
 
 import EvmAsm.Evm64.AddMod.Compose.Base
 import EvmAsm.Evm64.DivMod.Callable
+import EvmAsm.Evm64.DivMod.CallableV1Legacy
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.LiftSpec
 
@@ -162,7 +164,7 @@ private theorem addmod_even_and_one_eq_zero (base : BitVec 64) (hbase : base &&&
 
 ADDMOD(a, 0, 0) = 0: when second operand b=0 AND modulus N=0,
 the result is 0 (the mod callable zeroPath stores zeros and preserves x1).
-Combined code region: `evm_addmod_program_code base modOff ∪ evm_mod_callable_code callable_base`.
+Combined code region: `evm_addmod_program_code base modOff ∪ evm_mod_callable_code_v1 callable_base`.
 -/
 
 /-- ADDMOD(a, 0, 0) = 0 end-to-end spec (bead evm-asm-a32mz).
@@ -183,12 +185,12 @@ theorem evm_addmod_b0_n0_spec_within
     (hcallable : callable_base = (base + 124) + signExtend21 modOff)
     (hbase : base &&& 1 = 0)
     (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
-                   (evm_mod_callable_code callable_base)) :
+                   (evm_mod_callable_code_v1 callable_base)) :
     -- The callable's bzero path advances x12 from sp+32 to sp+64 (via divK_zeroPath),
     -- so the spec exits at base+128 (where cc_ret returns) without the epilogue.
     cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
       base (base + 128)
-      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code callable_base))
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -208,12 +210,12 @@ theorem evm_addmod_b0_n0_spec_within
   have hmono_prog : ∀ ad i,
       (evm_addmod_program_code base modOff) ad = some i →
       ((evm_addmod_program_code base modOff).union
-        (evm_mod_callable_code ((base + 124) + signExtend21 modOff))) ad = some i :=
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) ad = some i :=
     fun ad i h => CodeReq.union_mono_left ad i h
   have hmono_call : ∀ ad i,
-      (evm_mod_callable_code ((base + 124) + signExtend21 modOff)) ad = some i →
+      (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)) ad = some i →
       ((evm_addmod_program_code base modOff).union
-        (evm_mod_callable_code ((base + 124) + signExtend21 modOff))) ad = some i :=
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) ad = some i :=
     CodeReq.mono_union_right hdisjoint (fun _ _ h => h)
   -- raVal = (base+124)+4 = base+128. With base aligned (base &&& 1 = 0), base+128 is also aligned.
   have hraVal_eq : (base + 124 : Word) + 4 = base + 128 := by bv_omega
@@ -224,7 +226,7 @@ theorem evm_addmod_b0_n0_spec_within
   -- Step 1: Prologue framed + POST weaken to callable PRE
   have hprologue_to_call : cpsTripleWithin (31 + 1) base ((base + 124) + signExtend21 modOff)
       ((evm_addmod_program_code base modOff).union
-        (evm_mod_callable_code ((base + 124) + signExtend21 modOff)))
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
       ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -268,7 +270,7 @@ theorem evm_addmod_b0_n0_spec_within
   -- Step 2: Callable spec (N=0 bzero) framed with original-a atoms
   -- The callable exits at raVal &&& ~~~1 = (base+124+4) &&& ~~~1 = base+128.
   have hcall_raw :=
-      evm_mod_callable_bzero_preserving_x1_noX9_spec
+      evm_mod_callable_bzero_v1_preserving_x1_noX9_spec
         (sp + 32) ((base + 124) + signExtend21 modOff) ((base + 124) + 4)
       a (0 : EvmWord) v2 0 0 0 v10 0
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
