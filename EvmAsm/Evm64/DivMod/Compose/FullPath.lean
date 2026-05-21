@@ -6,6 +6,7 @@
 
   Start with the n=4 (b[3]≠0, shift≠0) case as the primary composition.
 -/
+-- file-size-exception: v4 epilogue variants added in same file as noNop/base mirrors; splitting would fragment tightly coupled theorem triples
 
 -- file-size-exception: existing monolithic full-path composition proof; split tracked separately
 
