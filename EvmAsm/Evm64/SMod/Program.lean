@@ -96,9 +96,9 @@ theorem evm_smod_call_target_byte_offset :
   native_decide
 
 /-- Legacy SMOD code region. The wrapper returns via `x18`; the appended
-    `evm_mod_callable` block is reached only by the wrapper's near call. -/
+    `evm_mod_callable_v1` block is reached only by the wrapper's near call. -/
 def evm_smod_legacy : Program :=
-  evm_smod_wrapper ;; evm_mod_callable
+  evm_smod_wrapper ;; evm_mod_callable_v1
 
 /-- Full SMOD code region, using the corrected v4 unsigned MOD callable. -/
 def evm_smod : Program :=
@@ -112,7 +112,7 @@ def evm_smod_v4 : Program :=
 /-- Regression pin: canonical executable SMOD is now the v4 body. -/
 theorem evm_smod_eq_v4 : evm_smod = evm_smod_v4 := rfl
 
-theorem evm_smod_legacy_length : evm_smod_legacy.length = 414 := by
+theorem evm_smod_legacy_length : evm_smod_legacy.length = 390 := by
   native_decide
 
 theorem evm_smod_length : evm_smod.length = 414 := by
@@ -121,7 +121,7 @@ theorem evm_smod_length : evm_smod.length = 414 := by
 theorem evm_smod_v4_length : evm_smod_v4.length = 414 := by
   native_decide
 
-theorem evm_smod_legacy_byte_length : 4 * evm_smod_legacy.length = 1656 := by
+theorem evm_smod_legacy_byte_length : 4 * evm_smod_legacy.length = 1560 := by
   rw [evm_smod_legacy_length]
 
 theorem evm_smod_byte_length : 4 * evm_smod.length = 1656 := by

@@ -13,6 +13,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Shift0
 import EvmAsm.Evm64.DivMod.Compose.ModFullPath
+import EvmAsm.Evm64.DivMod.Compose.ModShift0Epilogue
 
 open EvmAsm.Rv64.Tactics
 

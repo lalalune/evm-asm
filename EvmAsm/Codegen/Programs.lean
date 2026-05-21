@@ -528,7 +528,7 @@ def divModHandlers : List OpcodeHandlerSpec :=
     code pointer by 1, then jump directly to `.dispatch_loop`
     rather than `ret`-ing. The standard `ret` (= `jalr x0, x1, 0`)
     won't work for these handlers because the wrapper's inner
-    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable`
+    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable_v4`
     clobbers `x1` mid-body — `x1` no longer holds the dispatcher's
     continuation by the time control reaches this tail. -/
 private def signedDivModTail : HandlerTail :=
@@ -546,7 +546,7 @@ private def signedDivModTail : HandlerTail :=
     1. `preBody` saves `x10` to `x14` (same register convention as
        M8 DIV/MOD; `x14` is untouched by both the SDIV/SMOD
        wrappers and the inner `evm_div_callable_v4` /
-       `evm_mod_callable`) AND loads `x18` with the address of the
+       `evm_mod_callable_v4`) AND loads `x18` with the address of the
        per-handler `postBodyLabel` stub via `la x18, h_<NAME>_done`.
     2. The verified body is `evmSdivPatched` / `evmSmodPatched`,
        which is the verified `evm_sdiv` / `evm_smod` with the
@@ -562,11 +562,9 @@ private def signedDivModTail : HandlerTail :=
        `ret` because the inner `JAL` into the divider clobbered
        `x1` (so `ret` would jump to garbage).
 
-    SMOD note: `evm_smod` still uses the legacy non-v4
-    `evm_mod_callable` (SDIV migrated to v4 in commit `43bb53070`,
-    SMOD's surface hasn't flipped yet). When the verification
-    track migrates SMOD to `evm_mod_callable_v4`, this entry
-    rebinds to the new symbol without other changes. -/
+    Both canonical signed wrappers now route through the v4 callable
+    divider/modulo bodies; the trampoline shape is unchanged by that
+    migration because the saved-ra return convention is the same. -/
 def signedDivModHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_SDIV"
       opcodes       := [0x05]
@@ -5214,6 +5212,111 @@ def ziskHeaderExtendedDecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtendedDecodeDataSection
 }
 
+/-! ## tx_type_dispatch -- PR-K40 typed-tx prefix detector
+
+    Read the first byte of an RLP/typed-tx-encoded transaction
+    and return the type code + inner-RLP offset:
+
+      byte 0 ≥ 0xc0     → legacy (type=0, inner_offset=0)
+      byte 0 == 0x01    → EIP-2930 access list (type=1, inner_offset=1)
+      byte 0 == 0x02    → EIP-1559 dynamic fee  (type=2, inner_offset=1)
+      byte 0 == 0x03    → EIP-4844 blob         (type=3, inner_offset=1)
+      byte 0 == 0x04    → EIP-7702 set code     (type=4, inner_offset=1)
+      else              → invalid (status=1)
+
+    Callers consume `inner_offset` to skip the type prefix
+    before passing the remaining bytes to the type-specific
+    decoder.
+
+    Calling convention:
+      a0 (input)  : tx_bytes ptr
+      a1 (input)  : tx_bytes byte length
+      a2 (input)  : u64 type code out
+      a3 (input)  : u64 inner_offset out
+      ra (input)  : return
+      a0 (output) : 0 success / 1 unknown / empty input
+
+    Leaf-callable, no scratch. -/
+def txTypeDispatchFunction : String :=
+  "tx_type_dispatch:\n" ++
+  "  beqz a1, .Ltd_fail\n" ++
+  "  lbu t0, 0(a0)\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bgeu t0, t1, .Ltd_legacy\n" ++
+  "  li t1, 1\n" ++
+  "  beq t0, t1, .Ltd_t1\n" ++
+  "  li t1, 2\n" ++
+  "  beq t0, t1, .Ltd_t2\n" ++
+  "  li t1, 3\n" ++
+  "  beq t0, t1, .Ltd_t3\n" ++
+  "  li t1, 4\n" ++
+  "  beq t0, t1, .Ltd_t4\n" ++
+  "  j .Ltd_fail\n" ++
+  ".Ltd_legacy:\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Ltd_t1:\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(a2)\n" ++
+  "  li t1, 1\n" ++
+  "  sd t1, 0(a3)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Ltd_t2:\n" ++
+  "  li t0, 2\n" ++
+  "  sd t0, 0(a2)\n" ++
+  "  li t1, 1\n" ++
+  "  sd t1, 0(a3)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Ltd_t3:\n" ++
+  "  li t0, 3\n" ++
+  "  sd t0, 0(a2)\n" ++
+  "  li t1, 1\n" ++
+  "  sd t1, 0(a3)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Ltd_t4:\n" ++
+  "  li t0, 4\n" ++
+  "  sd t0, 0(a2)\n" ++
+  "  li t1, 1\n" ++
+  "  sd t1, 0(a3)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Ltd_fail:\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  li a0, 1\n" ++
+  "  ret"
+
+/-- `zisk_tx_type_dispatch`: probe BuildUnit. -/
+def ziskTxTypeDispatchPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # tx_len\n" ++
+  "  addi a0, a4, 16             # tx ptr\n" ++
+  "  li a2, 0xa0010008           # type out\n" ++
+  "  li a3, 0xa0010010           # inner_offset out\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Ltd_pdone\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  ".Ltd_pdone:"
+
+def ziskTxTypeDispatchDataSection : String :=
+  ".section .data\n" ++
+  "td_pad:\n" ++
+  "  .zero 8"
+
+def ziskTxTypeDispatchProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxTypeDispatchPrologue
+  dataAsm     := ziskTxTypeDispatchDataSection
+}
+
 /-! ## tx_eip1559_decode -- PR-K41 full 12-field EIP-1559 decoder
 
     Decode the inner (post-type-byte) RLP body of an EIP-1559
@@ -6663,6 +6766,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_derive_chain_id_from_v" => some ziskDeriveChainIdFromVProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
+  | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -6718,6 +6822,7 @@ def knownProgramNames : List String :=
    "zisk_derive_chain_id_from_v",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
+   "zisk_tx_type_dispatch",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
