@@ -790,4 +790,32 @@ theorem evm_mod_callable_v1_spec_from_noNop (sp base raVal : Word)
     cpsTripleWithin_frameL (modStackDispatchPost sp a b) hpcFreePost hRet
   exact cpsTripleWithin_seq_same_cr hStackFramed hRetFramed
 
+/-- Legacy v1 zero-divisor MOD callable wrapper with exact `x1` and no `x9` frame. -/
+theorem evm_mod_callable_bzero_v1_preserving_x1_noX9_spec (sp base raVal : Word)
+    (a b : EvmWord) (v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hbz : b = 0) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_mod_callable_code_v1 base)
+      (divModStackDispatchPreCallable sp a b
+        raVal v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) := by
+  have hStack :=
+    evm_mod_bzero_stack_spec_within_dispatch_noNop_callable_x1_uni
+      sp base a b raVal v2 v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 hbz
+  have hStackCall :=
+    cpsTripleWithin_extend_code (hmono := modCode_noNop_sub_mod_callable_code_v1) hStack
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_mod_callable_code_v1_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) raVal)
+  have hRetFramed :=
+    cpsTripleWithin_frameL (modStackDispatchPostCallable sp a b)
+      (modStackDispatchPostCallable_pcFree sp a b) hRet
+  exact cpsTripleWithin_seq_same_cr hStackCall hRetFramed
+
 end EvmAsm.Evm64
