@@ -443,4 +443,55 @@ theorem divK_loop_body_n1_call_j0_exact_loopIterScratch_v4_noNop (sp base : Word
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
         retMem dMem dloMem scratchUn0 scratchMem halign hbltu hborrow_zero
 
+/-- Loop body n=1, call path, j>0 over `divCode_noNop_v4`, selecting the
+    skip or addback correction from the computed mulsub borrow bit. -/
+theorem divK_loop_body_n1_call_jgt0_exact_loopIterScratch_v4_noNop (j sp base : Word)
+    (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u1 v0)
+    (hcarry2_nz :
+      let qHat := divKTrialCallV4QHat u1 u0 v0
+      let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
+      let c3 := ms.2.2.2.2
+      let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
+      let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - c3) v0 v1 v2 v3
+      carry = 0 → addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0) :
+    cpsTripleWithin 224 (base + loopBodyOff) (base + loopBodyOff) (divCode_noNop_v4 base)
+      (loopBodyN1CallSkipJgt0PreV4NoX1 sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopIterPostN1CallScratchNoX1 sp base j
+        (divKTrialCallV4QHat u1 u0 v0)
+        (divKTrialCallV4DLo v0)
+        (divKTrialCallV4Un0 u0)
+        (divKTrialCallV4ScratchOut u1 u0 v0 scratchMem)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+        (.x1 ↦ᵣ raVal)) := by
+  by_cases hborrow : BitVec.ult uTop
+      (mulsubN4 (divKTrialCallV4QHat u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+  · have hborrow_nz :
+        (if BitVec.ult uTop
+            (mulsubN4 (divKTrialCallV4QHat u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+          then (1 : Word) else 0) ≠ (0 : Word) := by
+      rw [if_pos hborrow]
+      decide
+    exact divK_loop_body_n1_call_addback_jgt0_exact_loopIterScratch_v4_noNop
+      j sp base hpos jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
+      retMem dMem dloMem scratchUn0 scratchMem halign hbltu hborrow_nz hcarry2_nz
+  · have hborrow_zero :
+        mulsubN4NoBorrow (divKTrialCallV4QHat u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+      unfold mulsubN4NoBorrow
+      dsimp only
+      rw [if_neg hborrow]
+    exact cpsTripleWithin_mono_nSteps (by decide) <|
+      divK_loop_body_n1_call_skip_jgt0_exact_loopIterScratch_v4_noNop
+        j sp base hpos jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
+        retMem dMem dloMem scratchUn0 scratchMem halign hbltu hborrow_zero
+
 end EvmAsm.Evm64
