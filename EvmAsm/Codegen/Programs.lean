@@ -5435,6 +5435,96 @@ def ziskHeaderExtendedDecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtendedDecodeDataSection
 }
 
+/-! ## coinbase_extract_from_header -- PR-K55 beneficiary getter
+
+    Extract the 20-byte beneficiary (coinbase) address — field 2
+    of an RLP-encoded block header. Direct input to
+    `process_transaction`'s priority-fee credit:
+
+      coinbase.balance += effective_priority_fee × gas_used
+
+    The header decoders PR-K38 / PR-K39 read parent_hash,
+    state_root, gas_limit, gas_used, etc., but skip the
+    beneficiary since it isn't part of the STF skeleton's
+    minimal/extended struct. This helper is the dedicated getter
+    for callers that only need the coinbase.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 20-byte output ptr (caller-supplied)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail (not a list or field
+                    2 not 20 bytes). On failure, output is zeroed.
+
+    Composes PR-K20 `rlp_list_nth_item`. Uses two 8-byte `.data`
+    scratch slots (`ceh_offset`, `ceh_length`). -/
+def coinbaseExtractFromHeaderFunction : String :=
+  "coinbase_extract_from_header:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_len\n" ++
+  "  mv s2, a2                  # output 20B ptr\n" ++
+  "  # Get field 2 (coinbase) bounds.\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  la a3, ceh_offset; la a4, ceh_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lceh_fail\n" ++
+  "  la t0, ceh_length; ld t1, 0(t0)\n" ++
+  "  li t2, 20\n" ++
+  "  bne t1, t2, .Lceh_fail\n" ++
+  "  la t0, ceh_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  # Copy 20 bytes: 8 + 8 + 4 = 20.\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  lwu t4, 16(t3); sw t4, 16(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lceh_ret\n" ++
+  ".Lceh_fail:\n" ++
+  "  sd zero,  0(s2); sd zero, 8(s2); sw zero, 16(s2)\n" ++
+  "  li a0, 1\n" ++
+  ".Lceh_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_coinbase_extract_from_header`: probe BuildUnit. Reads
+    (header_len, header_bytes) from host input, writes
+    (status, 20B address + 4B pad) to OUTPUT (32 bytes total). -/
+def ziskCoinbaseExtractFromHeaderPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  li a2, 0xa0010008           # 20B output at OUTPUT + 8\n" ++
+  "  # Pre-zero the 20B output + 4B trailing pad.\n" ++
+  "  mv t0, a2\n" ++
+  "  sd zero, 0(t0); sd zero, 8(t0); sw zero, 16(t0)\n" ++
+  "  jal ra, coinbase_extract_from_header\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lceh_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  coinbaseExtractFromHeaderFunction ++ "\n" ++
+  ".Lceh_pdone:"
+
+def ziskCoinbaseExtractFromHeaderDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "ceh_offset:\n" ++
+  "  .zero 8\n" ++
+  "ceh_length:\n" ++
+  "  .zero 8"
+
+def ziskCoinbaseExtractFromHeaderProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskCoinbaseExtractFromHeaderPrologue
+  dataAsm     := ziskCoinbaseExtractFromHeaderDataSection
+}
+
 /-! ## validate_header_basic -- PR-K43 per-header semantic checks
 
     Three u64 invariants from `validate_header` (Python:
@@ -7870,6 +7960,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_derive_chain_id_from_v" => some ziskDeriveChainIdFromVProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
+  | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
@@ -7933,6 +8024,7 @@ def knownProgramNames : List String :=
    "zisk_derive_chain_id_from_v",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
+   "zisk_coinbase_extract_from_header",
    "zisk_validate_header_basic",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
