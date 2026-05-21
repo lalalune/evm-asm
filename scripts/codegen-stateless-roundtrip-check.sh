@@ -105,7 +105,8 @@ run_fixture() {
 
   echo "==> [$label] gen SSZ input  (chain_id=$cid${extra_args[*]:+, ${extra_args[*]}})"
   uv run --directory execution-specs --quiet python3 \
-    "$INPUT_GEN" "$cid" "$input_file" --hash-out "$hash_file" "${extra_args[@]}"
+    "$INPUT_GEN" "$cid" "$input_file" --hash-out "$hash_file" \
+    "${extra_args[@]+"${extra_args[@]}"}"
 
   local hash_hex
   hash_hex="$(cat "$hash_file")"
