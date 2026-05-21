@@ -157,18 +157,13 @@ The advice above is enforced mechanically by `scripts/check-file-size.sh`, which
 | `EvmAsm/Evm64/**/*.lean` (everything else) | 1500 lines |
 | `Program.lean` (any directory) | exempt — concrete bytecode + tests, no proof cost |
 
-A file over cap **must** either be split or carry an opt-out comment in its first 20 lines:
-
-```lean
--- file-size-exception: <one-line reason, ideally with a tracking issue>
-```
-
-The reason is required so the exception is visible in code review rather than a silent override. Existing oversize files are grandfathered with such comments; new files should not need them.
+A file over cap **must** be split. Do not add opt-out comments or approve
+oversized proof modules; the guardrail intentionally has no per-file override.
 
 To run the check locally:
 
 ```sh
-scripts/check-file-size.sh           # exit 1 on any unexcused violation
+scripts/check-file-size.sh           # exit 1 on any violation
 scripts/check-file-size.sh --report  # always exit 0; print all over-cap files
 ```
 
@@ -198,4 +193,3 @@ largest deltas live under `EvmAsm/Evm64/DivMod/` (compose chains; see
 the `xperm` notes above) and `EvmAsm/Evm64/Shift/` (composition files
 where bumping `set_option maxHeartbeats` is permitted per the Critical
 Rules).
-
