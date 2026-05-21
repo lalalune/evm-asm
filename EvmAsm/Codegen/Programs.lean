@@ -6039,6 +6039,95 @@ def ziskU256IsZeroProbeUnit : BuildUnit := {
   dataAsm     := ziskU256IsZeroDataSection
 }
 
+/-! ## u256_min -- PR-K59 minimum of two BE u256 buffers
+
+    Compare two 32-byte big-endian `u256` buffers and copy the
+    smaller (or `a` on equality) into `out`. Standalone — does
+    not call `u256_lt` (PR-K50); the byte-walk-and-pick logic
+    is inlined to avoid the cross-PR dependency.
+
+    Direct use case — EIP-1559 effective priority fee:
+
+      surplus = u256_sub_be(tx.max_fee_per_gas, base_fee_per_gas)
+      priority = u256_min(tx.max_priority_fee_per_gas, surplus)
+
+    Per the Python `transaction_priority_fee_per_gas`:
+
+      def priority_fee(tx, base_fee):
+          if tx.type == 0:  # legacy
+              return tx.gas_price - base_fee
+          else:
+              return min(tx.max_priority_fee_per_gas,
+                         tx.max_fee_per_gas - base_fee)
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u256 b ptr (32 bytes, BE)
+      a2 (input)  : u256 out ptr (may alias a or b)
+      ra (input)  : return
+      a0 (output) : 0 (the selected pointer is internally chosen).
+
+    The byte-walk pass short-circuits on the first differing
+    byte. Then a 4 × (ld + sd) chunk copy emits 32 bytes. Pure
+    register arithmetic, no scratch memory, leaf-callable.
+
+    Note on aliasing: if `out` aliases either input, the byte
+    walk is read-only over both inputs, and the 4 × (ld + sd)
+    copy reads each chunk from one of them and writes to `out`
+    in the same step — fine since `ld` happens before `sd`. -/
+def u256MinFunction : String :=
+  "u256_min:\n" ++
+  "  li t0, 0                   # byte index\n" ++
+  "  li t6, 32\n" ++
+  ".Lumin_lt_loop:\n" ++
+  "  beq t0, t6, .Lumin_pick_a  # all bytes equal → return a\n" ++
+  "  add t1, a0, t0\n" ++
+  "  add t2, a1, t0\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bltu t3, t4, .Lumin_pick_a # a < b → return a\n" ++
+  "  bgtu t3, t4, .Lumin_pick_b # a > b → return b\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lumin_lt_loop\n" ++
+  ".Lumin_pick_a:\n" ++
+  "  mv t0, a0\n" ++
+  "  j .Lumin_copy\n" ++
+  ".Lumin_pick_b:\n" ++
+  "  mv t0, a1\n" ++
+  ".Lumin_copy:\n" ++
+  "  ld t1,  0(t0); sd t1,  0(a2)\n" ++
+  "  ld t1,  8(t0); sd t1,  8(a2)\n" ++
+  "  ld t1, 16(t0); sd t1, 16(a2)\n" ++
+  "  ld t1, 24(t0); sd t1, 24(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_u256_min`: probe BuildUnit. Reads (32B a, 32B b) from
+    host input, writes the 32B min into OUTPUT. -/
+def ziskU256MinPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # a ptr\n" ++
+  "  addi a1, a3, 40             # b ptr\n" ++
+  "  li a2, 0xa0010000           # out ptr at OUTPUT\n" ++
+  "  jal ra, u256_min\n" ++
+  "  j .Lumin_pdone\n" ++
+  u256MinFunction ++ "\n" ++
+  ".Lumin_pdone:"
+
+def ziskU256MinDataSection : String :=
+  ".section .data\n" ++
+  "umin_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256MinProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256MinPrologue
+  dataAsm     := ziskU256MinDataSection
+}
+
 
 /-! ## u256_eq -- PR-K53 equality companion to PR-K50 u256_lt
 
@@ -8724,6 +8813,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
+  | "zisk_u256_min"             => some ziskU256MinProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -8796,6 +8886,7 @@ def knownProgramNames : List String :=
    "zisk_u256_from_u64_be",
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero",
+   "zisk_u256_min",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
