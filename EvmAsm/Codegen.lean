@@ -13,4 +13,4 @@ import EvmAsm.Codegen.Programs
 import EvmAsm.Codegen.Driver
 import EvmAsm.Codegen.Cli
 import EvmAsm.Codegen.RoundTripTests
-import EvmAsm.Codegen.RegistryInvariants
+import EvmAsm.Codegen.Proofs

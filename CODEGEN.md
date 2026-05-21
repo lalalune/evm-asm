@@ -718,7 +718,7 @@ emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
 9. **Codegen is mostly unverified, but registry invariants now are.**
    The text emitters (`emitInstr`, `emitDispatcherPrologue`, etc.) remain
    an output channel, not part of the trusted kernel surface. Phase 1 of
-   the codegen-proofs roadmap (`EvmAsm/Codegen/RegistryInvariants.lean`)
+   the codegen-proofs roadmap (`EvmAsm/Codegen/Proofs/RegistryInvariants.lean`)
    does carry kernel-checked theorems about `tinyInterpRegistry`'s
    structural well-formedness (Nodup on opcode bytes + labels, byte
    bounds, jump-table coverage). Those proofs use only `decide` (with a
@@ -819,7 +819,7 @@ emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
   squaring. EXP can ship once upstream lands a fully callee-saved
   variant.
 - **Codegen-proofs Phase 1.** ✅ `lake build` exits 0 (validated
-  2026-05-21). New file `EvmAsm/Codegen/RegistryInvariants.lean`
+  2026-05-21). New file `EvmAsm/Codegen/Proofs/RegistryInvariants.lean`
   carries 6 kernel-checked theorems about `tinyInterpRegistry`:
   `tinyInterpRegistry_opcodes_Nodup` (no two handlers fight for the
   same byte), `tinyInterpRegistry_labels_Nodup` (no duplicate asm

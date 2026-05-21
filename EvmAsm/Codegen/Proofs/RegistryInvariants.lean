@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Codegen.RegistryInvariants
+  EvmAsm.Codegen.Proofs.RegistryInvariants
 
   Structural invariants of `tinyInterpRegistry` and the 256-entry jump
   table emitted from it. These theorems form Phase 1 of the codegen-
@@ -12,12 +12,16 @@
   `List OpcodeHandlerSpec`. Phase 2 (codegen↔AST round-trip), Phase 3
   (dispatch-loop spec), and Phase 4 (handler ABI lifting) build on top
   of this foundation; see the roadmap in CODEGEN.md.
+
+  Lives under `EvmAsm/Codegen/Proofs/` so future correctness theorems
+  about the codegen layer can be grouped here, separate from the
+  emitter / driver / registry `def`s.
 -/
 
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs
 
-namespace EvmAsm.Codegen
+namespace EvmAsm.Codegen.Proofs
 
 open EvmAsm.Codegen
 
@@ -110,4 +114,4 @@ theorem jumpTable_non_invalid_count :
       (fun b => jumpTargetLabel tinyInterpRegistry b ≠ "h_invalid")).length = 91 := by
   set_option maxRecDepth 2048 in decide
 
-end EvmAsm.Codegen
+end EvmAsm.Codegen.Proofs
