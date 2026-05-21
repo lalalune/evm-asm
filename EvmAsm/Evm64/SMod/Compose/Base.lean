@@ -30,6 +30,7 @@ import EvmAsm.Evm64.SMod.Compose.ResultSignFixPCFree
 import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwn
 import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixPost
 import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFix
+import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixGeneric
 
 namespace EvmAsm.Evm64.SMod.Compose
 
