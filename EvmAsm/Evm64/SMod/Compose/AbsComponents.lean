@@ -44,6 +44,13 @@ abbrev smodAbsCarry2 (limb0 limb1 limb2 top : Word) : Word :=
 abbrev smodAbsSum3 (limb0 limb1 limb2 top : Word) : Word :=
   (top ^^^ smodAbsMask top) + smodAbsCarry2 limb0 limb1 limb2 top
 
+abbrev smodAbsCarry3 (limb0 limb1 limb2 top : Word) : Word :=
+  if BitVec.ult (smodAbsSum3 limb0 limb1 limb2 top)
+      (smodAbsCarry2 limb0 limb1 limb2 top) then
+    (1 : Word)
+  else
+    0
+
 theorem smodAbsDividendWord_eq_components
     (limb0 limb1 limb2 top : Word) :
     smodAbsDividendWord limb0 limb1 limb2 top =
@@ -66,6 +73,62 @@ theorem smodAbsDivisorWord_eq_components
         | 3 => smodAbsSum3 limb0 limb1 limb2 top := by
   rfl
 
+theorem smodAbsDividendWord_getLimbN_0
+    (limb0 limb1 limb2 top : Word) :
+    (smodAbsDividendWord limb0 limb1 limb2 top).getLimbN 0 =
+      smodAbsSum0 limb0 top := by
+  rw [smodAbsDividendWord_eq_components, EvmWord.getLimbN_lt _ 0 (by decide)]
+  exact EvmWord.getLimb_fromLimbs
+
+theorem smodAbsDividendWord_getLimbN_1
+    (limb0 limb1 limb2 top : Word) :
+    (smodAbsDividendWord limb0 limb1 limb2 top).getLimbN 1 =
+      smodAbsSum1 limb0 limb1 top := by
+  rw [smodAbsDividendWord_eq_components, EvmWord.getLimbN_lt _ 1 (by decide)]
+  exact EvmWord.getLimb_fromLimbs
+
+theorem smodAbsDividendWord_getLimbN_2
+    (limb0 limb1 limb2 top : Word) :
+    (smodAbsDividendWord limb0 limb1 limb2 top).getLimbN 2 =
+      smodAbsSum2 limb0 limb1 limb2 top := by
+  rw [smodAbsDividendWord_eq_components, EvmWord.getLimbN_lt _ 2 (by decide)]
+  exact EvmWord.getLimb_fromLimbs
+
+theorem smodAbsDividendWord_getLimbN_3
+    (limb0 limb1 limb2 top : Word) :
+    (smodAbsDividendWord limb0 limb1 limb2 top).getLimbN 3 =
+      smodAbsSum3 limb0 limb1 limb2 top := by
+  rw [smodAbsDividendWord_eq_components, EvmWord.getLimbN_lt _ 3 (by decide)]
+  exact EvmWord.getLimb_fromLimbs
+
+theorem smodAbsDivisorWord_getLimbN_0
+    (limb0 limb1 limb2 top : Word) :
+    (smodAbsDivisorWord limb0 limb1 limb2 top).getLimbN 0 =
+      smodAbsSum0 limb0 top := by
+  rw [smodAbsDivisorWord_eq_components, EvmWord.getLimbN_lt _ 0 (by decide)]
+  exact EvmWord.getLimb_fromLimbs
+
+theorem smodAbsDivisorWord_getLimbN_1
+    (limb0 limb1 limb2 top : Word) :
+    (smodAbsDivisorWord limb0 limb1 limb2 top).getLimbN 1 =
+      smodAbsSum1 limb0 limb1 top := by
+  rw [smodAbsDivisorWord_eq_components, EvmWord.getLimbN_lt _ 1 (by decide)]
+  exact EvmWord.getLimb_fromLimbs
+
+theorem smodAbsDivisorWord_getLimbN_2
+    (limb0 limb1 limb2 top : Word) :
+    (smodAbsDivisorWord limb0 limb1 limb2 top).getLimbN 2 =
+      smodAbsSum2 limb0 limb1 limb2 top := by
+  rw [smodAbsDivisorWord_eq_components, EvmWord.getLimbN_lt _ 2 (by decide)]
+  exact EvmWord.getLimb_fromLimbs
+
+theorem smodAbsDivisorWord_getLimbN_3
+    (limb0 limb1 limb2 top : Word) :
+    (smodAbsDivisorWord limb0 limb1 limb2 top).getLimbN 3 =
+      smodAbsSum3 limb0 limb1 limb2 top := by
+  rw [smodAbsDivisorWord_eq_components, EvmWord.getLimbN_lt _ 3 (by decide)]
+  exact EvmWord.getLimb_fromLimbs
+
 theorem smodAbsDividendWord_evmWordIs_sp_components_smodOffsets
     (sp limb0 limb1 limb2 top : Word) :
     evmWordIs sp (smodAbsDividendWord limb0 limb1 limb2 top) =
@@ -81,6 +144,18 @@ theorem smodAbsDividendWord_evmWordIs_sp_components_smodOffsets
     sp (smodAbsSum0 limb0 top) (smodAbsSum1 limb0 limb1 top)
     (smodAbsSum2 limb0 limb1 limb2 top) (smodAbsSum3 limb0 limb1 limb2 top)).symm
 
+open EvmAsm.Rv64 in
+theorem smodAbsDividendWord_evmWordIs_sp_components_smodOffsets_right
+    (sp limb0 limb1 limb2 top : Word) (Q : Assertion) :
+    (((sp + signExtend12 (0 : BitVec 12)) ↦ₘ smodAbsSum0 limb0 top) **
+     ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ smodAbsSum1 limb0 limb1 top) **
+     ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ smodAbsSum2 limb0 limb1 limb2 top) **
+     ((sp + signExtend12 EvmAsm.Evm64.evm_smodDividendTopLimbOff) ↦ₘ
+       smodAbsSum3 limb0 limb1 limb2 top) ** Q) =
+      (evmWordIs sp (smodAbsDividendWord limb0 limb1 limb2 top) ** Q) := by
+  rw [smodAbsDividendWord_evmWordIs_sp_components_smodOffsets]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
+
 theorem smodAbsDivisorWord_evmWordIs_sp32_components_smodOffsets
     (sp limb0 limb1 limb2 top : Word) :
     evmWordIs (sp + 32) (smodAbsDivisorWord limb0 limb1 limb2 top) =
@@ -95,5 +170,17 @@ theorem smodAbsDivisorWord_evmWordIs_sp32_components_smodOffsets
   exact (evmWordIs_eq_quadMem_smodDivisor
     sp (smodAbsSum0 limb0 top) (smodAbsSum1 limb0 limb1 top)
     (smodAbsSum2 limb0 limb1 limb2 top) (smodAbsSum3 limb0 limb1 limb2 top)).symm
+
+open EvmAsm.Rv64 in
+theorem smodAbsDivisorWord_evmWordIs_sp32_components_smodOffsets_right
+    (sp limb0 limb1 limb2 top : Word) (Q : Assertion) :
+    (((sp + signExtend12 (32 : BitVec 12)) ↦ₘ smodAbsSum0 limb0 top) **
+     ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ smodAbsSum1 limb0 limb1 top) **
+     ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ smodAbsSum2 limb0 limb1 limb2 top) **
+     ((sp + signExtend12 EvmAsm.Evm64.evm_smodDivisorTopLimbOff) ↦ₘ
+       smodAbsSum3 limb0 limb1 limb2 top) ** Q) =
+      (evmWordIs (sp + 32) (smodAbsDivisorWord limb0 limb1 limb2 top) ** Q) := by
+  rw [smodAbsDivisorWord_evmWordIs_sp32_components_smodOffsets]
+  rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
 
 end EvmAsm.Evm64.SMod.Compose
