@@ -727,6 +727,35 @@ theorem evm_div_callable_v4_spec_from_divCode_noNop_preserving_x1_x9out_body_fra
   exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_same_cr hStackForRet hRetFramed)
 
+/-- Named-post variant of the v4 callable DIV wrapper for full
+    `divCode_noNop_v4` body proofs that transform a PC-free frame and return a
+    possibly different exact `x9` value. -/
+theorem evm_div_callable_v4_spec_from_divCode_noNop_exact_frame_x9out_body_frame_transform
+    {FPre FPost : Assertion} [Assertion.PCFree FPost]
+    (sp base x9In x9Out raVal : Word) (a b : EvmWord)
+    (v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hStack :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v4 base)
+        (divModStackDispatchPreNoX1 sp a b
+          x9In raVal v2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** FPre)
+        (divStackDispatchPostCallableExactFrame sp a b raVal x9Out ** FPost)) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_div_callable_code_v4 base)
+      (divModStackDispatchPreNoX1 sp a b
+        x9In raVal v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** FPre)
+      (divStackDispatchPostCallableExactFrame sp a b raVal x9Out ** FPost) := by
+  rw [divStackDispatchPostCallableExactFrame_unfold] at hStack ⊢
+  exact evm_div_callable_v4_spec_from_divCode_noNop_preserving_x1_x9out_body_frame_transform
+    sp base x9In x9Out raVal a b v2 v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 hStack
+
 theorem evm_div_callable_v4_spec_from_noNop_branch_return_x1 (sp base : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
