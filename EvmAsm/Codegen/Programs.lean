@@ -2657,6 +2657,154 @@ def ziskRlpListCountItemsProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpListCountItemsDataSection
 }
 
+/-! ## access_list_count -- PR-K48 EIP-2930+ access-list cardinality
+
+    Walk an RLP-encoded EIP-2930+ access_list and return
+    `(num_addresses, num_storage_keys)`. These are the two
+    inputs to the EIP-2930+ intrinsic-gas formula:
+
+      gas_access_list = 2400 × num_addresses + 1900 × num_storage_keys
+
+    Access-list shape:
+
+      access_list = [
+        [address (20 B), [slot1 (32 B), slot2 (32 B), ...]],
+        ...
+      ]
+
+    Both `access_list` and each per-address `[slots...]` sub-list
+    are RLP lists. This helper composes:
+
+      1. PR-K47 `rlp_list_count_items` on the outer access_list to
+         get N = num_addresses (and validate the outer shape).
+      2. PR-K20 `rlp_list_nth_item` to extract each entry's bounds.
+      3. PR-K20 `rlp_list_nth_item` on each entry to get field 1
+         (the slots sub-list).
+      4. PR-K47 `rlp_list_count_items` on the slots sub-list to add
+         to num_storage_keys.
+
+    Empty access_list (`0xc0`) → (0, 0).
+
+    Calling convention:
+      a0 (input)  : access_list bytes ptr (whole encoded item incl.
+                    outer RLP list prefix)
+      a1 (input)  : access_list byte length
+      a2 (input)  : u64 out ptr for num_addresses
+      a3 (input)  : u64 out ptr for num_storage_keys
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail.
+
+    Uses three 8-byte `.data` scratch slots
+    (`alc_scratch`, `alc_entry_offset`, `alc_entry_length`,
+    `alc_keys_offset`, `alc_keys_length`). -/
+def accessListCountFunction : String :=
+  "access_list_count:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # outer list ptr\n" ++
+  "  mv s1, a1                   # outer list len\n" ++
+  "  mv s2, a2                   # num_addresses out\n" ++
+  "  mv s3, a3                   # num_storage_keys out\n" ++
+  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
+  "  # Step 1: outer count → s4 = N.\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, alc_scratch\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lalc_fail\n" ++
+  "  la t0, alc_scratch; ld s4, 0(t0)\n" ++
+  "  beqz s4, .Lalc_done\n" ++
+  "  # Step 2: iterate entries 0..N-1.\n" ++
+  "  li s5, 0                    # entry index\n" ++
+  ".Lalc_loop:\n" ++
+  "  beq s5, s4, .Lalc_done\n" ++
+  "  # Fetch entry s5 bounds in the outer list.\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s5\n" ++
+  "  la a3, alc_entry_offset\n" ++
+  "  la a4, alc_entry_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lalc_fail\n" ++
+  "  # entry_ptr = outer_ptr + entry_offset.\n" ++
+  "  la t0, alc_entry_offset; ld t1, 0(t0)\n" ++
+  "  la t0, alc_entry_length; ld t2, 0(t0)\n" ++
+  "  add a0, s0, t1              # entry_ptr\n" ++
+  "  mv a1, t2                   # entry_len\n" ++
+  "  # Fetch entry field 1 (the slots sub-list) bounds.\n" ++
+  "  li a2, 1\n" ++
+  "  la a3, alc_keys_offset\n" ++
+  "  la a4, alc_keys_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lalc_fail\n" ++
+  "  # keys_ptr = outer_ptr + entry_offset + keys_offset.\n" ++
+  "  la t0, alc_entry_offset; ld t1, 0(t0)\n" ++
+  "  la t0, alc_keys_offset; ld t3, 0(t0)\n" ++
+  "  add t1, t1, t3\n" ++
+  "  add a0, s0, t1              # keys_ptr\n" ++
+  "  la t0, alc_keys_length; ld a1, 0(t0)\n" ++
+  "  la a2, alc_scratch\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lalc_fail\n" ++
+  "  la t0, alc_scratch; ld t1, 0(t0)\n" ++
+  "  ld t2, 0(s3)\n" ++
+  "  add t2, t2, t1\n" ++
+  "  sd t2, 0(s3)\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lalc_loop\n" ++
+  ".Lalc_done:\n" ++
+  "  sd s4, 0(s2)                # num_addresses = N\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lalc_ret\n" ++
+  ".Lalc_fail:\n" ++
+  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
+  "  li a0, 1\n" ++
+  ".Lalc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_access_list_count`: probe BuildUnit. Reads (list_len,
+    list_bytes) from host input, writes (status, num_addresses,
+    num_storage_keys) to OUTPUT. -/
+def ziskAccessListCountPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # list_len\n" ++
+  "  addi a0, a4, 16             # list ptr\n" ++
+  "  li a2, 0xa0010008           # num_addresses out\n" ++
+  "  li a3, 0xa0010010           # num_storage_keys out\n" ++
+  "  sd zero, 0(a2); sd zero, 0(a3)\n" ++
+  "  jal ra, access_list_count\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lalc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  accessListCountFunction ++ "\n" ++
+  ".Lalc_pdone:"
+
+def ziskAccessListCountDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "alc_scratch:\n" ++
+  "  .zero 8\n" ++
+  "alc_entry_offset:\n" ++
+  "  .zero 8\n" ++
+  "alc_entry_length:\n" ++
+  "  .zero 8\n" ++
+  "alc_keys_offset:\n" ++
+  "  .zero 8\n" ++
+  "alc_keys_length:\n" ++
+  "  .zero 8"
+
+def ziskAccessListCountProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccessListCountPrologue
+  dataAsm     := ziskAccessListCountDataSection
+}
+
 /-! ## mpt_node_kind -- PR-K21 classifier
 
     Determines whether an RLP-encoded MPT node is a leaf,
@@ -7654,6 +7802,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
   | "zisk_rlp_list_count_items" => some ziskRlpListCountItemsProbeUnit
+  | "zisk_access_list_count"    => some ziskAccessListCountProbeUnit
   | "zisk_mpt_node_kind"        => some ziskMptNodeKindProbeUnit
   | "zisk_mpt_branch_child"     => some ziskMptBranchChildProbeUnit
   | "zisk_hp_decode_nibbles"    => some ziskHpDecodeNibblesProbeUnit
@@ -7715,6 +7864,7 @@ def knownProgramNames : List String :=
    "zisk_witness_lookup_by_hash",
    "zisk_rlp_list_nth_item",
    "zisk_rlp_list_count_items",
+   "zisk_access_list_count",
    "zisk_mpt_node_kind",
    "zisk_mpt_branch_child",
    "zisk_hp_decode_nibbles",
