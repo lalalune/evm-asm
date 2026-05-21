@@ -138,7 +138,7 @@ theorem evm_div_callable_preserving_x1_x9_exact_pre_spec_in_sdivCode
         (.x9 ↦ᵣ x9Val)) := by
   exact
     EvmAsm.Rv64.cpsTripleWithin_extend_code
-      (hmono := evm_div_callable_code_sub_sdivCode (base := base))
+      (hmono := evm_div_callable_code_v1_sub_sdivCode (base := base))
       (EvmAsm.Evm64.evm_div_callable_v1_spec_from_noNop_preserving_x1_x9
         sp (base + wrapperEndOff) x9Val raVal a b v2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -210,7 +210,7 @@ theorem evm_div_callable_concrete_preserving_x1_x9_exact_pre_spec_in_sdivCode
         shiftMem nMem jMem retMem dMem dloMem scratchUn0) := by
   exact
     EvmAsm.Rv64.cpsTripleWithin_extend_code
-      (hmono := evm_div_callable_code_sub_sdivCode (base := base))
+      (hmono := evm_div_callable_code_v1_sub_sdivCode (base := base))
       (EvmAsm.Evm64.evm_div_callable_v1_spec_from_noNop_concrete_preserving_x1_x9
         sp (base + wrapperEndOff) x9Val raVal a b v2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7

@@ -62,7 +62,7 @@ theorem saveRaDivCallDispatchReadyPost_bzero_callable_spec_in_sdivCode
       (by simpa [divisorAbsWord] using hbz)
   have hCallableCode :=
     EvmAsm.Rv64.cpsTripleWithin_extend_code
-      (hmono := evm_div_callable_code_sub_sdivCode (base := base)) hCallableRaw
+      (hmono := evm_div_callable_code_v1_sub_sdivCode (base := base)) hCallableRaw
   have hCallableFramed :=
     EvmAsm.Rv64.cpsTripleWithin_frameR signFrameNoX9 (by
       dsimp [signFrameNoX9]
