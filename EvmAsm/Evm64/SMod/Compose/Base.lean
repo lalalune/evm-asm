@@ -19,6 +19,7 @@ import EvmAsm.Evm64.SMod.Compose.ModCallCallable
 import EvmAsm.Evm64.SMod.Compose.BaseTopLevel
 import EvmAsm.Evm64.SMod.Compose.Words
 import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
+import EvmAsm.Evm64.SMod.Compose.ResultSignFixPCFree
 
 namespace EvmAsm.Evm64.SMod.Compose
 
