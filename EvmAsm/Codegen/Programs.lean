@@ -2106,6 +2106,259 @@ def ziskWitnessLookupByHashProbeUnit : BuildUnit := {
   dataAsm     := ziskWitnessLookupByHashDataSection
 }
 
+/-! ## rlp_list_nth_item -- PR-K20 walk RLP list to extract
+    the N-th item's content bounds.
+
+    Foundation for MPT node decoding. Handles all RLP item
+    forms: single bytes, short strings (0x80..0xb7), long
+    strings (0xb8..0xbf), short lists (0xc0..0xf7), long lists
+    (0xf8..0xff with length-of-length in [1..8]).
+
+    Calling convention:
+      a0 (input)  : list bytes ptr (start of outer RLP list
+                    prefix)
+      a1 (input)  : total list byte length
+      a2 (input)  : index N (0-based)
+      a3 (input)  : u64 out ptr (content offset within list bytes)
+      a4 (input)  : u64 out ptr (content byte length)
+      ra (input)  : return
+      a0 (output) : 0 on hit, 1 on parse error / OOB.
+
+    Content interpretation:
+      * Single byte (0x00..0x7f)   : offset = item_start; len = 1
+      * Short string (0x80..0xb7)  : offset = item_start+1; len = b - 0x80
+      * Long string (0xb8..0xbf)   : offset = item_start+1+lol; len = decoded
+      * Short list (0xc0..0xf7)    : offset = item_start; len = full encoded length
+      * Long list (0xf8..0xff)     : offset = item_start; len = full encoded length
+
+    Byte-string items have their RLP prefix stripped; sub-list
+    items are returned in full (so callers can recurse with
+    another call to `rlp_list_nth_item`).
+
+    Pure register arithmetic, no scratch memory, leaf-callable. -/
+def rlpListNthItemFunction : String :=
+  "rlp_list_nth_item:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                  # s0 = list_ptr\n" ++
+  "  add s1, a0, a1             # s1 = list_end\n" ++
+  "  mv s2, a2                  # s2 = N\n" ++
+  "  mv s3, a3                  # s3 = out_offset_ptr\n" ++
+  "  mv s4, a4                  # s4 = out_length_ptr\n" ++
+  "  # Parse outer list prefix.\n" ++
+  "  bgeu s0, s1, .Lrln_fail\n" ++
+  "  lbu t0, 0(s0)\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lrln_fail    # not an RLP list\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lrln_short_outer\n" ++
+  "  # Long outer: prefix bytes = 1 + (t0 - 0xf7)\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  addi t2, t2, 1             # prefix bytes\n" ++
+  "  add s5, s0, t2             # s5 = cursor at first item\n" ++
+  "  j .Lrln_walk\n" ++
+  ".Lrln_short_outer:\n" ++
+  "  addi s5, s0, 1\n" ++
+  ".Lrln_walk:\n" ++
+  "  li s6, 0                   # i\n" ++
+  ".Lrln_loop:\n" ++
+  "  beq s6, s2, .Lrln_at_target\n" ++
+  "  bgeu s5, s1, .Lrln_fail    # walked past end of list\n" ++
+  "  # Compute size of item at s5; advance s5 by it.\n" ++
+  "  lbu t0, 0(s5)\n" ++
+  "  li t1, 0x80\n" ++
+  "  bltu t0, t1, .Lrln_skip_single\n" ++
+  "  li t1, 0xb8\n" ++
+  "  bltu t0, t1, .Lrln_skip_short_string\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lrln_skip_long_string\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lrln_skip_short_list\n" ++
+  "  # Long list: lol = t0 - 0xf7\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  li t3, 0                   # decoded length accumulator\n" ++
+  "  mv t4, t2                  # remaining length bytes\n" ++
+  "  addi t5, s5, 1\n" ++
+  ".Lrln_skll_be:\n" ++
+  "  beqz t4, .Lrln_skll_done\n" ++
+  "  slli t3, t3, 8\n" ++
+  "  lbu t6, 0(t5)\n" ++
+  "  or t3, t3, t6\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lrln_skll_be\n" ++
+  ".Lrln_skll_done:\n" ++
+  "  addi t6, t2, 1\n" ++
+  "  add t6, t6, t3             # 1 + lol + decoded\n" ++
+  "  add s5, s5, t6\n" ++
+  "  j .Lrln_step\n" ++
+  ".Lrln_skip_short_list:\n" ++
+  "  li t1, 0xc0\n" ++
+  "  sub t6, t0, t1\n" ++
+  "  addi t6, t6, 1             # 1 + (t0 - 0xc0)\n" ++
+  "  add s5, s5, t6\n" ++
+  "  j .Lrln_step\n" ++
+  ".Lrln_skip_long_string:\n" ++
+  "  li t1, 0xb7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  li t3, 0\n" ++
+  "  mv t4, t2\n" ++
+  "  addi t5, s5, 1\n" ++
+  ".Lrln_skls_be:\n" ++
+  "  beqz t4, .Lrln_skls_done\n" ++
+  "  slli t3, t3, 8\n" ++
+  "  lbu t6, 0(t5)\n" ++
+  "  or t3, t3, t6\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lrln_skls_be\n" ++
+  ".Lrln_skls_done:\n" ++
+  "  addi t6, t2, 1\n" ++
+  "  add t6, t6, t3\n" ++
+  "  add s5, s5, t6\n" ++
+  "  j .Lrln_step\n" ++
+  ".Lrln_skip_short_string:\n" ++
+  "  li t1, 0x80\n" ++
+  "  sub t6, t0, t1\n" ++
+  "  addi t6, t6, 1\n" ++
+  "  add s5, s5, t6\n" ++
+  "  j .Lrln_step\n" ++
+  ".Lrln_skip_single:\n" ++
+  "  addi s5, s5, 1\n" ++
+  ".Lrln_step:\n" ++
+  "  addi s6, s6, 1\n" ++
+  "  j .Lrln_loop\n" ++
+  ".Lrln_at_target:\n" ++
+  "  bgeu s5, s1, .Lrln_fail    # target index past last item\n" ++
+  "  lbu t0, 0(s5)\n" ++
+  "  li t1, 0x80\n" ++
+  "  bltu t0, t1, .Lrln_t_single\n" ++
+  "  li t1, 0xb8\n" ++
+  "  bltu t0, t1, .Lrln_t_short_string\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lrln_t_long_string\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lrln_t_short_list\n" ++
+  "  # Long list (full encoded form)\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1\n" ++
+  "  li t3, 0\n" ++
+  "  mv t4, t2\n" ++
+  "  addi t5, s5, 1\n" ++
+  ".Lrln_tll_be:\n" ++
+  "  beqz t4, .Lrln_tll_done\n" ++
+  "  slli t3, t3, 8\n" ++
+  "  lbu t6, 0(t5)\n" ++
+  "  or t3, t3, t6\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lrln_tll_be\n" ++
+  ".Lrln_tll_done:\n" ++
+  "  addi t6, t2, 1\n" ++
+  "  add t6, t6, t3             # full encoded size\n" ++
+  "  sub t1, s5, s0\n" ++
+  "  sd t1, 0(s3)\n" ++
+  "  sd t6, 0(s4)\n" ++
+  "  j .Lrln_ok\n" ++
+  ".Lrln_t_short_list:\n" ++
+  "  li t1, 0xc0\n" ++
+  "  sub t6, t0, t1\n" ++
+  "  addi t6, t6, 1\n" ++
+  "  sub t1, s5, s0\n" ++
+  "  sd t1, 0(s3)\n" ++
+  "  sd t6, 0(s4)\n" ++
+  "  j .Lrln_ok\n" ++
+  ".Lrln_t_long_string:\n" ++
+  "  li t1, 0xb7\n" ++
+  "  sub t2, t0, t1\n" ++
+  "  li t3, 0\n" ++
+  "  mv t4, t2\n" ++
+  "  addi t5, s5, 1\n" ++
+  ".Lrln_tls_be:\n" ++
+  "  beqz t4, .Lrln_tls_done\n" ++
+  "  slli t3, t3, 8\n" ++
+  "  lbu t6, 0(t5)\n" ++
+  "  or t3, t3, t6\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lrln_tls_be\n" ++
+  ".Lrln_tls_done:\n" ++
+  "  # content offset = s5 + 1 + lol - s0\n" ++
+  "  addi t6, t2, 1\n" ++
+  "  add t6, t6, s5\n" ++
+  "  sub t6, t6, s0\n" ++
+  "  sd t6, 0(s3)\n" ++
+  "  sd t3, 0(s4)               # content length = decoded\n" ++
+  "  j .Lrln_ok\n" ++
+  ".Lrln_t_short_string:\n" ++
+  "  # content offset = s5 + 1 - s0; length = t0 - 0x80\n" ++
+  "  addi t6, s5, 1\n" ++
+  "  sub t6, t6, s0\n" ++
+  "  sd t6, 0(s3)\n" ++
+  "  li t1, 0x80\n" ++
+  "  sub t1, t0, t1\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  j .Lrln_ok\n" ++
+  ".Lrln_t_single:\n" ++
+  "  # content offset = s5 - s0; length = 1\n" ++
+  "  sub t1, s5, s0\n" ++
+  "  sd t1, 0(s3)\n" ++
+  "  li t1, 1\n" ++
+  "  sd t1, 0(s4)\n" ++
+  ".Lrln_ok:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lrln_ret\n" ++
+  ".Lrln_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lrln_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_rlp_list_nth_item`: probe BuildUnit. Reads
+    (list_len, N, list_bytes) from host input, writes
+    (status, offset, length) to OUTPUT.
+    Input layout:
+      bytes  0.. 8 : list_len (u64)
+      bytes  8..16 : N (u64)
+      bytes 16..   : RLP list bytes
+    Output layout:
+      bytes  0.. 8 : status (0 hit / 1 miss)
+      bytes  8..16 : content offset (u64)
+      bytes 16..24 : content length (u64) -/
+def ziskRlpListNthItemPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # list_len\n" ++
+  "  ld a2, 16(a5)               # N\n" ++
+  "  addi a0, a5, 24             # list ptr\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  sd zero, 0(a3); sd zero, 0(a4)\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lrln_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  ".Lrln_pdone:"
+
+def ziskRlpListNthItemDataSection : String :=
+  ".section .data\n" ++
+  "rln_scratch:\n" ++
+  "  .zero 8"
+
+def ziskRlpListNthItemProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRlpListNthItemPrologue
+  dataAsm     := ziskRlpListNthItemDataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -2546,6 +2799,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_headers_parent_hash"  => some ziskHeadersParentHashProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
+  | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -2575,6 +2829,7 @@ def knownProgramNames : List String :=
    "zisk_headers_parent_hash",
    "zisk_headers_validate_chain",
    "zisk_witness_lookup_by_hash",
+   "zisk_rlp_list_nth_item",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
