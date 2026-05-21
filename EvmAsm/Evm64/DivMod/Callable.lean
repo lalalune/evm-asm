@@ -124,26 +124,26 @@ def evm_mod_callable_v4 : Program :=
 /-- `cc_ret = JALR x0 x1 0` is exactly one instruction. -/
 theorem cc_ret_len : cc_ret.length = 1 := by decide
 
-theorem evm_div_callable_length : evm_div_callable.length = 319 := by
+theorem evm_div_callable_length : evm_div_callable.length = 343 := by
   unfold evm_div_callable
   simp only [seq, Program.length_append, divK_phaseA_len, divK_phaseB_len, divK_clz_len,
     divK_phaseC2_len,
     divK_normB_len, divK_normA_len, divK_copyAU_len, divK_loopSetup_len,
     divK_loopBody_len, divK_denorm_len, divK_divEpilogue_len, divK_zeroPath_len,
-    cc_ret_len, divK_div128_len]
+    cc_ret_len, divK_div128_v4_len]
 
-theorem evm_mod_callable_length : evm_mod_callable.length = 319 := by
+theorem evm_mod_callable_length : evm_mod_callable.length = 343 := by
   unfold evm_mod_callable
   simp only [seq, Program.length_append, divK_phaseA_len, divK_phaseB_len, divK_clz_len,
     divK_phaseC2_len,
     divK_normB_len, divK_normA_len, divK_copyAU_len, divK_loopSetup_len,
     divK_loopBody_len, divK_denorm_len, divK_modEpilogue_len, divK_zeroPath_len,
-    cc_ret_len, divK_div128_len]
+    cc_ret_len, divK_div128_v4_len]
 
-theorem evm_div_callable_byte_length : 4 * evm_div_callable.length = 1276 := by
+theorem evm_div_callable_byte_length : 4 * evm_div_callable.length = 1372 := by
   rw [evm_div_callable_length]
 
-theorem evm_mod_callable_byte_length : 4 * evm_mod_callable.length = 1276 := by
+theorem evm_mod_callable_byte_length : 4 * evm_mod_callable.length = 1372 := by
   rw [evm_mod_callable_length]
 
 theorem evm_div_callable_v4_length : evm_div_callable_v4.length = 343 := by
