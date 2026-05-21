@@ -112,7 +112,7 @@ def evm_smod_v4 : Program :=
 /-- Regression pin: canonical executable SMOD is now the v4 body. -/
 theorem evm_smod_eq_v4 : evm_smod = evm_smod_v4 := rfl
 
-theorem evm_smod_legacy_length : evm_smod_legacy.length = 390 := by
+theorem evm_smod_legacy_length : evm_smod_legacy.length = 414 := by
   native_decide
 
 theorem evm_smod_length : evm_smod.length = 414 := by
@@ -121,7 +121,7 @@ theorem evm_smod_length : evm_smod.length = 414 := by
 theorem evm_smod_v4_length : evm_smod_v4.length = 414 := by
   native_decide
 
-theorem evm_smod_legacy_byte_length : 4 * evm_smod_legacy.length = 1560 := by
+theorem evm_smod_legacy_byte_length : 4 * evm_smod_legacy.length = 1656 := by
   rw [evm_smod_legacy_length]
 
 theorem evm_smod_byte_length : 4 * evm_smod.length = 1656 := by
