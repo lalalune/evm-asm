@@ -24,6 +24,7 @@ import EvmAsm.Evm64.SMod.Compose.AbsComponents
 import EvmAsm.Evm64.SMod.Compose.DispatchReadyView
 import EvmAsm.Evm64.SMod.Compose.ModCallPost
 import EvmAsm.Evm64.SMod.Compose.ModCallBzeroHandoff
+import EvmAsm.Evm64.SMod.Compose.ModCallGenericHandoff
 import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
 import EvmAsm.Evm64.SMod.Compose.ResultSignFixPCFree
 
