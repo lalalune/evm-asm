@@ -22,6 +22,7 @@
 import EvmAsm.Evm64.Stack
 import EvmAsm.Evm64.SDiv.Program
 import EvmAsm.Evm64.DivMod.Callable
+import EvmAsm.Evm64.DivMod.CallableV1Legacy
 
 namespace EvmAsm.Evm64
 
@@ -97,7 +98,7 @@ theorem evm_smod_call_target_byte_offset :
 /-- Full SMOD code region. The wrapper returns via `x18`; the appended
     `evm_mod_callable` block is reached only by the wrapper's near call. -/
 def evm_smod : Program :=
-  evm_smod_wrapper ;; evm_mod_callable
+  evm_smod_wrapper ;; evm_mod_callable_v1
 
 /-- v4 full SMOD code region. This keeps the same SMOD wrapper and swaps the
     appended unsigned MOD callable to the corrected v4 divider body. -/
