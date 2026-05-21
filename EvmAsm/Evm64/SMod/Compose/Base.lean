@@ -18,6 +18,7 @@ import EvmAsm.Evm64.SMod.Compose.DispatchReadyPost
 import EvmAsm.Evm64.SMod.Compose.ModCallCallable
 import EvmAsm.Evm64.SMod.Compose.BaseTopLevel
 import EvmAsm.Evm64.SMod.Compose.Words
+import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
 
 namespace EvmAsm.Evm64.SMod.Compose
 
