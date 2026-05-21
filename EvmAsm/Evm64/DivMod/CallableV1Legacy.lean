@@ -330,11 +330,20 @@ theorem evm_div_callable_v1_spec_from_noNop (sp base raVal : Word)
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** (.x1 ↦ᵣ raVal))
       (divStackDispatchPost sp a b ** (.x1 ↦ᵣ raVal)) := by
-  simpa [evm_div_callable_code_v1_eq_current]
-    using evm_div_callable_spec_from_noNop
-      sp base raVal a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+  have hpcFreePost : (divStackDispatchPost sp a b).pcFree := by
+    rw [divStackDispatchPost_unfold]
+    rw [divScratchOwnCall_unfold, divScratchOwn_unfold]
+    pcFree
+  have hStackCall :=
+    cpsTripleWithin_extend_code (hmono := divCode_noNop_sub_div_callable_code_v1) hStack
+  have hStackFramed :=
+    cpsTripleWithin_frameR (.x1 ↦ᵣ raVal) (by pcFree) hStackCall
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_div_callable_code_v1_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) raVal)
+  have hRetFramed :=
+    cpsTripleWithin_frameL (divStackDispatchPost sp a b) hpcFreePost hRet
+  exact cpsTripleWithin_seq_same_cr hStackFramed hRetFramed
 
 theorem evm_div_callable_v1_spec_from_branch_noNop (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
@@ -348,11 +357,14 @@ theorem evm_div_callable_v1_spec_from_branch_noNop (sp base raVal : Word)
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** (.x1 ↦ᵣ raVal))
       (divStackDispatchPost sp a b ** (.x1 ↦ᵣ raVal)) := by
-  simpa [evm_div_callable_code_v1_eq_current]
-    using evm_div_callable_spec_from_branch_noNop
-      sp base raVal a b v5 v6 v7 v10 v11
+  exact evm_div_callable_v1_spec_from_noNop
+    sp base raVal a b v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch
+    (evm_div_stack_spec_noNop
+      sp base a b v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch)
 
 theorem evm_div_callable_v1_spec_from_noNop_preserving_x1 (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
