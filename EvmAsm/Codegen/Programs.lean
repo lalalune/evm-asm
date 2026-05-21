@@ -2510,6 +2510,301 @@ def ziskRlpListNthItemProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpListNthItemDataSection
 }
 
+/-! ## rlp_list_count_items -- PR-K47 top-level item counter
+
+    Walk an RLP-encoded list once and return the number of
+    top-level items it contains. Building block for callers
+    that need cardinality but not the items themselves:
+    `access_list_count`, `authorization_list_count`,
+    `blob_versioned_hashes_count`, `tx_count_per_block`.
+
+    Mirrors the item-skip logic in PR-K20 `rlp_list_nth_item`
+    but doesn't track a target index; counts every item it
+    can walk past until the list payload ends.
+
+    Calling convention:
+      a0 (input)  : list bytes ptr (start of outer RLP list
+                    prefix, byte 0xc0..0xff)
+      a1 (input)  : total list byte length (full encoded item
+                    incl. prefix)
+      a2 (input)  : u64 out ptr (receives count on success)
+      ra (input)  : return
+      a0 (output) : 0 on success, 1 on parse error
+                    (not a list, truncated, item runs past end)
+
+    Pure register arithmetic except for the count store; no
+    scratch memory; leaf-callable. -/
+def rlpListCountItemsFunction : String :=
+  "rlp_list_count_items:\n" ++
+  "  beqz a1, .Lrlc_fail        # empty input cannot encode a list\n" ++
+  "  lbu t0, 0(a0)\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lrlc_fail    # not an RLP list\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lrlc_short_outer\n" ++
+  "  # Long outer list: prefix bytes = 1 + (t0 - 0xf7)\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  addi t2, t2, 1             # total prefix bytes\n" ++
+  "  add t3, a0, t2             # cursor at first item\n" ++
+  "  j .Lrlc_walk\n" ++
+  ".Lrlc_short_outer:\n" ++
+  "  addi t3, a0, 1\n" ++
+  ".Lrlc_walk:\n" ++
+  "  add t4, a0, a1             # end-of-list cursor (exclusive)\n" ++
+  "  li t5, 0                   # count\n" ++
+  ".Lrlc_loop:\n" ++
+  "  beq t3, t4, .Lrlc_done\n" ++
+  "  bgtu t3, t4, .Lrlc_fail    # cursor walked past end → malformed\n" ++
+  "  lbu t0, 0(t3)\n" ++
+  "  li t1, 0x80\n" ++
+  "  bltu t0, t1, .Lrlc_skip_single\n" ++
+  "  li t1, 0xb8\n" ++
+  "  bltu t0, t1, .Lrlc_skip_short_str\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lrlc_skip_long_str\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lrlc_skip_short_list\n" ++
+  "  # Long list at t3: lol = t0 - 0xf7\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  li a3, 0                   # decoded length accumulator\n" ++
+  "  mv a4, t2                  # remaining length bytes\n" ++
+  "  addi a5, t3, 1\n" ++
+  ".Lrlc_skll_be:\n" ++
+  "  beqz a4, .Lrlc_skll_done\n" ++
+  "  slli a3, a3, 8\n" ++
+  "  lbu a6, 0(a5)\n" ++
+  "  or  a3, a3, a6\n" ++
+  "  addi a5, a5, 1\n" ++
+  "  addi a4, a4, -1\n" ++
+  "  j .Lrlc_skll_be\n" ++
+  ".Lrlc_skll_done:\n" ++
+  "  addi a6, t2, 1\n" ++
+  "  add  a6, a6, a3            # 1 + lol + decoded\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_short_list:\n" ++
+  "  li t1, 0xc0\n" ++
+  "  sub a6, t0, t1\n" ++
+  "  addi a6, a6, 1             # 1 + (t0 - 0xc0)\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_long_str:\n" ++
+  "  li t1, 0xb7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  li a3, 0\n" ++
+  "  mv a4, t2\n" ++
+  "  addi a5, t3, 1\n" ++
+  ".Lrlc_skls_be:\n" ++
+  "  beqz a4, .Lrlc_skls_done\n" ++
+  "  slli a3, a3, 8\n" ++
+  "  lbu a6, 0(a5)\n" ++
+  "  or  a3, a3, a6\n" ++
+  "  addi a5, a5, 1\n" ++
+  "  addi a4, a4, -1\n" ++
+  "  j .Lrlc_skls_be\n" ++
+  ".Lrlc_skls_done:\n" ++
+  "  addi a6, t2, 1\n" ++
+  "  add  a6, a6, a3\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_short_str:\n" ++
+  "  li t1, 0x80\n" ++
+  "  sub a6, t0, t1\n" ++
+  "  addi a6, a6, 1\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_single:\n" ++
+  "  addi t3, t3, 1\n" ++
+  ".Lrlc_step:\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  j .Lrlc_loop\n" ++
+  ".Lrlc_done:\n" ++
+  "  sd t5, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lrlc_fail:\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  li a0, 1\n" ++
+  "  ret"
+
+/-- `zisk_rlp_list_count_items`: probe BuildUnit. Reads
+    (list_len, list_bytes) from host input, writes
+    (status, count) to OUTPUT. -/
+def ziskRlpListCountItemsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # list_len\n" ++
+  "  addi a0, a3, 16             # list ptr\n" ++
+  "  li a2, 0xa0010008           # count out at OUTPUT + 8\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lrlc_pdone\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  ".Lrlc_pdone:"
+
+def ziskRlpListCountItemsDataSection : String :=
+  ".section .data\n" ++
+  "rlc_pad:\n" ++
+  "  .zero 8"
+
+def ziskRlpListCountItemsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRlpListCountItemsPrologue
+  dataAsm     := ziskRlpListCountItemsDataSection
+}
+
+/-! ## access_list_count -- PR-K48 EIP-2930+ access-list cardinality
+
+    Walk an RLP-encoded EIP-2930+ access_list and return
+    `(num_addresses, num_storage_keys)`. These are the two
+    inputs to the EIP-2930+ intrinsic-gas formula:
+
+      gas_access_list = 2400 × num_addresses + 1900 × num_storage_keys
+
+    Access-list shape:
+
+      access_list = [
+        [address (20 B), [slot1 (32 B), slot2 (32 B), ...]],
+        ...
+      ]
+
+    Both `access_list` and each per-address `[slots...]` sub-list
+    are RLP lists. This helper composes:
+
+      1. PR-K47 `rlp_list_count_items` on the outer access_list to
+         get N = num_addresses (and validate the outer shape).
+      2. PR-K20 `rlp_list_nth_item` to extract each entry's bounds.
+      3. PR-K20 `rlp_list_nth_item` on each entry to get field 1
+         (the slots sub-list).
+      4. PR-K47 `rlp_list_count_items` on the slots sub-list to add
+         to num_storage_keys.
+
+    Empty access_list (`0xc0`) → (0, 0).
+
+    Calling convention:
+      a0 (input)  : access_list bytes ptr (whole encoded item incl.
+                    outer RLP list prefix)
+      a1 (input)  : access_list byte length
+      a2 (input)  : u64 out ptr for num_addresses
+      a3 (input)  : u64 out ptr for num_storage_keys
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail.
+
+    Uses three 8-byte `.data` scratch slots
+    (`alc_scratch`, `alc_entry_offset`, `alc_entry_length`,
+    `alc_keys_offset`, `alc_keys_length`). -/
+def accessListCountFunction : String :=
+  "access_list_count:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # outer list ptr\n" ++
+  "  mv s1, a1                   # outer list len\n" ++
+  "  mv s2, a2                   # num_addresses out\n" ++
+  "  mv s3, a3                   # num_storage_keys out\n" ++
+  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
+  "  # Step 1: outer count → s4 = N.\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, alc_scratch\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lalc_fail\n" ++
+  "  la t0, alc_scratch; ld s4, 0(t0)\n" ++
+  "  beqz s4, .Lalc_done\n" ++
+  "  # Step 2: iterate entries 0..N-1.\n" ++
+  "  li s5, 0                    # entry index\n" ++
+  ".Lalc_loop:\n" ++
+  "  beq s5, s4, .Lalc_done\n" ++
+  "  # Fetch entry s5 bounds in the outer list.\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s5\n" ++
+  "  la a3, alc_entry_offset\n" ++
+  "  la a4, alc_entry_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lalc_fail\n" ++
+  "  # entry_ptr = outer_ptr + entry_offset.\n" ++
+  "  la t0, alc_entry_offset; ld t1, 0(t0)\n" ++
+  "  la t0, alc_entry_length; ld t2, 0(t0)\n" ++
+  "  add a0, s0, t1              # entry_ptr\n" ++
+  "  mv a1, t2                   # entry_len\n" ++
+  "  # Fetch entry field 1 (the slots sub-list) bounds.\n" ++
+  "  li a2, 1\n" ++
+  "  la a3, alc_keys_offset\n" ++
+  "  la a4, alc_keys_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lalc_fail\n" ++
+  "  # keys_ptr = outer_ptr + entry_offset + keys_offset.\n" ++
+  "  la t0, alc_entry_offset; ld t1, 0(t0)\n" ++
+  "  la t0, alc_keys_offset; ld t3, 0(t0)\n" ++
+  "  add t1, t1, t3\n" ++
+  "  add a0, s0, t1              # keys_ptr\n" ++
+  "  la t0, alc_keys_length; ld a1, 0(t0)\n" ++
+  "  la a2, alc_scratch\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lalc_fail\n" ++
+  "  la t0, alc_scratch; ld t1, 0(t0)\n" ++
+  "  ld t2, 0(s3)\n" ++
+  "  add t2, t2, t1\n" ++
+  "  sd t2, 0(s3)\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lalc_loop\n" ++
+  ".Lalc_done:\n" ++
+  "  sd s4, 0(s2)                # num_addresses = N\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lalc_ret\n" ++
+  ".Lalc_fail:\n" ++
+  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
+  "  li a0, 1\n" ++
+  ".Lalc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_access_list_count`: probe BuildUnit. Reads (list_len,
+    list_bytes) from host input, writes (status, num_addresses,
+    num_storage_keys) to OUTPUT. -/
+def ziskAccessListCountPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # list_len\n" ++
+  "  addi a0, a4, 16             # list ptr\n" ++
+  "  li a2, 0xa0010008           # num_addresses out\n" ++
+  "  li a3, 0xa0010010           # num_storage_keys out\n" ++
+  "  sd zero, 0(a2); sd zero, 0(a3)\n" ++
+  "  jal ra, access_list_count\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lalc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  accessListCountFunction ++ "\n" ++
+  ".Lalc_pdone:"
+
+def ziskAccessListCountDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "alc_scratch:\n" ++
+  "  .zero 8\n" ++
+  "alc_entry_offset:\n" ++
+  "  .zero 8\n" ++
+  "alc_entry_length:\n" ++
+  "  .zero 8\n" ++
+  "alc_keys_offset:\n" ++
+  "  .zero 8\n" ++
+  "alc_keys_length:\n" ++
+  "  .zero 8"
+
+def ziskAccessListCountProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccessListCountPrologue
+  dataAsm     := ziskAccessListCountDataSection
+}
+
 /-! ## mpt_node_kind -- PR-K21 classifier
 
     Determines whether an RLP-encoded MPT node is a leaf,
@@ -5288,6 +5583,96 @@ def ziskHeaderExtendedDecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtendedDecodeDataSection
 }
 
+/-! ## coinbase_extract_from_header -- PR-K55 beneficiary getter
+
+    Extract the 20-byte beneficiary (coinbase) address — field 2
+    of an RLP-encoded block header. Direct input to
+    `process_transaction`'s priority-fee credit:
+
+      coinbase.balance += effective_priority_fee × gas_used
+
+    The header decoders PR-K38 / PR-K39 read parent_hash,
+    state_root, gas_limit, gas_used, etc., but skip the
+    beneficiary since it isn't part of the STF skeleton's
+    minimal/extended struct. This helper is the dedicated getter
+    for callers that only need the coinbase.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 20-byte output ptr (caller-supplied)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail (not a list or field
+                    2 not 20 bytes). On failure, output is zeroed.
+
+    Composes PR-K20 `rlp_list_nth_item`. Uses two 8-byte `.data`
+    scratch slots (`ceh_offset`, `ceh_length`). -/
+def coinbaseExtractFromHeaderFunction : String :=
+  "coinbase_extract_from_header:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_len\n" ++
+  "  mv s2, a2                  # output 20B ptr\n" ++
+  "  # Get field 2 (coinbase) bounds.\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  la a3, ceh_offset; la a4, ceh_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lceh_fail\n" ++
+  "  la t0, ceh_length; ld t1, 0(t0)\n" ++
+  "  li t2, 20\n" ++
+  "  bne t1, t2, .Lceh_fail\n" ++
+  "  la t0, ceh_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  # Copy 20 bytes: 8 + 8 + 4 = 20.\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  lwu t4, 16(t3); sw t4, 16(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lceh_ret\n" ++
+  ".Lceh_fail:\n" ++
+  "  sd zero,  0(s2); sd zero, 8(s2); sw zero, 16(s2)\n" ++
+  "  li a0, 1\n" ++
+  ".Lceh_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_coinbase_extract_from_header`: probe BuildUnit. Reads
+    (header_len, header_bytes) from host input, writes
+    (status, 20B address + 4B pad) to OUTPUT (32 bytes total). -/
+def ziskCoinbaseExtractFromHeaderPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  li a2, 0xa0010008           # 20B output at OUTPUT + 8\n" ++
+  "  # Pre-zero the 20B output + 4B trailing pad.\n" ++
+  "  mv t0, a2\n" ++
+  "  sd zero, 0(t0); sd zero, 8(t0); sw zero, 16(t0)\n" ++
+  "  jal ra, coinbase_extract_from_header\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lceh_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  coinbaseExtractFromHeaderFunction ++ "\n" ++
+  ".Lceh_pdone:"
+
+def ziskCoinbaseExtractFromHeaderDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "ceh_offset:\n" ++
+  "  .zero 8\n" ++
+  "ceh_length:\n" ++
+  "  .zero 8"
+
+def ziskCoinbaseExtractFromHeaderProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskCoinbaseExtractFromHeaderPrologue
+  dataAsm     := ziskCoinbaseExtractFromHeaderDataSection
+}
+
 /-! ## validate_header_basic -- PR-K43 per-header semantic checks
 
     Three u64 invariants from `validate_header` (Python:
@@ -5365,6 +5750,701 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
   prologueAsm := ziskValidateHeaderBasicPrologue
   dataAsm     := ziskValidateHeaderBasicDataSection
 }
+
+/-! ## u256_add_be -- PR-K51 modular addition on BE u256 buffers
+
+    Compute `(a + b) mod 2^256` over two 32-byte big-endian
+    `u256` buffers, storing the result in `out` and returning a
+    0/1 overflow flag (`1` ⇔ unsigned overflow ⇔ `a + b >= 2^256`).
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB. Mirrors
+    the layout produced by `rlp_field_to_u256_be` and consumed by
+    `u256_lt` (PR-K50).
+
+    Building block for `tx_cost = max_fee_per_gas * gas_limit +
+    value` in tx validation, and for any subsequent u256
+    arithmetic helpers (`u256_sub_be`, `u256_mul_u64`).
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u256 b ptr (32 bytes, BE)
+      a2 (input)  : u256 out ptr (32 bytes, BE; may alias a or b)
+      ra (input)  : return
+      a0 (output) : 1 on overflow, 0 otherwise.
+
+    Aliasing is safe: `out` may alias `a` or `b`. The
+    byte-by-byte loop reads `a[i]` and `b[i]` before writing
+    `out[i]` at each step. Pure register arithmetic, no scratch
+    memory, leaf-callable. -/
+def u256AddBeFunction : String :=
+  "u256_add_be:\n" ++
+  "  li t0, 31                  # byte index (LSB first)\n" ++
+  "  li t1, 0                   # carry\n" ++
+  ".Lu256a_loop:\n" ++
+  "  add t2, a0, t0\n" ++
+  "  add t3, a1, t0\n" ++
+  "  add t4, a2, t0\n" ++
+  "  lbu t5, 0(t2)\n" ++
+  "  lbu t6, 0(t3)\n" ++
+  "  add t5, t5, t6\n" ++
+  "  add t5, t5, t1             # + carry-in\n" ++
+  "  srli t1, t5, 8             # carry-out\n" ++
+  "  andi t5, t5, 0xff          # masked sum byte\n" ++
+  "  sb t5, 0(t4)\n" ++
+  "  beqz t0, .Lu256a_done\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lu256a_loop\n" ++
+  ".Lu256a_done:\n" ++
+  "  mv a0, t1                  # final carry = overflow flag\n" ++
+  "  ret"
+
+/-- `zisk_u256_add_be`: probe BuildUnit. Reads (32B a, 32B b) from
+    host input, writes (overflow_flag, 32B result) to OUTPUT (40
+    bytes total). -/
+def ziskU256AddBePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # a ptr\n" ++
+  "  addi a1, a3, 40             # b ptr\n" ++
+  "  li a2, 0xa0010008           # out ptr at OUTPUT + 8\n" ++
+  "  # Pre-zero the 32 output bytes (defensive).\n" ++
+  "  mv t0, a2; li t1, 4\n" ++
+  ".Lu256a_zinit:\n" ++
+  "  beqz t1, .Lu256a_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lu256a_zinit\n" ++
+  ".Lu256a_zdone:\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # overflow flag\n" ++
+  "  j .Lu256a_pdone\n" ++
+  u256AddBeFunction ++ "\n" ++
+  ".Lu256a_pdone:"
+
+def ziskU256AddBeDataSection : String :=
+  ".section .data\n" ++
+  "u256a_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256AddBeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256AddBePrologue
+  dataAsm     := ziskU256AddBeDataSection
+}
+
+/-! ## u256_sub_be -- PR-K52 modular subtraction on BE u256 buffers
+
+    Compute `(a - b) mod 2^256` over two 32-byte big-endian
+    `u256` buffers, storing the result in `out` and returning a
+    0/1 borrow flag (`1` ⇔ unsigned underflow ⇔ `a < b`).
+
+    Natural pair to PR-K51 `u256_add_be`. Direct use case:
+
+      new_balance = u256_sub_be(account.balance, tx_cost)
+      if borrow: reject tx (insufficient funds)
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u256 b ptr (32 bytes, BE)
+      a2 (input)  : u256 out ptr (32 bytes, BE; may alias a or b)
+      ra (input)  : return
+      a0 (output) : 1 on underflow (a < b), 0 otherwise.
+
+    Aliasing is safe: `out` may alias `a` or `b`. Pure register
+    arithmetic, no scratch memory, leaf-callable. -/
+def u256SubBeFunction : String :=
+  "u256_sub_be:\n" ++
+  "  li t0, 31                  # byte index (LSB first)\n" ++
+  "  li t1, 0                   # borrow\n" ++
+  ".Lu256s_loop:\n" ++
+  "  add t2, a0, t0\n" ++
+  "  add t3, a1, t0\n" ++
+  "  add t4, a2, t0\n" ++
+  "  lbu t5, 0(t2)\n" ++
+  "  lbu t6, 0(t3)\n" ++
+  "  sub t5, t5, t6\n" ++
+  "  sub t5, t5, t1             # - borrow-in\n" ++
+  "  sltz t1, t5                # borrow-out = (t5 < 0)\n" ++
+  "  andi t5, t5, 0xff          # masked diff byte\n" ++
+  "  sb t5, 0(t4)\n" ++
+  "  beqz t0, .Lu256s_done\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lu256s_loop\n" ++
+  ".Lu256s_done:\n" ++
+  "  mv a0, t1                  # final borrow = underflow flag\n" ++
+  "  ret"
+
+/-- `zisk_u256_sub_be`: probe BuildUnit. Reads (32B a, 32B b)
+    from host input, writes (borrow_flag, 32B result) to OUTPUT
+    (40 bytes total). -/
+def ziskU256SubBePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # a ptr\n" ++
+  "  addi a1, a3, 40             # b ptr\n" ++
+  "  li a2, 0xa0010008           # out ptr at OUTPUT + 8\n" ++
+  "  mv t0, a2; li t1, 4\n" ++
+  ".Lu256s_zinit:\n" ++
+  "  beqz t1, .Lu256s_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lu256s_zinit\n" ++
+  ".Lu256s_zdone:\n" ++
+  "  jal ra, u256_sub_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # borrow flag\n" ++
+  "  j .Lu256s_pdone\n" ++
+  u256SubBeFunction ++ "\n" ++
+  ".Lu256s_pdone:"
+
+def ziskU256SubBeDataSection : String :=
+  ".section .data\n" ++
+  "u256s_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256SubBeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256SubBePrologue
+  dataAsm     := ziskU256SubBeDataSection
+}
+
+/-! ## u256_from_u64_be -- PR-K56 zero-extend u64 → BE u256 buffer
+
+    Materialize a `u64` value as a 32-byte big-endian `u256`
+    buffer by zero-extending. Lets callers feed small operands
+    (`gas_limit`, `nonce`, `data_length`, etc.) into the u256
+    arithmetic and comparison toolkit (`u256_add_be`,
+    `u256_sub_be`, `u256_lt`, `u256_eq`, `u256_mul_u64_be`).
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB. Output:
+      bytes 0..24  = 0x00
+      bytes 24..32 = u64 value in big-endian order
+
+    Calling convention:
+      a0 (input)  : u64 value (in register)
+      a1 (input)  : u256 out ptr (32 bytes; will be fully written)
+      ra (input)  : return
+
+    Pure register arithmetic except for the 4 zero-stores + 8
+    byte-stores; no scratch memory; leaf-callable. Uses RV64 `sb`
+    semantics (stores low 8 bits of rs2), so no `andi 0xff`
+    masking is needed before each byte write. -/
+def u256FromU64BeFunction : String :=
+  "u256_from_u64_be:\n" ++
+  "  # Zero the high 24 bytes.\n" ++
+  "  sd zero,  0(a1)\n" ++
+  "  sd zero,  8(a1)\n" ++
+  "  sd zero, 16(a1)\n" ++
+  "  # Write the u64 in BE order at bytes 24..32.\n" ++
+  "  srli t0, a0, 56; sb t0, 24(a1)\n" ++
+  "  srli t0, a0, 48; sb t0, 25(a1)\n" ++
+  "  srli t0, a0, 40; sb t0, 26(a1)\n" ++
+  "  srli t0, a0, 32; sb t0, 27(a1)\n" ++
+  "  srli t0, a0, 24; sb t0, 28(a1)\n" ++
+  "  srli t0, a0, 16; sb t0, 29(a1)\n" ++
+  "  srli t0, a0,  8; sb t0, 30(a1)\n" ++
+  "                  sb a0, 31(a1)\n" ++
+  "  ret"
+
+/-- `zisk_u256_from_u64_be`: probe BuildUnit. Reads (u64 value)
+    from host input, writes the 32-byte BE u256 to OUTPUT. -/
+def ziskU256FromU64BePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a2, 0x40000000\n" ++
+  "  ld a0, 8(a2)                # value\n" ++
+  "  li a1, 0xa0010000           # out ptr at OUTPUT\n" ++
+  "  jal ra, u256_from_u64_be\n" ++
+  "  j .Lu256f_pdone\n" ++
+  u256FromU64BeFunction ++ "\n" ++
+  ".Lu256f_pdone:"
+
+def ziskU256FromU64BeDataSection : String :=
+  ".section .data\n" ++
+  "u256f_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256FromU64BeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256FromU64BePrologue
+  dataAsm     := ziskU256FromU64BeDataSection
+}
+
+/-! ## u256_is_zero -- PR-K58 all-zero predicate on BE u256 buffers
+
+    Test whether a 32-byte big-endian `u256` buffer encodes the
+    value `0`. Returns `1` if all 32 bytes are zero, else `0`.
+
+    Saves callers from keeping a 32-byte zero buffer around just
+    to call `u256_eq` against it. Common pattern in tx
+    validation:
+
+      // Reject zero-value txs to a contract creation address
+      if not u256_is_zero(tx.value) and tx.is_creation: ...
+
+      // Skip the priority-fee credit if no surplus
+      if u256_is_zero(priority_fee_after_cap): goto next
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB. (For
+    is-zero the endian doesn't matter — all-zero bytes mean
+    value 0 either way — but kept consistent with the K50/K53
+    convention.)
+
+    Calling convention:
+      a0 (input)  : u256 ptr (32 bytes)
+      ra (input)  : return
+      a0 (output) : 1 if all-zero, 0 otherwise.
+
+    Pure register arithmetic: 4 ld + 3 or + 1 seqz. No
+    short-circuit (we always read all 32 bytes), keeping
+    timing data-independent for any future side-channel
+    considerations. Leaf-callable. -/
+def u256IsZeroFunction : String :=
+  "u256_is_zero:\n" ++
+  "  ld t0,  0(a0)\n" ++
+  "  ld t1,  8(a0)\n" ++
+  "  ld t2, 16(a0)\n" ++
+  "  ld t3, 24(a0)\n" ++
+  "  or t0, t0, t1\n" ++
+  "  or t0, t0, t2\n" ++
+  "  or t0, t0, t3\n" ++
+  "  seqz a0, t0\n" ++
+  "  ret"
+
+/-- `zisk_u256_is_zero`: probe BuildUnit. Reads 32B u256 from host
+    input, writes the u64 result. -/
+def ziskU256IsZeroPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a1, 0x40000000\n" ++
+  "  addi a0, a1, 8              # u256 ptr\n" ++
+  "  jal ra, u256_is_zero\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # result\n" ++
+  "  j .Lu256z_pdone\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  ".Lu256z_pdone:"
+
+def ziskU256IsZeroDataSection : String :=
+  ".section .data\n" ++
+  "u256z_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256IsZeroProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256IsZeroPrologue
+  dataAsm     := ziskU256IsZeroDataSection
+}
+
+/-! ## u256_min -- PR-K59 minimum of two BE u256 buffers
+
+    Compare two 32-byte big-endian `u256` buffers and copy the
+    smaller (or `a` on equality) into `out`. Standalone — does
+    not call `u256_lt` (PR-K50); the byte-walk-and-pick logic
+    is inlined to avoid the cross-PR dependency.
+
+    Direct use case — EIP-1559 effective priority fee:
+
+      surplus = u256_sub_be(tx.max_fee_per_gas, base_fee_per_gas)
+      priority = u256_min(tx.max_priority_fee_per_gas, surplus)
+
+    Per the Python `transaction_priority_fee_per_gas`:
+
+      def priority_fee(tx, base_fee):
+          if tx.type == 0:  # legacy
+              return tx.gas_price - base_fee
+          else:
+              return min(tx.max_priority_fee_per_gas,
+                         tx.max_fee_per_gas - base_fee)
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u256 b ptr (32 bytes, BE)
+      a2 (input)  : u256 out ptr (may alias a or b)
+      ra (input)  : return
+      a0 (output) : 0 (the selected pointer is internally chosen).
+
+    The byte-walk pass short-circuits on the first differing
+    byte. Then a 4 × (ld + sd) chunk copy emits 32 bytes. Pure
+    register arithmetic, no scratch memory, leaf-callable.
+
+    Note on aliasing: if `out` aliases either input, the byte
+    walk is read-only over both inputs, and the 4 × (ld + sd)
+    copy reads each chunk from one of them and writes to `out`
+    in the same step — fine since `ld` happens before `sd`. -/
+def u256MinFunction : String :=
+  "u256_min:\n" ++
+  "  li t0, 0                   # byte index\n" ++
+  "  li t6, 32\n" ++
+  ".Lumin_lt_loop:\n" ++
+  "  beq t0, t6, .Lumin_pick_a  # all bytes equal → return a\n" ++
+  "  add t1, a0, t0\n" ++
+  "  add t2, a1, t0\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bltu t3, t4, .Lumin_pick_a # a < b → return a\n" ++
+  "  bgtu t3, t4, .Lumin_pick_b # a > b → return b\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lumin_lt_loop\n" ++
+  ".Lumin_pick_a:\n" ++
+  "  mv t0, a0\n" ++
+  "  j .Lumin_copy\n" ++
+  ".Lumin_pick_b:\n" ++
+  "  mv t0, a1\n" ++
+  ".Lumin_copy:\n" ++
+  "  ld t1,  0(t0); sd t1,  0(a2)\n" ++
+  "  ld t1,  8(t0); sd t1,  8(a2)\n" ++
+  "  ld t1, 16(t0); sd t1, 16(a2)\n" ++
+  "  ld t1, 24(t0); sd t1, 24(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_u256_min`: probe BuildUnit. Reads (32B a, 32B b) from
+    host input, writes the 32B min into OUTPUT. -/
+def ziskU256MinPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # a ptr\n" ++
+  "  addi a1, a3, 40             # b ptr\n" ++
+  "  li a2, 0xa0010000           # out ptr at OUTPUT\n" ++
+  "  jal ra, u256_min\n" ++
+  "  j .Lumin_pdone\n" ++
+  u256MinFunction ++ "\n" ++
+  ".Lumin_pdone:"
+
+def ziskU256MinDataSection : String :=
+  ".section .data\n" ++
+  "umin_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256MinProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256MinPrologue
+  dataAsm     := ziskU256MinDataSection
+}
+
+
+/-! ## u256_eq -- PR-K53 equality companion to PR-K50 u256_lt
+
+    Equality predicate on two 32-byte big-endian `u256` buffers.
+    Returns `1` if `a == b`, else `0`. Pair to PR-K50 `u256_lt`
+    so callers can express `a >= b` as `!u256_lt(a, b)` plus
+    optionally `u256_eq` for equality discrimination, or `a > b`
+    as `u256_lt(b, a)`, etc.
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u256 b ptr (32 bytes, BE)
+      ra (input)  : return
+      a0 (output) : 1 if a == b, 0 otherwise.
+
+    Pure register arithmetic, no scratch memory, leaf-callable.
+    Walks at most 32 bytes; short-circuits on the first
+    differing byte. -/
+def u256EqFunction : String :=
+  "u256_eq:\n" ++
+  "  li t0, 0                   # byte index\n" ++
+  "  li t6, 32\n" ++
+  ".Lu256eq_loop:\n" ++
+  "  beq t0, t6, .Lu256eq_yes   # 32 bytes equal → a == b\n" ++
+  "  add t1, a0, t0\n" ++
+  "  add t2, a1, t0\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bne t3, t4, .Lu256eq_no\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lu256eq_loop\n" ++
+  ".Lu256eq_yes:\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Lu256eq_no:\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_u256_eq`: probe BuildUnit. Reads (32B a, 32B b) from
+    host input, writes the u64 result. -/
+def ziskU256EqPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a2, 0x40000000\n" ++
+  "  addi a0, a2, 8              # a ptr\n" ++
+  "  addi a1, a2, 40             # b ptr (a + 32)\n" ++
+  "  jal ra, u256_eq\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # result\n" ++
+  "  j .Lu256eq_pdone\n" ++
+  u256EqFunction ++ "\n" ++
+  ".Lu256eq_pdone:"
+
+def ziskU256EqDataSection : String :=
+  ".section .data\n" ++
+  "u256eq_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256EqProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256EqPrologue
+  dataAsm     := ziskU256EqDataSection
+}
+
+
+/-! ## u256_mul_u64_be -- PR-K54 u256 × u64 schoolbook multiply
+
+    Compute `(a * b) mod 2^256` where `a` is a 32-byte big-endian
+    `u256` buffer and `b` is a u64 scalar. Stores the low 256 bits
+    of the product in `out` (BE) and returns a 0/1 overflow flag.
+
+    Direct use case: `tx_cost = max_fee_per_gas * gas_limit` in
+    tx validation (then `+ value` via PR-K51 `u256_add_be`).
+
+    Algorithm: byte-by-byte schoolbook over the u256 operand,
+    avoiding any BE↔u64 conversion of `a`. For each byte
+    `a[31-p]` (p in 0..31, LSB first):
+
+      1. partial = a[31-p] * b  (u72; mul + mulhu)
+      2. add `partial` to an LSB-first 40-byte accumulator at
+         byte offset `p`, with carry propagation
+      3. After all 32 bytes, accumulator[0..32] = low 256 bits
+         (LSB first), accumulator[32..40] holds the high 64 bits
+
+    Final output:
+      out[i]   = accumulator[31 - i]  for i in 0..32  (BE)
+      overflow = (accumulator[32..40] != 0)
+
+    The accumulator lives in `.data` (`u256m_acc`, 40 bytes), so
+    this function is NOT reentrant.
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u64 b (scalar, in register)
+      a2 (input)  : u256 out ptr (32 bytes, BE; out may alias a;
+                    must NOT alias `u256m_acc`)
+      ra (input)  : return
+      a0 (output) : 1 on overflow (a * b >= 2^256), 0 otherwise.
+
+    Uses 40 bytes of `.data` scratch (`u256m_acc`). -/
+def u256MulU64BeFunction : String :=
+  "u256_mul_u64_be:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                  # a ptr\n" ++
+  "  mv s1, a1                  # b\n" ++
+  "  mv s2, a2                  # out ptr\n" ++
+  "  # Zero 40-byte accumulator.\n" ++
+  "  la s3, u256m_acc\n" ++
+  "  mv t0, s3\n" ++
+  "  li t1, 5\n" ++
+  ".Lmul_zinit:\n" ++
+  "  beqz t1, .Lmul_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lmul_zinit\n" ++
+  ".Lmul_zdone:\n" ++
+  "  # Outer loop: p in 0..32 (byte position from LSB).\n" ++
+  "  li s4, 0\n" ++
+  ".Lmul_outer:\n" ++
+  "  li t0, 32\n" ++
+  "  beq s4, t0, .Lmul_post\n" ++
+  "  # byte_a = a[31 - p]\n" ++
+  "  li t0, 31\n" ++
+  "  sub t0, t0, s4\n" ++
+  "  add t0, s0, t0\n" ++
+  "  lbu t0, 0(t0)\n" ++
+  "  beqz t0, .Lmul_step        # skip zero bytes (optimization)\n" ++
+  "  # partial = byte_a * b: low 64 in t1, high ≤ 0xff in t2.\n" ++
+  "  mul   t1, t0, s1\n" ++
+  "  mulhu t2, t0, s1\n" ++
+  "  # Add to acc[p..p+9] with carry.\n" ++
+  "  add t3, s3, s4             # &acc[p]\n" ++
+  "  li t4, 8                   # 8 low bytes\n" ++
+  "  li t5, 0                   # carry\n" ++
+  ".Lmul_addlo:\n" ++
+  "  lbu t6, 0(t3)\n" ++
+  "  andi a3, t1, 0xff\n" ++
+  "  add  t6, t6, a3\n" ++
+  "  add  t6, t6, t5\n" ++
+  "  andi a3, t6, 0xff\n" ++
+  "  sb   a3, 0(t3)\n" ++
+  "  srli t5, t6, 8\n" ++
+  "  srli t1, t1, 8\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  bnez t4, .Lmul_addlo\n" ++
+  "  # Add p_hi (t2; ≤ 1 byte) + carry at acc[p+8].\n" ++
+  "  lbu t6, 0(t3)\n" ++
+  "  add t6, t6, t2\n" ++
+  "  add t6, t6, t5\n" ++
+  "  andi a3, t6, 0xff\n" ++
+  "  sb   a3, 0(t3)\n" ++
+  "  srli t5, t6, 8\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  # Propagate remaining carry through higher bytes.\n" ++
+  ".Lmul_carry:\n" ++
+  "  beqz t5, .Lmul_step\n" ++
+  "  lbu t6, 0(t3)\n" ++
+  "  add t6, t6, t5\n" ++
+  "  andi a3, t6, 0xff\n" ++
+  "  sb   a3, 0(t3)\n" ++
+  "  srli t5, t6, 8\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  j .Lmul_carry\n" ++
+  ".Lmul_step:\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lmul_outer\n" ++
+  ".Lmul_post:\n" ++
+  "  # Copy acc[0..32] (LSB first) into out (BE, MSB first).\n" ++
+  "  mv t0, s3                  # acc cursor (LSB)\n" ++
+  "  addi t1, s2, 32            # out end (exclusive)\n" ++
+  "  li t2, 32\n" ++
+  ".Lmul_copy:\n" ++
+  "  beqz t2, .Lmul_overflow_check\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  sb t3, 0(t1)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lmul_copy\n" ++
+  ".Lmul_overflow_check:\n" ++
+  "  # t0 now points to acc[32]; any nonzero in acc[32..40] → overflow.\n" ++
+  "  li t1, 8\n" ++
+  "  li a0, 0\n" ++
+  ".Lmul_of_loop:\n" ++
+  "  beqz t1, .Lmul_done\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  beqz t3, .Lmul_of_next\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lmul_done\n" ++
+  ".Lmul_of_next:\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lmul_of_loop\n" ++
+  ".Lmul_done:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_u256_mul_u64_be`: probe BuildUnit. Reads (32B a BE,
+    8B b LE) from host input, writes (overflow_flag, 32B result
+    BE) to OUTPUT (40 bytes total). -/
+def ziskU256MulU64BePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # a ptr (32B BE)\n" ++
+  "  ld a1, 40(a3)               # b (u64 LE)\n" ++
+  "  li a2, 0xa0010008           # out ptr at OUTPUT + 8\n" ++
+  "  # Pre-zero the 32 output bytes (defensive).\n" ++
+  "  mv t0, a2; li t1, 4\n" ++
+  ".Lmul_zout:\n" ++
+  "  beqz t1, .Lmul_zout_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lmul_zout\n" ++
+  ".Lmul_zout_done:\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # overflow flag\n" ++
+  "  j .Lmul_pdone\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  ".Lmul_pdone:"
+
+def ziskU256MulU64BeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40"
+
+def ziskU256MulU64BeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256MulU64BePrologue
+  dataAsm     := ziskU256MulU64BeDataSection
+}
+
+/-! ## u256_to_u64_be -- PR-K57 truncate BE u256 → u64 with overflow flag
+
+    Truncate a 32-byte big-endian `u256` buffer down to its
+    low 64 bits, storing them at `*out`. Returns a 0/1 overflow
+    flag: `1` if any of the high 192 bits are nonzero, `0`
+    otherwise.
+
+    Natural inverse of PR-K56 `u256_from_u64_be`. Together they
+    let callers move values between the u256 BE byte-buffer
+    representation and the u64 register-resident form.
+
+    Direct use cases:
+      - `gas_left = u256_to_u64_be(account.balance / gas_price)`
+      - Tx validation: check `intrinsic_gas <= tx.gas_limit`
+        after computing intrinsic gas as a u64
+      - Compact a small u256 result for further u64-domain work
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 src ptr (32 bytes, BE)
+      a1 (input)  : u64 out ptr
+      ra (input)  : return
+      a0 (output) : 1 on overflow (high 192 bits nonzero), 0 otherwise.
+
+    Pure register arithmetic, no scratch memory, leaf-callable.
+    Always writes the low-64-bit value to `*out`, even on
+    overflow (so callers don't need to branch on the flag to
+    read a defined value). -/
+def u256ToU64BeFunction : String :=
+  "u256_to_u64_be:\n" ++
+  "  # Check high 24 bytes (positions 0..24) are all zero.\n" ++
+  "  ld t0,  0(a0)\n" ++
+  "  ld t1,  8(a0)\n" ++
+  "  ld t2, 16(a0)\n" ++
+  "  or t0, t0, t1\n" ++
+  "  or t0, t0, t2\n" ++
+  "  # Assemble low u64 from BE bytes at positions 24..32.\n" ++
+  "  lbu t1, 24(a0); slli t1, t1, 56\n" ++
+  "  lbu t2, 25(a0); slli t2, t2, 48; or t1, t1, t2\n" ++
+  "  lbu t2, 26(a0); slli t2, t2, 40; or t1, t1, t2\n" ++
+  "  lbu t2, 27(a0); slli t2, t2, 32; or t1, t1, t2\n" ++
+  "  lbu t2, 28(a0); slli t2, t2, 24; or t1, t1, t2\n" ++
+  "  lbu t2, 29(a0); slli t2, t2, 16; or t1, t1, t2\n" ++
+  "  lbu t2, 30(a0); slli t2, t2,  8; or t1, t1, t2\n" ++
+  "  lbu t2, 31(a0);                  or t1, t1, t2\n" ++
+  "  sd t1, 0(a1)\n" ++
+  "  snez a0, t0                      # overflow = (high bits != 0)\n" ++
+  "  ret"
+
+/-- `zisk_u256_to_u64_be`: probe BuildUnit. Reads 32B BE u256
+    from host input, writes (overflow_flag, u64 result LE) to
+    OUTPUT (16 bytes total). -/
+def ziskU256ToU64BePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a2, 0x40000000\n" ++
+  "  addi a0, a2, 8              # src ptr\n" ++
+  "  li a1, 0xa0010008           # u64 out\n" ++
+  "  jal ra, u256_to_u64_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # overflow flag\n" ++
+  "  j .Lu256t_pdone\n" ++
+  u256ToU64BeFunction ++ "\n" ++
+  ".Lu256t_pdone:"
+
+def ziskU256ToU64BeDataSection : String :=
+  ".section .data\n" ++
+  "u256t_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256ToU64BeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256ToU64BePrologue
+  dataAsm     := ziskU256ToU64BeDataSection
+}
+
 
 /-! ## tx_type_dispatch -- PR-K40 typed-tx prefix detector
 
@@ -6267,6 +7347,202 @@ def ziskTxEip4844DecodeProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskTxEip4844DecodePrologue
   dataAsm     := ziskTxEip4844DecodeDataSection
+}
+
+/-! ## intrinsic_gas_legacy -- PR-K46 base + creation + data gas
+
+    Compute the intrinsic gas cost portion of a legacy /
+    EIP-2930 / EIP-1559 transaction that depends only on the
+    `data` payload and the creation flag. Higher-fork-specific
+    extras (access-list address/slot costs, EIP-7702 auth
+    entries, EIP-7623 floor data cost) are NOT included here --
+    callers compose them.
+
+    Formula (EIP-2028 / EIP-2 base):
+
+      gas = 21000
+          + (32000 if creation else 0)
+          + sum(4 if b == 0 else 16 for b in data)
+
+    Calling convention:
+      a0 (input)  : data ptr
+      a1 (input)  : data byte length
+      a2 (input)  : is_creation (0 = call, 1 = creation)
+      ra (input)  : return
+      a0 (output) : u64 intrinsic gas
+
+    Pure register arithmetic, no scratch memory, leaf-callable.
+    Cannot overflow u64 in practice: even at max gas_limit ~30M,
+    data length << 2^59, so 16 * data_len is well within u64. -/
+def intrinsicGasLegacyFunction : String :=
+  "intrinsic_gas_legacy:\n" ++
+  "  li t0, 21000               # base\n" ++
+  "  beqz a2, .Ligl_skip_creation\n" ++
+  "  li t1, 32000\n" ++
+  "  add t0, t0, t1\n" ++
+  ".Ligl_skip_creation:\n" ++
+  "  mv t2, a0                  # data cursor\n" ++
+  "  add t3, a0, a1             # data end\n" ++
+  ".Ligl_loop:\n" ++
+  "  bgeu t2, t3, .Ligl_done\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  beqz t4, .Ligl_zero\n" ++
+  "  addi t0, t0, 16\n" ++
+  "  j .Ligl_step\n" ++
+  ".Ligl_zero:\n" ++
+  "  addi t0, t0, 4\n" ++
+  ".Ligl_step:\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  j .Ligl_loop\n" ++
+  ".Ligl_done:\n" ++
+  "  mv a0, t0\n" ++
+  "  ret"
+
+/-- `zisk_intrinsic_gas_legacy`: probe BuildUnit. Reads
+    (data_len, is_creation, data_bytes) from host input, writes
+    the u64 intrinsic gas to OUTPUT. -/
+def ziskIntrinsicGasLegacyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # data_len\n" ++
+  "  ld a2, 16(a3)               # is_creation\n" ++
+  "  addi a0, a3, 24             # data ptr\n" ++
+  "  jal ra, intrinsic_gas_legacy\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # gas\n" ++
+  "  j .Ligl_pdone\n" ++
+  intrinsicGasLegacyFunction ++ "\n" ++
+  ".Ligl_pdone:"
+
+def ziskIntrinsicGasLegacyDataSection : String :=
+  ".section .data\n" ++
+  "igl_pad:\n" ++
+  "  .zero 8"
+
+def ziskIntrinsicGasLegacyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskIntrinsicGasLegacyPrologue
+  dataAsm     := ziskIntrinsicGasLegacyDataSection
+}
+
+/-! ## withdrawal_decode -- PR-K49 4-field withdrawal RLP decoder
+
+    Decode a post-Shanghai Withdrawal record into a flat struct.
+    Each withdrawal is an RLP list with 4 fields (Python:
+    `ethereum.forks.shanghai.fork_types.Withdrawal`):
+
+      rlp([index, validator_index, address, amount])
+
+    `apply_body` iterates `block.withdrawals`, decodes each one
+    via this helper, and applies the credit to the recipient's
+    balance (amount is in Gwei).
+
+    Output struct (48 bytes; 8-byte aligned for sd):
+
+       0..  8  index           (u64 LE)
+       8.. 16  validator_index (u64 LE)
+      16.. 36  address         (20 B)
+      36.. 40  zero pad
+      40.. 48  amount          (u64 LE; in Gwei)
+
+    Calling convention:
+      a0 (input)  : withdrawal_rlp ptr
+      a1 (input)  : withdrawal_rlp byte length
+      a2 (input)  : 48-byte output struct ptr
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail (not a 4-item list,
+                    field too long, or address not 20 bytes). -/
+def withdrawalDecodeFunction : String :=
+  "withdrawal_decode:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # wd_rlp ptr\n" ++
+  "  mv s1, a1                  # wd_rlp_len\n" ++
+  "  mv s2, a2                  # struct out\n" ++
+  "  # Field 0: index (u64 at offset 0)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lwd_fail\n" ++
+  "  # Field 1: validator_index (u64 at offset 8)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
+  "  addi a3, s2, 8\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lwd_fail\n" ++
+  "  # Field 2: address (20 bytes at offset 16)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  la a3, wd_offset; la a4, wd_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lwd_fail\n" ++
+  "  la t0, wd_length; ld t1, 0(t0)\n" ++
+  "  li t2, 20\n" ++
+  "  bne t1, t2, .Lwd_fail\n" ++
+  "  la t0, wd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  addi t4, s2, 16\n" ++
+  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
+  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
+  "  lwu t5, 16(t3); sw t5, 16(t4)\n" ++
+  "  # Pad bytes 20..24 of address slot (struct 36..40) are zero (from caller zeroing).\n" ++
+  "  # Field 3: amount (u64 at offset 40)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
+  "  addi a3, s2, 40\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lwd_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lwd_ret\n" ++
+  ".Lwd_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lwd_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_withdrawal_decode`: probe BuildUnit. Reads (wd_len,
+    wd_bytes) from host input, writes (status, 48-byte struct)
+    to OUTPUT. -/
+def ziskWithdrawalDecodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # wd_len\n" ++
+  "  addi a0, a3, 16             # wd ptr\n" ++
+  "  li a2, 0xa0010008           # struct at OUTPUT + 8\n" ++
+  "  # Pre-zero 48 bytes (6 dwords).\n" ++
+  "  mv t0, a2\n" ++
+  "  li t1, 6\n" ++
+  ".Lwd_zinit:\n" ++
+  "  beqz t1, .Lwd_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lwd_zinit\n" ++
+  ".Lwd_zdone:\n" ++
+  "  jal ra, withdrawal_decode\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lwd_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  withdrawalDecodeFunction ++ "\n" ++
+  ".Lwd_pdone:"
+
+def ziskWithdrawalDecodeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wd_offset:\n" ++
+  "  .zero 8\n" ++
+  "wd_length:\n" ++
+  "  .zero 8"
+
+def ziskWithdrawalDecodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskWithdrawalDecodePrologue
+  dataAsm     := ziskWithdrawalDecodeDataSection
 }
 
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
@@ -7506,6 +8782,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
+  | "zisk_rlp_list_count_items" => some ziskRlpListCountItemsProbeUnit
+  | "zisk_access_list_count"    => some ziskAccessListCountProbeUnit
   | "zisk_mpt_node_kind"        => some ziskMptNodeKindProbeUnit
   | "zisk_mpt_branch_child"     => some ziskMptBranchChildProbeUnit
   | "zisk_hp_decode_nibbles"    => some ziskHpDecodeNibblesProbeUnit
@@ -7526,11 +8804,22 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_derive_chain_id_from_v" => some ziskDeriveChainIdFromVProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
+  | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
+  | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
+  | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
+  | "zisk_u256_eq"              => some ziskU256EqProbeUnit
+  | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit
+  | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
+  | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
+  | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
+  | "zisk_u256_min"             => some ziskU256MinProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
+  | "zisk_intrinsic_gas_legacy" => some ziskIntrinsicGasLegacyProbeUnit
+  | "zisk_withdrawal_decode"    => some ziskWithdrawalDecodeProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -7566,6 +8855,8 @@ def knownProgramNames : List String :=
    "zisk_headers_validate_chain",
    "zisk_witness_lookup_by_hash",
    "zisk_rlp_list_nth_item",
+   "zisk_rlp_list_count_items",
+   "zisk_access_list_count",
    "zisk_mpt_node_kind",
    "zisk_mpt_branch_child",
    "zisk_hp_decode_nibbles",
@@ -7586,11 +8877,22 @@ def knownProgramNames : List String :=
    "zisk_derive_chain_id_from_v",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
+   "zisk_coinbase_extract_from_header",
    "zisk_validate_header_basic",
+   "zisk_u256_add_be",
+   "zisk_u256_sub_be",
+   "zisk_u256_eq",
+   "zisk_u256_mul_u64_be",
+   "zisk_u256_from_u64_be",
+   "zisk_u256_to_u64_be",
+   "zisk_u256_is_zero",
+   "zisk_u256_min",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
+   "zisk_intrinsic_gas_legacy",
+   "zisk_withdrawal_decode",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
