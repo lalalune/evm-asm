@@ -79,22 +79,6 @@ abbrev evm_mod_callable_code_v1 (base : Word) : CodeReq :=
     CodeReq.ofProg (base + div128Off)     divK_div128
   ]
 
-theorem evm_div_callable_v1_eq_current :
-    evm_div_callable_v1 = evm_div_callable := by
-  rfl
-
-theorem evm_mod_callable_v1_eq_current :
-    evm_mod_callable_v1 = evm_mod_callable := by
-  rfl
-
-theorem evm_div_callable_code_v1_eq_current (base : Word) :
-    evm_div_callable_code_v1 base = evm_div_callable_code base := by
-  rfl
-
-theorem evm_mod_callable_code_v1_eq_current (base : Word) :
-    evm_mod_callable_code_v1 base = evm_mod_callable_code base := by
-  rfl
-
 open EvmAsm.Rv64.CodeReq in
 theorem evm_div_callable_code_v1_eq_ofProg (base : Word) :
     evm_div_callable_code_v1 base = CodeReq.ofProg base evm_div_callable_v1 := by
