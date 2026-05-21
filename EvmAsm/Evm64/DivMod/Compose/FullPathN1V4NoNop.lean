@@ -1368,4 +1368,140 @@ def loopN1CallMaxmaxmaxExactX1ScratchSpec (sp base : Word)
     (loopN1CallMaxmaxmaxScratchPostNoX1 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
       u0Orig2 u0Orig1 u0Orig0 scratchMem ** (.x1 ↦ᵣ raVal))
 
+/-- Compact assumptions for the N1 call/max/max/max exact path. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxExactHypotheses
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word) : Prop :=
+  BitVec.ult u1 v0 ∧
+  loopN1CallMaxmaxmaxBranchFacts v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 ∧
+  Carry2NzAll v0 v1 v2 v3 ∧
+  isAddbackCarry2NzN1CallV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+/-- Project the j=3 BLTU-taken fact from the compact N1 call/max/max/max hypotheses. -/
+theorem loopN1CallMaxmaxmaxExactHypotheses_hbltu3
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
+    (h : loopN1CallMaxmaxmaxExactHypotheses
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1) :
+    BitVec.ult u1 v0 := by
+  unfold loopN1CallMaxmaxmaxExactHypotheses at h
+  exact h.1
+
+/-- Project the all-max branch facts from the compact N1 call/max/max/max hypotheses. -/
+theorem loopN1CallMaxmaxmaxExactHypotheses_branches
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
+    (h : loopN1CallMaxmaxmaxExactHypotheses
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1) :
+    loopN1CallMaxmaxmaxBranchFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 := by
+  unfold loopN1CallMaxmaxmaxExactHypotheses at h
+  exact h.2.1
+
+/-- Project the global carry2 condition from the compact N1 call/max/max/max hypotheses. -/
+theorem loopN1CallMaxmaxmaxExactHypotheses_carry2
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
+    (h : loopN1CallMaxmaxmaxExactHypotheses
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1) :
+    Carry2NzAll v0 v1 v2 v3 := by
+  unfold loopN1CallMaxmaxmaxExactHypotheses at h
+  exact h.2.2.1
+
+/-- Project the v4 N1 call carry condition from the compact N1 call/max/max/max hypotheses. -/
+theorem loopN1CallMaxmaxmaxExactHypotheses_carry2Call
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
+    (h : loopN1CallMaxmaxmaxExactHypotheses
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1) :
+    isAddbackCarry2NzN1CallV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  unfold loopN1CallMaxmaxmaxExactHypotheses at h
+  exact h.2.2.2
+
+/-- Bundle the many scalar inputs to the N1 call/max/max/max exact path.
+    This gives later theorem statements a single data parameter instead of a
+    long spine of old-register, limb, scratch, and memory-cell arguments. -/
+structure LoopN1CallMaxmaxmaxExactInputs where
+  sp : Word
+  base : Word
+  jOld : Word
+  v5Old : Word
+  v6Old : Word
+  v7Old : Word
+  v10Old : Word
+  v11Old : Word
+  v2Old : Word
+  v0 : Word
+  v1 : Word
+  v2 : Word
+  v3 : Word
+  u0 : Word
+  u1 : Word
+  u2 : Word
+  u3 : Word
+  uTop : Word
+  u0Orig2 : Word
+  u0Orig1 : Word
+  u0Orig0 : Word
+  q3Old : Word
+  q2Old : Word
+  q1Old : Word
+  q0Old : Word
+  retMem : Word
+  dMem : Word
+  dloMem : Word
+  scratchUn0 : Word
+  scratchMem : Word
+  raVal : Word
+
+/-- Spec wrapper specialized to bundled N1 call/max/max/max inputs. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxExactInputSpec
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Prop :=
+  loopN1CallMaxmaxmaxExactX1ScratchSpec I.sp I.base
+    I.jOld I.v5Old I.v6Old I.v7Old I.v10Old I.v11Old I.v2Old
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+    I.u0Orig2 I.u0Orig1 I.u0Orig0 I.q3Old I.q2Old I.q1Old I.q0Old
+    I.retMem I.dMem I.dloMem I.scratchUn0 I.scratchMem I.raVal
+
+/-- Compact hypotheses specialized to bundled N1 call/max/max/max inputs. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxExactInputHypotheses
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Prop :=
+  loopN1CallMaxmaxmaxExactHypotheses
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1
+
+/-- Project the j=3 BLTU-taken fact from bundled N1 call/max/max/max inputs. -/
+theorem loopN1CallMaxmaxmaxExactInputHypotheses_hbltu3
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (h : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    BitVec.ult I.u1 I.v0 := by
+  unfold loopN1CallMaxmaxmaxExactInputHypotheses at h
+  exact loopN1CallMaxmaxmaxExactHypotheses_hbltu3
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1 h
+
+/-- Project the all-max branch facts from bundled N1 call/max/max/max inputs. -/
+theorem loopN1CallMaxmaxmaxExactInputHypotheses_branches
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (h : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    loopN1CallMaxmaxmaxBranchFacts
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1 := by
+  unfold loopN1CallMaxmaxmaxExactInputHypotheses at h
+  exact loopN1CallMaxmaxmaxExactHypotheses_branches
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1 h
+
+/-- Project the global carry2 condition from bundled N1 call/max/max/max inputs. -/
+theorem loopN1CallMaxmaxmaxExactInputHypotheses_carry2
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (h : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    Carry2NzAll I.v0 I.v1 I.v2 I.v3 := by
+  unfold loopN1CallMaxmaxmaxExactInputHypotheses at h
+  exact loopN1CallMaxmaxmaxExactHypotheses_carry2
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1 h
+
+/-- Project the v4 N1 call carry condition from bundled N1 call/max/max/max inputs. -/
+theorem loopN1CallMaxmaxmaxExactInputHypotheses_carry2Call
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (h : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    isAddbackCarry2NzN1CallV4 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop := by
+  unfold loopN1CallMaxmaxmaxExactInputHypotheses at h
+  exact loopN1CallMaxmaxmaxExactHypotheses_carry2Call
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1 h
+
 end EvmAsm.Evm64
