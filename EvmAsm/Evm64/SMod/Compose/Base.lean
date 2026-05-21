@@ -39,6 +39,8 @@ import EvmAsm.Evm64.SMod.Compose.ModCallReturnNamedPost
 import EvmAsm.Evm64.SMod.Compose.ModCallReturnNormalized
 import EvmAsm.Evm64.SMod.Compose.SaveRa
 import EvmAsm.Evm64.SMod.Compose.SignBlockSpecs
+import EvmAsm.Evm64.SMod.Compose.PreserveDividendSign
+import EvmAsm.Evm64.SMod.Compose.AbsBlockSpecs
 
 namespace EvmAsm.Evm64.SMod.Compose
 

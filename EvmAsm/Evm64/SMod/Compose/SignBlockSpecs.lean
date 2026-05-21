@@ -35,4 +35,30 @@ theorem dividendSign_spec_in_smodCodeV4
       EvmAsm.Evm64.evm_smodDividendTopLimbOff sp sOld dividendTop
       (base + dividendSignOff) (by decide))
 
+theorem divisorSign_spec_in_smodCodeV4
+    (sp sOld divisorTop : Word) (base : Word) :
+    EvmAsm.Rv64.cpsTripleWithin 2 (base + divisorSignOff) ((base + divisorSignOff) + 8)
+      (smodCodeV4 base)
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ sOld) **
+       ((sp + EvmAsm.Rv64.signExtend12 EvmAsm.Evm64.evm_smodDivisorTopLimbOff) ↦ₘ
+         divisorTop))
+      ((.x12 ↦ᵣ sp) **
+       (.x9 ↦ᵣ (divisorTop >>> (63 : BitVec 6).toNat)) **
+       ((sp + EvmAsm.Rv64.signExtend12 EvmAsm.Evm64.evm_smodDivisorTopLimbOff) ↦ₘ
+         divisorTop)) := by
+  have hmono :
+      ∀ a i,
+        (EvmAsm.Evm64.evm_sdiv_sign_bit_block_code .x12 .x9
+          EvmAsm.Evm64.evm_smodDivisorTopLimbOff
+          (base + divisorSignOff)) a = some i →
+        (smodCodeV4 base) a = some i := by
+    intro a i h
+    exact smodCodeV4_divisorSign_sub (base := base) a i
+      (by simpa [divisorSignCode,
+        EvmAsm.Evm64.evm_sdiv_sign_bit_block_code] using h)
+  exact EvmAsm.Rv64.cpsTripleWithin_extend_code hmono
+    (EvmAsm.Evm64.evm_sdiv_sign_bit_block_spec_within .x12 .x9
+      EvmAsm.Evm64.evm_smodDivisorTopLimbOff sp sOld divisorTop
+      (base + divisorSignOff) (by decide))
+
 end EvmAsm.Evm64.SMod.Compose
