@@ -715,10 +715,17 @@ emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
 8. **Toolchain availability.** Gate the assemble/link step behind a feature
    check; CI without `riscv64-unknown-elf-as` still runs `--asm-only` to catch
    emitter regressions.
-9. **Codegen is not verified.** It's an output channel, not part of the trusted
-   kernel surface. The `native_decide` / `bv_decide` restrictions in
-   [`CLAUDE.md`](CLAUDE.md) and [`AGENTS.md`](AGENTS.md) do not apply because
-   the codegen code carries no proofs.
+9. **Codegen is mostly unverified, but registry invariants now are.**
+   The text emitters (`emitInstr`, `emitDispatcherPrologue`, etc.) remain
+   an output channel, not part of the trusted kernel surface. Phase 1 of
+   the codegen-proofs roadmap (`EvmAsm/Codegen/RegistryInvariants.lean`)
+   does carry kernel-checked theorems about `tinyInterpRegistry`'s
+   structural well-formedness (Nodup on opcode bytes + labels, byte
+   bounds, jump-table coverage). Those proofs use only `decide` (with a
+   bumped `maxRecDepth` for the ∀-over-256 goals) — no `native_decide`
+   or `bv_decide`, per [`CLAUDE.md`](CLAUDE.md). Phases 2–5 (codegen↔AST
+   round-trip, dispatch-loop spec, handler ABI lifting, end-to-end
+   refinement) remain future work.
 
 ## Verification (per milestone)
 
@@ -811,6 +818,22 @@ emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
   the bit-test reload logic produces garbage after the first
   squaring. EXP can ship once upstream lands a fully callee-saved
   variant.
+- **Codegen-proofs Phase 1.** ✅ `lake build` exits 0 (validated
+  2026-05-21). New file `EvmAsm/Codegen/RegistryInvariants.lean`
+  carries 6 kernel-checked theorems about `tinyInterpRegistry`:
+  `tinyInterpRegistry_opcodes_Nodup` (no two handlers fight for the
+  same byte), `tinyInterpRegistry_labels_Nodup` (no duplicate asm
+  labels reach the assembler), `tinyInterpRegistry_opcodes_lt_256`
+  (every claimed opcode fits in a `lbu`-fetched byte),
+  `jumpTargetLabel_well_formed` (every byte 0..255 routes to a
+  registered label or to `"h_invalid"`),
+  `tinyInterpRegistry_wired_opcode_count` (exactly 91 opcodes wired),
+  and `jumpTable_non_invalid_count` (165 of 256 bytes route to
+  `h_invalid`). All discharged by `decide`; the two ∀-over-`[0,256)`
+  goals need `set_option maxRecDepth 2048`. Compile cost ~11 s; well
+  under the 30 s budget set in the roadmap. Drift detection
+  validated by manually injecting a duplicate opcode into the
+  registry and confirming the build fails (then reverting).
 
 ## Future work (post-M10)
 
@@ -827,6 +850,24 @@ Near-term:
 
 Longer-term (genuine new design surface):
 
+- **Codegen-proofs Phases 2–5.** Phase 1 (registry invariants)
+  shipped; the rest of the roadmap:
+  - **Phase 2:** define `parseInstr : String → Option Instr` and
+    prove `parseInstr (emitInstr i) = some i`. Bridges emitted asm
+    back to the verified `Program` type so later phases can reason
+    about dispatcher prologue / epilogue / tail strings.
+  - **Phase 3:** encode the 7-instruction dispatch loop as a
+    verified `Program` and prove its `cpsTripleWithin` spec —
+    "given `mem[x10] = b` and a handler `h` at jump-table entry `b`,
+    control transfers to `h` with `x1` pointing at the loop's
+    re-entry point."
+  - **Phase 4:** lift each `OpcodeHandlerSpec`'s spec from the body
+    alone to `preBody + body + tail` — covers the ~90 wired
+    handlers via ~8 templates (PUSH, DUP, SWAP, singleton, memory,
+    divModTail, signedDivModTail, self-calling).
+  - **Phase 5:** end-to-end refinement — for every bytecode `B`,
+    the runtime dispatcher's final state matches the EVM
+    executable-spec interpreter's final state.
 - **JUMP / JUMPI + JUMPDEST table.** Real control flow. Handlers must
   write `x10` directly (the wrapper baking in a fixed advance no longer
   works) and JUMP/JUMPI need to consult a JUMPDEST validity table built
