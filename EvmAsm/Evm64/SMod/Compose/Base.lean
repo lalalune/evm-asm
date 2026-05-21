@@ -34,6 +34,7 @@ import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixGeneric
 import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixNamedPost
 import EvmAsm.Evm64.SMod.Compose.SavedRaRet
 import EvmAsm.Evm64.SMod.Compose.SavedRaRetFrame
+import EvmAsm.Evm64.SMod.Compose.ModCallReturnGeneric
 
 namespace EvmAsm.Evm64.SMod.Compose
 
