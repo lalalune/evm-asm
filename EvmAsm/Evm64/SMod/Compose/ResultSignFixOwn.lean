@@ -92,6 +92,55 @@ instance pcFreeInst_smodResultSignFixPost
   ⟨smodResultSignFixPost_pcFree⟩
 
 @[irreducible]
+def smodResultSignFixPreOwnX10 (sp sign valueOld carryOld
+    limb0 limb1 limb2 limb3 : Word) : EvmAsm.Rv64.Assertion :=
+  (((((((((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp)) ** (.x13 ↦ᵣ sign)) **
+    (.x7 ↦ᵣ valueOld)) ** (.x11 ↦ᵣ carryOld)) **
+    ((sp + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) ↦ₘ limb0)) **
+    ((sp + EvmAsm.Rv64.signExtend12 (8 : BitVec 12)) ↦ₘ limb1)) **
+    ((sp + EvmAsm.Rv64.signExtend12 (16 : BitVec 12)) ↦ₘ limb2)) **
+    ((sp + EvmAsm.Rv64.signExtend12 (24 : BitVec 12)) ↦ₘ limb3)) **
+    EvmAsm.Rv64.regOwn .x10
+
+theorem smodResultSignFixPreOwnX10_unfold
+    {sp sign valueOld carryOld limb0 limb1 limb2 limb3 : Word} :
+    smodResultSignFixPreOwnX10 sp sign valueOld carryOld
+        limb0 limb1 limb2 limb3 =
+      ((((((((((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp)) ** (.x13 ↦ᵣ sign)) **
+        (.x7 ↦ᵣ valueOld)) ** (.x11 ↦ᵣ carryOld)) **
+        ((sp + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) ↦ₘ limb0)) **
+        ((sp + EvmAsm.Rv64.signExtend12 (8 : BitVec 12)) ↦ₘ limb1)) **
+        ((sp + EvmAsm.Rv64.signExtend12 (16 : BitVec 12)) ↦ₘ limb2)) **
+        ((sp + EvmAsm.Rv64.signExtend12 (24 : BitVec 12)) ↦ₘ limb3)) **
+        EvmAsm.Rv64.regOwn .x10) := by
+  delta smodResultSignFixPreOwnX10
+  rfl
+
+@[irreducible]
+def smodResultSignFixPreOwnX10X7 (sp sign carryOld
+    limb0 limb1 limb2 limb3 : Word) : EvmAsm.Rv64.Assertion :=
+  (((((((((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp)) ** (.x13 ↦ᵣ sign)) **
+    (.x11 ↦ᵣ carryOld)) **
+    ((sp + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) ↦ₘ limb0)) **
+    ((sp + EvmAsm.Rv64.signExtend12 (8 : BitVec 12)) ↦ₘ limb1)) **
+    ((sp + EvmAsm.Rv64.signExtend12 (16 : BitVec 12)) ↦ₘ limb2)) **
+    ((sp + EvmAsm.Rv64.signExtend12 (24 : BitVec 12)) ↦ₘ limb3)) **
+    EvmAsm.Rv64.regOwn .x10) ** EvmAsm.Rv64.regOwn .x7
+
+theorem smodResultSignFixPreOwnX10X7_unfold
+    {sp sign carryOld limb0 limb1 limb2 limb3 : Word} :
+    smodResultSignFixPreOwnX10X7 sp sign carryOld limb0 limb1 limb2 limb3 =
+      ((((((((((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp)) ** (.x13 ↦ᵣ sign)) **
+        (.x11 ↦ᵣ carryOld)) **
+        ((sp + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) ↦ₘ limb0)) **
+        ((sp + EvmAsm.Rv64.signExtend12 (8 : BitVec 12)) ↦ₘ limb1)) **
+        ((sp + EvmAsm.Rv64.signExtend12 (16 : BitVec 12)) ↦ₘ limb2)) **
+        ((sp + EvmAsm.Rv64.signExtend12 (24 : BitVec 12)) ↦ₘ limb3)) **
+        EvmAsm.Rv64.regOwn .x10) ** EvmAsm.Rv64.regOwn .x7) := by
+  delta smodResultSignFixPreOwnX10X7
+  rfl
+
+@[irreducible]
 def smodResultSignFixPreOwnScratch
     (sp sign limb0 limb1 limb2 limb3 : Word) : EvmAsm.Rv64.Assertion :=
   (((((((((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp)) ** (.x13 ↦ᵣ sign)) **
@@ -181,5 +230,57 @@ theorem resultSignFix_spec_in_smodCodeV4
   rw [EvmAsm.Evm64.condNegate256BlockPre_unfold,
     EvmAsm.Evm64.condNegate256BlockPost_unfold] at hSpec
   exact EvmAsm.Rv64.cpsTripleWithin_extend_code hmono hSpec
+
+theorem resultSignFix_regOwn_x10_spec_in_smodCodeV4
+    (sp sign valueOld carryOld limb0 limb1 limb2 limb3 : Word) (base : Word) :
+    EvmAsm.Rv64.cpsTripleWithin 21 (base + resultSignFixOff)
+      ((base + resultSignFixOff) + 84) (smodCodeV4 base)
+      (smodResultSignFixPreOwnX10 sp sign valueOld carryOld
+        limb0 limb1 limb2 limb3)
+      (smodResultSignFixPost sp sign limb0 limb1 limb2 limb3) := by
+  rw [smodResultSignFixPreOwnX10_unfold]
+  apply EvmAsm.Rv64.cpsTripleWithin_of_forall_regIs_to_regOwn
+  intro maskOld
+  exact EvmAsm.Rv64.cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [smodResultSignFixPre_unfold]
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    (resultSignFix_spec_in_smodCodeV4 sp sign maskOld valueOld carryOld
+      limb0 limb1 limb2 limb3 base)
+
+theorem resultSignFix_regOwn_x10_x7_spec_in_smodCodeV4
+    (sp sign carryOld limb0 limb1 limb2 limb3 : Word) (base : Word) :
+    EvmAsm.Rv64.cpsTripleWithin 21 (base + resultSignFixOff)
+      ((base + resultSignFixOff) + 84) (smodCodeV4 base)
+      (smodResultSignFixPreOwnX10X7 sp sign carryOld limb0 limb1 limb2 limb3)
+      (smodResultSignFixPost sp sign limb0 limb1 limb2 limb3) := by
+  rw [smodResultSignFixPreOwnX10X7_unfold]
+  apply EvmAsm.Rv64.cpsTripleWithin_of_forall_regIs_to_regOwn
+  intro valueOld
+  exact EvmAsm.Rv64.cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [smodResultSignFixPreOwnX10_unfold]
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    (resultSignFix_regOwn_x10_spec_in_smodCodeV4 sp sign valueOld carryOld
+      limb0 limb1 limb2 limb3 base)
+
+theorem resultSignFix_regOwn_scratch_spec_in_smodCodeV4
+    (sp sign limb0 limb1 limb2 limb3 : Word) (base : Word) :
+    EvmAsm.Rv64.cpsTripleWithin 21 (base + resultSignFixOff)
+      ((base + resultSignFixOff) + 84) (smodCodeV4 base)
+      (smodResultSignFixPreOwnScratch sp sign limb0 limb1 limb2 limb3)
+      (smodResultSignFixPost sp sign limb0 limb1 limb2 limb3) := by
+  rw [smodResultSignFixPreOwnScratch_unfold]
+  apply EvmAsm.Rv64.cpsTripleWithin_of_forall_regIs_to_regOwn
+  intro carryOld
+  exact EvmAsm.Rv64.cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [smodResultSignFixPreOwnX10X7_unfold]
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    (resultSignFix_regOwn_x10_x7_spec_in_smodCodeV4 sp sign carryOld
+      limb0 limb1 limb2 limb3 base)
 
 end EvmAsm.Evm64.SMod.Compose
