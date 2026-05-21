@@ -4556,6 +4556,97 @@ def ziskRlpFieldToU64ProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpFieldToU64DataSection
 }
 
+/-! ## rlp_field_to_u256_be -- PR-K35
+
+    Extract the N-th field of an RLP list and right-align its
+    big-endian byte string into a 32-byte BE u256 buffer.
+    Parallel of PR-K34 `rlp_field_to_u64` for u256 fields like
+    balance / tx.value / header.difficulty.
+
+    Calling convention:
+      a0 (input)  : container RLP bytes ptr
+      a1 (input)  : container RLP byte length
+      a2 (input)  : field index (0-based)
+      a3 (input)  : 32-byte u256 BE output ptr (right-aligned)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail /
+                    2 field too long (> 32 bytes)
+
+    Composes PR-K20 `rlp_list_nth_item`; reuses K34's
+    `rfu_offset` / `rfu_length` scratch slots. -/
+def rlpFieldToU256BeFunction : String :=
+  "rlp_field_to_u256_be:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0                  # container ptr\n" ++
+  "  mv s1, a3                  # u256 BE out ptr\n" ++
+  "  # Zero output up front (also covers fail/too-long paths).\n" ++
+  "  sd zero,  0(s1); sd zero,  8(s1); sd zero, 16(s1); sd zero, 24(s1)\n" ++
+  "  la a3, rfu_offset\n" ++
+  "  la a4, rfu_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lrf256_fail\n" ++
+  "  la t0, rfu_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Lrf256_too_long\n" ++
+  "  la t0, rfu_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  sub t2, t2, t1             # 32 - len\n" ++
+  "  add t4, s1, t2             # dst start (right-aligned)\n" ++
+  ".Lrf256_copy:\n" ++
+  "  beqz t1, .Lrf256_done\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb  t5, 0(t4)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lrf256_copy\n" ++
+  ".Lrf256_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lrf256_ret\n" ++
+  ".Lrf256_too_long:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lrf256_ret\n" ++
+  ".Lrf256_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lrf256_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_rlp_field_to_u256_be`: probe BuildUnit. Reads
+    (container_len, field_index, container_bytes), writes
+    (status, u256 BE) to OUTPUT. -/
+def ziskRlpFieldToU256BePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # container_len\n" ++
+  "  ld a2, 16(a4)               # field_index\n" ++
+  "  addi a0, a4, 24             # container ptr\n" ++
+  "  li a3, 0xa0010008           # u256 out at OUTPUT + 8\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lrf256_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  ".Lrf256_pdone:"
+
+def ziskRlpFieldToU256BeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskRlpFieldToU256BeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRlpFieldToU256BePrologue
+  dataAsm     := ziskRlpFieldToU256BeDataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -5011,6 +5102,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
   | "zisk_rlp_field_to_u64"     => some ziskRlpFieldToU64ProbeUnit
+  | "zisk_rlp_field_to_u256_be" => some ziskRlpFieldToU256BeProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -5055,6 +5147,7 @@ def knownProgramNames : List String :=
    "zisk_hp_encode_nibbles",
    "zisk_state_root_single_account",
    "zisk_rlp_field_to_u64",
+   "zisk_rlp_field_to_u256_be",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
