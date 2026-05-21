@@ -5913,6 +5913,67 @@ def ziskU256SubBeProbeUnit : BuildUnit := {
   dataAsm     := ziskU256SubBeDataSection
 }
 
+/-! ## u256_from_u64_be -- PR-K56 zero-extend u64 → BE u256 buffer
+
+    Materialize a `u64` value as a 32-byte big-endian `u256`
+    buffer by zero-extending. Lets callers feed small operands
+    (`gas_limit`, `nonce`, `data_length`, etc.) into the u256
+    arithmetic and comparison toolkit (`u256_add_be`,
+    `u256_sub_be`, `u256_lt`, `u256_eq`, `u256_mul_u64_be`).
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB. Output:
+      bytes 0..24  = 0x00
+      bytes 24..32 = u64 value in big-endian order
+
+    Calling convention:
+      a0 (input)  : u64 value (in register)
+      a1 (input)  : u256 out ptr (32 bytes; will be fully written)
+      ra (input)  : return
+
+    Pure register arithmetic except for the 4 zero-stores + 8
+    byte-stores; no scratch memory; leaf-callable. Uses RV64 `sb`
+    semantics (stores low 8 bits of rs2), so no `andi 0xff`
+    masking is needed before each byte write. -/
+def u256FromU64BeFunction : String :=
+  "u256_from_u64_be:\n" ++
+  "  # Zero the high 24 bytes.\n" ++
+  "  sd zero,  0(a1)\n" ++
+  "  sd zero,  8(a1)\n" ++
+  "  sd zero, 16(a1)\n" ++
+  "  # Write the u64 in BE order at bytes 24..32.\n" ++
+  "  srli t0, a0, 56; sb t0, 24(a1)\n" ++
+  "  srli t0, a0, 48; sb t0, 25(a1)\n" ++
+  "  srli t0, a0, 40; sb t0, 26(a1)\n" ++
+  "  srli t0, a0, 32; sb t0, 27(a1)\n" ++
+  "  srli t0, a0, 24; sb t0, 28(a1)\n" ++
+  "  srli t0, a0, 16; sb t0, 29(a1)\n" ++
+  "  srli t0, a0,  8; sb t0, 30(a1)\n" ++
+  "                  sb a0, 31(a1)\n" ++
+  "  ret"
+
+/-- `zisk_u256_from_u64_be`: probe BuildUnit. Reads (u64 value)
+    from host input, writes the 32-byte BE u256 to OUTPUT. -/
+def ziskU256FromU64BePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a2, 0x40000000\n" ++
+  "  ld a0, 8(a2)                # value\n" ++
+  "  li a1, 0xa0010000           # out ptr at OUTPUT\n" ++
+  "  jal ra, u256_from_u64_be\n" ++
+  "  j .Lu256f_pdone\n" ++
+  u256FromU64BeFunction ++ "\n" ++
+  ".Lu256f_pdone:"
+
+def ziskU256FromU64BeDataSection : String :=
+  ".section .data\n" ++
+  "u256f_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256FromU64BeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256FromU64BePrologue
+  dataAsm     := ziskU256FromU64BeDataSection
+}
+
 
 /-! ## u256_eq -- PR-K53 equality companion to PR-K50 u256_lt
 
@@ -8519,6 +8580,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
   | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit
+  | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -8588,6 +8650,7 @@ def knownProgramNames : List String :=
    "zisk_u256_sub_be",
    "zisk_u256_eq",
    "zisk_u256_mul_u64_be",
+   "zisk_u256_from_u64_be",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
