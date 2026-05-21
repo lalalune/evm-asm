@@ -4633,6 +4633,322 @@ def ziskRlpFieldToU64ProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpFieldToU64DataSection
 }
 
+/-! ## rlp_field_to_u256_be -- PR-K35
+
+    Extract the N-th field of an RLP list and right-align its
+    big-endian byte string into a 32-byte BE u256 buffer.
+    Parallel of PR-K34 `rlp_field_to_u64` for u256 fields like
+    balance / tx.value / header.difficulty.
+
+    Calling convention:
+      a0 (input)  : container RLP bytes ptr
+      a1 (input)  : container RLP byte length
+      a2 (input)  : field index (0-based)
+      a3 (input)  : 32-byte u256 BE output ptr (right-aligned)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail /
+                    2 field too long (> 32 bytes)
+
+    Composes PR-K20 `rlp_list_nth_item`; reuses K34's
+    `rfu_offset` / `rfu_length` scratch slots. -/
+def rlpFieldToU256BeFunction : String :=
+  "rlp_field_to_u256_be:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0                  # container ptr\n" ++
+  "  mv s1, a3                  # u256 BE out ptr\n" ++
+  "  # Zero output up front (also covers fail/too-long paths).\n" ++
+  "  sd zero,  0(s1); sd zero,  8(s1); sd zero, 16(s1); sd zero, 24(s1)\n" ++
+  "  la a3, rfu_offset\n" ++
+  "  la a4, rfu_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lrf256_fail\n" ++
+  "  la t0, rfu_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Lrf256_too_long\n" ++
+  "  la t0, rfu_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  sub t2, t2, t1             # 32 - len\n" ++
+  "  add t4, s1, t2             # dst start (right-aligned)\n" ++
+  ".Lrf256_copy:\n" ++
+  "  beqz t1, .Lrf256_done\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb  t5, 0(t4)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lrf256_copy\n" ++
+  ".Lrf256_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lrf256_ret\n" ++
+  ".Lrf256_too_long:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lrf256_ret\n" ++
+  ".Lrf256_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lrf256_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_rlp_field_to_u256_be`: probe BuildUnit. Reads
+    (container_len, field_index, container_bytes), writes
+    (status, u256 BE) to OUTPUT. -/
+def ziskRlpFieldToU256BePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # container_len\n" ++
+  "  ld a2, 16(a4)               # field_index\n" ++
+  "  addi a0, a4, 24             # container ptr\n" ++
+  "  li a3, 0xa0010008           # u256 out at OUTPUT + 8\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lrf256_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  ".Lrf256_pdone:"
+
+def ziskRlpFieldToU256BeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskRlpFieldToU256BeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRlpFieldToU256BePrologue
+  dataAsm     := ziskRlpFieldToU256BeDataSection
+}
+
+/-! ## tx_legacy_decode -- PR-K36 full 9-field decoder
+
+    Decode an RLP-encoded legacy Ethereum transaction into a
+    196-byte flat output struct. Composes the field-decoder
+    primitives shipped in PR-K34/K35 plus PR-K20
+    `rlp_list_nth_item` for the variable-length `to` and `data`
+    fields.
+
+    Output struct (196 bytes):
+       0..  8  nonce (u64 LE)
+       8.. 40  gas_price (u256 BE)
+      40.. 48  gas_limit (u64 LE)
+      48.. 68  to (20-byte address; zero on creation)
+      68.. 76  to_present (u64; 0 = creation, 1 = call)
+      76..108  value (u256 BE)
+     108..116  data_offset (within tx_rlp)
+     116..124  data_length
+     124..132  v (u64 LE)
+     132..164  r (u256 BE)
+     164..196  s (u256 BE)
+
+    Calling convention:
+      a0 (input)  : tx_rlp ptr
+      a1 (input)  : tx_rlp byte length
+      a2 (input)  : output struct ptr (196 bytes)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail -/
+def txLegacyDecodeFunction : String :=
+  "tx_legacy_decode:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # tx ptr\n" ++
+  "  mv s1, a1                  # tx_len\n" ++
+  "  mv s2, a2                  # struct out\n" ++
+  "  # Field 0: nonce (u64)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Ltxd_fail\n" ++
+  "  # Field 1: gas_price (u256 BE at offset 8)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
+  "  addi a3, s2, 8\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  bnez a0, .Ltxd_fail\n" ++
+  "  # Field 2: gas_limit (u64 at offset 40)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  addi a3, s2, 40\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Ltxd_fail\n" ++
+  "  # Field 3: to (0 or 20 bytes at offset 48; to_present at 68)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
+  "  la a3, txd_offset; la a4, txd_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ltxd_fail\n" ++
+  "  la t0, txd_length; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Ltxd_to_creation\n" ++
+  "  li t2, 20\n" ++
+  "  bne t1, t2, .Ltxd_fail\n" ++
+  "  la t0, txd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  addi t4, s2, 48\n" ++
+  "  ld t5,  0(t3); sd t5, 0(t4)\n" ++
+  "  ld t5,  8(t3); sd t5, 8(t4)\n" ++
+  "  lwu t5, 16(t3); sw t5, 16(t4)\n" ++
+  "  li t5, 1\n" ++
+  "  sd t5, 68(s2)              # to_present = 1\n" ++
+  "  j .Ltxd_after_to\n" ++
+  ".Ltxd_to_creation:\n" ++
+  "  addi t4, s2, 48\n" ++
+  "  sd zero, 0(t4); sd zero, 8(t4); sw zero, 16(t4)\n" ++
+  "  sd zero, 68(s2)            # to_present = 0\n" ++
+  ".Ltxd_after_to:\n" ++
+  "  # Field 4: value (u256 BE at offset 76)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
+  "  addi a3, s2, 76\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  bnez a0, .Ltxd_fail\n" ++
+  "  # Field 5: data (arbitrary; store offset+length at 108/116)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
+  "  la a3, txd_offset; la a4, txd_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ltxd_fail\n" ++
+  "  la t0, txd_offset; ld t1, 0(t0); sd t1, 108(s2)\n" ++
+  "  la t0, txd_length; ld t1, 0(t0); sd t1, 116(s2)\n" ++
+  "  # Field 6: v (u64 at offset 124)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 6\n" ++
+  "  addi a3, s2, 124\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Ltxd_fail\n" ++
+  "  # Field 7: r (u256 BE at offset 132)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
+  "  addi a3, s2, 132\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  bnez a0, .Ltxd_fail\n" ++
+  "  # Field 8: s (u256 BE at offset 164)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
+  "  addi a3, s2, 164\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  bnez a0, .Ltxd_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltxd_ret\n" ++
+  ".Ltxd_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Ltxd_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_tx_legacy_decode`: probe BuildUnit. Reads
+    (tx_len, tx_bytes) from host input, writes
+    (status, 196-byte struct) to OUTPUT.
+    Total output = 204 bytes; fits in ziskemu's 256-byte cap. -/
+def ziskTxLegacyDecodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # tx_len\n" ++
+  "  addi a0, a3, 16             # tx ptr\n" ++
+  "  li a2, 0xa0010008           # struct at OUTPUT + 8\n" ++
+  "  # Pre-zero 196 bytes (24 × 8 + 4 trailing)\n" ++
+  "  mv t0, a2\n" ++
+  "  li t1, 24\n" ++
+  ".Ltxd_zinit:\n" ++
+  "  beqz t1, .Ltxd_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Ltxd_zinit\n" ++
+  ".Ltxd_zdone:\n" ++
+  "  sw zero, 0(t0)\n" ++
+  "  jal ra, tx_legacy_decode\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Ltxd_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txLegacyDecodeFunction ++ "\n" ++
+  ".Ltxd_pdone:"
+
+def ziskTxLegacyDecodeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "txd_offset:\n" ++
+  "  .zero 8\n" ++
+  "txd_length:\n" ++
+  "  .zero 8"
+
+def ziskTxLegacyDecodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxLegacyDecodePrologue
+  dataAsm     := ziskTxLegacyDecodeDataSection
+}
+
+/-! ## derive_chain_id_from_v -- PR-K37 EIP-155 helper
+
+    Split a legacy-transaction `v` signature parity byte into
+    `(chain_id, is_eip155)` per EIP-155:
+
+      v == 27 → pre-EIP-155: chain_id = 0, is_eip155 = 0
+      v == 28 → pre-EIP-155: chain_id = 0, is_eip155 = 0
+      else    → EIP-155: chain_id = (v - 35) / 2, is_eip155 = 1
+
+    This is the routing logic the signing-hash builder uses to
+    pick between the 6-field (pre-155) and 9-field (155+
+    chain_id, 0, 0) signing payloads.
+
+    Calling convention:
+      a0 (input)  : v (u64)
+      a1 (input)  : chain_id u64 output ptr
+      a2 (input)  : is_eip155 u64 output ptr
+      ra (input)  : return
+      a0 (output) : 0 (always success; no validation here --
+                    invalid v values just produce wrong
+                    chain_id; the signing-hash check catches
+                    them later) -/
+def deriveChainIdFromVFunction : String :=
+  "derive_chain_id_from_v:\n" ++
+  "  li t0, 27\n" ++
+  "  beq a0, t0, .Ldcid_pre155\n" ++
+  "  li t0, 28\n" ++
+  "  beq a0, t0, .Ldcid_pre155\n" ++
+  "  # EIP-155: chain_id = (v - 35) / 2\n" ++
+  "  addi t1, a0, -35\n" ++
+  "  srli t1, t1, 1\n" ++
+  "  sd t1, 0(a1)\n" ++
+  "  li t2, 1\n" ++
+  "  sd t2, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Ldcid_pre155:\n" ++
+  "  sd zero, 0(a1)\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_derive_chain_id_from_v`: probe BuildUnit. Reads
+    (v, padding) from host input, writes (chain_id, is_eip155)
+    to OUTPUT. -/
+def ziskDeriveChainIdFromVPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a0, 8(a3)                # v\n" ++
+  "  li a1, 0xa0010000           # chain_id out\n" ++
+  "  li a2, 0xa0010008           # is_eip155 out\n" ++
+  "  jal ra, derive_chain_id_from_v\n" ++
+  "  j .Ldcid_pdone\n" ++
+  deriveChainIdFromVFunction ++ "\n" ++
+  ".Ldcid_pdone:"
+
+def ziskDeriveChainIdFromVDataSection : String :=
+  ".section .data\n" ++
+  "dcid_pad:\n" ++
+  "  .zero 8"
+
+def ziskDeriveChainIdFromVProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskDeriveChainIdFromVPrologue
+  dataAsm     := ziskDeriveChainIdFromVDataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -5884,6 +6200,9 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
   | "zisk_rlp_field_to_u64"     => some ziskRlpFieldToU64ProbeUnit
+  | "zisk_rlp_field_to_u256_be" => some ziskRlpFieldToU256BeProbeUnit
+  | "zisk_tx_legacy_decode"     => some ziskTxLegacyDecodeProbeUnit
+  | "zisk_derive_chain_id_from_v" => some ziskDeriveChainIdFromVProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -5933,6 +6252,9 @@ def knownProgramNames : List String :=
    "zisk_hp_encode_nibbles",
    "zisk_state_root_single_account",
    "zisk_rlp_field_to_u64",
+   "zisk_rlp_field_to_u256_be",
+   "zisk_tx_legacy_decode",
+   "zisk_derive_chain_id_from_v",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
