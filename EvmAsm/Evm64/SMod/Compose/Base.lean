@@ -44,6 +44,7 @@ import EvmAsm.Evm64.SMod.Compose.AbsBlockSpecs
 import EvmAsm.Evm64.SMod.Compose.ModCall
 import EvmAsm.Evm64.SMod.Compose.SaveRaSignSequence
 import EvmAsm.Evm64.SMod.Compose.PreserveDividendSignSequence
+import EvmAsm.Evm64.SMod.Compose.DivisorSignSequence
 
 namespace EvmAsm.Evm64.SMod.Compose
 
