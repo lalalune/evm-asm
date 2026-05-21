@@ -9,7 +9,7 @@
       1. extract sign of each operand (top bit of limb 3)
       2. conditionally two's-complement negate operands so both are
          non-negative; remember the sign-pair
-      3. JAL to an `evm_div_callable` shim (LP64) for unsigned division
+      3. JAL to an `evm_div_callable_v4` shim (LP64) for unsigned division
       4. conditionally negate the quotient based on `sign(a) XOR sign(b)`.
 
   The `SDIV(-2^255, -1)` case follows this same bitvector path: the
@@ -125,7 +125,7 @@ theorem evm_sdiv_cond_negate_256_block_byte_length
       limb0Off limb1Off limb2Off limb3Off).length = 84 := by
   rw [evm_sdiv_cond_negate_256_block_length]
 
-/-- Near-call block from SDIV into the unsigned `evm_div_callable` body.
+/-- Near-call block from SDIV into the unsigned `evm_div_callable_v4` body.
     The concrete signed 21-bit offset is pinned by the eventual top-level
     `evm_sdiv` layout. -/
 def evm_sdiv_div_call_block (divOff : BitVec 21) : EvmAsm.Rv64.Program :=
@@ -174,7 +174,7 @@ def evm_sdivCallOff : BitVec 21 := 92
     * `x9` stores `sign(divisor)`.
     * `x10`, `x11`, and `x7` are scratch registers for conditional negation.
 
-    Memory layout matches `evm_div_callable`: dividend at `sp + 0..24`,
+    Memory layout matches `evm_div_callable_v4`: dividend at `sp + 0..24`,
     divisor at `sp + 32..56`, quotient result at `sp + 32..56`. -/
 def evm_sdiv_wrapper : EvmAsm.Rv64.Program :=
   evm_sdiv_save_ra_block .x18 ;;
@@ -219,27 +219,30 @@ theorem evm_sdiv_legacy_length : evm_sdiv_legacy.length = 390 := by
 theorem evm_sdiv_legacy_byte_length : 4 * evm_sdiv_legacy.length = 1560 := by
   rw [evm_sdiv_legacy_length]
 
-/-- Full SDIV code region (non-v4). -/
+/-- Full SDIV code region, using the corrected v4 unsigned DIV callable. -/
 def evm_sdiv : EvmAsm.Rv64.Program :=
-  evm_sdiv_wrapper ;; evm_div_callable
+  evm_sdiv_wrapper ;; evm_div_callable_v4
 
-/-- v4 full SDIV code region. This keeps the same SDIV wrapper and swaps the
-    appended unsigned DIV callable to the corrected v4 divider body. -/
+/-- v4 full SDIV code region. Kept as an explicit alias while downstream
+    scripts and proofs finish migrating to the canonical `evm_sdiv` name. -/
 def evm_sdiv_v4 : EvmAsm.Rv64.Program :=
   evm_sdiv_wrapper ;; evm_div_callable_v4
+
+/-- Regression pin: canonical executable SDIV is now the v4 body. -/
+theorem evm_sdiv_eq_v4 : evm_sdiv = evm_sdiv_v4 := rfl
 
 /-- Regression pin: the executable v4 SDIV body uses the corrected v4
     callable divider. -/
 theorem evm_sdiv_v4_uses_div_callable_v4 :
     evm_sdiv_v4 = (evm_sdiv_wrapper ;; evm_div_callable_v4) := rfl
 
-theorem evm_sdiv_length : evm_sdiv.length = 390 := by
+theorem evm_sdiv_length : evm_sdiv.length = 414 := by
   native_decide
 
 theorem evm_sdiv_v4_length : evm_sdiv_v4.length = 414 := by
   native_decide
 
-theorem evm_sdiv_byte_length : 4 * evm_sdiv.length = 1560 := by
+theorem evm_sdiv_byte_length : 4 * evm_sdiv.length = 1656 := by
   rw [evm_sdiv_length]
 
 theorem evm_sdiv_v4_byte_length : 4 * evm_sdiv_v4.length = 1656 := by
