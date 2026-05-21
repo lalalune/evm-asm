@@ -46,6 +46,7 @@ import EvmAsm.Evm64.SMod.Compose.SaveRaSignSequence
 import EvmAsm.Evm64.SMod.Compose.PreserveDividendSignSequence
 import EvmAsm.Evm64.SMod.Compose.DivisorSignSequence
 import EvmAsm.Evm64.SMod.Compose.DividendAbsSequence
+import EvmAsm.Evm64.SMod.Compose.DivisorAbsSequence
 
 namespace EvmAsm.Evm64.SMod.Compose
 
