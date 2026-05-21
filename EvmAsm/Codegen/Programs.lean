@@ -4805,6 +4805,73 @@ def ziskTxLegacyDecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskTxLegacyDecodeDataSection
 }
 
+/-! ## derive_chain_id_from_v -- PR-K37 EIP-155 helper
+
+    Split a legacy-transaction `v` signature parity byte into
+    `(chain_id, is_eip155)` per EIP-155:
+
+      v == 27 → pre-EIP-155: chain_id = 0, is_eip155 = 0
+      v == 28 → pre-EIP-155: chain_id = 0, is_eip155 = 0
+      else    → EIP-155: chain_id = (v - 35) / 2, is_eip155 = 1
+
+    This is the routing logic the signing-hash builder uses to
+    pick between the 6-field (pre-155) and 9-field (155+
+    chain_id, 0, 0) signing payloads.
+
+    Calling convention:
+      a0 (input)  : v (u64)
+      a1 (input)  : chain_id u64 output ptr
+      a2 (input)  : is_eip155 u64 output ptr
+      ra (input)  : return
+      a0 (output) : 0 (always success; no validation here --
+                    invalid v values just produce wrong
+                    chain_id; the signing-hash check catches
+                    them later) -/
+def deriveChainIdFromVFunction : String :=
+  "derive_chain_id_from_v:\n" ++
+  "  li t0, 27\n" ++
+  "  beq a0, t0, .Ldcid_pre155\n" ++
+  "  li t0, 28\n" ++
+  "  beq a0, t0, .Ldcid_pre155\n" ++
+  "  # EIP-155: chain_id = (v - 35) / 2\n" ++
+  "  addi t1, a0, -35\n" ++
+  "  srli t1, t1, 1\n" ++
+  "  sd t1, 0(a1)\n" ++
+  "  li t2, 1\n" ++
+  "  sd t2, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Ldcid_pre155:\n" ++
+  "  sd zero, 0(a1)\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_derive_chain_id_from_v`: probe BuildUnit. Reads
+    (v, padding) from host input, writes (chain_id, is_eip155)
+    to OUTPUT. -/
+def ziskDeriveChainIdFromVPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a0, 8(a3)                # v\n" ++
+  "  li a1, 0xa0010000           # chain_id out\n" ++
+  "  li a2, 0xa0010008           # is_eip155 out\n" ++
+  "  jal ra, derive_chain_id_from_v\n" ++
+  "  j .Ldcid_pdone\n" ++
+  deriveChainIdFromVFunction ++ "\n" ++
+  ".Ldcid_pdone:"
+
+def ziskDeriveChainIdFromVDataSection : String :=
+  ".section .data\n" ++
+  "dcid_pad:\n" ++
+  "  .zero 8"
+
+def ziskDeriveChainIdFromVProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskDeriveChainIdFromVPrologue
+  dataAsm     := ziskDeriveChainIdFromVDataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -5262,6 +5329,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_field_to_u64"     => some ziskRlpFieldToU64ProbeUnit
   | "zisk_rlp_field_to_u256_be" => some ziskRlpFieldToU256BeProbeUnit
   | "zisk_tx_legacy_decode"     => some ziskTxLegacyDecodeProbeUnit
+  | "zisk_derive_chain_id_from_v" => some ziskDeriveChainIdFromVProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -5308,6 +5376,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_field_to_u64",
    "zisk_rlp_field_to_u256_be",
    "zisk_tx_legacy_decode",
+   "zisk_derive_chain_id_from_v",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
