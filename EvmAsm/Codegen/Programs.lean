@@ -6215,6 +6215,82 @@ def ziskU256MulU64BeProbeUnit : BuildUnit := {
   dataAsm     := ziskU256MulU64BeDataSection
 }
 
+/-! ## u256_to_u64_be -- PR-K57 truncate BE u256 → u64 with overflow flag
+
+    Truncate a 32-byte big-endian `u256` buffer down to its
+    low 64 bits, storing them at `*out`. Returns a 0/1 overflow
+    flag: `1` if any of the high 192 bits are nonzero, `0`
+    otherwise.
+
+    Natural inverse of PR-K56 `u256_from_u64_be`. Together they
+    let callers move values between the u256 BE byte-buffer
+    representation and the u64 register-resident form.
+
+    Direct use cases:
+      - `gas_left = u256_to_u64_be(account.balance / gas_price)`
+      - Tx validation: check `intrinsic_gas <= tx.gas_limit`
+        after computing intrinsic gas as a u64
+      - Compact a small u256 result for further u64-domain work
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 src ptr (32 bytes, BE)
+      a1 (input)  : u64 out ptr
+      ra (input)  : return
+      a0 (output) : 1 on overflow (high 192 bits nonzero), 0 otherwise.
+
+    Pure register arithmetic, no scratch memory, leaf-callable.
+    Always writes the low-64-bit value to `*out`, even on
+    overflow (so callers don't need to branch on the flag to
+    read a defined value). -/
+def u256ToU64BeFunction : String :=
+  "u256_to_u64_be:\n" ++
+  "  # Check high 24 bytes (positions 0..24) are all zero.\n" ++
+  "  ld t0,  0(a0)\n" ++
+  "  ld t1,  8(a0)\n" ++
+  "  ld t2, 16(a0)\n" ++
+  "  or t0, t0, t1\n" ++
+  "  or t0, t0, t2\n" ++
+  "  # Assemble low u64 from BE bytes at positions 24..32.\n" ++
+  "  lbu t1, 24(a0); slli t1, t1, 56\n" ++
+  "  lbu t2, 25(a0); slli t2, t2, 48; or t1, t1, t2\n" ++
+  "  lbu t2, 26(a0); slli t2, t2, 40; or t1, t1, t2\n" ++
+  "  lbu t2, 27(a0); slli t2, t2, 32; or t1, t1, t2\n" ++
+  "  lbu t2, 28(a0); slli t2, t2, 24; or t1, t1, t2\n" ++
+  "  lbu t2, 29(a0); slli t2, t2, 16; or t1, t1, t2\n" ++
+  "  lbu t2, 30(a0); slli t2, t2,  8; or t1, t1, t2\n" ++
+  "  lbu t2, 31(a0);                  or t1, t1, t2\n" ++
+  "  sd t1, 0(a1)\n" ++
+  "  snez a0, t0                      # overflow = (high bits != 0)\n" ++
+  "  ret"
+
+/-- `zisk_u256_to_u64_be`: probe BuildUnit. Reads 32B BE u256
+    from host input, writes (overflow_flag, u64 result LE) to
+    OUTPUT (16 bytes total). -/
+def ziskU256ToU64BePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a2, 0x40000000\n" ++
+  "  addi a0, a2, 8              # src ptr\n" ++
+  "  li a1, 0xa0010008           # u64 out\n" ++
+  "  jal ra, u256_to_u64_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # overflow flag\n" ++
+  "  j .Lu256t_pdone\n" ++
+  u256ToU64BeFunction ++ "\n" ++
+  ".Lu256t_pdone:"
+
+def ziskU256ToU64BeDataSection : String :=
+  ".section .data\n" ++
+  "u256t_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256ToU64BeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256ToU64BePrologue
+  dataAsm     := ziskU256ToU64BeDataSection
+}
+
 
 /-! ## tx_type_dispatch -- PR-K40 typed-tx prefix detector
 
@@ -8581,6 +8657,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
   | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit
   | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
+  | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -8651,6 +8728,7 @@ def knownProgramNames : List String :=
    "zisk_u256_eq",
    "zisk_u256_mul_u64_be",
    "zisk_u256_from_u64_be",
+   "zisk_u256_to_u64_be",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
