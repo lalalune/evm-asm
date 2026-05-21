@@ -9,7 +9,7 @@
       1. extract sign of each operand (top bit of limb 3)
       2. conditionally two's-complement negate operands so both are
          non-negative; remember `sign(a)`
-      3. JAL to an `evm_mod_callable` shim (LP64) for unsigned modulo
+      3. JAL to an `evm_mod_callable_v4` shim (LP64) for unsigned modulo
       4. conditionally negate the remainder based on `sign(a)`
          (EVM SMOD takes the sign of the dividend)
 
@@ -62,7 +62,7 @@ theorem evm_smod_saved_ra_ret_block_byte_length (savedRaReg : Reg) :
     * `x9` stores `sign(divisor)` only for absolute-value normalization.
     * `x10`, `x11`, and `x7` are scratch registers for conditional negation.
 
-    Memory layout matches `evm_mod_callable`: dividend at `sp + 0..24`,
+    Memory layout matches `evm_mod_callable_v4`: dividend at `sp + 0..24`,
     divisor at `sp + 32..56`, remainder result at `sp + 32..56`. -/
 def evm_smod_wrapper : Program :=
   evm_smod_save_ra_block .x18 ;;
@@ -94,23 +94,36 @@ theorem evm_smod_call_target_byte_offset :
     4 * evm_smod_wrapper.length := by
   native_decide
 
-/-- Full SMOD code region. The wrapper returns via `x18`; the appended
+/-- Legacy SMOD code region. The wrapper returns via `x18`; the appended
     `evm_mod_callable` block is reached only by the wrapper's near call. -/
-def evm_smod : Program :=
+def evm_smod_legacy : Program :=
   evm_smod_wrapper ;; evm_mod_callable
 
-/-- v4 full SMOD code region. This keeps the same SMOD wrapper and swaps the
-    appended unsigned MOD callable to the corrected v4 divider body. -/
+/-- Full SMOD code region, using the corrected v4 unsigned MOD callable. -/
+def evm_smod : Program :=
+  evm_smod_wrapper ;; evm_mod_callable_v4
+
+/-- v4 full SMOD code region. Kept as an explicit alias while downstream
+    scripts and proofs finish migrating to the canonical `evm_smod` name. -/
 def evm_smod_v4 : Program :=
   evm_smod_wrapper ;; evm_mod_callable_v4
 
-theorem evm_smod_length : evm_smod.length = 390 := by
+/-- Regression pin: canonical executable SMOD is now the v4 body. -/
+theorem evm_smod_eq_v4 : evm_smod = evm_smod_v4 := rfl
+
+theorem evm_smod_legacy_length : evm_smod_legacy.length = 390 := by
+  native_decide
+
+theorem evm_smod_length : evm_smod.length = 414 := by
   native_decide
 
 theorem evm_smod_v4_length : evm_smod_v4.length = 414 := by
   native_decide
 
-theorem evm_smod_byte_length : 4 * evm_smod.length = 1560 := by
+theorem evm_smod_legacy_byte_length : 4 * evm_smod_legacy.length = 1560 := by
+  rw [evm_smod_legacy_length]
+
+theorem evm_smod_byte_length : 4 * evm_smod.length = 1656 := by
   rw [evm_smod_length]
 
 theorem evm_smod_v4_byte_length : 4 * evm_smod_v4.length = 1656 := by
