@@ -294,6 +294,34 @@ theorem fullDivN3UnifiedPostNoX1_frame_to_divConcretePostNoX1ExactRegsFrame
   rw [word_add_zero] at hq
   xperm_hyp hq
 
+/-- Convert the split n=3 full-path post plus exact caller `x1` directly to
+    the public callable post with exact caller-framed `x1` and `x9`. -/
+theorem fullDivN3UnifiedPostNoX1_frame_to_divStackDispatchPostCallableExact
+    (bltu_1 bltu_0 : Bool)
+    (sp base : Word) (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word)
+    (raVal : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hdiv0 : (EvmWord.div a b).getLimbN 0 =
+      (fullDivN3R0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1)
+    (hdiv1 : (EvmWord.div a b).getLimbN 1 =
+      (fullDivN3R1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1)
+    (hdiv2 : (EvmWord.div a b).getLimbN 2 = (0 : Word))
+    (hdiv3 : (EvmWord.div a b).getLimbN 3 = (0 : Word)) :
+    ∀ h,
+      (fullDivN3UnifiedPostNoX1 bltu_1 bltu_0 sp base
+        a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 **
+        (.x1 ↦ᵣ raVal)) h →
+      (((divStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) **
+        (.x9 ↦ᵣ (signExtend12 4095 : Word))) h) := by
+  intro h hp
+  exact divConcretePostNoX1ExactRegs_weaken_callable_frame sp a b h
+    (fullDivN3UnifiedPostNoX1_frame_to_divConcretePostNoX1ExactRegsFrame
+      bltu_1 bltu_0 sp base a b
+      a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 raVal
+      ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hp)
+
 /-- No-NOP n=3 DIV stack spec weakened to the callable post surface with
     separate `x1` ownership and exact `x9`. -/
 theorem evm_div_n3_stack_spec_within_word_noNop_callableOwnPost
