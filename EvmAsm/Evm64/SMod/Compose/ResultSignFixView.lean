@@ -4,17 +4,15 @@
   Views for the SMOD result-sign-fix postcondition.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFix
+import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwn
 import EvmAsm.Evm64.SMod.Compose.Words
 
 namespace EvmAsm.Evm64.SMod.Compose
 
-open EvmAsm.Evm64.SDiv.Compose (resultSignFixPost resultSignFixPost_unfold)
-
 /-- Postcondition view for a general SMOD result-sign-fix output: the four
     result memory cells fold into the named result-sign-fixed EVM word, while
     the scratch registers remain exposed explicitly. -/
-theorem resultSignFixPost_smodResultSign_word
+theorem smodResultSignFixPost_smodResultSign_word
     (sp dividendTop limb0 limb1 limb2 limb3 : Word) :
     let resultSign := dividendTop >>> (63 : BitVec 6).toNat
     let mask := (0 : Word) - resultSign
@@ -26,12 +24,12 @@ theorem resultSignFixPost_smodResultSign_word
     let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
     let sum3 := (limb3 ^^^ mask) + carry2
     let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
-    resultSignFixPost sp resultSign limb0 limb1 limb2 limb3 =
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ resultSign) **
+    smodResultSignFixPost sp resultSign limb0 limb1 limb2 limb3 =
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x13 ↦ᵣ resultSign) **
        (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
        evmWordIs sp (smodResultSignFixedWord dividendTop limb0 limb1 limb2 limb3)) := by
   dsimp only
-  rw [resultSignFixPost_unfold, evmWordIs_sp_unfold]
+  rw [smodResultSignFixPost_unfold, evmWordIs_sp_unfold]
   unfold smodResultSignFixedWord
   dsimp only
   simp only [EvmAsm.Rv64.signExtend12_0, EvmAsm.Rv64.signExtend12_8,
@@ -42,7 +40,7 @@ theorem resultSignFixPost_smodResultSign_word
 
 /-- Postcondition view for the SMOD zero-divisor branch after result-sign
     fixup: conditional negation of the zero modulo result is still zero. -/
-theorem resultSignFixPost_smodResultSign_zero_word
+theorem smodResultSignFixPost_smodResultSign_zero_word
     (sp dividendTop : Word) :
     let resultSign := dividendTop >>> (63 : BitVec 6).toNat
     let mask := (0 : Word) - resultSign
@@ -54,20 +52,20 @@ theorem resultSignFixPost_smodResultSign_zero_word
     let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
     let sum3 := ((0 : Word) ^^^ mask) + carry2
     let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
-    resultSignFixPost sp resultSign 0 0 0 0 =
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ resultSign) **
+    smodResultSignFixPost sp resultSign 0 0 0 0 =
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ sp) ** (.x13 ↦ᵣ resultSign) **
        (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ carry3) **
        evmWordIs sp (0 : EvmWord)) := by
   dsimp only
   obtain h_sign | h_sign := smodResultSign_bool dividendTop
   · rw [h_sign]
-    rw [resultSignFixPost_unfold, evmWordIs_zero]
+    rw [smodResultSignFixPost_unfold, evmWordIs_zero]
     dsimp only
     simp only [EvmAsm.Rv64.signExtend12_0, EvmAsm.Rv64.signExtend12_8,
       EvmAsm.Rv64.signExtend12_16, EvmAsm.Rv64.signExtend12_24]
     simp
   · rw [h_sign]
-    rw [resultSignFixPost_unfold, evmWordIs_zero]
+    rw [smodResultSignFixPost_unfold, evmWordIs_zero]
     dsimp only
     simp only [EvmAsm.Rv64.signExtend12_0, EvmAsm.Rv64.signExtend12_8,
       EvmAsm.Rv64.signExtend12_16, EvmAsm.Rv64.signExtend12_24]
