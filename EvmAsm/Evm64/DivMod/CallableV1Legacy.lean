@@ -476,11 +476,16 @@ theorem evm_mod_callable_v1_spec_from_noNop_preserving_x1 (sp base raVal : Word)
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0)
       (modStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal)) := by
-  simpa [evm_mod_callable_code_v1_eq_current]
-    using evm_mod_callable_spec_from_noNop_preserving_x1
-      sp base raVal a b v5 v6 v7 v10 v11
-      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 branch hStack
+  have hpcFreePost : (modStackDispatchPostNoX1 sp a b).pcFree :=
+    modStackDispatchPostNoX1_pcFree sp a b
+  have hStackCall :=
+    cpsTripleWithin_extend_code (hmono := modCode_noNop_sub_mod_callable_code_v1) hStack
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_mod_callable_code_v1_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) raVal)
+  have hRetFramed :=
+    cpsTripleWithin_frameL (modStackDispatchPostNoX1 sp a b) hpcFreePost hRet
+  exact cpsTripleWithin_seq_same_cr hStackCall hRetFramed
 
 theorem evm_mod_callable_v1_spec_from_noNop (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
