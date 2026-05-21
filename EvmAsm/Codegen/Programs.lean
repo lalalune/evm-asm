@@ -6269,6 +6269,126 @@ def ziskTxEip4844DecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskTxEip4844DecodeDataSection
 }
 
+/-! ## withdrawal_decode -- PR-K49 4-field withdrawal RLP decoder
+
+    Decode a post-Shanghai Withdrawal record into a flat struct.
+    Each withdrawal is an RLP list with 4 fields (Python:
+    `ethereum.forks.shanghai.fork_types.Withdrawal`):
+
+      rlp([index, validator_index, address, amount])
+
+    `apply_body` iterates `block.withdrawals`, decodes each one
+    via this helper, and applies the credit to the recipient's
+    balance (amount is in Gwei).
+
+    Output struct (48 bytes; 8-byte aligned for sd):
+
+       0..  8  index           (u64 LE)
+       8.. 16  validator_index (u64 LE)
+      16.. 36  address         (20 B)
+      36.. 40  zero pad
+      40.. 48  amount          (u64 LE; in Gwei)
+
+    Calling convention:
+      a0 (input)  : withdrawal_rlp ptr
+      a1 (input)  : withdrawal_rlp byte length
+      a2 (input)  : 48-byte output struct ptr
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail (not a 4-item list,
+                    field too long, or address not 20 bytes). -/
+def withdrawalDecodeFunction : String :=
+  "withdrawal_decode:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # wd_rlp ptr\n" ++
+  "  mv s1, a1                  # wd_rlp_len\n" ++
+  "  mv s2, a2                  # struct out\n" ++
+  "  # Field 0: index (u64 at offset 0)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lwd_fail\n" ++
+  "  # Field 1: validator_index (u64 at offset 8)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
+  "  addi a3, s2, 8\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lwd_fail\n" ++
+  "  # Field 2: address (20 bytes at offset 16)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  la a3, wd_offset; la a4, wd_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lwd_fail\n" ++
+  "  la t0, wd_length; ld t1, 0(t0)\n" ++
+  "  li t2, 20\n" ++
+  "  bne t1, t2, .Lwd_fail\n" ++
+  "  la t0, wd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  addi t4, s2, 16\n" ++
+  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
+  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
+  "  lwu t5, 16(t3); sw t5, 16(t4)\n" ++
+  "  # Pad bytes 20..24 of address slot (struct 36..40) are zero (from caller zeroing).\n" ++
+  "  # Field 3: amount (u64 at offset 40)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
+  "  addi a3, s2, 40\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lwd_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lwd_ret\n" ++
+  ".Lwd_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lwd_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_withdrawal_decode`: probe BuildUnit. Reads (wd_len,
+    wd_bytes) from host input, writes (status, 48-byte struct)
+    to OUTPUT. -/
+def ziskWithdrawalDecodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # wd_len\n" ++
+  "  addi a0, a3, 16             # wd ptr\n" ++
+  "  li a2, 0xa0010008           # struct at OUTPUT + 8\n" ++
+  "  # Pre-zero 48 bytes (6 dwords).\n" ++
+  "  mv t0, a2\n" ++
+  "  li t1, 6\n" ++
+  ".Lwd_zinit:\n" ++
+  "  beqz t1, .Lwd_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lwd_zinit\n" ++
+  ".Lwd_zdone:\n" ++
+  "  jal ra, withdrawal_decode\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lwd_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  withdrawalDecodeFunction ++ "\n" ++
+  ".Lwd_pdone:"
+
+def ziskWithdrawalDecodeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wd_offset:\n" ++
+  "  .zero 8\n" ++
+  "wd_length:\n" ++
+  "  .zero 8"
+
+def ziskWithdrawalDecodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskWithdrawalDecodePrologue
+  dataAsm     := ziskWithdrawalDecodeDataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -7531,6 +7651,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
+  | "zisk_withdrawal_decode"    => some ziskWithdrawalDecodeProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -7591,6 +7712,7 @@ def knownProgramNames : List String :=
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
+   "zisk_withdrawal_decode",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
