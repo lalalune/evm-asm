@@ -61,12 +61,44 @@
         a0 = 0  success; all 9 fields written
         a0 = 1  parse failure (not a 9-item list, field too long,
                 or `to` is neither 0 nor 20 bytes).
+
+  ## PR-K40 status: tx_type_dispatch
+
+  Reads byte 0 of the tx envelope and returns
+  `(tx_type, inner_offset)`. Lets the caller route the inner RLP
+  body to the correct per-type decoder. Lives at
+  `EvmAsm.Codegen.Programs.txTypeDispatchFunction`.
+
+  ## PR-K41 status: tx_eip1559_decode
+
+  Decodes the 12-field inner RLP body of an EIP-1559 (type-2)
+  transaction into a flat 248-byte output struct. Caller is
+  expected to have stripped the 0x02 type byte (PR-K40 reports
+  the inner offset). Lives at
+  `EvmAsm.Codegen.Programs.txEip1559DecodeFunction`.
+
+      offset  0..  8  chain_id (u64 LE)
+      offset  8.. 16  nonce (u64 LE)
+      offset 16.. 48  max_priority_fee_per_gas (u256 BE)
+      offset 48.. 80  max_fee_per_gas (u256 BE)
+      offset 80.. 88  gas_limit (u64 LE)
+      offset 88..108  to (20-byte address; zero on creation)
+      offset 108..112 to_present (u32; 0 if creation, 1 if call)
+      offset 112..144 value (u256 BE)
+      offset 144..152 data_offset (within inner_rlp)
+      offset 152..160 data_length
+      offset 160..168 access_list_offset (whole encoded sub-list
+                                          incl. RLP prefix)
+      offset 168..176 access_list_length
+      offset 176..184 y_parity (u64 LE)
+      offset 184..216 r (u256 BE)
+      offset 216..248 s (u256 BE)
 -/
 
 namespace EvmAsm.Stateless.Transaction.Decode
 
--- TODO(stateless-tx): type-prefixed forms (EIP-1559 / 2930 /
--- 4844 / 7702) land in follow-up PRs that wrap PR-K36's
--- `tx_legacy_decode` with per-type field re-ordering.
+-- TODO(stateless-tx): EIP-2930 (type 1), EIP-4844 (type 3),
+-- and EIP-7702 (type 4) inner decoders, mirroring PR-K41's
+-- `tx_eip1559_decode` shape.
 
 end EvmAsm.Stateless.Transaction.Decode
