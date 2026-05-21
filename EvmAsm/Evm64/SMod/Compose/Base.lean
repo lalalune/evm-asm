@@ -22,6 +22,7 @@ import EvmAsm.Evm64.SMod.Compose.QuadMemBridges
 import EvmAsm.Evm64.SMod.Compose.Bridges
 import EvmAsm.Evm64.SMod.Compose.AbsComponents
 import EvmAsm.Evm64.SMod.Compose.DispatchReadyView
+import EvmAsm.Evm64.SMod.Compose.ModCallPost
 import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
 import EvmAsm.Evm64.SMod.Compose.ResultSignFixPCFree
 
