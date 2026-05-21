@@ -4263,6 +4263,207 @@ def ziskHpEncodeNibblesProbeUnit : BuildUnit := {
   dataAsm     := ziskHpEncodeNibblesDataSection
 }
 
+/-! ## state_root_single_account -- PR-K33 end-to-end recompute
+
+    Compute the state-trie root for a trie containing exactly
+    one account. Composes every mutating primitive shipped so
+    far:
+
+      keccak(address)                       (PR-K3)
+      bytes_to_nibbles → 64-nibble path     (PR-K25)
+      hp_encode_nibbles(path, leaf=true)    (PR-K32)
+      account_encode(nonce, balance,
+                     storage_root,
+                     code_hash)             (PR-K31)
+      leaf_rlp = rlp([hp_bytes, account_rlp_bytes])
+      state_root = keccak(leaf_rlp)
+
+    This is the smallest useful "compute state_root from
+    fields" operation. Future PRs scale to multi-account tries
+    by composing branch / extension node builders on top.
+
+    Calling convention:
+      a0 (input)  : address bytes ptr
+      a1 (input)  : address byte length (typically 20)
+      a2 (input)  : nonce 8-byte BE ptr
+      a3 (input)  : balance 32-byte BE ptr
+      a4 (input)  : storage_root ptr (32 bytes)
+      a5 (input)  : code_hash ptr (32 bytes)
+      a6 (input)  : state_root output ptr (32 bytes)
+      ra (input)  : return
+      a0 (output) : 0 success
+
+    Reuses K-stack primitive functions. New scratches:
+      srsa_keccak_buf  (32 B)
+      srsa_nibble_buf  (64 B)
+      srsa_hp_buf      (33 B)  -- 64-nibble path HP-encodes to 33 bytes
+      srsa_acc_buf     (128 B) -- account RLP, typically 70..104 B
+      srsa_acc_len     (8 B)
+      srsa_leaf_buf    (256 B) -- leaf RLP -/
+def stateRootSingleAccountFunction : String :=
+  "state_root_single_account:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a2                   # nonce_be ptr\n" ++
+  "  mv s1, a3                   # balance_be ptr\n" ++
+  "  mv s2, a4                   # storage_root ptr\n" ++
+  "  mv s3, a5                   # code_hash ptr\n" ++
+  "  mv s4, a6                   # state_root output ptr\n" ++
+  "  # Step 1: keccak(address) → srsa_keccak_buf.\n" ++
+  "  la a2, srsa_keccak_buf\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # Step 2: bytes_to_nibbles → srsa_nibble_buf (64 nibbles).\n" ++
+  "  la a0, srsa_keccak_buf\n" ++
+  "  li a1, 32\n" ++
+  "  la a2, srsa_nibble_buf\n" ++
+  "  jal ra, bytes_to_nibbles\n" ++
+  "  # Step 3: hp_encode → srsa_hp_buf (33 bytes for 64-nibble leaf).\n" ++
+  "  la a0, srsa_nibble_buf\n" ++
+  "  li a1, 64\n" ++
+  "  li a2, 1\n" ++
+  "  la a3, srsa_hp_buf\n" ++
+  "  jal ra, hp_encode_nibbles\n" ++
+  "  # Step 4: account_encode → srsa_acc_buf.\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  mv a2, s2\n" ++
+  "  mv a3, s3\n" ++
+  "  la a4, srsa_acc_buf\n" ++
+  "  la a5, srsa_acc_len\n" ++
+  "  jal ra, account_encode\n" ++
+  "  # Step 5: build leaf RLP at srsa_leaf_buf.\n" ++
+  "  la t0, srsa_acc_len; ld t1, 0(t0)\n" ++
+  "  # payload_len = 34 (hp) + (1 or 2) prefix + acc_len\n" ++
+  "  # For acc_len ≥ 56: acc prefix = 2 bytes (0xb8 + len). 0xa1 + 33 hp = 34. Total 34 + 2 + acc_len.\n" ++
+  "  li t2, 56\n" ++
+  "  bltu t1, t2, .Lsrsa_acc_short\n" ++
+  "  addi t2, t1, 36              # payload = 34 + 2 + acc_len\n" ++
+  "  j .Lsrsa_have_payload\n" ++
+  ".Lsrsa_acc_short:\n" ++
+  "  addi t2, t1, 35              # payload = 34 + 1 + acc_len\n" ++
+  ".Lsrsa_have_payload:\n" ++
+  "  # Write outer prefix: 0xf8 + payload_len.\n" ++
+  "  la t3, srsa_leaf_buf\n" ++
+  "  li t4, 0xf8\n" ++
+  "  sb t4, 0(t3)\n" ++
+  "  sb t2, 1(t3)\n" ++
+  "  addi t3, t3, 2\n" ++
+  "  # Write 0xa1 + 33 hp bytes.\n" ++
+  "  li t4, 0xa1\n" ++
+  "  sb t4, 0(t3)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  la t5, srsa_hp_buf\n" ++
+  "  li t6, 33\n" ++
+  ".Lsrsa_copy_hp:\n" ++
+  "  beqz t6, .Lsrsa_hp_done\n" ++
+  "  lbu t4, 0(t5)\n" ++
+  "  sb  t4, 0(t3)\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t6, t6, -1\n" ++
+  "  j .Lsrsa_copy_hp\n" ++
+  ".Lsrsa_hp_done:\n" ++
+  "  # Write account_rlp prefix.\n" ++
+  "  li t4, 56\n" ++
+  "  bltu t1, t4, .Lsrsa_acc_short_pfx\n" ++
+  "  li t4, 0xb8\n" ++
+  "  sb t4, 0(t3)\n" ++
+  "  sb t1, 1(t3)\n" ++
+  "  addi t3, t3, 2\n" ++
+  "  j .Lsrsa_acc_copy\n" ++
+  ".Lsrsa_acc_short_pfx:\n" ++
+  "  li t4, 0x80\n" ++
+  "  add t4, t4, t1\n" ++
+  "  sb t4, 0(t3)\n" ++
+  "  addi t3, t3, 1\n" ++
+  ".Lsrsa_acc_copy:\n" ++
+  "  la t5, srsa_acc_buf\n" ++
+  "  mv t6, t1\n" ++
+  ".Lsrsa_copy_acc:\n" ++
+  "  beqz t6, .Lsrsa_acc_done\n" ++
+  "  lbu t4, 0(t5)\n" ++
+  "  sb  t4, 0(t3)\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t6, t6, -1\n" ++
+  "  j .Lsrsa_copy_acc\n" ++
+  ".Lsrsa_acc_done:\n" ++
+  "  # leaf_len = t3 - srsa_leaf_buf; keccak the leaf into s4.\n" ++
+  "  la t5, srsa_leaf_buf\n" ++
+  "  sub a1, t3, t5\n" ++
+  "  mv a0, t5\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_state_root_single_account`: probe BuildUnit. Reads
+    (addr_len, address, nonce_be, balance_be, storage_root,
+     code_hash) from host input, writes the 32-byte state_root
+    to OUTPUT. -/
+def ziskStateRootSingleAccountPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld t6, 8(a7)                # addr_len\n" ++
+  "  addi a0, a7, 16             # addr ptr\n" ++
+  "  mv a1, t6\n" ++
+  "  add a2, a0, t6              # nonce_be at addr + addr_len\n" ++
+  "  addi a3, a2, 8              # balance_be at +8\n" ++
+  "  addi a4, a3, 32             # storage_root at +32\n" ++
+  "  addi a5, a4, 32             # code_hash at +32\n" ++
+  "  li a6, 0xa0010000           # state_root out at OUTPUT + 0\n" ++
+  "  jal ra, state_root_single_account\n" ++
+  "  j .Lsrsa_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  accountEncodeFunction ++ "\n" ++
+  stateRootSingleAccountFunction ++ "\n" ++
+  ".Lsrsa_pdone:"
+
+def ziskStateRootSingleAccountDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 32\n" ++
+  "srsa_keccak_buf:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "srsa_nibble_buf:\n" ++
+  "  .zero 64\n" ++
+  ".balign 32\n" ++
+  "srsa_hp_buf:\n" ++
+  "  .zero 64\n" ++
+  ".balign 32\n" ++
+  "srsa_acc_buf:\n" ++
+  "  .zero 128\n" ++
+  ".balign 8\n" ++
+  "srsa_acc_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "ae_nonce_len:\n" ++
+  "  .zero 8\n" ++
+  "ae_balance_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "ae_scratch:\n" ++
+  "  .zero 64\n" ++
+  ".balign 32\n" ++
+  "srsa_leaf_buf:\n" ++
+  "  .zero 256"
+
+def ziskStateRootSingleAccountProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskStateRootSingleAccountPrologue
+  dataAsm     := ziskStateRootSingleAccountDataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -4716,6 +4917,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
+  | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -4758,6 +4960,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_encode_uint_be",
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
+   "zisk_state_root_single_account",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
