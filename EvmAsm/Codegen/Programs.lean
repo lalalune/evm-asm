@@ -4541,6 +4541,98 @@ def ziskStateRootSingleAccountProbeUnit : BuildUnit := {
   dataAsm     := ziskStateRootSingleAccountDataSection
 }
 
+/-! ## rlp_field_to_u64 -- PR-K34 RLP field → u64 wrapper
+
+    Extract the N-th field of an RLP list and decode its
+    big-endian byte string as a u64. Used by future
+    transaction-decode and header-decode steps for fields like
+    nonce, gas_limit, block_number, v.
+
+    Calling convention:
+      a0 (input)  : container RLP bytes ptr (e.g. tx_rlp)
+      a1 (input)  : container RLP byte length
+      a2 (input)  : field index (0-based)
+      a3 (input)  : u64 output ptr (LE-stored u64)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse failure /
+                    2 field too long (> 8 bytes)
+
+    Composes PR-K20 `rlp_list_nth_item` + per-byte BE decode.
+    The output is stored as a native LE u64 at *a3. -/
+def rlpFieldToU64Function : String :=
+  "rlp_field_to_u64:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0                  # container ptr\n" ++
+  "  mv s1, a3                  # u64 out ptr\n" ++
+  "  la a3, rfu_offset\n" ++
+  "  la a4, rfu_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lrfu_fail\n" ++
+  "  la t0, rfu_length; ld t1, 0(t0)\n" ++
+  "  li t2, 8\n" ++
+  "  bgtu t1, t2, .Lrfu_too_long\n" ++
+  "  la t0, rfu_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  li t2, 0                   # accumulator\n" ++
+  ".Lrfu_loop:\n" ++
+  "  beqz t1, .Lrfu_done\n" ++
+  "  slli t2, t2, 8\n" ++
+  "  lbu t4, 0(t3)\n" ++
+  "  or t2, t2, t4\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lrfu_loop\n" ++
+  ".Lrfu_done:\n" ++
+  "  sd t2, 0(s1)               # *out = u64 LE\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lrfu_ret\n" ++
+  ".Lrfu_too_long:\n" ++
+  "  sd zero, 0(s1)\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lrfu_ret\n" ++
+  ".Lrfu_fail:\n" ++
+  "  sd zero, 0(s1)\n" ++
+  "  li a0, 1\n" ++
+  ".Lrfu_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_rlp_field_to_u64`: probe BuildUnit. Reads
+    (container_len, field_index, container_bytes) from host
+    input, writes (status, u64) to OUTPUT. -/
+def ziskRlpFieldToU64Prologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # container_len\n" ++
+  "  ld a2, 16(a4)               # field_index\n" ++
+  "  addi a0, a4, 24             # container ptr\n" ++
+  "  li a3, 0xa0010008           # u64 out at OUTPUT + 8\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lrfu_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  ".Lrfu_pdone:"
+
+def ziskRlpFieldToU64DataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskRlpFieldToU64ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRlpFieldToU64Prologue
+  dataAsm     := ziskRlpFieldToU64DataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -5791,6 +5883,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
+  | "zisk_rlp_field_to_u64"     => some ziskRlpFieldToU64ProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -5839,6 +5932,7 @@ def knownProgramNames : List String :=
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
    "zisk_state_root_single_account",
+   "zisk_rlp_field_to_u64",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
