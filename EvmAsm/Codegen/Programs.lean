@@ -2510,6 +2510,153 @@ def ziskRlpListNthItemProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpListNthItemDataSection
 }
 
+/-! ## rlp_list_count_items -- PR-K47 top-level item counter
+
+    Walk an RLP-encoded list once and return the number of
+    top-level items it contains. Building block for callers
+    that need cardinality but not the items themselves:
+    `access_list_count`, `authorization_list_count`,
+    `blob_versioned_hashes_count`, `tx_count_per_block`.
+
+    Mirrors the item-skip logic in PR-K20 `rlp_list_nth_item`
+    but doesn't track a target index; counts every item it
+    can walk past until the list payload ends.
+
+    Calling convention:
+      a0 (input)  : list bytes ptr (start of outer RLP list
+                    prefix, byte 0xc0..0xff)
+      a1 (input)  : total list byte length (full encoded item
+                    incl. prefix)
+      a2 (input)  : u64 out ptr (receives count on success)
+      ra (input)  : return
+      a0 (output) : 0 on success, 1 on parse error
+                    (not a list, truncated, item runs past end)
+
+    Pure register arithmetic except for the count store; no
+    scratch memory; leaf-callable. -/
+def rlpListCountItemsFunction : String :=
+  "rlp_list_count_items:\n" ++
+  "  beqz a1, .Lrlc_fail        # empty input cannot encode a list\n" ++
+  "  lbu t0, 0(a0)\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lrlc_fail    # not an RLP list\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lrlc_short_outer\n" ++
+  "  # Long outer list: prefix bytes = 1 + (t0 - 0xf7)\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  addi t2, t2, 1             # total prefix bytes\n" ++
+  "  add t3, a0, t2             # cursor at first item\n" ++
+  "  j .Lrlc_walk\n" ++
+  ".Lrlc_short_outer:\n" ++
+  "  addi t3, a0, 1\n" ++
+  ".Lrlc_walk:\n" ++
+  "  add t4, a0, a1             # end-of-list cursor (exclusive)\n" ++
+  "  li t5, 0                   # count\n" ++
+  ".Lrlc_loop:\n" ++
+  "  beq t3, t4, .Lrlc_done\n" ++
+  "  bgtu t3, t4, .Lrlc_fail    # cursor walked past end → malformed\n" ++
+  "  lbu t0, 0(t3)\n" ++
+  "  li t1, 0x80\n" ++
+  "  bltu t0, t1, .Lrlc_skip_single\n" ++
+  "  li t1, 0xb8\n" ++
+  "  bltu t0, t1, .Lrlc_skip_short_str\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lrlc_skip_long_str\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lrlc_skip_short_list\n" ++
+  "  # Long list at t3: lol = t0 - 0xf7\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  li a3, 0                   # decoded length accumulator\n" ++
+  "  mv a4, t2                  # remaining length bytes\n" ++
+  "  addi a5, t3, 1\n" ++
+  ".Lrlc_skll_be:\n" ++
+  "  beqz a4, .Lrlc_skll_done\n" ++
+  "  slli a3, a3, 8\n" ++
+  "  lbu a6, 0(a5)\n" ++
+  "  or  a3, a3, a6\n" ++
+  "  addi a5, a5, 1\n" ++
+  "  addi a4, a4, -1\n" ++
+  "  j .Lrlc_skll_be\n" ++
+  ".Lrlc_skll_done:\n" ++
+  "  addi a6, t2, 1\n" ++
+  "  add  a6, a6, a3            # 1 + lol + decoded\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_short_list:\n" ++
+  "  li t1, 0xc0\n" ++
+  "  sub a6, t0, t1\n" ++
+  "  addi a6, a6, 1             # 1 + (t0 - 0xc0)\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_long_str:\n" ++
+  "  li t1, 0xb7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  li a3, 0\n" ++
+  "  mv a4, t2\n" ++
+  "  addi a5, t3, 1\n" ++
+  ".Lrlc_skls_be:\n" ++
+  "  beqz a4, .Lrlc_skls_done\n" ++
+  "  slli a3, a3, 8\n" ++
+  "  lbu a6, 0(a5)\n" ++
+  "  or  a3, a3, a6\n" ++
+  "  addi a5, a5, 1\n" ++
+  "  addi a4, a4, -1\n" ++
+  "  j .Lrlc_skls_be\n" ++
+  ".Lrlc_skls_done:\n" ++
+  "  addi a6, t2, 1\n" ++
+  "  add  a6, a6, a3\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_short_str:\n" ++
+  "  li t1, 0x80\n" ++
+  "  sub a6, t0, t1\n" ++
+  "  addi a6, a6, 1\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_single:\n" ++
+  "  addi t3, t3, 1\n" ++
+  ".Lrlc_step:\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  j .Lrlc_loop\n" ++
+  ".Lrlc_done:\n" ++
+  "  sd t5, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lrlc_fail:\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  li a0, 1\n" ++
+  "  ret"
+
+/-- `zisk_rlp_list_count_items`: probe BuildUnit. Reads
+    (list_len, list_bytes) from host input, writes
+    (status, count) to OUTPUT. -/
+def ziskRlpListCountItemsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # list_len\n" ++
+  "  addi a0, a3, 16             # list ptr\n" ++
+  "  li a2, 0xa0010008           # count out at OUTPUT + 8\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lrlc_pdone\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  ".Lrlc_pdone:"
+
+def ziskRlpListCountItemsDataSection : String :=
+  ".section .data\n" ++
+  "rlc_pad:\n" ++
+  "  .zero 8"
+
+def ziskRlpListCountItemsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRlpListCountItemsPrologue
+  dataAsm     := ziskRlpListCountItemsDataSection
+}
+
 /-! ## mpt_node_kind -- PR-K21 classifier
 
     Determines whether an RLP-encoded MPT node is a leaf,
@@ -7506,6 +7653,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
+  | "zisk_rlp_list_count_items" => some ziskRlpListCountItemsProbeUnit
   | "zisk_mpt_node_kind"        => some ziskMptNodeKindProbeUnit
   | "zisk_mpt_branch_child"     => some ziskMptBranchChildProbeUnit
   | "zisk_hp_decode_nibbles"    => some ziskHpDecodeNibblesProbeUnit
@@ -7566,6 +7714,7 @@ def knownProgramNames : List String :=
    "zisk_headers_validate_chain",
    "zisk_witness_lookup_by_hash",
    "zisk_rlp_list_nth_item",
+   "zisk_rlp_list_count_items",
    "zisk_mpt_node_kind",
    "zisk_mpt_branch_child",
    "zisk_hp_decode_nibbles",
