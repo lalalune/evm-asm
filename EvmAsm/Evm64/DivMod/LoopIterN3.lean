@@ -23,7 +23,6 @@ open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1)
 -- n=3, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=3, max+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 @[irreducible]
@@ -331,7 +330,6 @@ theorem loopBodyN3CallSkipPre_unfold
 -- n=3, BLTU taken (call path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=3, call+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 theorem divK_loop_body_n3_call_skip_j0_spec_within
@@ -562,7 +560,6 @@ theorem divK_loop_body_n3_call_skip_j0_spec_within_noNop
 -- n=3, BLTU not-taken (max path) + BEQ skip, j=1 → cpsTripleWithin to base+448
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=3, max+skip, j=1.
     Since j=1, the BGE loop-back is taken (j' = 0 ≥ 0), giving a cpsTripleWithin to base+448. -/
 theorem divK_loop_body_n3_max_skip_j1_spec_within
@@ -735,7 +732,6 @@ theorem divK_loop_body_n3_max_skip_j1_spec_within_noNop
 -- n=3, BLTU taken (call path) + BEQ skip, j=1 → cpsTripleWithin to base+448
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=3, call+skip, j=1.
     Since j=1, the BGE loop-back is taken, giving a cpsTripleWithin to base+448. -/
 theorem divK_loop_body_n3_call_skip_j1_spec_within
@@ -966,9 +962,8 @@ theorem divK_loop_body_n3_call_skip_j1_spec_within_noNop
 -- BEQ variants: n=3, max+addback+beq, j=0 → cpsTripleWithin to base+908
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=3, max+addback+beq, j=0.
-    Uses divK_mulsub_correction_addback_beq_spec_within to eliminate sorry. -/
+    Uses divK_mulsub_correction_addback_beq_spec_within for the closed addback branch. -/
 theorem divK_loop_body_n3_max_addback_beq_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -1137,9 +1132,8 @@ theorem divK_loop_body_n3_max_addback_beq_j0_spec_within_noNop
 -- BEQ variants: n=3, call+addback+beq, j=0 → cpsTripleWithin to base+908
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=3, call+addback+beq, j=0.
-    Uses divK_mulsub_correction_addback_beq_spec_within to eliminate sorry. -/
+    Uses divK_mulsub_correction_addback_beq_spec_within for the closed addback branch. -/
 theorem divK_loop_body_n3_call_addback_beq_j0_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -1260,9 +1254,8 @@ theorem divK_loop_body_n3_call_addback_beq_j0_spec_within
 -- BEQ variants: n=3, max+addback+beq, j=1 → cpsTripleWithin to base+448
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=3, max+addback+beq, j=1.
-    Uses divK_mulsub_correction_addback_beq_spec_within to eliminate sorry. -/
+    Uses divK_mulsub_correction_addback_beq_spec_within for the closed addback branch. -/
 theorem divK_loop_body_n3_max_addback_beq_j1_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -1351,9 +1344,8 @@ theorem divK_loop_body_n3_max_addback_beq_j1_spec_within
 -- BEQ variants: n=3, call+addback+beq, j=1 → cpsTripleWithin to base+448
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=3, call+addback+beq, j=1.
-    Uses divK_mulsub_correction_addback_beq_spec_within to eliminate sorry. -/
+    Uses divK_mulsub_correction_addback_beq_spec_within for the closed addback branch. -/
 theorem divK_loop_body_n3_call_addback_beq_j1_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
