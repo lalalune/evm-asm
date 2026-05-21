@@ -553,6 +553,37 @@ theorem evm_div_callable_v4_preserving_x1_x9_exact_pre_framed_spec_in_sdivCodeV4
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         nMem shiftMem jMem retMem dMem dloMem scratchUn0 hStack)
 
+/-- Framed v4 embedded DIV callable wrapper with the named exact caller-frame
+    post. -/
+theorem evm_div_callable_v4_exact_frame_framed_spec_in_sdivCodeV4
+    {F : EvmAsm.Rv64.Assertion} [EvmAsm.Rv64.Assertion.PCFree F]
+    (sp base x9Val raVal : Word) (a b : EvmWord) (v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hStack :
+      EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
+        (base + wrapperEndOff)
+        ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
+        (EvmAsm.Evm64.sharedDivModCodeNoNop_v4 (base + wrapperEndOff))
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp a b
+          x9Val raVal v2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (EvmAsm.Evm64.divStackDispatchPostCallableExactFrame sp a b raVal x9Val)) :
+    EvmAsm.Rv64.cpsTripleWithin (EvmAsm.Evm64.unifiedDivBound + 1)
+      (base + wrapperEndOff) (raVal &&& ~~~1) (sdivCodeV4 base)
+      (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp a b
+        x9Val raVal v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** F)
+      (EvmAsm.Evm64.divStackDispatchPostCallableExactFrame sp a b raVal x9Val ** F) := by
+  exact
+    EvmAsm.Rv64.cpsTripleWithin_frameR F (by pcFree)
+      (evm_div_callable_v4_exact_frame_spec_in_sdivCodeV4
+        sp base x9Val raVal a b v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0 hStack)
+
 /-- v4 SDIV wrapper for exact-pre unsigned-DIV body proofs that already carry
     an explicit PC-free frame through the no-NOP body. -/
 theorem evm_div_callable_v4_preserving_x1_x9_exact_pre_body_framed_spec_in_sdivCodeV4
