@@ -5974,6 +5974,71 @@ def ziskU256FromU64BeProbeUnit : BuildUnit := {
   dataAsm     := ziskU256FromU64BeDataSection
 }
 
+/-! ## u256_is_zero -- PR-K58 all-zero predicate on BE u256 buffers
+
+    Test whether a 32-byte big-endian `u256` buffer encodes the
+    value `0`. Returns `1` if all 32 bytes are zero, else `0`.
+
+    Saves callers from keeping a 32-byte zero buffer around just
+    to call `u256_eq` against it. Common pattern in tx
+    validation:
+
+      // Reject zero-value txs to a contract creation address
+      if not u256_is_zero(tx.value) and tx.is_creation: ...
+
+      // Skip the priority-fee credit if no surplus
+      if u256_is_zero(priority_fee_after_cap): goto next
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB. (For
+    is-zero the endian doesn't matter — all-zero bytes mean
+    value 0 either way — but kept consistent with the K50/K53
+    convention.)
+
+    Calling convention:
+      a0 (input)  : u256 ptr (32 bytes)
+      ra (input)  : return
+      a0 (output) : 1 if all-zero, 0 otherwise.
+
+    Pure register arithmetic: 4 ld + 3 or + 1 seqz. No
+    short-circuit (we always read all 32 bytes), keeping
+    timing data-independent for any future side-channel
+    considerations. Leaf-callable. -/
+def u256IsZeroFunction : String :=
+  "u256_is_zero:\n" ++
+  "  ld t0,  0(a0)\n" ++
+  "  ld t1,  8(a0)\n" ++
+  "  ld t2, 16(a0)\n" ++
+  "  ld t3, 24(a0)\n" ++
+  "  or t0, t0, t1\n" ++
+  "  or t0, t0, t2\n" ++
+  "  or t0, t0, t3\n" ++
+  "  seqz a0, t0\n" ++
+  "  ret"
+
+/-- `zisk_u256_is_zero`: probe BuildUnit. Reads 32B u256 from host
+    input, writes the u64 result. -/
+def ziskU256IsZeroPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a1, 0x40000000\n" ++
+  "  addi a0, a1, 8              # u256 ptr\n" ++
+  "  jal ra, u256_is_zero\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # result\n" ++
+  "  j .Lu256z_pdone\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  ".Lu256z_pdone:"
+
+def ziskU256IsZeroDataSection : String :=
+  ".section .data\n" ++
+  "u256z_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256IsZeroProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256IsZeroPrologue
+  dataAsm     := ziskU256IsZeroDataSection
+}
+
 
 /-! ## u256_eq -- PR-K53 equality companion to PR-K50 u256_lt
 
@@ -8658,6 +8723,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit
   | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
+  | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -8729,6 +8795,7 @@ def knownProgramNames : List String :=
    "zisk_u256_mul_u64_be",
    "zisk_u256_from_u64_be",
    "zisk_u256_to_u64_be",
+   "zisk_u256_is_zero",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
