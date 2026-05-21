@@ -6,6 +6,8 @@
 
 import EvmAsm.Evm64.DivMod.Compose.Base
 
+open EvmAsm.Rv64.Tactics
+
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
@@ -49,5 +51,25 @@ abbrev modCode_v4 (base : Word) : CodeReq :=
     CodeReq.ofProg (base + nopOff)        (ADDI .x0 .x0 0),
     CodeReq.ofProg (base + div128Off)     divK_div128_v4
   ]
+
+/-- v4 div128 block is included in the full DIV v4 code surface. -/
+theorem div128_v4_ofProg_sub_divCode_v4 {base : Word} :
+    ∀ a i, (CodeReq.ofProg (base + div128Off) divK_div128_v4) a = some i →
+      (divCode_v4 base) a = some i := by
+  unfold divCode_v4; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock
+  exact CodeReq.union_mono_left
+
+/-- v4 div128 block is included in the full MOD v4 code surface. -/
+theorem div128_v4_ofProg_sub_modCode_v4 {base : Word} :
+    ∀ a i, (CodeReq.ofProg (base + div128Off) divK_div128_v4) a = some i →
+      (modCode_v4 base) a = some i := by
+  unfold modCode_v4; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock
+  exact CodeReq.union_mono_left
 
 end EvmAsm.Evm64
