@@ -102,6 +102,47 @@ theorem divConcretePostNoX1ExactRegsFrame_pcFree
     divScratchValues_unfold]
   pcFree
 
+/-- Weaken the exact-register concrete no-NOP DIV callable post bundle to the
+    public callable postcondition plus caller-framed exact `x1` and `x9`. -/
+theorem divConcretePostNoX1ExactRegs_weaken_callable_frame
+    (sp : Word) (a b : EvmWord)
+    {x9Val raVal v2 v5 v6 v7 v10 v11 : Word}
+    {q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
+    ∀ h : PartialState,
+      divConcretePostNoX1ExactRegsFrame sp a b x9Val raVal v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 h →
+      (((divStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) **
+        (.x9 ↦ᵣ x9Val)) h) := by
+  intro h hp
+  rw [divConcretePostNoX1ExactRegsFrame_unfold] at hp
+  rw [divStackDispatchPostCallable_unfold]
+  simp only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hp ⊢
+  have hOwn :
+      (divScratchOwnCallNoX1 sp ** evmWordIs sp a ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ raVal) ** regOwn .x10 ** regOwn .x11 **
+        (.x12 ↦ᵣ (sp + 32)) ** regOwn .x2 ** regOwn .x5 **
+        regOwn .x6 ** regOwn .x7 ** (.x9 ↦ᵣ x9Val) **
+        evmWordIs (sp + 32) (EvmWord.div a b)) h := by
+    refine sepConj_mono ?_ ?_ h hp
+    · intro hLeft hpLeft
+      exact divScratchValuesCallNoX1_implies_divScratchOwnCallNoX1
+        sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+          retMem dMem dloMem scratch_un0 hLeft hpLeft
+    · apply sepConj_mono_right
+      apply sepConj_mono_right
+      apply sepConj_mono_right
+      apply sepConj_mono (regIs_implies_regOwn .x10 (v := v10))
+      apply sepConj_mono (regIs_implies_regOwn .x11 (v := v11))
+      apply sepConj_mono_right
+      apply sepConj_mono (regIs_implies_regOwn .x2 (v := v2))
+      apply sepConj_mono (regIs_implies_regOwn .x5 (v := v5))
+      apply sepConj_mono (regIs_implies_regOwn .x6 (v := v6))
+      apply sepConj_mono (regIs_implies_regOwn .x7 (v := v7))
+      exact fun _ hp => hp
+  exact by xperm_hyp hOwn
+
 /-- Weaken the concrete no-NOP DIV callable post bundle to the public
     callable postcondition plus the caller-framed exact `x1` and `x9` atoms. -/
 theorem divConcretePostNoX1_weaken_callable_frame
