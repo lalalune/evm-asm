@@ -78,6 +78,19 @@ theorem smodResultSignFixPost_unfold
   delta smodResultSignFixPost
   rfl
 
+theorem smodResultSignFixPost_pcFree
+    {sp sign limb0 limb1 limb2 limb3 : Word} :
+    (smodResultSignFixPost sp sign limb0 limb1 limb2 limb3).pcFree := by
+  rw [smodResultSignFixPost_unfold]
+  dsimp only
+  pcFree
+
+instance pcFreeInst_smodResultSignFixPost
+    (sp sign limb0 limb1 limb2 limb3 : Word) :
+    EvmAsm.Rv64.Assertion.PCFree
+      (smodResultSignFixPost sp sign limb0 limb1 limb2 limb3) :=
+  ⟨smodResultSignFixPost_pcFree⟩
+
 @[irreducible]
 def smodResultSignFixPreOwnScratch
     (sp sign limb0 limb1 limb2 limb3 : Word) : EvmAsm.Rv64.Assertion :=
@@ -100,6 +113,18 @@ theorem smodResultSignFixPreOwnScratch_unfold
         EvmAsm.Rv64.regOwn .x11) := by
   delta smodResultSignFixPreOwnScratch
   rfl
+
+theorem smodResultSignFixPreOwnScratch_pcFree
+    {sp sign limb0 limb1 limb2 limb3 : Word} :
+    (smodResultSignFixPreOwnScratch sp sign limb0 limb1 limb2 limb3).pcFree := by
+  rw [smodResultSignFixPreOwnScratch_unfold]
+  pcFree
+
+instance pcFreeInst_smodResultSignFixPreOwnScratch
+    (sp sign limb0 limb1 limb2 limb3 : Word) :
+    EvmAsm.Rv64.Assertion.PCFree
+      (smodResultSignFixPreOwnScratch sp sign limb0 limb1 limb2 limb3) :=
+  ⟨smodResultSignFixPreOwnScratch_pcFree⟩
 
 theorem resultSignFix_spec_in_smodCode
     (sp sign maskOld valueOld carryOld limb0 limb1 limb2 limb3 : Word)
