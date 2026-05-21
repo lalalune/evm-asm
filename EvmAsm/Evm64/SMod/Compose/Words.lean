@@ -182,4 +182,99 @@ theorem smodResultSignFixedWord_eq_neg_word_of_result_sign_one
   simp only [Neg.neg]
   bv_decide
 
+/-- The SMOD dividend absolute-value word is zero exactly for the zero
+    dividend. -/
+theorem smodAbsDividendWord_eq_zero_iff
+    (dividend : EvmWord) :
+    smodAbsDividendWord
+        (dividend.getLimbN 0) (dividend.getLimbN 1)
+        (dividend.getLimbN 2) (dividend.getLimbN 3) = 0 ↔
+      dividend = 0 := by
+  simpa [smodAbsDividendWord] using
+    EvmAsm.Evm64.SDiv.Compose.sdivAbsDividendWord_eq_zero_iff dividend
+
+/-- Nonzero caller-visible dividends stay nonzero after SMOD absolute-value
+    normalization. -/
+theorem smodAbsDividendWord_ne_zero_of_ne_zero
+    {dividend : EvmWord} (h_ne : dividend ≠ 0) :
+    smodAbsDividendWord
+        (dividend.getLimbN 0) (dividend.getLimbN 1)
+        (dividend.getLimbN 2) (dividend.getLimbN 3) ≠ 0 := by
+  intro h_abs_zero
+  exact h_ne ((smodAbsDividendWord_eq_zero_iff dividend).mp h_abs_zero)
+
+/-- The SMOD dividend absolute-value normalization either leaves the word
+    unchanged or computes its two's-complement negation. -/
+theorem smodAbsDividendWord_sign_split
+    (dividend : EvmWord) :
+    smodAbsDividendWord
+        (dividend.getLimbN 0) (dividend.getLimbN 1)
+        (dividend.getLimbN 2) (dividend.getLimbN 3) =
+      if dividend.getLimbN 3 >>> (63 : BitVec 6).toNat = 0 then
+        dividend
+      else
+        ~~~dividend + 1 := by
+  simpa [smodAbsDividendWord] using
+    EvmAsm.Evm64.SDiv.Compose.sdivAbsDividendWord_sign_split dividend
+
+/-- The SMOD divisor absolute-value normalization either leaves the word
+    unchanged or computes its two's-complement negation. -/
+theorem smodAbsDivisorWord_sign_split
+    (divisor : EvmWord) :
+    smodAbsDivisorWord
+        (divisor.getLimbN 0) (divisor.getLimbN 1)
+        (divisor.getLimbN 2) (divisor.getLimbN 3) =
+      if divisor.getLimbN 3 >>> (63 : BitVec 6).toNat = 0 then
+        divisor
+      else
+        ~~~divisor + 1 := by
+  simpa [smodAbsDivisorWord] using
+    EvmAsm.Evm64.SDiv.Compose.sdivAbsDivisorWord_sign_split divisor
+
+/-- Raw-limb SMOD dividend absolute-value normalization split by the
+    caller-visible sign bit. -/
+theorem smodAbsDividendWord_limb_sign_split
+    (dividendLimb0 dividendLimb1 dividendLimb2 dividendTop : Word) :
+    smodAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop =
+      if dividendTop >>> (63 : BitVec 6).toNat = 0 then
+        EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with
+          | 0 => dividendLimb0
+          | 1 => dividendLimb1
+          | 2 => dividendLimb2
+          | 3 => dividendTop
+      else
+        ~~~(EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with
+          | 0 => dividendLimb0
+          | 1 => dividendLimb1
+          | 2 => dividendLimb2
+          | 3 => dividendTop) + 1 := by
+  simpa [smodAbsDividendWord] using
+    EvmAsm.Evm64.SDiv.Compose.sdivAbsDividendWord_limb_sign_split
+      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+
+/-- Raw-limb SMOD divisor absolute-value normalization split by the
+    caller-visible sign bit. -/
+theorem smodAbsDivisorWord_limb_sign_split
+    (divisorLimb0 divisorLimb1 divisorLimb2 divisorTop : Word) :
+    smodAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop =
+      if divisorTop >>> (63 : BitVec 6).toNat = 0 then
+        EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with
+          | 0 => divisorLimb0
+          | 1 => divisorLimb1
+          | 2 => divisorLimb2
+          | 3 => divisorTop
+      else
+        ~~~(EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with
+          | 0 => divisorLimb0
+          | 1 => divisorLimb1
+          | 2 => divisorLimb2
+          | 3 => divisorTop) + 1 := by
+  simpa [smodAbsDivisorWord] using
+    EvmAsm.Evm64.SDiv.Compose.sdivAbsDivisorWord_limb_sign_split
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+
 end EvmAsm.Evm64.SMod.Compose
