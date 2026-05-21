@@ -62,18 +62,17 @@ theorem sdivCode_div_callable_v1_sub {base : Word} :
       (sdivCode base) a = some i := by
   intro a i h
   rw [evm_div_callable_code_v1_eq_ofProg (base + 284)] at h
-  rw [evm_div_callable_v1_eq_current] at h
   unfold sdivCode
   exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base (base + 284)
-    evm_sdiv_legacy evm_div_callable 71
+    evm_sdiv_legacy evm_div_callable_v1 71
     (EvmAsm.Evm64.SDiv.AddrNorm.divCallableStart_addr base)
     (by
       unfold evm_sdiv_legacy EvmAsm.Rv64.seq
       rw [← evm_sdiv_wrapper_length]
       have h_drop :
           List.drop evm_sdiv_wrapper.length
-              (evm_sdiv_wrapper ++ evm_div_callable) =
-            evm_div_callable := by
+              (evm_sdiv_wrapper ++ evm_div_callable_v1) =
+            evm_div_callable_v1 := by
         exact List.drop_append_length
       rw [h_drop]
       simp only [List.take_length])
