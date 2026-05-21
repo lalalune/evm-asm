@@ -3509,6 +3509,200 @@ def ziskAccountDecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountDecodeDataSection
 }
 
+/-! ## account_at_address -- PR-K28 compose lookup + decode
+
+    Take a raw Ethereum address, walk the state trie, decode
+    the resulting Account RLP into its four fields. The
+    cleanest top-of-K-stack abstraction: caller sees only
+    `(address, state_root, witness) → fields`.
+
+    Output struct layout (104 bytes at caller-supplied ptr):
+      offset  0..  8 : nonce (u64 LE)
+      offset  8.. 40 : balance (u256 BE, left-zero-padded)
+      offset 40.. 72 : storage_root (32 B)
+      offset 72..104 : code_hash (32 B)
+
+    Calling convention:
+      a0 (input)  : address bytes ptr
+      a1 (input)  : address byte length (typically 20)
+      a2 (input)  : state_root ptr (32 bytes)
+      a3 (input)  : witness section ptr
+      a4 (input)  : witness section_len
+      a5 (input)  : output struct ptr (104 bytes)
+      ra (input)  : return
+
+      a0 (output) :
+        0 = found and decoded
+        1 = not found in trie     (output zeroed)
+        2 = mpt_walk parse error  (output zeroed)
+        3 = account_decode failure (output zeroed)
+
+    Internal:
+      Step 1: mpt_lookup_by_key(addr, ..., aa_value_scratch).
+      Step 2: account_decode(scratch_val, scratch_len, ...).
+    Reuses the K-stack primitive scratches. -/
+def accountAtAddressFunction : String :=
+  "account_at_address:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a5                   # output struct ptr\n" ++
+  "  # Step 1: mpt_lookup_by_key.\n" ++
+  "  la a5, aa_value_scratch\n" ++
+  "  la a6, aa_value_len\n" ++
+  "  jal ra, mpt_lookup_by_key\n" ++
+  "  mv s1, a0                   # save lookup status\n" ++
+  "  beqz a0, .Laa_lookup_ok\n" ++
+  "  # Not found / parse error: zero the output struct.\n" ++
+  "  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)\n" ++
+  "  sd zero, 32(s0); sd zero, 40(s0); sd zero, 48(s0); sd zero, 56(s0)\n" ++
+  "  sd zero, 64(s0); sd zero, 72(s0); sd zero, 80(s0); sd zero, 88(s0)\n" ++
+  "  sd zero, 96(s0)\n" ++
+  "  mv a0, s1\n" ++
+  "  j .Laa_ret\n" ++
+  ".Laa_lookup_ok:\n" ++
+  "  la a0, aa_value_scratch\n" ++
+  "  la t0, aa_value_len; ld a1, 0(t0)\n" ++
+  "  mv a2, s0                   # nonce at struct + 0\n" ++
+  "  addi a3, s0, 8              # balance at struct + 8\n" ++
+  "  addi a4, s0, 40             # storage_root at struct + 40\n" ++
+  "  addi a5, s0, 72             # code_hash at struct + 72\n" ++
+  "  jal ra, account_decode\n" ++
+  "  beqz a0, .Laa_done\n" ++
+  "  # account_decode failed: zero struct, return 3.\n" ++
+  "  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)\n" ++
+  "  sd zero, 32(s0); sd zero, 40(s0); sd zero, 48(s0); sd zero, 56(s0)\n" ++
+  "  sd zero, 64(s0); sd zero, 72(s0); sd zero, 80(s0); sd zero, 88(s0)\n" ++
+  "  sd zero, 96(s0)\n" ++
+  "  li a0, 3\n" ++
+  "  j .Laa_ret\n" ++
+  ".Laa_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Laa_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_account_at_address`: probe BuildUnit. Reads
+    (witness_len, addr_len, state_root, addr, witness) from
+    host input. Writes (status, nonce, balance, storage_root,
+    code_hash) to OUTPUT.
+    Output layout:
+      bytes   0.. 8 : status
+      bytes   8..16 : nonce
+      bytes  16..48 : balance
+      bytes  48..80 : storage_root
+      bytes  80..112: code_hash -/
+def ziskAccountAtAddressPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld t6, 8(a7)                # witness_len\n" ++
+  "  ld t5, 16(a7)               # addr_len\n" ++
+  "  addi a2, a7, 24             # state_root ptr\n" ++
+  "  addi a0, a7, 56             # address ptr\n" ++
+  "  mv a1, t5                   # addr_len\n" ++
+  "  add a3, a0, t5              # witness ptr = address + addr_len\n" ++
+  "  mv a4, t6                   # witness_len\n" ++
+  "  li a5, 0xa0010008           # output struct at OUTPUT + 8\n" ++
+  "  # Pre-zero 104 bytes of output struct so a failure surfaces as zeros.\n" ++
+  "  sd zero, 0(a5); sd zero, 8(a5); sd zero, 16(a5); sd zero, 24(a5)\n" ++
+  "  sd zero, 32(a5); sd zero, 40(a5); sd zero, 48(a5); sd zero, 56(a5)\n" ++
+  "  sd zero, 64(a5); sd zero, 72(a5); sd zero, 80(a5); sd zero, 88(a5)\n" ++
+  "  sd zero, 96(a5)\n" ++
+  "  jal ra, account_at_address\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Laa_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  mptBranchChildFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
+  mptLookupByKeyFunction ++ "\n" ++
+  accountDecodeFunction ++ "\n" ++
+  accountAtAddressFunction ++ "\n" ++
+  ".Laa_pdone:"
+
+def ziskAccountAtAddressDataSection : String :=
+  ".section .data\n" ++
+  ".balign 32\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 32\n" ++
+  "wlh_scratch_hash:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mnk_dummy_offset:\n" ++
+  "  .zero 8\n" ++
+  "mnk_dummy_length:\n" ++
+  "  .zero 8\n" ++
+  "mnk_path_offset:\n" ++
+  "  .zero 8\n" ++
+  "mnk_path_length:\n" ++
+  "  .zero 8\n" ++
+  "mbc_offset:\n" ++
+  "  .zero 8\n" ++
+  "mbc_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "mw_lookup_hash:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mw_lookup_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_lookup_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "mw_child_buf:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mw_path_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_path_length:\n" ++
+  "  .zero 8\n" ++
+  "mw_child_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_child_length:\n" ++
+  "  .zero 8\n" ++
+  "mw_value_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_value_length:\n" ++
+  "  .zero 8\n" ++
+  "mw_nibble_count:\n" ++
+  "  .zero 8\n" ++
+  "mw_is_leaf:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "mw_nibble_buf:\n" ++
+  "  .zero 128\n" ++
+  ".balign 32\n" ++
+  "mlk_keccak_buf:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "mlk_nibble_buf:\n" ++
+  "  .zero 64\n" ++
+  ".balign 8\n" ++
+  "ad_offset:\n" ++
+  "  .zero 8\n" ++
+  "ad_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "aa_value_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "aa_value_scratch:\n" ++
+  "  .zero 256"
+
+def ziskAccountAtAddressProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountAtAddressPrologue
+  dataAsm     := ziskAccountAtAddressDataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -3957,6 +4151,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bytes_to_nibbles"     => some ziskBytesToNibblesProbeUnit
   | "zisk_mpt_lookup_by_key"    => some ziskMptLookupByKeyProbeUnit
   | "zisk_account_decode"       => some ziskAccountDecodeProbeUnit
+  | "zisk_account_at_address"   => some ziskAccountAtAddressProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -3994,6 +4189,7 @@ def knownProgramNames : List String :=
    "zisk_bytes_to_nibbles",
    "zisk_mpt_lookup_by_key",
    "zisk_account_decode",
+   "zisk_account_at_address",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
