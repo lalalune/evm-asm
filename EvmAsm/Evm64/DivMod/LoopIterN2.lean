@@ -27,7 +27,6 @@ open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1 slt_jpos_2)
 -- n=2, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=2, max+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 @[irreducible]
@@ -238,7 +237,6 @@ theorem divK_loop_body_n2_max_skip_j0_spec_within_noNop
 -- n=2, BLTU taken (call path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=2, call+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 @[irreducible]
@@ -518,7 +516,6 @@ theorem divK_loop_body_n2_call_skip_j0_spec_within_noNop
 -- Word-parametric: callers pass concrete j ∈ {1,2} + corresponding slt_jpos_k.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=2, max+skip, j > 0 (parametric on `j : Word`). -/
 @[irreducible]
 def loopBodyN2MaxJgt0Pre (j : Word)
@@ -709,7 +706,6 @@ theorem divK_loop_body_n2_max_skip_jgt0_spec_within_noNop (j : Word)
 -- Word-parametric: callers pass concrete j ∈ {1,2} + corresponding slt_jpos_k.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=2, call+skip, j > 0 (parametric on `j : Word`). -/
 @[irreducible]
 def loopBodyN2CallJgt0Pre (j : Word)
@@ -977,8 +973,8 @@ theorem divK_loop_body_n2_call_skip_jgt0_spec_within_noNop (j : Word)
 
 
 -- ============================================================================
--- BEQ variants: double-addback handling (no sorry)
--- These replace the sorry'd `aco3 ≠ 0` obligation by using
+-- BEQ variants: double-addback handling.
+-- These replace the previously open `aco3 ≠ 0` obligation by using
 -- divK_mulsub_correction_addback_beq_spec_within which handles both carry branches.
 -- ============================================================================
 
@@ -986,7 +982,6 @@ theorem divK_loop_body_n2_call_skip_jgt0_spec_within_noNop (j : Word)
 -- n=2, BLTU not-taken (max path) + BEQ addback, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 theorem divK_loop_body_n2_max_addback_j0_beq_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -1131,7 +1126,6 @@ theorem divK_loop_body_n2_max_addback_j0_beq_spec_within_noNop
 -- n=2, BLTU taken (call path) + BEQ addback, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 theorem divK_loop_body_n2_call_addback_j0_beq_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -1328,7 +1322,6 @@ theorem divK_loop_body_n2_max_addback_jgt0_beq_spec_within (j : Word)
 -- Word-parametric: callers pass concrete j ∈ {1,2} + corresponding slt_jpos_k.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 theorem divK_loop_body_n2_call_addback_jgt0_beq_spec_within (j : Word)
     (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
