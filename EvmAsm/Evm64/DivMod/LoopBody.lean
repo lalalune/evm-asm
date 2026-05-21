@@ -175,7 +175,6 @@ private def divKMulsub4LimbsPost
   ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ un2) **
   ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ un3)
 
-set_option maxRecDepth 4096 in
 /-- Multiply-subtract all 4 limbs: u[j+k] -= qHat * v[k] for k=0..3 with carry chain.
     44 instructions, loop body indices [22]-[65].
     Entry: base+536, Exit: base+712, CodeReq: sharedDivModCode base. -/
@@ -387,7 +386,6 @@ theorem addbackFullPost_unfold {sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word}
        ((uBase + signExtend12 4064) ↦ₘ aun4)) := by
   delta addbackFullPost; rfl
 
-set_option maxRecDepth 4096 in
 /-- Full add-back correction: init carry + 4 limb corrections + final u[j+4] adjust + qHat--.
     37 instructions, loop body indices [71]-[107].
     Entry: base+732, Exit: base+880, CodeReq: sharedDivModCode base. -/
@@ -599,7 +597,6 @@ private theorem lb_ms_setup {base : Word} : (base + div128CallRetOff : Word) + 2
 -- Address normalization for sub_carry
 private theorem lb_sc {base : Word} : (base + correctionAddbackOff : Word) + 16 = base + correctionSkipBeqOff := by bv_addr
 
-set_option maxRecDepth 4096 in
 /-- Mulsub full: setup + 4-limb multiply-subtract + carry subtraction from u[j+4].
     53 instructions, loop body indices [17]-[69].
     Entry: base+516, Exit: base+728, CodeReq: sharedDivModCode base. -/

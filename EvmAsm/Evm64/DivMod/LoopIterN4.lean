@@ -72,7 +72,6 @@ theorem loopBodyN4MaxSkipJ0Post_unfold
 -- n=4, BLTU not-taken (max path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=4, max+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 theorem divK_loop_body_n4_max_skip_j0_spec_within
@@ -248,7 +247,6 @@ theorem divK_loop_body_n4_max_skip_j0_spec_within_noNop
 -- n=4, BLTU taken (call path) + BEQ skip, j=0 → cpsTripleWithin to base+904
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=4, call+skip, j=0.
     Since j=0, the BGE loop-back is not taken, giving a cpsTripleWithin to base+904. -/
 private theorem divK_loop_body_n4_call_skip_j0_spec_within
@@ -519,13 +517,12 @@ private theorem divK_loop_body_n4_call_skip_j0_spec_within_noNop
 
 -- ============================================================================
 -- n=4, BLTU taken (call path) + BEQ addback (beq variant), j=0
--- Uses divK_mulsub_correction_addback_beq_spec_within to eliminate sorry.
+-- Uses divK_mulsub_correction_addback_beq_spec_within for the closed addback branch.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Loop body cpsTripleWithin for n=4, call+addback (beq variant), j=0.
     Uses the beq_spec which handles both carry=0 and carry≠0 internally,
-    eliminating the sorry for aco3 ≠ 0. -/
+    closing the aco3 ≠ 0 branch. -/
 private theorem divK_loop_body_n4_call_addback_j0_beq_spec_within
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
@@ -618,7 +615,7 @@ private theorem divK_loop_body_n4_call_addback_j0_beq_spec_within
   rw [u_addr_eq_n4] at TF
   rw [u_addr8_eq_n4] at TF
   rw [vtop_eq_v3_n4] at TF
-  -- 2. Use beq_spec instead of old spec (NO sorry!)
+  -- 2. Use beq_spec instead of the old branch split.
   have MCA := divK_mulsub_correction_addback_beq_spec_within sp qHat (0 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
     x1Exit q0' dHi x7Exit q1' (base + div128CallRetOff) base
 
@@ -904,7 +901,6 @@ theorem loopBodyN4CallAddbackBeqJ0Post_unfold
 -- These have 0 statement-level let bindings.
 -- ============================================================================
 
-set_option maxRecDepth 4096 in
 /-- Bundled-pre/post version of `divK_loop_body_n4_call_skip_j0_spec_within`.
     0 statement-level let bindings. -/
 theorem divK_loop_body_n4_call_skip_j0_spec_within_bundled
@@ -928,7 +924,6 @@ theorem divK_loop_body_n4_call_skip_j0_spec_within_bundled
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign hbltu hborrow)
 
-set_option maxRecDepth 4096 in
 /-- Bundled-pre/post version of `divK_loop_body_n4_call_skip_j0_spec_within_noNop`.
     0 statement-level let bindings. -/
 theorem divK_loop_body_n4_call_skip_j0_spec_within_noNop_bundled
@@ -952,7 +947,6 @@ theorem divK_loop_body_n4_call_skip_j0_spec_within_noNop_bundled
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign hbltu hborrow)
 
-set_option maxRecDepth 4096 in
 /-- Bundled-pre/post version of `divK_loop_body_n4_call_addback_j0_beq_spec_within`.
     0 statement-level let bindings. -/
 theorem divK_loop_body_n4_call_addback_j0_beq_spec_within_bundled
@@ -977,7 +971,6 @@ theorem divK_loop_body_n4_call_addback_j0_beq_spec_within_bundled
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign hbltu hcarry2_nz hborrow)
 
-set_option maxRecDepth 4096 in
 /-- Bundled-pre/post version of `divK_loop_body_n4_call_addback_j0_beq_spec_within_noNop`.
     0 statement-level let bindings. -/
 theorem divK_loop_body_n4_call_addback_j0_beq_spec_within_noNop_bundled
