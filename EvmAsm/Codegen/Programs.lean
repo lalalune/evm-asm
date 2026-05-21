@@ -528,7 +528,7 @@ def divModHandlers : List OpcodeHandlerSpec :=
     code pointer by 1, then jump directly to `.dispatch_loop`
     rather than `ret`-ing. The standard `ret` (= `jalr x0, x1, 0`)
     won't work for these handlers because the wrapper's inner
-    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable`
+    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable_v4`
     clobbers `x1` mid-body — `x1` no longer holds the dispatcher's
     continuation by the time control reaches this tail. -/
 private def signedDivModTail : HandlerTail :=
@@ -546,7 +546,7 @@ private def signedDivModTail : HandlerTail :=
     1. `preBody` saves `x10` to `x14` (same register convention as
        M8 DIV/MOD; `x14` is untouched by both the SDIV/SMOD
        wrappers and the inner `evm_div_callable_v4` /
-       `evm_mod_callable`) AND loads `x18` with the address of the
+       `evm_mod_callable_v4`) AND loads `x18` with the address of the
        per-handler `postBodyLabel` stub via `la x18, h_<NAME>_done`.
     2. The verified body is `evmSdivPatched` / `evmSmodPatched`,
        which is the verified `evm_sdiv` / `evm_smod` with the
@@ -562,11 +562,9 @@ private def signedDivModTail : HandlerTail :=
        `ret` because the inner `JAL` into the divider clobbered
        `x1` (so `ret` would jump to garbage).
 
-    SMOD note: `evm_smod` still uses the legacy non-v4
-    `evm_mod_callable` (SDIV migrated to v4 in commit `43bb53070`,
-    SMOD's surface hasn't flipped yet). When the verification
-    track migrates SMOD to `evm_mod_callable_v4`, this entry
-    rebinds to the new symbol without other changes. -/
+    Both canonical signed wrappers now route through the v4 callable
+    divider/modulo bodies; the trampoline shape is unchanged by that
+    migration because the saved-ra return convention is the same. -/
 def signedDivModHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_SDIV"
       opcodes       := [0x05]
