@@ -16,6 +16,7 @@ import EvmAsm.Evm64.SMod.Compose.CodeHandles
 import EvmAsm.Evm64.SMod.Compose.BaseCode
 import EvmAsm.Evm64.SMod.Compose.DispatchReadyPost
 import EvmAsm.Evm64.SMod.Compose.ModCallCallable
+import EvmAsm.Evm64.SMod.Compose.BaseTopLevel
 
 namespace EvmAsm.Evm64.SMod.Compose
 
