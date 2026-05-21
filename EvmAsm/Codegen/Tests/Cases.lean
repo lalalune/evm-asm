@@ -193,6 +193,17 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "smod_negative"
       bytecode       := "0x60, 0x05, 0x60, 0x01, 0x19, 0x07, 0x00"
       expectedOutHex := "feffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+    -- ## M10 self-calling opcodes (inline mod_callable / mul_callable)
+  , -- PUSH1 0x04; PUSH1 0x03; PUSH1 0x02; ADDMOD; STOP — (2+3) % 4 = 1
+    -- ADDMOD pops `a` (top), then `b`, then `N`. So stack
+    -- [N=4, b=3, a=2] yields (a+b) mod N = 5 mod 4 = 1.
+    { name           := "addmod_basic"
+      bytecode       := "0x60, 0x04, 0x60, 0x03, 0x60, 0x02, 0x08, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; PUSH1 0x03; PUSH1 0x02; ADDMOD; STOP — divisor=0 ⇒ 0
+    { name           := "addmod_div_zero"
+      bytecode       := "0x60, 0x00, 0x60, 0x03, 0x60, 0x02, 0x08, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   ]
 
 /-- Find a test case by name. -/

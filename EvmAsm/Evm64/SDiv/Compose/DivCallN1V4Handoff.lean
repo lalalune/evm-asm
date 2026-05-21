@@ -325,6 +325,68 @@ theorem saveRaDivCallDispatchReadyPost_exact_callable_x9out_divCode_n1_v4Scratch
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop scratchMem)
       hbase hStack
 
+/-- Exact-frame variant of the named N1/v4 scratch-output SDIV handoff. -/
+theorem saveRaDivCallDispatchReadyPost_exact_frame_x9out_divCode_n1_v4ScratchOut_spec_in_sdivCodeV4
+    (vRa sp base
+      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+      v2 v5 v6 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     shiftMem nMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hbase : base &&& 1 = 0)
+    (hStack :
+      EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
+        (base + wrapperEndOff)
+        ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
+        (EvmAsm.Evm64.divCode_noNop_v4 (base + wrapperEndOff))
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp
+          (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
+          (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+          (sdivAbsSign divisorTop) ((base + divCallOff) + 4) v2 v5 v6
+          (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+          (sdivAbsMask divisorTop)
+          (sdivAbsCarry3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+         ((sp + EvmAsm.Rv64.signExtend12 3936) ↦ₘ scratchMem))
+        (EvmAsm.Evm64.divStackDispatchPostCallableExactFrame sp
+          (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
+          (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+          ((base + divCallOff) + 4)
+          (EvmAsm.Rv64.signExtend12 4095 : Word) **
+         ((sp + EvmAsm.Rv64.signExtend12 3936) ↦ₘ
+          sdivN1V4ScratchOut dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+            divisorLimb0 divisorLimb1 divisorLimb2 divisorTop scratchMem))) :
+    EvmAsm.Rv64.cpsTripleWithin (EvmAsm.Evm64.unifiedDivBound + 1)
+      (base + wrapperEndOff) (base + resultSignFixOff) (sdivCodeV4 base)
+      (saveRaDivCallDispatchReadyPost vRa sp base
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+        v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + EvmAsm.Rv64.signExtend12 3936) ↦ₘ scratchMem))
+      (((saveRaDivCallCallablePostNoX9 vRa sp base
+        dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
+        (.x9 ↦ᵣ (EvmAsm.Rv64.signExtend12 4095 : Word))) **
+       ((sp + EvmAsm.Rv64.signExtend12 3936) ↦ₘ
+        sdivN1V4ScratchOut dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+          divisorLimb0 divisorLimb1 divisorLimb2 divisorTop scratchMem))) := by
+  exact
+    saveRaDivCallDispatchReadyPost_exact_callable_x9out_divCode_n1_v4ScratchOut_spec_in_sdivCodeV4
+      vRa sp base
+      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+      v2 v5 v6
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratchUn0 scratchMem
+      hbase
+      (EvmAsm.Rv64.cpsTripleWithin_weaken
+        (fun _ hp => hp)
+        (fun _ hp => by
+          simpa [EvmAsm.Evm64.divStackDispatchPostCallableExactFrame_unfold] using hp)
+        hStack)
+
 /-- Unified-bound DIV stack spec for SDIV's N1/v4 absolute-limb handoff
     surface, with the v4 scratch cell framed explicitly. -/
 theorem sdivN1V4_abs_stack_spec

@@ -638,7 +638,7 @@ verified body ends with a saved-ra-ret (`JALR x0, x18, 0`).
   - `evmSmodPatched := (evm_smod : List Instr).drop 1` — same.
   - `signedDivModTail` — restores `x10` from `x14`, advances PC,
     then `j .dispatch_loop` (NOT `ret`: the wrapper's inner
-    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable`
+    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable_v4`
     clobbers x1, so a standard `ret` would jump to garbage).
   - `signedDivModHandlers` — two entries (`h_SDIV`, `h_SMOD`).
     Each carries `preBody := "  mv x14, x10\n  la x18, h_<NAME>_done"`,
@@ -664,11 +664,10 @@ at the dispatcher's continuation. Fix: replaced `ret` with
 `j .dispatch_loop` (a direct jump to the dispatcher loop entry,
 bypassing the `x1`-mediated return).
 
-**SMOD v4 caveat (carried over from M8).** `evm_smod` still uses
-the legacy non-v4 `evm_mod_callable`. SDIV migrated to v4 in
-commit `43bb53070`; SMOD's surface hasn't flipped yet. When the
-verification track migrates SMOD, this entry rebinds to the new
-symbol with no other changes.
+**SMOD v4 status.** `evm_smod` now uses the v4 modulo callable, matching
+`evm_sdiv`'s v4 division path. The trampoline shape did not need to
+change: both signed wrappers still end through the same saved-ra return
+stub, and `signedDivModTail` still jumps directly back to `.dispatch_loop`.
 
 **Exit criteria (met).**
 `scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 29
@@ -789,16 +788,42 @@ emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
   `OpcodeHandlerSpec.postBodyLabel : Option String` field.
   `signedDivModTail` uses `j .dispatch_loop` instead of `ret`
   because the wrapper's inner `JAL .x1` clobbers x1 mid-body.
+- **M10.** ✅ `scripts/codegen-opcodes-runtime-check.sh` exits 0 with
+  **31 test cases** PASS (validated 2026-05-21). ADDMOD (0x08)
+  wired via an inline-callable composition: the handler body is
+  `evm_addmod_prologue ;; phase1_carry ;; phase2_reduce 8 ;;
+  skip-JAL ;; evm_mod_callable_v4`. The JAL inside `phase2_reduce`
+  targets the inlined callable's first instruction; the skip-JAL
+  (`JAL .x0 +1376`) jumps past the callable to the tail so the
+  wrapper doesn't fall through. `evm_addmod_epilogue` is
+  **deliberately omitted**: its `ADDI x12, x12, 32` would compound
+  the `divK_mod_epilogue`'s own `ADDI x12, x12, 32` inside
+  `evm_mod_callable_v4`, over-advancing `x12` by 32 bytes. Net
+  advance: 32 (prologue) + 32 (callable) = 64 B (pop 3, push 1).
+  Reuses M9's `signedDivModTail` + `mv x14, x10` preBody because
+  the inner `JAL .x1` into the callable clobbers `x1`. EXP (0x0a)
+  was planned for M10 but deferred — the verified
+  `evm_exp_msb_saved_bit_two_mul_fixed` wrapper uses `x6` and `x16`
+  as per-limb counter / limb pointer state across `mul_callable`
+  calls, but those are LP64 caller-saved registers and
+  `mul_callable` clobbers `x6` 39 times per call. The upstream
+  "fix" only addresses `x19` (cursor) clobber, not `x6`/`x16`, so
+  the bit-test reload logic produces garbage after the first
+  squaring. EXP can ship once upstream lands a fully callee-saved
+  variant.
 
-## Future work (post-M9)
+## Future work (post-M10)
 
 Near-term:
 
-- **M10 — ADDMOD / EXP via `callableLabel?`.** Adds 2 opcodes that
-  internally `JAL` to callable variants of other handlers (`evm_mul`
-  for EXP, MOD for ADDMOD). Needs a new `callableLabel?` field on
-  `OpcodeHandlerSpec` so the same body gets both a dispatcher-entry
-  label and a callable-entry label.
+- **EXP (0x0a).** Blocked on upstream: needs an
+  `evm_exp_msb_saved_bit_two_mul_fixed_fixed` variant that moves
+  the per-limb counter (`x6`) and limb pointer (`x16`) to
+  callee-saved registers (e.g. `x20`/`x21`). Once that lands, EXP
+  can drop into `selfCallingHandlers` next to ADDMOD using the
+  same inline-callable + `signedDivModTail` pattern; the skip-JAL
+  offset and `mulOff` / `condMulOff` derivations from this PR's
+  preliminary work are recorded in the git history.
 
 Longer-term (genuine new design surface):
 
