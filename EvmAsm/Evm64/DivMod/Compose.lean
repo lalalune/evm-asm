@@ -18,8 +18,7 @@
 -- ModFullPath covers ModPhaseB, ModCLZ, ModNorm, ModNormA, ModEpilogue, Epilogue.
 -- ModFullPathN3 covers ModPhaseBn3 (plus ModFullPath's chain).
 -- ModFullPathN{2,1} cover ModPhaseBn21.
--- ModDiv128 covers Div128.
-import EvmAsm.Evm64.DivMod.Compose.ModDiv128
+import EvmAsm.Evm64.DivMod.Compose.Div128
 import EvmAsm.Evm64.DivMod.Compose.Div128V4
 import EvmAsm.Evm64.DivMod.Compose.FullPath
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3
