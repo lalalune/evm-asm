@@ -5366,6 +5366,85 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderBasicDataSection
 }
 
+/-! ## u256_sub_be -- PR-K52 modular subtraction on BE u256 buffers
+
+    Compute `(a - b) mod 2^256` over two 32-byte big-endian
+    `u256` buffers, storing the result in `out` and returning a
+    0/1 borrow flag (`1` ⇔ unsigned underflow ⇔ `a < b`).
+
+    Natural pair to PR-K51 `u256_add_be`. Direct use case:
+
+      new_balance = u256_sub_be(account.balance, tx_cost)
+      if borrow: reject tx (insufficient funds)
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u256 b ptr (32 bytes, BE)
+      a2 (input)  : u256 out ptr (32 bytes, BE; may alias a or b)
+      ra (input)  : return
+      a0 (output) : 1 on underflow (a < b), 0 otherwise.
+
+    Aliasing is safe: `out` may alias `a` or `b`. Pure register
+    arithmetic, no scratch memory, leaf-callable. -/
+def u256SubBeFunction : String :=
+  "u256_sub_be:\n" ++
+  "  li t0, 31                  # byte index (LSB first)\n" ++
+  "  li t1, 0                   # borrow\n" ++
+  ".Lu256s_loop:\n" ++
+  "  add t2, a0, t0\n" ++
+  "  add t3, a1, t0\n" ++
+  "  add t4, a2, t0\n" ++
+  "  lbu t5, 0(t2)\n" ++
+  "  lbu t6, 0(t3)\n" ++
+  "  sub t5, t5, t6\n" ++
+  "  sub t5, t5, t1             # - borrow-in\n" ++
+  "  sltz t1, t5                # borrow-out = (t5 < 0)\n" ++
+  "  andi t5, t5, 0xff          # masked diff byte\n" ++
+  "  sb t5, 0(t4)\n" ++
+  "  beqz t0, .Lu256s_done\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lu256s_loop\n" ++
+  ".Lu256s_done:\n" ++
+  "  mv a0, t1                  # final borrow = underflow flag\n" ++
+  "  ret"
+
+/-- `zisk_u256_sub_be`: probe BuildUnit. Reads (32B a, 32B b)
+    from host input, writes (borrow_flag, 32B result) to OUTPUT
+    (40 bytes total). -/
+def ziskU256SubBePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # a ptr\n" ++
+  "  addi a1, a3, 40             # b ptr\n" ++
+  "  li a2, 0xa0010008           # out ptr at OUTPUT + 8\n" ++
+  "  mv t0, a2; li t1, 4\n" ++
+  ".Lu256s_zinit:\n" ++
+  "  beqz t1, .Lu256s_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lu256s_zinit\n" ++
+  ".Lu256s_zdone:\n" ++
+  "  jal ra, u256_sub_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # borrow flag\n" ++
+  "  j .Lu256s_pdone\n" ++
+  u256SubBeFunction ++ "\n" ++
+  ".Lu256s_pdone:"
+
+def ziskU256SubBeDataSection : String :=
+  ".section .data\n" ++
+  "u256s_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256SubBeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256SubBePrologue
+  dataAsm     := ziskU256SubBeDataSection
+}
+
 /-! ## tx_type_dispatch -- PR-K40 typed-tx prefix detector
 
     Read the first byte of an RLP/typed-tx-encoded transaction
@@ -7527,6 +7606,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
+  | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -7587,6 +7667,7 @@ def knownProgramNames : List String :=
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_validate_header_basic",
+   "zisk_u256_sub_be",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
