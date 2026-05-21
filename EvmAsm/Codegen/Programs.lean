@@ -5366,6 +5366,89 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderBasicDataSection
 }
 
+/-! ## u256_add_be -- PR-K51 modular addition on BE u256 buffers
+
+    Compute `(a + b) mod 2^256` over two 32-byte big-endian
+    `u256` buffers, storing the result in `out` and returning a
+    0/1 overflow flag (`1` ⇔ unsigned overflow ⇔ `a + b >= 2^256`).
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB. Mirrors
+    the layout produced by `rlp_field_to_u256_be` and consumed by
+    `u256_lt` (PR-K50).
+
+    Building block for `tx_cost = max_fee_per_gas * gas_limit +
+    value` in tx validation, and for any subsequent u256
+    arithmetic helpers (`u256_sub_be`, `u256_mul_u64`).
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u256 b ptr (32 bytes, BE)
+      a2 (input)  : u256 out ptr (32 bytes, BE; may alias a or b)
+      ra (input)  : return
+      a0 (output) : 1 on overflow, 0 otherwise.
+
+    Aliasing is safe: `out` may alias `a` or `b`. The
+    byte-by-byte loop reads `a[i]` and `b[i]` before writing
+    `out[i]` at each step. Pure register arithmetic, no scratch
+    memory, leaf-callable. -/
+def u256AddBeFunction : String :=
+  "u256_add_be:\n" ++
+  "  li t0, 31                  # byte index (LSB first)\n" ++
+  "  li t1, 0                   # carry\n" ++
+  ".Lu256a_loop:\n" ++
+  "  add t2, a0, t0\n" ++
+  "  add t3, a1, t0\n" ++
+  "  add t4, a2, t0\n" ++
+  "  lbu t5, 0(t2)\n" ++
+  "  lbu t6, 0(t3)\n" ++
+  "  add t5, t5, t6\n" ++
+  "  add t5, t5, t1             # + carry-in\n" ++
+  "  srli t1, t5, 8             # carry-out\n" ++
+  "  andi t5, t5, 0xff          # masked sum byte\n" ++
+  "  sb t5, 0(t4)\n" ++
+  "  beqz t0, .Lu256a_done\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lu256a_loop\n" ++
+  ".Lu256a_done:\n" ++
+  "  mv a0, t1                  # final carry = overflow flag\n" ++
+  "  ret"
+
+/-- `zisk_u256_add_be`: probe BuildUnit. Reads (32B a, 32B b) from
+    host input, writes (overflow_flag, 32B result) to OUTPUT (40
+    bytes total). -/
+def ziskU256AddBePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # a ptr\n" ++
+  "  addi a1, a3, 40             # b ptr\n" ++
+  "  li a2, 0xa0010008           # out ptr at OUTPUT + 8\n" ++
+  "  # Pre-zero the 32 output bytes (defensive).\n" ++
+  "  mv t0, a2; li t1, 4\n" ++
+  ".Lu256a_zinit:\n" ++
+  "  beqz t1, .Lu256a_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lu256a_zinit\n" ++
+  ".Lu256a_zdone:\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # overflow flag\n" ++
+  "  j .Lu256a_pdone\n" ++
+  u256AddBeFunction ++ "\n" ++
+  ".Lu256a_pdone:"
+
+def ziskU256AddBeDataSection : String :=
+  ".section .data\n" ++
+  "u256a_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256AddBeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256AddBePrologue
+  dataAsm     := ziskU256AddBeDataSection
+}
+
 /-! ## tx_type_dispatch -- PR-K40 typed-tx prefix detector
 
     Read the first byte of an RLP/typed-tx-encoded transaction
@@ -7527,6 +7610,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
+  | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -7587,6 +7671,7 @@ def knownProgramNames : List String :=
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_validate_header_basic",
+   "zisk_u256_add_be",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
