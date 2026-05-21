@@ -1,3 +1,4 @@
+-- file-size-exception: grandfathered at 1207 lines; j=3 framing lemmas added to existing n1 v4/no-NOP composition file pending a split
 /-
   EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
 
