@@ -5366,6 +5366,73 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderBasicDataSection
 }
 
+/-! ## u256_lt -- PR-K50 strict less-than on big-endian u256 buffers
+
+    Compare two 32-byte big-endian u256 buffers in place. Returns
+    a 0/1 result for `a < b`. Building block for tx validation
+    (balance/cost checks), EIP-1559 base-fee comparisons, and
+    signature value range checks.
+
+    BE storage convention: byte 0 is the most-significant byte;
+    byte 31 is the least-significant. Mirrors the layout produced
+    by `rlp_field_to_u256_be` and consumed throughout the
+    K-stack.
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u256 b ptr (32 bytes, BE)
+      ra (input)  : return
+      a0 (output) : 1 if a < b, 0 otherwise (incl. a == b).
+
+    Pure register arithmetic, no scratch memory, leaf-callable.
+    Walks at most 32 bytes; short-circuits on the first
+    differing byte. -/
+def u256LtFunction : String :=
+  "u256_lt:\n" ++
+  "  li t0, 0                   # byte index\n" ++
+  "  li t6, 32\n" ++
+  ".Lu256lt_loop:\n" ++
+  "  beq t0, t6, .Lu256lt_no    # 32 bytes equal → a == b → not <\n" ++
+  "  add t1, a0, t0\n" ++
+  "  add t2, a1, t0\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bltu t3, t4, .Lu256lt_yes\n" ++
+  "  bgtu t3, t4, .Lu256lt_no\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lu256lt_loop\n" ++
+  ".Lu256lt_yes:\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Lu256lt_no:\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_u256_lt`: probe BuildUnit. Reads (32B a, 32B b) from
+    host input (after an 8-byte tag), writes the u64 result. -/
+def ziskU256LtPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a2, 0x40000000\n" ++
+  "  addi a0, a2, 8              # a ptr\n" ++
+  "  addi a1, a2, 40             # b ptr (a + 32)\n" ++
+  "  jal ra, u256_lt\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # result\n" ++
+  "  j .Lu256lt_pdone\n" ++
+  u256LtFunction ++ "\n" ++
+  ".Lu256lt_pdone:"
+
+def ziskU256LtDataSection : String :=
+  ".section .data\n" ++
+  "u256lt_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256LtProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256LtPrologue
+  dataAsm     := ziskU256LtDataSection
+}
+
 /-! ## tx_type_dispatch -- PR-K40 typed-tx prefix detector
 
     Read the first byte of an RLP/typed-tx-encoded transaction
@@ -7527,6 +7594,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
+  | "zisk_u256_lt"              => some ziskU256LtProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -7587,6 +7655,7 @@ def knownProgramNames : List String :=
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_validate_header_basic",
+   "zisk_u256_lt",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
