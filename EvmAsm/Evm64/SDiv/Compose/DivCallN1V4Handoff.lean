@@ -51,50 +51,18 @@ abbrev sdivN1V4Hbltu1
       divisorLimb0 divisorLimb1 divisorLimb2 divisorTop : Word) : Prop :=
   ¬BitVec.ult
     (EvmAsm.Evm64.loopN1CallMaxmaxmaxR2
-      (EvmAsm.Evm64.fullDivN1NormV
-        (sdivAbsSum0 divisorLimb0 divisorTop)
-        (sdivAbsSum1 divisorLimb0 divisorLimb1 divisorTop)
-        (sdivAbsSum2 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-        (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).1
-      (EvmAsm.Evm64.fullDivN1NormV
-        (sdivAbsSum0 divisorLimb0 divisorTop)
-        (sdivAbsSum1 divisorLimb0 divisorLimb1 divisorTop)
-        (sdivAbsSum2 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-        (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).2.1
-      (EvmAsm.Evm64.fullDivN1NormV
-        (sdivAbsSum0 divisorLimb0 divisorTop)
-        (sdivAbsSum1 divisorLimb0 divisorLimb1 divisorTop)
-        (sdivAbsSum2 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-        (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).2.2.1
-      (EvmAsm.Evm64.fullDivN1NormV
-        (sdivAbsSum0 divisorLimb0 divisorTop)
-        (sdivAbsSum1 divisorLimb0 divisorLimb1 divisorTop)
-        (sdivAbsSum2 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-        (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).2.2.2
-      (EvmAsm.Evm64.fullDivN1NormU
-        (sdivAbsSum0 dividendLimb0 dividendTop)
-        (sdivAbsSum1 dividendLimb0 dividendLimb1 dividendTop)
-        (sdivAbsSum2 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum3 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum0 divisorLimb0 divisorTop)).2.2.2.1
-      (EvmAsm.Evm64.fullDivN1NormU
-        (sdivAbsSum0 dividendLimb0 dividendTop)
-        (sdivAbsSum1 dividendLimb0 dividendLimb1 dividendTop)
-        (sdivAbsSum2 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum3 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum0 divisorLimb0 divisorTop)).2.2.2.2
+      (sdivN1V4NormV divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).1
+      (sdivN1V4NormV divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).2.1
+      (sdivN1V4NormV divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).2.2.1
+      (sdivN1V4NormV divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).2.2.2
+      (sdivN1V4NormU dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorTop).2.2.2.1
+      (sdivN1V4NormU dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorTop).2.2.2.2
       0 0 0
-      (EvmAsm.Evm64.fullDivN1NormU
-        (sdivAbsSum0 dividendLimb0 dividendTop)
-        (sdivAbsSum1 dividendLimb0 dividendLimb1 dividendTop)
-        (sdivAbsSum2 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum3 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum0 divisorLimb0 divisorTop)).2.2.1).2.1
-    (EvmAsm.Evm64.fullDivN1NormV
-      (sdivAbsSum0 divisorLimb0 divisorTop)
-      (sdivAbsSum1 divisorLimb0 divisorLimb1 divisorTop)
-      (sdivAbsSum2 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-      (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).1
+      (sdivN1V4NormU dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorTop).2.2.1).2.1
+    (sdivN1V4NormV divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).1
 
 /-- SDIV absolute-limb spelling of the N1 `j = 0` non-borrow branch
     condition used by the call/max/max/max DIV path. -/
@@ -103,56 +71,20 @@ abbrev sdivN1V4Hbltu0
       divisorLimb0 divisorLimb1 divisorLimb2 divisorTop : Word) : Prop :=
   ¬BitVec.ult
     (EvmAsm.Evm64.loopN1CallMaxmaxmaxR1
-      (EvmAsm.Evm64.fullDivN1NormV
-        (sdivAbsSum0 divisorLimb0 divisorTop)
-        (sdivAbsSum1 divisorLimb0 divisorLimb1 divisorTop)
-        (sdivAbsSum2 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-        (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).1
-      (EvmAsm.Evm64.fullDivN1NormV
-        (sdivAbsSum0 divisorLimb0 divisorTop)
-        (sdivAbsSum1 divisorLimb0 divisorLimb1 divisorTop)
-        (sdivAbsSum2 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-        (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).2.1
-      (EvmAsm.Evm64.fullDivN1NormV
-        (sdivAbsSum0 divisorLimb0 divisorTop)
-        (sdivAbsSum1 divisorLimb0 divisorLimb1 divisorTop)
-        (sdivAbsSum2 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-        (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).2.2.1
-      (EvmAsm.Evm64.fullDivN1NormV
-        (sdivAbsSum0 divisorLimb0 divisorTop)
-        (sdivAbsSum1 divisorLimb0 divisorLimb1 divisorTop)
-        (sdivAbsSum2 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-        (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).2.2.2
-      (EvmAsm.Evm64.fullDivN1NormU
-        (sdivAbsSum0 dividendLimb0 dividendTop)
-        (sdivAbsSum1 dividendLimb0 dividendLimb1 dividendTop)
-        (sdivAbsSum2 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum3 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum0 divisorLimb0 divisorTop)).2.2.2.1
-      (EvmAsm.Evm64.fullDivN1NormU
-        (sdivAbsSum0 dividendLimb0 dividendTop)
-        (sdivAbsSum1 dividendLimb0 dividendLimb1 dividendTop)
-        (sdivAbsSum2 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum3 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum0 divisorLimb0 divisorTop)).2.2.2.2
+      (sdivN1V4NormV divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).1
+      (sdivN1V4NormV divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).2.1
+      (sdivN1V4NormV divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).2.2.1
+      (sdivN1V4NormV divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).2.2.2
+      (sdivN1V4NormU dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorTop).2.2.2.1
+      (sdivN1V4NormU dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorTop).2.2.2.2
       0 0 0
-      (EvmAsm.Evm64.fullDivN1NormU
-        (sdivAbsSum0 dividendLimb0 dividendTop)
-        (sdivAbsSum1 dividendLimb0 dividendLimb1 dividendTop)
-        (sdivAbsSum2 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum3 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum0 divisorLimb0 divisorTop)).2.2.1
-      (EvmAsm.Evm64.fullDivN1NormU
-        (sdivAbsSum0 dividendLimb0 dividendTop)
-        (sdivAbsSum1 dividendLimb0 dividendLimb1 dividendTop)
-        (sdivAbsSum2 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum3 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
-        (sdivAbsSum0 divisorLimb0 divisorTop)).2.1).2.1
-    (EvmAsm.Evm64.fullDivN1NormV
-      (sdivAbsSum0 divisorLimb0 divisorTop)
-      (sdivAbsSum1 divisorLimb0 divisorLimb1 divisorTop)
-      (sdivAbsSum2 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
-      (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).1
+      (sdivN1V4NormU dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorTop).2.2.1
+      (sdivN1V4NormU dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+        divisorLimb0 divisorTop).2.1).2.1
+    (sdivN1V4NormV divisorLimb0 divisorLimb1 divisorLimb2 divisorTop).1
 
 /-- SDIV absolute-limb spelling of the N1/v4 quotient limb 3 computed by the
     call/max/max/max DIV path. -/
@@ -506,6 +438,30 @@ theorem saveRaDivCallDispatchReadyPost_exact_callable_x9out_divCode_n1_v4_abs_sp
         (sdivAbsSum1 divisorLimb0 divisorLimb1 divisorTop)
         (sdivAbsSum2 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
         (sdivAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).2.2.2)
+    (_hdiv0 :
+      (EvmAsm.Evm64.EvmWord.div
+        (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
+        (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).getLimbN 0 =
+        sdivN1V4Quot0 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+          divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+    (_hdiv1 :
+      (EvmAsm.Evm64.EvmWord.div
+        (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
+        (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).getLimbN 1 =
+        sdivN1V4Quot1 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+          divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+    (_hdiv2 :
+      (EvmAsm.Evm64.EvmWord.div
+        (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
+        (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).getLimbN 2 =
+        sdivN1V4Quot2 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+          divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+    (_hdiv3 :
+      (EvmAsm.Evm64.EvmWord.div
+        (sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
+        (sdivAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)).getLimbN 3 =
+        sdivN1V4Quot3 dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+          divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
     (hStack :
       EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
         (base + wrapperEndOff)
