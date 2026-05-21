@@ -4170,6 +4170,99 @@ def ziskAccountEncodeProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountEncodeDataSection
 }
 
+/-! ## hp_encode_nibbles -- PR-K32 inverse of hp_decode_nibbles
+
+    Encode a nibble array + leaf/extension flag into the HP
+    byte string format used as the first item of MPT leaf and
+    extension nodes. Inverse of PR-K23 `hp_decode_nibbles`.
+
+    HP encoding rules:
+      flag = (is_leaf ? 2 : 0) + (is_odd_nibble_count ? 1 : 0)
+      byte 0 = (flag << 4) | (first_nibble if odd else 0)
+      bytes 1.. = remaining nibble pairs (high then low)
+
+    Output length:
+      even nibble count: 1 + nibble_count / 2 bytes
+      odd  nibble count: 1 + (nibble_count - 1) / 2 bytes
+                       = ceil(nibble_count / 2) + (0 or 1)
+
+    Or more uniformly: ceil((nibble_count + 2) / 2) bytes.
+
+    Calling convention:
+      a0 (input)  : nibbles ptr (1 byte per nibble, low 4 bits)
+      a1 (input)  : nibble count
+      a2 (input)  : is_leaf flag (0 = extension, 1 = leaf)
+      a3 (input)  : output byte buffer ptr
+      ra (input)  : return
+      a0 (output) : number of bytes written
+
+    Pure register arithmetic, no scratch, leaf-callable. -/
+def hpEncodeNibblesFunction : String :=
+  "hp_encode_nibbles:\n" ++
+  "  andi t0, a1, 1             # is_odd = nibble_count & 1\n" ++
+  "  mv t1, a3                  # cursor\n" ++
+  "  slli t2, a2, 1             # is_leaf * 2\n" ++
+  "  or t2, t2, t0              # flag = is_leaf*2 + is_odd\n" ++
+  "  slli t2, t2, 4             # flag << 4\n" ++
+  "  beqz t0, .Lhpe_even\n" ++
+  "  # Odd: byte 0 = (flag << 4) | nibbles[0]; consume one nibble.\n" ++
+  "  lbu t3, 0(a0)\n" ++
+  "  or t2, t2, t3\n" ++
+  "  sb t2, 0(t1)\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi a0, a0, 1\n" ++
+  "  addi a1, a1, -1\n" ++
+  "  j .Lhpe_pair_loop\n" ++
+  ".Lhpe_even:\n" ++
+  "  sb t2, 0(t1)\n" ++
+  "  addi t1, t1, 1\n" ++
+  ".Lhpe_pair_loop:\n" ++
+  "  beqz a1, .Lhpe_done\n" ++
+  "  lbu t3, 0(a0)\n" ++
+  "  slli t3, t3, 4\n" ++
+  "  lbu t4, 1(a0)\n" ++
+  "  or t3, t3, t4\n" ++
+  "  sb t3, 0(t1)\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi a0, a0, 2\n" ++
+  "  addi a1, a1, -2\n" ++
+  "  j .Lhpe_pair_loop\n" ++
+  ".Lhpe_done:\n" ++
+  "  sub a0, t1, a3\n" ++
+  "  ret"
+
+/-- `zisk_hp_encode_nibbles`: probe BuildUnit. Reads
+    (nibble_count, is_leaf, nibbles) from host input, writes
+    (bytes_written, hp_bytes) to OUTPUT.
+    Input layout:
+      bytes  0.. 8 : nibble_count (u64)
+      bytes  8..16 : is_leaf (u64; 0 or 1)
+      bytes 16..   : nibble bytes (each in [0..15]) -/
+def ziskHpEncodeNibblesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # nibble_count\n" ++
+  "  ld a2, 16(a4)               # is_leaf\n" ++
+  "  addi a0, a4, 24             # nibbles ptr\n" ++
+  "  li a3, 0xa0010008           # output at OUTPUT + 8\n" ++
+  "  jal ra, hp_encode_nibbles\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # bytes_written\n" ++
+  "  j .Lhpe_pdone\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  ".Lhpe_pdone:"
+
+def ziskHpEncodeNibblesDataSection : String :=
+  ".section .data\n" ++
+  "hpe_pad:\n" ++
+  "  .zero 8"
+
+def ziskHpEncodeNibblesProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHpEncodeNibblesPrologue
+  dataAsm     := ziskHpEncodeNibblesDataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -4622,6 +4715,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
+  | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -4663,6 +4757,7 @@ def knownProgramNames : List String :=
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_account_encode",
+   "zisk_hp_encode_nibbles",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
