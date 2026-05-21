@@ -736,6 +736,81 @@ theorem evm_mod_bzero_spec_within_noNop (sp base : Word)
     (fun h hq => by rw [hbz] at hq; xperm_hyp hq)
     hABZ
 
+private theorem divK_phaseA_code_sub_sharedDivModCodeNoNop_v4_for_mod_bzero {base : Word} :
+    ∀ a i, (divK_phaseA_code base) a = some i →
+      (sharedDivModCodeNoNop_v4 base) a = some i := by
+  unfold sharedDivModCodeNoNop_v4 divK_phaseA_code
+  simp only [CodeReq.unionAll_cons]
+  exact CodeReq.union_mono_left
+
+private theorem divK_zeroPath_code_sub_sharedDivModCodeNoNop_v4_for_mod_bzero {base : Word} :
+    ∀ a i, (divK_zeroPath_code (base + zeroPathOff)) a = some i →
+      (sharedDivModCodeNoNop_v4 base) a = some i := by
+  unfold sharedDivModCodeNoNop_v4 divK_zeroPath_code
+  simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  exact CodeReq.union_mono_left
+
+private theorem beq_singleton_sub_sharedDivModCodeNoNop_v4_for_mod_bzero {base : Word} :
+    ∀ a i, (CodeReq.singleton (base + phaseABeqOff) (.BEQ .x5 .x0 1020)) a = some i →
+      (sharedDivModCodeNoNop_v4 base) a = some i := by
+  unfold sharedDivModCodeNoNop_v4
+  simp only [CodeReq.unionAll_cons]
+  intro a i h
+  exact CodeReq.union_mono_left a i
+    (CodeReq.singleton_mono (CodeReq.ofProg_lookup base (divK_phaseA 1020) 7
+      (by decide) (by decide)) a i h)
+
+/-- v4 no-NOP variant of `evm_mod_bzero_spec_within_noNop`.
+
+    The zero-divisor path does not enter the div128 block, so the same
+    phaseA/BEQ/zeroPath proof works over the shared v4 no-NOP code surface. -/
+theorem evm_mod_bzero_spec_within_noNop_v4 (sp base : Word)
+    (b0 b1 b2 b3 v5 v10 : Word)
+    (hbz : b0 ||| b1 ||| b2 ||| b3 = 0) :
+    cpsTripleWithin 13 base (base + nopOff) (sharedDivModCodeNoNop_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
+      ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ b3) **
+       (.x0 ↦ᵣ (0 : Word)) ** ((sp + 32) ↦ₘ (0 : Word)) **
+       ((sp + 40) ↦ₘ (0 : Word)) ** ((sp + 48) ↦ₘ (0 : Word)) **
+       ((sp + 56) ↦ₘ (0 : Word))) := by
+  have hbody := cpsTripleWithin_extend_code
+    divK_phaseA_code_sub_sharedDivModCodeNoNop_v4_for_mod_bzero
+    (divK_phaseA_body_spec_within sp base b0 b1 b2 b3 v5 v10)
+  have hbeq_raw := beq_spec_gen_within .x5 .x0 1020
+    (b0 ||| b1 ||| b2 ||| b3) (0 : Word) (base + phaseABeqOff)
+  rw [show (base + phaseABeqOff : Word) + signExtend13 1020 = base + zeroPathOff from by rv64_addr,
+      show (base + phaseABeqOff : Word) + 4 = base + phaseBOff from by bv_addr] at hbeq_raw
+  have hbeq_clean := cpsBranchWithin_takenStripPure2 hbeq_raw
+    (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
+      exact absurd hbz ((sepConj_pure_right _).mp h_rest).2)
+  have hbeq := cpsTripleWithin_extend_code
+    beq_singleton_sub_sharedDivModCodeNoNop_v4_for_mod_bzero hbeq_clean
+  have hbeq_framed := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ b3) **
+     ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+     ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
+    (by pcFree) hbeq
+  have hAB := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hbody hbeq_framed
+  have hzp := cpsTripleWithin_extend_code
+    divK_zeroPath_code_sub_sharedDivModCodeNoNop_v4_for_mod_bzero
+    (divK_zeroPath_spec_within sp (base + zeroPathOff) b0 b1 b2 b3)
+  rw [show (base + zeroPathOff : Word) + 20 = base + nopOff from by bv_addr] at hzp
+  have hzp_framed := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ (b0 ||| b1 ||| b2 ||| b3)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)))
+    (by pcFree) hzp
+  have hABZ := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hAB hzp_framed
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by rw [hbz] at hq; xperm_hyp hq)
+    hABZ
+
 -- ============================================================================
 -- Section 14: MOD epilogue composition (load u[0..3], store to output)
 -- Mirrors DIV epilogue but reads from u[] offsets (4056/4048/4040/4032).
