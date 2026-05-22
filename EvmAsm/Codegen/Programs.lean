@@ -1991,6 +1991,401 @@ def ziskHeadersParentHashProbeUnit : BuildUnit := {
   dataAsm     := ziskHeadersParentHashDataSection
 }
 
+/-! ## header_validate_parent_hash -- PR-K94
+
+    Per-header parent-hash continuity check from `validate_header`
+    in `forks/amsterdam/fork.py`:
+
+      block_parent_hash = keccak256(rlp.encode(parent_header))
+      if header.parent_hash != block_parent_hash:
+          raise InvalidBlock
+
+    The single-pair check that anchors a block to its parent. Used
+    by `validate_header` directly; the multi-header walk in
+    `validate_headers(headers, parent_header)` consists of K18-style
+    pairwise iterations of exactly this primitive (K18 already
+    handles the iteration via the SSZ digest table, but expects a
+    pre-computed digest array; K94 is the standalone form that
+    callers without that pipeline can use).
+
+    Composes:
+      - PR-K17 `headers_parent_hash`  — extract this header's
+                                        parent_hash field (RLP[0])
+      - PR-K3  `zkvm_keccak256`       — Keccak-f[1600] sponge
+
+    Calling convention:
+      a0 (input)  : this_header_rlp ptr
+      a1 (input)  : this_header_rlp byte length
+      a2 (input)  : parent_header_rlp ptr
+      a3 (input)  : parent_header_rlp byte length
+      ra (input)  : return
+      a0 (output) :
+        0 : match — parent_hash field == keccak256(parent_rlp)
+        1 : RLP parse failure of this_header (field 0 not 32 B)
+        2 : mismatch — both decode/hash succeeded, values differ
+
+    Uses 64 bytes of `.data` scratch (`hvph_claimed` 32 B +
+    `hvph_computed` 32 B). -/
+def headerValidateParentHashFunction : String :=
+  "header_validate_parent_hash:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a2                   # parent_rlp ptr (stash)\n" ++
+  "  mv s1, a3                   # parent_rlp_len (stash)\n" ++
+  "  # Step 1: extract this header's parent_hash (field 0).\n" ++
+  "  la a2, hvph_claimed\n" ++
+  "  jal ra, headers_parent_hash\n" ++
+  "  beqz a0, .Lhvph_hash\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhvph_ret\n" ++
+  ".Lhvph_hash:\n" ++
+  "  # Step 2: keccak256(parent_rlp) → hvph_computed.\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  la a2, hvph_computed\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # zkvm_keccak256 always returns 0 (ZKVM_EOK).\n" ++
+  "  # Step 3: byte-by-byte compare (32 bytes via 4 × dword).\n" ++
+  "  la t0, hvph_claimed\n" ++
+  "  la t1, hvph_computed\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lhvph_diff\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lhvph_diff\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lhvph_diff\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lhvph_diff\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhvph_ret\n" ++
+  ".Lhvph_diff:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhvph_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_validate_parent_hash`: probe BuildUnit. Reads
+    (this_len, parent_len, this_bytes ‖ parent_bytes) from host
+    input, writes 8-byte status to OUTPUT.
+    Input layout:
+      bytes  0.. 8 : this_header_len
+      bytes  8..16 : parent_header_len
+      bytes 16..   : this_header_rlp ‖ parent_header_rlp -/
+def ziskHeaderValidateParentHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # this_header_len\n" ++
+  "  ld a3, 16(a4)               # parent_header_len\n" ++
+  "  addi a0, a4, 24             # this_header_ptr\n" ++
+  "  add a2, a0, a1              # parent_header_ptr\n" ++
+  "  jal ra, header_validate_parent_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhvph_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  headersParentHashFunction ++ "\n" ++
+  headerValidateParentHashFunction ++ "\n" ++
+  ".Lhvph_pdone:"
+
+def ziskHeaderValidateParentHashDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "hvph_claimed:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "hvph_computed:\n" ++
+  "  .zero 32"
+
+def ziskHeaderValidateParentHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderValidateParentHashPrologue
+  dataAsm     := ziskHeaderValidateParentHashDataSection
+}
+
+/-! ## header_chain_walk_step -- PR-K96
+
+    Per-step primitive for chain validation: given the previous
+    block's hash and a candidate child header's RLP, verify
+    `child.parent_hash == previous_hash` and compute
+    `keccak256(child_rlp)` as the new running hash.
+
+    A caller iterating over N headers does N calls; at the end
+    `*new_hash` holds the latest block's hash, and any mid-chain
+    mismatch returns status 2.
+
+    PR-K18 `headers_validate_chain` already implements the chain
+    walk on top of a pre-computed SSZ digest table; K96 is the
+    standalone per-step that works without that pipeline (raw
+    RLP-encoded headers in, no precomputed digest array required).
+
+    Composes:
+      - PR-K17 `headers_parent_hash` — extract child's parent_hash
+      - PR-K3  `zkvm_keccak256`      — compute child's hash
+
+    Calling convention:
+      a0 (input)  : prev_hash ptr (32 B, caller-supplied)
+      a1 (input)  : child_header_rlp ptr
+      a2 (input)  : child_header_rlp byte length
+      a3 (input)  : 32-byte out ptr (receives child's hash on
+                    success, zeros on failure)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : child header parse failed (field 0 not 32 B)
+        2 : mismatch — child.parent_hash != prev_hash
+
+    Uses 32 bytes of `.data` scratch (`hcws_claimed`). -/
+def headerChainWalkStepFunction : String :=
+  "header_chain_walk_step:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # prev_hash ptr\n" ++
+  "  mv s1, a1                   # child_rlp ptr\n" ++
+  "  mv s2, a2                   # child_len\n" ++
+  "  mv s3, a3                   # out ptr\n" ++
+  "  # Step 1: extract child's parent_hash → hcws_claimed.\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  la a2, hcws_claimed\n" ++
+  "  jal ra, headers_parent_hash\n" ++
+  "  beqz a0, .Lhcws_compare\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhcws_zero_out\n" ++
+  ".Lhcws_compare:\n" ++
+  "  # Compare prev_hash (s0) to claimed (hcws_claimed) byte-by-byte.\n" ++
+  "  la t0, hcws_claimed\n" ++
+  "  ld t1,  0(s0); ld t2,  0(t0); bne t1, t2, .Lhcws_diff\n" ++
+  "  ld t1,  8(s0); ld t2,  8(t0); bne t1, t2, .Lhcws_diff\n" ++
+  "  ld t1, 16(s0); ld t2, 16(t0); bne t1, t2, .Lhcws_diff\n" ++
+  "  ld t1, 24(s0); ld t2, 24(t0); bne t1, t2, .Lhcws_diff\n" ++
+  "  # Match — compute child hash → *out.\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhcws_ret\n" ++
+  ".Lhcws_diff:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhcws_zero_out:\n" ++
+  "  # Zero the output on any failure.\n" ++
+  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
+  ".Lhcws_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_header_chain_walk_step`: probe BuildUnit. Reads
+    (child_len, prev_hash[32], child_rlp) from host input, writes
+    (status, child_hash[32]) to OUTPUT.
+    Input layout:
+      bytes  0.. 8 : child_header_len
+      bytes  8..40 : prev_hash (32 B)
+      bytes 40..   : child_header_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..40 : child block hash on success, zero otherwise -/
+def ziskHeaderChainWalkStepPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a2, 8(a4)                # child_header_len\n" ++
+  "  addi a0, a4, 16             # prev_hash ptr\n" ++
+  "  addi a1, a4, 48             # child_rlp ptr\n" ++
+  "  li a3, 0xa0010008           # child_hash output (OUTPUT + 8)\n" ++
+  "  jal ra, header_chain_walk_step\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhcws_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  headersParentHashFunction ++ "\n" ++
+  headerChainWalkStepFunction ++ "\n" ++
+  ".Lhcws_pdone:"
+
+def ziskHeaderChainWalkStepDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "hcws_claimed:\n" ++
+  "  .zero 32"
+
+def ziskHeaderChainWalkStepProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderChainWalkStepPrologue
+  dataAsm     := ziskHeaderChainWalkStepDataSection
+}
+
+/-! ## address_from_pubkey -- PR-K99
+
+    Compute an Ethereum address from an uncompressed secp256k1
+    public key:
+
+      address = keccak256(pubkey_x ‖ pubkey_y)[12:32]   (20 bytes)
+
+    This is the canonical 20-byte address derivation used by:
+    - secp256k1 ecrecover (the final step after curve recovery)
+    - CREATE / CREATE2 address computation (with different inputs)
+    - Account address generation from a key
+
+    Input layout (64 bytes, big-endian):
+       0..32  : X coordinate
+      32..64  : Y coordinate
+
+    Output (20 bytes): the rightmost 20 bytes of keccak256 of the
+    above. The leading 12 bytes of the digest are discarded.
+
+    Composes PR-K3 `zkvm_keccak256`. Uses 32 bytes of `.data`
+    scratch (`afp_digest`).
+
+    Calling convention:
+      a0 (input)  : pubkey ptr (64 bytes, x ‖ y BE)
+      a1 (input)  : 20-byte output ptr
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds; keccak is total). -/
+def addressFromPubkeyFunction : String :=
+  "address_from_pubkey:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  mv s0, a1                   # output ptr (stash)\n" ++
+  "  # keccak256(pubkey, 64) → afp_digest\n" ++
+  "  li a1, 64\n" ++
+  "  la a2, afp_digest\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # Copy digest[12..32] (20 bytes) to output.\n" ++
+  "  la t0, afp_digest\n" ++
+  "  # 20 bytes = 8 + 8 + 4. Loads may be unaligned (offset 12).\n" ++
+  "  ld t1, 12(t0); sd t1,  0(s0)\n" ++
+  "  ld t1, 20(t0); sd t1,  8(s0)\n" ++
+  "  lwu t1, 28(t0); sw t1, 16(s0)\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_address_from_pubkey`: probe BuildUnit. Reads 64 bytes
+    of pubkey from host input, writes (status, 20-byte address +
+    4 byte padding) to OUTPUT (32 bytes total). -/
+def ziskAddressFromPubkeyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 16             # pubkey ptr\n" ++
+  "  li a1, 0xa0010008           # 20B address output\n" ++
+  "  sd zero, 0(a1); sd zero, 8(a1); sw zero, 16(a1)\n" ++
+  "  jal ra, address_from_pubkey\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lafp_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  addressFromPubkeyFunction ++ "\n" ++
+  ".Lafp_pdone:"
+
+def ziskAddressFromPubkeyDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "afp_digest:\n" ++
+  "  .zero 32"
+
+def ziskAddressFromPubkeyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAddressFromPubkeyPrologue
+  dataAsm     := ziskAddressFromPubkeyDataSection
+}
+
+/-! ## mpt_account_path_nibbles -- PR-K100
+
+    Compute the state trie's path for a given 20-byte address:
+
+      digest   = keccak256(address)         # 32 bytes
+      nibbles  = unpack_high_low(digest)    # 64 nibbles
+
+    The MPT walks paths in nibble units (each byte = two
+    consecutive nibbles, high first). Account lookups in the state
+    trie use `keccak256(address)` as the path key, expressed as 64
+    nibbles. PR-K24 `mpt_walk` consumes such a nibble array; this
+    helper produces it from an address in one call.
+
+    Storage slots use the analogous `keccak256(slot_key_BE)` path;
+    K100 also handles that case directly when callers feed in a
+    32-byte slot key (see calling convention).
+
+    Composes PR-K3 `zkvm_keccak256`. Uses 32 bytes of `.data`
+    scratch (`mapn_digest`).
+
+    Calling convention:
+      a0 (input)  : address (or slot key) ptr
+      a1 (input)  : input length (20 for address, 32 for slot key)
+      a2 (input)  : 64-byte nibble output ptr
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def mptAccountPathNibblesFunction : String :=
+  "mpt_account_path_nibbles:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  mv s0, a2                   # nibble output ptr (stash)\n" ++
+  "  # keccak256(input, len) → mapn_digest\n" ++
+  "  la a2, mapn_digest\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # Unpack 32 bytes → 64 nibbles.\n" ++
+  "  la t0, mapn_digest\n" ++
+  "  mv t1, s0                   # cursor over output\n" ++
+  "  li t2, 32                   # remaining bytes\n" ++
+  ".Lmapn_loop:\n" ++
+  "  beqz t2, .Lmapn_done\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  srli t4, t3, 4              # high nibble\n" ++
+  "  andi t5, t3, 15             # low nibble\n" ++
+  "  sb t4, 0(t1)\n" ++
+  "  sb t5, 1(t1)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, 2\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lmapn_loop\n" ++
+  ".Lmapn_done:\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_mpt_account_path_nibbles`: probe BuildUnit. Reads
+    (input_len, input_bytes) from host input, writes (status, 64
+    nibbles) to OUTPUT (72 bytes total). -/
+def ziskMptAccountPathNibblesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # input length\n" ++
+  "  addi a0, a3, 16             # input ptr\n" ++
+  "  li a2, 0xa0010008           # 64-byte nibble output\n" ++
+  "  jal ra, mpt_account_path_nibbles\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmapn_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptAccountPathNibblesFunction ++ "\n" ++
+  ".Lmapn_pdone:"
+
+def ziskMptAccountPathNibblesDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "mapn_digest:\n" ++
+  "  .zero 32"
+
+def ziskMptAccountPathNibblesProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptAccountPathNibblesPrologue
+  dataAsm     := ziskMptAccountPathNibblesDataSection
+}
+
 /-! ## headers_validate_chain -- PR-K18 parent_hash chain check
 
     Composes PR-K16 `headers_keccak_array` (build per-header
@@ -2519,6 +2914,144 @@ def ziskRlpListNthItemProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskRlpListNthItemPrologue
   dataAsm     := ziskRlpListNthItemDataSection
+}
+
+/-! ## account_validate_code_hash -- PR-K98
+
+    Verify that an account's `code_hash` field matches the
+    keccak256 of a claimed bytecode buffer:
+
+      account.code_hash == keccak256(claimed_code)
+
+    Used during witness validation to assert that the contract
+    code supplied by the host matches the `code_hash` committed in
+    the account trie leaf. EOAs (no contract) carry the canonical
+    empty-code hash `EMPTY_CODE_HASH`:
+
+      keccak256(b'') ==
+        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+
+    A `claimed_code_len == 0` reproduces this exact value.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — extract field 3 (code_hash)
+      - PR-K3  `zkvm_keccak256`    — compute claimed digest
+
+    Account RLP layout (4 items):
+      field 0 : nonce        (uint)
+      field 1 : balance      (uint)
+      field 2 : storage_root (32-byte string)
+      field 3 : code_hash    (32-byte string)
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : claimed_code ptr (may be unused when len == 0)
+      a3 (input)  : claimed_code byte length
+      ra (input)  : return
+      a0 (output) :
+        0 : match
+        1 : account RLP parse failure (field 3 not 32 B)
+        2 : mismatch — both succeeded, digests differ
+
+    Uses 64 bytes of `.data` scratch (`avch_claimed` 32 B +
+    `avch_computed` 32 B), plus K20's offset/length slots. -/
+def accountValidateCodeHashFunction : String :=
+  "account_validate_code_hash:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s2, a0                   # account_ptr (stash)\n" ++
+  "  mv s3, a1                   # account_len (stash)\n" ++
+  "  mv s0, a2                   # claimed_code ptr\n" ++
+  "  mv s1, a3                   # claimed_code_len\n" ++
+  "  # Step 1: extract account.code_hash (field 3, 32 B).\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a1, s3\n" ++
+  "  li a2, 3\n" ++
+  "  la a3, avch_offset\n" ++
+  "  la a4, avch_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lavch_fail\n" ++
+  "  la t0, avch_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lavch_fail\n" ++
+  "  # Copy 32 bytes from (account_ptr + offset) to avch_claimed.\n" ++
+  "  la t0, avch_offset; ld t4, 0(t0)\n" ++
+  "  add t3, s2, t4\n" ++
+  "  la t5, avch_claimed\n" ++
+  "  ld t0,  0(t3); sd t0,  0(t5)\n" ++
+  "  ld t0,  8(t3); sd t0,  8(t5)\n" ++
+  "  ld t0, 16(t3); sd t0, 16(t5)\n" ++
+  "  ld t0, 24(t3); sd t0, 24(t5)\n" ++
+  "  # Step 2: keccak256(claimed_code) → avch_computed.\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  la a2, avch_computed\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # Step 3: compare avch_claimed vs avch_computed.\n" ++
+  "  la t0, avch_claimed\n" ++
+  "  la t1, avch_computed\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lavch_diff\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lavch_diff\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lavch_diff\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lavch_diff\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lavch_ret\n" ++
+  ".Lavch_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lavch_ret\n" ++
+  ".Lavch_diff:\n" ++
+  "  li a0, 2\n" ++
+  ".Lavch_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_account_validate_code_hash`: probe BuildUnit. Reads
+    (account_len, code_len, account_rlp ‖ code_bytes) from host
+    input, writes 8-byte status to OUTPUT.
+    Input layout:
+      bytes  0.. 8 : account_rlp_len
+      bytes  8..16 : code_len
+      bytes 16..   : account_rlp ‖ code_bytes -/
+def ziskAccountValidateCodeHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # account_rlp_len\n" ++
+  "  ld a3, 16(a4)               # code_len\n" ++
+  "  addi a0, a4, 24             # account_rlp_ptr\n" ++
+  "  add a2, a0, a1              # code_ptr = account_ptr + account_len\n" ++
+  "  jal ra, account_validate_code_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lavch_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountValidateCodeHashFunction ++ "\n" ++
+  ".Lavch_pdone:"
+
+def ziskAccountValidateCodeHashDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "avch_offset:\n" ++
+  "  .zero 8\n" ++
+  "avch_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "avch_claimed:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "avch_computed:\n" ++
+  "  .zero 32"
+
+def ziskAccountValidateCodeHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountValidateCodeHashPrologue
+  dataAsm     := ziskAccountValidateCodeHashDataSection
 }
 
 /-! ## rlp_list_count_items -- PR-K47 top-level item counter
@@ -5769,6 +6302,367 @@ def ziskCoinbaseExtractFromHeaderProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskCoinbaseExtractFromHeaderPrologue
   dataAsm     := ziskCoinbaseExtractFromHeaderDataSection
+}
+
+/-! ## header_extract_blob_gas_pair -- PR-K90 Cancun blob fields
+
+    Extract the EIP-4844 blob-gas fields from an Amsterdam header:
+
+      blob_gas_used    (header field 17, u64) — total blob gas
+        consumed by all transactions in this block (= sum of
+        `len(tx.blob_versioned_hashes) × GAS_PER_BLOB` over type-3
+        txs). Cross-checks against PR-K89.
+
+      excess_blob_gas  (header field 18, u64) — running total used
+        for the blob-fee adjustment formula.
+
+    Cancun-era (and later) headers always have both. Pre-Cancun
+    headers don't, and the extractor reports a parse failure.
+
+    Direct inputs to:
+      * the apply_body invariant
+        `header.blob_gas_used == sum(tx.blob_gas_used)`
+      * the next-block `excess_blob_gas` recurrence used in
+        `calculate_excess_blob_gas`.
+
+    Output layout (16 bytes):
+       0..  8  blob_gas_used    (u64 LE)
+       8.. 16  excess_blob_gas  (u64 LE)
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 16-byte output ptr (caller-supplied)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : header parse failed / field 17 missing / not u64
+        2 : field 18 missing / not u64
+
+    Composes PR-K20 `rlp_list_nth_item` via PR-K53
+    `rlp_field_to_u64`. Uses two 8-byte `.data` scratch slots
+    (`rfu_offset`, `rfu_length`) shared with other K-helpers. -/
+def headerExtractBlobGasPairFunction : String :=
+  "header_extract_blob_gas_pair:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_len\n" ++
+  "  mv s2, a2                  # output 16B ptr\n" ++
+  "  # Field 17: blob_gas_used → out[0..8]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 17\n" ++
+  "  mv a3, s2\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lhebgp_f18\n" ++
+  "  sd zero, 0(s2); sd zero, 8(s2)\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhebgp_ret\n" ++
+  ".Lhebgp_f18:\n" ++
+  "  # Field 18: excess_blob_gas → out[8..16]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 18\n" ++
+  "  addi a3, s2, 8\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lhebgp_ok\n" ++
+  "  sd zero, 0(s2); sd zero, 8(s2)\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lhebgp_ret\n" ++
+  ".Lhebgp_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Lhebgp_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_blob_gas_pair`: probe BuildUnit. Reads
+    (header_len, header_bytes), writes (status, blob_gas_used,
+    excess_blob_gas) to OUTPUT (24 bytes total). -/
+def ziskHeaderExtractBlobGasPairPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  li a2, 0xa0010008           # 16B output at OUTPUT + 8\n" ++
+  "  sd zero, 0(a2); sd zero, 8(a2)\n" ++
+  "  jal ra, header_extract_blob_gas_pair\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhebgp_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractBlobGasPairFunction ++ "\n" ++
+  ".Lhebgp_pdone:"
+
+def ziskHeaderExtractBlobGasPairDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractBlobGasPairProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractBlobGasPairPrologue
+  dataAsm     := ziskHeaderExtractBlobGasPairDataSection
+}
+
+/-! ## block_validate_blob_gas_max_cap -- PR-K93
+
+    Cancun cap enforcement: a block's `blob_gas_used` cannot exceed
+    `MAX_BLOB_GAS_PER_BLOCK = BLOB_SCHEDULE_MAX × GAS_PER_BLOB`.
+
+    Python reference (`forks/amsterdam/fork.py`):
+
+      MAX_BLOB_GAS_PER_BLOCK = BLOB_SCHEDULE_MAX * GAS_PER_BLOB
+      blob_gas_available = MAX_BLOB_GAS_PER_BLOCK - block_output.blob_gas_used
+      # …enforced per-tx as `tx_blob_gas_used > blob_gas_available`
+
+    The block-level cap is the loop invariant: at end-of-block,
+    `block_output.blob_gas_used == header.blob_gas_used`, so the
+    consensus check that `header.blob_gas_used ≤ MAX_BLOB_GAS_PER_BLOCK`
+    is the closed form. On Amsterdam mainnet:
+
+      MAX_BLOB_GAS_PER_BLOCK = 21 × 131072 = 2,752,512
+
+    Both parameters are passed in so the helper works across
+    forks that adjust either.
+
+    Computation:
+      1. Extract `header.blob_gas_used` (field 17, u64) via PR-K53
+         `rlp_field_to_u64`.
+      2. Compute `cap = max_blobs_per_block × gas_per_blob`; reject
+         on u64 overflow.
+      3. Compare `blob_gas_used ≤ cap`.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : max_blobs_per_block (u64; 21 on mainnet Amsterdam)
+      a3 (input)  : gas_per_blob (u64; 131072 on mainnet)
+      ra (input)  : return
+      a0 (output) : composite status
+
+    Status encoding:
+      0 : within cap
+      1 : header parse / field 17 missing / not u64
+      2 : `max_blobs_per_block × gas_per_blob` overflows u64
+      3 : `blob_gas_used > cap`
+
+    Composes PR-K20 `rlp_list_nth_item` via PR-K53
+    `rlp_field_to_u64`. -/
+def blockValidateBlobGasMaxCapFunction : String :=
+  "block_validate_blob_gas_max_cap:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a2                   # max_blobs_per_block\n" ++
+  "  mv s1, a3                   # gas_per_blob\n" ++
+  "  # Step 1: extract header.blob_gas_used (field 17, u64).\n" ++
+  "  # a0,a1 still hold (header_ptr, header_len).\n" ++
+  "  li a2, 17\n" ++
+  "  la a3, bvbmc_bgu\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lbvbmc_step2\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvbmc_ret\n" ++
+  ".Lbvbmc_step2:\n" ++
+  "  # Step 2: cap = max_blobs × gas_per_blob, with u64 overflow check.\n" ++
+  "  mulhu t0, s0, s1            # high half of unsigned product\n" ++
+  "  bnez t0, .Lbvbmc_overflow\n" ++
+  "  mul s2, s0, s1              # cap (low 64 bits)\n" ++
+  "  # Step 3: compare blob_gas_used <= cap.\n" ++
+  "  la t0, bvbmc_bgu\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  bgtu t1, s2, .Lbvbmc_exceeds\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvbmc_ret\n" ++
+  ".Lbvbmc_overflow:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbvbmc_ret\n" ++
+  ".Lbvbmc_exceeds:\n" ++
+  "  li a0, 3\n" ++
+  ".Lbvbmc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_blob_gas_max_cap`: probe BuildUnit. Reads
+    (header_len, max_blobs, gas_per_blob, header_bytes) from host
+    input, writes 8-byte status to OUTPUT. -/
+def ziskBlockValidateBlobGasMaxCapPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # header_len\n" ++
+  "  ld a2, 16(a4)               # max_blobs_per_block\n" ++
+  "  ld a3, 24(a4)               # gas_per_blob\n" ++
+  "  addi a0, a4, 32             # header_ptr\n" ++
+  "  jal ra, block_validate_blob_gas_max_cap\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbvbmc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  blockValidateBlobGasMaxCapFunction ++ "\n" ++
+  ".Lbvbmc_pdone:"
+
+def ziskBlockValidateBlobGasMaxCapDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bvbmc_bgu:\n" ++
+  "  .zero 8"
+
+def ziskBlockValidateBlobGasMaxCapProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateBlobGasMaxCapPrologue
+  dataAsm     := ziskBlockValidateBlobGasMaxCapDataSection
+}
+
+/-! ## header_extract_block_roots -- PR-K95
+
+    Extract the three remaining 32-byte root fields from an
+    Amsterdam header that the existing extended-decode helpers
+    don't cover:
+
+       0..32   transactions_root  (field 4)
+      32..64   receipt_root       (field 5)
+      64..96   withdrawals_root   (field 16)
+
+    Used by `validate_block_body` callers that cross-check the
+    body's tx/receipt/withdrawal MPT roots against the consensus-
+    layer commitment, and by the trie-rebuild path. The state_root
+    (field 3) is already covered by PR-K39 `header_extended_decode`;
+    `parent_hash` by PR-K17; `coinbase` by PR-K55.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 96-byte output ptr (caller-supplied)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : field 4 (transactions_root) missing / not 32 B
+        2 : field 5 (receipt_root) missing / not 32 B
+        3 : field 16 (withdrawals_root) missing / not 32 B
+            (pre-Shanghai headers don't have this field)
+
+    Composes PR-K20 `rlp_list_nth_item`. Uses two 8-byte `.data`
+    scratch slots (`hebr_offset`, `hebr_length`). -/
+def headerExtractBlockRootsFunction : String :=
+  "header_extract_block_roots:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_len\n" ++
+  "  mv s2, a2                  # 96B output ptr\n" ++
+  "  # Field 4: transactions_root → out[0..32]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
+  "  la a3, hebr_offset; la a4, hebr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhebr_f4_fail\n" ++
+  "  la t0, hebr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhebr_f4_fail\n" ++
+  "  la t0, hebr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  # Field 5: receipt_root → out[32..64]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
+  "  la a3, hebr_offset; la a4, hebr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhebr_f5_fail\n" ++
+  "  la t0, hebr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhebr_f5_fail\n" ++
+  "  la t0, hebr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  addi t5, s2, 32\n" ++
+  "  ld t4,  0(t3); sd t4,  0(t5)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(t5)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(t5)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(t5)\n" ++
+  "  # Field 16: withdrawals_root → out[64..96]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 16\n" ++
+  "  la a3, hebr_offset; la a4, hebr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhebr_f16_fail\n" ++
+  "  la t0, hebr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhebr_f16_fail\n" ++
+  "  la t0, hebr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  addi t5, s2, 64\n" ++
+  "  ld t4,  0(t3); sd t4,  0(t5)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(t5)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(t5)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(t5)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhebr_ret\n" ++
+  ".Lhebr_f4_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhebr_zero_ret\n" ++
+  ".Lhebr_f5_fail:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lhebr_zero_ret\n" ++
+  ".Lhebr_f16_fail:\n" ++
+  "  li a0, 3\n" ++
+  ".Lhebr_zero_ret:\n" ++
+  "  # Zero the output on any failure.\n" ++
+  "  mv t0, s2; li t1, 12\n" ++
+  ".Lhebr_zero:\n" ++
+  "  beqz t1, .Lhebr_ret\n" ++
+  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1\n" ++
+  "  j .Lhebr_zero\n" ++
+  ".Lhebr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_block_roots`: probe BuildUnit. Reads
+    (header_len, header_bytes), writes (status, 3 × 32-byte roots)
+    to OUTPUT (104 bytes total). -/
+def ziskHeaderExtractBlockRootsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  li a2, 0xa0010008           # 96B output at OUTPUT + 8\n" ++
+  "  # Pre-zero 96 bytes (12 dwords).\n" ++
+  "  mv t0, a2; li t1, 12\n" ++
+  ".Lhebr_pzero:\n" ++
+  "  beqz t1, .Lhebr_pzdone\n" ++
+  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1\n" ++
+  "  j .Lhebr_pzero\n" ++
+  ".Lhebr_pzdone:\n" ++
+  "  jal ra, header_extract_block_roots\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhebr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractBlockRootsFunction ++ "\n" ++
+  ".Lhebr_pdone:"
+
+def ziskHeaderExtractBlockRootsDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "hebr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hebr_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractBlockRootsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractBlockRootsPrologue
+  dataAsm     := ziskHeaderExtractBlockRootsDataSection
 }
 
 /-! ## validate_header_basic -- PR-K43 per-header semantic checks
@@ -9325,6 +10219,480 @@ def ziskTxEip4844DecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskTxEip4844DecodeDataSection
 }
 
+/-! ## tx_decode_dispatch -- PR-K87 unified tx decoder
+
+    Dispatch on a tx envelope's type byte and route to the
+    appropriate inner decoder. Mirrors Python's
+    `decode_transaction`:
+
+      byte 0 ≥ 0xc0     → legacy        → tx_legacy_decode    (K36)
+      byte 0 == 0x01    → EIP-2930      → tx_eip2930_decode   (K42)
+      byte 0 == 0x02    → EIP-1559      → tx_eip1559_decode   (K41)
+      byte 0 == 0x03    → EIP-4844      → tx_eip4844_decode   (K45)
+      byte 0 == 0x04    → EIP-7702      → tx_eip7702_decode   (K44)
+      else              → status = type-unrecognized
+
+    The decoded struct's size depends on the tx type:
+      type 0 (legacy)   : 196 B
+      type 1 (EIP-2930) : 216 B
+      type 2 (EIP-1559) : 248 B
+      type 3 (EIP-4844) : 248 B
+      type 4 (EIP-7702) : 240 B
+
+    Status encoding packs both the tx_type and sub-status:
+
+      status = (tx_type << 8) | sub_status
+
+      sub_status 0  : success
+      sub_status 1  : type unrecognized (used with tx_type=0)
+      sub_status 2  : sub-decoder returned non-zero
+
+    Caller responsibilities:
+      - Pre-zero the 248-byte struct_out buffer.
+      - After success, infer struct_size from `tx_type` extracted
+        as `(status >> 8) & 0xff`.
+
+    Composes PR-K40 + each of K36, K41, K42, K44, K45.
+
+    Calling convention:
+      a0 (input)  : envelope ptr
+      a1 (input)  : envelope_len
+      a2 (input)  : struct_out ptr (must be ≥ 248 bytes, pre-zeroed)
+      ra (input)  : return
+      a0 (output) : packed status (see encoding above).
+
+    Uses 8 bytes of `.data` scratch (`tdd_inner_off`) plus the
+    inner-decoder scratches (rfu_offset/rfu_length etc.). -/
+def txDecodeDispatchFunction : String :=
+  "tx_decode_dispatch:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # envelope ptr\n" ++
+  "  mv s1, a1                   # envelope_len\n" ++
+  "  mv s2, a2                   # struct_out ptr\n" ++
+  "  # tx_type_dispatch(envelope, len, type_out=tdd_type, inner_offset_out=tdd_inner_off)\n" ++
+  "  la a2, tdd_type\n" ++
+  "  la a3, tdd_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Ltdd_unrec\n" ++
+  "  la t0, tdd_type; ld t1, 0(t0)\n" ++
+  "  la t0, tdd_inner_off; ld t2, 0(t0)\n" ++
+  "  add t3, s0, t2              # inner_ptr\n" ++
+  "  sub t4, s1, t2              # inner_len\n" ++
+  "  # Dispatch on tx_type (t1)\n" ++
+  "  beqz t1, .Ltdd_legacy\n" ++
+  "  li t5, 1\n" ++
+  "  beq t1, t5, .Ltdd_2930\n" ++
+  "  li t5, 2\n" ++
+  "  beq t1, t5, .Ltdd_1559\n" ++
+  "  li t5, 3\n" ++
+  "  beq t1, t5, .Ltdd_4844\n" ++
+  "  li t5, 4\n" ++
+  "  beq t1, t5, .Ltdd_7702\n" ++
+  "  j .Ltdd_unrec\n" ++
+  ".Ltdd_legacy:\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
+  "  jal ra, tx_legacy_decode\n" ++
+  "  bnez a0, .Ltdd_decode_fail_legacy\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltdd_ret\n" ++
+  ".Ltdd_2930:\n" ++
+  "  mv a0, t3; mv a1, t4; mv a2, s2\n" ++
+  "  jal ra, tx_eip2930_decode\n" ++
+  "  bnez a0, .Ltdd_decode_fail_2930\n" ++
+  "  li a0, 0x0100\n" ++
+  "  j .Ltdd_ret\n" ++
+  ".Ltdd_1559:\n" ++
+  "  mv a0, t3; mv a1, t4; mv a2, s2\n" ++
+  "  jal ra, tx_eip1559_decode\n" ++
+  "  bnez a0, .Ltdd_decode_fail_1559\n" ++
+  "  li a0, 0x0200\n" ++
+  "  j .Ltdd_ret\n" ++
+  ".Ltdd_4844:\n" ++
+  "  mv a0, t3; mv a1, t4; mv a2, s2\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Ltdd_decode_fail_4844\n" ++
+  "  li a0, 0x0300\n" ++
+  "  j .Ltdd_ret\n" ++
+  ".Ltdd_7702:\n" ++
+  "  mv a0, t3; mv a1, t4; mv a2, s2\n" ++
+  "  jal ra, tx_eip7702_decode\n" ++
+  "  bnez a0, .Ltdd_decode_fail_7702\n" ++
+  "  li a0, 0x0400\n" ++
+  "  j .Ltdd_ret\n" ++
+  ".Ltdd_unrec:\n" ++
+  "  li a0, 0x0001\n" ++
+  "  j .Ltdd_ret\n" ++
+  ".Ltdd_decode_fail_legacy:\n" ++
+  "  li a0, 0x0002\n" ++
+  "  j .Ltdd_ret\n" ++
+  ".Ltdd_decode_fail_2930:\n" ++
+  "  li a0, 0x0102\n" ++
+  "  j .Ltdd_ret\n" ++
+  ".Ltdd_decode_fail_1559:\n" ++
+  "  li a0, 0x0202\n" ++
+  "  j .Ltdd_ret\n" ++
+  ".Ltdd_decode_fail_4844:\n" ++
+  "  li a0, 0x0302\n" ++
+  "  j .Ltdd_ret\n" ++
+  ".Ltdd_decode_fail_7702:\n" ++
+  "  li a0, 0x0402\n" ++
+  ".Ltdd_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_tx_decode_dispatch`: probe BuildUnit. Reads (env_len,
+    env_bytes) from host input; pre-zeros 248-byte struct slot
+    at OUTPUT+8; calls helper; writes (packed status, struct)
+    to OUTPUT (256 bytes total). -/
+def ziskTxDecodeDispatchPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # env_len\n" ++
+  "  addi a0, a3, 16             # env ptr\n" ++
+  "  li a2, 0xa0010008           # struct slot at OUTPUT + 8\n" ++
+  "  # Pre-zero 248 bytes (31 dwords).\n" ++
+  "  mv t0, a2; li t1, 31\n" ++
+  ".Ltdd_zout:\n" ++
+  "  beqz t1, .Ltdd_zout_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Ltdd_zout\n" ++
+  ".Ltdd_zout_done:\n" ++
+  "  jal ra, tx_decode_dispatch\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # packed status\n" ++
+  "  j .Ltdd_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txLegacyDecodeFunction ++ "\n" ++
+  txEip2930DecodeFunction ++ "\n" ++
+  txEip1559DecodeFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  txEip7702DecodeFunction ++ "\n" ++
+  txDecodeDispatchFunction ++ "\n" ++
+  ".Ltdd_pdone:"
+
+def ziskTxDecodeDispatchDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "txd_offset:\n" ++
+  "  .zero 8\n" ++
+  "txd_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t1d_offset:\n" ++
+  "  .zero 8\n" ++
+  "t1d_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t29_offset:\n" ++
+  "  .zero 8\n" ++
+  "t29_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t77_offset:\n" ++
+  "  .zero 8\n" ++
+  "t77_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tdd_type:\n" ++
+  "  .zero 8\n" ++
+  "tdd_inner_off:\n" ++
+  "  .zero 8"
+
+def ziskTxDecodeDispatchProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxDecodeDispatchPrologue
+  dataAsm     := ziskTxDecodeDispatchDataSection
+}
+
+/-! ## tx_eip4844_compute_blob_gas -- PR-K88
+
+    Given an EIP-4844 (type 3) tx inner RLP body, decode it and
+    compute the per-tx `blob_gas_used` field:
+
+      blob_gas_used = len(tx.blob_versioned_hashes) × GAS_PER_BLOB
+
+    Where `GAS_PER_BLOB = 131072` (mainnet Cancun); parameterized
+    so the helper works across forks that adjust it.
+
+    Composes:
+      - PR-K45 `tx_eip4844_decode` — decode inner body → 248 B struct
+      - PR-K64 `blob_gas_used_from_versioned_hashes` — count × gas_per_blob
+
+    Useful for verifying that
+    `header.blob_gas_used == sum(tx.blob_gas_used for tx in block)`.
+
+    The K45 struct at offsets 168..172 (u32 LE) holds
+    `blob_versioned_hashes_offset` (relative to `inner_ptr`), and
+    offsets 172..176 hold `blob_versioned_hashes_length`. This
+    helper reads those, computes the absolute pointer, and
+    invokes K64.
+
+    Calling convention:
+      a0 (input)  : inner_rlp ptr (post-0x03 type byte)
+      a1 (input)  : inner_rlp byte length
+      a2 (input)  : gas_per_blob (u64; 131072 on mainnet)
+      a3 (input)  : u64 out ptr (receives blob_gas_used)
+      ra (input)  : return
+      a0 (output) :
+        0  : success
+        1  : tx_eip4844_decode failed (parse error)
+        2  : blob_gas_used_from_versioned_hashes failed (parse error)
+
+    Uses 248 + 8 bytes of `.data` scratch (`tcbg_struct` for the
+    decoded EIP-4844 struct, plus an inherited count scratch). -/
+def txEip4844ComputeBlobGasFunction : String :=
+  "tx_eip4844_compute_blob_gas:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # inner_rlp ptr\n" ++
+  "  mv s1, a2                   # gas_per_blob\n" ++
+  "  mv s2, a3                   # out ptr\n" ++
+  "  # Step 1: K45 tx_eip4844_decode(inner, len, tcbg_struct)\n" ++
+  "  la a2, tcbg_struct\n" ++
+  "  # Pre-zero 248 bytes (31 dwords)\n" ++
+  "  mv t0, a2; li t1, 31\n" ++
+  ".Ltcbg_zinit:\n" ++
+  "  beqz t1, .Ltcbg_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Ltcbg_zinit\n" ++
+  ".Ltcbg_zdone:\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Ltcbg_decode_fail\n" ++
+  "  # Step 2: K64 blob_gas_used_from_versioned_hashes(...)\n" ++
+  "  la t0, tcbg_struct\n" ++
+  "  lwu t1, 168(t0)             # blob_versioned_hashes_offset (u32)\n" ++
+  "  lwu t2, 172(t0)             # blob_versioned_hashes_length (u32)\n" ++
+  "  add a0, s0, t1              # absolute blob_list ptr\n" ++
+  "  mv a1, t2                   # blob_list length\n" ++
+  "  mv a2, s1                   # gas_per_blob\n" ++
+  "  mv a3, s2                   # out ptr\n" ++
+  "  jal ra, blob_gas_used_from_versioned_hashes\n" ++
+  "  beqz a0, .Ltcbg_ret\n" ++
+  "  li a0, 2\n" ++
+  "  j .Ltcbg_ret\n" ++
+  ".Ltcbg_decode_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Ltcbg_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_tx_eip4844_compute_blob_gas`: probe BuildUnit. Reads
+    (inner_len, gas_per_blob, inner_bytes) from host input,
+    writes (status, blob_gas_used) to OUTPUT (16 bytes). -/
+def ziskTxEip4844ComputeBlobGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # inner_len\n" ++
+  "  ld a2, 16(a4)               # gas_per_blob\n" ++
+  "  addi a0, a4, 24             # inner_ptr\n" ++
+  "  li a3, 0xa0010008           # out u64 ptr\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  jal ra, tx_eip4844_compute_blob_gas\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Ltcbg_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  blobGasUsedFromVersionedHashesFunction ++ "\n" ++
+  txEip4844ComputeBlobGasFunction ++ "\n" ++
+  ".Ltcbg_pdone:"
+
+def ziskTxEip4844ComputeBlobGasDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bgvh_count_scratch:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tcbg_struct:\n" ++
+  "  .zero 248"
+
+def ziskTxEip4844ComputeBlobGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxEip4844ComputeBlobGasPrologue
+  dataAsm     := ziskTxEip4844ComputeBlobGasDataSection
+}
+
+/-! ## tx_calculate_total_blob_gas -- PR-K92
+
+    Python reference (`forks/amsterdam/vm/gas.py`):
+
+      def calculate_total_blob_gas(tx) -> U64:
+          if isinstance(tx, BlobTransaction):
+              return GAS_PER_BLOB * U64(len(tx.blob_versioned_hashes))
+          else:
+              return U64(0)
+
+    Accepts a transaction in its encoded form (legacy RLP list,
+    or typed `[type_byte || rlp(inner)]`) and returns the per-tx
+    blob_gas_used: 0 for any non-EIP-4844 type, otherwise the
+    blob-count × gas-per-blob product computed by PR-K88.
+
+    Composes:
+      - PR-K40 `tx_type_dispatch`           — typed-tx detector
+      - PR-K88 `tx_eip4844_compute_blob_gas` — count × gas_per_blob
+
+    Useful per-tx primitive for `apply_body` and for receipt-side
+    bookkeeping that needs the same number on every tx without
+    branching on type in the caller.
+
+    Calling convention:
+      a0 (input)  : tx_bytes ptr (encoded form)
+      a1 (input)  : tx_bytes byte length
+      a2 (input)  : gas_per_blob (u64; 131072 on mainnet Cancun)
+      a3 (input)  : u64 out ptr (receives total blob gas)
+      ra (input)  : return
+      a0 (output) : composite status code
+
+    Status decade encoding (floor(status/100) identifies the
+    failing step):
+
+      0          : success
+      1          : tx_type_dispatch failed (unknown tx type / empty)
+      101..102   : tx_eip4844_compute_blob_gas forwarded
+                   (101 = K45 decode, 102 = K64 sum)
+
+    Uses two 8-byte `.data` scratch slots (`tctbg_type`,
+    `tctbg_inner_off`) plus the buffers inherited from K88. -/
+def txCalculateTotalBlobGasFunction : String :=
+  "tx_calculate_total_blob_gas:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # tx ptr\n" ++
+  "  mv s1, a1                   # tx_len\n" ++
+  "  mv s3, a2                   # gas_per_blob (stash)\n" ++
+  "  mv s2, a3                   # out ptr\n" ++
+  "  # Default zero in case of early non-type-3 exit.\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  # Step 1: tx_type_dispatch(tx, len, &type, &inner_off)\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, tctbg_type\n" ++
+  "  la a3, tctbg_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  beqz a0, .Lctbg_after_dispatch\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lctbg_ret\n" ++
+  ".Lctbg_after_dispatch:\n" ++
+  "  la t0, tctbg_type\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  li t2, 3\n" ++
+  "  bne t1, t2, .Lctbg_zero_ok\n" ++
+  "  # type 3: compute blob gas via K88.\n" ++
+  "  la t0, tctbg_inner_off\n" ++
+  "  ld t3, 0(t0)\n" ++
+  "  add a0, s0, t3              # inner_ptr\n" ++
+  "  sub a1, s1, t3              # inner_len\n" ++
+  "  mv a2, s3                   # gas_per_blob\n" ++
+  "  mv a3, s2                   # out ptr\n" ++
+  "  jal ra, tx_eip4844_compute_blob_gas\n" ++
+  "  beqz a0, .Lctbg_ok\n" ++
+  "  li t0, 100\n" ++
+  "  add a0, a0, t0              # 1 → 101, 2 → 102\n" ++
+  "  j .Lctbg_ret\n" ++
+  ".Lctbg_zero_ok:\n" ++
+  "  # *out already 0.\n" ++
+  ".Lctbg_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Lctbg_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_tx_calculate_total_blob_gas`: probe BuildUnit. Reads
+    (tx_len, gas_per_blob, tx_bytes) from host input, writes
+    (status, total_blob_gas) to OUTPUT (16 bytes). -/
+def ziskTxCalculateTotalBlobGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # tx_len\n" ++
+  "  ld a2, 16(a4)               # gas_per_blob\n" ++
+  "  addi a0, a4, 24             # tx_ptr\n" ++
+  "  li a3, 0xa0010008           # out u64 ptr\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  jal ra, tx_calculate_total_blob_gas\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lctbg_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  blobGasUsedFromVersionedHashesFunction ++ "\n" ++
+  txEip4844ComputeBlobGasFunction ++ "\n" ++
+  txCalculateTotalBlobGasFunction ++ "\n" ++
+  ".Lctbg_pdone:"
+
+def ziskTxCalculateTotalBlobGasDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bgvh_count_scratch:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tcbg_struct:\n" ++
+  "  .zero 248\n" ++
+  ".balign 8\n" ++
+  "tctbg_type:\n" ++
+  "  .zero 8\n" ++
+  "tctbg_inner_off:\n" ++
+  "  .zero 8"
+
+def ziskTxCalculateTotalBlobGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxCalculateTotalBlobGasPrologue
+  dataAsm     := ziskTxCalculateTotalBlobGasDataSection
+}
+
+
 /-! ## intrinsic_gas_legacy -- PR-K46 base + creation + data gas
 
     Compute the intrinsic gas cost portion of a legacy /
@@ -10782,6 +12150,526 @@ def ziskBlockSummaryProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockSummaryDataSection
 }
 
+/-! ## block_body_blob_gas_total -- PR-K89
+
+    Sum blob_gas_used over all EIP-4844 (type 3) txs in a block body:
+
+      block.blob_gas_used = sum(
+        len(tx.blob_versioned_hashes) × GAS_PER_BLOB
+        for tx in block.transactions
+        if tx.type == 3
+      )
+
+    Useful for the consensus rule
+    `header.blob_gas_used == this sum` (post-Cancun).
+
+    Composes:
+      - PR-K83 `block_body_decode`            — split body
+      - PR-K47 `rlp_list_count_items`         — number of txs
+      - PR-K20 `rlp_list_nth_item`            — i-th tx bytes
+      - PR-K40 `tx_type_dispatch`             — typed-tx detector
+      - PR-K88 `tx_eip4844_compute_blob_gas`  — per-tx blob gas
+
+    Iteration policy: skip every non-type-3 tx without examining
+    its body. Pre-Cancun blocks (no type-3 txs) return 0 cleanly.
+
+    Status encoding (callers can floor(status/100) to identify
+    the failing step):
+
+      0          : success
+      1          : block_body_decode failed
+      101        : rlp_list_count_items failed
+      201        : rlp_list_nth_item failed
+      301        : tx_type_dispatch failed
+      401..402   : tx_eip4844_compute_blob_gas failed
+                   (1=K45 decode fail, 2=K64 sum fail)
+
+    Calling convention:
+      a0 (input)  : body_rlp ptr
+      a1 (input)  : body_rlp byte length
+      a2 (input)  : gas_per_blob (u64; 131072 on mainnet Cancun)
+      a3 (input)  : u64 out ptr (receives total blob_gas_used)
+      ra (input)  : return
+      a0 (output) : composite status code
+
+    Uses 48 bytes `.data` scratch (`bbbgt_struct`) plus the small
+    scratch buffers inherited from K88 / K83. -/
+def blockBodyBlobGasTotalFunction : String :=
+  "block_body_blob_gas_total:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0                   # body_rlp ptr\n" ++
+  "  mv s3, a2                   # gas_per_blob\n" ++
+  "  mv s4, a3                   # out ptr\n" ++
+  "  li s5, 0                    # total = 0\n" ++
+  "  # Step 1: block_body_decode → bbbgt_struct\n" ++
+  "  la a2, bbbgt_struct\n" ++
+  "  jal ra, block_body_decode\n" ++
+  "  bnez a0, .Lbbbgt_body_fail\n" ++
+  "  # Load txs sub-list bounds.\n" ++
+  "  la t0, bbbgt_struct\n" ++
+  "  ld t1, 0(t0)                # txs_offset\n" ++
+  "  ld s2, 8(t0)                # s2 = txs_length\n" ++
+  "  add s1, s0, t1              # s1 = absolute txs ptr\n" ++
+  "  # Step 2: tx_count = rlp_list_count_items(txs)\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  la a2, bbbgt_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  beqz a0, .Lbbbgt_loop_init\n" ++
+  "  li a0, 101\n" ++
+  "  j .Lbbbgt_ret\n" ++
+  ".Lbbbgt_loop_init:\n" ++
+  "  la t0, bbbgt_count\n" ++
+  "  ld s7, 0(t0)                # s7 = tx_count\n" ++
+  "  li s6, 0                    # s6 = i\n" ++
+  ".Lbbbgt_loop:\n" ++
+  "  beq s6, s7, .Lbbbgt_done\n" ++
+  "  # rlp_list_nth_item(s1, s2, s6, &item_off, &item_len)\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  mv a2, s6\n" ++
+  "  la a3, bbbgt_item_off\n" ++
+  "  la a4, bbbgt_item_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  beqz a0, .Lbbbgt_after_nth\n" ++
+  "  li a0, 201\n" ++
+  "  j .Lbbbgt_ret\n" ++
+  ".Lbbbgt_after_nth:\n" ++
+  "  la t0, bbbgt_item_off\n" ++
+  "  ld t1, 0(t0)                # item_off\n" ++
+  "  la t0, bbbgt_item_len\n" ++
+  "  ld t2, 0(t0)                # item_len\n" ++
+  "  add t3, s1, t1              # tx_ptr = txs + item_off\n" ++
+  "  # tx_type_dispatch(tx_ptr, item_len, &type, &inner_off)\n" ++
+  "  mv a0, t3\n" ++
+  "  mv a1, t2\n" ++
+  "  la a2, bbbgt_type\n" ++
+  "  la a3, bbbgt_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  beqz a0, .Lbbbgt_after_dispatch\n" ++
+  "  li a0, 301\n" ++
+  "  j .Lbbbgt_ret\n" ++
+  ".Lbbbgt_after_dispatch:\n" ++
+  "  la t0, bbbgt_type\n" ++
+  "  ld t1, 0(t0)                # type\n" ++
+  "  li t4, 3\n" ++
+  "  bne t1, t4, .Lbbbgt_step\n" ++
+  "  # type 3: compute blob_gas\n" ++
+  "  la t0, bbbgt_item_off\n" ++
+  "  ld t1, 0(t0)                # item_off\n" ++
+  "  la t0, bbbgt_item_len\n" ++
+  "  ld t2, 0(t0)                # item_len\n" ++
+  "  la t0, bbbgt_inner_off\n" ++
+  "  ld t5, 0(t0)                # inner_off\n" ++
+  "  add t3, s1, t1\n" ++
+  "  add a0, t3, t5              # inner_ptr = tx_ptr + inner_off\n" ++
+  "  sub a1, t2, t5              # inner_len = item_len - inner_off\n" ++
+  "  mv a2, s3                   # gas_per_blob\n" ++
+  "  la a3, bbbgt_blob_gas\n" ++
+  "  jal ra, tx_eip4844_compute_blob_gas\n" ++
+  "  beqz a0, .Lbbbgt_after_blob\n" ++
+  "  li t0, 400\n" ++
+  "  add a0, a0, t0              # 1 → 401, 2 → 402\n" ++
+  "  j .Lbbbgt_ret\n" ++
+  ".Lbbbgt_after_blob:\n" ++
+  "  la t0, bbbgt_blob_gas\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s5, s5, t1              # total += blob_gas\n" ++
+  ".Lbbbgt_step:\n" ++
+  "  addi s6, s6, 1\n" ++
+  "  j .Lbbbgt_loop\n" ++
+  ".Lbbbgt_done:\n" ++
+  "  sd s5, 0(s4)                # *out = total\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbbbgt_ret\n" ++
+  ".Lbbbgt_body_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbbbgt_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
+/-- `zisk_block_body_blob_gas_total`: probe BuildUnit. Reads
+    (body_len, gas_per_blob, body_bytes) from host input,
+    writes (status, total_blob_gas) to OUTPUT (16 bytes). -/
+def ziskBlockBodyBlobGasTotalPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # body_len\n" ++
+  "  ld a2, 16(a4)               # gas_per_blob\n" ++
+  "  addi a0, a4, 24             # body ptr\n" ++
+  "  li a3, 0xa0010008           # out u64 ptr\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  jal ra, block_body_blob_gas_total\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbbbgt_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  blobGasUsedFromVersionedHashesFunction ++ "\n" ++
+  txEip4844ComputeBlobGasFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodyBlobGasTotalFunction ++ "\n" ++
+  ".Lbbbgt_pdone:"
+
+def ziskBlockBodyBlobGasTotalDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bgvh_count_scratch:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tcbg_struct:\n" ++
+  "  .zero 248\n" ++
+  ".balign 8\n" ++
+  "bbbgt_struct:\n" ++
+  "  .zero 48\n" ++
+  ".balign 8\n" ++
+  "bbbgt_count:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_item_off:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_item_len:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_type:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_inner_off:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_blob_gas:\n" ++
+  "  .zero 8"
+
+def ziskBlockBodyBlobGasTotalProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockBodyBlobGasTotalPrologue
+  dataAsm     := ziskBlockBodyBlobGasTotalDataSection
+}
+
+/-! ## block_validate_blob_gas_consistency -- PR-K91
+
+    Cancun-era consensus rule: the value of `header.blob_gas_used`
+    must equal the sum of per-tx blob gas across the block's body.
+
+      header.blob_gas_used == sum(
+        len(tx.blob_versioned_hashes) × GAS_PER_BLOB
+        for tx in block.transactions
+        if tx.type == 3
+      )
+
+    Composes:
+      - PR-K53 `rlp_field_to_u64`        — extract header field 17
+      - PR-K89 `block_body_blob_gas_total` — sum over body
+
+    The Python reference (`forks/amsterdam/fork.py`) enforces this
+    inside `apply_body`. This helper packages the check into a
+    single ECALL-shaped routine so callers don't need to thread
+    intermediate values through registers.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : body_rlp ptr
+      a3 (input)  : body_rlp byte length
+      a4 (input)  : gas_per_blob (u64; 131072 on mainnet Cancun)
+      ra (input)  : return
+      a0 (output) : composite status code
+
+    Status decade encoding (floor(status/100) identifies the
+    failing step):
+
+      0          : success — header.blob_gas_used == body total
+      1          : header parse / field 17 missing / not u64
+      2          : mismatch (header.blob_gas_used ≠ body total)
+      101        : body decode failed
+      201        : body rlp_list_count_items failed
+      301        : body rlp_list_nth_item failed
+      401        : body tx_type_dispatch failed
+      501..502   : body tx_eip4844_compute_blob_gas forwarded
+                   (501 = K45 decode, 502 = K64 sum)
+
+    Uses 32 bytes of `.data` scratch (`bvbgc_header_bgu` +
+    `bvbgc_body_total`) plus the scratch buffers inherited from
+    PR-K89 / K88 / K83. -/
+def blockValidateBlobGasConsistencyFunction : String :=
+  "block_validate_blob_gas_consistency:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a2                   # body_rlp ptr\n" ++
+  "  mv s1, a3                   # body_len\n" ++
+  "  mv s2, a4                   # gas_per_blob\n" ++
+  "  # Step 1: extract header.blob_gas_used (field 17, u64).\n" ++
+  "  # a0,a1 still hold (header_ptr, header_len).\n" ++
+  "  li a2, 17\n" ++
+  "  la a3, bvbgc_header_bgu\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lbvbgc_step2\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvbgc_ret\n" ++
+  ".Lbvbgc_step2:\n" ++
+  "  # Step 2: body total via K89.\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  mv a2, s2                   # gas_per_blob\n" ++
+  "  la a3, bvbgc_body_total\n" ++
+  "  jal ra, block_body_blob_gas_total\n" ++
+  "  beqz a0, .Lbvbgc_compare\n" ++
+  "  # K89 returns: 1=body decode, 101=count, 201=nth, 301=dispatch,\n" ++
+  "  # 401..402=K88 forwarded. Re-map onto our 101+ decade space.\n" ++
+  "  li t0, 100\n" ++
+  "  add a0, a0, t0              # 1→101, 101→201, 201→301, 301→401,\n" ++
+  "                              # 401→501, 402→502\n" ++
+  "  j .Lbvbgc_ret\n" ++
+  ".Lbvbgc_compare:\n" ++
+  "  la t0, bvbgc_header_bgu\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  la t0, bvbgc_body_total\n" ++
+  "  ld t2, 0(t0)\n" ++
+  "  beq t1, t2, .Lbvbgc_ok\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbvbgc_ret\n" ++
+  ".Lbvbgc_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbvbgc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_blob_gas_consistency`: probe BuildUnit.
+    Input layout (LE u64s + variable bytes):
+      bytes  0.. 8 : header_len
+      bytes  8..16 : body_len
+      bytes 16..24 : gas_per_blob
+      bytes 24..   : header_rlp ‖ body_rlp (concatenated, no padding
+                     between)
+    OUTPUT layout (8 bytes):
+      bytes  0.. 8 : status code -/
+def ziskBlockValidateBlobGasConsistencyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # header_len\n" ++
+  "  ld a3, 16(a5)               # body_len\n" ++
+  "  ld a4, 24(a5)               # gas_per_blob\n" ++
+  "  addi a0, a5, 32             # header_ptr\n" ++
+  "  add a2, a0, a1              # body_ptr = header_ptr + header_len\n" ++
+  "  jal ra, block_validate_blob_gas_consistency\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbvbgc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  blobGasUsedFromVersionedHashesFunction ++ "\n" ++
+  txEip4844ComputeBlobGasFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodyBlobGasTotalFunction ++ "\n" ++
+  blockValidateBlobGasConsistencyFunction ++ "\n" ++
+  ".Lbvbgc_pdone:"
+
+def ziskBlockValidateBlobGasConsistencyDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bgvh_count_scratch:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tcbg_struct:\n" ++
+  "  .zero 248\n" ++
+  ".balign 8\n" ++
+  "bbbgt_struct:\n" ++
+  "  .zero 48\n" ++
+  ".balign 8\n" ++
+  "bbbgt_count:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_item_off:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_item_len:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_type:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_inner_off:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_blob_gas:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bvbgc_header_bgu:\n" ++
+  "  .zero 8\n" ++
+  "bvbgc_body_total:\n" ++
+  "  .zero 8"
+
+def ziskBlockValidateBlobGasConsistencyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateBlobGasConsistencyPrologue
+  dataAsm     := ziskBlockValidateBlobGasConsistencyDataSection
+}
+
+
+/-! ## block_compute_tx_hashes -- PR-K97
+
+    Walk the block body's `transactions` RLP list and compute the
+    keccak256 of each encoded tx, packed into a contiguous output
+    buffer. For each item returned by PR-K20 `rlp_list_nth_item`:
+
+      tx_hash = keccak256(tx_bytes_as_returned_by_nth_item)
+
+    `rlp_list_nth_item` returns the byte-string content for typed
+    txs (so for a type-3 EIP-4844 tx the bytes are
+    `[0x03 || rlp(inner)]`) and the full RLP list bytes for legacy
+    txs. In both cases the tx hash on Ethereum is
+    `keccak256(encoded_bytes)`, which is precisely what this helper
+    computes — matching what `Block.transactions` callers feed
+    downstream (receipts, MPT keys, etc.).
+
+    Composes:
+      - PR-K47 `rlp_list_count_items` — N
+      - PR-K20 `rlp_list_nth_item`    — per-item bounds
+      - PR-K3  `zkvm_keccak256`       — per-item hash
+
+    Calling convention:
+      a0 (input)  : txs_list_rlp ptr (the txs sub-list bytes)
+      a1 (input)  : txs_list byte length
+      a2 (input)  : output buffer ptr (must hold N × 32 bytes)
+      a3 (input)  : u64 out count ptr (writes N on success)
+      ra (input)  : return
+      a0 (output) : composite status
+
+    Status decade encoding:
+      0          : success — N hashes written, *count = N
+      101        : `rlp_list_count_items` failed
+      201        : `rlp_list_nth_item` failed (mid-loop)
+
+    Uses 32 bytes of `.data` scratch (`bcth_item_off` +
+    `bcth_item_len` + `bcth_count`). -/
+def blockComputeTxHashesFunction : String :=
+  "block_compute_tx_hashes:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # txs_list ptr\n" ++
+  "  mv s1, a1                   # txs_len\n" ++
+  "  mv s2, a2                   # out hashes buffer\n" ++
+  "  mv s3, a3                   # out count ptr\n" ++
+  "  # Step 1: rlp_list_count_items.\n" ++
+  "  la a2, bcth_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  beqz a0, .Lbcth_loop_init\n" ++
+  "  li a0, 101\n" ++
+  "  j .Lbcth_ret\n" ++
+  ".Lbcth_loop_init:\n" ++
+  "  la t0, bcth_count\n" ++
+  "  ld s5, 0(t0)                # N = tx_count\n" ++
+  "  li s4, 0                    # i = 0\n" ++
+  ".Lbcth_loop:\n" ++
+  "  beq s4, s5, .Lbcth_done\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  mv a2, s4\n" ++
+  "  la a3, bcth_item_off\n" ++
+  "  la a4, bcth_item_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  beqz a0, .Lbcth_after_nth\n" ++
+  "  li a0, 201\n" ++
+  "  j .Lbcth_ret\n" ++
+  ".Lbcth_after_nth:\n" ++
+  "  la t0, bcth_item_off\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  la t0, bcth_item_len\n" ++
+  "  ld t2, 0(t0)\n" ++
+  "  add a0, s0, t1              # tx_ptr\n" ++
+  "  mv a1, t2                   # tx_len\n" ++
+  "  slli s6, s4, 5              # i × 32\n" ++
+  "  add a2, s2, s6              # &out[i*32]\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lbcth_loop\n" ++
+  ".Lbcth_done:\n" ++
+  "  sd s5, 0(s3)                # *count = N\n" ++
+  "  li a0, 0\n" ++
+  ".Lbcth_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_block_compute_tx_hashes`: probe BuildUnit. Reads
+    (txs_list_len, txs_list_bytes) from host input, writes
+    (status, count, N × 32-byte hashes) to OUTPUT. The host caller
+    must size OUTPUT for at least 16 + N × 32 bytes.
+    Input layout:
+      bytes  0.. 8 : txs_list_len
+      bytes  8..   : txs_list RLP bytes
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : count (u64 LE)
+      bytes 16..   : N concatenated 32-byte hashes -/
+def ziskBlockComputeTxHashesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # txs_list_len\n" ++
+  "  addi a0, a4, 16             # txs_list ptr\n" ++
+  "  li a2, 0xa0010010           # hashes buffer (OUTPUT + 16)\n" ++
+  "  li a3, 0xa0010008           # count ptr (OUTPUT + 8)\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  jal ra, block_compute_tx_hashes\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbcth_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  blockComputeTxHashesFunction ++ "\n" ++
+  ".Lbcth_pdone:"
+
+def ziskBlockComputeTxHashesDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "bcth_count:\n" ++
+  "  .zero 8\n" ++
+  "bcth_item_off:\n" ++
+  "  .zero 8\n" ++
+  "bcth_item_len:\n" ++
+  "  .zero 8"
+
+def ziskBlockComputeTxHashesProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockComputeTxHashesPrologue
+  dataAsm     := ziskBlockComputeTxHashesDataSection
+}
+
 
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
@@ -12017,6 +13905,11 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
   | "zisk_headers_parent_hash"  => some ziskHeadersParentHashProbeUnit
+  | "zisk_header_validate_parent_hash" => some ziskHeaderValidateParentHashProbeUnit
+  | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
+  | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
+  | "zisk_address_from_pubkey"  => some ziskAddressFromPubkeyProbeUnit
+  | "zisk_mpt_account_path_nibbles" => some ziskMptAccountPathNibblesProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
@@ -12044,6 +13937,9 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
+  | "zisk_header_extract_blob_gas_pair" => some ziskHeaderExtractBlobGasPairProbeUnit
+  | "zisk_block_validate_blob_gas_max_cap" => some ziskBlockValidateBlobGasMaxCapProbeUnit
+  | "zisk_header_extract_block_roots" => some ziskHeaderExtractBlockRootsProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
   | "zisk_check_gas_limit"      => some ziskCheckGasLimitProbeUnit
   | "zisk_tx_validate_against_block" => some ziskTxValidateAgainstBlockProbeUnit
@@ -12074,6 +13970,11 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
+  | "zisk_tx_eip4844_compute_blob_gas" => some ziskTxEip4844ComputeBlobGasProbeUnit
+  | "zisk_tx_calculate_total_blob_gas" => some ziskTxCalculateTotalBlobGasProbeUnit
+  | "zisk_block_body_blob_gas_total" => some ziskBlockBodyBlobGasTotalProbeUnit
+  | "zisk_block_validate_blob_gas_consistency" => some ziskBlockValidateBlobGasConsistencyProbeUnit
+  | "zisk_tx_decode_dispatch"   => some ziskTxDecodeDispatchProbeUnit
   | "zisk_intrinsic_gas_legacy" => some ziskIntrinsicGasLegacyProbeUnit
   | "zisk_tx_validate_intrinsic_gas_legacy" => some ziskTxValidateIntrinsicGasLegacyProbeUnit
   | "zisk_validate_transaction_basic" => some ziskValidateTransactionBasicProbeUnit
@@ -12086,6 +13987,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_block_withdrawals_total" => some ziskBlockWithdrawalsTotalProbeUnit
   | "zisk_block_summary"        => some ziskBlockSummaryProbeUnit
+  | "zisk_block_compute_tx_hashes" => some ziskBlockComputeTxHashesProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -12118,6 +14020,11 @@ def knownProgramNames : List String :=
    "zisk_headers_keccak_chain",
    "zisk_headers_keccak_array",
    "zisk_headers_parent_hash",
+   "zisk_header_validate_parent_hash",
+   "zisk_header_chain_walk_step",
+   "zisk_account_validate_code_hash",
+   "zisk_address_from_pubkey",
+   "zisk_mpt_account_path_nibbles",
    "zisk_headers_validate_chain",
    "zisk_witness_lookup_by_hash",
    "zisk_rlp_list_nth_item",
@@ -12145,6 +14052,9 @@ def knownProgramNames : List String :=
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
+   "zisk_header_extract_blob_gas_pair",
+   "zisk_block_validate_blob_gas_max_cap",
+   "zisk_header_extract_block_roots",
    "zisk_validate_header_basic",
    "zisk_check_gas_limit",
    "zisk_tx_validate_against_block",
@@ -12175,6 +14085,11 @@ def knownProgramNames : List String :=
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
+   "zisk_tx_eip4844_compute_blob_gas",
+   "zisk_tx_calculate_total_blob_gas",
+   "zisk_block_body_blob_gas_total",
+   "zisk_block_validate_blob_gas_consistency",
+   "zisk_tx_decode_dispatch",
    "zisk_intrinsic_gas_legacy",
    "zisk_tx_validate_intrinsic_gas_legacy",
    "zisk_validate_transaction_basic",
@@ -12187,6 +14102,7 @@ def knownProgramNames : List String :=
    "zisk_withdrawals_sum_amounts",
    "zisk_block_withdrawals_total",
    "zisk_block_summary",
+   "zisk_block_compute_tx_hashes",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
