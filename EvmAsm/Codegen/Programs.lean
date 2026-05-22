@@ -9472,6 +9472,117 @@ def ziskWithdrawalDecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskWithdrawalDecodeDataSection
 }
 
+/-! ## block_body_decode -- PR-K83
+
+    Decode a post-Shanghai block body RLP into three sub-list
+    (offset, length) pairs. The body is `rlp([transactions,
+    ommers, withdrawals])`:
+
+      Field 0: transactions   (list of typed tx envelopes)
+      Field 1: ommers         (empty list post-merge: 0xc0)
+      Field 2: withdrawals    (Shanghai+: list of [index, vi,
+                              address, amount])
+
+    Output struct layout (48 bytes):
+
+         0..  8  transactions_offset (u64; within body_rlp)
+         8.. 16  transactions_length (u64; full encoded sub-list)
+        16.. 24  ommers_offset       (u64)
+        24.. 32  ommers_length       (u64)
+        32.. 40  withdrawals_offset  (u64)
+        40.. 48  withdrawals_length  (u64)
+
+    Composes PR-K20 `rlp_list_nth_item` three times. The
+    (offset, length) of each sub-list is the FULL encoded item
+    (including its own RLP list prefix), per K20's list-item
+    contract — so callers can recurse into each with another
+    `rlp_list_nth_item` call.
+
+    For pre-Shanghai bodies (only 2 fields), this helper fails
+    on the third call. Such bodies aren't relevant for the
+    amsterdam stateless guest.
+
+    Calling convention:
+      a0 (input)  : body_rlp ptr
+      a1 (input)  : body_rlp byte length
+      a2 (input)  : 48-byte output struct ptr
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail (not a 3-item list).
+
+    Pure composition of PR-K20. No new `.data` scratch beyond
+    what K20 needs (none). -/
+def blockBodyDecodeFunction : String :=
+  "block_body_decode:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # body_rlp ptr\n" ++
+  "  mv s1, a1                   # body_len\n" ++
+  "  mv s2, a2                   # output struct ptr\n" ++
+  "  # Field 0: transactions\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
+  "  mv a3, s2\n" ++
+  "  addi a4, s2, 8\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbbd_fail\n" ++
+  "  # Field 1: ommers\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
+  "  addi a3, s2, 16\n" ++
+  "  addi a4, s2, 24\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbbd_fail\n" ++
+  "  # Field 2: withdrawals\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  addi a3, s2, 32\n" ++
+  "  addi a4, s2, 40\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbbd_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbbd_ret\n" ++
+  ".Lbbd_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbbd_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_block_body_decode`: probe BuildUnit. Reads (body_len,
+    body_bytes) from host input, writes (status, 48-byte struct)
+    to OUTPUT (56 bytes total). -/
+def ziskBlockBodyDecodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # body_len\n" ++
+  "  addi a0, a3, 16             # body ptr\n" ++
+  "  li a2, 0xa0010008           # struct at OUTPUT + 8\n" ++
+  "  mv t0, a2; li t1, 6\n" ++
+  ".Lbbd_zinit:\n" ++
+  "  beqz t1, .Lbbd_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lbbd_zinit\n" ++
+  ".Lbbd_zdone:\n" ++
+  "  jal ra, block_body_decode\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbbd_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  ".Lbbd_pdone:"
+
+def ziskBlockBodyDecodeDataSection : String :=
+  ".section .data\n" ++
+  "bbd_pad:\n" ++
+  "  .zero 8"
+
+def ziskBlockBodyDecodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockBodyDecodePrologue
+  dataAsm     := ziskBlockBodyDecodeDataSection
+}
+
 /-! ## process_withdrawal -- PR-K77
 
     Apply a Shanghai+ Withdrawal credit to a recipient's account
@@ -11189,6 +11300,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_validate_transaction_basic" => some ziskValidateTransactionBasicProbeUnit
   | "zisk_validate_transaction_full" => some ziskValidateTransactionFullProbeUnit
   | "zisk_withdrawal_decode"    => some ziskWithdrawalDecodeProbeUnit
+  | "zisk_block_body_decode"    => some ziskBlockBodyDecodeProbeUnit
   | "zisk_process_withdrawal"   => some ziskProcessWithdrawalProbeUnit
   | "zisk_process_withdrawals_block" => some ziskProcessWithdrawalsBlockProbeUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
@@ -11283,6 +11395,7 @@ def knownProgramNames : List String :=
    "zisk_validate_transaction_basic",
    "zisk_validate_transaction_full",
    "zisk_withdrawal_decode",
+   "zisk_block_body_decode",
    "zisk_process_withdrawal",
    "zisk_process_withdrawals_block",
    "zisk_withdrawals_sum_amounts",
