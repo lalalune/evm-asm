@@ -7821,6 +7821,116 @@ def ziskTxCostComputeProbeUnit : BuildUnit := {
   dataAsm     := ziskTxCostComputeDataSection
 }
 
+/-! ## validate_transaction_balance -- PR-K79
+
+    Verify that the sender's account balance covers the
+    worst-case (pre-execution) tx cost:
+
+      tx_cost = tx.max_fee_per_gas × tx.gas_limit + tx.value
+      assert sender.balance >= tx_cost
+
+    This is the pre-flight check from Python's
+    `validate_transaction`:
+
+      max_gas_fee = tx.gas * tx.max_fee_per_gas
+      if sender.balance < max_gas_fee + tx.value:
+          raise InsufficientBalance
+
+    Note: this uses `max_fee_per_gas` (the absolute cap), not
+    `effective_gas_price` — the worst-case cost the sender could
+    incur. Post-execution, the actual cost uses the lower
+    effective_gas_price.
+
+    Composes PR-K71 `tx_cost_compute` (#5723) + an inline
+    byte-walk `>=` comparison (no dependency on still-pending
+    PR-K50 `u256_lt`).
+
+    Calling convention:
+      a0 (input)  : max_fee_per_gas ptr (32 B BE)
+      a1 (input)  : gas_limit (u64)
+      a2 (input)  : value ptr (32 B BE)
+      a3 (input)  : sender.balance ptr (32 B BE)
+      ra (input)  : return
+      a0 (output) :
+        0  : balance >= tx_cost (ok)
+        1  : tx_cost computation overflowed u256
+        2  : balance < tx_cost (insufficient funds)
+
+    Uses 32 bytes of `.data` scratch (`vtb_cost_scratch`). -/
+def validateTransactionBalanceFunction : String :=
+  "validate_transaction_balance:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  mv s0, a3                   # save balance ptr\n" ++
+  "  # tx_cost = tx_cost_compute(max_fee, gas_limit, value, vtb_cost_scratch)\n" ++
+  "  la a3, vtb_cost_scratch\n" ++
+  "  jal ra, tx_cost_compute\n" ++
+  "  bnez a0, .Lvtb_overflow\n" ++
+  "  # Inline byte-walk: balance >= cost (MSB→LSB).\n" ++
+  "  la t0, vtb_cost_scratch     # cost ptr\n" ++
+  "  mv t1, s0                   # balance ptr\n" ++
+  "  li t2, 0\n" ++
+  "  li t3, 32\n" ++
+  ".Lvtb_cmp:\n" ++
+  "  beq t2, t3, .Lvtb_ok        # all 32 bytes equal → balance == cost → ok\n" ++
+  "  add t4, t1, t2\n" ++
+  "  add t5, t0, t2\n" ++
+  "  lbu t6, 0(t4)\n" ++
+  "  lbu a7, 0(t5)\n" ++
+  "  bltu t6, a7, .Lvtb_lt\n" ++
+  "  bgtu t6, a7, .Lvtb_ok\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  j .Lvtb_cmp\n" ++
+  ".Lvtb_ok:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvtb_ret\n" ++
+  ".Lvtb_lt:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lvtb_ret\n" ++
+  ".Lvtb_overflow:\n" ++
+  "  li a0, 1\n" ++
+  ".Lvtb_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_validate_transaction_balance`: probe BuildUnit. Reads
+    (32B max_fee, 8B gas_limit LE, 32B value, 32B balance) from
+    host input, writes 8-byte status to OUTPUT. -/
+def ziskValidateTransactionBalancePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  addi a0, a4, 8              # max_fee ptr\n" ++
+  "  ld a1, 40(a4)               # gas_limit (u64)\n" ++
+  "  addi a2, a4, 48             # value ptr\n" ++
+  "  addi a3, a4, 80             # balance ptr\n" ++
+  "  jal ra, validate_transaction_balance\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lvtb_pdone\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  txCostComputeFunction ++ "\n" ++
+  validateTransactionBalanceFunction ++ "\n" ++
+  ".Lvtb_pdone:"
+
+def ziskValidateTransactionBalanceDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40\n" ++
+  ".balign 32\n" ++
+  "vtb_cost_scratch:\n" ++
+  "  .zero 32"
+
+def ziskValidateTransactionBalanceProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateTransactionBalancePrologue
+  dataAsm     := ziskValidateTransactionBalanceDataSection
+}
+
 /-! ## u256_to_u64_be -- PR-K57 truncate BE u256 → u64 with overflow flag
 
     Truncate a 32-byte big-endian `u256` buffer down to its
@@ -10908,6 +11018,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_priority_fee_per_gas_eip1559" => some ziskPriorityFeePerGasEip1559ProbeUnit
   | "zisk_effective_gas_price_eip1559" => some ziskEffectiveGasPriceEip1559ProbeUnit
   | "zisk_tx_cost_compute"      => some ziskTxCostComputeProbeUnit
+  | "zisk_validate_transaction_balance" => some ziskValidateTransactionBalanceProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -11000,6 +11111,7 @@ def knownProgramNames : List String :=
    "zisk_priority_fee_per_gas_eip1559",
    "zisk_effective_gas_price_eip1559",
    "zisk_tx_cost_compute",
+   "zisk_validate_transaction_balance",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
