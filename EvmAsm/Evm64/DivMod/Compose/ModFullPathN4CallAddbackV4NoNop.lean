@@ -59,6 +59,61 @@ def fullModN4CallAddbackBeqPostV4
   (sp + signExtend12 3944 ↦ₘ divUn0) **
   (sp + signExtend12 3936 ↦ₘ scratchOut) ** regOwn .x1
 
+/-- Unfold `fullModN4CallAddbackBeqPostV4`, exposing the abstract v4 quotient
+    `div128Quot_v4` instead of the executable trial-call helper. -/
+theorem fullModN4CallAddbackBeqPostV4_div128Quot_unfold
+    {sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem : Word} :
+    fullModN4CallAddbackBeqPostV4 sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem =
+    let shift := (clzResult b3).1
+    let antiShift := signExtend12 (0 : BitVec 12) - shift
+    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+    let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+    let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+    let b0' := b0 <<< (shift.toNat % 64)
+    let u4 := a3 >>> (antiShift.toNat % 64)
+    let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+    let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+    let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+    let u0 := a0 <<< (shift.toNat % 64)
+    let qHat := div128Quot_v4 u4 u3 b3'
+    let dLo := divKTrialCallV4DLo b3'
+    let divUn0 := divKTrialCallV4Un0 u3
+    let scratchOut := divKTrialCallV4ScratchOut u4 u3 b3' scratchMem
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+    let c3 := ms.2.2.2.2
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u4 - c3) b0' b1' b2' b3'
+    let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 b0' b1' b2' b3'
+    let qOut := if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+                else qHat + signExtend12 4095
+    let un0Out := if carry = 0 then ab'.1 else ab.1
+    let un1Out := if carry = 0 then ab'.2.1 else ab.2.1
+    let un2Out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
+    let un3Out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
+    let u4Out := if carry = 0 then ab'.2.2.2.2 else ab.2.2.2.2
+    denormModPost sp shift un0Out un1Out un2Out un3Out **
+    ((sp + signExtend12 4088) ↦ₘ qOut) **
+    ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 3992) ↦ₘ shift) **
+    ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+    ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+    ((sp + signExtend12 4024) ↦ₘ u4Out) **
+    ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+    ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+    (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
+    (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+    (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qOut) **
+    (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+    (sp + signExtend12 3960 ↦ₘ b3') **
+    (sp + signExtend12 3952 ↦ₘ dLo) **
+    (sp + signExtend12 3944 ↦ₘ divUn0) **
+    (sp + signExtend12 3936 ↦ₘ scratchOut) ** regOwn .x1 := by
+  delta fullModN4CallAddbackBeqPostV4
+  simp only [divKTrialCallV4QHat_eq_div128Quot_v4]
+
 /-- Full n=4 MOD call+addback BEQ path over the no-NOP v4 MOD code bundle. -/
 theorem evm_mod_n4_full_call_addback_beq_spec_within_v4_noNop (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
