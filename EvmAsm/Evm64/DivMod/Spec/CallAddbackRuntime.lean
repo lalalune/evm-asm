@@ -296,6 +296,53 @@ theorem n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime_qha
     (n4CallAddbackBeqC3_eq_one_of_borrow_and_qhat_le_div_plus_one hbnz hq_over)
     h_carry2
 
+/-- Runtime-condition value conservation with the original top-limb nonzero
+    runtime condition discharging normalized divisor nonzero. -/
+theorem n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime_top_nonzero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        EvmWord.val256
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b) /
+          EvmWord.val256
+            (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b)
+            (n4CallAddbackBeqB2Prime b)
+            (n4CallAddbackBeqB3Prime b) + 1)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    let out := iterWithDoubleAddback
+      (n4CallAddbackBeqQHatV4 a b)
+      (n4CallAddbackBeqB0Prime b)
+      (n4CallAddbackBeqB1Prime b)
+      (n4CallAddbackBeqB2Prime b)
+      (n4CallAddbackBeqB3Prime b)
+      (n4CallAddbackBeqU0 a b)
+      (n4CallAddbackBeqU1 a b)
+      (n4CallAddbackBeqU2 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqU4 a b)
+    EvmWord.val256
+        (n4CallAddbackBeqU0 a b)
+        (n4CallAddbackBeqU1 a b)
+        (n4CallAddbackBeqU2 a b)
+        (n4CallAddbackBeqU3 a b) +
+      (n4CallAddbackBeqU4 a b).toNat * 2^256 =
+      out.1.toNat * EvmWord.val256
+        (n4CallAddbackBeqB0Prime b)
+        (n4CallAddbackBeqB1Prime b)
+        (n4CallAddbackBeqB2Prime b)
+        (n4CallAddbackBeqB3Prime b) +
+      EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+      out.2.2.2.2.2.toNat * 2^256 := by
+  exact n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime_qhat_le_div_plus_one
+    (n4CallAddbackBeqNormalizedDivisor_ne_zero hb3nz)
+    hq_over
+    h_carry2
+
 end EvmWord
 
 end EvmAsm.Evm64
