@@ -919,4 +919,25 @@ theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4
       exact hp)
     J3 Htail
 
+/-- Full bundled N1 call/max/max/max exact path over `divCode_v4`, with hypotheses supplied
+    directly as path branch facts plus the universal carry2 assumption. -/
+theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_bltu
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (halign : loopN1CallMaxmaxmaxExactInputAligned I)
+    (hbltu3 : BitVec.ult I.u1 I.v0)
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop).2.1
+      I.v0)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2).2.1 I.v0)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2 I.u0Orig1).2.1 I.v0)
+    (hcarry2 : Carry2NzAll I.v0 I.v1 I.v2 I.v3) :
+    loopN1CallMaxmaxmaxExactInputSpecV4 I := by
+  exact divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4 I halign
+    (loopN1CallMaxmaxmaxExactInputHypotheses_of_bltu I
+      hbltu3 hbltu2 hbltu1 hbltu0 hcarry2)
+
 end EvmAsm.Evm64
