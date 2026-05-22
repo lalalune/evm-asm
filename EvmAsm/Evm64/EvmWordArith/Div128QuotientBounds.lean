@@ -511,6 +511,13 @@ theorem div128Quot_q1_prime_lt_pow32 (uHi dHi dLo uLo : Word)
       div128Quot_q1_prime_le_q1c q1c dLo rhatUn1
     omega
 
+theorem div128Quot_phase2b_q0'_le_self (q rhat dLo un : Word) :
+    (div128Quot_phase2b_q0' q rhat dLo un).toNat ≤ q.toNat := by
+  unfold div128Quot_phase2b_q0'
+  split
+  · exact div128Quot_q1_prime_le_q1c q dLo ((rhat <<< (32 : BitVec 6).toNat) ||| un)
+  · exact Nat.le_refl _
+
 /-- **KB-6b: Phase 2b strict q0' bound `< 2^32` under `un21 < vTop`.** The
     Phase 2 mirror of KB-3e''' (`div128Quot_q1_prime_lt_pow32`):
 
@@ -618,10 +625,7 @@ theorem div128Quot_q0_prime_lt_pow32 (un21 dHi dLo uLo : Word)
     -- itself — both paths bound by q0c.
     have h_q0'_le_q0c : q0'.toNat ≤ q0c.toNat := by
       show (div128Quot_phase2b_q0' q0c rhat2c dLo div_un0).toNat ≤ q0c.toNat
-      unfold div128Quot_phase2b_q0'
-      split
-      · exact div128Quot_q1_prime_le_q1c q0c dLo rhat2Un0
-      · exact Nat.le_refl _
+      exact div128Quot_phase2b_q0'_le_self q0c rhat2c dLo div_un0
     omega
 
 
