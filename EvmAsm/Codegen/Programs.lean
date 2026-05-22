@@ -968,12 +968,16 @@ def evmSmodV4Unit : BuildUnit := {
   dataAsm     := evmSmodV4DataSection
 }
 
+def evmSmodUnit : BuildUnit := evmSmodV4Unit
+
 /-! ## evm_smod_v4_from_input — prover-supplied signed MOD operands -/
 
 def evm_smod_v4_from_input : Program :=
   LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
   copy64 .x12 .x5 .x6 ++
   EvmAsm.Evm64.evm_smod
+
+def evm_smod_from_input : Program := evm_smod_v4_from_input
 
 def evmSmodV4FromInputPrologue : String :=
   "  la x1, after_smod\n" ++
@@ -990,6 +994,13 @@ def evmSmodV4FromInputDataSection : String :=
 
 def evmSmodV4FromInputUnit : BuildUnit := {
   body        := evm_smod_v4_from_input
+  prologueAsm := evmSmodV4FromInputPrologue
+  epilogueAsm := evmSmodV4Epilogue
+  dataAsm     := evmSmodV4FromInputDataSection
+}
+
+def evmSmodFromInputUnit : BuildUnit := {
+  body        := evm_smod_from_input
   prologueAsm := evmSmodV4FromInputPrologue
   epilogueAsm := evmSmodV4Epilogue
   dataAsm     := evmSmodV4FromInputDataSection
@@ -8757,8 +8768,8 @@ def lookupProgram : String → Option BuildUnit
   | "evm_sdiv_from_input"       => some evmSdivV4FromInputUnit
   | "evm_sdiv_v4"               => some evmSdivV4Unit
   | "evm_sdiv_v4_from_input"    => some evmSdivV4FromInputUnit
-  | "evm_smod"                  => some evmSmodV4Unit
-  | "evm_smod_from_input"       => some evmSmodV4FromInputUnit
+  | "evm_smod"                  => some evmSmodUnit
+  | "evm_smod_from_input"       => some evmSmodFromInputUnit
   | "evm_smod_v4"               => some evmSmodV4Unit
   | "evm_smod_v4_from_input"    => some evmSmodV4FromInputUnit
   | "input_echo"                => some inputEchoUnit
