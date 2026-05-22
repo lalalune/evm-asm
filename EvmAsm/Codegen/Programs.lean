@@ -5771,6 +5771,110 @@ def ziskCoinbaseExtractFromHeaderProbeUnit : BuildUnit := {
   dataAsm     := ziskCoinbaseExtractFromHeaderDataSection
 }
 
+/-! ## header_extract_blob_gas_pair -- PR-K90 Cancun blob fields
+
+    Extract the EIP-4844 blob-gas fields from an Amsterdam header:
+
+      blob_gas_used    (header field 17, u64) — total blob gas
+        consumed by all transactions in this block (= sum of
+        `len(tx.blob_versioned_hashes) × GAS_PER_BLOB` over type-3
+        txs). Cross-checks against PR-K89.
+
+      excess_blob_gas  (header field 18, u64) — running total used
+        for the blob-fee adjustment formula.
+
+    Cancun-era (and later) headers always have both. Pre-Cancun
+    headers don't, and the extractor reports a parse failure.
+
+    Direct inputs to:
+      * the apply_body invariant
+        `header.blob_gas_used == sum(tx.blob_gas_used)`
+      * the next-block `excess_blob_gas` recurrence used in
+        `calculate_excess_blob_gas`.
+
+    Output layout (16 bytes):
+       0..  8  blob_gas_used    (u64 LE)
+       8.. 16  excess_blob_gas  (u64 LE)
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 16-byte output ptr (caller-supplied)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : header parse failed / field 17 missing / not u64
+        2 : field 18 missing / not u64
+
+    Composes PR-K20 `rlp_list_nth_item` via PR-K53
+    `rlp_field_to_u64`. Uses two 8-byte `.data` scratch slots
+    (`rfu_offset`, `rfu_length`) shared with other K-helpers. -/
+def headerExtractBlobGasPairFunction : String :=
+  "header_extract_blob_gas_pair:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_len\n" ++
+  "  mv s2, a2                  # output 16B ptr\n" ++
+  "  # Field 17: blob_gas_used → out[0..8]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 17\n" ++
+  "  mv a3, s2\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lhebgp_f18\n" ++
+  "  sd zero, 0(s2); sd zero, 8(s2)\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhebgp_ret\n" ++
+  ".Lhebgp_f18:\n" ++
+  "  # Field 18: excess_blob_gas → out[8..16]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 18\n" ++
+  "  addi a3, s2, 8\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lhebgp_ok\n" ++
+  "  sd zero, 0(s2); sd zero, 8(s2)\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lhebgp_ret\n" ++
+  ".Lhebgp_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Lhebgp_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_blob_gas_pair`: probe BuildUnit. Reads
+    (header_len, header_bytes), writes (status, blob_gas_used,
+    excess_blob_gas) to OUTPUT (24 bytes total). -/
+def ziskHeaderExtractBlobGasPairPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  li a2, 0xa0010008           # 16B output at OUTPUT + 8\n" ++
+  "  sd zero, 0(a2); sd zero, 8(a2)\n" ++
+  "  jal ra, header_extract_blob_gas_pair\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhebgp_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractBlobGasPairFunction ++ "\n" ++
+  ".Lhebgp_pdone:"
+
+def ziskHeaderExtractBlobGasPairDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractBlobGasPairProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractBlobGasPairPrologue
+  dataAsm     := ziskHeaderExtractBlobGasPairDataSection
+}
+
 /-! ## validate_header_basic -- PR-K43 per-header semantic checks
 
     Three u64 invariants from `validate_header` (Python:
@@ -12102,6 +12206,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
+  | "zisk_header_extract_blob_gas_pair" => some ziskHeaderExtractBlobGasPairProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
   | "zisk_check_gas_limit"      => some ziskCheckGasLimitProbeUnit
   | "zisk_tx_validate_against_block" => some ziskTxValidateAgainstBlockProbeUnit
@@ -12203,6 +12308,7 @@ def knownProgramNames : List String :=
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
+   "zisk_header_extract_blob_gas_pair",
    "zisk_validate_header_basic",
    "zisk_check_gas_limit",
    "zisk_tx_validate_against_block",
