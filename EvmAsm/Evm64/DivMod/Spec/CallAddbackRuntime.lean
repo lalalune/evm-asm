@@ -609,6 +609,32 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions
     hb3nz hq_over h_borrow h_carry2 h_rem_lt
     (n4CallAddbackBeqNormalized_div_eq_qTrue hshift_nz)
 
+/-- Historical non-`V4` spelling of the runtime-condition closure for the
+    repaired n=4 call+addback-BEQ semantic marker. -/
+theorem n4CallAddbackBeqSemanticHolds_of_runtime_conditions
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        EvmWord.val256
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b) /
+          EvmWord.val256
+            (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b)
+            (n4CallAddbackBeqB2Prime b)
+            (n4CallAddbackBeqB3Prime b) + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_rem_lt : n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions
+      hb3nz hshift_nz hq_over h_borrow h_carry2 h_rem_lt
+
 /-- Compact runtime-condition semantic bridge with the qhat-over side
     condition stated using named normalized values. -/
 theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions_compact
@@ -640,19 +666,6 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
     n4CallAddbackBeqSemanticHoldsV4 a b :=
   n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions_compact
     hb3nz hshift_nz h_bounds.1 h_borrow h_carry2 h_bounds.2
-
-/-- Named v4 closure surface for the call-addback semantic predicate. The
-    remaining arithmetic is isolated in `n4CallAddbackBeqRuntimeBounds`. -/
-theorem n4CallAddbackBeqSemanticHolds_of_runtime_conditions
-    {a b : EvmWord}
-    (hb3nz : b.getLimbN 3 ≠ 0)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (h_bounds : n4CallAddbackBeqRuntimeBounds a b)
-    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
-    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
-    n4CallAddbackBeqSemanticHoldsV4 a b :=
-  n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
-    hb3nz hshift_nz h_bounds h_borrow h_carry2
 
 end EvmWord
 
