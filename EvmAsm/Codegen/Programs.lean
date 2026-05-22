@@ -7504,6 +7504,83 @@ def ziskIntrinsicGasLegacyProbeUnit : BuildUnit := {
   dataAsm     := ziskIntrinsicGasLegacyDataSection
 }
 
+/-! ## tx_validate_intrinsic_gas_legacy -- PR-K66
+
+    Compose PR-K46 `intrinsic_gas_legacy` with the standard tx
+    validation check `intrinsic_gas <= tx.gas_limit`. Mirrors
+    Python's check in `validate_transaction`:
+
+      if tx.gas < calculate_intrinsic_gas(tx):
+          raise InvalidTransaction
+
+    Returns the actual intrinsic-gas value via an out pointer so
+    callers don't have to re-call PR-K46; this lets downstream
+    `process_transaction` deduct it from the tx's gas allowance.
+
+    Calling convention:
+      a0 (input)  : data ptr
+      a1 (input)  : data byte length
+      a2 (input)  : is_creation (0 or 1)
+      a3 (input)  : tx.gas_limit (u64)
+      a4 (input)  : u64 out ptr (receives intrinsic_gas)
+      ra (input)  : return
+      a0 (output) : 0 ok / 1 intrinsic_gas > tx.gas_limit (reject)
+
+    The `out` pointer always receives the computed intrinsic gas,
+    even on reject — callers can record it for receipt purposes
+    or further analysis. -/
+def txValidateIntrinsicGasLegacyFunction : String :=
+  "tx_validate_intrinsic_gas_legacy:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a3                   # tx.gas_limit\n" ++
+  "  mv s1, a4                   # out ptr\n" ++
+  "  jal ra, intrinsic_gas_legacy # a0 = intrinsic_gas\n" ++
+  "  sd a0, 0(s1)                # write to out, regardless of reject\n" ++
+  "  bltu s0, a0, .Ltvil_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltvil_ret\n" ++
+  ".Ltvil_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Ltvil_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_tx_validate_intrinsic_gas_legacy`: probe BuildUnit.
+    Reads (data_len, is_creation, gas_limit, data_bytes) from
+    host input, writes (status, intrinsic_gas) to OUTPUT (16
+    bytes total). -/
+def ziskTxValidateIntrinsicGasLegacyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # data_len\n" ++
+  "  ld a2, 16(a5)               # is_creation\n" ++
+  "  ld a3, 24(a5)               # tx.gas_limit\n" ++
+  "  addi a0, a5, 32             # data ptr\n" ++
+  "  li a4, 0xa0010008           # out ptr for intrinsic_gas\n" ++
+  "  sd zero, 0(a4)\n" ++
+  "  jal ra, tx_validate_intrinsic_gas_legacy\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Ltvil_pdone\n" ++
+  intrinsicGasLegacyFunction ++ "\n" ++
+  txValidateIntrinsicGasLegacyFunction ++ "\n" ++
+  ".Ltvil_pdone:"
+
+def ziskTxValidateIntrinsicGasLegacyDataSection : String :=
+  ".section .data\n" ++
+  "tvil_pad:\n" ++
+  "  .zero 8"
+
+def ziskTxValidateIntrinsicGasLegacyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxValidateIntrinsicGasLegacyPrologue
+  dataAsm     := ziskTxValidateIntrinsicGasLegacyDataSection
+}
+
 /-! ## withdrawal_decode -- PR-K49 4-field withdrawal RLP decoder
 
     Decode a post-Shanghai Withdrawal record into a flat struct.
@@ -8899,6 +8976,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
   | "zisk_intrinsic_gas_legacy" => some ziskIntrinsicGasLegacyProbeUnit
+  | "zisk_tx_validate_intrinsic_gas_legacy" => some ziskTxValidateIntrinsicGasLegacyProbeUnit
   | "zisk_withdrawal_decode"    => some ziskWithdrawalDecodeProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
@@ -8973,6 +9051,7 @@ def knownProgramNames : List String :=
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
    "zisk_intrinsic_gas_legacy",
+   "zisk_tx_validate_intrinsic_gas_legacy",
    "zisk_withdrawal_decode",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
