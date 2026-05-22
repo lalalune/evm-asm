@@ -102,23 +102,49 @@ theorem n4CallAddbackBeqSemantic_unfold {a b : EvmWord} :
 def n4CallAddbackBeqShift (b : EvmWord) : Nat :=
   (clzResult (b.getLimbN 3)).1.toNat % 64
 
+theorem n4CallAddbackBeqShift_unfold {b : EvmWord} :
+    n4CallAddbackBeqShift b = (clzResult (b.getLimbN 3)).1.toNat % 64 :=
+  rfl
+
 /-- Anti-shift used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqAntiShift (b : EvmWord) : Nat :=
   (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+
+theorem n4CallAddbackBeqAntiShift_unfold {b : EvmWord} :
+    n4CallAddbackBeqAntiShift b =
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64 :=
+  rfl
 
 /-- Normalized top divisor limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqB3Prime (b : EvmWord) : Word :=
   ((b.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
     ((b.getLimbN 2) >>> n4CallAddbackBeqAntiShift b)
 
+theorem n4CallAddbackBeqB3Prime_unfold {b : EvmWord} :
+    n4CallAddbackBeqB3Prime b =
+      ((b.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
+        ((b.getLimbN 2) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
+
 /-- Normalized overflow dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU4 (a b : EvmWord) : Word :=
   (a.getLimbN 3) >>> n4CallAddbackBeqAntiShift b
+
+theorem n4CallAddbackBeqU4_unfold {a b : EvmWord} :
+    n4CallAddbackBeqU4 a b =
+      (a.getLimbN 3) >>> n4CallAddbackBeqAntiShift b :=
+  rfl
 
 /-- Normalized top in-range dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU3 (a b : EvmWord) : Word :=
   ((a.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
     ((a.getLimbN 2) >>> n4CallAddbackBeqAntiShift b)
+
+theorem n4CallAddbackBeqU3_unfold {a b : EvmWord} :
+    n4CallAddbackBeqU3 a b =
+      ((a.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
+        ((a.getLimbN 2) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
 
 /-- Trial quotient used by the n=4 v4 call+addback-BEQ semantic marker. -/
 def n4CallAddbackBeqQHatV4 (a b : EvmWord) : Word :=
