@@ -13486,6 +13486,128 @@ def ziskInitCodeCostProbeUnit : BuildUnit := {
   dataAsm     := ziskInitCodeCostDataSection
 }
 
+/-! ## mpt_nibbles_to_compact -- PR-K109
+
+    Pack a nibble-list into the MPT compact (hex-prefix) encoding
+    used in leaf and extension node first fields.
+
+    Matches `nibble_list_to_compact(nibbles, is_leaf)` in
+    `forks/amsterdam/trie.py`.
+
+    The output's first byte has its high nibble structured as:
+
+        +---+---+----------+--------+
+        | _ | _ | is_leaf | parity |
+        +---+---+----------+--------+
+          3   2      1         0
+
+    The low nibble of the prefix is either:
+    - 0 when the input has even length
+    - the first nibble of the input when odd length
+
+    Remaining nibbles are then packed two-per-byte, high nibble
+    first.
+
+    Output length = `nibble_count / 2 + 1`, regardless of parity:
+    - `nibble_count=0` → 1 byte (prefix only)
+    - `nibble_count=1` → 1 byte (prefix carries the lone nibble)
+    - `nibble_count=2` → 2 bytes
+    - `nibble_count=3` → 2 bytes
+    - …
+
+    Calling convention:
+      a0 (input)  : nibbles ptr (each byte 0..15)
+      a1 (input)  : nibble count
+      a2 (input)  : is_leaf flag (0 or 1)
+      a3 (input)  : output bytes ptr (caller supplies space)
+      a4 (input)  : u64 out ptr (writes output byte length)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds — total function).
+
+    Pure-leaf semantics: no scratch memory, no transitive calls.
+    Callers are responsible for ensuring each input byte is in
+    `[0, 15]`; out-of-range bytes get truncated to their low
+    nibble. -/
+def mptNibblesToCompactFunction : String :=
+  "mpt_nibbles_to_compact:\n" ++
+  "  # parity = count & 1\n" ++
+  "  andi t0, a1, 1\n" ++
+  "  # high_nibble = (is_leaf << 1) | parity\n" ++
+  "  slli t1, a2, 1\n" ++
+  "  or t1, t1, t0\n" ++
+  "  beqz t0, .Lmnc_even\n" ++
+  "  # Odd: prefix = (high_nibble << 4) | nibbles[0]\n" ++
+  "  lbu t3, 0(a0)\n" ++
+  "  slli t2, t1, 4\n" ++
+  "  andi t3, t3, 0xf\n" ++
+  "  or t2, t2, t3\n" ++
+  "  addi t4, a0, 1               # cursor at nibble[1]\n" ++
+  "  addi t5, a1, -1              # remaining (even)\n" ++
+  "  j .Lmnc_pack\n" ++
+  ".Lmnc_even:\n" ++
+  "  slli t2, t1, 4               # prefix byte (low nibble 0)\n" ++
+  "  mv t4, a0\n" ++
+  "  mv t5, a1\n" ++
+  ".Lmnc_pack:\n" ++
+  "  sb t2, 0(a3)\n" ++
+  "  addi t6, a3, 1\n" ++
+  ".Lmnc_loop:\n" ++
+  "  beqz t5, .Lmnc_done\n" ++
+  "  lbu t0, 0(t4)\n" ++
+  "  lbu t1, 1(t4)\n" ++
+  "  andi t0, t0, 0xf\n" ++
+  "  andi t1, t1, 0xf\n" ++
+  "  slli t0, t0, 4\n" ++
+  "  or t0, t0, t1\n" ++
+  "  sb t0, 0(t6)\n" ++
+  "  addi t6, t6, 1\n" ++
+  "  addi t4, t4, 2\n" ++
+  "  addi t5, t5, -2\n" ++
+  "  j .Lmnc_loop\n" ++
+  ".Lmnc_done:\n" ++
+  "  srli t0, a1, 1\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  sd t0, 0(a4)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_mpt_nibbles_to_compact`: probe BuildUnit. Reads
+    (nibble_count, is_leaf, nibble_bytes) from host input, writes
+    (status, output_len, compact_bytes...) to OUTPUT.
+    Input layout:
+      bytes  0.. 8 : nibble count
+      bytes  8..16 : is_leaf flag (0/1)
+      bytes 16..   : nibble bytes (one nibble per byte)
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : output_len
+      bytes 16..   : compact-encoded bytes -/
+def ziskMptNibblesToCompactPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # nibble count\n" ++
+  "  ld a2, 16(a5)               # is_leaf\n" ++
+  "  addi a0, a5, 24             # nibbles ptr\n" ++
+  "  li a3, 0xa0010010           # output bytes\n" ++
+  "  li a4, 0xa0010008           # output_len out\n" ++
+  "  jal ra, mpt_nibbles_to_compact\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmnc_pdone\n" ++
+  mptNibblesToCompactFunction ++ "\n" ++
+  ".Lmnc_pdone:"
+
+def ziskMptNibblesToCompactDataSection : String :=
+  ".section .data\n" ++
+  "mnc_scratch:\n" ++
+  "  .zero 8"
+
+def ziskMptNibblesToCompactProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptNibblesToCompactPrologue
+  dataAsm     := ziskMptNibblesToCompactDataSection
+}
+
 
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
@@ -14811,6 +14933,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
+  | "zisk_mpt_nibbles_to_compact" => some ziskMptNibblesToCompactProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -14933,6 +15056,7 @@ def knownProgramNames : List String :=
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost",
+   "zisk_mpt_nibbles_to_compact",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
