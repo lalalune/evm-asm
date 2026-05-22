@@ -14,9 +14,10 @@ namespace EvmAsm.Evm64.SMod.Compose
 abbrev smodCode (base : Word) : EvmAsm.Rv64.CodeReq :=
   EvmAsm.Rv64.CodeReq.ofProg base EvmAsm.Evm64.evm_smod_legacy
 
-/-- v4 full SMOD code region handle: wrapper followed by `evm_mod_callable_v4`. -/
+/-- v4 full SMOD code region handle: the canonical production `evm_smod`
+    body, which is the wrapper followed by `evm_mod_callable_v4`. -/
 abbrev smodCodeV4 (base : Word) : EvmAsm.Rv64.CodeReq :=
-  EvmAsm.Rv64.CodeReq.ofProg base EvmAsm.Evm64.evm_smod_v4
+  EvmAsm.Rv64.CodeReq.ofProg base EvmAsm.Evm64.evm_smod
 
 /-- Code handle for the saved-`ra` prologue block. -/
 abbrev saveRaCode (base : Word) : EvmAsm.Rv64.CodeReq :=
