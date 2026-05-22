@@ -8,6 +8,7 @@
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+import EvmAsm.Evm64.DivMod.Spec.CallAddback
 
 namespace EvmAsm.Evm64
 
@@ -130,6 +131,12 @@ abbrev ceA_u4 : Word := ceA_a3 >>> 1
 abbrev ceA_u3 : Word := ceA_a3 <<< 63
 abbrev ceA_qTrue : Nat := 2^63 + 2^32 - 2
 abbrev ceA_qHatV4 : Word := BitVec.ofNat 64 (ceA_qTrue + 1)
+abbrev ceA_a : EvmWord :=
+  EvmWord.fromLimbs fun i : Fin 4 =>
+    match i with | 0 => 0 | 1 => 0 | 2 => 0 | 3 => ceA_a3
+abbrev ceA_b : EvmWord :=
+  EvmWord.fromLimbs fun i : Fin 4 =>
+    match i with | 0 => 0 | 1 => 0 | 2 => ceA_b2 | 3 => ceA_b3
 
 theorem div128Quot_v4_counterexampleA_exact :
     div128Quot_v4 ceA_u4 ceA_u3 ceA_b3Norm = ceA_qHatV4 := by
@@ -138,6 +145,11 @@ theorem div128Quot_v4_counterexampleA_exact :
 theorem div128Quot_v4_counterexampleA_within_two_addbacks :
     (div128Quot_v4 ceA_u4 ceA_u3 ceA_b3Norm).toNat ≤ ceA_qTrue + 2 := by
   decide
+
+theorem n4CallAddbackBeqSemanticHolds_counterexampleA_v4 :
+    n4CallAddbackBeqSemanticHolds ceA_a ceA_b := by
+  rw [n4CallAddbackBeqSemantic_unfold]
+  native_decide
 
 /-- Per-counterexample regression pin: the executable DIV body is on the v4
     path, and the normalized trial quotient for counterexample A has the v4
