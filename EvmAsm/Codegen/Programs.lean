@@ -7452,6 +7452,109 @@ def ziskEip1559CalcBaseFeePerGasProbeUnit : BuildUnit := {
   dataAsm     := ziskEip1559CalcBaseFeePerGasDataSection
 }
 
+/-! ## header_validate_base_fee -- PR-K74
+
+    Verify a header's `base_fee_per_gas` matches the value
+    computed from the parent header by EIP-1559's
+    `calculate_base_fee_per_gas`:
+
+      expected = eip1559_calc_base_fee_per_gas(
+                   parent.gas_limit,
+                   parent.gas_used,
+                   parent.base_fee_per_gas)
+      assert header.base_fee_per_gas == expected
+
+    This is the per-block invariant added by EIP-1559 §4.4.4
+    (Python: `validate_header`).
+
+    Composes PR-K73 `eip1559_calc_base_fee_per_gas` +
+    PR-K53 `u256_eq`. The 32-byte computed expected base fee
+    lands in `.data` scratch, then is compared bytewise against
+    the header's claimed value.
+
+    Calling convention:
+      a0 (input)  : header.base_fee_per_gas ptr (u256 BE, 32 B)
+      a1 (input)  : parent.gas_limit (u64)
+      a2 (input)  : parent.gas_used (u64)
+      a3 (input)  : parent.base_fee_per_gas ptr (u256 BE, 32 B)
+      ra (input)  : return
+      a0 (output) :
+        0  : header.base_fee_per_gas == expected
+        1  : mismatch (reject)
+        2  : compute step (K73) overflow / precondition failure
+
+    Uses 32 bytes of `.data` scratch (`hvbf_expected`). -/
+def headerValidateBaseFeeFunction : String :=
+  "header_validate_base_fee:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  mv s0, a0                   # save header.base_fee ptr\n" ++
+  "  # expected = eip1559_calc_base_fee_per_gas(...)  → hvbf_expected\n" ++
+  "  mv a0, a1                   # parent.gas_limit\n" ++
+  "  mv a1, a2                   # parent.gas_used\n" ++
+  "  mv a2, a3                   # parent.base_fee\n" ++
+  "  la a3, hvbf_expected\n" ++
+  "  jal ra, eip1559_calc_base_fee_per_gas\n" ++
+  "  bnez a0, .Lhvbf_fail_compute\n" ++
+  "  # Compare header.base_fee vs expected.\n" ++
+  "  mv a0, s0\n" ++
+  "  la a1, hvbf_expected\n" ++
+  "  jal ra, u256_eq             # a0 = 1 if equal, 0 if not\n" ++
+  "  beqz a0, .Lhvbf_fail_mismatch\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhvbf_ret\n" ++
+  ".Lhvbf_fail_mismatch:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhvbf_ret\n" ++
+  ".Lhvbf_fail_compute:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhvbf_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_header_validate_base_fee`: probe BuildUnit. Reads
+    (header_bf u256 BE, parent_gas_limit u64, parent_gas_used u64,
+    parent_bf u256 BE) from host input, writes 8-byte status. -/
+def ziskHeaderValidateBaseFeePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  addi a0, a4, 8              # header_bf ptr\n" ++
+  "  ld a1, 40(a4)               # parent.gas_limit\n" ++
+  "  ld a2, 48(a4)               # parent.gas_used\n" ++
+  "  addi a3, a4, 56             # parent_bf ptr\n" ++
+  "  jal ra, header_validate_base_fee\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhvbf_pdone\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256DivU64BeFunction ++ "\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  u256FromU64BeFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256EqFunction ++ "\n" ++
+  eip1559CalcBaseFeePerGasFunction ++ "\n" ++
+  headerValidateBaseFeeFunction ++ "\n" ++
+  ".Lhvbf_pdone:"
+
+def ziskHeaderValidateBaseFeeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 32\n" ++
+  "hvbf_expected:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40"
+
+def ziskHeaderValidateBaseFeeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderValidateBaseFeePrologue
+  dataAsm     := ziskHeaderValidateBaseFeeDataSection
+}
+
 /-! ## tx_cost_compute -- PR-K71
 
     Compute the full upfront cost of a transaction:
@@ -10221,6 +10324,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
   | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit
   | "zisk_eip1559_calc_base_fee_per_gas" => some ziskEip1559CalcBaseFeePerGasProbeUnit
+  | "zisk_header_validate_base_fee" => some ziskHeaderValidateBaseFeeProbeUnit
   | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
@@ -10308,6 +10412,7 @@ def knownProgramNames : List String :=
    "zisk_u256_eq",
    "zisk_u256_mul_u64_be",
    "zisk_eip1559_calc_base_fee_per_gas",
+   "zisk_header_validate_base_fee",
    "zisk_u256_from_u64_be",
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero",
