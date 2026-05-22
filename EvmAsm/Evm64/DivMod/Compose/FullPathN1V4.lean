@@ -887,4 +887,36 @@ theorem divK_loop_n1_call_iter210_framed_exact_x1_v4_input
     (loopN1CallMaxmaxmaxIter210FramedPostInput_to_scratchPost I)
     (divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input I hh)
 
+/-- Full-code bundled N1 call/max/max/max exact path: j=3 uses the v4 call
+    path and j=2/j=1/j=0 all use the all-max path. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxExactInputSpecV4
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Prop :=
+  cpsTripleWithin 780 (I.base + loopBodyOff) (I.base + denormOff)
+    (divCode_v4 I.base)
+    (loopN1CallMaxmaxmaxScratchPreNoX1 I.sp
+      I.jOld I.v5Old I.v6Old I.v7Old I.v10Old I.v11Old I.v2Old
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+      I.u0Orig2 I.u0Orig1 I.u0Orig0 I.q3Old I.q2Old I.q1Old I.q0Old
+      I.retMem I.dMem I.dloMem I.scratchUn0 I.scratchMem ** (.x1 ↦ᵣ I.raVal))
+    (loopN1CallMaxmaxmaxScratchPostNoX1 I.sp I.base
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+      I.u0Orig2 I.u0Orig1 I.u0Orig0 I.scratchMem ** (.x1 ↦ᵣ I.raVal))
+
+/-- Full bundled N1 call/max/max/max exact path over the full `divCode_v4` bundle. -/
+theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (halign : loopN1CallMaxmaxmaxExactInputAligned I)
+    (hh : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    loopN1CallMaxmaxmaxExactInputSpecV4 I := by
+  unfold loopN1CallMaxmaxmaxExactInputSpecV4
+  have J3 := divK_loop_n1_call_j3_exact_x1_framed_v4_input I halign hh
+  unfold loopN1CallMaxmaxmaxJ3ExactInputSpecV4 at J3
+  have Htail := divK_loop_n1_call_iter210_framed_exact_x1_v4_input I hh
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      unfold loopN1CallMaxmaxmaxJ3PostInput
+      exact hp)
+    J3 Htail
+
 end EvmAsm.Evm64
