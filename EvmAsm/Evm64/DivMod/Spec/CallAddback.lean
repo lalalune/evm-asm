@@ -135,6 +135,17 @@ theorem n4CallAddbackBeqAntiShift_unfold {b : EvmWord} :
       (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64 :=
   rfl
 
+theorem n4CallAddbackBeqAntiShift_eq_sub_shift {b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqAntiShift b = 64 - n4CallAddbackBeqShift b := by
+  have h_pos_raw : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rw [← n4CallAddbackBeqShift_eq_raw]
+    exact n4CallAddbackBeqShift_pos_of_ne_zero hshift_nz
+  rw [n4CallAddbackBeqAntiShift_unfold, n4CallAddbackBeqShift_eq_raw]
+  exact antiShift_toNat_mod_eq
+    h_pos_raw
+    (clzResult_fst_toNat_le (b.getLimbN 3))
+
 /-- Normalized top divisor limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqB3Prime (b : EvmWord) : Word :=
   ((b.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
