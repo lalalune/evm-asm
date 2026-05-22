@@ -261,6 +261,20 @@ theorem n4CallAddbackBeqQHatBranchEqQTrue_unfold {a b : EvmWord} :
           n4CallAddbackBeqQTrue a b :=
   rfl
 
+theorem n4CallAddbackBeqQHatBranchEqQTrue_carry_eq_zero_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  rw [n4CallAddbackBeqQHatBranchEqQTrue, if_pos h_carry]
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_carry_ne_zero_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  rw [n4CallAddbackBeqQHatBranchEqQTrue, if_neg h_carry]
+
 theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_carry_eq_zero_iff {a b : EvmWord}
     (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
     (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b ↔
