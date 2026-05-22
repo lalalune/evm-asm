@@ -270,6 +270,20 @@ theorem n4CallAddbackBeqQTrue_unfold {a b : EvmWord} :
         val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
   rfl
 
+theorem eq_n4CallAddbackBeqQTrue_iff {a b : EvmWord} {q : Nat} :
+    q = n4CallAddbackBeqQTrue a b ↔
+      q =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  Iff.rfl
+
+theorem n4CallAddbackBeqQTrue_eq_iff {a b : EvmWord} {q : Nat} :
+    n4CallAddbackBeqQTrue a b = q ↔
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        q :=
+  Iff.rfl
+
 /-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
 
     This is the v4 migration target for `n4CallAddbackBeqSemanticHolds`: it uses
