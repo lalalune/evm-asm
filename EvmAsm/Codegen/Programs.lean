@@ -5849,6 +5849,79 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderBasicDataSection
 }
 
+/-! ## check_gas_limit -- PR-K72 gas-limit continuity check
+
+    Verify the per-header gas-limit elasticity rules per
+    Ethereum's `check_gas_limit`:
+
+      max_adjustment_delta = parent_gas_limit // 1024
+      |gas_limit - parent_gas_limit| < max_adjustment_delta
+      gas_limit >= GAS_LIMIT_MINIMUM (5000)
+
+    Used by `validate_header` to ensure consecutive blocks
+    smoothly adjust their gas-limit ceiling. Adoption is
+    EIP-1985 + EIP-1559 elasticity.
+
+    Pure u64 arithmetic (shift, sub, compare). No scratch
+    memory, leaf-callable.
+
+    Calling convention:
+      a0 (input)  : new.gas_limit    (u64)
+      a1 (input)  : parent.gas_limit (u64)
+      ra (input)  : return
+      a0 (output) :
+        0  : all checks pass
+        1  : new.gas_limit < GAS_LIMIT_MINIMUM (5000)
+        2  : |new - parent| >= parent / 1024 (jumped too far) -/
+def checkGasLimitFunction : String :=
+  "check_gas_limit:\n" ++
+  "  li t0, 5000                 # GAS_LIMIT_MINIMUM\n" ++
+  "  bltu a0, t0, .Lcgl_fail_min\n" ++
+  "  # max_adjustment_delta = parent_gas_limit >> 10  (== /1024)\n" ++
+  "  srli t1, a1, 10\n" ++
+  "  # abs_diff = |new - parent|\n" ++
+  "  bgtu a0, a1, .Lcgl_pos\n" ++
+  "  sub t2, a1, a0\n" ++
+  "  j .Lcgl_check\n" ++
+  ".Lcgl_pos:\n" ++
+  "  sub t2, a0, a1\n" ++
+  ".Lcgl_check:\n" ++
+  "  bgeu t2, t1, .Lcgl_fail_jump\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lcgl_fail_min:\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Lcgl_fail_jump:\n" ++
+  "  li a0, 2\n" ++
+  "  ret"
+
+/-- `zisk_check_gas_limit`: probe BuildUnit. Reads (new_limit,
+    parent_limit) as 2 u64s from host input, writes 8-byte
+    status to OUTPUT. -/
+def ziskCheckGasLimitPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a0,  8(t0)               # new.gas_limit\n" ++
+  "  ld a1, 16(t0)               # parent.gas_limit\n" ++
+  "  jal ra, check_gas_limit\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lcgl_pdone\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  ".Lcgl_pdone:"
+
+def ziskCheckGasLimitDataSection : String :=
+  ".section .data\n" ++
+  "cgl_pad:\n" ++
+  "  .zero 8"
+
+def ziskCheckGasLimitProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskCheckGasLimitPrologue
+  dataAsm     := ziskCheckGasLimitDataSection
+}
+
 /-! ## tx_validate_against_block -- PR-K69
 
     Combine three u64 tx-validation invariants into one helper:
@@ -9969,6 +10042,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
+  | "zisk_check_gas_limit"      => some ziskCheckGasLimitProbeUnit
   | "zisk_tx_validate_against_block" => some ziskTxValidateAgainstBlockProbeUnit
   | "zisk_calc_excess_blob_gas" => some ziskCalcExcessBlobGasProbeUnit
   | "zisk_header_validate_post_merge" => some ziskHeaderValidatePostMergeProbeUnit
@@ -10054,6 +10128,7 @@ def knownProgramNames : List String :=
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
    "zisk_validate_header_basic",
+   "zisk_check_gas_limit",
    "zisk_tx_validate_against_block",
    "zisk_calc_excess_blob_gas",
    "zisk_header_validate_post_merge",
