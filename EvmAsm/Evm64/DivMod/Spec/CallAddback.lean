@@ -202,6 +202,25 @@ theorem n4CallAddbackBeqSemanticHoldsV4_qOutV4_eq {a b : EvmWord} :
           val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
 
+/-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the named
+    corrected quotient equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_qOutV4_toNat_eq {a b : EvmWord}
+    (h_qOut :
+      (n4CallAddbackBeqQOutV4 a b).toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  h_qOut
+
+/-- Eliminate the v4 n=4 call+addback-BEQ semantic predicate to the named
+    corrected quotient equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_qOutV4_toNat_eq {a b : EvmWord}
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    (n4CallAddbackBeqQOutV4 a b).toNat =
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hsem
+
 /-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the raw
     normalized `q_out` equality. -/
 theorem n4CallAddbackBeqSemanticHoldsV4_of_qOut_toNat_eq {a b : EvmWord}
