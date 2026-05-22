@@ -122,4 +122,63 @@ theorem isAddbackCarry2NzN4CallV4Evm_def {a b : EvmWord} :
     isAddbackCarry2NzN4CallV4Ab (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                                 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
 
+/-- Eliminate the packaged EvmWord v4 n=4 call-addback carry2 predicate to
+    the raw implication consumed by double-addback loop-body proofs. -/
+theorem isAddbackCarry2NzN4CallV4Evm_raw {a b : EvmWord}
+    (hcarry2_nz : isAddbackCarry2NzN4CallV4Evm a b) :
+    let shift := (clzResult (b.getLimbN 3)).1
+    let antiShift := signExtend12 (0 : BitVec 12) - shift
+    let b3' := ((b.getLimbN 3) <<< (shift.toNat % 64)) |||
+      ((b.getLimbN 2) >>> (antiShift.toNat % 64))
+    let b2' := ((b.getLimbN 2) <<< (shift.toNat % 64)) |||
+      ((b.getLimbN 1) >>> (antiShift.toNat % 64))
+    let b1' := ((b.getLimbN 1) <<< (shift.toNat % 64)) |||
+      ((b.getLimbN 0) >>> (antiShift.toNat % 64))
+    let b0' := (b.getLimbN 0) <<< (shift.toNat % 64)
+    let u4 := (a.getLimbN 3) >>> (antiShift.toNat % 64)
+    let u3 := ((a.getLimbN 3) <<< (shift.toNat % 64)) |||
+      ((a.getLimbN 2) >>> (antiShift.toNat % 64))
+    let u2 := ((a.getLimbN 2) <<< (shift.toNat % 64)) |||
+      ((a.getLimbN 1) >>> (antiShift.toNat % 64))
+    let u1 := ((a.getLimbN 1) <<< (shift.toNat % 64)) |||
+      ((a.getLimbN 0) >>> (antiShift.toNat % 64))
+    let u0 := (a.getLimbN 0) <<< (shift.toNat % 64)
+    let qHat := divKTrialCallV4QHat u4 u3 b3'
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+    let c3 := ms.2.2.2.2
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u4 - c3) b0' b1' b2' b3'
+    carry = 0 →
+      addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 b0' b1' b2' b3' ≠ 0 := by
+  rw [isAddbackCarry2NzN4CallV4Evm_def] at hcarry2_nz
+  exact isAddbackCarry2NzN4CallV4Ab_raw hcarry2_nz
+
+/-- If the first v4 call-addback carry is already nonzero, the carry2
+    predicate holds vacuously: the double-addback premise `carry = 0` is false. -/
+theorem isAddbackCarry2NzN4CallV4Evm_of_first_carry_ne_zero {a b : EvmWord}
+    (hcarry_nz :
+      let shift := (clzResult (b.getLimbN 3)).1
+      let antiShift := signExtend12 (0 : BitVec 12) - shift
+      let b3' := ((b.getLimbN 3) <<< (shift.toNat % 64)) |||
+        ((b.getLimbN 2) >>> (antiShift.toNat % 64))
+      let b2' := ((b.getLimbN 2) <<< (shift.toNat % 64)) |||
+        ((b.getLimbN 1) >>> (antiShift.toNat % 64))
+      let b1' := ((b.getLimbN 1) <<< (shift.toNat % 64)) |||
+        ((b.getLimbN 0) >>> (antiShift.toNat % 64))
+      let b0' := (b.getLimbN 0) <<< (shift.toNat % 64)
+      let u4 := (a.getLimbN 3) >>> (antiShift.toNat % 64)
+      let u3 := ((a.getLimbN 3) <<< (shift.toNat % 64)) |||
+        ((a.getLimbN 2) >>> (antiShift.toNat % 64))
+      let u2 := ((a.getLimbN 2) <<< (shift.toNat % 64)) |||
+        ((a.getLimbN 1) >>> (antiShift.toNat % 64))
+      let u1 := ((a.getLimbN 1) <<< (shift.toNat % 64)) |||
+        ((a.getLimbN 0) >>> (antiShift.toNat % 64))
+      let u0 := (a.getLimbN 0) <<< (shift.toNat % 64)
+      let qHat := divKTrialCallV4QHat u4 u3 b3'
+      let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+      addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3' ≠ 0) :
+    isAddbackCarry2NzN4CallV4Evm a b := by
+  rw [isAddbackCarry2NzN4CallV4Evm_def]
+  exact isAddbackCarry2NzN4CallV4Ab_of_first_carry_ne_zero hcarry_nz
+
 end EvmAsm.Evm64
