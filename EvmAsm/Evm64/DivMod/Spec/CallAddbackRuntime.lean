@@ -509,6 +509,35 @@ theorem n4CallAddbackBeqQOutV4_toNat_eq_normalized_div_of_runtime_top_nonzero
       hb3nz hq_over h_borrow h_carry2)
     h_rem_lt
 
+/-- Runtime-condition semantic bridge after the normalized quotient target has
+    been identified with the original unnormalized `qTrue`. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_top_nonzero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        EvmWord.val256
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b) /
+          EvmWord.val256
+            (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b)
+            (n4CallAddbackBeqB2Prime b)
+            (n4CallAddbackBeqB3Prime b) + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_rem_lt : n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b)
+    (h_norm_div :
+      n4CallAddbackBeqUNormVal a b / n4CallAddbackBeqBNormVal b =
+        n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b := by
+  apply n4CallAddbackBeqSemanticHoldsV4_of_qOutV4_toNat_eq_qTrue
+  rw [n4CallAddbackBeqQOutV4_toNat_eq_normalized_div_of_runtime_top_nonzero
+    hb3nz hq_over h_borrow h_carry2 h_rem_lt]
+  exact h_norm_div
+
 end EvmWord
 
 end EvmAsm.Evm64
