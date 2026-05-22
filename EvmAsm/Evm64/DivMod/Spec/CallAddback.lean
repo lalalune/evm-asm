@@ -761,6 +761,42 @@ theorem n4CallAddbackBeqQOutV4_raw_unfold {a b : EvmWord} :
        else qHat + signExtend12 4095) :=
   rfl
 
+theorem n4CallAddbackBeqQOutV4_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqQOutV4 a b =
+      (let b3' :=
+        ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b2' :=
+        ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b1' :=
+        ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let u3 :=
+        ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u2 :=
+        ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u1 :=
+        ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let qHat :=
+        div128Quot_v4
+          ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+          u3
+          b3'
+       let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+       let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+       if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+       else qHat + signExtend12 4095) := by
+  rw [n4CallAddbackBeqQOutV4_unfold]
+  rw [n4CallAddbackBeqQHatV4_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqCarryV4_eq_direct hshift_nz]
+
 /-- The zero-carry call+addback-BEQ case decrements the trial quotient twice. -/
 theorem n4CallAddbackBeqQOutV4_of_carry_eq_zero {a b : EvmWord}
     (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
