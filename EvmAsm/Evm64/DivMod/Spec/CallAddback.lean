@@ -254,6 +254,15 @@ theorem n4CallAddbackBeqB2Prime_unfold {b : EvmWord} :
         ((b.getLimbN 1) >>> n4CallAddbackBeqAntiShift b) :=
   rfl
 
+theorem n4CallAddbackBeqB2Prime_eq_direct {b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqB2Prime b =
+      ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)) := by
+  rw [n4CallAddbackBeqB2Prime_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
 /-- Normalized divisor limb 1 used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqB1Prime (b : EvmWord) : Word :=
   ((b.getLimbN 1) <<< n4CallAddbackBeqShift b) |||
@@ -265,6 +274,15 @@ theorem n4CallAddbackBeqB1Prime_unfold {b : EvmWord} :
         ((b.getLimbN 0) >>> n4CallAddbackBeqAntiShift b) :=
   rfl
 
+theorem n4CallAddbackBeqB1Prime_eq_direct {b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqB1Prime b =
+      ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)) := by
+  rw [n4CallAddbackBeqB1Prime_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
 /-- Normalized divisor limb 0 used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqB0Prime (b : EvmWord) : Word :=
   (b.getLimbN 0) <<< n4CallAddbackBeqShift b
@@ -273,6 +291,13 @@ theorem n4CallAddbackBeqB0Prime_unfold {b : EvmWord} :
     n4CallAddbackBeqB0Prime b =
       (b.getLimbN 0) <<< n4CallAddbackBeqShift b :=
   rfl
+
+theorem n4CallAddbackBeqB0Prime_eq_direct {b : EvmWord}
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqB0Prime b =
+      (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat := by
+  rw [n4CallAddbackBeqB0Prime_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw]
 
 /-- Normalized overflow dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU4 (a b : EvmWord) : Word :=
@@ -336,6 +361,15 @@ theorem n4CallAddbackBeqU2_unfold {a b : EvmWord} :
         ((a.getLimbN 1) >>> n4CallAddbackBeqAntiShift b) :=
   rfl
 
+theorem n4CallAddbackBeqU2_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqU2 a b =
+      ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)) := by
+  rw [n4CallAddbackBeqU2_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
 /-- Normalized dividend limb 1 used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU1 (a b : EvmWord) : Word :=
   ((a.getLimbN 1) <<< n4CallAddbackBeqShift b) |||
@@ -347,6 +381,15 @@ theorem n4CallAddbackBeqU1_unfold {a b : EvmWord} :
         ((a.getLimbN 0) >>> n4CallAddbackBeqAntiShift b) :=
   rfl
 
+theorem n4CallAddbackBeqU1_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqU1 a b =
+      ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)) := by
+  rw [n4CallAddbackBeqU1_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
 /-- Normalized dividend limb 0 used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU0 (a b : EvmWord) : Word :=
   (a.getLimbN 0) <<< n4CallAddbackBeqShift b
@@ -355,6 +398,13 @@ theorem n4CallAddbackBeqU0_unfold {a b : EvmWord} :
     n4CallAddbackBeqU0 a b =
       (a.getLimbN 0) <<< n4CallAddbackBeqShift b :=
   rfl
+
+theorem n4CallAddbackBeqU0_eq_direct {a b : EvmWord}
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqU0 a b =
+      (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat := by
+  rw [n4CallAddbackBeqU0_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw]
 
 /-- Trial quotient used by the n=4 v4 call+addback-BEQ semantic marker. -/
 def n4CallAddbackBeqQHatV4 (a b : EvmWord) : Word :=
