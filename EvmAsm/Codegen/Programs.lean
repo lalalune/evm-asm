@@ -9741,6 +9741,120 @@ def ziskMptBranchGetValueProbeUnit : BuildUnit := {
   dataAsm     := ziskMptBranchGetValueDataSection
 }
 
+/-! ## mpt_branch_first_used_index -- PR-K118
+
+    Find the lowest-indexed non-empty child slot in an MPT branch
+    node's `[c0, c1, …, c15, value]` head. Returns the index in
+    `[0, 15]` of the first child whose RLP byte-length is > 0, or
+    `16` (sentinel "none") when every child slot is empty.
+
+    Used by state-root recomputation in the *trie-collapse* path:
+    when PR-K117 `mpt_branch_used_count` reports exactly one
+    surviving child, this helper tells the rewriter *which* child
+    to inline into the parent's path.
+
+    The `value` field (item 16) is **not** scanned. A branch where
+    the value slot is the only non-empty entry still returns the
+    `16` sentinel.
+
+    Composes:
+      - PR-K47 `rlp_list_count_items` — sanity-check 17 items
+      - PR-K20 `rlp_list_nth_item`    — per-child length probe
+
+    Calling convention:
+      a0 (input)  : branch_rlp ptr
+      a1 (input)  : branch_rlp byte length
+      a2 (input)  : u64 out ptr (first_index in [0..16])
+      ra (input)  : return
+      a0 (output) :
+        0 : success — index written (16 = no non-empty children)
+        1 : not a 17-item list
+        2 : mid-list nth_item failure -/
+def mptBranchFirstUsedIndexFunction : String :=
+  "mpt_branch_first_used_index:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # branch ptr\n" ++
+  "  mv s1, a1                   # branch len\n" ++
+  "  mv s2, a2                   # first_index out\n" ++
+  "  li t0, 16\n" ++
+  "  sd t0, 0(s2)                # default = 16 (none)\n" ++
+  "  # Verify 17-item list.\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, mbfui_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lmbfui_not_branch\n" ++
+  "  la t0, mbfui_count; ld t1, 0(t0)\n" ++
+  "  li t2, 17\n" ++
+  "  bne t1, t2, .Lmbfui_not_branch\n" ++
+  "  li s3, 0                    # i = 0\n" ++
+  ".Lmbfui_loop:\n" ++
+  "  li t0, 16\n" ++
+  "  beq s3, t0, .Lmbfui_done\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  mv a2, s3\n" ++
+  "  la a3, mbfui_off; la a4, mbfui_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmbfui_nth_fail\n" ++
+  "  la t0, mbfui_len; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lmbfui_step\n" ++
+  "  # Found first non-empty child.\n" ++
+  "  sd s3, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmbfui_ret\n" ++
+  ".Lmbfui_step:\n" ++
+  "  addi s3, s3, 1\n" ++
+  "  j .Lmbfui_loop\n" ++
+  ".Lmbfui_done:\n" ++
+  "  # No non-empty children; output stays at sentinel 16.\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmbfui_ret\n" ++
+  ".Lmbfui_not_branch:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lmbfui_ret\n" ++
+  ".Lmbfui_nth_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lmbfui_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_mpt_branch_first_used_index`: probe BuildUnit. Reads
+    (branch_len, branch_bytes), writes (status, first_index) to
+    OUTPUT (16 bytes). -/
+def ziskMptBranchFirstUsedIndexPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # branch length\n" ++
+  "  addi a0, a3, 16             # branch ptr\n" ++
+  "  li a2, 0xa0010008           # first_index out\n" ++
+  "  jal ra, mpt_branch_first_used_index\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmbfui_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  mptBranchFirstUsedIndexFunction ++ "\n" ++
+  ".Lmbfui_pdone:"
+
+def ziskMptBranchFirstUsedIndexDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "mbfui_count:\n" ++
+  "  .zero 8\n" ++
+  "mbfui_off:\n" ++
+  "  .zero 8\n" ++
+  "mbfui_len:\n" ++
+  "  .zero 8"
+
+def ziskMptBranchFirstUsedIndexProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptBranchFirstUsedIndexPrologue
+  dataAsm     := ziskMptBranchFirstUsedIndexDataSection
+}
+
 
 /-! ## stateless_guest body — PR-K5 keccak hash field
 
@@ -9973,6 +10087,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_block_summary"        => some ziskBlockSummaryProbeUnit
   | "zisk_mpt_branch_get_child" => some ziskMptBranchGetChildProbeUnit
   | "zisk_mpt_branch_get_value" => some ziskMptBranchGetValueProbeUnit
+  | "zisk_mpt_branch_first_used_index" => some ziskMptBranchFirstUsedIndexProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -10075,6 +10190,7 @@ def knownProgramNames : List String :=
    "zisk_block_summary",
    "zisk_mpt_branch_get_child",
    "zisk_mpt_branch_get_value",
+   "zisk_mpt_branch_first_used_index",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
