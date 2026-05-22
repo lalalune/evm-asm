@@ -650,9 +650,10 @@ theorem n4CallAddbackBeqSemanticHolds_of_runtime_conditions
     (h_bounds : n4CallAddbackBeqRuntimeBounds a b)
     (h_borrow : isAddbackBorrowN4CallV4Evm a b)
     (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
-    n4CallAddbackBeqSemanticHoldsV4 a b :=
-  n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
-    hb3nz hshift_nz h_bounds h_borrow h_carry2
+    n4CallAddbackBeqSemanticHolds a b :=
+  n4CallAddbackBeqSemanticHolds_of_v4
+    (n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
+      hb3nz hshift_nz h_bounds h_borrow h_carry2)
 
 end EvmWord
 
