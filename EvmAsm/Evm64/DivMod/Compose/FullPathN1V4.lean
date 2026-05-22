@@ -5,6 +5,22 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- DIV PhaseAB(n=1) + CLZ + PhaseC2(ntaken) + NormB over the full `divCode_v4` bundle. -/
+theorem evm_div_phaseAB_n1_clz_c2_normB_spec_v4 (sp base : Word)
+    (b0 b1 b2 b3 v5 v6 v7 v10 : Word)
+    (q0 q1 q2 q3 u5 u6 u7 nMem shiftMem : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21) base (base + normAOff) (divCode_v4 base)
+      (evmDivPhaseABN1ClzC2NormBPre sp v5 v6 v7 v10 b0 b1 b2 b3
+        q0 q1 q2 q3 u5 u6 u7 nMem shiftMem)
+      (evmDivPhaseABN1ClzC2NormBFullPost sp b0 b1 b2 b3) := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (evm_div_phaseAB_n1_clz_c2_normB_spec_v4_noNop sp base
+      b0 b1 b2 b3 v5 v6 v7 v10 q0 q1 q2 q3 u5 u6 u7 nMem shiftMem
+      hbnz hb3z hb2z hb1z hshift_nz)
+
 /-- Loop body n=1, max+skip, j=0 over the full `divCode_v4` bundle. -/
 theorem divK_loop_body_n1_max_skip_j0_norm_v4 (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
