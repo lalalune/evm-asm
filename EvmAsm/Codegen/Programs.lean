@@ -9576,6 +9576,141 @@ def ziskTxExtractToAddressProbeUnit : BuildUnit := {
   dataAsm     := ziskTxExtractToAddressDataSection
 }
 
+/-! ## tx_extract_value -- PR-K103
+
+    Extract the `value` field (u256 BE) from any encoded tx type.
+    `value` is the amount of wei the tx transfers to its `to`
+    recipient (or contributes to the new account's balance on
+    CREATE).
+
+    Per-type RLP layout — the field index of `value`:
+
+      type 0 legacy   : field 4 of the outer list
+      type 1 EIP-2930 : field 5 of the inner RLP
+      type 2 EIP-1559 : field 6 of the inner RLP
+      type 3 EIP-4844 : field 6 of the inner RLP
+      type 4 EIP-7702 : field 6 of the inner RLP
+
+    Composes:
+      - PR-K40 `tx_type_dispatch`        — typed-tx detector
+      - PR-K-rlp_field_to_u256_be helper — u256 BE field extraction
+
+    Useful for balance checks (`sender_balance >= value + gas_cost`)
+    and for the priority-fee credit path. Together with PR-K101
+    (`to` address) and PR-K102 (nonce + gas), this covers the
+    fields `check_transaction` and `process_transaction` need from
+    a tx without doing a full per-type decode.
+
+    Calling convention:
+      a0 (input)  : tx_bytes ptr (encoded form)
+      a1 (input)  : tx_bytes byte length
+      a2 (input)  : 32-byte output ptr (u256 BE)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : tx_type_dispatch failed (unknown / empty input)
+        2 : value field extraction failed (parse error or > 256 bits)
+
+    Output zeroed on failure. Uses two 8-byte `.data` scratch
+    slots (`tev_type`, `tev_inner_off`). -/
+def txExtractValueFunction : String :=
+  "tx_extract_value:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # tx_ptr\n" ++
+  "  mv s1, a1                   # tx_len\n" ++
+  "  mv s2, a2                   # 32B out ptr\n" ++
+  "  # Pre-zero output.\n" ++
+  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
+  "  # Step 1: tx_type_dispatch.\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, tev_type\n" ++
+  "  la a3, tev_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  beqz a0, .Ltev_after_dispatch\n" ++
+  "  li a0, 1\n" ++
+  "  j .Ltev_ret\n" ++
+  ".Ltev_after_dispatch:\n" ++
+  "  la t0, tev_type;      ld s3, 0(t0)    # type → s3\n" ++
+  "  la t0, tev_inner_off; ld t5, 0(t0)\n" ++
+  "  add t6, s0, t5                          # inner_ptr\n" ++
+  "  sub t4, s1, t5                          # inner_len\n" ++
+  "  # Determine field index.\n" ++
+  "  li t0, 0\n" ++
+  "  beq s3, t0, .Ltev_legacy_idx\n" ++
+  "  li t0, 1\n" ++
+  "  beq s3, t0, .Ltev_t1_idx\n" ++
+  "  li t1, 6                              # type 2/3/4: value = 6\n" ++
+  "  j .Ltev_have_idx\n" ++
+  ".Ltev_legacy_idx:\n" ++
+  "  li t1, 4                              # legacy: value = 4\n" ++
+  "  j .Ltev_have_idx\n" ++
+  ".Ltev_t1_idx:\n" ++
+  "  li t1, 5                              # EIP-2930: value = 5\n" ++
+  ".Ltev_have_idx:\n" ++
+  "  mv a0, t6\n" ++
+  "  mv a1, t4\n" ++
+  "  mv a2, t1\n" ++
+  "  mv a3, s2\n" ++
+  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  beqz a0, .Ltev_ok\n" ++
+  "  # Re-zero output on failure (rlp_field_to_u256_be may have\n" ++
+  "  # partially written).\n" ++
+  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
+  "  li a0, 2\n" ++
+  "  j .Ltev_ret\n" ++
+  ".Ltev_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Ltev_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_tx_extract_value`: probe BuildUnit. Reads (tx_len,
+    tx_bytes) from host input, writes (status, 32-byte value BE)
+    to OUTPUT (40 bytes total). -/
+def ziskTxExtractValuePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # tx_len\n" ++
+  "  addi a0, a4, 16             # tx_ptr\n" ++
+  "  li a2, 0xa0010008           # 32B u256 output\n" ++
+  "  jal ra, tx_extract_value\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Ltev_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txExtractValueFunction ++ "\n" ++
+  ".Ltev_pdone:"
+
+def ziskTxExtractValueDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tev_type:\n" ++
+  "  .zero 8\n" ++
+  "tev_inner_off:\n" ++
+  "  .zero 8"
+
+def ziskTxExtractValueProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxExtractValuePrologue
+  dataAsm     := ziskTxExtractValueDataSection
+}
+
 /-! ## tx_eip1559_decode -- PR-K41 full 12-field EIP-1559 decoder
 
     Decode the inner (post-type-byte) RLP body of an EIP-1559
@@ -14123,6 +14258,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_extract_nonce_and_gas" => some ziskTxExtractNonceAndGasProbeUnit
   | "zisk_tx_extract_to_address" => some ziskTxExtractToAddressProbeUnit
+  | "zisk_tx_extract_value"     => some ziskTxExtractValueProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
@@ -14239,6 +14375,7 @@ def knownProgramNames : List String :=
    "zisk_tx_type_dispatch",
    "zisk_tx_extract_nonce_and_gas",
    "zisk_tx_extract_to_address",
+   "zisk_tx_extract_value",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
