@@ -1,4 +1,5 @@
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMax
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMaxInput
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopLoopBody
 import EvmAsm.Evm64.DivMod.Compose.V4Code
 
@@ -731,5 +732,51 @@ theorem evm_div_n1_call_maxmaxmax_denorm_epilogue_spec_v4_exact_x1
     (evm_div_n1_call_maxmaxmax_denorm_epilogue_spec_v4_noNop_exact_x1
       sp base shift a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
       u0Orig2 u0Orig1 u0Orig0 scratchMem raVal hshift_nz)
+
+/-- Bundled full-code statement for the first j=3 call-body step of the N1
+    call/max/max/max exact path. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxJ3ExactInputSpecV4
+    (I : LoopN1CallMaxmaxmaxExactInputs) : Prop :=
+  cpsTripleWithin 224 (I.base + loopBodyOff) (I.base + loopBodyOff)
+    (divCode_v4 I.base)
+    (loopN1CallMaxmaxmaxScratchPreNoX1 I.sp
+      I.jOld I.v5Old I.v6Old I.v7Old I.v10Old I.v11Old I.v2Old
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+      I.u0Orig2 I.u0Orig1 I.u0Orig0 I.q3Old I.q2Old I.q1Old I.q0Old
+      I.retMem I.dMem I.dloMem I.scratchUn0 I.scratchMem ** (.x1 ↦ᵣ I.raVal))
+    (loopIterPostN1CallScratchNoX1 I.sp I.base (3 : Word)
+      (divKTrialCallV4QHat I.u1 I.u0 I.v0)
+      (divKTrialCallV4DLo I.v0)
+      (divKTrialCallV4Un0 I.u0)
+      (divKTrialCallV4ScratchOut I.u1 I.u0 I.v0 I.scratchMem)
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop **
+      (.x1 ↦ᵣ I.raVal) **
+      ((I.sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat +
+        signExtend12 0) ↦ₘ I.u0Orig2) **
+      ((I.sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ I.q2Old) **
+      ((I.sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat +
+        signExtend12 0) ↦ₘ I.u0Orig1) **
+      ((I.sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ I.q1Old) **
+      ((I.sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat +
+        signExtend12 0) ↦ₘ I.u0Orig0) **
+      ((I.sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ I.q0Old))
+
+/-- Bundled first j=3 call-body step over the full `divCode_v4` bundle. -/
+theorem divK_loop_n1_call_j3_exact_x1_framed_v4_input
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (halign : loopN1CallMaxmaxmaxExactInputAligned I)
+    (hh : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    loopN1CallMaxmaxmaxJ3ExactInputSpecV4 I := by
+  unfold loopN1CallMaxmaxmaxJ3ExactInputSpecV4
+  exact divK_loop_n1_call_j3_exact_x1_framed_v4 I.sp I.base
+    I.jOld I.v5Old I.v6Old I.v7Old I.v10Old I.v11Old I.v2Old
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+    I.u0Orig2 I.u0Orig1 I.u0Orig0 I.q3Old I.q2Old I.q1Old I.q0Old
+    I.retMem I.dMem I.dloMem I.scratchUn0 I.scratchMem I.raVal
+    (loopN1CallMaxmaxmaxExactInputAligned_raw I halign)
+    (loopN1CallMaxmaxmaxExactInputHypotheses_hbltu3 I hh)
+    (isAddbackCarry2NzN1CallV4_raw I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+      (loopN1CallMaxmaxmaxExactInputHypotheses_carry2Call I hh))
 
 end EvmAsm.Evm64
