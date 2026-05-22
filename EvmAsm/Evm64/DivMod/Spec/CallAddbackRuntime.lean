@@ -247,6 +247,55 @@ theorem n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime
     hc3_one_of_borrow
     (n4CallAddbackBeqCarry2Nz_of_runtime h_carry2)
 
+/-- Runtime-condition value conservation using a normalized `qHat ≤ qTrue + 1`
+    bound to discharge the c3=1-on-borrow side condition. -/
+theorem n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime_qhat_le_div_plus_one
+    {a b : EvmWord}
+    (hbnz :
+      n4CallAddbackBeqB0Prime b ||| n4CallAddbackBeqB1Prime b |||
+        n4CallAddbackBeqB2Prime b ||| n4CallAddbackBeqB3Prime b ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        EvmWord.val256
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b) /
+          EvmWord.val256
+            (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b)
+            (n4CallAddbackBeqB2Prime b)
+            (n4CallAddbackBeqB3Prime b) + 1)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    let out := iterWithDoubleAddback
+      (n4CallAddbackBeqQHatV4 a b)
+      (n4CallAddbackBeqB0Prime b)
+      (n4CallAddbackBeqB1Prime b)
+      (n4CallAddbackBeqB2Prime b)
+      (n4CallAddbackBeqB3Prime b)
+      (n4CallAddbackBeqU0 a b)
+      (n4CallAddbackBeqU1 a b)
+      (n4CallAddbackBeqU2 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqU4 a b)
+    EvmWord.val256
+        (n4CallAddbackBeqU0 a b)
+        (n4CallAddbackBeqU1 a b)
+        (n4CallAddbackBeqU2 a b)
+        (n4CallAddbackBeqU3 a b) +
+      (n4CallAddbackBeqU4 a b).toNat * 2^256 =
+      out.1.toNat * EvmWord.val256
+        (n4CallAddbackBeqB0Prime b)
+        (n4CallAddbackBeqB1Prime b)
+        (n4CallAddbackBeqB2Prime b)
+        (n4CallAddbackBeqB3Prime b) +
+      EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+      out.2.2.2.2.2.toNat * 2^256 := by
+  exact n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime
+    hbnz
+    (n4CallAddbackBeqC3_eq_one_of_borrow_and_qhat_le_div_plus_one hbnz hq_over)
+    h_carry2
+
 end EvmWord
 
 end EvmAsm.Evm64
