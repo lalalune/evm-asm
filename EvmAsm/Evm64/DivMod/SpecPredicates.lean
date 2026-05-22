@@ -12,6 +12,8 @@
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4CallV4NoNop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4BeqV4NoNop
 
 namespace EvmAsm.Evm64
 
@@ -85,5 +87,39 @@ theorem isAddbackCarry2NzN4CallEvm_def {a b : EvmWord} :
     isAddbackCarry2NzN4CallEvm a b =
     isAddbackCarry2NzN4CallAb (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
                               (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
+
+-- ============================================================================
+-- EvmWord-level runtime condition predicates for the n=4 v4 call path
+-- ============================================================================
+
+/-- Skip-addback condition at n=4 v4 call path in EvmWord form. -/
+def isSkipBorrowN4CallV4Evm (a b : EvmWord) : Prop :=
+  isSkipBorrowN4CallV4Ab (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+/-- Addback-needed condition at n=4 v4 call path in EvmWord form. -/
+def isAddbackBorrowN4CallV4Evm (a b : EvmWord) : Prop :=
+  isAddbackBorrowN4CallV4Ab (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+/-- Carry-2-non-zero condition at n=4 v4 call path in EvmWord form. -/
+def isAddbackCarry2NzN4CallV4Evm (a b : EvmWord) : Prop :=
+  isAddbackCarry2NzN4CallV4Ab (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+theorem isSkipBorrowN4CallV4Evm_def {a b : EvmWord} :
+    isSkipBorrowN4CallV4Evm a b =
+    isSkipBorrowN4CallV4Ab (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
+
+theorem isAddbackBorrowN4CallV4Evm_def {a b : EvmWord} :
+    isAddbackBorrowN4CallV4Evm a b =
+    isAddbackBorrowN4CallV4Ab (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
+
+theorem isAddbackCarry2NzN4CallV4Evm_def {a b : EvmWord} :
+    isAddbackCarry2NzN4CallV4Evm a b =
+    isAddbackCarry2NzN4CallV4Ab (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                                (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := rfl
 
 end EvmAsm.Evm64
