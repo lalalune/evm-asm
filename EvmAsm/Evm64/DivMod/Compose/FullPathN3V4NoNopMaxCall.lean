@@ -472,4 +472,51 @@ theorem evm_div_n3_loop_unified_inst_noNop_exact_x1_v4
     retMem dMem dloMem scratchUn0 scratchMem
     halign hbltu_1 hbltu_0 hcarry2
 
+/-- Handoff from the n=3 preloop postcondition to the v4 no-`x1` loop source,
+    preserving caller-owned `x1` and the v4 div128 scratch cell. -/
+theorem loopSetupPost_to_loopN3PreWithScratchV4NoX1_framed
+    (sp : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v11Old : Word)
+    (jMem retMem dMem dloMem scratchUn0 scratchMem raVal : Word) :
+    ∀ h,
+      (loopSetupPost sp (3 : Word) (clzResult b2).1 a0 a1 a2 a3 b0 b1 b2 b3 **
+       ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal))) h →
+      (((loopN3PreWithScratchV4NoX1 sp
+        jMem (3 : Word) (fullDivN3Shift b2)
+        (fullDivN3NormU a0 a1 a2 a3 b2).1
+        (a0 >>> ((fullDivN3AntiShift b2).toNat % 64)) v11Old (fullDivN3AntiShift b2)
+        (fullDivN3NormV b0 b1 b2 b3).1
+        (fullDivN3NormV b0 b1 b2 b3).2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.2
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+        (0 : Word)
+        (fullDivN3NormU a0 a1 a2 a3 b2).1
+        (0 : Word) (0 : Word)
+        retMem dMem dloMem scratchUn0 scratchMem ** (.x1 ↦ᵣ raVal)) **
+       (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 3992) ↦ₘ (clzResult b2).1))) h) := by
+  intro h hp
+  delta loopN3PreWithScratchV4NoX1 loopN3PreWithScratchNoX1 loopN3Pre at ⊢
+  delta loopSetupPost fullDivN3NormV fullDivN3NormU fullDivN3Shift fullDivN3AntiShift at hp ⊢
+  simp only [x1_val_n3] at hp
+  simp only [n3_ub1_off0, n3_ub1_off4088, n3_ub1_off4080,
+              n3_ub1_off4072, n3_ub1_off4064, n3_ub0_off0,
+              n3_qa1, n3_qa0, se12_32, se12_40, se12_48, se12_56] at hp ⊢
+  xperm_hyp hp
+
 end EvmAsm.Evm64
