@@ -625,10 +625,7 @@ theorem div128Quot_q0_prime_lt_pow32 (un21 dHi dLo uLo : Word)
     -- itself — both paths bound by q0c.
     have h_q0'_le_q0c : q0'.toNat ≤ q0c.toNat := by
       show (div128Quot_phase2b_q0' q0c rhat2c dLo div_un0).toNat ≤ q0c.toNat
-      unfold div128Quot_phase2b_q0'
-      split
-      · exact div128Quot_q1_prime_le_q1c q0c dLo rhat2Un0
-      · exact Nat.le_refl _
+      exact div128Quot_phase2b_q0'_le_self q0c rhat2c dLo div_un0
     omega
 
 
