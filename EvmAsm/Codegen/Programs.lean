@@ -5795,21 +5795,6 @@ def ziskCoinbaseExtractFromHeaderProbeUnit : BuildUnit := {
     Output layout (16 bytes):
        0..  8  blob_gas_used    (u64 LE)
        8.. 16  excess_blob_gas  (u64 LE)
-/-! ## header_extract_block_roots -- PR-K95
-
-    Extract the three remaining 32-byte root fields from an
-    Amsterdam header that the existing extended-decode helpers
-    don't cover:
-
-       0..32   transactions_root  (field 4)
-      32..64   receipt_root       (field 5)
-      64..96   withdrawals_root   (field 16)
-
-    Used by `validate_block_body` callers that cross-check the
-    body's tx/receipt/withdrawal MPT roots against the consensus-
-    layer commitment, and by the trie-rebuild path. The state_root
-    (field 3) is already covered by PR-K39 `header_extended_decode`;
-    `parent_hash` by PR-K17; `coinbase` by PR-K55.
 
     Calling convention:
       a0 (input)  : header_rlp ptr
@@ -5826,19 +5811,6 @@ def ziskCoinbaseExtractFromHeaderProbeUnit : BuildUnit := {
     (`rfu_offset`, `rfu_length`) shared with other K-helpers. -/
 def headerExtractBlobGasPairFunction : String :=
   "header_extract_blob_gas_pair:\n" ++
-      a2 (input)  : 96-byte output ptr (caller-supplied)
-      ra (input)  : return
-      a0 (output) :
-        0 : success
-        1 : field 4 (transactions_root) missing / not 32 B
-        2 : field 5 (receipt_root) missing / not 32 B
-        3 : field 16 (withdrawals_root) missing / not 32 B
-            (pre-Shanghai headers don't have this field)
-
-    Composes PR-K20 `rlp_list_nth_item`. Uses two 8-byte `.data`
-    scratch slots (`hebr_offset`, `hebr_length`). -/
-def headerExtractBlockRootsFunction : String :=
-  "header_extract_block_roots:\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
@@ -5865,6 +5837,81 @@ def headerExtractBlockRootsFunction : String :=
   ".Lhebgp_ok:\n" ++
   "  li a0, 0\n" ++
   ".Lhebgp_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_blob_gas_pair`: probe BuildUnit. Reads
+    (header_len, header_bytes), writes (status, blob_gas_used,
+    excess_blob_gas) to OUTPUT (24 bytes total). -/
+def ziskHeaderExtractBlobGasPairPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  li a2, 0xa0010008           # 16B output at OUTPUT + 8\n" ++
+  "  sd zero, 0(a2); sd zero, 8(a2)\n" ++
+  "  jal ra, header_extract_blob_gas_pair\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhebgp_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractBlobGasPairFunction ++ "\n" ++
+  ".Lhebgp_pdone:"
+
+def ziskHeaderExtractBlobGasPairDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractBlobGasPairProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractBlobGasPairPrologue
+  dataAsm     := ziskHeaderExtractBlobGasPairDataSection
+}
+
+/-! ## header_extract_block_roots -- PR-K95
+
+    Extract the three remaining 32-byte root fields from an
+    Amsterdam header that the existing extended-decode helpers
+    don't cover:
+
+       0..32   transactions_root  (field 4)
+      32..64   receipt_root       (field 5)
+      64..96   withdrawals_root   (field 16)
+
+    Used by `validate_block_body` callers that cross-check the
+    body's tx/receipt/withdrawal MPT roots against the consensus-
+    layer commitment, and by the trie-rebuild path. The state_root
+    (field 3) is already covered by PR-K39 `header_extended_decode`;
+    `parent_hash` by PR-K17; `coinbase` by PR-K55.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 96-byte output ptr (caller-supplied)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : field 4 (transactions_root) missing / not 32 B
+        2 : field 5 (receipt_root) missing / not 32 B
+        3 : field 16 (withdrawals_root) missing / not 32 B
+            (pre-Shanghai headers don't have this field)
+
+    Composes PR-K20 `rlp_list_nth_item`. Uses two 8-byte `.data`
+    scratch slots (`hebr_offset`, `hebr_length`). -/
+def headerExtractBlockRootsFunction : String :=
+  "header_extract_block_roots:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_len\n" ++
   "  mv s2, a2                  # 96B output ptr\n" ++
   "  # Field 4: transactions_root → out[0..32]\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
@@ -5930,10 +5977,6 @@ def headerExtractBlockRootsFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret"
 
-/-- `zisk_header_extract_blob_gas_pair`: probe BuildUnit. Reads
-    (header_len, header_bytes), writes (status, blob_gas_used,
-    excess_blob_gas) to OUTPUT (24 bytes total). -/
-def ziskHeaderExtractBlobGasPairPrologue : String :=
 /-- `zisk_header_extract_block_roots`: probe BuildUnit. Reads
     (header_len, header_bytes), writes (status, 3 × 32-byte roots)
     to OUTPUT (104 bytes total). -/
@@ -5942,29 +5985,6 @@ def ziskHeaderExtractBlockRootsPrologue : String :=
   "  li a3, 0x40000000\n" ++
   "  ld a1, 8(a3)                # header_len\n" ++
   "  addi a0, a3, 16             # header ptr\n" ++
-  "  li a2, 0xa0010008           # 16B output at OUTPUT + 8\n" ++
-  "  sd zero, 0(a2); sd zero, 8(a2)\n" ++
-  "  jal ra, header_extract_blob_gas_pair\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lhebgp_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  headerExtractBlobGasPairFunction ++ "\n" ++
-  ".Lhebgp_pdone:"
-
-def ziskHeaderExtractBlobGasPairDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
-def ziskHeaderExtractBlobGasPairProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractBlobGasPairPrologue
-  dataAsm     := ziskHeaderExtractBlobGasPairDataSection
   "  li a2, 0xa0010008           # 96B output at OUTPUT + 8\n" ++
   "  # Pre-zero 96 bytes (12 dwords).\n" ++
   "  mv t0, a2; li t1, 12\n" ++
