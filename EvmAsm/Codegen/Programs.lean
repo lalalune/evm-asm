@@ -9851,6 +9851,91 @@ def ziskBlockBodyDecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockBodyDecodeDataSection
 }
 
+/-! ## block_validate_ommers_empty -- PR-K84
+
+    Verify the post-merge invariant that a block body's ommers
+    field is the empty RLP list (`0xc0`). The Merge fork removed
+    uncle blocks; every post-merge block must have an empty
+    ommers list, matching `EMPTY_OMMERS_HASH` in the header.
+
+    Composes PR-K83 `block_body_decode` + a single-byte check
+    on the ommers sub-list.
+
+    An empty RLP list is encoded as the single byte `0xc0`. So
+    the check is:
+      - ommers_length == 1
+      - body_rlp[ommers_offset] == 0xc0
+
+    Calling convention:
+      a0 (input)  : block_body_rlp ptr
+      a1 (input)  : block_body_rlp byte length
+      ra (input)  : return
+      a0 (output) :
+        0 : ommers is empty (post-merge ok)
+        1 : ommers is non-empty (reject — pre-merge or invalid)
+        2 : RLP parse failure
+
+    Uses 48 bytes of `.data` scratch (`bvoe_struct`). -/
+def blockValidateOmmersEmptyFunction : String :=
+  "block_validate_ommers_empty:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  mv s0, a0                   # body_rlp ptr\n" ++
+  "  la a2, bvoe_struct\n" ++
+  "  jal ra, block_body_decode\n" ++
+  "  bnez a0, .Lbvoe_parse_fail\n" ++
+  "  la t0, bvoe_struct\n" ++
+  "  ld t1, 24(t0)               # ommers_length\n" ++
+  "  li t2, 1\n" ++
+  "  bne t1, t2, .Lbvoe_not_empty\n" ++
+  "  ld t3, 16(t0)               # ommers_offset\n" ++
+  "  add t3, s0, t3\n" ++
+  "  lbu t4, 0(t3)\n" ++
+  "  li t5, 0xc0\n" ++
+  "  bne t4, t5, .Lbvoe_not_empty\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvoe_ret\n" ++
+  ".Lbvoe_not_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvoe_ret\n" ++
+  ".Lbvoe_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lbvoe_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_ommers_empty`: probe BuildUnit. Reads
+    (body_len, body_bytes) from host input, writes 8-byte status
+    to OUTPUT. -/
+def ziskBlockValidateOmmersEmptyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # body_len\n" ++
+  "  addi a0, a3, 16             # body ptr\n" ++
+  "  jal ra, block_validate_ommers_empty\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbvoe_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockValidateOmmersEmptyFunction ++ "\n" ++
+  ".Lbvoe_pdone:"
+
+def ziskBlockValidateOmmersEmptyDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "bvoe_struct:\n" ++
+  "  .zero 48"
+
+def ziskBlockValidateOmmersEmptyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateOmmersEmptyPrologue
+  dataAsm     := ziskBlockValidateOmmersEmptyDataSection
+}
+
 /-! ## process_withdrawal -- PR-K77
 
     Apply a Shanghai+ Withdrawal credit to a recipient's account
@@ -11571,6 +11656,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_validate_transaction_full" => some ziskValidateTransactionFullProbeUnit
   | "zisk_withdrawal_decode"    => some ziskWithdrawalDecodeProbeUnit
   | "zisk_block_body_decode"    => some ziskBlockBodyDecodeProbeUnit
+  | "zisk_block_validate_ommers_empty" => some ziskBlockValidateOmmersEmptyProbeUnit
   | "zisk_process_withdrawal"   => some ziskProcessWithdrawalProbeUnit
   | "zisk_process_withdrawals_block" => some ziskProcessWithdrawalsBlockProbeUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
@@ -11668,6 +11754,7 @@ def knownProgramNames : List String :=
    "zisk_validate_transaction_full",
    "zisk_withdrawal_decode",
    "zisk_block_body_decode",
+   "zisk_block_validate_ommers_empty",
    "zisk_process_withdrawal",
    "zisk_process_withdrawals_block",
    "zisk_withdrawals_sum_amounts",
