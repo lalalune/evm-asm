@@ -392,6 +392,18 @@ theorem n4CallAddbackBeqQOutV4_val256_conservation_of_runtime_top_nonzero
   rw [n4CallAddbackBeqIterWithDoubleAddback_qOutV4_of_runtime_borrow h_borrow] at h
   exact h
 
+/-- Pure quotient extraction for the call-addback conservation shape. -/
+theorem quotient_eq_div_of_mul_add_remainder_lt {aVal bVal qVal rVal : Nat}
+    (hb_pos : 0 < bVal)
+    (h_eq : aVal = qVal * bVal + rVal)
+    (h_rem_lt : rVal < bVal) :
+    qVal = aVal / bVal := by
+  rw [h_eq]
+  rw [Nat.add_comm]
+  rw [Nat.add_mul_div_right _ _ hb_pos]
+  rw [Nat.div_eq_of_lt h_rem_lt]
+  rw [Nat.zero_add]
+
 end EvmWord
 
 end EvmAsm.Evm64
