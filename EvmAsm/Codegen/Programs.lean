@@ -1991,6 +1991,118 @@ def ziskHeadersParentHashProbeUnit : BuildUnit := {
   dataAsm     := ziskHeadersParentHashDataSection
 }
 
+/-! ## header_validate_parent_hash -- PR-K94
+
+    Per-header parent-hash continuity check from `validate_header`
+    in `forks/amsterdam/fork.py`:
+
+      block_parent_hash = keccak256(rlp.encode(parent_header))
+      if header.parent_hash != block_parent_hash:
+          raise InvalidBlock
+
+    The single-pair check that anchors a block to its parent. Used
+    by `validate_header` directly; the multi-header walk in
+    `validate_headers(headers, parent_header)` consists of K18-style
+    pairwise iterations of exactly this primitive (K18 already
+    handles the iteration via the SSZ digest table, but expects a
+    pre-computed digest array; K94 is the standalone form that
+    callers without that pipeline can use).
+
+    Composes:
+      - PR-K17 `headers_parent_hash`  — extract this header's
+                                        parent_hash field (RLP[0])
+      - PR-K3  `zkvm_keccak256`       — Keccak-f[1600] sponge
+
+    Calling convention:
+      a0 (input)  : this_header_rlp ptr
+      a1 (input)  : this_header_rlp byte length
+      a2 (input)  : parent_header_rlp ptr
+      a3 (input)  : parent_header_rlp byte length
+      ra (input)  : return
+      a0 (output) :
+        0 : match — parent_hash field == keccak256(parent_rlp)
+        1 : RLP parse failure of this_header (field 0 not 32 B)
+        2 : mismatch — both decode/hash succeeded, values differ
+
+    Uses 64 bytes of `.data` scratch (`hvph_claimed` 32 B +
+    `hvph_computed` 32 B). -/
+def headerValidateParentHashFunction : String :=
+  "header_validate_parent_hash:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a2                   # parent_rlp ptr (stash)\n" ++
+  "  mv s1, a3                   # parent_rlp_len (stash)\n" ++
+  "  # Step 1: extract this header's parent_hash (field 0).\n" ++
+  "  la a2, hvph_claimed\n" ++
+  "  jal ra, headers_parent_hash\n" ++
+  "  beqz a0, .Lhvph_hash\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhvph_ret\n" ++
+  ".Lhvph_hash:\n" ++
+  "  # Step 2: keccak256(parent_rlp) → hvph_computed.\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  la a2, hvph_computed\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # zkvm_keccak256 always returns 0 (ZKVM_EOK).\n" ++
+  "  # Step 3: byte-by-byte compare (32 bytes via 4 × dword).\n" ++
+  "  la t0, hvph_claimed\n" ++
+  "  la t1, hvph_computed\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lhvph_diff\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lhvph_diff\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lhvph_diff\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lhvph_diff\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhvph_ret\n" ++
+  ".Lhvph_diff:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhvph_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_validate_parent_hash`: probe BuildUnit. Reads
+    (this_len, parent_len, this_bytes ‖ parent_bytes) from host
+    input, writes 8-byte status to OUTPUT.
+    Input layout:
+      bytes  0.. 8 : this_header_len
+      bytes  8..16 : parent_header_len
+      bytes 16..   : this_header_rlp ‖ parent_header_rlp -/
+def ziskHeaderValidateParentHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # this_header_len\n" ++
+  "  ld a3, 16(a4)               # parent_header_len\n" ++
+  "  addi a0, a4, 24             # this_header_ptr\n" ++
+  "  add a2, a0, a1              # parent_header_ptr\n" ++
+  "  jal ra, header_validate_parent_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhvph_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  headersParentHashFunction ++ "\n" ++
+  headerValidateParentHashFunction ++ "\n" ++
+  ".Lhvph_pdone:"
+
+def ziskHeaderValidateParentHashDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "hvph_claimed:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "hvph_computed:\n" ++
+  "  .zero 32"
+
+def ziskHeaderValidateParentHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderValidateParentHashPrologue
+  dataAsm     := ziskHeaderValidateParentHashDataSection
+}
+
 /-! ## headers_validate_chain -- PR-K18 parent_hash chain check
 
     Composes PR-K16 `headers_keccak_array` (build per-header
@@ -11871,6 +11983,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
   | "zisk_headers_parent_hash"  => some ziskHeadersParentHashProbeUnit
+  | "zisk_header_validate_parent_hash" => some ziskHeaderValidateParentHashProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
@@ -11971,6 +12084,7 @@ def knownProgramNames : List String :=
    "zisk_headers_keccak_chain",
    "zisk_headers_keccak_array",
    "zisk_headers_parent_hash",
+   "zisk_header_validate_parent_hash",
    "zisk_headers_validate_chain",
    "zisk_witness_lookup_by_hash",
    "zisk_rlp_list_nth_item",
