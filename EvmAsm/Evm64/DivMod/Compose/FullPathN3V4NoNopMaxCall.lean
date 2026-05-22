@@ -436,4 +436,40 @@ theorem divK_loop_n3_unified_from_source_exact_loopIterScratch_v4_noNop
         v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal
         retMem dMem dloMem scratchUn0 scratchMem halign hb1 hc1 hb0 hc0)
 
+/-- Helper: instantiate the v4 no-NOP exact-`x1` n=3 loop with explicit
+    normalized values. This is the callable-ready analogue of
+    `evm_div_n3_loop_unified_inst_noNop`, with the v4 div128 scratch cell and
+    caller-owned `x1` split out of the loop source. -/
+theorem evm_div_n3_loop_unified_inst_noNop_exact_x1_v4
+    (bltu_1 bltu_0 : Bool) (sp base : Word)
+    (shift antiShift b0' b1' b2' b3' u0 u1 u2 u3 u4 : Word)
+    (v10Old v11Old jMem : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu_1 : bltu_1 = BitVec.ult u4 b2')
+    (hbltu_0 : bltu_0 =
+      match bltu_1 with
+      | false => BitVec.ult (iterN3Max b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word)).2.2.2.1 b2'
+      | true =>
+        BitVec.ult
+          (iterWithDoubleAddback (divKTrialCallV4QHat u4 u3 b2')
+            b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word)).2.2.2.1 b2')
+    (hcarry2 : Carry2NzAll b0' b1' b2' b3') :
+    cpsTripleWithin 448 (base + loopBodyOff) (base + denormOff) (divCode_noNop_v4 base)
+      (loopN3PreWithScratchV4NoX1 sp jMem (3 : Word) shift u0 v10Old v11Old antiShift
+        b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word) u0 (0 : Word) (0 : Word)
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopN3UnifiedPostV4NoX1 bltu_1 bltu_0 sp base
+        b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word) u0
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal)) :=
+  divK_loop_n3_unified_from_source_exact_loopIterScratch_v4_noNop
+    bltu_1 bltu_0 sp base
+    jMem (3 : Word) shift u0 v10Old v11Old antiShift
+    b0' b1' b2' b3' u1 u2 u3 u4 (0 : Word) u0 (0 : Word) (0 : Word) raVal
+    retMem dMem dloMem scratchUn0 scratchMem
+    halign hbltu_1 hbltu_0 hcarry2
+
 end EvmAsm.Evm64
