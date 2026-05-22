@@ -91,6 +91,32 @@ theorem n4CallAddbackBeqIterWithDoubleAddback_qOutV4_of_runtime_borrow {a b : Ev
   n4CallAddbackBeqIterWithDoubleAddback_qOutV4_of_borrow
     (n4CallAddbackBeqBorrow_raw_of_runtime h_borrow)
 
+/-- The packaged v4 n=4 call-addback runtime carry2 predicate is the raw
+    double-addback progress predicate over the normalized marker limbs. -/
+theorem n4CallAddbackBeqCarry2Nz_of_runtime {a b : EvmWord}
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    isAddbackCarry2Nz
+      (n4CallAddbackBeqQHatV4 a b)
+      (n4CallAddbackBeqB0Prime b)
+      (n4CallAddbackBeqB1Prime b)
+      (n4CallAddbackBeqB2Prime b)
+      (n4CallAddbackBeqB3Prime b)
+      (n4CallAddbackBeqU0 a b)
+      (n4CallAddbackBeqU1 a b)
+      (n4CallAddbackBeqU2 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqU4 a b) := by
+  have h_raw := isAddbackCarry2NzN4CallV4Evm_raw h_carry2
+  simp_rw [divKTrialCallV4QHat_eq_div128Quot_v4] at h_raw
+  rw [n4CallAddbackBeqQHatV4_eq_normalized]
+  unfold isAddbackCarry2Nz
+  unfold n4CallAddbackBeqB0Prime n4CallAddbackBeqB1Prime
+    n4CallAddbackBeqB2Prime n4CallAddbackBeqB3Prime
+    n4CallAddbackBeqU0 n4CallAddbackBeqU1 n4CallAddbackBeqU2
+    n4CallAddbackBeqU3 n4CallAddbackBeqU4 n4CallAddbackBeqShift
+    n4CallAddbackBeqAntiShift
+  simpa using h_raw
+
 end EvmWord
 
 end EvmAsm.Evm64
