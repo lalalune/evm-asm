@@ -962,7 +962,7 @@ def evmSmodV4DataSection : String :=
     ((evmSmodV4Dividend ++ evmSmodV4Divisor).map emitDword)
 
 def evmSmodV4Unit : BuildUnit := {
-  body        := EvmAsm.Evm64.evm_smod_v4
+  body        := EvmAsm.Evm64.evm_smod
   prologueAsm := evmSmodV4Prologue
   epilogueAsm := evmSmodV4Epilogue
   dataAsm     := evmSmodV4DataSection
@@ -973,7 +973,7 @@ def evmSmodV4Unit : BuildUnit := {
 def evm_smod_v4_from_input : Program :=
   LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
   copy64 .x12 .x5 .x6 ++
-  EvmAsm.Evm64.evm_smod_v4
+  EvmAsm.Evm64.evm_smod
 
 def evmSmodV4FromInputPrologue : String :=
   "  la x1, after_smod\n" ++
