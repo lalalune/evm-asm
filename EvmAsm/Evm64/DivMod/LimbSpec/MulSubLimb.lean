@@ -119,4 +119,29 @@ theorem divK_addback_limb_spec_within
   have I7 := sd_spec_gen_within .x6 .x2 uBase uNew u_i u_off (base + 28)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7
 
+/-- Code requirement for `divK_mulsub_limb_spec_within`. -/
+abbrev divKMulsubLimbCode (v_off u_off : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 v_off))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x7 .x11 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.MULHU .x5 .x11 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.ADD .x7 .x7 .x10))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.SLTU .x10 .x7 .x10))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.ADD .x10 .x10 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.LD .x2 .x6 u_off))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SLTU .x5 .x2 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.SUB .x2 .x2 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.ADD .x10 .x10 .x5))
+   (CodeReq.singleton (base + 40) (.SD .x6 .x2 u_off)))))))))))
+
+/-- Code requirement for `divK_addback_limb_spec_within`. -/
+abbrev divKAddbackLimbCode (v_off u_off : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 v_off))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x2 .x6 u_off))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x2 .x2 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SLTU .x7 .x2 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.ADD .x2 .x2 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.SLTU .x5 .x2 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x7 .x7 .x5))
+   (CodeReq.singleton (base + 28) (.SD .x6 .x2 u_off))))))))
+
 end EvmAsm.Evm64

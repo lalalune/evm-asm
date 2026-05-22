@@ -279,5 +279,45 @@ theorem sar_sign_fill_path_spec_within (sp : Word)
   have S3 := sd_spec_gen_within .x12 .x5 (sp + 32) (BitVec.sshiftRight v3 63) v3 24 (base + 24)
   runBlock LD0 SR AD S0 S1 S2 S3
 
+/-- Bundled postcondition for `sar_body_1_spec_within`. Hides result0-2 and signExt. -/
+@[irreducible]
+def sarBody1Post (sp bit_shift antiShift mask v1 v2 v3 : Word) : Assertion :=
+  let result0 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+  let result1 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
+  let result2 := BitVec.sshiftRight v3 (bit_shift.toNat % 64)
+  let signExt := BitVec.sshiftRight result2 63
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result2) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ signExt) ** (.x11 ↦ᵣ mask) **
+  (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ signExt)
+
+/-- Bundled postcondition for `sar_body_0_spec_within`. Hides result0-3. -/
+@[irreducible]
+def sarBody0Post (sp bit_shift antiShift mask v0 v1 v2 v3 : Word) : Assertion :=
+  let result0 := (v0 >>> (bit_shift.toNat % 64)) ||| ((v1 <<< (antiShift.toNat % 64)) &&& mask)
+  let result1 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+  let result2 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
+  let result3 := BitVec.sshiftRight v3 (bit_shift.toNat % 64)
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result3) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v3 <<< (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+  (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)
+
+/-- Bundled postcondition for `sar_body_2_spec_within`. Hides result0/result1/signExt. -/
+@[irreducible]
+def sarBody2Post (sp bit_shift antiShift mask v2 v3 : Word) : Assertion :=
+  let result0 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
+  let result1 := BitVec.sshiftRight v3 (bit_shift.toNat % 64)
+  let signExt := BitVec.sshiftRight result1 63
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result1) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ signExt) ** (.x11 ↦ᵣ mask) **
+  (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ signExt) ** ((sp + 24) ↦ₘ signExt)
+
+/-- Bundled postcondition for `sar_body_3_spec_within`. Hides result0/signExt. -/
+@[irreducible]
+def sarBody3Post (sp bit_shift antiShift mask v3 : Word) : Assertion :=
+  let result0 := BitVec.sshiftRight v3 (bit_shift.toNat % 64)
+  let signExt := BitVec.sshiftRight result0 63
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result0) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ signExt) ** (.x11 ↦ᵣ mask) **
+  (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ signExt) ** ((sp + 16) ↦ₘ signExt) ** ((sp + 24) ↦ₘ signExt)
 
 end EvmAsm.Evm64

@@ -15,7 +15,8 @@
   Issue #1337 algorithm fix migration / Issue #61 stack spec closure.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Div128
+import EvmAsm.Evm64.DivMod.Compose.Div128Post
+import EvmAsm.Evm64.DivMod.Compose.V4NoNop
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2v4
 import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
 
@@ -30,7 +31,7 @@ open EvmAsm.Rv64
 -- ============================================================================
 
 -- v4 helper: singleton at index k of divK_div128_v4 ⊆ ofProg-based v4 cr.
--- Mirrors `d128_v2_sub` but uses `divK_div128_v4`.
+-- Mirrors `d128_sub` but uses `divK_div128_v4`.
 private theorem d128_v4_sub {base : Word} (k : Nat) (addr : Word) (instr : Instr)
     (hk : k < divK_div128_v4.length)
     (h_addr : addr = (base + div128Off) + BitVec.ofNat 64 (4 * k))
@@ -43,7 +44,8 @@ private theorem d128_v4_sub {base : Word} (k : Nat) (addr : Word) (instr : Instr
 
 /-- Bundled postcondition for `div128_v4_spec`.
 
-    Mirrors `div128V2SpecPost` but uses `q0''` (post-Phase-2b-2nd-D3)
+    Mirrors `div128SpecPost` but uses `q0''` (post-Phase-2b-2nd-D3)
+
     instead of `q0'`, matching `div128Quot_v4`'s output. The Phase 1
     intermediates (q1, rhat, q1c, rhatc, q1', rhat', q1'', rhat'') are
     identical between v2 and v4 — the v4 fix is in Phase 2b only.
@@ -111,12 +113,12 @@ def div128V4SpecPost (sp retAddr d uLo uHi scratchMem : Word) : Assertion :=
   let x7Exit_step2 := if rhat2cHi ≠ 0 then un21
                       else if rhat2'Hi ≠ 0 then q0Dlo1
                       else q0Dlo2
-  let x1Exit_step2 := if rhat2cHi ≠ 0 then rhat2cHi
+  let x9Exit_step2 := if rhat2cHi ≠ 0 then rhat2cHi
                       else if rhat2'Hi ≠ 0 then rhat2'Hi
                       else rhat2'Un0
   (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ q1'') **
   (.x5 ↦ᵣ q0'') ** (.x7 ↦ᵣ x7Exit_step2) **
-  (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ x1Exit_step2) ** (.x11 ↦ᵣ q) **
+  (.x6 ↦ᵣ dHi) ** (.x9 ↦ᵣ x9Exit_step2) ** (.x11 ↦ᵣ q) **
   (.x0 ↦ᵣ (0 : Word)) **
   (sp + signExtend12 3968 ↦ₘ retAddr) **
   (sp + signExtend12 3960 ↦ₘ d) **
@@ -147,7 +149,7 @@ def div128V4SpecPost (sp retAddr d uLo uHi scratchMem : Word) : Assertion :=
 
     Estimated: ~700 LOC for the full proof (vs ~600 for v2). -/
 theorem div128_v4_spec (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1Old v6Old v11Old : Word)
+    (v9Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem scratchMem : Word)
     (_halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
     cpsTripleWithin 73 (base + div128Off) retAddr
@@ -156,7 +158,7 @@ theorem div128_v4_spec (sp retAddr d uLo uHi : Word) (base : Word)
        -- 3936 (used to save rhat2c across the un0 LD clobber).
        (.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -187,7 +189,7 @@ theorem div128_v4_spec (sp retAddr d uLo uHi : Word) (base : Word)
   let rhat'' := if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2
                 then rhat' + dHi else rhat'
   -- Block 1: Phase 1 (base+1072 → base+1112).
-  have hph1 := divK_div128_phase1_spec_within sp retAddr d uLo uHi v1Old v6Old v11Old
+  have hph1 := divK_div128_phase1_spec_within sp retAddr d uLo uHi v9Old v6Old v11Old
     retMem dMem dloMem un0Mem (base + div128Off)
   have hph1e := cpsTripleWithin_extend_code (hmono := by
     exact CodeReq.union_sub (d128_v4_sub 0 _ _ (by decide) (by bv_addr) (by decide))
@@ -244,8 +246,8 @@ theorem div128_v4_spec (sp retAddr d uLo uHi : Word) (base : Word)
     (fun h hp => by xperm_hyp hp) hph1f hst1f
   -- Block 3: compute_un21 (base+1212 → base+1232).
   let x5Exit_st1 := if rhatHi2 = 0 then qDlo2 else qDlo1
-  let x1Exit_st1 := if rhatHi2 = 0 then rhatUn1' else rhatHi2
-  have hcu := divK_div128_compute_un21_spec_within sp q1'' rhat'' un1 x1Exit_st1 x5Exit_st1 dLo
+  let x9Exit_st1 := if rhatHi2 = 0 then rhatUn1' else rhatHi2
+  have hcu := divK_div128_compute_un21_spec_within sp q1'' rhat'' un1 x9Exit_st1 x5Exit_st1 dLo
     (base + div128Off + 140)
   rw [show (base + div128Off + 140 : Word) + 20 = base + div128Off + 160 from by bv_addr] at hcu
   have hcue := cpsTripleWithin_extend_code (hmono := by
@@ -304,7 +306,7 @@ theorem div128_v4_spec (sp retAddr d uLo uHi : Word) (base : Word)
   let x7Exit_step2 := if rhat2cHi ≠ 0 then un21
                       else if rhat2'Hi ≠ 0 then q0Dlo1
                       else q0Dlo2
-  let x1Exit_step2 := if rhat2cHi ≠ 0 then rhat2cHi
+  let x9Exit_step2 := if rhat2cHi ≠ 0 then rhat2cHi
                       else if rhat2'Hi ≠ 0 then rhat2'Hi
                       else rhat2'Un0
   let x11Exit_step2 := if rhat2cHi ≠ 0 then rhat2c
@@ -320,7 +322,7 @@ theorem div128_v4_spec (sp retAddr d uLo uHi : Word) (base : Word)
       (d128_v4_sub 74 _ _ (by decide) (by bv_addr) (by decide)))))
     hend
   have hendf := cpsTripleWithin_frameR
-    ((.x7 ↦ᵣ x7Exit_step2) ** (.x6 ↦ᵣ dHi) ** (.x1 ↦ᵣ x1Exit_step2) **
+    ((.x7 ↦ᵣ x7Exit_step2) ** (.x6 ↦ᵣ dHi) ** (.x9 ↦ᵣ x9Exit_step2) **
      (.x0 ↦ᵣ (0 : Word)) **
      (sp + signExtend12 3960 ↦ₘ d) ** (sp + signExtend12 3952 ↦ₘ dLo) **
      (sp + signExtend12 3944 ↦ₘ un0) ** (sp + signExtend12 3936 ↦ₘ mem3936Exit))
@@ -339,13 +341,13 @@ theorem div128_v4_spec (sp retAddr d uLo uHi : Word) (base : Word)
     Future v4-migrated specs (loop body, full path) will use this
     lifted form. -/
 theorem div128_v4_spec_shared (sp retAddr d uLo uHi : Word) (base : Word)
-    (v1Old v6Old v11Old : Word)
+    (v9Old v6Old v11Old : Word)
     (retMem dMem dloMem un0Mem scratchMem : Word)
     (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
     cpsTripleWithin 73 (base + div128Off) retAddr (sharedDivModCode_v4 base)
       ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
        (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
-       (.x6 ↦ᵣ v6Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
        (.x0 ↦ᵣ (0 : Word)) **
        (sp + signExtend12 3968 ↦ₘ retMem) **
        (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -354,7 +356,27 @@ theorem div128_v4_spec_shared (sp retAddr d uLo uHi : Word) (base : Word)
        (sp + signExtend12 3936 ↦ₘ scratchMem))
       (div128V4SpecPost sp retAddr d uLo uHi scratchMem) :=
   cpsTripleWithin_extend_code (hmono := shared_b12_div128_v4_sub)
-    (div128_v4_spec sp retAddr d uLo uHi base v1Old v6Old v11Old
+    (div128_v4_spec sp retAddr d uLo uHi base v9Old v6Old v11Old
+      retMem dMem dloMem un0Mem scratchMem halign)
+
+/-- Lifted `div128_v4_spec` over `sharedDivModCodeNoNop_v4 base`. -/
+theorem div128_v4_spec_shared_noNop (sp retAddr d uLo uHi : Word) (base : Word)
+    (v9Old v6Old v11Old : Word)
+    (retMem dMem dloMem un0Mem scratchMem : Word)
+    (halign : (retAddr + signExtend12 0) &&& ~~~1 = retAddr) :
+    cpsTripleWithin 73 (base + div128Off) retAddr (sharedDivModCodeNoNop_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** (.x10 ↦ᵣ d) **
+       (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
+       (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem))
+      (div128V4SpecPost sp retAddr d uLo uHi scratchMem) :=
+  cpsTripleWithin_extend_code (hmono := sharedNoNop_b11_div128_v4_sub)
+    (div128_v4_spec sp retAddr d uLo uHi base v9Old v6Old v11Old
       retMem dMem dloMem un0Mem scratchMem halign)
 
 end EvmAsm.Evm64

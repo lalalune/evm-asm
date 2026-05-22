@@ -15,8 +15,10 @@
   - step / stepN: single-step and multi-step execution over code memory
 -/
 
--- `Program` transitively imports `Instructions` and (via `Instructions`) `Basic`.
-import EvmAsm.Rv64.Program
+-- `Instructions` transitively imports `Basic`. `Program` is not used in this
+-- module — its consumers (RLP/opcode programs, ControlFlow) import `Program`
+-- directly.
+import EvmAsm.Rv64.Instructions
 
 namespace EvmAsm.Rv64
 
@@ -326,7 +328,8 @@ theorem loadProgram_programAt {base : Word} {prog : List Instr}
     LH/LHU/SH trap on misaligned or out-of-range addresses.
     EBREAK traps (returns none).
     WRITE (t0 = 0x02) to fd 13 appends bytes from memory to public values.
-    COMMIT (t0 = 0x10) appends (a0, a1) to committed outputs.
+    write_output (t0 = 0x10) appends a1 bytes from memory at a0 to public
+    output bytes.
     Other ECALLs continue execution. -/
 def step (s : MachineState) : Option MachineState :=
   match s.code s.pc with
@@ -400,23 +403,19 @@ def step (s : MachineState) : Option MachineState :=
         some ((s.appendPublicValues bytes).setPC (s.pc + 4))
       else
         some (s.setPC (s.pc + 4))  -- other fd: continue
-    else if t0 == (0x10 : Word) then  -- COMMIT syscall
-      some ((s.appendCommit (s.getReg .x10) (s.getReg .x11)).setPC (s.pc + 4))
-    else if t0 == (0xF0 : Word) then  -- HINT_LEN syscall
-      -- SP1: returns actual byte count of input stream
-      let len := BitVec.ofNat 64 s.privateInput.length
-      some ((s.setReg .x10 len).setPC (s.pc + 4))
-    else if t0 == (0xF1 : Word) then  -- HINT_READ syscall
-      let addr := s.getReg .x10
-      let nbytes := s.getReg .x11
-      let nbytesVal := nbytes.toNat
-      -- SP1: pops nbytes bytes, groups into 8-byte LE dwords, writes to dword-aligned memory
-      if nbytesVal ≤ s.privateInput.length then
-        let bytes := s.privateInput.take nbytesVal
-        let s' := { s with privateInput := s.privateInput.drop nbytesVal }
-        some ((s'.writeBytesAsWords addr bytes).setPC (s.pc + 4))
+    else if t0 == (0x10 : Word) then  -- write_output syscall
+      some ((s.writeOutput (s.getReg .x10) (s.getReg .x11)).setPC (s.pc + 4))
+    else if t0 == (0xF2 : Word) then  -- read_input syscall (zkvm-standards C ABI)
+      -- Idempotent: writes (inputBufBase, privateInput.length) to the
+      -- two out-pointers supplied in a0/a1. Does not mutate input state.
+      -- a0 = &buf_ptr  →  [a0] := s.inputBufBase
+      -- a1 = &buf_size →  [a1] := s.privateInput.length (as 64-bit Word)
+      if isValidDwordAccess (s.getReg .x10) && isValidDwordAccess (s.getReg .x11) then
+        let s' := s.setMem (s.getReg .x10) s.inputBufBase
+        let s'' := s'.setMem (s.getReg .x11) (BitVec.ofNat 64 s.privateInput.length)
+        some (s''.setPC (s.pc + 4))
       else
-        none  -- trap: not enough input (SP1: panic)
+        none  -- trap: out-pointer is not a valid dword address
     else some (execInstrBr s .ECALL)  -- other ecalls continue
   | some i => some (execInstrBr s i)
 
@@ -618,19 +617,26 @@ theorem step_ecall_continue {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL)
     (ht0 : s.getReg .x5 ≠ 0)
     (ht0_nw : s.getReg .x5 ≠ (0x02 : Word))
-    (ht0_nc : s.getReg .x5 ≠ (0x10 : Word))
-    (ht0_nhl : s.getReg .x5 ≠ (0xF0 : Word))
-    (ht0_nhr : s.getReg .x5 ≠ (0xF1 : Word)) :
+    (ht0_nwo : s.getReg .x5 ≠ (0x10 : Word))
+    (ht0_nri : s.getReg .x5 ≠ (0xF2 : Word)) :
     step s = some (execInstrBr s .ECALL) := by
-  simp only [step, hfetch, beq_iff_eq, ht0, ht0_nw, ht0_nc, ht0_nhl, ht0_nhr, ↓reduceIte]
+  simp only [step, hfetch, beq_iff_eq, ht0, ht0_nw, ht0_nwo, ht0_nri, ↓reduceIte]
 
-/-- COMMIT syscall (SP1 convention: t0 = 0x10) appends (a0, a1) to committed outputs. -/
+/-- `write_output` syscall (t0 = 0x10) appends a1 bytes from memory at a0. -/
+theorem step_ecall_write_output {s : MachineState}
+    (hfetch : s.code s.pc = some .ECALL)
+    (ht0 : s.getReg .x5 = BitVec.ofNat 64 0x10) :
+    step s =
+      some ((s.writeOutput (s.getReg .x10) (s.getReg .x11)).setPC (s.pc + 4)) := by
+  simp [step, hfetch, ht0]
+
+@[deprecated step_ecall_write_output (since := "2026-05-08")]
 theorem step_ecall_commit {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL)
     (ht0 : s.getReg .x5 = BitVec.ofNat 64 0x10) :
     step s =
-      some ((s.appendCommit (s.getReg .x10) (s.getReg .x11)).setPC (s.pc + 4)) := by
-  simp [step, hfetch, ht0]
+      some ((s.writeOutput (s.getReg .x10) (s.getReg .x11)).setPC (s.pc + 4)) :=
+  step_ecall_write_output hfetch ht0
 
 /-- WRITE syscall to FD_PUBLIC_VALUES (t0 = 0x02, fd = 13) appends bytes from memory. -/
 theorem step_ecall_write_public {s : MachineState}
@@ -650,33 +656,29 @@ theorem step_ecall_write_other {s : MachineState}
   simp only [step, hfetch, ht0, beq_iff_eq, hfd, ite_false]
   simp (config := { decide := true })
 
-/-- HINT_LEN syscall (SP1 convention: t0 = 0xF0) returns privateInput.length in a0. -/
-theorem step_ecall_hint_len {s : MachineState}
+/-- `read_input` syscall (zkvm-standards C ABI, t0 = 0xF2): idempotently writes
+    (inputBufBase, privateInput.length) to the out-pointers in a0/a1. -/
+theorem step_ecall_read_input {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL)
-    (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF0) :
-    step s =
-      some ((s.setReg .x10 (BitVec.ofNat 64 s.privateInput.length)).setPC (s.pc + 4)) := by
-  simp [step, hfetch, ht0]
+    (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF2)
+    (hvalid_a0 : isValidDwordAccess (s.getReg .x10) = true)
+    (hvalid_a1 : isValidDwordAccess (s.getReg .x11) = true) :
+    let s' := s.setMem (s.getReg .x10) s.inputBufBase
+    let s'' := s'.setMem (s.getReg .x11) (BitVec.ofNat 64 s.privateInput.length)
+    step s = some (s''.setPC (s.pc + 4)) := by
+  simp [step, hfetch, ht0, isValidDwordAccess, isValidMemAddr, isAligned8,
+    MEM_START, MEM_END] at hvalid_a0 hvalid_a1 ⊢
+  omega
 
-/-- HINT_READ syscall (SP1 convention: t0 = 0xF1) reads bytes from privateInput into memory as LE dwords. -/
-theorem step_ecall_hint_read {s : MachineState}
+/-- `read_input` syscall traps when the first out-pointer is not a valid dword address. -/
+theorem step_ecall_read_input_trap_a0 {s : MachineState}
     (hfetch : s.code s.pc = some .ECALL)
-    (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF1)
-    (hsuff : (s.getReg .x11).toNat ≤ s.privateInput.length) :
-    step s =
-      let nbytesVal := (s.getReg .x11).toNat
-      let bytes := s.privateInput.take nbytesVal
-      let s' := { s with privateInput := s.privateInput.drop nbytesVal }
-      some ((s'.writeBytesAsWords (s.getReg .x10) bytes).setPC (s.pc + 4)) := by
-  simp [step, hfetch, ht0, hsuff]
-
-/-- HINT_READ syscall traps when not enough input is available. -/
-theorem step_ecall_hint_read_trap {s : MachineState}
-    (hfetch : s.code s.pc = some .ECALL)
-    (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF1)
-    (hinsuff : ¬ ((s.getReg .x11).toNat ≤ s.privateInput.length)) :
+    (ht0 : s.getReg .x5 = BitVec.ofNat 64 0xF2)
+    (hinvalid : isValidDwordAccess (s.getReg .x10) = false) :
     step s = none := by
-  simp [step, hfetch, ht0, hinsuff]
+  simp [step, hfetch, ht0, isValidDwordAccess, isValidMemAddr, isAligned8,
+    MEM_START, MEM_END] at hinvalid ⊢
+  omega
 
 /-- Multi-step execution (n steps). -/
 def stepN : Nat → MachineState → Option MachineState
@@ -750,7 +752,10 @@ theorem code_step {s s' : MachineState} (h : step s = some s') :
                         | (simp at h; done)
                         | (split at h <;> first
                             | (simp only [Option.some.injEq] at h; rw [← h]; simp)
-                            | (simp at h; done))))))))
+                            | (simp at h; done)
+                            | (split at h <;> first
+                                | (simp only [Option.some.injEq] at h; rw [← h]; simp)
+                                | (simp at h; done)))))))))
 
 /-- stepN preserves code memory. -/
 theorem code_stepN {k : Nat} {s s' : MachineState} (h : stepN k s = some s') :

@@ -116,29 +116,29 @@ theorem divK_div128_clamp_q1_merged_spec_within (q1 rhat dHi v5Old : Word) (base
 
 /-- div128 clamp q0: test q0 >= 2^32, conditionally decrement and adjust rhat2.
     Instrs [33]-[36]. Both BEQ paths merge at base+16. -/
-theorem divK_div128_clamp_q0_merged_spec_within (q0 rhat2 dHi v1Old : Word) (base : Word) :
+theorem divK_div128_clamp_q0_merged_spec_within (q0 rhat2 dHi v9Old : Word) (base : Word) :
     let hi := q0 >>> (32 : BitVec 6).toNat
     let q0' := if hi = 0 then q0 else q0 + signExtend12 4095
     let rhat2' := if hi = 0 then rhat2 else rhat2 + dHi
     let cr :=
-      CodeReq.union (CodeReq.singleton base (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x1 .x0 12))
+      CodeReq.union (CodeReq.singleton base (.SRLI .x9 .x5 32))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x9 .x0 12))
       (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x5 .x5 4095))
        (CodeReq.singleton (base + 12) (.ADD .x11 .x11 .x6))))
     cpsTripleWithin 4 base (base + 16) cr
       ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
-       (.x1 ↦ᵣ v1Old) ** (.x0 ↦ᵣ 0))
+       (.x9 ↦ᵣ v9Old) ** (.x0 ↦ᵣ 0))
       ((.x5 ↦ᵣ q0') ** (.x11 ↦ᵣ rhat2') ** (.x6 ↦ᵣ dHi) **
-       (.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
+       (.x9 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
   intro hi q0' rhat2' cr
   have hbody : cpsTripleWithin 1 base (base + 4) cr
       ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
-       (.x1 ↦ᵣ v1Old) ** (.x0 ↦ᵣ 0))
+       (.x9 ↦ᵣ v9Old) ** (.x0 ↦ᵣ 0))
       ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
-       (.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
-    have I0 := srli_spec_gen_within .x1 .x5 v1Old q0 32 base (by nofun)
+       (.x9 ↦ᵣ hi) ** (.x0 ↦ᵣ 0)) := by
+    have I0 := srli_spec_gen_within .x9 .x5 v9Old q0 32 base (by nofun)
     runBlock I0
-  have hbeq_raw := beq_spec_gen_within .x1 .x0 (12 : BitVec 13) hi (0 : Word) (base + 4)
+  have hbeq_raw := beq_spec_gen_within .x9 .x0 (12 : BitVec 13) hi (0 : Word) (base + 4)
   have ha_t : (base + 4) + signExtend13 (12 : BitVec 13) = base + 16 := by rv64_addr
   have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
   rw [ha_t, ha_f] at hbeq_raw
@@ -146,13 +146,13 @@ theorem divK_div128_clamp_q0_merged_spec_within (q0 rhat2 dHi v1Old : Word) (bas
     ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi))
     (by pcFree) hbeq_raw
   have hbeq_ext : cpsBranchWithin 1 (base + 4) cr
-      (((.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word))) **
+      (((.x9 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word))) **
        ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi)))
       (base + 16)
-        (((.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜hi = 0⌝) **
+        (((.x9 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜hi = 0⌝) **
          ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi)))
       (base + 8)
-        (((.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜hi ≠ 0⌝) **
+        (((.x9 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜hi ≠ 0⌝) **
          ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi))) :=
     fun R hR s hcr hPR hpc =>
       hbeq_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
@@ -189,7 +189,7 @@ theorem divK_div128_clamp_q0_merged_spec_within (q0 rhat2 dHi v1Old : Word) (bas
         ((.x5 ↦ᵣ (q0 + signExtend12 4095)) ** (.x11 ↦ᵣ (rhat2 + dHi)) ** (.x6 ↦ᵣ dHi)) := by
       runBlock I1 I2
     have hcorr_framed := cpsTripleWithin_frameR
-      ((.x1 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x9 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)))
       (by pcFree) hcorr
     have full := cpsTripleWithin_seq_perm_same_cr
       (fun h hp => by
@@ -199,5 +199,14 @@ theorem divK_div128_clamp_q0_merged_spec_within (q0 rhat2 dHi v1Old : Word) (bas
     exact cpsTripleWithin_weaken
       (fun h hp => hp)
       (fun h hp => by xperm_hyp hp) full
+
+/-- Bundled postcondition for `divK_div128_clamp_q1_merged_spec_within`. -/
+@[irreducible]
+def divKDiv128ClampQ1Post (q1 rhat dHi : Word) : Assertion :=
+  let hi := q1 >>> (32 : BitVec 6).toNat
+  let q1' := if hi = 0 then q1 else q1 + signExtend12 4095
+  let rhat' := if hi = 0 then rhat else rhat + dHi
+  (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x6 ↦ᵣ dHi) **
+  (.x5 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word))
 
 end EvmAsm.Evm64

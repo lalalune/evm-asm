@@ -240,11 +240,44 @@ inductive Instr where
 -- Memory constraints
 -- ============================================================================
 
-/-- Valid memory region start. -/
+/-! ### Valid-memory zones
+
+  The verified machine model recognises three disjoint regions as
+  "valid memory" (see GitHub issue #5164 for the rationale). Each is
+  a contiguous `[lo, hi]` byte range; `isValidMemAddr` is the
+  disjunction over all three.
+
+  The legacy zone (`MEM_START..MEM_END`) is unchanged; the other two
+  match ziskemu's host-IO map (`EvmAsm/Codegen/Driver.lean:68-82`,
+  `EvmAsm/Codegen/Programs.lean`):
+
+  | Zone | Range | Purpose |
+  |---|---|---|
+  | Legacy | `0x20..0x78000000` | scratch/heap touched by verified opcodes |
+  | Input  | `0x40000000..0x40002000` | ziskemu `INPUT_ADDR` (8 KiB) |
+  | RAM    | `0xa0000000..0xc0000000` | ziskemu `.data` + `OUTPUT_ADDR` |
+-/
+
+/-- Legacy valid memory region start (low-scratch zone, unchanged
+    from before #5164). -/
 def MEM_START : Nat := 0x20
 
-/-- Valid memory region end. -/
+/-- Legacy valid memory region end (low-scratch zone). -/
 def MEM_END : Nat := 0x78000000
+
+/-- Input-buffer zone start. Matches ziskemu's `INPUT_ADDR`
+    (`EvmAsm/Codegen/Programs.lean`). -/
+def INPUT_MEM_START : Nat := 0x40000000
+
+/-- Input-buffer zone end. 8 KiB above `INPUT_MEM_START`. -/
+def INPUT_MEM_END : Nat := 0x40002000
+
+/-- RAM zone start. Covers ziskemu's writable `.data` section base
+    (`-Tdata=0xa0000000`) and `OUTPUT_ADDR = 0xa0010000`. -/
+def RAM_MEM_START : Nat := 0xa0000000
+
+/-- RAM zone end. Matches ziskemu's writable region tail. -/
+def RAM_MEM_END : Nat := 0xc0000000
 
 /-- Address is 8-byte aligned (doubleword). -/
 def isAligned8 (addr : Word) : Bool := addr.toNat % 8 == 0
@@ -252,9 +285,14 @@ def isAligned8 (addr : Word) : Bool := addr.toNat % 8 == 0
 /-- Address is 4-byte aligned. -/
 def isAligned4 (addr : Word) : Bool := addr.toNat % 4 == 0
 
-/-- Address is in valid memory range. -/
+/-- Address is in valid memory range -- one of three disjoint zones
+    (see issue #5164). The first disjunct preserves the pre-#5164
+    behaviour for unchanged proofs; the additional disjuncts admit
+    addresses in ziskemu's `INPUT_ADDR` and writable-RAM regions. -/
 def isValidMemAddr (addr : Word) : Bool :=
-  decide (MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ MEM_END)
+  (decide (MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ MEM_END)) ||
+  (decide (INPUT_MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ INPUT_MEM_END)) ||
+  (decide (RAM_MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ RAM_MEM_END))
 
 /-- Valid doubleword memory access: in range AND 8-byte aligned. -/
 def isValidDwordAccess (addr : Word) : Bool :=
@@ -271,7 +309,10 @@ def isValidMemAccess (addr : Word) : Bool :=
     isValidMemAccess addr = (isValidMemAddr addr && isAligned4 addr) := rfl
 
 @[simp] theorem isValidMemAddr_eq {addr : Word} :
-    isValidMemAddr addr = (decide (MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ MEM_END)) := rfl
+    isValidMemAddr addr =
+      ((decide (MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ MEM_END)) ||
+       (decide (INPUT_MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ INPUT_MEM_END)) ||
+       (decide (RAM_MEM_START ≤ addr.toNat) && decide (addr.toNat ≤ RAM_MEM_END))) := rfl
 
 @[simp] theorem isAligned8_eq (addr : Word) :
     isAligned8 addr = (addr.toNat % 8 == 0) := rfl
@@ -354,6 +395,9 @@ def byteOffset (addr : Word) : Nat := (addr &&& 7#64).toNat
 -- Machine State
 -- ============================================================================
 
+/-- Default guest-visible base for the abstract `read_input` buffer. -/
+def defaultInputBufBase : Word := 0x0000000080000000#64
+
 /-- The machine state: a register file, memory, code memory, and program counter.
     Memory is doubleword-addressable (8-byte aligned addresses map to 64-bit words). -/
 structure MachineState where
@@ -365,12 +409,14 @@ structure MachineState where
   code : Word → Option Instr := fun _ => none
   /-- Program counter -/
   pc   : Word
-  /-- Committed public outputs (a0, a1) from COMMIT syscalls -/
+  /-- Legacy SP1 word-pair commits, retained for compatibility with old examples. -/
   committed : List (Word × Word) := []
-  /-- Accumulated public values from WRITE syscalls (flat byte stream) -/
+  /-- Accumulated public output bytes from `write_output`/WRITE syscalls. -/
   publicValues : List (BitVec 8) := []
   /-- Private input stream (flat byte list, consumed by HINT_READ) -/
   privateInput : List (BitVec 8) := []
+  /-- Guest-visible base address of the abstract `read_input` buffer. -/
+  inputBufBase : Word := defaultInputBufBase
 
 namespace MachineState
 
@@ -452,6 +498,10 @@ def readBytes (s : MachineState) (base : Word) : Nat → List (BitVec 8)
   | 0 => []
   | n + 1 => s.getByte base :: readBytes s (base + 1) n
 
+/-- zkvm-standards `write_output(ptr, size)`: append bytes read from guest memory. -/
+def writeOutput (s : MachineState) (ptr size : Word) : MachineState :=
+  s.appendPublicValues (s.readBytes ptr size.toNat)
+
 end MachineState
 
 /-- Convert up to 8 bytes (little-endian) into a 64-bit word, zero-padding if fewer than 8. -/
@@ -521,6 +571,9 @@ termination_by l => l.length
 @[simp] theorem code_appendPublicValues {s : MachineState} {bytes : List (BitVec 8)} :
     (s.appendPublicValues bytes).code = s.code := by simp [appendPublicValues]
 
+@[simp] theorem code_writeOutput {s : MachineState} {ptr size : Word} :
+    (s.writeOutput ptr size).code = s.code := by simp [writeOutput]
+
 @[simp] theorem code_writeWords {s : MachineState} {base : Word} {words : List Word} :
     (s.writeWords base words).code = s.code := by
   induction words generalizing s base with
@@ -567,6 +620,10 @@ theorem getReg_setReg_eq {s : MachineState} {r : Reg} {v : Word}
 @[simp] theorem committed_setPC {s : MachineState} {v : Word} :
     (s.setPC v).committed = s.committed := by simp [setPC]
 
+@[simp] theorem committed_writeOutput {s : MachineState} {ptr size : Word} :
+    (s.writeOutput ptr size).committed = s.committed := by
+  simp [writeOutput, appendPublicValues]
+
 @[simp] theorem publicValues_setReg {s : MachineState} {r : Reg} {v : Word} :
     (s.setReg r v).publicValues = s.publicValues := by cases r <;> rfl
 
@@ -581,6 +638,11 @@ theorem getReg_setReg_eq {s : MachineState} {r : Reg} {v : Word}
 
 @[simp] theorem publicValues_setPC {s : MachineState} {v : Word} :
     (s.setPC v).publicValues = s.publicValues := by simp [setPC]
+
+@[simp] theorem publicValues_writeOutput {s : MachineState} {ptr size : Word} :
+    (s.writeOutput ptr size).publicValues =
+      s.publicValues ++ s.readBytes ptr size.toNat := by
+  simp [writeOutput, appendPublicValues]
 
 @[simp] theorem publicValues_appendCommit {s : MachineState} {a0 a1 : Word} :
     (s.appendCommit a0 a1).publicValues = s.publicValues := by simp [appendCommit]
@@ -600,11 +662,38 @@ theorem getReg_setReg_eq {s : MachineState} {r : Reg} {v : Word}
 @[simp] theorem privateInput_setPC {s : MachineState} {v : Word} :
     (s.setPC v).privateInput = s.privateInput := by simp [setPC]
 
+@[simp] theorem inputBufBase_setReg {s : MachineState} {r : Reg} {v : Word} :
+    (s.setReg r v).inputBufBase = s.inputBufBase := by cases r <;> rfl
+
+@[simp] theorem inputBufBase_setMem {s : MachineState} {a : Word} {v : Word} :
+    (s.setMem a v).inputBufBase = s.inputBufBase := by simp [setMem]
+
+@[simp] theorem inputBufBase_setByte {s : MachineState} {addr : Word} {b : BitVec 8} :
+    (s.setByte addr b).inputBufBase = s.inputBufBase := by simp [setByte]
+
+@[simp] theorem inputBufBase_setHalfword {s : MachineState} {addr : Word} {h : BitVec 16} :
+    (s.setHalfword addr h).inputBufBase = s.inputBufBase := by simp [setHalfword]
+
+@[simp] theorem inputBufBase_setPC {s : MachineState} {v : Word} :
+    (s.setPC v).inputBufBase = s.inputBufBase := by simp [setPC]
+
 @[simp] theorem privateInput_appendCommit {s : MachineState} {a0 a1 : Word} :
     (s.appendCommit a0 a1).privateInput = s.privateInput := by simp [appendCommit]
 
 @[simp] theorem privateInput_appendPublicValues {s : MachineState} {bytes : List (BitVec 8)} :
     (s.appendPublicValues bytes).privateInput = s.privateInput := by simp [appendPublicValues]
+
+@[simp] theorem privateInput_writeOutput {s : MachineState} {ptr size : Word} :
+    (s.writeOutput ptr size).privateInput = s.privateInput := by simp [writeOutput]
+
+@[simp] theorem inputBufBase_appendCommit {s : MachineState} {a0 a1 : Word} :
+    (s.appendCommit a0 a1).inputBufBase = s.inputBufBase := by simp [appendCommit]
+
+@[simp] theorem inputBufBase_appendPublicValues {s : MachineState} {bytes : List (BitVec 8)} :
+    (s.appendPublicValues bytes).inputBufBase = s.inputBufBase := by simp [appendPublicValues]
+
+@[simp] theorem inputBufBase_writeOutput {s : MachineState} {ptr size : Word} :
+    (s.writeOutput ptr size).inputBufBase = s.inputBufBase := by simp [writeOutput]
 
 -- appendCommit preservation lemmas
 
@@ -637,6 +726,17 @@ theorem getReg_setReg_eq {s : MachineState} {r : Reg} {v : Word}
 @[simp] theorem publicValues_appendPublicValues {s : MachineState} {bytes : List (BitVec 8)} :
     (s.appendPublicValues bytes).publicValues = s.publicValues ++ bytes := by
   simp [appendPublicValues]
+
+-- writeOutput preservation lemmas
+
+@[simp] theorem getReg_writeOutput {s : MachineState} {ptr size : Word} {r : Reg} :
+    (s.writeOutput ptr size).getReg r = s.getReg r := by cases r <;> rfl
+
+@[simp] theorem getMem_writeOutput (s : MachineState) (ptr size a : Word) :
+    (s.writeOutput ptr size).getMem a = s.getMem a := by simp [writeOutput]
+
+@[simp] theorem pc_writeOutput (s : MachineState) (ptr size : Word) :
+    (s.writeOutput ptr size).pc = s.pc := by simp [writeOutput]
 
 -- readWords / writeWords simp lemmas
 
@@ -672,6 +772,12 @@ theorem getReg_setReg_eq {s : MachineState} {r : Reg} {v : Word}
 
 @[simp] theorem privateInput_writeWords {s : MachineState} {base : Word} {words : List Word} :
     (s.writeWords base words).privateInput = s.privateInput := by
+  induction words generalizing s base with
+  | nil => rfl
+  | cons w ws ih => simp [writeWords, ih]
+
+@[simp] theorem inputBufBase_writeWords {s : MachineState} {base : Word} {words : List Word} :
+    (s.writeWords base words).inputBufBase = s.inputBufBase := by
   induction words generalizing s base with
   | nil => rfl
   | cons w ws ih => simp [writeWords, ih]
@@ -748,6 +854,17 @@ decreasing_by simp [List.length_drop]; omega
   | _ :: _ =>
     unfold writeBytesAsWords
     rw [privateInput_writeBytesAsWords]
+    simp
+termination_by bytes.length
+decreasing_by simp [List.length_drop]; omega
+
+@[simp] theorem inputBufBase_writeBytesAsWords {s : MachineState} {base : Word} {bytes : List (BitVec 8)} :
+    (s.writeBytesAsWords base bytes).inputBufBase = s.inputBufBase := by
+  match bytes with
+  | [] => unfold writeBytesAsWords; rfl
+  | _ :: _ =>
+    unfold writeBytesAsWords
+    rw [inputBufBase_writeBytesAsWords]
     simp
 termination_by bytes.length
 decreasing_by simp [List.length_drop]; omega

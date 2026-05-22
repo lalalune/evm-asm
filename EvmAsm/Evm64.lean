@@ -8,6 +8,13 @@
 -- opcode Program file via Stack → Basic).
 import EvmAsm.Evm64.CodeRegion
 
+-- Accelerator C ABI bridges (zkvm_accelerators.h)
+import EvmAsm.Evm64.Accelerators.Types
+import EvmAsm.Evm64.Accelerators.Status
+import EvmAsm.Evm64.Accelerators.SyscallIds
+import EvmAsm.Evm64.Accelerators.Dispatch
+import EvmAsm.Evm64.Accelerators.Coverage
+
 -- Stack operations
 import EvmAsm.Evm64.Pop
 import EvmAsm.Evm64.Push0
@@ -25,8 +32,7 @@ import EvmAsm.Evm64.Not
 import EvmAsm.Evm64.Add
 import EvmAsm.Evm64.Sub
 
--- EvmWordArith umbrella — pulls in helpers (AddbackPinning,
--- Div128NoWrapDischarge → Div128PhaseNoWrap) used by DivMod V4.
+-- EvmWordArith umbrella — pulls in helpers used by DivMod V4.
 -- Most leaves are already transitively reached via Add/DivMod; this
 -- import wires the remaining stragglers so they participate in the
 -- visible module graph.
@@ -55,6 +61,8 @@ import EvmAsm.Evm64.Exp
 
 -- DivMod (Knuth Algorithm D)
 import EvmAsm.Evm64.DivMod
+import EvmAsm.Evm64.DivMod.Callable
+import EvmAsm.Evm64.DivMod.CallableBzeroV4
 
 -- SDIV / SMOD skeletons (GH #90, signed division/modulo)
 import EvmAsm.Evm64.SDiv
@@ -71,6 +79,11 @@ import EvmAsm.Evm64.CallingConvention
 import EvmAsm.Evm64.Environment
 import EvmAsm.Evm64.Environment.Layout
 import EvmAsm.Evm64.Environment.Assertion
+import EvmAsm.Evm64.ReturnData.Basic
+import EvmAsm.Evm64.ReturnData.CopyArgs
+import EvmAsm.Evm64.ReturnData.CopyArgsStackDecode
+import EvmAsm.Evm64.ReturnData.CopyExec
+import EvmAsm.Evm64.ReturnData.CopyMemory
 import EvmAsm.Evm64.Env.Field
 import EvmAsm.Evm64.Env.Semantics
 import EvmAsm.Evm64.Env.Program
@@ -78,18 +91,71 @@ import EvmAsm.Evm64.Env.Spec
 import EvmAsm.Evm64.Env.StackSpec
 import EvmAsm.Evm64.Env.Wrappers
 import EvmAsm.Evm64.CallArgs
+import EvmAsm.Evm64.CallArgsStackDecode
+import EvmAsm.Evm64.CreateArgs
+import EvmAsm.Evm64.CreateArgsStackDecode
 import EvmAsm.Evm64.LogArgs
+import EvmAsm.Evm64.LogArgsStackDecode
 import EvmAsm.Evm64.TerminatingArgs
+import EvmAsm.Evm64.TerminatingArgsStackDecode
 
 -- Static gas schedule (#117)
 import EvmAsm.Evm64.Gas
 import EvmAsm.Evm64.Env.Gas
 import EvmAsm.Evm64.StorageGas
 import EvmAsm.Evm64.StorageAccess
+import EvmAsm.Evm64.StorageAccessWarm
 import EvmAsm.Evm64.StorageAccessOutcome
+import EvmAsm.Evm64.StorageArgs
 
 -- Opcode dispatch surface (#106)
 import EvmAsm.Evm64.Dispatch
+import EvmAsm.Evm64.Dispatch.Program
+import EvmAsm.Evm64.Dispatch.EntrySpec
+import EvmAsm.Evm64.Dispatch.EntryAddrBridge
+import EvmAsm.Evm64.Dispatch.TailSpec
+import EvmAsm.Evm64.Dispatch.Compose
+import EvmAsm.Evm64.Dispatch.Spec
+import EvmAsm.Evm64.JumpTable
+import EvmAsm.Evm64.ExecutableSpecOpcodeBridge
+import EvmAsm.Evm64.HandlerTable
+import EvmAsm.Evm64.HandlerTableByte
+import EvmAsm.Evm64.HandlerTableCompose
+import EvmAsm.Evm64.StackHandlers
+import EvmAsm.Evm64.Code.Basic
+import EvmAsm.Evm64.Code.CopyArgs
+import EvmAsm.Evm64.Code.CopyArgsStackDecode
+import EvmAsm.Evm64.Code.CopyExec
+import EvmAsm.Evm64.Code.CopyMemory
+import EvmAsm.Evm64.CodeHandlers
+import EvmAsm.Evm64.PushHandlers
+import EvmAsm.Evm64.ControlHandlers
+import EvmAsm.Evm64.MemoryHandlers
+import EvmAsm.Evm64.TerminatingHandlers
+import EvmAsm.Evm64.DupSwapHandlers
+import EvmAsm.Evm64.CalldataHandlers
+import EvmAsm.Evm64.ShiftHandlers
+import EvmAsm.Evm64.EnvHandlers
+import EvmAsm.Evm64.ReturnDataHandlers
+import EvmAsm.Evm64.ComparisonHandlers
+import EvmAsm.Evm64.BitwiseHandlers
+import EvmAsm.Evm64.ArithmeticHandlers
+import EvmAsm.Evm64.SupportedHandlers
+import EvmAsm.Evm64.SupportedHandlerByte
+import EvmAsm.Evm64.SupportedLoopBridge
+import EvmAsm.Evm64.InterpreterFetchProgram
+import EvmAsm.Evm64.HandlerLoopBridge
+import EvmAsm.Evm64.TerminatingLoopBridge
+import EvmAsm.Evm64.HandlerLoopSimulationBridge
+import EvmAsm.Evm64.InterpreterLoop
+import EvmAsm.Evm64.InterpreterLoopStatus
+import EvmAsm.Evm64.InterpreterSimulation
+import EvmAsm.Evm64.InterpreterLoopSimulation
+import EvmAsm.Evm64.InterpreterTrace
+import EvmAsm.Evm64.InterpreterTraceSimulation
+import EvmAsm.Evm64.InterpreterLoopCompose
+import EvmAsm.Evm64.InterpreterExecutableFetchBridge
+import EvmAsm.Evm64.InterpreterExecutableStepBridge
 
 -- Precompile dispatch surface (#116)
 import EvmAsm.Evm64.Precompile
@@ -99,7 +165,10 @@ import EvmAsm.Evm64.PrecompileDispatch
 -- EVM memory model (issue #99)
 import EvmAsm.Evm64.Memory
 import EvmAsm.Evm64.MemoryGas
+import EvmAsm.Evm64.KeccakArgs
+import EvmAsm.Evm64.KeccakArgsStackDecode
 import EvmAsm.Evm64.LogGas
+import EvmAsm.Evm64.LogArgsGas
 import EvmAsm.Evm64.TerminatingGas
 import EvmAsm.Evm64.EvmState
 import EvmAsm.Evm64.Termination
@@ -110,6 +179,16 @@ import EvmAsm.Evm64.MLoad
 
 -- Calldata helpers (issue #104)
 import EvmAsm.Evm64.Calldata.Basic
+import EvmAsm.Evm64.Calldata.LoadArgs
+import EvmAsm.Evm64.Calldata.LoadArgsStackDecode
 import EvmAsm.Evm64.Calldata.Size
 import EvmAsm.Evm64.Calldata.SizeProgram
 import EvmAsm.Evm64.Calldata.SizeSpec
+import EvmAsm.Evm64.Calldata.LoadProgram
+import EvmAsm.Evm64.Calldata.LoadStackCode
+import EvmAsm.Evm64.Calldata.CopyArgs
+import EvmAsm.Evm64.Calldata.CopyArgsStackDecode
+import EvmAsm.Evm64.Calldata.CopyExec
+import EvmAsm.Evm64.Calldata.CopyMemory
+import EvmAsm.Evm64.Calldata.CopyProgram
+import EvmAsm.Evm64.Calldata.CopySpec

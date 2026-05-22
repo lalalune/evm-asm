@@ -35,7 +35,7 @@ open EvmAsm.Rv64
     can compose it with the new `phase2b_guard_spec` + `prodcheck2_merged_spec`
     without re-stating the init/clamp code subsumption every time. -/
 theorem divK_div128_step2_upto_guard_spec_within
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
+    (sp un21 dHi v9Old v5Old v11Old dlo un0 : Word) (base : Word) :
     let q0 := rv64_divu un21 dHi
     let rhat2 := un21 - q0 * dHi
     let hi := q0 >>> (32 : BitVec 6).toNat
@@ -43,31 +43,31 @@ theorem divK_div128_step2_upto_guard_spec_within
     let rhat2c := if hi = 0 then rhat2 else rhat2 + dHi
     let cr :=
       CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 12))
       (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
        (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6)))))))
     cpsTripleWithin 7 base (base + 28) cr
       ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
       ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-       (.x1 ↦ᵣ hi) ** (.x11 ↦ᵣ rhat2c) **
+       (.x9 ↦ᵣ hi) ** (.x11 ↦ᵣ rhat2c) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
   intro q0 rhat2 hi q0c rhat2c cr
   have hcr_eq : cr =
       CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 12))
       (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
        (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6))))))) := rfl
-  have h1_raw := divK_div128_step2_init_spec_within un21 dHi v1Old v5Old v11Old base
+  have h1_raw := divK_div128_step2_init_spec_within un21 dHi v9Old v5Old v11Old base
   have h1 : cpsTripleWithin 3 base (base + 12) cr _ _ :=
     cpsTripleWithin_extend_code (h := h1_raw) (hmono := by
       rw [hcr_eq]; exact CodeReq.union_mono_tail (CodeReq.union_mono_tail
@@ -111,7 +111,7 @@ theorem divK_div128_step2_upto_guard_spec_within
     the taken path to base+68 (skipping mul-check when rhat2cHi ≠ 0) or
     falls through to base+36 (rhat2cHi = 0) where mul-check will run. -/
 theorem divK_div128_step2_thru_guard_spec_within
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
+    (sp un21 dHi v9Old v5Old v11Old dlo un0 : Word) (base : Word) :
     let q0 := rv64_divu un21 dHi
     let rhat2 := un21 - q0 * dHi
     let hi := q0 >>> (32 : BitVec 6).toNat
@@ -120,46 +120,46 @@ theorem divK_div128_step2_thru_guard_spec_within
     let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
     let cr :=
       CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 12))
       (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
       (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x1 .x11 32))
-       (CodeReq.singleton (base + 32) (.BNE .x1 .x0 36)))))))))
+      (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x9 .x11 32))
+       (CodeReq.singleton (base + 32) (.BNE .x9 .x0 36)))))))))
     cpsBranchWithin 9 base cr
       ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
       (base + 68)
         ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-         (.x1 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
+         (.x9 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi ≠ 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
       (base + 36)
         ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-         (.x1 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
+         (.x9 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
   intro q0 rhat2 hi q0c rhat2c rhat2cHi cr
   have hcr_eq : cr =
       CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 12))
       (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
       (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x1 .x11 32))
-       (CodeReq.singleton (base + 32) (.BNE .x1 .x0 36))))))))) := rfl
+      (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x9 .x11 32))
+       (CodeReq.singleton (base + 32) (.BNE .x9 .x0 36))))))))) := rfl
   -- h1 = step2_upto_guard_spec (cpsTripleWithin base..base+28, 7-singleton cr).
   -- Its cr is a STRUCTURAL PREFIX of thru_guard's cr: same 7 singletons,
   -- ending in `singleton (base+24) ADD` vs thru_guard's `union (sing 24 ADD)
   -- (union (sing 28 SRLI) (sing 32 BNE))`. So 6 union_mono_tails + 1
   -- union_mono_left (peeling sing 24 ADD from the head).
-  have h1_raw := divK_div128_step2_upto_guard_spec_within sp un21 dHi v1Old v5Old v11Old
+  have h1_raw := divK_div128_step2_upto_guard_spec_within sp un21 dHi v9Old v5Old v11Old
     dlo un0 base
   have h1 : cpsTripleWithin 7 base (base + 28) cr _ _ :=
     cpsTripleWithin_extend_code (h := h1_raw) (hmono := by
@@ -200,7 +200,7 @@ theorem divK_div128_step2_thru_guard_spec_within
     a cpsBranchWithin where BOTH legs end at base+68 (guard-fires skips directly;
     guard-doesn't-fire runs the mul-check). -/
 theorem divK_div128_step2_branch_merged_spec_within
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
+    (sp un21 dHi v9Old v5Old v11Old dlo un0 : Word) (base : Word) :
     let q0 := rv64_divu un21 dHi
     let rhat2 := un21 - q0 * dHi
     let hi := q0 >>> (32 : BitVec 6).toNat
@@ -212,61 +212,61 @@ theorem divK_div128_step2_branch_merged_spec_within
     let q0'Unguarded := if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c
     let cr :=
       CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 12))
       (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
       (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x1 .x11 32))
-      (CodeReq.union (CodeReq.singleton (base + 32) (.BNE .x1 .x0 36))
-      (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 40) (.MUL .x7 .x5 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 44) (.SLLI .x1 .x11 32))
+      (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x9 .x11 32))
+      (CodeReq.union (CodeReq.singleton (base + 32) (.BNE .x9 .x0 36))
+      (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x9 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 40) (.MUL .x7 .x5 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 44) (.SLLI .x9 .x11 32))
       (CodeReq.union (CodeReq.singleton (base + 48) (.LD .x11 .x12 3944))
-      (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x1 .x1 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 56) (.BLTU .x1 .x7 8))
+      (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x9 .x9 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 56) (.BLTU .x9 .x7 8))
       (CodeReq.union (CodeReq.singleton (base + 60) (.JAL .x0 8))
        (CodeReq.singleton (base + 64) (.ADDI .x5 .x5 4095)))))))))))))))))
     cpsBranchWithin 17 base cr
       ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
       (base + 68)  -- guard-fires path
         ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-         (.x1 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
+         (.x9 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi ≠ 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
       (base + 68)  -- guard-doesn't-fire + prodcheck2 (carries ⌜rhat2cHi = 0⌝)
         ((.x7 ↦ᵣ q0Dlo) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0'Unguarded) **
-         (.x1 ↦ᵣ rhat2Un0) ** (.x11 ↦ᵣ un0) **
+         (.x9 ↦ᵣ rhat2Un0) ** (.x11 ↦ᵣ un0) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
   intro q0 rhat2 hi q0c rhat2c q0Dlo rhat2Un0 rhat2cHi q0'Unguarded cr
   have hcr_eq : cr =
       CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 12))
       (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
       (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x1 .x11 32))
-      (CodeReq.union (CodeReq.singleton (base + 32) (.BNE .x1 .x0 36))
-      (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 40) (.MUL .x7 .x5 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 44) (.SLLI .x1 .x11 32))
+      (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x9 .x11 32))
+      (CodeReq.union (CodeReq.singleton (base + 32) (.BNE .x9 .x0 36))
+      (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x9 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 40) (.MUL .x7 .x5 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 44) (.SLLI .x9 .x11 32))
       (CodeReq.union (CodeReq.singleton (base + 48) (.LD .x11 .x12 3944))
-      (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x1 .x1 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 56) (.BLTU .x1 .x7 8))
+      (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x9 .x9 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 56) (.BLTU .x9 .x7 8))
       (CodeReq.union (CodeReq.singleton (base + 60) (.JAL .x0 8))
        (CodeReq.singleton (base + 64) (.ADDI .x5 .x5 4095))))))))))))))))) := rfl
   -- h1 = thru_guard_spec (cpsBranchWithin base..base+68|base+36, 9-singleton cr).
   -- Its cr is a STRUCTURAL PREFIX of branch_merged's 17-cr: same 8 outer unions,
   -- innermost differs (thru_guard = sing 32 BNE, branch_merged = union (sing 32 BNE) REST).
   -- So 8 union_mono_tails + 1 union_mono_left.
-  have h1_raw := divK_div128_step2_thru_guard_spec_within sp un21 dHi v1Old v5Old v11Old
+  have h1_raw := divK_div128_step2_thru_guard_spec_within sp un21 dHi v9Old v5Old v11Old
     dlo un0 base
   have h1 : cpsBranchWithin 9 base cr _ _ _ _ _ :=
     cpsBranchWithin_extend_code (h := h1_raw) (hmono := by
@@ -348,10 +348,10 @@ def divKDiv128Step2Post (sp un21 dHi dlo un0 : Word) : Assertion :=
   let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dlo un0
   let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
-  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
+  let x9Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let x11Exit := if rhat2cHi = 0 then un0 else rhat2c
   (.x7 ↦ᵣ x7Exit) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-  (.x1 ↦ᵣ x1Exit) ** (.x11 ↦ᵣ x11Exit) **
+  (.x9 ↦ᵣ x9Exit) ** (.x11 ↦ᵣ x11Exit) **
   (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
   (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)
 
@@ -360,20 +360,20 @@ def divKDiv128Step2Post (sp un21 dHi dlo un0 : Word) : Assertion :=
 @[irreducible]
 def divKDiv128Step2Code (base : Word) : CodeReq :=
   CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
-  (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
-  (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 12))
   (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
   (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6))
-  (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x1 .x11 32))
-  (CodeReq.union (CodeReq.singleton (base + 32) (.BNE .x1 .x0 36))
-  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x1 .x12 3952))
-  (CodeReq.union (CodeReq.singleton (base + 40) (.MUL .x7 .x5 .x1))
-  (CodeReq.union (CodeReq.singleton (base + 44) (.SLLI .x1 .x11 32))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x9 .x11 32))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.BNE .x9 .x0 36))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x9 .x12 3952))
+  (CodeReq.union (CodeReq.singleton (base + 40) (.MUL .x7 .x5 .x9))
+  (CodeReq.union (CodeReq.singleton (base + 44) (.SLLI .x9 .x11 32))
   (CodeReq.union (CodeReq.singleton (base + 48) (.LD .x11 .x12 3944))
-  (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x1 .x1 .x11))
-  (CodeReq.union (CodeReq.singleton (base + 56) (.BLTU .x1 .x7 8))
+  (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x9 .x9 .x11))
+  (CodeReq.union (CodeReq.singleton (base + 56) (.BLTU .x9 .x7 8))
   (CodeReq.union (CodeReq.singleton (base + 60) (.JAL .x0 8))
    (CodeReq.singleton (base + 64) (.ADDI .x5 .x5 4095)))))))))))))))))
 
@@ -389,10 +389,10 @@ def divKDiv128Step2Code (base : Word) : CodeReq :=
     breakdown is in that def's body. Bundling addresses the "many lets
     before cpsTripleWithin" elaboration anti-pattern (#1139). -/
 theorem divK_div128_step2_spec_within
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 : Word) (base : Word) :
+    (sp un21 dHi v9Old v5Old v11Old dlo un0 : Word) (base : Word) :
     cpsTripleWithin 17 base (base + 68) (divKDiv128Step2Code base)
       ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
       (divKDiv128Step2Post sp un21 dHi dlo un0) := by
@@ -407,33 +407,33 @@ theorem divK_div128_step2_spec_within
   let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
   let q0' := div128Quot_phase2b_q0' q0c rhat2c dlo un0
   let x7Exit := if rhat2cHi = 0 then q0Dlo else un21
-  let x1Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
+  let x9Exit := if rhat2cHi = 0 then rhat2Un0 else rhat2cHi
   let x11Exit := if rhat2cHi = 0 then un0 else rhat2c
   let cr :=
     CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-    (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-    (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1))
-    (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x1 .x5 32))
-    (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x1 .x0 12))
+    (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+    (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
+    (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
+    (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 12))
     (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
     (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6))
-    (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x1 .x11 32))
-    (CodeReq.union (CodeReq.singleton (base + 32) (.BNE .x1 .x0 36))
-    (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x1 .x12 3952))
-    (CodeReq.union (CodeReq.singleton (base + 40) (.MUL .x7 .x5 .x1))
-    (CodeReq.union (CodeReq.singleton (base + 44) (.SLLI .x1 .x11 32))
+    (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x9 .x11 32))
+    (CodeReq.union (CodeReq.singleton (base + 32) (.BNE .x9 .x0 36))
+    (CodeReq.union (CodeReq.singleton (base + 36) (.LD .x9 .x12 3952))
+    (CodeReq.union (CodeReq.singleton (base + 40) (.MUL .x7 .x5 .x9))
+    (CodeReq.union (CodeReq.singleton (base + 44) (.SLLI .x9 .x11 32))
     (CodeReq.union (CodeReq.singleton (base + 48) (.LD .x11 .x12 3944))
-    (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x1 .x1 .x11))
-    (CodeReq.union (CodeReq.singleton (base + 56) (.BLTU .x1 .x7 8))
+    (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x9 .x9 .x11))
+    (CodeReq.union (CodeReq.singleton (base + 56) (.BLTU .x9 .x7 8))
     (CodeReq.union (CodeReq.singleton (base + 60) (.JAL .x0 8))
      (CodeReq.singleton (base + 64) (.ADDI .x5 .x5 4095)))))))))))))))))
   -- Apply branch_merged to get a cpsBranchWithin with both legs at base+68.
-  have hbr := divK_div128_step2_branch_merged_spec_within sp un21 dHi v1Old v5Old v11Old
+  have hbr := divK_div128_step2_branch_merged_spec_within sp un21 dHi v9Old v5Old v11Old
     dlo un0 base
   -- Target post as a local assertion.
   let tgtPost : Assertion :=
     (.x7 ↦ᵣ x7Exit) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-    (.x1 ↦ᵣ x1Exit) ** (.x11 ↦ᵣ x11Exit) **
+    (.x9 ↦ᵣ x9Exit) ** (.x11 ↦ᵣ x11Exit) **
     (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
     (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)
   -- Helper: cpsTripleWithin_refl at base+68 is a zero-step identity triple; we
@@ -446,7 +446,7 @@ theorem divK_div128_step2_spec_within
   -- exits to un21/rhat2cHi/rhat2c, rewrite q0' to q0c via helper unfolding.
   have h_t : cpsTripleWithin 0 (base + 68) (base + 68) cr _ tgtPost := refl_of (P :=
     (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-    (.x1 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
+    (.x9 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
     (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi ≠ 0⌝ **
     (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) (by
     intro hp hP
@@ -466,18 +466,18 @@ theorem divK_div128_step2_spec_within
       unfold div128Quot_phase2b_q0'
       exact if_neg h_hi_ne
     have hx7 : x7Exit = un21 := if_neg h_hi_ne
-    have hx1 : x1Exit = rhat2cHi := if_neg h_hi_ne
+    have hx1 : x9Exit = rhat2cHi := if_neg h_hi_ne
     have hx11 : x11Exit = rhat2c := if_neg h_hi_ne
     show tgtPost hp
     show ((.x7 ↦ᵣ x7Exit) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-         (.x1 ↦ᵣ x1Exit) ** (.x11 ↦ᵣ x11Exit) **
+         (.x9 ↦ᵣ x9Exit) ** (.x11 ↦ᵣ x11Exit) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
          (sp + signExtend12 3952 ↦ₘ dlo) **
          (sp + signExtend12 3944 ↦ₘ un0)) hp
     rw [hq0', hx7, hx1, hx11]
     -- Strip the pure fact and permute.
     have hP' : ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-                (.x1 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
+                (.x9 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
                 (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
                 (sp + signExtend12 3952 ↦ₘ dlo) **
                 (sp + signExtend12 3944 ↦ₘ un0)) hp :=
@@ -490,7 +490,7 @@ theorem divK_div128_step2_spec_within
   have h_f : cpsTripleWithin 0 (base + 68) (base + 68) cr _ tgtPost := refl_of (P :=
     (.x7 ↦ᵣ q0Dlo) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ
       (if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c)) **
-    (.x1 ↦ᵣ rhat2Un0) ** (.x11 ↦ᵣ un0) **
+    (.x9 ↦ᵣ rhat2Un0) ** (.x11 ↦ᵣ un0) **
     (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
     (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) (by
     intro hp hP
@@ -510,10 +510,10 @@ theorem divK_div128_step2_spec_within
       unfold div128Quot_phase2b_q0'
       rw [if_pos h_hi_eq]
     have hx7 : x7Exit = q0Dlo := if_pos h_hi_eq
-    have hx1 : x1Exit = rhat2Un0 := if_pos h_hi_eq
+    have hx1 : x9Exit = rhat2Un0 := if_pos h_hi_eq
     have hx11 : x11Exit = un0 := if_pos h_hi_eq
     show ((.x7 ↦ᵣ x7Exit) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-         (.x1 ↦ᵣ x1Exit) ** (.x11 ↦ᵣ x11Exit) **
+         (.x9 ↦ᵣ x9Exit) ** (.x11 ↦ᵣ x11Exit) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
          (sp + signExtend12 3952 ↦ₘ dlo) **
          (sp + signExtend12 3944 ↦ₘ un0)) hp
@@ -521,7 +521,7 @@ theorem divK_div128_step2_spec_within
     -- Strip the pure fact and permute remaining atoms.
     have hP' : ((.x7 ↦ᵣ q0Dlo) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ
                 (if BitVec.ult rhat2Un0 q0Dlo then q0c + signExtend12 4095 else q0c)) **
-                (.x1 ↦ᵣ rhat2Un0) ** (.x11 ↦ᵣ un0) **
+                (.x9 ↦ᵣ rhat2Un0) ** (.x11 ↦ᵣ un0) **
                 (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
                 (sp + signExtend12 3952 ↦ₘ dlo) **
                 (sp + signExtend12 3944 ↦ₘ un0)) hp :=
@@ -530,5 +530,37 @@ theorem divK_div128_step2_spec_within
         (sepConj_mono_right (fun h' hp' => ((sepConj_pure_left h').1 hp').2))))))) hp hP
     xperm_hyp hP')
   exact cpsBranchWithin_merge_same_cr hbr h_t h_f
+
+/-- Code requirement for `divK_div128_step2_upto_guard_spec_within`. -/
+abbrev divKDiv128Step2UptoGuardCode (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 12))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
+   (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6)))))))
+
+/-- Bundled 9-instruction code for `divK_div128_step2_thru_guard_spec_within`. -/
+@[irreducible]
+def divKDiv128Step2ThruGuardCode (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 12))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x5 4095))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SRLI .x9 .x11 32))
+   (CodeReq.singleton (base + 32) (.BNE .x9 .x0 36)))))))))
+
+/-- The rhat2cHi value computed in `divK_div128_step2_thru_guard_spec_within`. -/
+abbrev divKDiv128Step2ThruGuardRhat2cHi (un21 dHi : Word) : Word :=
+  let q0 := rv64_divu un21 dHi
+  let rhat2 := un21 - q0 * dHi
+  let hi := q0 >>> (32 : BitVec 6).toNat
+  let rhat2c := if hi = 0 then rhat2 else rhat2 + dHi
+  rhat2c >>> (32 : BitVec 6).toNat
+
 
 end EvmAsm.Evm64

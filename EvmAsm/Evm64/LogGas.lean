@@ -37,19 +37,9 @@ def logDynamicCost
 @[simp] theorem logTopicDynamicCost_log0 :
     logTopicDynamicCost .log0 = 0 := rfl
 
-theorem logTopicDynamicCost_log4 :
-    logTopicDynamicCost .log4 = 1500 := rfl
-
 @[simp] theorem logDataDynamicCost_zero :
     logDataDynamicCost 0 = 0 := by
   simp [logDataDynamicCost, logGasPerDataByte]
-
-theorem logDynamicCost_eq
-    (kind : LogArgs.Kind) (sizeBytes offset length : Nat) :
-    logDynamicCost kind sizeBytes offset length =
-      logTopicDynamicCost kind + logDataDynamicCost length +
-        MemoryGas.memoryExpansionCost sizeBytes
-          (evmMemExpand sizeBytes offset length) := rfl
 
 theorem logDynamicCost_eq_charges_of_no_growth
     {kind : LogArgs.Kind} {sizeBytes offset length : Nat}

@@ -150,6 +150,26 @@ abbrev sharedDivModCode_v4 (base : Word) : CodeReq :=
     CodeReq.ofProg (base + div128Off)     divK_div128_v4          -- block 12 (v4)
   ]
 
+/-- Shared DIV/MOD code bundle with the NOP return slot omitted.
+    This is the shared-code analogue of `divCode_noNop` / `modCode_noNop`:
+    it keeps all blocks common to DIV and MOD except the epilogue and the
+    old NOP at `nopOff`. -/
+abbrev sharedDivModCodeNoNop (base : Word) : CodeReq :=
+  CodeReq.unionAll [
+    CodeReq.ofProg  base                  (divK_phaseA 1020),
+    CodeReq.ofProg (base + phaseBOff)     divK_phaseB,
+    CodeReq.ofProg (base + clzOff)        divK_clz,
+    CodeReq.ofProg (base + phaseC2Off)    (divK_phaseC2 172),
+    CodeReq.ofProg (base + normBOff)      divK_normB,
+    CodeReq.ofProg (base + normAOff)      (divK_normA 40),
+    CodeReq.ofProg (base + copyAUOff)     divK_copyAU,
+    CodeReq.ofProg (base + loopSetupOff)  (divK_loopSetup 464),
+    CodeReq.ofProg (base + loopBodyOff)   (divK_loopBody 560 7736),
+    CodeReq.ofProg (base + denormOff)     divK_denorm,
+    CodeReq.ofProg (base + zeroPathOff)   divK_zeroPath,
+    CodeReq.ofProg (base + div128Off)     divK_div128
+  ]
+
 -- Per-block subsumption: each shared block ⊆ divCode.
 -- Blocks 0-9 are at the same union positions; blocks 10-12 (shared) = blocks 11-13 (divCode).
 private theorem shared_b0_div {b : Word} : ∀ a i, (CodeReq.ofProg b (divK_phaseA 1020)) a = some i → (divCode b) a = some i := by
@@ -259,6 +279,321 @@ theorem shared_b12_div128_v4_sub {b : Word} :
   exact CodeReq.union_mono_left
 
 -- ============================================================================
+-- noNop variants: divCode / modCode minus block 12 (NOP at base + nopOff)
+--
+-- These 13-block CodeReq abbreviations are identical to `divCode` / `modCode`
+-- except they drop the `ADDI .x0 .x0 0` block at `base + nopOff` (block 12).
+--
+-- Motivation (evm-asm-ak8r1, GH #90 prep-D): the LP64-callable shims
+-- `evm_div_callable` / `evm_mod_callable` (Evm64/DivMod/Callable.lean) replace
+-- the NOP at the exit slot with `cc_ret`, leaving every other block at the
+-- same offset. So:
+--
+--   divCode_noNop ⊆ divCode               -- (NOP block dropped)
+--   divCode_noNop ⊆ evm_div_callable_code -- (NOP block dropped, same offsets)
+--   modCode_noNop ⊆ modCode
+--   modCode_noNop ⊆ evm_mod_callable_code
+--
+-- The first two are proved here; the callable_code subsumptions live in
+-- `DivMod/Callable.lean` next to the callable_code definitions.
+--
+-- Downstream use: refactor `evm_div_stack_spec` over `divCode_noNop` rather
+-- than `divCode`; then `cpsTripleWithin_extend_code` lifts to either
+-- `divCode` (existing wrappers) or `evm_div_callable_code` (new callable
+-- spec) in a single step.
+-- ============================================================================
+
+/-- 13-block CodeReq for `evm_div`'s phases minus the NOP at `nopOff`. -/
+abbrev divCode_noNop (base : Word) : CodeReq :=
+  CodeReq.unionAll [
+    CodeReq.ofProg  base                  (divK_phaseA 1020),     -- block 0
+    CodeReq.ofProg (base + phaseBOff)     divK_phaseB,            -- block 1
+    CodeReq.ofProg (base + clzOff)        divK_clz,               -- block 2
+    CodeReq.ofProg (base + phaseC2Off)    (divK_phaseC2 172),     -- block 3
+    CodeReq.ofProg (base + normBOff)      divK_normB,             -- block 4
+    CodeReq.ofProg (base + normAOff)      (divK_normA 40),        -- block 5
+    CodeReq.ofProg (base + copyAUOff)     divK_copyAU,            -- block 6
+    CodeReq.ofProg (base + loopSetupOff)  (divK_loopSetup 464),   -- block 7
+    CodeReq.ofProg (base + loopBodyOff)   (divK_loopBody 560 7736),-- block 8
+    CodeReq.ofProg (base + denormOff)     divK_denorm,            -- block 9
+    CodeReq.ofProg (base + epilogueOff)   (divK_div_epilogue 24), -- block 10
+    CodeReq.ofProg (base + zeroPathOff)   divK_zeroPath,          -- block 11
+    -- NO NOP block (block 12 omitted)
+    CodeReq.ofProg (base + div128Off)     divK_div128             -- block 12 (was 13)
+  ]
+
+/-- 13-block CodeReq for `evm_mod`'s phases minus the NOP at `nopOff`.
+    Identical to `divCode_noNop` except block 10 uses `divK_mod_epilogue`. -/
+abbrev modCode_noNop (base : Word) : CodeReq :=
+  CodeReq.unionAll [
+    CodeReq.ofProg  base                  (divK_phaseA 1020),
+    CodeReq.ofProg (base + phaseBOff)     divK_phaseB,
+    CodeReq.ofProg (base + clzOff)        divK_clz,
+    CodeReq.ofProg (base + phaseC2Off)    (divK_phaseC2 172),
+    CodeReq.ofProg (base + normBOff)      divK_normB,
+    CodeReq.ofProg (base + normAOff)      (divK_normA 40),
+    CodeReq.ofProg (base + copyAUOff)     divK_copyAU,
+    CodeReq.ofProg (base + loopSetupOff)  (divK_loopSetup 464),
+    CodeReq.ofProg (base + loopBodyOff)   (divK_loopBody 560 7736),
+    CodeReq.ofProg (base + denormOff)     divK_denorm,
+    CodeReq.ofProg (base + epilogueOff)   (divK_mod_epilogue 24), -- block 10 differs
+    CodeReq.ofProg (base + zeroPathOff)   divK_zeroPath,
+    CodeReq.ofProg (base + div128Off)     divK_div128
+  ]
+
+-- Per-block subsumption: each noNop block ⊆ divCode. Blocks 0-11 sit at the
+-- same union positions in both; the trailing div128 block is at position 12
+-- in noNop but position 13 in divCode (one extra skipBlock to bypass NOP).
+private theorem noNop_b0_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg b (divK_phaseA 1020)) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; exact CodeReq.union_mono_left
+private theorem noNop_b1_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseBOff) divK_phaseB) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b2_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + clzOff) divK_clz) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b3_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseC2Off) (divK_phaseC2 172)) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b4_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normBOff) divK_normB) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b5_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normAOff) (divK_normA 40)) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b6_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + copyAUOff) divK_copyAU) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b7_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopSetupOff) (divK_loopSetup 464)) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b8_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopBodyOff) (divK_loopBody 560 7736)) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b9_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + denormOff) divK_denorm) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b10_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + epilogueOff) (divK_div_epilogue 24)) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b11_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + zeroPathOff) divK_zeroPath) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b12_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + div128Off) divK_div128) a = some i → (divCode b) a = some i := by
+  unfold divCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+
+/-- divCode_noNop ⊆ divCode: every noNop block also occurs in divCode. -/
+theorem divCode_noNop_sub_divCode {base : Word} :
+    ∀ a i, (divCode_noNop base) a = some i → (divCode base) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]
+  exact CodeReq.union_split_mono noNop_b0_div
+    (CodeReq.union_split_mono noNop_b1_div
+    (CodeReq.union_split_mono noNop_b2_div
+    (CodeReq.union_split_mono noNop_b3_div
+    (CodeReq.union_split_mono noNop_b4_div
+    (CodeReq.union_split_mono noNop_b5_div
+    (CodeReq.union_split_mono noNop_b6_div
+    (CodeReq.union_split_mono noNop_b7_div
+    (CodeReq.union_split_mono noNop_b8_div
+    (CodeReq.union_split_mono noNop_b9_div
+    (CodeReq.union_split_mono noNop_b10_div
+    (CodeReq.union_split_mono noNop_b11_div
+    (CodeReq.union_split_mono noNop_b12_div
+    (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
+
+/-- The shared loop body block is present in `divCode_noNop`.
+
+    This public block-level inclusion is useful when rebuilding loop
+    compositions over the no-NOP code surface: unlike `sharedDivModCode`, the
+    no-NOP bundle omits the old return-slot NOP and can be used by callable
+    wrappers that preserve the caller's return address. -/
+theorem divK_loopBody_ofProg_sub_divCode_noNop {base : Word} :
+    ∀ a i, (CodeReq.ofProg (base + loopBodyOff) (divK_loopBody 560 7736)) a = some i →
+      (divCode_noNop base) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock
+  exact CodeReq.union_mono_left
+
+-- Shared no-NOP blocks as subsets of `divCode_noNop`.
+private theorem sharedNoNop_b0_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg b (divK_phaseA 1020)) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b1_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseBOff) divK_phaseB) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b2_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + clzOff) divK_clz) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b3_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseC2Off) (divK_phaseC2 172)) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b4_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normBOff) divK_normB) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b5_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normAOff) (divK_normA 40)) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b6_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + copyAUOff) divK_copyAU) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b7_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopSetupOff) (divK_loopSetup 464)) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b8_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopBodyOff) (divK_loopBody 560 7736)) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b9_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + denormOff) divK_denorm) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b10_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + zeroPathOff) divK_zeroPath) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b11_div {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + div128Off) divK_div128) a = some i → (divCode_noNop b) a = some i := by
+  unfold divCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+
+/-- `sharedDivModCodeNoNop ⊆ divCode_noNop`: every shared no-NOP block is
+    also present in the DIV no-NOP code bundle. -/
+theorem sharedDivModCodeNoNop_sub_divCode_noNop {base : Word} :
+    ∀ a i, (sharedDivModCodeNoNop base) a = some i →
+      (divCode_noNop base) a = some i := by
+  unfold sharedDivModCodeNoNop; simp only [CodeReq.unionAll_cons]
+  exact CodeReq.union_split_mono sharedNoNop_b0_div
+    (CodeReq.union_split_mono sharedNoNop_b1_div
+    (CodeReq.union_split_mono sharedNoNop_b2_div
+    (CodeReq.union_split_mono sharedNoNop_b3_div
+    (CodeReq.union_split_mono sharedNoNop_b4_div
+    (CodeReq.union_split_mono sharedNoNop_b5_div
+    (CodeReq.union_split_mono sharedNoNop_b6_div
+    (CodeReq.union_split_mono sharedNoNop_b7_div
+    (CodeReq.union_split_mono sharedNoNop_b8_div
+    (CodeReq.union_split_mono sharedNoNop_b9_div
+    (CodeReq.union_split_mono sharedNoNop_b10_div
+    (CodeReq.union_split_mono sharedNoNop_b11_div
+    (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h))))))))))))
+
+-- MOD side mirror.
+private theorem noNop_b0_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg b (divK_phaseA 1020)) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; exact CodeReq.union_mono_left
+private theorem noNop_b1_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseBOff) divK_phaseB) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b2_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + clzOff) divK_clz) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b3_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseC2Off) (divK_phaseC2 172)) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b4_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normBOff) divK_normB) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b5_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normAOff) (divK_normA 40)) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b6_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + copyAUOff) divK_copyAU) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b7_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopSetupOff) (divK_loopSetup 464)) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b8_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopBodyOff) (divK_loopBody 560 7736)) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b9_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + denormOff) divK_denorm) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b10_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + epilogueOff) (divK_mod_epilogue 24)) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b11_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + zeroPathOff) divK_zeroPath) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem noNop_b12_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + div128Off) divK_div128) a = some i → (modCode b) a = some i := by
+  unfold modCode; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+
+/-- modCode_noNop ⊆ modCode: every noNop block also occurs in modCode. -/
+theorem modCode_noNop_sub_modCode {base : Word} :
+    ∀ a i, (modCode_noNop base) a = some i → (modCode base) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]
+  exact CodeReq.union_split_mono noNop_b0_mod
+    (CodeReq.union_split_mono noNop_b1_mod
+    (CodeReq.union_split_mono noNop_b2_mod
+    (CodeReq.union_split_mono noNop_b3_mod
+    (CodeReq.union_split_mono noNop_b4_mod
+    (CodeReq.union_split_mono noNop_b5_mod
+    (CodeReq.union_split_mono noNop_b6_mod
+    (CodeReq.union_split_mono noNop_b7_mod
+    (CodeReq.union_split_mono noNop_b8_mod
+    (CodeReq.union_split_mono noNop_b9_mod
+    (CodeReq.union_split_mono noNop_b10_mod
+    (CodeReq.union_split_mono noNop_b11_mod
+    (CodeReq.union_split_mono noNop_b12_mod
+    (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
+
+-- Shared no-NOP blocks as subsets of `modCode_noNop`.
+private theorem sharedNoNop_b0_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg b (divK_phaseA 1020)) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b1_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseBOff) divK_phaseB) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b2_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + clzOff) divK_clz) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b3_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + phaseC2Off) (divK_phaseC2 172)) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b4_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normBOff) divK_normB) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b5_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + normAOff) (divK_normA 40)) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b6_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + copyAUOff) divK_copyAU) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b7_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopSetupOff) (divK_loopSetup 464)) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b8_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + loopBodyOff) (divK_loopBody 560 7736)) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b9_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + denormOff) divK_denorm) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b10_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + zeroPathOff) divK_zeroPath) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+private theorem sharedNoNop_b11_mod {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + div128Off) divK_div128) a = some i → (modCode_noNop b) a = some i := by
+  unfold modCode_noNop; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+
+/-- `sharedDivModCodeNoNop ⊆ modCode_noNop`: every shared no-NOP block is
+    also present in the MOD no-NOP code bundle. -/
+theorem sharedDivModCodeNoNop_sub_modCode_noNop {base : Word} :
+    ∀ a i, (sharedDivModCodeNoNop base) a = some i →
+      (modCode_noNop base) a = some i := by
+  unfold sharedDivModCodeNoNop; simp only [CodeReq.unionAll_cons]
+  exact CodeReq.union_split_mono sharedNoNop_b0_mod
+    (CodeReq.union_split_mono sharedNoNop_b1_mod
+    (CodeReq.union_split_mono sharedNoNop_b2_mod
+    (CodeReq.union_split_mono sharedNoNop_b3_mod
+    (CodeReq.union_split_mono sharedNoNop_b4_mod
+    (CodeReq.union_split_mono sharedNoNop_b5_mod
+    (CodeReq.union_split_mono sharedNoNop_b6_mod
+    (CodeReq.union_split_mono sharedNoNop_b7_mod
+    (CodeReq.union_split_mono sharedNoNop_b8_mod
+    (CodeReq.union_split_mono sharedNoNop_b9_mod
+    (CodeReq.union_split_mono sharedNoNop_b10_mod
+    (CodeReq.union_split_mono sharedNoNop_b11_mod
+    (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h))))))))))))
+
+-- ============================================================================
 -- Postcondition bundle for loopSetup (shift ≠ 0) path
 -- Encapsulates 11 let bindings (shift normalization of b[] and a[]) plus
 -- the full 30-atom assertion chain into a single opaque Assertion.
@@ -330,7 +665,7 @@ def divScratchValuesCall (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
   ((sp + signExtend12 3968) ↦ₘ retMem) **
   ((sp + signExtend12 3960) ↦ₘ dMem) **
   ((sp + signExtend12 3952) ↦ₘ dloMem) **
-  ((sp + signExtend12 3944) ↦ₘ scratch_un0)
+  ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1
 
 /-- Named unfold for `divScratchValuesCall`. -/
 theorem divScratchValuesCall_unfold {sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -341,7 +676,7 @@ theorem divScratchValuesCall_unfold {sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      ((sp + signExtend12 3968) ↦ₘ retMem) **
      ((sp + signExtend12 3960) ↦ₘ dMem) **
      ((sp + signExtend12 3952) ↦ₘ dloMem) **
-     ((sp + signExtend12 3944) ↦ₘ scratch_un0)) := by
+     ((sp + signExtend12 3944) ↦ₘ scratch_un0) ** regOwn .x1) := by
   delta divScratchValuesCall; rfl
 
 /-- Value-agnostic counterpart to `divScratchValues`: the same 15 cells but
@@ -404,7 +739,7 @@ def divScratchOwnCall (sp : Word) : Assertion :=
   memOwn (sp + signExtend12 3968) **
   memOwn (sp + signExtend12 3960) **
   memOwn (sp + signExtend12 3952) **
-  memOwn (sp + signExtend12 3944)
+  memOwn (sp + signExtend12 3944) ** regOwn .x1
 
 /-- Named unfold for `divScratchOwnCall`. Parallel to `divScratchOwn_unfold`
     and `divScratchValuesCall_unfold`. -/
@@ -414,12 +749,74 @@ theorem divScratchOwnCall_unfold {sp : Word} :
      memOwn (sp + signExtend12 3968) **
      memOwn (sp + signExtend12 3960) **
      memOwn (sp + signExtend12 3952) **
-     memOwn (sp + signExtend12 3944)) := by
+     memOwn (sp + signExtend12 3944) ** regOwn .x1) := by
   delta divScratchOwnCall; rfl
+
+/-- Callable-ready concrete call scratch bundle, with `x1` kept out of the
+    scratch ownership so wrappers can expose the exact return address as its
+    own atom. This is intentionally separate from `divScratchValuesCall`, whose
+    historical shape includes `regOwn .x1` for public dispatcher posts. -/
+@[irreducible]
+def divScratchValuesCallNoX1 (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem **
+  ((sp + signExtend12 3968) ↦ₘ retMem) **
+  ((sp + signExtend12 3960) ↦ₘ dMem) **
+  ((sp + signExtend12 3952) ↦ₘ dloMem) **
+  ((sp + signExtend12 3944) ↦ₘ scratch_un0)
+
+/-- Named unfold for `divScratchValuesCallNoX1`. -/
+theorem divScratchValuesCallNoX1_unfold {sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0 : Word} :
+    divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 =
+      (divScratchValues sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem **
+       ((sp + signExtend12 3968) ↦ₘ retMem) **
+       ((sp + signExtend12 3960) ↦ₘ dMem) **
+       ((sp + signExtend12 3952) ↦ₘ dloMem) **
+       ((sp + signExtend12 3944) ↦ₘ scratch_un0)) := by
+  delta divScratchValuesCallNoX1; rfl
+
+/-- Callable-ready ownership counterpart to `divScratchValuesCallNoX1`;
+    intentionally omits `regOwn .x1`. -/
+@[irreducible]
+def divScratchOwnCallNoX1 (sp : Word) : Assertion :=
+  divScratchOwn sp **
+  memOwn (sp + signExtend12 3968) **
+  memOwn (sp + signExtend12 3960) **
+  memOwn (sp + signExtend12 3952) **
+  memOwn (sp + signExtend12 3944)
+
+/-- Named unfold for `divScratchOwnCallNoX1`. -/
+theorem divScratchOwnCallNoX1_unfold {sp : Word} :
+    divScratchOwnCallNoX1 sp =
+    (divScratchOwn sp **
+     memOwn (sp + signExtend12 3968) **
+     memOwn (sp + signExtend12 3960) **
+     memOwn (sp + signExtend12 3952) **
+     memOwn (sp + signExtend12 3944)) := by
+  delta divScratchOwnCallNoX1; rfl
 
 instance pcFreeInst_divScratchOwn (sp : Word) :
     Assertion.PCFree (divScratchOwn sp) :=
   ⟨pcFree_divScratchOwn⟩
+
+instance pcFreeInst_divScratchValuesCallNoX1
+    (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+      retMem dMem dloMem scratch_un0 : Word) :
+    Assertion.PCFree (divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratch_un0) := by
+  constructor
+  rw [divScratchValuesCallNoX1_unfold]
+  pcFree
+
+instance pcFreeInst_divScratchOwnCallNoX1 (sp : Word) :
+    Assertion.PCFree (divScratchOwnCallNoX1 sp) := by
+  constructor
+  rw [divScratchOwnCallNoX1_unfold, divScratchOwn_unfold]
+  pcFree
 
 /-- Weakening: any concrete scratch state implies ownership of the same 15
     cells. This lets a stack spec hide the scratch values on exit. -/
@@ -447,7 +844,21 @@ theorem divScratchValuesCall_implies_divScratchOwnCall
   -- Head: divScratchValues → divScratchOwn via the 15-cell weakener.
   apply sepConj_mono (divScratchValues_implies_divScratchOwn
     sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
-  -- Tail: 4 memIs → memOwn, same pattern as the 15-cell weakener.
+  -- Tail: 4 memIs → memOwn, preserving the framed return register.
+  iterate 4 apply sepConj_mono memIs_implies_memOwn
+  exact fun _ hp => hp
+
+/-- Callable-ready call-path weakening, keeping `x1` outside the scratch
+    bundle so it can be tracked exactly by wrappers. -/
+theorem divScratchValuesCallNoX1_implies_divScratchOwnCallNoX1
+    (sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem
+     retMem dMem dloMem scratch_un0 : Word) :
+    ∀ h, divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 h →
+      divScratchOwnCallNoX1 sp h := by
+  unfold divScratchValuesCallNoX1 divScratchOwnCallNoX1
+  apply sepConj_mono (divScratchValues_implies_divScratchOwn
+    sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem)
   iterate 3 apply sepConj_mono memIs_implies_memOwn
   exact memIs_implies_memOwn
 
@@ -470,7 +881,7 @@ def loopSetupPost (sp nVal shift a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ nVal) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
   (.x0 ↦ᵣ (0 : Word)) **
   (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ u0) ** (.x2 ↦ᵣ antiShift) **
-  (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - nVal) **
+  (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - nVal) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
   ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
   ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
@@ -500,7 +911,7 @@ theorem loopSetupPost_unfold {sp nVal shift a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
     (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ nVal) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
     (.x0 ↦ᵣ (0 : Word)) **
     (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ u0) ** (.x2 ↦ᵣ antiShift) **
-    (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - nVal) **
+    (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - nVal) **
     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
     ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
@@ -664,6 +1075,72 @@ theorem pcFree_normBPost {sp nVal shift b0 b1 b2 b3 : Word} :
 instance pcFreeInst_normBPost (sp nVal shift b0 b1 b2 b3 : Word) :
     Assertion.PCFree (normBPost sp nVal shift b0 b1 b2 b3) :=
   ⟨pcFree_normBPost⟩
+
+/-- Postcondition for the NormA block: the normalized `u[]`
+    sequence written to scratch slots, with `x5`/`x7`/`x10` holding the
+    top-of-the-shift intermediate values. Wrapped `@[irreducible]` so that
+    downstream proofs do not re-reduce the 15-atom sepConj. -/
+@[irreducible]
+def normAFullPost (sp a0 a1 a2 a3 shift antiShift : Word) : Assertion :=
+  let u4 := a3 >>> (antiShift.toNat % 64)
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+  let u0 := a0 <<< (shift.toNat % 64)
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u1) ** (.x7 ↦ᵣ u0) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
+  (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
+  ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+  ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+  ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+  ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+  ((sp + signExtend12 4056) ↦ₘ u0)
+
+theorem normAFullPost_unfold {sp a0 a1 a2 a3 shift antiShift : Word} :
+    normAFullPost sp a0 a1 a2 a3 shift antiShift =
+      (let u4 := a3 >>> (antiShift.toNat % 64)
+       let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+       let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+       let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+       let u0 := a0 <<< (shift.toNat % 64)
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u1) ** (.x7 ↦ᵣ u0) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
+       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
+       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + signExtend12 4056) ↦ₘ u0)) := by
+  delta normAFullPost; rfl
+
+-- ============================================================================
+-- Postcondition bundle for normB full spec (without extra normBPost atoms).
+-- Used by divK_normB_full_spec_within, divK_normB_full_spec_within_noNop, and
+-- mod_normB_full_spec_within to avoid statement let-chains in callers.
+-- ============================================================================
+
+/-- Postcondition after the NormB block (21 instructions): shift, antiShift,
+    and the four normalized limbs b'[0..3] written to memory. -/
+@[irreducible]
+def normBFullPost (sp b0 b1 b2 b3 shift antiShift : Word) : Assertion :=
+  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+  let b0' := b0 <<< (shift.toNat % 64)
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0') ** (.x7 ↦ᵣ (b0 >>> (antiShift.toNat % 64))) **
+  (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
+  ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
+  ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3')
+
+theorem normBFullPost_unfold {sp b0 b1 b2 b3 shift antiShift : Word} :
+    normBFullPost sp b0 b1 b2 b3 shift antiShift =
+      (let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+       let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+       let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+       let b0' := b0 <<< (shift.toNat % 64)
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0') ** (.x7 ↦ᵣ (b0 >>> (antiShift.toNat % 64))) **
+       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
+       ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
+       ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3')) := by
+  delta normBFullPost; rfl
 
 -- ============================================================================
 -- `se12_32`/`se12_40`/`se12_48`/`se12_56` were deleted by issue #493 / #494:

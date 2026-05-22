@@ -13,6 +13,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Shift0
 import EvmAsm.Evm64.DivMod.Compose.ModFullPath
+import EvmAsm.Evm64.DivMod.Compose.ModShift0Epilogue
 
 open EvmAsm.Rv64.Tactics
 
@@ -42,7 +43,7 @@ theorem evm_mod_n4_preloop_shift0_call_skip_spec (sp base : Word)
     cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 126) base (base + denormOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -58,7 +59,7 @@ theorem evm_mod_n4_preloop_shift0_call_skip_spec (sp base : Word)
        ((sp + signExtend12 3992) ↦ₘ shiftMem) **
        ((sp + signExtend12 3976) ↦ₘ jMem) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (preloopShift0CallSkipPostN4 sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
   unfold isSkipBorrowN4Shift0 at hborrow
   -- Pre-loop: base → base+loopBodyOff (shift=0, MOD)
@@ -70,7 +71,7 @@ theorem evm_mod_n4_preloop_shift0_call_skip_spec (sp base : Word)
   have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) hPre
   -- Loop body: base+loopBodyOff → base+denormOff, call+skip with v=b, u=a, uTop=0
   have hbltu : BitVec.ult (0 : Word) b3 := ult_zero_of_ne hb3nz
@@ -79,9 +80,7 @@ theorem evm_mod_n4_preloop_shift0_call_skip_spec (sp base : Word)
     v11Old (signExtend12 (0 : BitVec 12) - (clzResult b3).1)
     b0 b1 b2 b3 a0 a1 a2 a3 (0 : Word) (0 : Word)
     retMem dMem dloMem scratch_un0 halign
-    hbltu
-  intro_lets at hLoop
-  have hLoop' := hLoop hborrow
+    hbltu hborrow
   -- Frame loop body with a[], q[1-3]=0, padding, shift=0
   have hLoopF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -93,15 +92,20 @@ theorem evm_mod_n4_preloop_shift0_call_skip_spec (sp base : Word)
      ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ (clzResult b3).1))
-    (by pcFree) hLoop'
+    (by pcFree) hLoop
   -- Compose preloop → loop body
   have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       simp only [x1_val_n4] at hp
+      rw [loopBodyN4CallJ0NormPre_unfold]
       xperm_hyp hp) hPreF hLoopF
   exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
-    (fun h hq => by delta preloopShift0CallSkipPostN4; simp only [hshift_z] at hq; xperm_hyp hq)
+    (fun h hq => by
+      simp only [loopBodyN4CallSkipJ0Post_unfold] at hq
+      delta preloopShift0CallSkipPostN4
+      simp only [hshift_z] at hq
+      xperm_hyp hq)
     hFull
 
 -- ============================================================================
@@ -136,11 +140,11 @@ def fullModN4Shift0CallSkipPost (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Asser
   ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
   (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
-  (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
+  (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ b3) **
   (sp + signExtend12 3952 ↦ₘ (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) **
-  (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+  (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) ** regOwn .x1
 
 /-- `fullModN4Shift0CallSkipPost` is pc-free. -/
 theorem pcFree_fullModN4Shift0CallSkipPost
@@ -174,7 +178,7 @@ theorem evm_mod_n4_full_shift0_call_skip_spec (sp base : Word)
     cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 126 + 12) base (base + nopOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) ** (.x11 ↦ᵣ v11Old) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) ** (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
@@ -186,7 +190,7 @@ theorem evm_mod_n4_full_shift0_call_skip_spec (sp base : Word)
        ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (fullModN4Shift0CallSkipPost sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
   let qHat := div128Quot (0 : Word) a3 b3
   let ms := mulsubN4 qHat b0 b1 b2 b3 a0 a1 a2 a3
@@ -217,11 +221,11 @@ theorem evm_mod_n4_full_shift0_call_skip_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
-     (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
+     (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ qHat) **
      (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ b3) **
      (sp + signExtend12 3952 ↦ₘ (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) **
-     (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat))
+     (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) ** regOwn .x1)
     (by pcFree) hB
   -- 3. Compose A + B
   have hFull := cpsTripleWithin_seq_perm_same_cr
@@ -254,7 +258,7 @@ theorem evm_mod_n4_preloop_shift0_call_addback_beq_spec (sp base : Word)
     cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202) base (base + denormOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -270,7 +274,7 @@ theorem evm_mod_n4_preloop_shift0_call_addback_beq_spec (sp base : Word)
        ((sp + signExtend12 3992) ↦ₘ shiftMem) **
        ((sp + signExtend12 3976) ↦ₘ jMem) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (preloopShift0CallAddbackBeqPostN4 sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
   unfold isAddbackBorrowN4Shift0 at hborrow
   unfold isAddbackCarry2NzN4Shift0 at hcarry2_nz
@@ -283,7 +287,7 @@ theorem evm_mod_n4_preloop_shift0_call_addback_beq_spec (sp base : Word)
   have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
     (by pcFree) hPre
   -- Loop body: base+loopBodyOff → base+denormOff, call+addback BEQ (modCode)
   have hbltu : BitVec.ult (0 : Word) b3 := ult_zero_of_ne hb3nz
@@ -292,9 +296,7 @@ theorem evm_mod_n4_preloop_shift0_call_addback_beq_spec (sp base : Word)
     v11Old (signExtend12 (0 : BitVec 12) - (clzResult b3).1)
     b0 b1 b2 b3 a0 a1 a2 a3 (0 : Word) (0 : Word)
     retMem dMem dloMem scratch_un0 halign
-    hbltu hcarry2_nz
-  intro_lets at hLoop
-  have hLoop' := hLoop hborrow
+    hbltu hcarry2_nz hborrow
   -- Frame loop body with a[], q[1-3]=0, padding, shift=0
   have hLoopF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -306,15 +308,17 @@ theorem evm_mod_n4_preloop_shift0_call_addback_beq_spec (sp base : Word)
      ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      ((sp + signExtend12 3992) ↦ₘ (clzResult b3).1))
-    (by pcFree) hLoop'
+    (by pcFree) hLoop
   -- Compose preloop → loop body
   have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       simp only [x1_val_n4] at hp
+      rw [loopBodyN4CallJ0NormPre_unfold]
       xperm_hyp hp) hPreF hLoopF
   exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by
+      simp only [loopBodyN4CallAddbackBeqJ0Post_unfold] at hq
       delta preloopShift0CallAddbackBeqPostN4
       simp only [hshift_z] at hq
       xperm_hyp hq)
@@ -365,11 +369,11 @@ def fullModN4Shift0CallAddbackBeqPost
   ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
   (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
   (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
-  (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
+  (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ b3) **
   (sp + signExtend12 3952 ↦ₘ (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) **
-  (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat)
+  (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) ** regOwn .x1
 
 /-- `fullModN4Shift0CallAddbackBeqPost` is pc-free. -/
 theorem pcFree_fullModN4Shift0CallAddbackBeqPost
@@ -404,7 +408,7 @@ theorem evm_mod_n4_full_shift0_call_addback_beq_spec (sp base : Word)
     cpsTripleWithin (8 + 21 + 24 + 4 + 9 + 4 + 202 + 12) base (base + nopOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) ** (.x11 ↦ᵣ v11Old) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) ** (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
@@ -416,7 +420,7 @@ theorem evm_mod_n4_full_shift0_call_addback_beq_spec (sp base : Word)
        ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
        ((sp + signExtend12 3992) ↦ₘ shiftMem) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
-       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1)
       (fullModN4Shift0CallAddbackBeqPost sp base a0 a1 a2 a3 b0 b1 b2 b3) := by
   let qHat := div128Quot (0 : Word) a3 b3
   let ms := mulsubN4 qHat b0 b1 b2 b3 a0 a1 a2 a3
@@ -458,11 +462,11 @@ theorem evm_mod_n4_full_shift0_call_addback_beq_spec (sp base : Word)
      ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
      (sp + signExtend12 3984 ↦ₘ (4 : Word)) **
      (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
-     (.x1 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
+     (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ q_out) **
      (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
      (sp + signExtend12 3960 ↦ₘ b3) **
      (sp + signExtend12 3952 ↦ₘ (b3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) **
-     (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat))
+     (sp + signExtend12 3944 ↦ₘ (a3 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat) ** regOwn .x1)
     (by pcFree) hB
   have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by

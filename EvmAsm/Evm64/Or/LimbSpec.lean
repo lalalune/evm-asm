@@ -34,5 +34,11 @@ theorem or_limb_spec_within (offA offB : BitVec 12)
   have S := sd_spec_gen_within .x12 .x7 sp (aLimb ||| bLimb) bLimb offB (base + 12)
   runBlock L0 L1 O S
 
+/-- Code requirement for `or_limb_spec_within`. -/
+abbrev orLimbCode (offA offB : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 offA))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 offB))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.OR .x7 .x7 .x6))
+   (CodeReq.singleton (base + 12) (.SD .x12 .x7 offB))))
 
 end EvmAsm.Evm64

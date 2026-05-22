@@ -12,6 +12,7 @@
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
 import EvmAsm.Evm64.DivMod.LoopUnifiedN1
+import EvmAsm.Evm64.DivMod.LoopUnifiedN1.UnifiedNoNop
 
 open EvmAsm.Rv64.Tactics
 
@@ -80,7 +81,7 @@ theorem n1_qa3 {sp : Word} :
 theorem loopExitPostN1_j0_eq (sp q_f c3 un0F un1F un2F un3F u4F
     v0 v1 v2 v3 : Word) :
     loopExitPostN1 sp (0 : Word) q_f c3 un0F un1F un2F un3F u4F v0 v1 v2 v3 =
-    ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ signExtend12 4095) **
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ signExtend12 4095) **
      (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ sp + signExtend12 4056) **
      (.x7 ↦ᵣ sp + signExtend12 4088) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
      (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -153,5 +154,110 @@ theorem divK_loop_n1_unified_divCode (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
       q3Old q2Old q1Old q0Old
       retMem dMem dloMem scratch_un0 base halign
       hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2)
+
+/-- No-NOP variant of `divK_loop_n1_unified_divCode`. -/
+theorem divK_loop_n1_unified_divCode_noNop (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0_orig_2 u0_orig_1 u0_orig_0
+     q3Old q2Old q1Old q0Old : Word)
+    (retMem dMem dloMem scratch_un0 : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_3 : bltu_3 = BitVec.ult u1 v0)
+    (hbltu_2 : bltu_2 = BitVec.ult (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
+    (hbltu_1 : bltu_1 = BitVec.ult (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
+      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.1 v0)
+    (hbltu_0 : bltu_0 = BitVec.ult (iterN1 bltu_1 v0 v1 v2 v3 u0_orig_1
+      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.1
+      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1
+      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.2.1
+      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.2.2.1).2.1 v0)
+    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
+    cpsTripleWithin 808 (base + loopBodyOff) (base + denormOff) (divCode_noNop base)
+      (loopN1PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_2 u0_orig_1 u0_orig_0 q3Old q2Old q1Old q0Old
+        retMem dMem dloMem scratch_un0)
+      (loopN1UnifiedPost bltu_3 bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_2 u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) :=
+  divK_loop_n1_unified_spec_within_noNop bltu_3 bltu_2 bltu_1 bltu_0
+    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 u0_orig_0
+    q3Old q2Old q1Old q0Old
+    retMem dMem dloMem scratch_un0 base halign
+    hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2
+
+/-- No-NOP divCode wrapper for the n=1 unified loop with the scratch
+    precondition split so callers can keep exact `x1` ownership outside it. -/
+theorem divK_loop_n1_unified_divCode_noNop_noX1_pre (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0_orig_2 u0_orig_1 u0_orig_0
+     q3Old q2Old q1Old q0Old : Word)
+    (retMem dMem dloMem scratch_un0 : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu_3 : bltu_3 = BitVec.ult u1 v0)
+    (hbltu_2 : bltu_2 = BitVec.ult (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
+    (hbltu_1 : bltu_1 = BitVec.ult (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
+      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+      (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.1 v0)
+    (hbltu_0 : bltu_0 = BitVec.ult (iterN1 bltu_1 v0 v1 v2 v3 u0_orig_1
+      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.1
+      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1
+      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.2.1
+      (iterN1 bltu_2 v0 v1 v2 v3 u0_orig_2
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.2.2.1).2.1 v0)
+    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
+    cpsTripleWithin 808 (base + loopBodyOff) (base + denormOff) (divCode_noNop base)
+      (loopN1PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_2 u0_orig_1 u0_orig_0 q3Old q2Old q1Old q0Old
+        retMem dMem dloMem scratch_un0 ** regOwn .x1)
+      (loopN1UnifiedPost bltu_3 bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_2 u0_orig_1 u0_orig_0 retMem dMem dloMem scratch_un0) :=
+  divK_loop_n1_unified_spec_within_noNop_noX1_pre bltu_3 bltu_2 bltu_1 bltu_0
+    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 u0_orig_0
+    q3Old q2Old q1Old q0Old
+    retMem dMem dloMem scratch_un0 base halign
+    hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2
 
 end EvmAsm.Evm64

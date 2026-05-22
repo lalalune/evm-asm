@@ -89,4 +89,21 @@ theorem divK_mulsub_partB_spec_within (uBase partialCarry prodHi fullSub v2Old u
   have I4 := sd_spec_gen_within .x6 .x2 uBase uNew u_i u_off (base + 16)
   runBlock I0 I1 I2 I3 I4
 
+/-- Code requirement for `divK_mulsub_partA_spec_within`. -/
+abbrev divKMulsubPartACode (v_off : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 v_off))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x7 .x11 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.MULHU .x5 .x11 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.ADD .x7 .x7 .x10))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.SLTU .x10 .x7 .x10))
+   (CodeReq.singleton (base + 20) (.ADD .x10 .x10 .x5))))))
+
+/-- Code requirement for `divK_mulsub_partB_spec_within`. -/
+abbrev divKMulsubPartBCode (u_off : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x2 .x6 u_off))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.SLTU .x5 .x2 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x2 .x2 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.ADD .x10 .x10 .x5))
+   (CodeReq.singleton (base + 16) (.SD .x6 .x2 u_off)))))
+
 end EvmAsm.Evm64

@@ -55,5 +55,24 @@ theorem eq_or_limb_spec_within (offA offB : BitVec 12)
   have O := or_spec_gen_rd_eq_rs1_within .x7 .x6 acc (aLimb ^^^ bLimb) (base + 12) (by nofun)
   runBlock L0 L1 X O
 
+/-- Code requirement for `eq_limb0_spec_within`. -/
+abbrev eqLimb0Code (offA offB : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 offA))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 offB))
+   (CodeReq.singleton (base + 8) (.XOR .x7 .x7 .x6)))
+
+/-- Code requirement for `eq_or_limb_spec_within`. -/
+abbrev eqOrLimbCode (offA offB : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x6 .x12 offA))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x5 .x12 offB))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.XOR .x6 .x6 .x5))
+   (CodeReq.singleton (base + 12) (.OR .x7 .x7 .x6))))
+
+/-- Bundled postcondition for `eq_or_limb_spec_within`. Hides `xorK` let. -/
+@[irreducible]
+def eqOrLimbPost (sp : Word) (offA offB : BitVec 12) (aLimb bLimb acc : Word) : Assertion :=
+  let xorK := aLimb ^^^ bLimb
+  (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (acc ||| xorK)) ** (.x6 ↦ᵣ xorK) ** (.x5 ↦ᵣ bLimb) **
+  ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ bLimb)
 
 end EvmAsm.Evm64

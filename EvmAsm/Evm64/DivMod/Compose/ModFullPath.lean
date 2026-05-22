@@ -152,7 +152,7 @@ theorem evm_mod_n4_to_normB_spec_within (sp base : Word)
   have hNB := mod_normB_full_spec_within sp b0 b1 b2 b3
     (clzResult b3).2 ((clzResult b3).2 >>> (63 : Nat))
     shift antiShift base
-  intro_lets at hNB
+  simp only [normBFullPost_unfold] at hNB
   have hNBf := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
      ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
@@ -177,7 +177,7 @@ theorem evm_mod_n4_to_loopSetup_spec_within (sp base : Word)
     cpsTripleWithin 103 base (base + loopBodyOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -207,7 +207,7 @@ theorem evm_mod_n4_to_loopSetup_spec_within (sp base : Word)
     q0 q1 q2 q3 u5 u6 u7 nMem shiftMem hbnz hb3nz hshift_nz
 
   have hNormBf := cpsTripleWithin_frameR
-    ((.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+    ((.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
@@ -218,10 +218,10 @@ theorem evm_mod_n4_to_loopSetup_spec_within (sp base : Word)
   have hNormA := mod_normA_full_spec_within sp a0 a1 a2 a3
     b0' (b0 >>> (antiShift.toNat % 64)) b3 shift antiShift
     u0Old u1Old u2Old u3Old u4Old base
-  intro_lets at hNormA
+  simp only [normAFullPost_unfold] at hNormA
   have hNormAf := cpsTripleWithin_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
      ((sp + 48) ↦ₘ b2') ** ((sp + 56) ↦ₘ b3') **
      ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
@@ -268,7 +268,7 @@ theorem evm_mod_n4_shift0_to_loopSetup_spec_within (sp base : Word)
     cpsTripleWithin 70 base (base + loopBodyOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -284,7 +284,7 @@ theorem evm_mod_n4_shift0_to_loopSetup_spec_within (sp base : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (4 : Word)) ** (.x10 ↦ᵣ b3) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ (clzResult b3).1) ** (.x7 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
        (.x2 ↦ᵣ signExtend12 (0 : BitVec 12) - (clzResult b3).1) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -302,7 +302,7 @@ theorem evm_mod_n4_shift0_to_loopSetup_spec_within (sp base : Word)
     q0 q1 q2 q3 u5 u6 u7 nMem hbnz hb3nz
   have hABCLZf := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
@@ -316,7 +316,7 @@ theorem evm_mod_n4_shift0_to_loopSetup_spec_within (sp base : Word)
   have hC2f := cpsTripleWithin_frameR
     ((.x5 ↦ᵣ (clzResult b3).2) ** (.x10 ↦ᵣ b3) **
      (.x7 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -341,7 +341,7 @@ theorem evm_mod_n4_shift0_to_loopSetup_spec_within (sp base : Word)
      (.x2 ↦ᵣ signExtend12 (0 : BitVec 12) - (clzResult b3).1) **
      (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ b3) **
      (.x7 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
      ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
      ((sp + signExtend12 4088) ↦ₘ (0 : Word)) ** ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **

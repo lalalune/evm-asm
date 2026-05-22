@@ -48,6 +48,10 @@ inductive Kind where
   | delegatecall
   deriving DecidableEq, Repr
 
+/-- The CALL-family opcode kinds covered by GH #114. -/
+def allKinds : List Kind :=
+  [.call, .staticcall, .delegatecall]
+
 def argumentCount : Kind → Nat
   | .call => 7
   | .staticcall => 6
@@ -80,6 +84,23 @@ theorem staticcallArgumentCount :
 
 theorem delegatecallArgumentCount :
     argumentCount .delegatecall = 6 := rfl
+
+theorem allKinds_nodup :
+    allKinds.Nodup := by
+  decide
+
+theorem mem_allKinds (kind : Kind) :
+    kind ∈ allKinds := by
+  cases kind <;> decide
+
+theorem allKinds_argumentCounts :
+    allKinds.map argumentCount = [7, 6, 6] := rfl
+
+theorem allKinds_resultCounts :
+    allKinds.map resultCount = [1, 1, 1] := rfl
+
+theorem allKinds_memoryRangeCounts :
+    allKinds.map memoryRangeCount = [2, 2, 2] := rfl
 
 theorem resultCount_eq_one (kind : Kind) :
     resultCount kind = 1 := rfl
@@ -127,6 +148,26 @@ theorem preservesCallerContext_iff_delegatecall (kind : Kind) :
     preservesCallerContext kind = true ↔ kind = .delegatecall := by
   cases kind <;> decide
 
+theorem not_hasValueArgument_iff_not_call (kind : Kind) :
+    hasValueArgument kind = false ↔ kind ≠ .call := by
+  cases kind <;> decide
+
+theorem not_isStatic_iff_not_staticcall (kind : Kind) :
+    isStatic kind = false ↔ kind ≠ .staticcall := by
+  cases kind <;> decide
+
+theorem not_preservesCallerContext_iff_not_delegatecall (kind : Kind) :
+    preservesCallerContext kind = false ↔ kind ≠ .delegatecall := by
+  cases kind <;> decide
+
+theorem argumentCount_eq_seven_iff_call (kind : Kind) :
+    argumentCount kind = 7 ↔ kind = .call := by
+  cases kind <;> decide
+
+theorem argumentCount_eq_six_iff_not_call (kind : Kind) :
+    argumentCount kind = 6 ↔ kind ≠ .call := by
+  cases kind <;> decide
+
 theorem hasValueArgument_not_isStatic (kind : Kind)
     (h : hasValueArgument kind = true) : isStatic kind = false := by
   cases kind <;> simp_all (config := { decide := true })
@@ -135,8 +176,20 @@ theorem hasValueArgument_not_preservesCallerContext (kind : Kind)
     (h : hasValueArgument kind = true) : preservesCallerContext kind = false := by
   cases kind <;> simp_all (config := { decide := true })
 
+theorem isStatic_not_hasValueArgument (kind : Kind)
+    (h : isStatic kind = true) : hasValueArgument kind = false := by
+  cases kind <;> simp_all (config := { decide := true })
+
 theorem isStatic_not_preservesCallerContext (kind : Kind)
     (h : isStatic kind = true) : preservesCallerContext kind = false := by
+  cases kind <;> simp_all (config := { decide := true })
+
+theorem preservesCallerContext_not_hasValueArgument (kind : Kind)
+    (h : preservesCallerContext kind = true) : hasValueArgument kind = false := by
+  cases kind <;> simp_all (config := { decide := true })
+
+theorem preservesCallerContext_not_isStatic (kind : Kind)
+    (h : preservesCallerContext kind = true) : isStatic kind = false := by
   cases kind <;> simp_all (config := { decide := true })
 
 end CallArgs

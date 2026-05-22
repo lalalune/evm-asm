@@ -41,6 +41,26 @@ for the guest program.
 
 More specifically, evm.asm aims at building the guest part of the **zkEVM**. Reducing trusted computing base matters for this usage.
 
+### Role in the L1-zkEVM stack
+
+The target shape is a **stateless block validator** ELF that an L1 zkVM
+prover can consume — the same slot occupied today by the Rust-compiled
+`stateless-validator-{reth,ethrex}` binaries in
+[`eth-act/ere-guests`](https://github.com/eth-act/ere-guests). evm.asm
+targets the same wire (input: `(block, execution_witness)` per the
+[`eth-act/zkvm-standards`](https://github.com/eth-act/zkvm-standards)
+IO interface; output: post-state root) but is built bottom-up from a
+verified RV64 core instead of from a high-level EL client, so the
+artifact carries a Lean-kernel-checked Hoare triple from RLP-bytes-in to
+state-root-out — no compiler in the TCB. Benchmarks for such guests live
+in
+[`eth-act/zkevm-benchmark-workload`](https://github.com/eth-act/zkevm-benchmark-workload)
+and [the L1 zkEVM benchmarking blog](https://zkevm.ethereum.foundation/blog/benchmarking-zkvms).
+
+Integration with execution-layer clients is future work; see
+[`PROGRESS.md`](PROGRESS.md) for the 9-item guest-program checklist and
+the multidimensional status dashboard.
+
 A second motivation is that our Hoare triples are *bounded* in steps
 (`cpsTripleWithin N base ...`): every spec carries an explicit upper bound `N`
 on the number of RISC-V steps the program executes. Two consequences:
@@ -142,7 +162,7 @@ EvmAsm/
     ControlFlow.lean          --   if_eq macro, symbolic proofs, pcIndep
     GenericSpecs.lean         --   Generic specs parameterized over instructions
     InstructionSpecs.lean     --   Per-instruction CPS specs
-    SyscallSpecs.lean         --   Syscall specs: HALT, WRITE, HINT_READ
+    SyscallSpecs.lean         --   Syscall specs: HALT, WRITE, read_input
     Tactics/
       PerfTrace.lean          --   Performance tracing infrastructure
       XPerm.lean              --   xperm tactic: AC-permutation of sepConj chains
@@ -188,6 +208,37 @@ EvmAsm/Rv64.lean             -- Rv64 module hub
 EvmAsm/Evm64.lean            -- Evm64 module hub
 execution-specs/              -- Submodule: Ethereum execution specs
 ```
+
+## Codegen & Execution
+
+Verified `Program`s can be emitted as RV64 assembly, assembled, linked,
+and run on the [Zisk](https://0xpolygonhermez.github.io/zisk/) emulator
+(`ziskemu`). See [CODEGEN.md](CODEGEN.md) for the roadmap and status.
+M0–M4 are complete: text emitter, total `Instr` coverage with build-time
+`#guard` round-trip tests, `evm_add` 256-bit round-trip on `ziskemu`
+from both a baked-in `.data` section and from prover input via
+`ziskemu -i`. M5 (tiny EVM interpreter on `PUSH1 1 PUSH1 2 ADD STOP`)
+is the next milestone.
+
+Quick start:
+
+```bash
+# Emit and run a verified evm_add on ziskemu:
+lake exe codegen --program evm_add --halt linux93 -o gen-out/evm_add
+ziskemu -e gen-out/evm_add.elf -o gen-out/evm_add.output
+
+# End-to-end regression scripts:
+scripts/codegen-smoke.sh                            # M0 toolchain validation
+scripts/codegen-evm_add-check.sh                    # M2 verified ADD
+scripts/codegen-evm_add-from-input-check.sh         # M4 ADD from ziskemu -i
+```
+
+Setup requirements: `riscv64-elf-binutils` (or `riscv-gnu-toolchain`)
+and `ziskemu`. The Zisk emulator can be installed with
+`bash <(curl -fsSL https://raw.githubusercontent.com/0xPolygonHermez/zisk/main/ziskup/install.sh)`
+followed by `~/.zisk/bin/ziskup --nokey -y` to skip the proving-key
+download (we only need the emulator). Codegen also has an `--asm-only`
+mode for CI hosts without the cross toolchain.
 
 ## Building
 
@@ -262,22 +313,30 @@ build benchmark looks like in practice. Design rationale lives in
 
 ## Status
 
-This is a **prototype** demonstrating the approach. Current state:
+This is a **prototype** demonstrating the approach. The headline figures —
+opcode coverage, per-opcode cycle bounds, codegen reach, and conformance
+against [`eth-act/zkvm-standards`](https://github.com/eth-act/zkvm-standards)
+and the execution-specs reference — live in a single multidimensional
+dashboard at **[`PROGRESS.md`](PROGRESS.md)**, regenerated from a
+kernel-checked registry (`EvmAsm/Progress.lean`) by
+[`scripts/progress-report.sh`](scripts/progress-report.sh) and gated in CI.
 
-- **Infrastructure**: RV64IM backend with separation logic, CPS-style Hoare
-  triples, and automated tactics (`xperm`, `xcancel`, `seqFrame`, `liftSpec`,
-  `runBlock` with `@[spec_gen]` auto-resolution).
-- **Evm64 (0 sorry)** — targets `riscv64im_zicclsm-unknown-none-elf`,
-  4x64-bit limbs, 24 fully-proved opcodes:
-  AND, OR, XOR, NOT, ADD, SUB, MUL, DIV, MOD, SIGNEXTEND,
-  SHR, SHL, SAR, BYTE,
-  LT, GT, EQ, ISZERO, SLT, SGT,
-  POP, PUSH0, DUP1-16, SWAP1-16
-- **0 sorry across the entire codebase** (`lake build` clean).
-- **TODO**: EXP, ADDMOD, MULMOD, SDIV, SMOD,
-  MLOAD, MSTORE, interpreter loop, state transition function, connect to
-  sail-riscv-lean for RISC-V spec compliance, connect to EVM specs in Lean,
-  testing.
+Top-line invariants:
+
+- **0 `sorry`, 0 `axiom`** across the entire codebase (`lake build` clean,
+  CI-enforced).
+- **Verified RV64IM core** with separation logic, step-bounded CPS Hoare
+  triples (`cpsTripleWithin N`), and automated tactics (`xperm`, `xcancel`,
+  `seqFrame`, `liftSpec`, `runBlock`).
+- **EVM opcode coverage**: see the [`PROGRESS.md`](PROGRESS.md) coverage
+  table — currently proven, partial, executable-spec-only, and not-started
+  tiers are tracked per opcode against the 143 bytes in
+  `EvmAsm.Evm64.EvmOpcode`.
+- **Codegen**: M0–M4 of [`CODEGEN.md`](CODEGEN.md) shipped; M5 (tiny EVM
+  interpreter) is next.
+- **Roadmap**: the long-form opcode-by-opcode plan lives in
+  [`PLAN.md`](PLAN.md); the L1-zkEVM context lives in
+  [`PROGRESS.md`](PROGRESS.md)'s "Role in the L1-zkEVM stack" section.
 
 ## Documentation
 
@@ -312,9 +371,28 @@ This is a **prototype** demonstrating the approach. Current state:
 - Knuth, D.E. (1997). *The Art of Computer Programming, Volume 2:
   Seminumerical Algorithms* (3rd ed.), §4.3.1 "The Classical Algorithms."
   Addison-Wesley. Algorithm D is used for the DIV/MOD opcodes in `Evm64/DivMod.lean`.
-- SP1 zkVM: https://github.com/succinctlabs/sp1
-  The `ECALL`-based syscall mechanism follows SP1's conventions.
 - zkvm-standards: https://github.com/eth-act/zkvm-standards
-  Tentative standards for zkVM RISC-V target, I/O interface, and C-interface accelerators.
+  Standards for zkVM RISC-V target, I/O interface, and C-interface
+  accelerators. The vendored header at
+  `EvmAsm/Evm64/zkvm-standards/standards/c-interface-accelerators/zkvm_accelerators.h`
+  is the canonical accelerator C ABI targeted by the verified guest for
+  cryptographic precompiles, KECCAK256, and secp256k1 verification; see
+  [`docs/zkvm-accelerators-interface.md`](docs/zkvm-accelerators-interface.md)
+  for the decision record, full design note, and per-precompile coverage /
+  EVM-precompile → accelerator mapping table.
+- Host I/O C ABI (source of truth):
+  `EvmAsm/Evm64/zkvm-standards/standards/io-interface/README.md`
+  defines the canonical host-I/O surface (`read_input` / `write_output`).
+  See [`docs/zkvm-host-io-interface.md`](docs/zkvm-host-io-interface.md)
+  for the decision record, the SP1 `HINT_LEN` / `HINT_READ` / `COMMIT` →
+  zkvm-standards mapping, and the migration plan tracked under beads
+  parent `evm-asm-96ysd` (GH #114 / #116).
+- SP1 zkVM: https://github.com/succinctlabs/sp1
+  The RISC-V `ECALL` framing (instruction encoding, register
+  convention, return-via-`a0`) follows the same mechanism SP1 uses;
+  the *function set* and argument layout follow `zkvm_accelerators.h`,
+  not SP1's syscall table. Concrete syscall IDs are a host detail
+  remapped in the ECALL handler and tracked per-bridge in beads
+  parent `evm-asm-nr2sk`.
 - sail-riscv-lean: https://github.com/opencompl/sail-riscv-lean
 - RISC-V ISA specification: https://riscv.org/technical/specifications/

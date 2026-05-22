@@ -13,6 +13,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
 
 open EvmAsm.Rv64.Tactics
 
@@ -35,7 +36,7 @@ def loopExitPost (n : Word) (sp j q_f c3 un0F un1F un2F un3F u4F
   let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
   let j' := j + signExtend12 4095
   let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j') **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j') **
   (.x5 ↦ᵣ j <<< (3 : BitVec 6).toNat) ** (.x6 ↦ᵣ uBase) **
   (.x7 ↦ᵣ qAddr) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
   (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -53,7 +54,7 @@ theorem loopExitPost_unfold {n: Word} {sp j q_f c3 un0F un1F un2F un3F u4F
     let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
     let j' := j + signExtend12 4095
     let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
-    (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j') **
+    (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j') **
     (.x5 ↦ᵣ j <<< (3 : BitVec 6).toNat) ** (.x6 ↦ᵣ uBase) **
     (.x7 ↦ᵣ qAddr) ** (.x10 ↦ᵣ c3) ** (.x11 ↦ᵣ q_f) **
     (.x2 ↦ᵣ un3F) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -80,16 +81,6 @@ abbrev loopExitPostN4 := loopExitPost (4 : Word)
 def loopBodySkipPost (n : Word) (sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
   loopExitPost n sp j qHat ms.2.2.2.2 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) v0 v1 v2 v3
-
-/-- Full mulsub-addback postcondition for n loop body. -/
-@[irreducible]
-def loopBodyAddbackPost (n : Word) (sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
-  let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
-  let un0 := ms.1; let un1 := ms.2.1; let un2 := ms.2.2.1
-  let un3 := ms.2.2.2.1; let c3 := ms.2.2.2.2
-  let u4_new := uTop - c3
-  let ab := addbackN4 un0 un1 un2 un3 u4_new v0 v1 v2 v3
-  loopExitPost n sp j (qHat + signExtend12 4095) c3 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 v0 v1 v2 v3
 
 /-- Backward-compatible abbreviations for loopBodySkipPost. -/
 abbrev loopBodyN1SkipPost := loopBodySkipPost (1 : Word)
@@ -120,23 +111,9 @@ abbrev loopBodyN2AddbackBeqPost := loopBodyAddbackBeqPost (2 : Word)
 abbrev loopBodyN3AddbackBeqPost := loopBodyAddbackBeqPost (3 : Word)
 abbrev loopBodyN4AddbackBeqPost := loopBodyAddbackBeqPost (4 : Word)
 
--- ============================================================================
--- Unified (Bool-parameterized) loop body postcondition: skip/addback+BEQ
--- Issue #283: Unify skip/addback via `(borrow_zero : Bool)`.
--- `borrow_zero = true`  → skip path (borrow = 0, mulsub didn't underflow)
--- `borrow_zero = false` → addback+BEQ path (borrow ≠ 0, mulsub underflowed)
--- ============================================================================
-
-/-- Unified loop body postcondition parameterized on borrow condition.
-    `borrow_zero = true` selects the skip path;
-    `borrow_zero = false` selects the addback+BEQ (double-addback) path. -/
-@[irreducible]
-def loopBodyUnifiedPost (borrow_zero : Bool) (n : Word)
-    (sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
-  if borrow_zero then loopBodySkipPost n sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop
-  else loopBodyAddbackBeqPost n sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop
-
--- (Per-n unified-post abbreviations were removed as dead code.)
+-- (Bool-parameterized loopBodyUnifiedPost and per-n unified-post abbreviations
+-- were removed as dead code; callers use loopBodySkipPost / loopBodyAddbackBeqPost
+-- directly per execution path.)
 
 -- ============================================================================
 -- Call path postconditions for n=3 (includes div128 scratch cells)
@@ -151,7 +128,7 @@ def loopBodyN3CallSkipPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Asser
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Borrow condition for n=3 call+skip: mulsub doesn't overflow. -/
 def isSkipBorrowN3Call (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
@@ -176,7 +153,7 @@ def loopBodyN3CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : As
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Call+addback BEQ postcondition for n=3 at j=0, with double-addback handling. -/
 @[irreducible]
@@ -186,7 +163,7 @@ def loopBodyN3CallAddbackBeqPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Call+addback BEQ postcondition for n=3, generic j, with double-addback handling. -/
 @[irreducible]
@@ -196,7 +173,7 @@ def loopBodyN3CallAddbackBeqPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Bridge: j=0 specific call addback beq = generic-j at j=0. -/
 theorem loopBodyN3CallAddbackBeqPost_eq_J {sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
@@ -219,7 +196,89 @@ def loopBodyN1CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : As
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v0) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u0) ** regOwn .x1
+
+/-- Call+skip postcondition for n=1 over the fully-corrected v4 trial
+    quotient. The v4 div128 body preserves the old scratch cells and also
+    exposes its extra Phase-2 scratch cell at `sp+3936`. -/
+@[irreducible]
+def loopBodyN1CallSkipPostJV4
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) : Assertion :=
+  let qHat := div128Quot_v4 u1 u0 v0
+  let dHi := v0 >>> (32 : BitVec 6).toNat
+  let dLo := (v0 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let div_un1 := u0 >>> (32 : BitVec 6).toNat
+  let div_un0 := (u0 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let q1 := rv64_divu u1 dHi
+  let rhat := u1 - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+  let rhatc := if hi1 = 0 then rhat else rhat + dHi
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+  let rhatHi2 := rhat' >>> (32 : BitVec 6).toNat
+  let qDlo2 := q1' * dLo
+  let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1'' := if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2
+              then q1' + signExtend12 4095 else q1'
+  let rhat'' := if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2
+                then rhat' + dHi else rhat'
+  let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| div_un1
+  let cu_q1_dlo := q1'' * dLo
+  let un21 := cu_rhat_un1 - cu_q1_dlo
+  let q0 := rv64_divu un21 dHi
+  let rhat2 := un21 - q0 * dHi
+  let hi2 := q0 >>> (32 : BitVec 6).toNat
+  let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  loopBodyN1SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v0) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ div_un0) **
+  (sp + signExtend12 3936 ↦ₘ (if rhat2cHi ≠ 0 then scratchMem else rhat2c)) **
+  regOwn .x1
+
+@[irreducible]
+def loopBodyN1CallSkipPostJV4NoX1
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) : Assertion :=
+  let qHat := div128Quot_v4 u1 u0 v0
+  let dHi := v0 >>> (32 : BitVec 6).toNat
+  let dLo := (v0 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let div_un1 := u0 >>> (32 : BitVec 6).toNat
+  let div_un0 := (u0 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let q1 := rv64_divu u1 dHi
+  let rhat := u1 - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+  let rhatc := if hi1 = 0 then rhat else rhat + dHi
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+  let rhatHi2 := rhat' >>> (32 : BitVec 6).toNat
+  let qDlo2 := q1' * dLo
+  let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1'' := if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2
+              then q1' + signExtend12 4095 else q1'
+  let rhat'' := if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2
+                then rhat' + dHi else rhat'
+  let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| div_un1
+  let cu_q1_dlo := q1'' * dLo
+  let un21 := cu_rhat_un1 - cu_q1_dlo
+  let q0 := rv64_divu un21 dHi
+  let rhat2 := un21 - q0 * dHi
+  let hi2 := q0 >>> (32 : BitVec 6).toNat
+  let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  loopBodyN1SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v0) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ div_un0) **
+  (sp + signExtend12 3936 ↦ₘ (if rhat2cHi ≠ 0 then scratchMem else rhat2c))
 
 /-- Call+addback BEQ postcondition for n=1, generic j, with double-addback handling. -/
 @[irreducible]
@@ -229,7 +288,46 @@ def loopBodyN1CallAddbackBeqPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v0) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u0) ** regOwn .x1
+
+@[irreducible]
+def loopBodyN1CallAddbackBeqPostJV4NoX1
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) : Assertion :=
+  let qHat := div128Quot_v4 u1 u0 v0
+  let dHi := v0 >>> (32 : BitVec 6).toNat
+  let dLo := (v0 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let div_un1 := u0 >>> (32 : BitVec 6).toNat
+  let div_un0 := (u0 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let q1 := rv64_divu u1 dHi
+  let rhat := u1 - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+  let rhatc := if hi1 = 0 then rhat else rhat + dHi
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+  let rhatHi2 := rhat' >>> (32 : BitVec 6).toNat
+  let qDlo2 := q1' * dLo
+  let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1'' := if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2
+              then q1' + signExtend12 4095 else q1'
+  let rhat'' := if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2
+                then rhat' + dHi else rhat'
+  let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| div_un1
+  let cu_q1_dlo := q1'' * dLo
+  let un21 := cu_rhat_un1 - cu_q1_dlo
+  let q0 := rv64_divu un21 dHi
+  let rhat2 := un21 - q0 * dHi
+  let hi2 := q0 >>> (32 : BitVec 6).toNat
+  let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  loopBodyN1AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v0) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ div_un0) **
+  (sp + signExtend12 3936 ↦ₘ (if rhat2cHi ≠ 0 then scratchMem else rhat2c))
 
 -- ============================================================================
 -- Generic j versions of n=2 call path postconditions
@@ -245,7 +343,7 @@ def loopBodyN2CallSkipPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : As
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u1) ** regOwn .x1
 
 /-- Call+addback BEQ postcondition for n=2, generic j, with double-addback handling. -/
 @[irreducible]
@@ -255,7 +353,7 @@ def loopBodyN2CallAddbackBeqPostJ (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u1) ** regOwn .x1
 
 -- ============================================================================
 -- Double-addback iteration postconditions
@@ -290,7 +388,150 @@ theorem loopIterPostN1Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v0) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u0) ** regOwn .x1
+
+@[irreducible] def loopIterPostN1CallNoX1
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
+  let r := iterN1Call v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let qHat := div128Quot u1 u0 v0
+  let c3 := (mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+  loopExitPostN1 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3 **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v0) **
+  (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
   (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
+
+@[irreducible] def loopIterPostN1CallScratchNoX1
+    (sp base j qHat dLo div_un0 scratchOut v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Assertion :=
+  let r := iterWithDoubleAddback qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let c3 := (mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+  loopExitPostN1 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3 **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v0) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ div_un0) **
+  (sp + signExtend12 3936 ↦ₘ scratchOut)
+
+@[irreducible] def loopBodyN1CallSkipPostJScratchNoX1
+    (sp base j qHat dLo div_un0 scratchOut v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Assertion :=
+  loopBodyN1SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v0) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ div_un0) **
+  (sp + signExtend12 3936 ↦ₘ scratchOut)
+
+@[irreducible] def loopBodyN1CallAddbackBeqPostJScratchNoX1
+    (sp base j qHat dLo div_un0 scratchOut v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Assertion :=
+  loopBodyN1AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v0) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ div_un0) **
+  (sp + signExtend12 3936 ↦ₘ scratchOut)
+
+theorem loopIterPostN1CallScratchNoX1_skip
+    {sp base j qHat dLo div_un0 scratchOut v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
+    (hb : ¬BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)) :
+    loopBodyN1CallSkipPostJScratchNoX1 sp base j qHat dLo div_un0 scratchOut
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      loopIterPostN1CallScratchNoX1 sp base j qHat dLo div_un0 scratchOut
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  delta loopIterPostN1CallScratchNoX1 loopBodyN1CallSkipPostJScratchNoX1
+    iterWithDoubleAddback loopBodyN1SkipPost loopBodySkipPost loopExitPostN1 loopExitPost
+  unfold mulsubN4_c3 at hb
+  simp only [if_neg hb]
+
+theorem loopIterPostN1CallScratchNoX1_addback
+    {sp base j qHat dLo div_un0 scratchOut v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
+    (hb : BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)) :
+    loopBodyN1CallAddbackBeqPostJScratchNoX1 sp base j qHat dLo div_un0 scratchOut
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      loopIterPostN1CallScratchNoX1 sp base j qHat dLo div_un0 scratchOut
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  delta loopIterPostN1CallScratchNoX1 loopBodyN1CallAddbackBeqPostJScratchNoX1
+    iterWithDoubleAddback loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost
+    loopExitPostN1 loopExitPost
+  unfold mulsubN4_c3 at hb
+  simp only [if_pos hb]
+  split <;> rfl
+
+@[irreducible] def loopIterPostN1CallV4NoX1
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) : Assertion :=
+  let qHat := div128Quot_v4 u1 u0 v0
+  let r := iterWithDoubleAddback qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let c3 := (mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+  let dHi := v0 >>> (32 : BitVec 6).toNat
+  let dLo := (v0 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let div_un1 := u0 >>> (32 : BitVec 6).toNat
+  let div_un0 := (u0 <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+  let q1 := rv64_divu u1 dHi
+  let rhat := u1 - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+  let rhatc := if hi1 = 0 then rhat else rhat + dHi
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+  let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+  let rhatHi2 := rhat' >>> (32 : BitVec 6).toNat
+  let qDlo2 := q1' * dLo
+  let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+  let q1'' := if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2
+              then q1' + signExtend12 4095 else q1'
+  let rhat'' := if rhatHi2 = 0 ∧ BitVec.ult rhatUn1' qDlo2
+                then rhat' + dHi else rhat'
+  let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| div_un1
+  let cu_q1_dlo := q1'' * dLo
+  let un21 := cu_rhat_un1 - cu_q1_dlo
+  let q0 := rv64_divu un21 dHi
+  let rhat2 := un21 - q0 * dHi
+  let hi2 := q0 >>> (32 : BitVec 6).toNat
+  let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+  let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+  loopExitPostN1 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3 **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v0) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ div_un0) **
+  (sp + signExtend12 3936 ↦ₘ (if rhat2cHi ≠ 0 then scratchMem else rhat2c))
+
+theorem loopIterPostN1CallV4NoX1_skip
+    {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word}
+    (hb : ¬BitVec.ult uTop
+      (mulsubN4_c3 (div128Quot_v4 u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3)) :
+    loopBodyN1CallSkipPostJV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem =
+    loopIterPostN1CallV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem := by
+  delta loopIterPostN1CallV4NoX1 loopBodyN1CallSkipPostJV4NoX1
+    iterWithDoubleAddback loopBodyN1SkipPost loopBodySkipPost loopExitPostN1 loopExitPost
+  unfold mulsubN4_c3 at hb
+  simp only [if_neg hb]
+
+theorem loopIterPostN1CallV4NoX1_addback
+    {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word}
+    (hb : BitVec.ult uTop
+      (mulsubN4_c3 (div128Quot_v4 u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3)) :
+    loopBodyN1CallAddbackBeqPostJV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem =
+    loopIterPostN1CallV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem := by
+  delta loopIterPostN1CallV4NoX1 loopBodyN1CallAddbackBeqPostJV4NoX1
+    iterWithDoubleAddback loopBodyN1AddbackBeqPost loopBodyAddbackBeqPost
+    loopExitPostN1 loopExitPost
+  unfold mulsubN4_c3 at hb
+  simp only [if_pos hb]
+  split <;> rfl
+
+theorem loopIterPostN1CallNoX1_to_loopIterPostN1Call
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    ∀ h,
+      (loopIterPostN1CallNoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+        regOwn .x1) h →
+      loopIterPostN1Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop h := by
+  intro h hp
+  delta loopIterPostN1CallNoX1 loopIterPostN1Call at hp ⊢
+  simpa only [sepConj_assoc'] using hp
 
 theorem loopIterPostN1Call_addback {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4_c3 (div128Quot u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3)) :
@@ -311,6 +552,12 @@ theorem loopIterPostN1Call_skip {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
 def loopIterPostN1 (bltu : Bool) (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
   match bltu with
   | true => loopIterPostN1Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  | false => loopIterPostN1Max sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop ** empAssertion
+
+def loopIterPostN1NoX1 (bltu : Bool) (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Assertion :=
+  match bltu with
+  | true => loopIterPostN1CallNoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop
   | false => loopIterPostN1Max sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop ** empAssertion
 
 @[irreducible] def loopIterPostN2Max (sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
@@ -342,7 +589,7 @@ theorem loopIterPostN2Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u1) ** regOwn .x1
 
 theorem loopIterPostN2Call_addback {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
     (hb : BitVec.ult uTop (mulsubN4_c3 (div128Quot u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3)) :
@@ -391,7 +638,7 @@ theorem loopIterPostN3Max_skip {sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Producer equation: call addback beq postcondition equals loopIterPostN3Call when borrow holds. -/
 theorem loopIterPostN3Call_addback {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
@@ -411,10 +658,8 @@ theorem loopIterPostN3Call_skip {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
         loopBodyN3CallSkipPostJ loopBodyN3SkipPost loopBodySkipPost loopExitPostN3 loopExitPost
   unfold mulsubN4_c3 at hb; simp only [if_neg hb]
 
-def loopIterPostN3 (bltu : Bool) (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Assertion :=
-  match bltu with
-  | true => loopIterPostN3Call sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop
-  | false => loopIterPostN3Max sp j v0 v1 v2 v3 u0 u1 u2 u3 uTop ** empAssertion
+-- (Bool-dispatch wrapper loopIterPostN3 was removed as dead code; callers use
+-- loopIterPostN3Max / loopIterPostN3Call directly per execution path.)
 
 -- ============================================================================
 -- Two-iteration path postconditions with double addback for n=3
@@ -462,7 +707,7 @@ def loopN3CallMaxPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig : Word) : Ass
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v2) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v2) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u2)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u2) ** regOwn .x1
 
 /-- Unified n=3 two-iteration postcondition with double addback. -/
 def loopN3UnifiedPost (bltu_1 bltu_0 : Bool)
@@ -474,7 +719,7 @@ def loopN3UnifiedPost (bltu_1 bltu_0 : Bool)
     (sp + signExtend12 3968 ↦ₘ retMem) **
     (sp + signExtend12 3960 ↦ₘ dMem) **
     (sp + signExtend12 3952 ↦ₘ dloMem) **
-    (sp + signExtend12 3944 ↦ₘ scratch_un0)
+    (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
   | true,  true  => loopN3CallCallPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
   | false, true  => loopN3MaxCallPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
   | true,  false => loopN3CallMaxPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
@@ -525,7 +770,7 @@ def loopN2CallMaxPost (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig : Word) : Ass
   (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
   (sp + signExtend12 3960 ↦ₘ v1) **
   (sp + signExtend12 3952 ↦ₘ div128DLo v1) **
-  (sp + signExtend12 3944 ↦ₘ div128Un0 u1)
+  (sp + signExtend12 3944 ↦ₘ div128Un0 u1) ** regOwn .x1
 
 /-- Unified n=2 two-iteration postcondition with double addback. -/
 def loopN2Iter10Post (bltu_1 bltu_0 : Bool)
@@ -537,7 +782,7 @@ def loopN2Iter10Post (bltu_1 bltu_0 : Bool)
     (sp + signExtend12 3968 ↦ₘ retMem) **
     (sp + signExtend12 3960 ↦ₘ dMem) **
     (sp + signExtend12 3952 ↦ₘ dloMem) **
-    (sp + signExtend12 3944 ↦ₘ scratch_un0)
+    (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
   | true,  true  => loopN2CallCallPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
   | false, true  => loopN2MaxCallPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
   | true,  false => loopN2CallMaxPost sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
@@ -586,6 +831,31 @@ def loopN1Iter10Post (bltu_1 bltu_0 : Bool)
     (sp + signExtend12 3968 ↦ₘ retMem) **
     (sp + signExtend12 3960 ↦ₘ dMem) **
     (sp + signExtend12 3952 ↦ₘ dloMem) **
+    (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
+  | false, true  => empAssertion
+  | true,  false =>
+    (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+    (sp + signExtend12 3960 ↦ₘ v0) **
+    (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
+    (sp + signExtend12 3944 ↦ₘ div128Un0 u0) ** regOwn .x1
+  | true,  true  => empAssertion
+
+/-- No-`x1` variant of `loopN1Iter10Post`; callers can frame exact `x1`
+    outside the N1 loop. -/
+def loopN1Iter10PostNoX1 (bltu_1 bltu_0 : Bool)
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
+     retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  let r1 := iterN1 bltu_1 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let u_base_1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+  loopIterPostN1NoX1 bltu_0 sp base (0 : Word) v0 v1 v2 v3
+    u0Orig r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 **
+  ((u_base_1 + signExtend12 4064) ↦ₘ r1.2.2.2.2.2) ** (q_addr_1 ↦ₘ r1.1) **
+  match bltu_1, bltu_0 with
+  | false, false =>
+    (sp + signExtend12 3968 ↦ₘ retMem) **
+    (sp + signExtend12 3960 ↦ₘ dMem) **
+    (sp + signExtend12 3952 ↦ₘ dloMem) **
     (sp + signExtend12 3944 ↦ₘ scratch_un0)
   | false, true  => empAssertion
   | true,  false =>
@@ -594,6 +864,27 @@ def loopN1Iter10Post (bltu_1 bltu_0 : Bool)
     (sp + signExtend12 3952 ↦ₘ div128DLo v0) **
     (sp + signExtend12 3944 ↦ₘ div128Un0 u0)
   | true,  true  => empAssertion
+
+theorem loopN1Iter10PostNoX1_frame_to_loopN1Iter10Post
+    (bltu_1 bltu_0 : Bool)
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
+     retMem dMem dloMem scratch_un0 raVal : Word) :
+    ∀ h,
+      (loopN1Iter10PostNoX1 bltu_1 bltu_0 sp base v0 v1 v2 v3
+        u0 u1 u2 u3 uTop u0Orig retMem dMem dloMem scratch_un0 **
+        (.x1 ↦ᵣ raVal)) h →
+      loopN1Iter10Post bltu_1 bltu_0 sp base v0 v1 v2 v3
+        u0 u1 u2 u3 uTop u0Orig retMem dMem dloMem scratch_un0 h := by
+  intro h hp
+  have hpOwn := sepConj_mono_right (regIs_to_regOwn .x1 raVal) h hp
+  cases bltu_1 <;> cases bltu_0
+  all_goals
+    delta loopN1Iter10PostNoX1 loopN1Iter10Post loopIterPostN1NoX1
+      loopIterPostN1 loopIterPostN1CallNoX1 loopIterPostN1Call
+      loopIterPostN1Max at hp hpOwn ⊢
+    simp only [sepConj_emp_right'] at hpOwn ⊢
+    rw [sepConj_assoc'] at hpOwn
+    xperm_hyp hpOwn
 
 /-- Postcondition for n=1 three-iteration loop (j=2, j=1, j=0) with double addback.
     Parameterized by `(bltu_2 bltu_1 bltu_0 : Bool)` covering all 8 path combinations. -/
@@ -616,6 +907,47 @@ def loopN1Iter210Post (bltu_2 bltu_1 bltu_0 : Bool)
     scratch_ret scratch_d scratch_dlo scratch_un0 **
   -- Carried atoms from j=2
   ((u_base_2 + signExtend12 4064) ↦ₘ r2.2.2.2.2.2) ** (q_addr_2 ↦ₘ r2.1)
+
+/-- No-`x1` variant of `loopN1Iter210Post`. -/
+@[irreducible]
+def loopN1Iter210PostNoX1 (bltu_2 bltu_1 bltu_0 : Bool)
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0_orig_1 u0_orig_0
+     retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  let r2 := iterN1 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let u_base_2 := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
+  let scratch_ret := if bltu_2 then (base + div128CallRetOff) else retMem
+  let scratch_d := if bltu_2 then v0 else dMem
+  let scratch_dlo := if bltu_2 then div128DLo v0 else dloMem
+  let scratch_un0 := if bltu_2 then div128Un0 u0 else scratch_un0
+  loopN1Iter10PostNoX1 bltu_1 bltu_0 sp base v0 v1 v2 v3
+    u0_orig_1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 u0_orig_0
+    scratch_ret scratch_d scratch_dlo scratch_un0 **
+  ((u_base_2 + signExtend12 4064) ↦ₘ r2.2.2.2.2.2) ** (q_addr_2 ↦ₘ r2.1)
+
+theorem loopN1Iter210PostNoX1_frame_to_loopN1Iter210Post
+    (bltu_2 bltu_1 bltu_0 : Bool)
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0_orig_1 u0_orig_0
+     retMem dMem dloMem scratch_un0 raVal : Word) :
+    ∀ h,
+      (loopN1Iter210PostNoX1 bltu_2 bltu_1 bltu_0 sp base
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0
+        retMem dMem dloMem scratch_un0 ** (.x1 ↦ᵣ raVal)) h →
+      loopN1Iter210Post bltu_2 bltu_1 bltu_0 sp base
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0
+        retMem dMem dloMem scratch_un0 h := by
+  intro h hp
+  have hpOwn := sepConj_mono_right (regIs_to_regOwn .x1 raVal) h hp
+  cases bltu_2 <;> cases bltu_1 <;> cases bltu_0
+  all_goals
+    delta loopN1Iter210PostNoX1 loopN1Iter210Post loopN1Iter10PostNoX1
+      loopN1Iter10Post loopIterPostN1NoX1 loopIterPostN1
+      loopIterPostN1CallNoX1 loopIterPostN1Call loopIterPostN1Max at hp hpOwn ⊢
+    simp only [sepConj_emp_right'] at hpOwn ⊢
+    rw [sepConj_assoc'] at hpOwn
+    xperm_hyp hpOwn
 
 /-- Unified n=1 four-iteration postcondition with double addback.
     Parameterized by `(bltu_3 bltu_2 bltu_1 bltu_0 : Bool)` covering all 16 path combinations. -/
@@ -641,5 +973,47 @@ def loopN1UnifiedPost (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     scratch_ret scratch_d scratch_dlo scratch_un0 **
   -- Carried atoms from j=3
   ((u_base_3 + signExtend12 4064) ↦ₘ r3.2.2.2.2.2) ** (q_addr_3 ↦ₘ r3.1)
+
+/-- No-`x1` variant of `loopN1UnifiedPost`, for exact caller-owned `x1`
+    framing through the no-NOP callable loop. -/
+@[irreducible]
+def loopN1UnifiedPostNoX1 (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0_orig_2 u0_orig_1 u0_orig_0
+     retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  let r3 := iterN1 bltu_3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let u_base_3 := sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_3 := sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
+  let scratch_ret := if bltu_3 then (base + div128CallRetOff) else retMem
+  let scratch_d := if bltu_3 then v0 else dMem
+  let scratch_dlo := if bltu_3 then div128DLo v0 else dloMem
+  let scratch_un0 := if bltu_3 then div128Un0 u0 else scratch_un0
+  loopN1Iter210PostNoX1 bltu_2 bltu_1 bltu_0 sp base v0 v1 v2 v3
+    u0_orig_2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+    u0_orig_1 u0_orig_0
+    scratch_ret scratch_d scratch_dlo scratch_un0 **
+  ((u_base_3 + signExtend12 4064) ↦ₘ r3.2.2.2.2.2) ** (q_addr_3 ↦ₘ r3.1)
+
+theorem loopN1UnifiedPostNoX1_frame_to_loopN1UnifiedPost
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0_orig_2 u0_orig_1 u0_orig_0
+     retMem dMem dloMem scratch_un0 : Word) :
+    ∀ h,
+      (loopN1UnifiedPostNoX1 bltu_3 bltu_2 bltu_1 bltu_0 sp base
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 u0_orig_0
+        retMem dMem dloMem scratch_un0 ** regOwn .x1) h →
+      loopN1UnifiedPost bltu_3 bltu_2 bltu_1 bltu_0 sp base
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 u0_orig_0
+        retMem dMem dloMem scratch_un0 h := by
+  intro h hp
+  cases bltu_3 <;> cases bltu_2 <;> cases bltu_1 <;> cases bltu_0
+  all_goals
+    delta loopN1UnifiedPostNoX1 loopN1UnifiedPost loopN1Iter210PostNoX1
+      loopN1Iter210Post loopN1Iter10PostNoX1 loopN1Iter10Post
+      loopIterPostN1NoX1 loopIterPostN1 loopIterPostN1CallNoX1 loopIterPostN1Call
+      loopIterPostN1Max at hp ⊢
+    simp only [iterN1_false, iterN1_true, ite_true, sepConj_emp_right'] at hp ⊢
+    xperm_hyp hp
 
 end EvmAsm.Evm64

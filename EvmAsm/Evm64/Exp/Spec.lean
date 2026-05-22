@@ -5,9 +5,10 @@
   bridging the limb-level loop composition to a single `evmWordIs`
   pre/post pair.
 
-  Skeleton placeholder for GH #92 (beads slice evm-asm-cf2c). The actual
-  `evm_exp_stack_spec` / `evm_exp_stack_spec_within` theorem lands in the
-  semantic slice (evm-asm-6snn).
+  This file currently exposes stack-shaped boundary-program bridges that feed
+  the semantic layer.  The final full-loop `evm_exp_stack_spec_within` belongs
+  in `EvmAsm.Evm64.Exp.Semantic` once the 256-iteration composition is tied to
+  `EvmWord.exp`.
 -/
 
 import EvmAsm.Evm64.Stack
@@ -17,7 +18,9 @@ import EvmAsm.Rv64.Tactics.XSimp
 
 namespace EvmAsm.Evm64
 
-open EvmAsm.Rv64
+open EvmAsm.Rv64 (Assertion cpsTripleWithin cpsTripleWithin_frameR
+  cpsTripleWithin_weaken signExtend12 signExtend12_1 signExtend12_32
+  signExtend12_40 signExtend12_48 signExtend12_56)
 open EvmAsm.Evm64.Exp.Compose
 
 /-- Stack-shaped bridge for the current EXP boundary mini-program.

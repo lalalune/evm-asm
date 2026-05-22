@@ -67,25 +67,25 @@ theorem fromLimbs_getLimb (v : EvmWord) :
     fin4_val_2, fin4_val_3]
   bv_decide
 
-private theorem getLimb_fromLimbs_0 (limbs : Fin 4 → Word) :
+theorem getLimb_fromLimbs_0 (limbs : Fin 4 → Word) :
     (EvmWord.fromLimbs limbs).getLimb 0 = limbs 0 := by
   simp only [fromLimbs, getLimb, fin4_val_0]
   generalize limbs 0 = l0; generalize limbs 1 = l1
   generalize limbs 2 = l2; generalize limbs 3 = l3
   bv_decide
-private theorem getLimb_fromLimbs_1 (limbs : Fin 4 → Word) :
+theorem getLimb_fromLimbs_1 (limbs : Fin 4 → Word) :
     (EvmWord.fromLimbs limbs).getLimb 1 = limbs 1 := by
   simp only [fromLimbs, getLimb, fin4_val_1]
   generalize limbs 0 = l0; generalize limbs 1 = l1
   generalize limbs 2 = l2; generalize limbs 3 = l3
   bv_decide
-private theorem getLimb_fromLimbs_2 (limbs : Fin 4 → Word) :
+theorem getLimb_fromLimbs_2 (limbs : Fin 4 → Word) :
     (EvmWord.fromLimbs limbs).getLimb 2 = limbs 2 := by
   simp only [fromLimbs, getLimb, fin4_val_2]
   generalize limbs 0 = l0; generalize limbs 1 = l1
   generalize limbs 2 = l2; generalize limbs 3 = l3
   bv_decide
-private theorem getLimb_fromLimbs_3 (limbs : Fin 4 → Word) :
+theorem getLimb_fromLimbs_3 (limbs : Fin 4 → Word) :
     (EvmWord.fromLimbs limbs).getLimb 3 = limbs 3 := by
   simp only [fromLimbs, getLimb, fin4_val_3]
   generalize limbs 0 = l0; generalize limbs 1 = l1
@@ -590,6 +590,24 @@ theorem getLimbN_fromLimbs_const_2 {w : Word} :
 theorem getLimbN_fromLimbs_const_3 {w : Word} :
     (fromLimbs (fun _ => w)).getLimbN 3 = w := by
   rw [getLimbN_fromLimbs_const, if_pos (by decide)]
+
+/-- Generic `k`-specialized `getLimbN` of `fromLimbs` for an arbitrary
+    `limbs : Fin 4 → Word`. Generalizes `getLimbN_fromLimbs_const_k` to
+    non-constant limb functions; complements
+    `EvmAsm.Evm64.EvmWordArith.DivLimbBridge.getLimbN_fromLimbs_k` which
+    bakes a `match`-on-`Fin 4` shape into the limb function. -/
+theorem getLimbN_fromLimbs_gen_0 {limbs : Fin 4 → Word} :
+    (fromLimbs limbs).getLimbN 0 = limbs 0 := by
+  rw [getLimbN_lt _ _ (by decide), getLimb_fromLimbs]; rfl
+theorem getLimbN_fromLimbs_gen_1 {limbs : Fin 4 → Word} :
+    (fromLimbs limbs).getLimbN 1 = limbs 1 := by
+  rw [getLimbN_lt _ _ (by decide), getLimb_fromLimbs]; rfl
+theorem getLimbN_fromLimbs_gen_2 {limbs : Fin 4 → Word} :
+    (fromLimbs limbs).getLimbN 2 = limbs 2 := by
+  rw [getLimbN_lt _ _ (by decide), getLimb_fromLimbs]; rfl
+theorem getLimbN_fromLimbs_gen_3 {limbs : Fin 4 → Word} :
+    (fromLimbs limbs).getLimbN 3 = limbs 3 := by
+  rw [getLimbN_lt _ _ (by decide), getLimb_fromLimbs]; rfl
 
 end EvmWord
 

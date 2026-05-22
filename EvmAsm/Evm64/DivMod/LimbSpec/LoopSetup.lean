@@ -36,16 +36,16 @@ theorem divK_loopSetup_body_spec_within (sp n v1 v5 : Word)
     let cr := divK_loopSetup_code bltOff base
     cpsTripleWithin 3 base (base + 12) cr
       (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x9 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n))
       (
        (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) **
-       (.x1 ↦ᵣ (signExtend12 (4 : BitVec 12) - n)) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ (signExtend12 (4 : BitVec 12) - n)) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   intro cr
   have I0 := ld_spec_gen_within .x5 .x12 sp v5 n 3984 base (by nofun)
-  have I1 := addi_x0_spec_gen_within .x1 v1 4 (base + 4) (by nofun)
-  have I2 := sub_spec_gen_rd_eq_rs1_within .x1 .x5
+  have I1 := addi_x0_spec_gen_within .x9 v1 4 (base + 4) (by nofun)
+  have I2 := sub_spec_gen_rd_eq_rs1_within .x9 .x5
     (signExtend12 (4 : BitVec 12)) n (base + 8) (by nofun)
   runBlock I0 I1 I2
 
@@ -57,11 +57,11 @@ theorem divK_loopSetup_spec_within (sp n v1 v5 : Word)
     let m := signExtend12 (4 : BitVec 12) - n
     let cr := divK_loopSetup_code bltOff base
     let post :=
-      (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x9 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
       ((sp + signExtend12 3984) ↦ₘ n)
     cpsBranchWithin 4 base cr
       (
-       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x9 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n))
       -- Taken: m < 0 (signed)
       ((base + 12) + signExtend13 bltOff) post
@@ -69,15 +69,15 @@ theorem divK_loopSetup_spec_within (sp n v1 v5 : Word)
       (base + 16) post := by
   intro m cr post
   have hbody := divK_loopSetup_body_spec_within sp n v1 v5 bltOff base
-  have hblt_raw := blt_spec_gen_within .x1 .x0 bltOff m (0 : Word) (base + 12)
+  have hblt_raw := blt_spec_gen_within .x9 .x0 bltOff m (0 : Word) (base + 12)
   have ha1 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
   rw [ha1] at hblt_raw
   have hblt : cpsBranchWithin 1 (base + 12) _
-      ((.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x9 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)))
       ((base + 12) + signExtend13 bltOff)
-        ((.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)))
+        ((.x9 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)))
       (base + 16)
-        ((.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word))) :=
+        ((.x9 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word))) :=
     cpsBranchWithin_weaken
       (fun _ hp => hp)
       (fun h hp => sepConj_mono_right

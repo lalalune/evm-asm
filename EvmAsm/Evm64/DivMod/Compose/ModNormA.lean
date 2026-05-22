@@ -36,11 +36,6 @@ private theorem divK_normA_code_sub_modCode {base : Word} :
     MOD mirror of divK_normA_full_spec_within. -/
 theorem mod_normA_full_spec_within (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : Word)
     (u0Old u1Old u2Old u3Old u4Old : Word) (base : Word) :
-    let u4 := a3 >>> (antiShift.toNat % 64)
-    let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
-    let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
-    let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
-    let u0 := a0 <<< (shift.toNat % 64)
     cpsTripleWithin 21 (base + normAOff) (base + loopSetupOff) (modCode base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
        (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
@@ -49,14 +44,13 @@ theorem mod_normA_full_spec_within (sp a0 a1 a2 a3 v5 v7 v10 shift antiShift : W
        ((sp + signExtend12 4024) ↦ₘ u4Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
        ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
        ((sp + signExtend12 4056) ↦ₘ u0Old))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ u1) ** (.x7 ↦ᵣ u0) ** (.x10 ↦ᵣ (a0 >>> (antiShift.toNat % 64))) **
-       (.x6 ↦ᵣ shift) ** (.x2 ↦ᵣ antiShift) **
-       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
-       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
-       ((sp + signExtend12 4024) ↦ₘ u4) ** ((sp + signExtend12 4032) ↦ₘ u3) **
-       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4048) ↦ₘ u1) **
-       ((sp + signExtend12 4056) ↦ₘ u0)) := by
-  intro u4 u3 u2 u1 u0
+      (normAFullPost sp a0 a1 a2 a3 shift antiShift) := by
+  rw [normAFullPost_unfold]
+  let u4 := a3 >>> (antiShift.toNat % 64)
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+  let u0 := a0 <<< (shift.toNat % 64)
   -- Top: LD a[3], SRL->u[4], SD u[4] (base+312 -> base+324)
   have htop := divK_normA_top_spec_within 24 4024 sp a3 v5 v7 antiShift u4Old (base + normAOff)
   simp only [signExtend12_24] at htop
@@ -222,7 +216,7 @@ private theorem divK_loopSetup_code_sub_modCode {base : Word} :
 
 /-- BLT singleton at base+loopSetupOff+12 (index 3 of loopSetup) is subsumed by modCode. -/
 private theorem blt_loopSetup_sub_modCode {base : Word} :
-    ∀ a i, (CodeReq.singleton (base + loopSetupOff + 12) (.BLT .x1 .x0 464)) a = some i →
+    ∀ a i, (CodeReq.singleton (base + loopSetupOff + 12) (.BLT .x9 .x0 464)) a = some i →
       (modCode base) a = some i := by
   intro a i h
   have hlookup := CodeReq.ofProg_lookup (base + loopSetupOff) (divK_loopSetup 464) 3
@@ -239,14 +233,14 @@ theorem mod_loopSetup_ntaken_spec_within (sp n v1 v5 : Word) (base : Word)
     (hm_ge : ¬BitVec.slt (signExtend12 (4 : BitVec 12) - n) (0 : Word)) :
     let m := signExtend12 (4 : BitVec 12) - n
     cpsTripleWithin 4 (base + loopSetupOff) (base + loopBodyOff) (modCode base)
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x1 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x9 ↦ᵣ v1) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n))
-      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x1 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n) ** (.x9 ↦ᵣ m) ** (.x0 ↦ᵣ (0 : Word)) **
        ((sp + signExtend12 3984) ↦ₘ n)) := by
   intro m
   have hbody := divK_loopSetup_body_spec_within sp n v1 v5 464 (base + loopSetupOff)
   have hbodye := cpsTripleWithin_extend_code divK_loopSetup_code_sub_modCode hbody
-  have hblt_raw := blt_spec_gen_within .x1 .x0 464 m (0 : Word) (base + loopSetupOff + 12)
+  have hblt_raw := blt_spec_gen_within .x9 .x0 464 m (0 : Word) (base + loopSetupOff + 12)
   rw [show (base + loopSetupOff + 12 : Word) + signExtend13 464 = base + denormOff from by rv64_addr,
       show (base + loopSetupOff + 12 : Word) + 4 = base + loopBodyOff from by bv_addr] at hblt_raw
   have hblt_clean := cpsBranchWithin_ntakenStripPure2 hblt_raw

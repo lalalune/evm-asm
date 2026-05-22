@@ -35,7 +35,7 @@ def loopN3Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (1 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -65,7 +65,74 @@ def loopN3PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
+
+/-- Callable-ready n=3 two-iteration loop precondition with scratch cells
+    and no ownership claim over `x1`. -/
+@[irreducible]
+def loopN3PreWithScratchNoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  loopN3Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
+
+theorem loopN3PreWithScratchNoX1_unfold
+    {sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word} :
+    loopN3PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 =
+    (loopN3Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old **
+    (sp + signExtend12 3968 ↦ₘ retMem) **
+    (sp + signExtend12 3960 ↦ₘ dMem) **
+    (sp + signExtend12 3952 ↦ₘ dloMem) **
+    (sp + signExtend12 3944 ↦ₘ scratch_un0)) := by
+  delta loopN3PreWithScratchNoX1
+  rfl
+
+theorem loopN3PreWithScratchNoX1_pcFree
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    (loopN3PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0).pcFree := by
+  delta loopN3PreWithScratchNoX1 loopN3Pre
+  pcFree
+
+instance pcFreeInst_loopN3PreWithScratchNoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    Assertion.PCFree
+      (loopN3PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0) :=
+  ⟨loopN3PreWithScratchNoX1_pcFree sp jOld v5Old v6Old v7Old v10Old
+    v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+    retMem dMem dloMem scratch_un0⟩
+
+theorem loopN3PreWithScratchNoX1_to_loopN3PreWithScratch
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    ∀ h,
+      (loopN3PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0 ** regOwn .x1) h →
+      loopN3PreWithScratch sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0 h := by
+  intro h hp
+  delta loopN3PreWithScratchNoX1 loopN3PreWithScratch at hp ⊢
+  simpa only [sepConj_assoc'] using hp
 
 
 -- ============================================================================
@@ -86,7 +153,7 @@ def loopN2Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (2 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (2 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -116,7 +183,91 @@ def loopN2PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
+
+/-- Callable-ready n=2 three-iteration loop precondition with scratch cells
+    and no ownership claim over `x1`. -/
+@[irreducible]
+def loopN2PreWithScratchNoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  loopN2Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    u0_orig_1 u0_orig_0 q2Old q1Old q0Old **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
+
+theorem loopN2PreWithScratchNoX1_unfold
+    {sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word} :
+    loopN2PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 =
+    (loopN2Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0 q2Old q1Old q0Old **
+    (sp + signExtend12 3968 ↦ₘ retMem) **
+    (sp + signExtend12 3960 ↦ₘ dMem) **
+    (sp + signExtend12 3952 ↦ₘ dloMem) **
+    (sp + signExtend12 3944 ↦ₘ scratch_un0)) := by
+  delta loopN2PreWithScratchNoX1
+  rfl
+
+theorem loopN2PreWithScratchNoX1_pcFree
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    (loopN2PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0).pcFree := by
+  delta loopN2PreWithScratchNoX1 loopN2Pre
+  pcFree
+
+instance pcFreeInst_loopN2PreWithScratchNoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    Assertion.PCFree
+      (loopN2PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+        retMem dMem dloMem scratch_un0) :=
+  ⟨loopN2PreWithScratchNoX1_pcFree sp jOld v5Old v6Old v7Old v10Old
+    v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0
+    q2Old q1Old q0Old retMem dMem dloMem scratch_un0⟩
+
+theorem loopN2PreWithScratchNoX1_to_loopN2PreWithScratch
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    ∀ h,
+      (loopN2PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+        retMem dMem dloMem scratch_un0 ** regOwn .x1) h →
+      loopN2PreWithScratch sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+        retMem dMem dloMem scratch_un0 h := by
+  intro h hp
+  delta loopN2PreWithScratchNoX1 loopN2PreWithScratch at hp ⊢
+  simpa only [sepConj_assoc'] using hp
 
 
 -- ============================================================================
@@ -132,7 +283,7 @@ def loopN2Iter10Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (1 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -156,7 +307,74 @@ def loopN2Iter10PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
+
+/-- Callable-ready n=2 two-iteration loop precondition with scratch cells
+    and no ownership claim over `x1`. -/
+@[irreducible]
+def loopN2Iter10PreWithScratchNoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  loopN2Iter10Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
+
+theorem loopN2Iter10PreWithScratchNoX1_unfold
+    {sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word} :
+    loopN2Iter10PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 =
+    (loopN2Iter10Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old **
+    (sp + signExtend12 3968 ↦ₘ retMem) **
+    (sp + signExtend12 3960 ↦ₘ dMem) **
+    (sp + signExtend12 3952 ↦ₘ dloMem) **
+    (sp + signExtend12 3944 ↦ₘ scratch_un0)) := by
+  delta loopN2Iter10PreWithScratchNoX1
+  rfl
+
+theorem loopN2Iter10PreWithScratchNoX1_pcFree
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    (loopN2Iter10PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0).pcFree := by
+  delta loopN2Iter10PreWithScratchNoX1 loopN2Iter10Pre
+  pcFree
+
+instance pcFreeInst_loopN2Iter10PreWithScratchNoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    Assertion.PCFree
+      (loopN2Iter10PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0) :=
+  ⟨loopN2Iter10PreWithScratchNoX1_pcFree sp jOld v5Old v6Old v7Old v10Old
+    v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+    retMem dMem dloMem scratch_un0⟩
+
+theorem loopN2Iter10PreWithScratchNoX1_to_loopN2Iter10PreWithScratch
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    ∀ h,
+      (loopN2Iter10PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0 ** regOwn .x1) h →
+      loopN2Iter10PreWithScratch sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0 h := by
+  intro h hp
+  delta loopN2Iter10PreWithScratchNoX1 loopN2Iter10PreWithScratch at hp ⊢
+  simpa only [sepConj_assoc'] using hp
 
 
 -- ============================================================================
@@ -179,7 +397,7 @@ def loopN1Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (3 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (3 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -211,7 +429,94 @@ def loopN1PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
+
+/-- Callable-ready n=1 four-iteration loop precondition with scratch cells
+    and no ownership claim over `x1`. This lets callers frame exact return
+    addresses through the loop body instead of consuming them as `regOwn .x1`. -/
+@[irreducible]
+def loopN1PreWithScratchNoX1 (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    u0_orig_2 u0_orig_1 u0_orig_0
+    q3Old q2Old q1Old q0Old
+    retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  loopN1Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    u0_orig_2 u0_orig_1 u0_orig_0 q3Old q2Old q1Old q0Old **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
+
+theorem loopN1PreWithScratchNoX1_unfold
+    {sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_2 u0_orig_1 u0_orig_0
+      q3Old q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word} :
+    loopN1PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old v11Old
+      v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_2 u0_orig_1 u0_orig_0 q3Old q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 =
+    (
+    loopN1Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_2 u0_orig_1 u0_orig_0 q3Old q2Old q1Old q0Old **
+    (sp + signExtend12 3968 ↦ₘ retMem) **
+    (sp + signExtend12 3960 ↦ₘ dMem) **
+    (sp + signExtend12 3952 ↦ₘ dloMem) **
+    (sp + signExtend12 3944 ↦ₘ scratch_un0)) := by
+  delta loopN1PreWithScratchNoX1
+  rfl
+
+theorem loopN1PreWithScratchNoX1_pcFree
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_2 u0_orig_1 u0_orig_0
+      q3Old q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    (loopN1PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_2 u0_orig_1 u0_orig_0
+      q3Old q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0).pcFree := by
+  delta loopN1PreWithScratchNoX1 loopN1Pre
+  pcFree
+
+instance pcFreeInst_loopN1PreWithScratchNoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_2 u0_orig_1 u0_orig_0
+      q3Old q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    Assertion.PCFree
+      (loopN1PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_2 u0_orig_1 u0_orig_0
+        q3Old q2Old q1Old q0Old
+        retMem dMem dloMem scratch_un0) :=
+  ⟨loopN1PreWithScratchNoX1_pcFree sp jOld v5Old v6Old v7Old v10Old v11Old
+    v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 u0_orig_0
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratch_un0⟩
+
+theorem loopN1PreWithScratchNoX1_to_loopN1PreWithScratch
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_2 u0_orig_1 u0_orig_0
+      q3Old q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    ∀ h,
+      (loopN1PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old v11Old
+        v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_2 u0_orig_1 u0_orig_0
+        q3Old q2Old q1Old q0Old retMem dMem dloMem scratch_un0 ** regOwn .x1) h →
+      loopN1PreWithScratch sp jOld v5Old v6Old v7Old v10Old v11Old
+        v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_2 u0_orig_1 u0_orig_0
+        q3Old q2Old q1Old q0Old retMem dMem dloMem scratch_un0 h := by
+  intro h hp
+  delta loopN1PreWithScratchNoX1 loopN1PreWithScratch at hp ⊢
+  simpa only [sepConj_assoc'] using hp
 
 
 -- ============================================================================
@@ -227,7 +532,7 @@ def loopN1Iter10Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (1 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (1 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -251,7 +556,75 @@ def loopN1Iter10PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
+
+/-- Callable-ready n=1 two-iteration loop precondition with scratch cells
+    and no ownership claim over `x1`. -/
+@[irreducible]
+def loopN1Iter10PreWithScratchNoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  loopN1Iter10Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
+
+theorem loopN1Iter10PreWithScratchNoX1_unfold
+    {sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word} :
+    loopN1Iter10PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 =
+    (
+    loopN1Iter10Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old **
+    (sp + signExtend12 3968 ↦ₘ retMem) **
+    (sp + signExtend12 3960 ↦ₘ dMem) **
+    (sp + signExtend12 3952 ↦ₘ dloMem) **
+    (sp + signExtend12 3944 ↦ₘ scratch_un0)) := by
+  delta loopN1Iter10PreWithScratchNoX1
+  rfl
+
+theorem loopN1Iter10PreWithScratchNoX1_pcFree
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    (loopN1Iter10PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0).pcFree := by
+  delta loopN1Iter10PreWithScratchNoX1 loopN1Iter10Pre
+  pcFree
+
+instance pcFreeInst_loopN1Iter10PreWithScratchNoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    Assertion.PCFree
+      (loopN1Iter10PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0) :=
+  ⟨loopN1Iter10PreWithScratchNoX1_pcFree sp jOld v5Old v6Old v7Old v10Old
+    v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+    retMem dMem dloMem scratch_un0⟩
+
+theorem loopN1Iter10PreWithScratchNoX1_to_loopN1Iter10PreWithScratch
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    ∀ h,
+      (loopN1Iter10PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0 ** regOwn .x1) h →
+      loopN1Iter10PreWithScratch sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0 h := by
+  intro h hp
+  delta loopN1Iter10PreWithScratchNoX1 loopN1Iter10PreWithScratch at hp ⊢
+  simpa only [sepConj_assoc'] using hp
 
 
 -- ============================================================================
@@ -271,7 +644,7 @@ def loopN1Iter210Pre (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   let q_addr_2 := sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ (2 : Word)) **
+  (.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ (2 : Word)) **
   (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
   (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
   (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -300,46 +673,99 @@ def loopN1Iter210PreWithScratch (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
-  (sp + signExtend12 3944 ↦ₘ scratch_un0)
+  (sp + signExtend12 3944 ↦ₘ scratch_un0) ** regOwn .x1
 
--- ============================================================================
--- One-iteration loop body precondition (parametric on limb count n)
--- ============================================================================
-
-/-- Precondition for a single-iteration loop body (no scratch cells).
-    Shared across max_skip, max_addback, and the unified max-path specs.
-    Parametric on `n : Word` (the stored divisor limb count, used only in the
-    `sp + signExtend12 3984 ↦ₘ n` cell). -/
+/-- Callable-ready n=1 three-iteration loop precondition with scratch cells
+    and no ownership claim over `x1`. -/
 @[irreducible]
-def loopBodyPre (n : Word)
-    (sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word) : Assertion :=
-  let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
-  let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
-  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ j) **
-  (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
-  (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
-  (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
-  (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
-  ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
-  ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
-  ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
-  ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
-  ((uBase + signExtend12 4064) ↦ₘ uTop) **
-  (qAddr ↦ₘ qOld)
-
-/-- Precondition for a single-iteration loop body with scratch cells (call path).
-    Shared across call_skip, call_addback, and the unified call-path specs. -/
-@[irreducible]
-def loopBodyPreWithScratch (n : Word)
-    (sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
-     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
-     retMem dMem dloMem scratch_un0 : Word) : Assertion :=
-  loopBodyPre n sp j jOld v5Old v6Old v7Old v10Old v11Old v2Old
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld **
+def loopN1Iter210PreWithScratchNoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) : Assertion :=
+  loopN1Iter210Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    u0_orig_1 u0_orig_0 q2Old q1Old q0Old **
   (sp + signExtend12 3968 ↦ₘ retMem) **
   (sp + signExtend12 3960 ↦ₘ dMem) **
   (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
+
+theorem loopN1Iter210PreWithScratchNoX1_unfold
+    {sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word} :
+    loopN1Iter210PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 =
+    (
+    loopN1Iter210Pre sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0 q2Old q1Old q0Old **
+    (sp + signExtend12 3968 ↦ₘ retMem) **
+    (sp + signExtend12 3960 ↦ₘ dMem) **
+    (sp + signExtend12 3952 ↦ₘ dloMem) **
+    (sp + signExtend12 3944 ↦ₘ scratch_un0)) := by
+  delta loopN1Iter210PreWithScratchNoX1
+  rfl
+
+theorem loopN1Iter210PreWithScratchNoX1_pcFree
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    (loopN1Iter210PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0).pcFree := by
+  delta loopN1Iter210PreWithScratchNoX1 loopN1Iter210Pre
+  pcFree
+
+instance pcFreeInst_loopN1Iter210PreWithScratchNoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    Assertion.PCFree
+      (loopN1Iter210PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+        retMem dMem dloMem scratch_un0) :=
+  ⟨loopN1Iter210PreWithScratchNoX1_pcFree sp jOld v5Old v6Old v7Old v10Old
+    v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0
+    q2Old q1Old q0Old retMem dMem dloMem scratch_un0⟩
+
+theorem loopN1Iter210PreWithScratchNoX1_to_loopN1Iter210PreWithScratch
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 : Word) :
+    ∀ h,
+      (loopN1Iter210PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+        retMem dMem dloMem scratch_un0 ** regOwn .x1) h →
+      loopN1Iter210PreWithScratch sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+        retMem dMem dloMem scratch_un0 h := by
+  intro h hp
+  delta loopN1Iter210PreWithScratchNoX1 loopN1Iter210PreWithScratch at hp ⊢
+  simpa only [sepConj_assoc'] using hp
+
+-- (Removed dead defs `loopBodyPre` and `loopBodyPreWithScratch`: shared
+-- one-iteration loop-body preconditions parametric on the stored divisor
+-- limb count, plus a four-scratch-cell extension for the call path. Both
+-- had no consumers anywhere in EvmAsm/ — call-path specs build the
+-- scratch chain inline and the surface specs work directly with their
+-- per-N preconditions. Authored by @pirapira;
+-- implemented by Hermes-bot (evm-hermes).)
 
 end EvmAsm.Evm64

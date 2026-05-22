@@ -9,6 +9,7 @@
 -/
 
 -- `Slt.Program → Stack → SpAddr`.
+import EvmAsm.Evm64.Stack
 import EvmAsm.Evm64.Slt.Program
 import EvmAsm.Evm64.Compare.LimbSpec
 import EvmAsm.Evm64.EvmWordArith.Comparison
@@ -108,6 +109,29 @@ theorem evm_slt_spec_within (sp : Word) (base : Word)
     have S3 := sd_x0_spec_gen_within .x12 (sp + 32) b3 24 (base + 96)
     runBlock M B S J A S0 S1 S2 S3
 
+/-- Bundled postcondition for `evm_slt_spec_within` (register/memory level).
+    Hides 12 borrow-chain and signed-compare lets.
+    `v11` is needed since it appears conditionally in the postcondition. -/
+@[irreducible]
+def evmSltLimbPost (sp v11 a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Assertion :=
+  let borrow0 := if BitVec.ult a0 b0 then (1 : Word) else 0
+  let borrow1a := if BitVec.ult a1 b1 then (1 : Word) else 0
+  let temp1 := a1 - b1
+  let borrow1b := if BitVec.ult temp1 borrow0 then (1 : Word) else 0
+  let borrow1 := borrow1a ||| borrow1b
+  let borrow2a := if BitVec.ult a2 b2 then (1 : Word) else 0
+  let temp2 := a2 - b2
+  let borrow2b := if BitVec.ult temp2 borrow1 then (1 : Word) else 0
+  let borrow2 := borrow2a ||| borrow2b
+  let sltMsb := if BitVec.slt a3 b3 then (1 : Word) else 0
+  let result := if a3 = b3 then borrow2 else sltMsb
+  (.x12 ↦ᵣ (sp + 32)) **
+  (.x7 ↦ᵣ (if a3 = b3 then temp2 else a3)) **
+  (.x6 ↦ᵣ (if a3 = b3 then borrow2b else b3)) **
+  (.x5 ↦ᵣ result) **
+  (.x11 ↦ᵣ (if a3 = b3 then borrow2a else v11)) **
+  (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+  ((sp + 32) ↦ₘ result) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0)
 
 -- ============================================================================
 -- Stack-level SLT spec
@@ -164,5 +188,26 @@ theorem evm_slt_stack_spec_within (sp base : Word)
       xperm_hyp hq)
     h_main
 
+/-- Bundled postcondition for `evm_slt_stack_spec_within`.
+    Hides 12 borrow-chain and signed-compare lets. -/
+@[irreducible]
+def evmSltStackPost (sp v11 : Word) (a b : EvmWord) : Assertion :=
+  let borrow0 := if BitVec.ult (a.getLimbN 0) (b.getLimbN 0) then (1 : Word) else 0
+  let borrow1a := if BitVec.ult (a.getLimbN 1) (b.getLimbN 1) then (1 : Word) else 0
+  let temp1 := a.getLimbN 1 - b.getLimbN 1
+  let borrow1b := if BitVec.ult temp1 borrow0 then (1 : Word) else 0
+  let borrow1 := borrow1a ||| borrow1b
+  let borrow2a := if BitVec.ult (a.getLimbN 2) (b.getLimbN 2) then (1 : Word) else 0
+  let temp2 := a.getLimbN 2 - b.getLimbN 2
+  let borrow2b := if BitVec.ult temp2 borrow1 then (1 : Word) else 0
+  let borrow2 := borrow2a ||| borrow2b
+  let sltMsb := if BitVec.slt (a.getLimbN 3) (b.getLimbN 3) then (1 : Word) else 0
+  let result := if a.getLimbN 3 = b.getLimbN 3 then borrow2 else sltMsb
+  (.x12 ↦ᵣ (sp + 32)) **
+  (.x7 ↦ᵣ (if a.getLimbN 3 = b.getLimbN 3 then temp2 else a.getLimbN 3)) **
+  (.x6 ↦ᵣ (if a.getLimbN 3 = b.getLimbN 3 then borrow2b else b.getLimbN 3)) **
+  (.x5 ↦ᵣ result) **
+  (.x11 ↦ᵣ (if a.getLimbN 3 = b.getLimbN 3 then borrow2a else v11)) **
+  evmWordIs sp a ** evmWordIs (sp + 32) (if BitVec.slt a b then 1 else 0)
 
 end EvmAsm.Evm64

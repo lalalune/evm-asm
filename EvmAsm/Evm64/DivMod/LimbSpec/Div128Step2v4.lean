@@ -28,7 +28,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2
-import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
 
 open EvmAsm.Rv64.Tactics
 
@@ -40,16 +40,16 @@ open EvmAsm.Rv64
     `divK_div128_v4`), as a plain `List Instr` so `step2v4_sub` can use
     `CodeReq.ofProg_lookup` — the same mechanism as `d128_v4_sub`. -/
 def divKDiv128Step2V4Instrs : List Instr :=
-  [.DIVU .x5 .x7 .x6,   .MUL .x1 .x5 .x6,   .SUB .x11 .x7 .x1,   -- [0..2]
-   .SRLI .x1 .x5 32,     .BEQ .x1 .x0 12,     .ADDI .x5 .x5 4095,   -- [3..5]
-   .ADD .x11 .x11 .x6,   .SRLI .x1 .x11 32,   .BNE .x1 .x0 92,      -- [6..8]
-   .LD .x1 .x12 3952,    .MUL .x7 .x5 .x1,    .SLLI .x1 .x11 32,    -- [9..11]
-   .SD .x12 .x11 3936,   .LD .x11 .x12 3944,  .OR .x1 .x1 .x11,     -- [12..14]
-   .BLTU .x1 .x7 12,     .LD .x11 .x12 3936,  .JAL .x0 16,           -- [15..17]
+  [.DIVU .x5 .x7 .x6,   .MUL .x9 .x5 .x6,   .SUB .x11 .x7 .x9,   -- [0..2]
+   .SRLI .x9 .x5 32,     .BEQ .x9 .x0 12,     .ADDI .x5 .x5 4095,   -- [3..5]
+   .ADD .x11 .x11 .x6,   .SRLI .x9 .x11 32,   .BNE .x9 .x0 92,      -- [6..8]
+   .LD .x9 .x12 3952,    .MUL .x7 .x5 .x9,    .SLLI .x9 .x11 32,    -- [9..11]
+   .SD .x12 .x11 3936,   .LD .x11 .x12 3944,  .OR .x9 .x9 .x11,     -- [12..14]
+   .BLTU .x9 .x7 12,     .LD .x11 .x12 3936,  .JAL .x0 16,           -- [15..17]
    .ADDI .x5 .x5 4095,   .LD .x11 .x12 3936,  .ADD .x11 .x11 .x6,   -- [18..20]
-   .SRLI .x1 .x11 32,    .BNE .x1 .x0 36,     .LD .x1 .x12 3952,    -- [21..23]
-   .MUL .x7 .x5 .x1,    .SLLI .x1 .x11 32,   .LD .x11 .x12 3944,   -- [24..26]
-   .OR .x1 .x1 .x11,    .BLTU .x1 .x7 8,     .JAL .x0 8,            -- [27..29]
+   .SRLI .x9 .x11 32,    .BNE .x9 .x0 36,     .LD .x9 .x12 3952,    -- [21..23]
+   .MUL .x7 .x5 .x9,    .SLLI .x9 .x11 32,   .LD .x11 .x12 3944,   -- [24..26]
+   .OR .x9 .x9 .x11,    .BLTU .x9 .x7 8,     .JAL .x0 8,            -- [27..29]
    .ADDI .x5 .x5 4095]                                                  -- [30]
 
 /-- Bundled CodeReq for `divK_div128_step2_v4_spec`. Expressed as
@@ -84,17 +84,17 @@ private theorem step2v4_sub {base : Word} (k : Nat) (addr : Word) (instr : Instr
 private theorem divK_div128_step2_v4_phase_D_bltu_spec
     (rhat2Un0 q0Dlo1 : Word) (base : Word) :
     cpsBranchWithin 1 (base + 60) (divKDiv128Step2V4Code base)
-      ((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1))
+      ((.x9 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1))
       (base + 72)
-        ((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** ⌜BitVec.ult rhat2Un0 q0Dlo1⌝)
+        ((.x9 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** ⌜BitVec.ult rhat2Un0 q0Dlo1⌝)
       (base + 64)
-        ((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** ⌜¬BitVec.ult rhat2Un0 q0Dlo1⌝) := by
-  have hbltu_raw := bltu_spec_gen_within .x1 .x7 (12 : BitVec 13) rhat2Un0 q0Dlo1 (base + 60)
+        ((.x9 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** ⌜¬BitVec.ult rhat2Un0 q0Dlo1⌝) := by
+  have hbltu_raw := bltu_spec_gen_within .x9 .x7 (12 : BitVec 13) rhat2Un0 q0Dlo1 (base + 60)
   have ha_t : (base + 60) + signExtend13 (12 : BitVec 13) = base + 72 := by rv64_addr
   have ha_f : (base + 60 : Word) + 4 = base + 64 := by bv_addr
   rw [ha_t, ha_f] at hbltu_raw
   exact cpsBranchWithin_extend_code (h := hbltu_raw) (hmono := by
-    exact step2v4_sub 15 (base+60) (.BLTU .x1 .x7 12)
+    exact step2v4_sub 15 (base+60) (.BLTU .x9 .x7 12)
       (by omega) (by bv_omega) (by decide))
 
 /-- Phase D BLTU taken body: correction path [18..20]. -/
@@ -137,7 +137,7 @@ private theorem divK_div128_step2_v4_phase_D_fallthrough_body_spec
 
 private def phaseDTakenBranchPost
     (sp dHi q0c rhat2c dlo un0 rhat2cHi q0Dlo1 rhat2Un0 : Word) : Assertion :=
-  (((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** ⌜BitVec.ult rhat2Un0 q0Dlo1⌝) **
+  (((.x9 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** ⌜BitVec.ult rhat2Un0 q0Dlo1⌝) **
     (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) ** (.x11 ↦ᵣ un0) **
     (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
     (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
@@ -147,7 +147,7 @@ private def phaseDTakenBodyPre
     (sp dHi q0c rhat2c dlo un0 rhat2cHi q0Dlo1 rhat2Un0 : Word) : Assertion :=
   (((.x5 ↦ᵣ q0c) ** (.x11 ↦ᵣ un0) ** (.x12 ↦ᵣ sp) **
     (sp + signExtend12 3936 ↦ₘ rhat2c) ** (.x6 ↦ᵣ dHi)) **
-    (.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** (.x0 ↦ᵣ 0) **
+    (.x9 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** (.x0 ↦ᵣ 0) **
     ⌜rhat2cHi = 0⌝ ** (sp + signExtend12 3952 ↦ₘ dlo) **
     (sp + signExtend12 3944 ↦ₘ un0))
 
@@ -158,7 +158,7 @@ private theorem divK_div128_step2_v4_phase_D_taken_body_pre
       phaseDTakenBodyPre sp dHi q0c rhat2c dlo un0 rhat2cHi q0Dlo1 rhat2Un0 h := by
   dsimp only [phaseDTakenBranchPost, phaseDTakenBodyPre] at hp ⊢
   have hp' :
-      ((((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1)) **
+      ((((.x9 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1)) **
         (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) ** (.x11 ↦ᵣ un0) **
         (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
         (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
@@ -169,7 +169,7 @@ private theorem divK_div128_step2_v4_phase_D_taken_body_pre
 
 private def phaseDFallthroughBranchPost
     (sp dHi q0c rhat2c dlo un0 rhat2cHi q0Dlo1 rhat2Un0 : Word) : Assertion :=
-  (((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** ⌜¬BitVec.ult rhat2Un0 q0Dlo1⌝) **
+  (((.x9 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** ⌜¬BitVec.ult rhat2Un0 q0Dlo1⌝) **
     (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) ** (.x11 ↦ᵣ un0) **
     (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
     (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
@@ -178,7 +178,7 @@ private def phaseDFallthroughBranchPost
 private def phaseDFallthroughBodyPre
     (sp dHi q0c rhat2c dlo un0 rhat2cHi q0Dlo1 rhat2Un0 : Word) : Assertion :=
   (((.x11 ↦ᵣ un0) ** (.x12 ↦ᵣ sp) ** (sp + signExtend12 3936 ↦ₘ rhat2c)) **
-    (.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) **
+    (.x9 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) **
     (.x5 ↦ᵣ q0c) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
     (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
 
@@ -189,7 +189,7 @@ private theorem divK_div128_step2_v4_phase_D_fallthrough_body_pre
       phaseDFallthroughBodyPre sp dHi q0c rhat2c dlo un0 rhat2cHi q0Dlo1 rhat2Un0 h := by
   dsimp only [phaseDFallthroughBranchPost, phaseDFallthroughBodyPre] at hp ⊢
   have hp' :
-      ((((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1)) **
+      ((((.x9 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1)) **
         (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) ** (.x11 ↦ᵣ un0) **
         (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
         (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
@@ -201,7 +201,7 @@ private theorem divK_div128_step2_v4_phase_D_fallthrough_body_pre
 private def phaseDMergedPre
     (sp dHi q0c rhat2c dlo un0 rhat2cHi q0Dlo1 rhat2Un0 : Word) : Assertion :=
   (.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-  (.x11 ↦ᵣ un0) ** (.x1 ↦ᵣ rhat2Un0) **
+  (.x11 ↦ᵣ un0) ** (.x9 ↦ᵣ rhat2Un0) **
   (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
   (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
   (sp + signExtend12 3936 ↦ₘ rhat2c)
@@ -214,7 +214,7 @@ private theorem divK_div128_step2_v4_phase_D_pre_zero
   dsimp only [phaseDMergedPre] at hp
   have hp' :
       (((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-        (.x11 ↦ᵣ un0) ** (.x1 ↦ᵣ rhat2Un0) **
+        (.x11 ↦ᵣ un0) ** (.x9 ↦ᵣ rhat2Un0) **
         (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0)) ** ⌜rhat2cHi = 0⌝ **
         (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
         (sp + signExtend12 3936 ↦ₘ rhat2c)) h := by
@@ -230,19 +230,19 @@ private theorem divK_div128_step2_v4_phase_E_guard_spec
     let rhat2'Hi := rhat2' >>> (32 : BitVec 6).toNat
     cpsBranchWithin 2 (base + 84) (divKDiv128Step2V4Code base)
       ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-       (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2Un0) **
+       (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2Un0) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
        (sp + signExtend12 3936 ↦ₘ rhat2c))
       (base + 124)
         ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-         (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2'Hi) **
+         (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2'Hi) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ ** ⌜rhat2'Hi ≠ 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
          (sp + signExtend12 3936 ↦ₘ rhat2c))
       (base + 92)
         ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-         (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2'Hi) **
+         (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2'Hi) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ ** ⌜rhat2'Hi = 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
          (sp + signExtend12 3936 ↦ₘ rhat2c)) := by
@@ -255,8 +255,8 @@ private theorem divK_div128_step2_v4_phase_E_guard_spec
   have hguard : cpsBranchWithin 2 (base + 84) (divKDiv128Step2V4Code base) _ _ _ _ _ :=
     cpsBranchWithin_extend_code (h := hraw) (hmono := by
       exact CodeReq.union_sub
-        (step2v4_sub 21 (base+84) (.SRLI .x1 .x11 32) (by omega) (by bv_omega) (by decide))
-        (step2v4_sub 22 (base+88) (.BNE .x1 .x0 36) (by omega) (by bv_omega) (by decide)))
+        (step2v4_sub 21 (base+84) (.SRLI .x9 .x11 32) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 22 (base+88) (.BNE .x9 .x0 36) (by omega) (by bv_omega) (by decide)))
   have hframed := cpsBranchWithin_frameR
     ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
      ⌜rhat2cHi = 0⌝ **
@@ -278,12 +278,12 @@ private theorem divK_div128_step2_v4_phase_E_fallthrough_body_spec
     let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
     cpsTripleWithin 8 (base + 92) (base + 124) (divKDiv128Step2V4Code base)
       ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-       (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2'Hi) **
+       (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2'Hi) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ ** ⌜rhat2'Hi = 0⌝ **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
        (sp + signExtend12 3936 ↦ₘ rhat2c))
       ((.x5 ↦ᵣ q0'Unguarded) ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ q0Dlo2) **
-       (.x1 ↦ᵣ rhat2'Un0) ** (.x11 ↦ᵣ un0) **
+       (.x9 ↦ᵣ rhat2'Un0) ** (.x11 ↦ᵣ un0) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ ** ⌜rhat2'Hi = 0⌝ **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
        (sp + signExtend12 3936 ↦ₘ rhat2c)) := by
@@ -300,17 +300,17 @@ private theorem divK_div128_step2_v4_phase_E_fallthrough_body_spec
   have hext : cpsTripleWithin 8 (base + 92) (base + 124) (divKDiv128Step2V4Code base) _ _ :=
     cpsTripleWithin_extend_code (h := hraw) (hmono := by
       exact CodeReq.union_sub
-        (step2v4_sub 23 (base+92) (.LD .x1 .x12 3952) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 23 (base+92) (.LD .x9 .x12 3952) (by omega) (by bv_omega) (by decide))
         (CodeReq.union_sub
-        (step2v4_sub 24 (base+96) (.MUL .x7 .x5 .x1) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 24 (base+96) (.MUL .x7 .x5 .x9) (by omega) (by bv_omega) (by decide))
         (CodeReq.union_sub
-        (step2v4_sub 25 (base+100) (.SLLI .x1 .x11 32) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 25 (base+100) (.SLLI .x9 .x11 32) (by omega) (by bv_omega) (by decide))
         (CodeReq.union_sub
         (step2v4_sub 26 (base+104) (.LD .x11 .x12 3944) (by omega) (by bv_omega) (by decide))
         (CodeReq.union_sub
-        (step2v4_sub 27 (base+108) (.OR .x1 .x1 .x11) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 27 (base+108) (.OR .x9 .x9 .x11) (by omega) (by bv_omega) (by decide))
         (CodeReq.union_sub
-        (step2v4_sub 28 (base+112) (.BLTU .x1 .x7 8) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 28 (base+112) (.BLTU .x9 .x7 8) (by omega) (by bv_omega) (by decide))
         (CodeReq.union_sub
         (step2v4_sub 29 (base+116) (.JAL .x0 8) (by omega) (by bv_omega) (by decide))
         (step2v4_sub 30 (base+120) (.ADDI .x5 .x5 4095) (by omega) (by bv_omega) (by decide)))))))))
@@ -327,7 +327,7 @@ private def phaseETakenBranchPost
     (sp dHi q0' rhat2' rhat2cHi rhat2'Hi q0Dlo1 dlo un0 rhat2c : Word) :
     Assertion :=
   (.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-  (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2'Hi) **
+  (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2'Hi) **
   (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ ** ⌜rhat2'Hi ≠ 0⌝ **
   (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
   (sp + signExtend12 3936 ↦ₘ rhat2c)
@@ -336,7 +336,7 @@ private def phaseEFallthroughBranchPost
     (sp dHi q0' rhat2' rhat2cHi rhat2'Hi q0Dlo1 dlo un0 rhat2c : Word) :
     Assertion :=
   (.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-  (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2'Hi) **
+  (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2'Hi) **
   (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ ** ⌜rhat2'Hi = 0⌝ **
   (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
   (sp + signExtend12 3936 ↦ₘ rhat2c)
@@ -349,7 +349,7 @@ private theorem phaseE_taken_post_ne
   dsimp only [phaseETakenBranchPost] at hp
   have hp' :
       (((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-        (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2'Hi) **
+        (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2'Hi) **
         (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝) **
         ⌜rhat2'Hi ≠ 0⌝ **
         (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
@@ -366,7 +366,7 @@ private theorem phaseE_fallthrough_post_zero
   dsimp only [phaseEFallthroughBranchPost] at hp
   have hp' :
       (((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-        (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2'Hi) **
+        (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2'Hi) **
         (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝) **
         ⌜rhat2'Hi = 0⌝ **
         (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
@@ -412,7 +412,7 @@ def divKDiv128Step2V4Post (sp un21 dHi dlo un0 vScratchOld : Word) : Assertion :
                 else if rhat2'Hi ≠ 0 then q0Dlo1
                 else q0Dlo2
   -- x1: rhat2cHi (outer BNE) | rhat2'Hi (2nd BNE) | rhat2'*2^32|un0 (2nd D3 ran).
-  let x1Exit := if rhat2cHi ≠ 0 then rhat2cHi
+  let x9Exit := if rhat2cHi ≠ 0 then rhat2cHi
                 else if rhat2'Hi ≠ 0 then rhat2'Hi
                 else rhat2'Un0
   -- x11: rhat2c (outer BNE) | rhat2' (2nd BNE) | un0 (2nd D3 ran).
@@ -423,7 +423,7 @@ def divKDiv128Step2V4Post (sp un21 dHi dlo un0 vScratchOld : Word) : Assertion :
   --          else rhat2c (saved at [52]).
   let mem3936Exit := if rhat2cHi ≠ 0 then vScratchOld else rhat2c
   (.x5 ↦ᵣ q0'') ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ x7Exit) **
-  (.x1 ↦ᵣ x1Exit) ** (.x11 ↦ᵣ x11Exit) **
+  (.x9 ↦ᵣ x9Exit) ** (.x11 ↦ᵣ x11Exit) **
   (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
   (sp + signExtend12 3952 ↦ₘ dlo) **
   (sp + signExtend12 3944 ↦ₘ un0) **
@@ -450,12 +450,12 @@ theorem divK_div128_step2_v4_phase_D_merged_spec
                     else rhat2c
     cpsTripleWithin 4 (base + 60) (base + 84) (divKDiv128Step2V4Code base)
       ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-       (.x11 ↦ᵣ un0) ** (.x1 ↦ᵣ rhat2Un0) **
+       (.x11 ↦ᵣ un0) ** (.x9 ↦ᵣ rhat2Un0) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
        (sp + signExtend12 3936 ↦ₘ rhat2c))
       ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-       (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2Un0) **
+       (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2Un0) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
        (sp + signExtend12 3936 ↦ₘ rhat2c)) := by
@@ -479,7 +479,7 @@ theorem divK_div128_step2_v4_phase_D_merged_spec
         exact ((sepConj_pure_right _).1 hpure).2 hcond)
       have taken' : cpsTripleWithin 1 (base + 60) (base + 72) (divKDiv128Step2V4Code base)
           ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-           (.x11 ↦ᵣ un0) ** (.x1 ↦ᵣ rhat2Un0) **
+           (.x11 ↦ᵣ un0) ** (.x9 ↦ᵣ rhat2Un0) **
            (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
            (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
            (sp + signExtend12 3936 ↦ₘ rhat2c))
@@ -500,7 +500,7 @@ theorem divK_div128_step2_v4_phase_D_merged_spec
       rw [hq0', hrhat2']
       have hpath := divK_div128_step2_v4_phase_D_taken_body_spec sp q0c rhat2c dHi un0 base
       have hpath_f := cpsTripleWithin_frameR
-        ((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
+        ((.x9 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
         (by pcFree) hpath
       exact cpsTripleWithin_weaken
@@ -515,7 +515,7 @@ theorem divK_div128_step2_v4_phase_D_merged_spec
         exact absurd ((sepConj_pure_right _).1 hpure).2 hcond)
       have ntaken' : cpsTripleWithin 1 (base + 60) (base + 64) (divKDiv128Step2V4Code base)
           ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-           (.x11 ↦ᵣ un0) ** (.x1 ↦ᵣ rhat2Un0) **
+           (.x11 ↦ᵣ un0) ** (.x9 ↦ᵣ rhat2Un0) **
            (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
            (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
            (sp + signExtend12 3936 ↦ₘ rhat2c))
@@ -536,7 +536,7 @@ theorem divK_div128_step2_v4_phase_D_merged_spec
       rw [hq0', hrhat2']
       have hpath := divK_div128_step2_v4_phase_D_fallthrough_body_spec sp rhat2c un0 base
       have hpath_f := cpsTripleWithin_frameR
-        ((.x1 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
+        ((.x9 ↦ᵣ rhat2Un0) ** (.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
          (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
         (by pcFree) hpath
@@ -572,25 +572,25 @@ theorem divK_div128_step2_v4_phase_E_merged_spec
     let rhat2'Un0 := (rhat2' <<< (32 : BitVec 6).toNat) ||| un0
     let q0''     := div128Quot_phase2b_q0' q0' rhat2' dlo un0
     let x7Exit   := if rhat2'Hi ≠ 0 then q0Dlo1 else q0Dlo2
-    let x1Exit   := if rhat2'Hi ≠ 0 then rhat2'Hi else rhat2'Un0
+    let x9Exit   := if rhat2'Hi ≠ 0 then rhat2'Hi else rhat2'Un0
     let x11Exit  := if rhat2'Hi ≠ 0 then rhat2' else un0
     cpsTripleWithin 10 (base + 84) (base + 124) (divKDiv128Step2V4Code base)
       ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-       (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2Un0) **
+       (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2Un0) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
        (sp + signExtend12 3936 ↦ₘ rhat2c))
         ((.x5 ↦ᵣ q0'') ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ x7Exit) **
-         (.x1 ↦ᵣ x1Exit) ** (.x11 ↦ᵣ x11Exit) **
+         (.x9 ↦ᵣ x9Exit) ** (.x11 ↦ᵣ x11Exit) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
          (sp + signExtend12 3936 ↦ₘ rhat2c)) := by
-    intro rhat2cHi rhat2'Hi q0Dlo2 rhat2'Un0 q0'' x7Exit x1Exit x11Exit
+    intro rhat2cHi rhat2'Hi q0Dlo2 rhat2'Un0 q0'' x7Exit x9Exit x11Exit
     have hguard := divK_div128_step2_v4_phase_E_guard_spec
       sp dHi q0' rhat2' rhat2Un0 q0Dlo1 dlo un0 rhat2c base
     have hguard' : cpsBranchWithin 2 (base + 84) (divKDiv128Step2V4Code base)
         ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-         (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2Un0) **
+         (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2Un0) **
          (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
          (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
          (sp + signExtend12 3936 ↦ₘ rhat2c))
@@ -620,8 +620,8 @@ theorem divK_div128_step2_v4_phase_E_merged_spec
       have hx7 : x7Exit = q0Dlo1 := by
         unfold x7Exit
         exact if_pos hhi
-      have hx1 : x1Exit = rhat2'Hi := by
-        unfold x1Exit
+      have hx1 : x9Exit = rhat2'Hi := by
+        unfold x9Exit
         exact if_pos hhi
       have hx11 : x11Exit = rhat2' := by
         unfold x11Exit
@@ -629,7 +629,7 @@ theorem divK_div128_step2_v4_phase_E_merged_spec
       have hzero : cpsTripleWithin 0 (base + 124) (base + 124) (divKDiv128Step2V4Code base)
           (phaseETakenBranchPost sp dHi q0' rhat2' rhat2cHi rhat2'Hi q0Dlo1 dlo un0 rhat2c)
           ((.x5 ↦ᵣ q0'') ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ x7Exit) **
-           (.x1 ↦ᵣ x1Exit) ** (.x11 ↦ᵣ x11Exit) **
+           (.x9 ↦ᵣ x9Exit) ** (.x11 ↦ᵣ x11Exit) **
            (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
            (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
            (sp + signExtend12 3936 ↦ₘ rhat2c)) := refl_of (by
@@ -638,13 +638,13 @@ theorem divK_div128_step2_v4_phase_E_merged_spec
         rw [hq0'', hx7, hx1, hx11]
         have hp' :
             ((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-             (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2'Hi) **
+             (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2'Hi) **
              (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
              (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
              (sp + signExtend12 3936 ↦ₘ rhat2c)) h := by
           have hp0 :
               (((.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-                (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2'Hi) **
+                (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2'Hi) **
                 (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
                 (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
                 (sp + signExtend12 3936 ↦ₘ rhat2c)) ** ⌜rhat2'Hi ≠ 0⌝) h := by
@@ -670,8 +670,8 @@ theorem divK_div128_step2_v4_phase_E_merged_spec
       have hx7 : x7Exit = q0Dlo2 := by
         unfold x7Exit
         exact if_neg hhi
-      have hx1 : x1Exit = rhat2'Un0 := by
-        unfold x1Exit
+      have hx1 : x9Exit = rhat2'Un0 := by
+        unfold x9Exit
         exact if_neg hhi
       have hx11 : x11Exit = un0 := by
         unfold x11Exit
@@ -683,7 +683,7 @@ theorem divK_div128_step2_v4_phase_E_merged_spec
           have hp0 :
               (((.x5 ↦ᵣ (if BitVec.ult rhat2'Un0 q0Dlo2 then q0' + signExtend12 4095 else q0')) **
                 (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ q0Dlo2) **
-                (.x1 ↦ᵣ rhat2'Un0) ** (.x11 ↦ᵣ un0) **
+                (.x9 ↦ᵣ rhat2'Un0) ** (.x11 ↦ᵣ un0) **
                 (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
                 (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
                 (sp + signExtend12 3936 ↦ₘ rhat2c)) ** ⌜rhat2'Hi = 0⌝) h := by
@@ -705,10 +705,10 @@ theorem divK_div128_step2_v4_phase_E_merged_spec
       Block 4 [60..84] (hD): BLTU+paths via `phase_D_merged_spec`.
       Block 5 [84..124](hE): 2nd D3 guard+prodcheck via `phase_E_merged_spec`. -/
 theorem divK_div128_step2_v4_spec
-    (sp un21 dHi v1Old v5Old v11Old dlo un0 vScratchOld : Word) (base : Word) :
+    (sp un21 dHi v9Old v5Old v11Old dlo un0 vScratchOld : Word) (base : Word) :
     cpsTripleWithin 29 base (base + 124) (divKDiv128Step2V4Code base)
       ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
-       (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
        (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
        (sp + signExtend12 3952 ↦ₘ dlo) **
        (sp + signExtend12 3944 ↦ₘ un0) **
@@ -734,26 +734,26 @@ theorem divK_div128_step2_v4_spec
   let q0'' := div128Quot_phase2b_q0' q0' rhat2' dlo un0
   let x7Exit := if rhat2cHi ≠ 0 then un21
                 else if rhat2'Hi ≠ 0 then q0Dlo1 else q0Dlo2
-  let x1Exit := if rhat2cHi ≠ 0 then rhat2cHi
+  let x9Exit := if rhat2cHi ≠ 0 then rhat2cHi
                 else if rhat2'Hi ≠ 0 then rhat2'Hi else rhat2'Un0
   let x11Exit := if rhat2cHi ≠ 0 then rhat2c
                  else if rhat2'Hi ≠ 0 then rhat2' else un0
   let mem3936Exit := if rhat2cHi ≠ 0 then vScratchOld else rhat2c
   -- Phase A: init+clamp [0..28] — cpsTripleWithin base (base+28).
   -- Reuse divK_div128_step2_upto_guard_spec_within, extend via step2v4_sub 0..6.
-  have hA_raw := divK_div128_step2_upto_guard_spec_within sp un21 dHi v1Old v5Old v11Old dlo un0 base
+  have hA_raw := divK_div128_step2_upto_guard_spec_within sp un21 dHi v9Old v5Old v11Old dlo un0 base
   have hA : cpsTripleWithin 7 base (base + 28) (divKDiv128Step2V4Code base) _ _ :=
     cpsTripleWithin_extend_code (hmono := by
       exact CodeReq.union_sub
         (step2v4_sub 0 base (.DIVU .x5 .x7 .x6) (by omega) (by bv_omega) (by decide))
        (CodeReq.union_sub
-        (step2v4_sub 1 (base+4) (.MUL .x1 .x5 .x6) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 1 (base+4) (.MUL .x9 .x5 .x6) (by omega) (by bv_omega) (by decide))
        (CodeReq.union_sub
-        (step2v4_sub 2 (base+8) (.SUB .x11 .x7 .x1) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 2 (base+8) (.SUB .x11 .x7 .x9) (by omega) (by bv_omega) (by decide))
        (CodeReq.union_sub
-        (step2v4_sub 3 (base+12) (.SRLI .x1 .x5 32) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 3 (base+12) (.SRLI .x9 .x5 32) (by omega) (by bv_omega) (by decide))
        (CodeReq.union_sub
-        (step2v4_sub 4 (base+16) (.BEQ .x1 .x0 12) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 4 (base+16) (.BEQ .x9 .x0 12) (by omega) (by bv_omega) (by decide))
        (CodeReq.union_sub
         (step2v4_sub 5 (base+20) (.ADDI .x5 .x5 4095) (by omega) (by bv_omega) (by decide))
         (step2v4_sub 6 (base+24) (.ADD .x11 .x11 .x6) (by omega) (by bv_omega) (by decide))))))))
@@ -770,8 +770,8 @@ theorem divK_div128_step2_v4_spec
   have hB : cpsBranchWithin 2 (base + 28) (divKDiv128Step2V4Code base) _ _ _ _ _ :=
     cpsBranchWithin_extend_code (hmono := by
       exact CodeReq.union_sub
-        (step2v4_sub 7 (base+28) (.SRLI .x1 .x11 32) (by omega) (by bv_omega) (by decide))
-        (step2v4_sub 8 (base+32) (.BNE .x1 .x0 92) (by omega) (by bv_omega) (by decide))) hB_raw
+        (step2v4_sub 7 (base+28) (.SRLI .x9 .x11 32) (by omega) (by bv_omega) (by decide))
+        (step2v4_sub 8 (base+32) (.BNE .x9 .x0 92) (by omega) (by bv_omega) (by decide))) hB_raw
   have hBf := cpsBranchWithin_frameR
     ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
      (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
@@ -782,7 +782,7 @@ theorem divK_div128_step2_v4_spec
   -- finalPost (merged post at base+124 for both legs).
   let finalPost : Assertion :=
     (.x5 ↦ᵣ q0'') ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ x7Exit) **
-    (.x1 ↦ᵣ x1Exit) ** (.x11 ↦ᵣ x11Exit) **
+    (.x9 ↦ᵣ x9Exit) ** (.x11 ↦ᵣ x11Exit) **
     (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
     (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
     (sp + signExtend12 3936 ↦ₘ mem3936Exit)
@@ -790,7 +790,7 @@ theorem divK_div128_step2_v4_spec
   -- q0'' = q0c (both D3 guards fire), x7=un21, x1=rhat2cHi, x11=rhat2c, mem3936=vScratchOld.
   -- The taken postcondition of composed_AB:
   let takenPost : Assertion :=
-    ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ rhat2cHi) **
+    ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x9 ↦ᵣ rhat2cHi) **
      (.x0 ↦ᵣ 0) ** ⌜rhat2cHi ≠ 0⌝) **
     (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
     (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
@@ -802,12 +802,12 @@ theorem divK_div128_step2_v4_spec
     (cpsTripleWithin_refl (by
       intro hp htp
       -- Extract ⌜rhat2cHi ≠ 0⌝ from takenPost (inside a have so htp survives).
-      -- takenPost = (.x12 ** .x11 ** .x1 ** .x0 ** ⌜rhat2cHi ≠ 0⌝) ** rest.
+      -- takenPost = (.x12 ** .x11 ** .x9 ** .x0 ** ⌜rhat2cHi ≠ 0⌝) ** rest.
       have h_ne : rhat2cHi ≠ 0 := by
         obtain ⟨_, _, _, _, hleft, _⟩ := htp
         obtain ⟨_, _, _, _, _, h1⟩ := hleft  -- peel .x12
         obtain ⟨_, _, _, _, _, h2⟩ := h1     -- peel .x11
-        obtain ⟨_, _, _, _, _, h3⟩ := h2     -- peel .x1
+        obtain ⟨_, _, _, _, _, h3⟩ := h2     -- peel .x9
         obtain ⟨_, _, _, _, _, h4⟩ := h3     -- peel .x0
         obtain ⟨_, hpure⟩ := h4             -- ⌜rhat2cHi ≠ 0⌝
         exact hpure
@@ -823,13 +823,13 @@ theorem divK_div128_step2_v4_spec
         rw [hq0', hrhat2']
         simp only [div128Quot_phase2b_q0']; exact if_neg h_ne
       have hx7 : x7Exit = un21   := by show (if rhat2cHi ≠ 0 then un21 else _) = un21; exact if_pos h_ne
-      have hx1 : x1Exit = rhat2cHi := by show (if rhat2cHi ≠ 0 then rhat2cHi else _) = rhat2cHi; exact if_pos h_ne
+      have hx1 : x9Exit = rhat2cHi := by show (if rhat2cHi ≠ 0 then rhat2cHi else _) = rhat2cHi; exact if_pos h_ne
       have hx11 : x11Exit = rhat2c  := by show (if rhat2cHi ≠ 0 then rhat2c else _) = rhat2c; exact if_pos h_ne
       have hmem : mem3936Exit = vScratchOld := by show (if rhat2cHi ≠ 0 then vScratchOld else _) = vScratchOld; exact if_pos h_ne
       -- Strip ⌜rhat2cHi ≠ 0⌝ from htp for xperm_hyp.
-      -- takenPost = (.x12 ** .x11 ** .x1 ** .x0 ** ⌜...⌝) ** rest.
+      -- takenPost = (.x12 ** .x11 ** .x9 ** .x0 ** ⌜...⌝) ** rest.
       -- Strip: 3x sepConj_mono_right to reach .x0 ** ⌜...⌝, then strip.
-      have htp' : (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ rhat2cHi) ** (.x0 ↦ᵣ 0)) **
+      have htp' : (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x9 ↦ᵣ rhat2cHi) ** (.x0 ↦ᵣ 0)) **
           (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
           (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
           (sp + signExtend12 3936 ↦ₘ vScratchOld)) hp :=
@@ -838,7 +838,7 @@ theorem divK_div128_step2_v4_spec
       -- Rewrite finalPost to explicit form, then xperm_hyp htp'.
       show finalPost hp
       rw [show finalPost = ((.x5 ↦ᵣ q0c) ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ un21) **
-          (.x1 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
+          (.x9 ↦ᵣ rhat2cHi) ** (.x11 ↦ᵣ rhat2c) **
           (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
           (sp + signExtend12 3952 ↦ₘ dlo) **
           (sp + signExtend12 3944 ↦ₘ un0) **
@@ -847,7 +847,7 @@ theorem divK_div128_step2_v4_spec
       xperm_hyp htp'))
   -- The not-taken postcondition of composed_AB:
   let notTakenPost : Assertion :=
-    ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x1 ↦ᵣ rhat2cHi) **
+    ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x9 ↦ᵣ rhat2cHi) **
      (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝) **
     (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
     (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
@@ -858,25 +858,25 @@ theorem divK_div128_step2_v4_spec
     -- Phase C: pre-BLTU setup [9..14] = LD+MUL+SLLI+SD+LD+OR.
     let midC : Assertion :=
       (.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0c) **
-      (.x11 ↦ᵣ un0) ** (.x1 ↦ᵣ rhat2Un0) **
+      (.x11 ↦ᵣ un0) ** (.x9 ↦ᵣ rhat2Un0) **
       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
       (sp + signExtend12 3936 ↦ₘ rhat2c)
     have hC : cpsTripleWithin 6 (base+36) (base+60) (divKDiv128Step2V4Code base)
         notTakenPost midC := by
       apply cpsTripleWithin_extend_code (hmono := by
-        exact CodeReq.union_sub (step2v4_sub 9 (base+36) (.LD .x1 .x12 3952) (by omega) (by bv_omega) (by decide))
-         (CodeReq.union_sub (step2v4_sub 10 (base+40) (.MUL .x7 .x5 .x1) (by omega) (by bv_omega) (by decide))
-         (CodeReq.union_sub (step2v4_sub 11 (base+44) (.SLLI .x1 .x11 32) (by omega) (by bv_omega) (by decide))
+        exact CodeReq.union_sub (step2v4_sub 9 (base+36) (.LD .x9 .x12 3952) (by omega) (by bv_omega) (by decide))
+         (CodeReq.union_sub (step2v4_sub 10 (base+40) (.MUL .x7 .x5 .x9) (by omega) (by bv_omega) (by decide))
+         (CodeReq.union_sub (step2v4_sub 11 (base+44) (.SLLI .x9 .x11 32) (by omega) (by bv_omega) (by decide))
          (CodeReq.union_sub (step2v4_sub 12 (base+48) (.SD .x12 .x11 3936) (by omega) (by bv_omega) (by decide))
          (CodeReq.union_sub (step2v4_sub 13 (base+52) (.LD .x11 .x12 3944) (by omega) (by bv_omega) (by decide))
-          (step2v4_sub 14 (base+56) (.OR .x1 .x1 .x11) (by omega) (by bv_omega) (by decide)))))))
-      have I0 := ld_spec_gen_within .x1 .x12 sp rhat2cHi dlo 3952 (base+36) (by nofun)
-      have I1 := mul_spec_gen_within .x7 .x5 .x1 un21 q0c dlo (base+40) (by nofun)
-      have I2 := slli_spec_gen_within .x1 .x11 dlo rhat2c 32 (base+44) (by nofun)
+          (step2v4_sub 14 (base+56) (.OR .x9 .x9 .x11) (by omega) (by bv_omega) (by decide)))))))
+      have I0 := ld_spec_gen_within .x9 .x12 sp rhat2cHi dlo 3952 (base+36) (by nofun)
+      have I1 := mul_spec_gen_within .x7 .x5 .x9 un21 q0c dlo (base+40) (by nofun)
+      have I2 := slli_spec_gen_within .x9 .x11 dlo rhat2c 32 (base+44) (by nofun)
       have I3 := sd_spec_gen_within .x12 .x11 sp rhat2c vScratchOld 3936 (base+48)
       have I4 := ld_spec_gen_within .x11 .x12 sp rhat2c un0 3944 (base+52) (by nofun)
-      have I5 := or_spec_gen_rd_eq_rs1_within .x1 .x11
+      have I5 := or_spec_gen_rd_eq_rs1_within .x9 .x11
             (rhat2c <<< (32 : BitVec 6).toNat) un0 (base+56) (by nofun)
       simp only [show (base+36:Word)+4 = base+40 from by bv_omega,
                  show (base+40:Word)+4 = base+44 from by bv_omega,
@@ -888,7 +888,7 @@ theorem divK_div128_step2_v4_spec
     -- Phase D: BLTU+paths [15..20] via `divK_div128_step2_v4_phase_D_merged_spec`.
     let midD : Assertion :=
       (.x7 ↦ᵣ q0Dlo1) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ q0') **
-      (.x11 ↦ᵣ rhat2') ** (.x1 ↦ᵣ rhat2Un0) **
+      (.x11 ↦ᵣ rhat2') ** (.x9 ↦ᵣ rhat2Un0) **
       (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
       (sp + signExtend12 3936 ↦ₘ rhat2c)
@@ -909,7 +909,7 @@ theorem divK_div128_step2_v4_spec
               have hp0 :
                   ((.x5 ↦ᵣ q0'') ** (.x6 ↦ᵣ dHi) **
                    (.x7 ↦ᵣ (if rhat2'Hi ≠ 0 then q0Dlo1 else q0Dlo2)) **
-                   (.x1 ↦ᵣ (if rhat2'Hi ≠ 0 then rhat2'Hi else rhat2'Un0)) **
+                   (.x9 ↦ᵣ (if rhat2'Hi ≠ 0 then rhat2'Hi else rhat2'Un0)) **
                    (.x11 ↦ᵣ (if rhat2'Hi ≠ 0 then rhat2' else un0)) **
                    (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) ** ⌜rhat2cHi = 0⌝ **
                    (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
@@ -927,8 +927,8 @@ theorem divK_div128_step2_v4_spec
             have hx7 : x7Exit = (if rhat2'Hi ≠ 0 then q0Dlo1 else q0Dlo2) := by
               unfold x7Exit
               exact if_neg hne
-            have hx1 : x1Exit = (if rhat2'Hi ≠ 0 then rhat2'Hi else rhat2'Un0) := by
-              unfold x1Exit
+            have hx1 : x9Exit = (if rhat2'Hi ≠ 0 then rhat2'Hi else rhat2'Un0) := by
+              unfold x9Exit
               exact if_neg hne
             have hx11 : x11Exit = (if rhat2'Hi ≠ 0 then rhat2' else un0) := by
               unfold x11Exit
@@ -939,7 +939,7 @@ theorem divK_div128_step2_v4_spec
             let noPure : Assertion :=
               (.x5 ↦ᵣ q0'') ** (.x6 ↦ᵣ dHi) **
               (.x7 ↦ᵣ (if rhat2'Hi ≠ 0 then q0Dlo1 else q0Dlo2)) **
-              (.x1 ↦ᵣ (if rhat2'Hi ≠ 0 then rhat2'Hi else rhat2'Un0)) **
+              (.x9 ↦ᵣ (if rhat2'Hi ≠ 0 then rhat2'Hi else rhat2'Un0)) **
               (.x11 ↦ᵣ (if rhat2'Hi ≠ 0 then rhat2' else un0)) **
               (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ 0) **
               (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **

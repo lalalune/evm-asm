@@ -12,7 +12,6 @@
   `divN4StackPreCall` sits next to `divN4StackPre` in `Spec.Base`; this
   file adds the MOD-side counterpart `modN4StackPreCall`.
 -/
-
 import EvmAsm.Evm64.DivMod.Spec.Base
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4Shift0
 import EvmAsm.Evm64.EvmWordArith.Div128Shift0
@@ -43,7 +42,7 @@ def modN4StackPreCall (sp : Word) (a b : EvmWord)
   (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
   (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
   (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-  (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+  (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
   (.x11 ↦ᵣ v11) **
   evmWordIs sp a ** evmWordIs (sp + 32) b **
   divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -79,7 +78,7 @@ theorem modN4StackPreCall_unfold {sp : Word} {a b : EvmWord}
     ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
      (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-     (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
      (.x11 ↦ᵣ v11) **
      evmWordIs sp a ** evmWordIs (sp + 32) b **
      divScratchValuesCall sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -95,7 +94,7 @@ theorem modN4StackPreCall_unfold {sp : Word} {a b : EvmWord}
     `evm_div_n4_call_skip_stack_spec`. -/
 @[irreducible]
 def divN4CallSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
-  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** regOwn .x2 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
   evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
@@ -105,7 +104,7 @@ def divN4CallSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
     `divN4MaxSkipStackPost_unfold` but with `divScratchOwnCall`. -/
 theorem divN4CallSkipStackPost_unfold {sp : Word} {a b : EvmWord} :
     divN4CallSkipStackPost sp a b =
-    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** regOwn .x2 **
      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
      regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
      evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
@@ -122,13 +121,44 @@ instance (sp : Word) (a b : EvmWord) :
     Assertion.PCFree (divN4CallSkipStackPost sp a b) :=
   ⟨pcFree_divN4CallSkipStackPost sp a b⟩
 
-/-- Call-trial counterpart to `modN4MaxSkipStackPost`. Identical content
-    except for the scratch ownership: uses `divScratchOwnCall` (19 cells).
+/-- DIV n=4 call-trial postcondition with `x1` omitted from the generic
+    owned-register frame. Callable wrappers use this shape when preserving the
+    exact return address for the following `cc_ret`. -/
+@[irreducible]
+def divN4CallSkipStackPostNoX1 (sp : Word) (a b : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x2 **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+  evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+  divScratchOwnCall sp
+
+theorem divN4CallSkipStackPostNoX1_unfold {sp : Word} {a b : EvmWord} :
+    divN4CallSkipStackPostNoX1 sp a b =
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x2 **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+     regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+     evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+     divScratchOwnCall sp) := by
+  delta divN4CallSkipStackPostNoX1
+  rfl
+
+theorem pcFree_divN4CallSkipStackPostNoX1 (sp : Word) (a b : EvmWord) :
+    (divN4CallSkipStackPostNoX1 sp a b).pcFree := by
+  rw [divN4CallSkipStackPostNoX1_unfold, divScratchOwnCall_unfold,
+      divScratchOwn_unfold]
+  pcFree
+
+instance (sp : Word) (a b : EvmWord) :
+    Assertion.PCFree (divN4CallSkipStackPostNoX1 sp a b) :=
+  ⟨pcFree_divN4CallSkipStackPostNoX1 sp a b⟩
+
+/-- Call-trial MOD postcondition (mirror of `divN4CallSkipStackPost`).
+    Uses `divScratchOwnCall` (19 cells).
     Paired with `modN4StackPreCall` for
     `evm_mod_n4_call_skip_stack_spec_within`. -/
 @[irreducible]
 def modN4CallSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
-  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+  (.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** regOwn .x2 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
   evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
@@ -137,7 +167,7 @@ def modN4CallSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
 /-- Named unfold for `modN4CallSkipStackPost`. -/
 theorem modN4CallSkipStackPost_unfold {sp : Word} {a b : EvmWord} :
     modN4CallSkipStackPost sp a b =
-    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x1 ** regOwn .x2 **
+    ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** regOwn .x2 **
      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
      regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
      evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.mod a b) **
@@ -171,7 +201,7 @@ theorem div_n4_call_skip_stack_weaken
      shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p : Word} :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
-       (.x1 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
+       (.x9 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
        (.x5 ↦ᵣ v5_p) ** (.x6 ↦ᵣ v6_p) ** (.x7 ↦ᵣ v7_p) **
        (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
        (.x0 ↦ᵣ (0 : Word)) **
@@ -190,6 +220,59 @@ theorem div_n4_call_skip_stack_weaken
     sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
     shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p
 
+theorem div_n4_call_skip_stack_weaken_noX1_frame
+    (sp : Word) (a b : EvmWord)
+    {v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word}
+    {q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
+     shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p : Word} :
+    ∀ h,
+      (((.x12 ↦ᵣ (sp + 32)) **
+        (.x2 ↦ᵣ v2_p) ** (.x5 ↦ᵣ v5_p) ** (.x6 ↦ᵣ v6_p) **
+        (.x7 ↦ᵣ v7_p) ** (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+        divScratchValuesCall sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p
+          u5_p u6_p u7_p shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p) **
+       (.x9 ↦ᵣ v1_p)) h →
+      (divN4CallSkipStackPostNoX1 sp a b ** (.x9 ↦ᵣ v1_p)) h := by
+  intro h hp
+  rw [divN4CallSkipStackPostNoX1_unfold]
+  apply sepConj_mono_left _ h hp
+  intro hLeft hpLeft
+  apply sepConj_mono_right
+  apply sepConj_mono (regIs_implies_regOwn .x2 (v := v2_p))
+  apply sepConj_mono (regIs_implies_regOwn .x5 (v := v5_p))
+  apply sepConj_mono (regIs_implies_regOwn .x6 (v := v6_p))
+  apply sepConj_mono (regIs_implies_regOwn .x7 (v := v7_p))
+  apply sepConj_mono (regIs_implies_regOwn .x10 (v := v10_p))
+  apply sepConj_mono (regIs_implies_regOwn .x11 (v := v11_p))
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  apply sepConj_mono_right
+  exact divScratchValuesCall_implies_divScratchOwnCall
+    sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
+    shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p
+  exact hpLeft
+
+theorem div_n4_call_skip_stack_weaken_noX1
+    (sp : Word) (a b : EvmWord)
+    {v1_p v2_p v5_p v6_p v7_p v10_p v11_p : Word}
+    {q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p u5_p u6_p u7_p
+     shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p : Word} :
+    ∀ h,
+      ((.x12 ↦ᵣ (sp + 32)) **
+       (.x9 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
+       (.x5 ↦ᵣ v5_p) ** (.x6 ↦ᵣ v6_p) ** (.x7 ↦ᵣ v7_p) **
+       (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) (EvmWord.div a b) **
+       divScratchValuesCall sp q0P q1P q2_p q3_p u0P u1P u2P u3P u4_p
+         u5_p u6_p u7_p shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p) h →
+      (divN4CallSkipStackPostNoX1 sp a b ** (.x9 ↦ᵣ v1_p)) h := by
+  intro h hp
+  exact div_n4_call_skip_stack_weaken_noX1_frame
+    (sp := sp) (a := a) (b := b) h (by xperm_hyp hp)
+
 /-- MOD counterpart of `div_n4_call_skip_stack_weaken`. Same structural
     weakening; only the second operand slot holds `EvmWord.mod a b`
     instead of `EvmWord.div a b`. -/
@@ -200,7 +283,7 @@ theorem mod_n4_call_skip_stack_weaken
      shift_p n_p j_p retMem_p dMem_p dloMem_p scratch_un0_p : Word} :
     ∀ h,
       ((.x12 ↦ᵣ (sp + 32)) **
-       (.x1 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
+       (.x9 ↦ᵣ v1_p) ** (.x2 ↦ᵣ v2_p) **
        (.x5 ↦ᵣ v5_p) ** (.x6 ↦ᵣ v6_p) ** (.x7 ↦ᵣ v7_p) **
        (.x10 ↦ᵣ v10_p) ** (.x11 ↦ᵣ v11_p) **
        (.x0 ↦ᵣ (0 : Word)) **
@@ -252,7 +335,7 @@ theorem evm_div_n4_full_call_skip_stack_pre_spec (sp base : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
        divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
@@ -309,6 +392,77 @@ theorem evm_div_n4_full_call_skip_stack_pre_spec_bundled (sp base : Word)
     (fun _ hq => hq)
     h
 
+/-- No-NOP variant of `evm_div_n4_full_call_skip_stack_pre_spec`. -/
+theorem evm_div_n4_full_call_skip_stack_pre_spec_noNop (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallEvm a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 126 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_noNop base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x11 ↦ᵣ v11Old) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
+         u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (fullDivN4CallSkipPost sp base
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
+  have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  have hraw := evm_div_n4_full_call_skip_spec_noNop sp base
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz' hb3nz hshift_nz halign hbltu hborrow
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
+          evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
+          divScratchValuesCall_unfold, divScratchValues_unfold] at hp
+      rw [word_add_zero]
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    hraw
+
+/-- Bundled version of `evm_div_n4_full_call_skip_stack_pre_spec_noNop`. -/
+theorem evm_div_n4_full_call_skip_stack_pre_spec_bundled_noNop (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallEvm a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 126 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_noNop base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (fullDivN4CallSkipPost sp base
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
+  have h := evm_div_n4_full_call_skip_stack_pre_spec_noNop sp base a b
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_nz halign hbltu hborrow
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by rw [divN4StackPreCall_unfold] at hp; exact hp)
+    (fun _ hq => hq)
+    h
+
 /-- EvmWord-level wrapper over `evm_mod_n4_full_call_skip_spec`. Same shape
     as `evm_div_n4_full_call_skip_stack_pre_spec` but for the MOD path:
     `divCode → modCode`, `evm_div_n4_full_call_skip_spec →
@@ -328,7 +482,7 @@ theorem evm_mod_n4_full_call_skip_stack_pre_spec_within (sp base : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
        divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
@@ -414,7 +568,7 @@ theorem evm_div_n4_full_call_addback_beq_stack_pre_spec (sp base : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
        divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
@@ -497,7 +651,7 @@ theorem evm_mod_n4_full_call_addback_beq_stack_pre_spec_within (sp base : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
        divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
@@ -593,7 +747,7 @@ theorem evm_div_n4_full_shift0_call_skip_stack_pre_spec (sp base : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
        divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
@@ -666,7 +820,7 @@ theorem evm_mod_n4_full_shift0_call_skip_stack_pre_spec (sp base : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
        divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
@@ -763,7 +917,7 @@ theorem evm_div_n4_full_shift0_call_addback_beq_stack_pre_spec (sp base : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
        divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
@@ -834,7 +988,7 @@ theorem evm_mod_n4_full_shift0_call_addback_beq_stack_pre_spec (sp base : Word)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
-       (.x1 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
        (.x11 ↦ᵣ v11Old) **
        evmWordIs sp a ** evmWordIs (sp + 32) b **
        divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
@@ -1105,6 +1259,54 @@ theorem evm_div_n4_call_skip_stack_spec (sp base : Word)
   rw [word_add_zero] at hq
   xperm_hyp hq
 
+/-- No-NOP variant of `evm_div_n4_call_skip_stack_spec`. -/
+theorem evm_div_n4_call_skip_stack_spec_noNop (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallEvm a b)
+    (hsem : n4CallSkipSemanticHolds a b) :
+    cpsTripleWithin 264 base (base + nopOff) (divCode_noNop base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divN4CallSkipStackPost sp a b) := by
+  have h_pre := evm_div_n4_full_call_skip_stack_pre_spec_bundled_noNop sp base a b
+    v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0
+    hbnz hb3nz hshift_nz halign hbltu hborrow
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
+    n4_call_skip_div_mod_getLimbN a b hbnz hshift_nz hborrow hsem
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
+  intro h hq
+  simp only [fullDivN4CallSkipPost_unfold, denormDivPost_unfold] at hq
+  apply div_n4_call_skip_stack_weaken sp a b h
+  rw [show evmWordIs sp a =
+      ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3))
+      from evmWordIs_sp_unfold]
+  rw [show evmWordIs (sp + 32) (EvmWord.div a b) =
+      (((sp + 32) ↦ₘ (div128Quot ((a.getLimbN 3) >>> ((signExtend12 (0 : BitVec 12) -
+          (clzResult (b.getLimbN 3)).1).toNat % 64))
+          (((a.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((a.getLimbN 2) >>> ((signExtend12 (0 : BitVec 12) -
+              (clzResult (b.getLimbN 3)).1).toNat % 64)))
+          (((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
+            ((b.getLimbN 2) >>> ((signExtend12 (0 : BitVec 12) -
+              (clzResult (b.getLimbN 3)).1).toNat % 64))))) **
+       ((sp + 40) ↦ₘ (0 : Word)) **
+       ((sp + 48) ↦ₘ (0 : Word)) **
+       ((sp + 56) ↦ₘ (0 : Word)))
+      from by rw [evmWordIs_sp32_limbs_eq sp (EvmWord.div a b) _ _ _ _
+                  hdiv0 hdiv1 hdiv2 hdiv3]]
+  rw [divScratchValuesCall_unfold, divScratchValues_unfold]
+  rw [word_add_zero] at hq
+  xperm_hyp hq
 
 /-- **Call+skip n=4 MOD denorm adapter.** Stack-level adapter folding
     the four denormalized remainder slots at `sp+32..sp+56` into
@@ -1256,101 +1458,5 @@ theorem evm_mod_n4_call_skip_stack_spec_within (sp base : Word)
   rw [word_add_zero] at hq
   simp only [hmod_eq, hanti_toNat_mod] at hq ⊢
   xperm_hyp hq
-
-/-- **`isSkipBorrowN4CallEvm` and `isAddbackBorrowN4CallEvm` are
-    complementary** (CLOSED).
-
-    The two predicates differ only in `=` vs `≠ 0` at the bottom level
-    (an `if-then-1-else-0` indicator), so exactly one holds for any
-    inputs. Useful for shift_nz top-level dispatchers that route to
-    skip vs. addback paths. -/
-theorem isSkipBorrowN4CallEvm_or_isAddbackBorrowN4CallEvm (a b : EvmWord) :
-    isSkipBorrowN4CallEvm a b ∨ isAddbackBorrowN4CallEvm a b := by
-  rw [isSkipBorrowN4CallEvm_def, isAddbackBorrowN4CallEvm_def]
-  unfold isSkipBorrowN4Call isAddbackBorrowN4Call
-  simp only []
-  by_cases h : (if BitVec.ult ((a.getLimbN 3) >>>
-        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))
-        (mulsubN4_c3 (div128Quot ((a.getLimbN 3) >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))
-          (((a.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
-            ((a.getLimbN 2) >>>
-              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
-          (((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
-            ((b.getLimbN 2) >>>
-              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))))
-          ((b.getLimbN 0) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64))
-          (((b.getLimbN 1) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
-            ((b.getLimbN 0) >>>
-              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
-          (((b.getLimbN 2) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
-            ((b.getLimbN 1) >>>
-              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
-          (((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
-            ((b.getLimbN 2) >>>
-              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
-          ((a.getLimbN 0) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64))
-          (((a.getLimbN 1) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
-            ((a.getLimbN 0) >>>
-              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
-          (((a.getLimbN 2) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
-            ((a.getLimbN 1) >>>
-              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64)))
-          (((a.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)) |||
-            ((a.getLimbN 2) >>>
-              ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64))))
-        then (1 : Word) else 0) = (0 : Word)
-  · exact Or.inl h
-  · exact Or.inr h
-
-/-- **`evm_div_n4_call_skip_stack_spec` without `hsem`** — discharges the
-    semantic hypothesis from the call-trial preconditions (CLOSED).
-
-    Wrapper that calls `evm_div_n4_call_skip_stack_spec` with
-    `hsem := n4CallSkipSemanticHolds_of_call_trial _ _ hb3nz hshift_nz hbltu`,
-    eliminating the externally-supplied semantic predicate from the API. -/
-theorem evm_div_n4_call_skip_stack_spec_unconditional (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
-    (hbnz : b ≠ 0)
-    (hb3nz : b.getLimbN 3 ≠ 0)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
-    (hbltu : isCallTrialN4Evm a b)
-    (hborrow : isSkipBorrowN4CallEvm a b) :
-    cpsTripleWithin 264 base (base + nopOff) (divCode base)
-      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
-      (divN4CallSkipStackPost sp a b) :=
-  evm_div_n4_call_skip_stack_spec sp base a b v5 v6 v7 v10 v11
-    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    hbnz hb3nz hshift_nz halign hbltu hborrow
-    (n4CallSkipSemanticHolds_of_call_trial a b hb3nz hshift_nz hbltu)
-
-/-- **`evm_mod_n4_call_skip_stack_spec_within` without `hsem`** — same idea
-    for MOD. -/
-theorem evm_mod_n4_call_skip_stack_spec_unconditional_within (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
-    (hbnz : b ≠ 0)
-    (hb3nz : b.getLimbN 3 ≠ 0)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
-    (hbltu : isCallTrialN4Evm a b)
-    (hborrow : isSkipBorrowN4CallEvm a b) :
-    cpsTripleWithin 264 base (base + nopOff) (modCode base)
-      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-         shiftMem nMem jMem retMem dMem dloMem scratch_un0)
-      (modN4CallSkipStackPost sp a b) :=
-  evm_mod_n4_call_skip_stack_spec_within sp base a b v5 v6 v7 v10 v11
-    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    hbnz hb3nz hshift_nz halign hbltu hborrow
-    (n4CallSkipSemanticHolds_of_call_trial a b hb3nz hshift_nz hbltu)
 
 end EvmAsm.Evm64

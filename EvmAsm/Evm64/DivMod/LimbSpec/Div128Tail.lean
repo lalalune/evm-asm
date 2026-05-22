@@ -48,60 +48,60 @@ theorem divK_div128_clamp_test_q1_spec_within (q1 v5Old : Word) (base : Word) :
   runBlock I0
 
 /-- div128 q0 clamp test: x1 = q0 >>> 32. -/
-theorem divK_div128_clamp_test_q0_spec_within (q0 v1Old : Word) (base : Word) :
+theorem divK_div128_clamp_test_q0_spec_within (q0 v9Old : Word) (base : Word) :
     let hi := q0 >>> (32 : BitVec 6).toNat
-    let cr := CodeReq.singleton base (.SRLI .x1 .x5 32)
+    let cr := CodeReq.singleton base (.SRLI .x9 .x5 32)
     cpsTripleWithin 1 base (base + 4) cr
-      ((.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ v1Old))
-      ((.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ hi)) := by
+      ((.x5 ↦ᵣ q0) ** (.x9 ↦ᵣ v9Old))
+      ((.x5 ↦ᵣ q0) ** (.x9 ↦ᵣ hi)) := by
   intro hi cr
-  have I0 := srli_spec_gen_within .x1 .x5 v1Old q0 32 base (by nofun)
+  have I0 := srli_spec_gen_within .x9 .x5 v9Old q0 32 base (by nofun)
   runBlock I0
 
 /-- div128 Step 2: q0 = DIVU(un21, dHi), rhat2 = un21 - q0 * dHi. -/
-theorem divK_div128_step2_init_spec_within (un21 dHi v1Old v5Old v11Old : Word) (base : Word) :
+theorem divK_div128_step2_init_spec_within (un21 dHi v9Old v5Old v11Old : Word) (base : Word) :
     let q0 := rv64_divu un21 dHi
     let rhat2 := un21 - q0 * dHi
     let cr :=
       CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x1 .x5 .x6))
-       (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x1)))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+       (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9)))
     cpsTripleWithin 3 base (base + 12) cr
       ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) **
-       (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old))
+       (.x5 ↦ᵣ v5Old) ** (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old))
       ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) **
-       (.x5 ↦ᵣ q0) ** (.x1 ↦ᵣ q0 * dHi) ** (.x11 ↦ᵣ rhat2)) := by
+       (.x5 ↦ᵣ q0) ** (.x9 ↦ᵣ q0 * dHi) ** (.x11 ↦ᵣ rhat2)) := by
   intro q0 rhat2 cr
   have I0 := divu_spec_gen_within .x5 .x7 .x6 v5Old un21 dHi base (by nofun)
-  have I1 := mul_spec_gen_within .x1 .x5 .x6 v1Old q0 dHi (base + 4) (by nofun)
-  have I2 := sub_spec_gen_within .x11 .x7 .x1 un21 (q0 * dHi) v11Old (base + 8) (by nofun)
+  have I1 := mul_spec_gen_within .x9 .x5 .x6 v9Old q0 dHi (base + 4) (by nofun)
+  have I2 := sub_spec_gen_within .x11 .x7 .x9 un21 (q0 * dHi) v11Old (base + 8) (by nofun)
   runBlock I0 I1 I2
 
 /-- div128 product check 2: compute q0*dLo and rhat2*2^32+un0 for comparison. -/
-theorem divK_div128_prodcheck2_body_spec_within (sp q0 rhat2 v1Old v7Old dlo un0 : Word)
+theorem divK_div128_prodcheck2_body_spec_within (sp q0 rhat2 v9Old v7Old dlo un0 : Word)
     (base : Word) :
     let q0Dlo := q0 * dlo
     let rhat2_hi := rhat2 <<< (32 : BitVec 6).toNat
     let rhat2Un0 := rhat2_hi ||| un0
     let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x7 .x5 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x1 .x11 32))
+      CodeReq.union (CodeReq.singleton base (.LD .x9 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x7 .x5 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x9 .x11 32))
       (CodeReq.union (CodeReq.singleton (base + 12) (.LD .x11 .x12 3944))
-       (CodeReq.singleton (base + 16) (.OR .x1 .x1 .x11)))))
+       (CodeReq.singleton (base + 16) (.OR .x9 .x9 .x11)))))
     cpsTripleWithin 5 base (base + 20) cr
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) **
-       (.x7 ↦ᵣ v7Old) ** (.x1 ↦ᵣ v1Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x9 ↦ᵣ v9Old) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0))
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ un0) **
-       (.x7 ↦ᵣ q0Dlo) ** (.x1 ↦ᵣ rhat2Un0) **
+       (.x7 ↦ᵣ q0Dlo) ** (.x9 ↦ᵣ rhat2Un0) **
        (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0)) := by
   intro q0Dlo rhat2_hi rhat2Un0 cr
-  have I0 := ld_spec_gen_within .x1 .x12 sp v1Old dlo 3952 base (by nofun)
-  have I1 := mul_spec_gen_within .x7 .x5 .x1 v7Old q0 dlo (base + 4) (by nofun)
-  have I2 := slli_spec_gen_within .x1 .x11 dlo rhat2 32 (base + 8) (by nofun)
+  have I0 := ld_spec_gen_within .x9 .x12 sp v9Old dlo 3952 base (by nofun)
+  have I1 := mul_spec_gen_within .x7 .x5 .x9 v7Old q0 dlo (base + 4) (by nofun)
+  have I2 := slli_spec_gen_within .x9 .x11 dlo rhat2 32 (base + 8) (by nofun)
   have I3 := ld_spec_gen_within .x11 .x12 sp rhat2 un0 3944 (base + 12) (by nofun)
-  have I4 := or_spec_gen_rd_eq_rs1_within .x1 .x11 rhat2_hi un0 (base + 16) (by nofun)
+  have I4 := or_spec_gen_rd_eq_rs1_within .x9 .x11 rhat2_hi un0 (base + 16) (by nofun)
   runBlock I0 I1 I2 I3 I4
 
 /-- div128 product check 2 correction: q0--. -/
@@ -145,4 +145,3 @@ theorem divK_div128_restore_return_spec_within (sp v2Old retAddr : Word) (base :
   rw [halign] at I1
   runBlock I0 I1
 
-end EvmAsm.Evm64

@@ -135,6 +135,50 @@ theorem getAccount_deleteAccount_ne
     accountCodeHash? (setAccount state addr account) addr = some account.codeHash := by
   simp [accountCodeHash?]
 
+theorem accountCode?_eq_some_iff
+    {state : WorldState} {addr : Address} {code : List Byte} :
+    accountCode? state addr = some code ↔
+      ∃ account, getAccount state addr = some account ∧ code = account.code := by
+  unfold accountCode?
+  cases h_account : getAccount state addr with
+  | none =>
+      simp
+  | some account =>
+      simp only [Option.map_some, Option.some.injEq]
+      constructor
+      · intro h_code
+        exact ⟨account, rfl, h_code.symm⟩
+      · rintro ⟨account', h_account', h_code⟩
+        subst h_account'
+        exact h_code.symm
+
+theorem accountCode?_eq_none_iff {state : WorldState} {addr : Address} :
+    accountCode? state addr = none ↔ getAccount state addr = none := by
+  unfold accountCode?
+  cases getAccount state addr <;> simp
+
+theorem accountCodeHash?_eq_some_iff
+    {state : WorldState} {addr : Address} {codeHash : Hash256} :
+    accountCodeHash? state addr = some codeHash ↔
+      ∃ account, getAccount state addr = some account ∧ codeHash = account.codeHash := by
+  unfold accountCodeHash?
+  cases h_account : getAccount state addr with
+  | none =>
+      simp
+  | some account =>
+      simp only [Option.map_some, Option.some.injEq]
+      constructor
+      · intro h_codeHash
+        exact ⟨account, rfl, h_codeHash.symm⟩
+      · rintro ⟨account', h_account', h_codeHash⟩
+        subst h_account'
+        exact h_codeHash.symm
+
+theorem accountCodeHash?_eq_none_iff {state : WorldState} {addr : Address} :
+    accountCodeHash? state addr = none ↔ getAccount state addr = none := by
+  unfold accountCodeHash?
+  cases getAccount state addr <;> simp
+
 theorem accountCode?_setAccount_ne
     (state : WorldState) {addr other : Address} (account : Account)
     (h_ne : other ≠ addr) :
@@ -183,6 +227,20 @@ theorem getAccount_setAccountCode_ne
   cases h_account : getAccount state addr <;>
     simp [getAccount_setAccount_ne, h_ne]
 
+theorem accountCode?_setAccountCode_ne
+    (state : WorldState) {addr other : Address} (codeHash : Hash256) (code : List Byte)
+    (h_ne : other ≠ addr) :
+    accountCode? (setAccountCode state addr codeHash code) other =
+      accountCode? state other := by
+  simp [accountCode?, getAccount_setAccountCode_ne state codeHash code h_ne]
+
+theorem accountCodeHash?_setAccountCode_ne
+    (state : WorldState) {addr other : Address} (codeHash : Hash256) (code : List Byte)
+    (h_ne : other ≠ addr) :
+    accountCodeHash? (setAccountCode state addr codeHash code) other =
+      accountCodeHash? state other := by
+  simp [accountCodeHash?, getAccount_setAccountCode_ne state codeHash code h_ne]
+
 @[simp] theorem accountBalance?_empty (addr : Address) :
     accountBalance? empty addr = none := rfl
 
@@ -190,6 +248,28 @@ theorem getAccount_setAccountCode_ne
     (state : WorldState) (addr : Address) (account : Account) :
     accountBalance? (setAccount state addr account) addr = some account.balance := by
   simp [accountBalance?]
+
+theorem accountBalance?_eq_some_iff
+    {state : WorldState} {addr : Address} {balance : Word256} :
+    accountBalance? state addr = some balance ↔
+      ∃ account, getAccount state addr = some account ∧ balance = account.balance := by
+  unfold accountBalance?
+  cases h_account : getAccount state addr with
+  | none =>
+      simp
+  | some account =>
+      simp only [Option.map_some, Option.some.injEq]
+      constructor
+      · intro h_balance
+        exact ⟨account, rfl, h_balance.symm⟩
+      · rintro ⟨account', h_account', h_balance⟩
+        subst h_account'
+        exact h_balance.symm
+
+theorem accountBalance?_eq_none_iff {state : WorldState} {addr : Address} :
+    accountBalance? state addr = none ↔ getAccount state addr = none := by
+  unfold accountBalance?
+  cases getAccount state addr <;> simp
 
 theorem accountBalance?_setAccount_ne
     (state : WorldState) {addr other : Address} (account : Account)
@@ -226,6 +306,13 @@ theorem getAccount_setAccountBalance_ne
   | some account =>
       exact getAccount_setAccount_ne state { account with balance := balance } h_ne
 
+theorem accountBalance?_setAccountBalance_ne
+    {state : WorldState} {addr other : Address} {balance : Word256}
+    (h_ne : other ≠ addr) :
+    accountBalance? (setAccountBalance state addr balance) other =
+      accountBalance? state other := by
+  simp [accountBalance?, getAccount_setAccountBalance_ne h_ne]
+
 @[simp] theorem accountNonce?_empty (addr : Address) :
     accountNonce? empty addr = none := rfl
 
@@ -233,6 +320,28 @@ theorem getAccount_setAccountBalance_ne
     (state : WorldState) (addr : Address) (account : Account) :
     accountNonce? (setAccount state addr account) addr = some account.nonce := by
   simp [accountNonce?]
+
+theorem accountNonce?_eq_some_iff
+    {state : WorldState} {addr : Address} {nonce : Nat} :
+    accountNonce? state addr = some nonce ↔
+      ∃ account, getAccount state addr = some account ∧ nonce = account.nonce := by
+  unfold accountNonce?
+  cases h_account : getAccount state addr with
+  | none =>
+      simp
+  | some account =>
+      simp only [Option.map_some, Option.some.injEq]
+      constructor
+      · intro h_nonce
+        exact ⟨account, rfl, h_nonce.symm⟩
+      · rintro ⟨account', h_account', h_nonce⟩
+        subst h_account'
+        exact h_nonce.symm
+
+theorem accountNonce?_eq_none_iff {state : WorldState} {addr : Address} :
+    accountNonce? state addr = none ↔ getAccount state addr = none := by
+  unfold accountNonce?
+  cases getAccount state addr <;> simp
 
 theorem accountNonce?_setAccount_ne
     (state : WorldState) {addr other : Address} (account : Account)
@@ -268,6 +377,127 @@ theorem getAccount_setAccountNonce_ne
   | none => rfl
   | some account =>
       exact getAccount_setAccount_ne state { account with nonce := nonce } h_ne
+
+theorem accountNonce?_setAccountNonce_ne
+    {state : WorldState} {addr other : Address} {nonce : Nat}
+    (h_ne : other ≠ addr) :
+    accountNonce? (setAccountNonce state addr nonce) other =
+      accountNonce? state other := by
+  simp [accountNonce?, getAccount_setAccountNonce_ne h_ne]
+
+/-! ### Cross-field projection preservation
+
+`setAccountCode`, `setAccountBalance`, and `setAccountNonce` mutate disjoint
+`Account` fields, so each preserves the projections corresponding to the
+other two fields, *unconditionally* (regardless of whether `addr` equals the
+projected `other`). These lemmas are useful by CALL/CREATE/SELFDESTRUCT and
+transaction independence proofs that need to argue a balance/nonce/code
+update doesn't perturb the other fields. Authored for GH #123,
+beads `evm-asm-4k251`. -/
+
+theorem accountBalance?_setAccountCode
+    (state : WorldState) (addr other : Address) (codeHash : Hash256) (code : List Byte) :
+    accountBalance? (setAccountCode state addr codeHash code) other =
+      accountBalance? state other := by
+  unfold setAccountCode
+  cases h_account : getAccount state addr with
+  | none => rfl
+  | some account =>
+      by_cases h_eq : other = addr
+      · subst h_eq
+        simp [accountBalance?, h_account]
+      · simp [accountBalance?_setAccount_ne _ _ h_eq]
+
+theorem accountNonce?_setAccountCode
+    (state : WorldState) (addr other : Address) (codeHash : Hash256) (code : List Byte) :
+    accountNonce? (setAccountCode state addr codeHash code) other =
+      accountNonce? state other := by
+  unfold setAccountCode
+  cases h_account : getAccount state addr with
+  | none => rfl
+  | some account =>
+      by_cases h_eq : other = addr
+      · subst h_eq
+        simp [accountNonce?, h_account]
+      · simp [accountNonce?_setAccount_ne _ _ h_eq]
+
+theorem accountCode?_setAccountBalance
+    (state : WorldState) (addr other : Address) (balance : Word256) :
+    accountCode? (setAccountBalance state addr balance) other =
+      accountCode? state other := by
+  unfold setAccountBalance
+  cases h_account : getAccount state addr with
+  | none => rfl
+  | some account =>
+      by_cases h_eq : other = addr
+      · subst h_eq
+        simp [accountCode?, h_account]
+      · simp [accountCode?_setAccount_ne _ _ h_eq]
+
+theorem accountCodeHash?_setAccountBalance
+    (state : WorldState) (addr other : Address) (balance : Word256) :
+    accountCodeHash? (setAccountBalance state addr balance) other =
+      accountCodeHash? state other := by
+  unfold setAccountBalance
+  cases h_account : getAccount state addr with
+  | none => rfl
+  | some account =>
+      by_cases h_eq : other = addr
+      · subst h_eq
+        simp [accountCodeHash?, h_account]
+      · simp [accountCodeHash?_setAccount_ne _ _ h_eq]
+
+theorem accountNonce?_setAccountBalance
+    (state : WorldState) (addr other : Address) (balance : Word256) :
+    accountNonce? (setAccountBalance state addr balance) other =
+      accountNonce? state other := by
+  unfold setAccountBalance
+  cases h_account : getAccount state addr with
+  | none => rfl
+  | some account =>
+      by_cases h_eq : other = addr
+      · subst h_eq
+        simp [accountNonce?, h_account]
+      · simp [accountNonce?_setAccount_ne _ _ h_eq]
+
+theorem accountCode?_setAccountNonce
+    (state : WorldState) (addr other : Address) (nonce : Nat) :
+    accountCode? (setAccountNonce state addr nonce) other =
+      accountCode? state other := by
+  unfold setAccountNonce
+  cases h_account : getAccount state addr with
+  | none => rfl
+  | some account =>
+      by_cases h_eq : other = addr
+      · subst h_eq
+        simp [accountCode?, h_account]
+      · simp [accountCode?_setAccount_ne _ _ h_eq]
+
+theorem accountCodeHash?_setAccountNonce
+    (state : WorldState) (addr other : Address) (nonce : Nat) :
+    accountCodeHash? (setAccountNonce state addr nonce) other =
+      accountCodeHash? state other := by
+  unfold setAccountNonce
+  cases h_account : getAccount state addr with
+  | none => rfl
+  | some account =>
+      by_cases h_eq : other = addr
+      · subst h_eq
+        simp [accountCodeHash?, h_account]
+      · simp [accountCodeHash?_setAccount_ne _ _ h_eq]
+
+theorem accountBalance?_setAccountNonce
+    (state : WorldState) (addr other : Address) (nonce : Nat) :
+    accountBalance? (setAccountNonce state addr nonce) other =
+      accountBalance? state other := by
+  unfold setAccountNonce
+  cases h_account : getAccount state addr with
+  | none => rfl
+  | some account =>
+      by_cases h_eq : other = addr
+      · subst h_eq
+        simp [accountBalance?, h_account]
+      · simp [accountBalance?_setAccount_ne _ _ h_eq]
 
 @[simp] theorem getStorage_setStorage_same
     (state : WorldState) (addr : Address) (key : StorageKey) (value : Word256) :

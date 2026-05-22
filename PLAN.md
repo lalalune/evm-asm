@@ -18,6 +18,14 @@ transactions against the world state.
 Reference spec: `execution-specs/src/ethereum/forks/shanghai/vm/` (Python).
 zkVM standards: `EvmAsm/Evm64/zkvm-standards/` (submodule).
 
+> **Parallel codegen track.** Emitting verified `Program`s as executable
+> RV64 ELFs that run on the Zisk emulator is tracked separately in
+> [`CODEGEN.md`](CODEGEN.md). M0–M4 are done (text emitter, total
+> `Instr` coverage, `evm_add` round-trip on `ziskemu` from both `.data`
+> and `ziskemu -i`); M5 (tiny EVM interpreter on `PUSH1 PUSH1 ADD STOP`)
+> is next. Codegen is purely additive — it does not modify the verified
+> core.
+
 ---
 
 ## Architecture Overview
@@ -52,9 +60,9 @@ MachineState:
   mem  : Addr → BitVec 64      -- 64-bit addressable memory
   code : Addr → Option Instr   -- Instruction memory (immutable)
   pc   : BitVec 64             -- Program counter
-  committed : List (Word × Word)  -- COMMIT syscall outputs
-  publicValues : List (BitVec 8)  -- WRITE syscall outputs
-  privateInput : List (BitVec 8)  -- HINT_READ input stream
+  committed : List (Word × Word)  -- legacy SP1 COMMIT word-pair outputs
+  publicValues : List (BitVec 8)  -- public output bytes for write_output/WRITE
+  privateInput : List (BitVec 8)  -- legacy SP1 HINT_READ input stream
 ```
 
 EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
@@ -715,9 +723,12 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   - Remaining: long-string composition with Phase 2 for lenLen 2-8 and the planned
     general `n`-iteration closure,
     short/long-list error exits (`e4`/`e5`).
-- Phase 4: HINT_READ integration (load RLP input into memory buffer)
+- Phase 4: `read_input` integration (obtain RLP input pointer + length)
 - Phase 5: Recursive list decode (iterative with explicit stack)
-- Phase 6: Top-level pipeline (HINT_READ → decode → output)
+- Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
+- **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
+  `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
+  C ABI.
 - **Output format**: Pointer + length (zero-copy into input buffer)
 - **Depends on**: EL.1 (spec to verify against), EL.2 (byte-level specs)
 
@@ -826,16 +837,35 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
   SSTORE updates `storage[key] := value`.
 
 #### 8.2 Precompiles (via zkvm_accelerators)
-- Map EVM precompile addresses (0x01-0x11) to `zkvm_accelerators.h` calls.
+- The canonical C ABI is the vendored header
+  `EvmAsm/Evm64/zkvm-standards/standards/c-interface-accelerators/zkvm_accelerators.h`
+  (eth-act zkvm-standards). See
+  [`docs/zkvm-accelerators-interface.md`](docs/zkvm-accelerators-interface.md)
+  for the ADR; per-function bridge progress (input/output Lean payload types,
+  syscall ID, Hoare-triple bridge spec) is tracked in beads parent
+  `evm-asm-nr2sk`.
+- Map EVM precompile addresses (0x01-0x11, 0x100) to `zkvm_accelerators.h` calls.
 - ECRECOVER (0x01) → `zkvm_secp256k1_ecrecover`
 - SHA256 (0x02) → `zkvm_sha256`
 - RIPEMD160 (0x03) → `zkvm_ripemd160`
+- IDENTITY (0x04) → no accelerator (pure memory copy)
 - MODEXP (0x05) → `zkvm_modexp`
-- BN254 (0x06-0x08) → `zkvm_bn254_*`
+- BN254_ADD (0x06) → `zkvm_bn254_g1_add`
+- BN254_MUL (0x07) → `zkvm_bn254_g1_mul`
+- BN254_PAIRING (0x08) → `zkvm_bn254_pairing`
 - BLAKE2f (0x09) → `zkvm_blake2f`
-- KZG (0x0a) → `zkvm_kzg_point_eval`
-- BLS12-381 (0x0b-0x11) → `zkvm_bls12_*`
-- secp256r1 (0x100) → `zkvm_secp256r1_verify`
+- KZG_POINT_EVAL (0x0a) → `zkvm_kzg_point_eval`
+- BLS12_G1_ADD (0x0b) → `zkvm_bls12_g1_add`
+- BLS12_G1_MSM (0x0c) → `zkvm_bls12_g1_msm`
+- BLS12_G2_ADD (0x0d) → `zkvm_bls12_g2_add`
+- BLS12_G2_MSM (0x0e) → `zkvm_bls12_g2_msm`
+- BLS12_PAIRING (0x0f) → `zkvm_bls12_pairing`
+- BLS12_MAP_FP_TO_G1 (0x10) → `zkvm_bls12_map_fp_to_g1`
+- BLS12_MAP_FP2_TO_G2 (0x11) → `zkvm_bls12_map_fp2_to_g2`
+- secp256r1_verify (0x100) → `zkvm_secp256r1_verify`
+- Non-precompile accelerators reused by EVM opcode handlers: `zkvm_keccak256`
+  (KECCAK256 opcode, §8.3), `zkvm_secp256k1_verify` (transaction signature
+  verification).
 
 #### 8.3 KECCAK256 (via accelerator)
 - Pop offset+size, hash EVM memory region.
@@ -912,6 +942,91 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 - Run against Ethereum test vectors (ethereum/tests).
 - Compare RISC-V execution results to reference Python execution.
 - Use `native_decide` or extraction for executable tests.
+
+---
+
+## Stateless Guest (parallel STF track)
+
+Full plan: `~/.claude/plans/please-cut-a-branch-warm-wand.md`.
+Branch: `feat/run-stateless-guest-scaffold`.
+
+Stakeholders asked for `run_stateless_guest`
+(`execution-specs/src/ethereum/forks/amsterdam/stateless_guest.py:33`)
+to be implemented in RV64IM macro-assembly **early**, so testing can
+start before the proof effort catches up. Lands in a multi-PR sequence
+under `EvmAsm/Stateless/`. Each module ships with a `Program.lean` and
+a `Spec.lean` placeholder so CPS-triple proofs slot in later without
+restructuring. Precompiles raise a distinct `Unimplemented` exit code
+(0xFE marker at `OUTPUT_ADDR`); KECCAK256, ECRECOVER, SHA256, etc. go
+through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
+
+### PR sequence
+
+| PR | Scope | First fixture that passes |
+|---|---|---|
+| PR1 | Scaffold + `Unimplemented` exit + `Entry` stub | `empty_witness` (Unimplemented marker round-trip) |
+| PR2 | SSZ decode/encode + roundtrip script | `empty_witness` (false-validation roundtrip) |
+| PR3 | Headers RLP decode + validate + Witness DBs | `single_header`, `chain_3_headers` |
+| PR4 | MPT walk + read-side WitnessState | `mpt_one_account` |
+| PR5 | SSZ `hash_tree_root` + SHA256 bridge | `compute_new_payload_request_root` |
+| PR6 | Block + Transaction + ECRECOVER bridge | `tx_transfer` |
+| PR7 | EVM interpreter dispatch + opcode wiring | `bytecode_push_add` |
+| PR8+ | Remaining opcodes, MPT mutation, state-root | tracked under Phase 5–11 above |
+
+### Status
+
+- ✅ PR1 scaffold committed: `EvmAsm/Stateless/` with
+  `MemoryLayout.lean`, `Unimplemented.lean`, `Entry.lean`,
+  `EntrySpec.lean`, and the `Stateless.lean` umbrella.
+- ✅ #5164 resolved: `isValidMemAddr` is a 3-region predicate
+  (legacy + INPUT + RAM); existing proofs unaffected.
+- ✅ PR2 SSZ output encoder + roundtrip: `Stateless/SSZ/Encode/`
+  emits the 41-byte SSZ encoding of `StatelessValidationResult(root=0,
+  valid=false, chain_id=1)` at `OUTPUT_ADDR`; bytes verified identical
+  to Python's `serialize_stateless_output` reference encoder via
+  `scripts/codegen-stateless-roundtrip-check.sh` on ziskemu.
+- ✅ PR3 SSZ chain_id decoder: `Stateless/SSZ/Decode/` reads
+  `chain_id` from `INPUT_ADDR + 24` (SSZ container header byte 8).
+  Encoder parameterised on `x10`; the decoded `chain_id` flows
+  through to `OUTPUT_ADDR`. Roundtrip test feeds Python-generated
+  SSZ blobs with `chain_id ∈ {1, 0x1234567890ABCDEF}`; both pass on
+  ziskemu.
+- ✅ PR4 witness-length validation bit: `decode_validation_bit`
+  reads `offset_1` and `offset_3` from the outer container header
+  and sets `x11 = 1` iff the witness body is empty (length 12).
+  Encoder ORs `x11` into the packed `bool || chain_id` word.
+  Third fixture (`--with-empty-header`) flips the bool to 0;
+  output round-trips through Python's SSZ decoder.
+- ✅ PR5 headers-emptiness bit: `decode_validation_bit` now chases
+  the inner offset chain (outer offset_1 → witness_addr → inner
+  offset_headers → headers_addr; outer offset_3 → headers_end) and
+  sets `x11 = 1` iff `witness.headers` is empty regardless of
+  state/codes. Fourth fixture (`--with-empty-state-node`) keeps
+  bool=1 under PR5 vs. 0 under PR4 -- confirms the deeper walk.
+- ✅ PR6 header_count surfacing: `decode_header_count` reads the
+  first u32 of the headers list (with a BEQ guard for the empty
+  case) and divides by 4, leaving the count in `x16`. Encoder
+  writes it as a u64 at `OUTPUT_ADDR + 48` (diagnostic field past
+  the 41-byte SSZ result). Fifth fixture (`--with-two-empty-headers`)
+  verifies count=2.
+- ✅ PR-K1 ziskemu keccak intrinsic pinned: `CSRS 0x800, a0`
+  (32-bit encoding `0x80052073`) triggers `_opcode_keccak` in
+  ziskemu, which permutes the 200-byte state buffer pointed to by
+  `a0` via `zisk_keccakf1600`. New `zisk_keccak_probe` BuildUnit
+  emits the raw `.4byte` and copies the post-permutation state to
+  OUTPUT_ADDR; matches the Keccak team's reference vector for the
+  zero-state permutation. Source:
+  `ziskos/entrypoint/src/syscalls/keccakf.rs` + `syscall.rs`
+  (`SYSCALL_KECCAKF_ID = 0x800`) + `ziskos_syscall!` macro
+  expanding to `csrs <csr>, <reg>`.
+
+### Cross-references
+
+- Memory layout: `EvmAsm/Stateless/MemoryLayout.lean`.
+- Reason codes (precompile, EIP-7702, EIP-4844, etc.):
+  `EvmAsm/Stateless/Unimplemented.lean`.
+- SDIV blocker (`evm-asm-9iqmw`) does **not** block this track —
+  fixtures avoiding SDIV are picked first.
 
 ---
 

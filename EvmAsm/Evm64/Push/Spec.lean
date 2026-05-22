@@ -385,6 +385,56 @@ theorem push_one_byte_ofProg_spec_within
     h_code_align h_code_valid h_dst_align h_dst_valid
 
 @[irreducible]
+def pushOneBytePost
+    (codePtr sp codeWord dstWordOld : Word)
+    (codeDwordAddr dstDwordAddr : Word)
+    (codeOff dstOff : BitVec 12) : Assertion :=
+  let byteZext :=
+    (extractByte codeWord (byteOffset (codePtr + signExtend12 codeOff))).zeroExtend 64
+  ((.x10 ↦ᵣ codePtr) ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ byteZext) **
+   (codeDwordAddr ↦ₘ codeWord) **
+   (dstDwordAddr ↦ₘ
+     replaceByte dstWordOld (byteOffset (sp + signExtend12 dstOff))
+       (byteZext.truncate 8)))
+
+theorem pushOneBytePost_unfold
+    (codePtr sp codeWord dstWordOld : Word)
+    (codeDwordAddr dstDwordAddr : Word)
+    (codeOff dstOff : BitVec 12) :
+    pushOneBytePost codePtr sp codeWord dstWordOld codeDwordAddr dstDwordAddr
+      codeOff dstOff =
+    (let byteZext :=
+      (extractByte codeWord (byteOffset (codePtr + signExtend12 codeOff))).zeroExtend 64
+    ((.x10 ↦ᵣ codePtr) ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ byteZext) **
+     (codeDwordAddr ↦ₘ codeWord) **
+     (dstDwordAddr ↦ₘ
+       replaceByte dstWordOld (byteOffset (sp + signExtend12 dstOff))
+         (byteZext.truncate 8)))) := by
+  delta pushOneBytePost
+  rfl
+
+theorem push_one_byte_ofProg_named_spec_within
+    (codePtr sp v7Old codeWord dstWordOld : Word)
+    (codeDwordAddr dstDwordAddr : Word)
+    (codeOff dstOff : BitVec 12) (base : Word)
+    (h_code_align : alignToDword (codePtr + signExtend12 codeOff) = codeDwordAddr)
+    (h_code_valid : isValidByteAccess (codePtr + signExtend12 codeOff) = true)
+    (h_dst_align  : alignToDword (sp + signExtend12 dstOff) = dstDwordAddr)
+    (h_dst_valid  : isValidByteAccess (sp + signExtend12 dstOff) = true) :
+    cpsTripleWithin 2 base (base + 8)
+      (CodeReq.ofProg base (LBU .x7 .x10 codeOff ;; SB .x12 .x7 dstOff))
+      ((.x10 ↦ᵣ codePtr) ** (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7Old) **
+       (codeDwordAddr ↦ₘ codeWord) ** (dstDwordAddr ↦ₘ dstWordOld))
+      (pushOneBytePost codePtr sp codeWord dstWordOld codeDwordAddr dstDwordAddr
+        codeOff dstOff) :=
+  cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => by rw [pushOneBytePost_unfold]; exact hp)
+    (push_one_byte_ofProg_spec_within codePtr sp v7Old codeWord dstWordOld
+      codeDwordAddr dstDwordAddr codeOff dstOff base
+      h_code_align h_code_valid h_dst_align h_dst_valid)
+
+@[irreducible]
 def evmPushOneBytePost
     (n i : Nat) (codePtr sp codeWord dstWordOld : Word)
     (codeDwordAddr dstDwordAddr : Word) : Assertion :=
@@ -476,5 +526,154 @@ theorem evm_push_one_byte_spec_within
         (by
           rw [evm_push_length]
           omega)))
+
+-- ============================================================================
+-- PUSH1 complete stack spec (bead evm-asm-f0f5.11)
+-- ============================================================================
+
+/-- PUSH1 cpsTripleWithin spec: 7 instructions that push a concrete byte value
+    onto the EVM stack. Composed from zero-slot (5 instrs) + byte-copy (2 instrs).
+
+    The `byteVal` parameter makes the postcondition fully concrete, avoiding
+    form-matching issues with abstract `byteAt` functions.
+
+    `h_dst_align` encodes that `nsp = sp - 32` is 8-byte aligned:
+    `alignToDword (nsp + signExtend12 0) = nsp`. -/
+theorem evm_push1_stack_spec_within
+    (sp codePtr v7Old d0 d1 d2 d3 codeWord codeDwordAddr : Word)
+    (base : Word) (rest : List EvmWord)
+    (byteVal : BitVec 8)
+    (h_byte : extractByte codeWord
+        (byteOffset (codePtr + signExtend12 (BitVec.ofNat 12 (pushByteSrcOffset 0)))) = byteVal)
+    (h_code_align :
+      alignToDword (codePtr + signExtend12 (BitVec.ofNat 12 (pushByteSrcOffset 0))) = codeDwordAddr)
+    (h_code_valid :
+      isValidByteAccess (codePtr + signExtend12 (BitVec.ofNat 12 (pushByteSrcOffset 0))) = true)
+    (h_dst_align :
+      alignToDword (sp + signExtend12 ((-32 : BitVec 12)) +
+        signExtend12 (BitVec.ofNat 12 (pushByteDstOffset 1 0))) =
+        sp + signExtend12 ((-32 : BitVec 12)))
+    (h_dst_valid :
+      isValidByteAccess (sp + signExtend12 ((-32 : BitVec 12)) +
+        signExtend12 (BitVec.ofNat 12 (pushByteDstOffset 1 0))) = true) :
+    let nsp := sp + signExtend12 ((-32 : BitVec 12))
+    cpsTripleWithin 7 base (base + 28) (evm_push_code base 1)
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ codePtr) ** (.x7 ↦ᵣ v7Old) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+       ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+       ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+       ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+       (codeDwordAddr ↦ₘ codeWord) ** evmStackIs sp rest)
+      ((.x12 ↦ᵣ nsp) ** (.x10 ↦ᵣ codePtr) **
+       (.x7 ↦ᵣ byteVal.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+       (codeDwordAddr ↦ₘ codeWord) **
+       evmStackIs nsp (pushImmediateWord 1 (fun _ => byteVal) :: rest)) := by
+  intro nsp
+  -- Address normalization helpers
+  have h8  : (nsp + signExtend12 (8  : BitVec 12) : Word) = nsp + 8  := by unfold signExtend12; bv_decide
+  have h16 : (nsp + signExtend12 (16 : BitVec 12) : Word) = nsp + 16 := by unfold signExtend12; bv_decide
+  have h24 : (nsp + signExtend12 (24 : BitVec 12) : Word) = nsp + 24 := by unfold signExtend12; bv_decide
+  have h32 : (nsp + 32 : Word) = sp := by
+    change (sp + signExtend12 ((-32 : BitVec 12)) + 32 : Word) = sp
+    unfold signExtend12; bv_decide
+  -- The dst byte offset within nsp is 0 (nsp is 8-byte aligned)
+  have h_dstOff_zero : byteOffset (nsp + signExtend12 (BitVec.ofNat 12 (pushByteDstOffset 1 0))) = 0 := by
+    -- All concrete parts: pushByteDstOffset 1 0 = 0, signExtend12 0 = 0
+    have hse : signExtend12 (BitVec.ofNat 12 (pushByteDstOffset 1 0)) = (0 : Word) := by
+      unfold signExtend12 pushByteDstOffset; decide
+    -- Derive: nsp &&& ~~~7 = nsp from h_dst_align
+    have hdst : nsp &&& ~~~(7 : Word) = nsp := by
+      have := h_dst_align
+      rw [hse] at this
+      unfold alignToDword at this
+      simpa using this
+    -- Derive: nsp &&& 7 = 0 from hdst
+    have h7 : nsp &&& (7 : Word) = 0 :=
+      calc nsp &&& (7 : Word)
+          = (nsp &&& ~~~(7 : Word)) &&& (7 : Word) := by rw [hdst]
+        _ = nsp &&& (~~~(7 : Word) &&& (7 : Word)) := BitVec.and_assoc _ _ _
+        _ = nsp &&& 0 := by rw [show ~~~(7 : Word) &&& (7 : Word) = 0 from by decide]
+        _ = 0 := by simp [BitVec.and_zero]
+    -- Conclude byteOffset (nsp + 0) = 0
+    simp only [byteOffset]
+    rw [hse]
+    simp only [show (0:Word) = 0#64 from rfl]
+    rw [BitVec.add_zero]
+    rw [show nsp &&& 7#64 = 0 from by rw [show 7#64 = (7:Word) from rfl]; exact h7]
+    rfl
+  -- Zero-slot spec, framed with x10, x7, codeDword
+  have hZero := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ codePtr) ** (.x7 ↦ᵣ v7Old) ** (codeDwordAddr ↦ₘ codeWord))
+    (by pcFree)
+    (evm_push_zero_slot_full_stack_spec_within 1 (by decide) sp d0 d1 d2 d3 base rest)
+  -- Byte-copy spec (n=1, i=0, dstDword=nsp, dstWordOld=0)
+  have hByte_raw := evm_push_one_byte_spec_within 1 0 (by decide) (by decide)
+    codePtr nsp v7Old codeWord 0 codeDwordAddr nsp base
+    h_code_align h_code_valid h_dst_align h_dst_valid
+  -- Frame byte-copy with the remaining zero limbs + rest
+  have hByte := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) **
+     ((nsp + 8) ↦ₘ (0 : Word)) ** ((nsp + 16) ↦ₘ (0 : Word)) **
+     ((nsp + 24) ↦ₘ (0 : Word)) ** evmStackIs (nsp + 32) rest)
+    (by pcFree)
+    hByte_raw
+  -- Compose zero-slot + byte-copy via seq, with bridging built into the weaken
+  have hSeq := cpsTripleWithin_seq_same_cr hZero
+    (cpsTripleWithin_weaken
+      (fun _ hp => by
+        -- hp : hZero.POST s — uses sp + signExtend12 (-32) form; fold to nsp
+        rw [evmStackIs_cons, evmWordIs_zero] at hp
+        rw [show sp + signExtend12 (-32) = nsp from rfl] at hp
+        xperm_hyp hp)
+      (fun _ hp => hp)
+      hByte)
+  -- Normalize hSeq's exit: base + 20 + 8 = base + 28 (BitVec add not definitional with free base)
+  have h_exit : base + BitVec.ofNat 64 (4 * (5 + 2 * 0)) + 8 = (base + 28 : Word) := by
+    simp only [show BitVec.ofNat 64 (4 * (5 + 2 * 0)) = (20 : Word) from rfl,
+               BitVec.add_assoc,
+               show (20 : Word) + 8 = 28 from rfl]
+  rw [h_exit] at hSeq
+  -- Weaken to fold POST into evmStackIs with pushImmediateWord.
+  -- Use refine so that ?P' is resolved from the outer goal before proof scripts run.
+  refine cpsTripleWithin_weaken ?_ ?_ hSeq
+  · -- PRE weaken: theorem uses nsp + signExtend12 k; hSeq uses sp + signExtend12 (-32) + signExtend12 k
+    intro _ hp
+    simp only [show (nsp : Word) = sp + signExtend12 (-32) from rfl] at hp
+    xperm_hyp hp
+  · -- POST weaken: unfold evmPushOneBytePost, simplify, fold into evmStackIs
+    intro _ hp
+    rw [evmPushOneBytePost_unfold] at hp
+    -- Step 1: Reduce let-bindings and simplify truncate 8 (zext 64 b) = b
+    -- Keep pushByteSrcOffset/pushByteDstOffset un-reduced so h_byte/h_dstOff_zero match exactly
+    have htrunc8 : ∀ (b : BitVec 8),
+        BitVec.truncate 8 (BitVec.zeroExtend 64 b) = b := by
+      intro b; simp [BitVec.truncate_eq_setWidth]
+    simp only [htrunc8] at hp  -- reduces lets via zeta; htrunc8 fires on truncate arg
+    -- Step 2: Apply h_byte and h_dstOff_zero via rw (exact syntactic match after let-reduction)
+    rw [h_byte, h_dstOff_zero] at hp
+    -- Step 3: Simplify replaceByte 0 0 byteVal = byteVal.zeroExtend 64
+    -- Need show (0:Word)=0#64 so BitVec.zero_and can match the literal form
+    simp only [replaceByte, show (0 : Nat) * 8 = 0 from rfl,
+               show (0 : Word) = 0#64 from rfl,
+               BitVec.zero_and, BitVec.shiftLeft_zero, BitVec.zero_or] at hp
+    -- Fold slot atoms into evmStackIs nsp (pushImmediateWord 1 (fun _ => byteVal) :: rest)
+    rw [← pushImmediateWord_evmStackIs_fold nsp 1 (fun _ => byteVal) rest]
+    -- Evaluate pushImmediateLimb 1 (fun _ => byteVal) k for k = 0,1,2,3
+    -- For k=0: (1-1-0)/8=0 is true → replaceByte 0 0 byteVal
+    -- For k=1,2,3: (1-1-0)/8=k is false → 0
+    simp only [pushImmediateLimb, pushByteDstOffset,
+               show (1 - 1 - 0 : Nat) = 0 from rfl,
+               show (0 : Nat) / 8 = 0 from rfl, show (0 : Nat) % 8 = 0 from rfl,
+               show List.range 1 = [0] from rfl,
+               List.foldl,
+               show (0 : Nat) = 1 ↔ False from by decide,
+               show (0 : Nat) = 2 ↔ False from by decide,
+               show (0 : Nat) = 3 ↔ False from by decide,
+               ite_true, if_false]
+    simp only [replaceByte, show (0 : Nat) * 8 = 0 from rfl,
+               show (0 : Word) = 0#64 from rfl,
+               BitVec.zero_and, BitVec.shiftLeft_zero, BitVec.zero_or]
+    xperm_hyp hp
 
 end EvmAsm.Evm64

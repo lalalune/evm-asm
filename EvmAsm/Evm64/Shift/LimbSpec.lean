@@ -970,5 +970,68 @@ theorem shr_phase_a_spec_within (sp r5 r10 : Word)
       combined
   exact result
 
+/-- Bundled postcondition for `shr_merge_limb_spec_within`. Hides shiftedSrc/Next/result. -/
+@[irreducible]
+def shrMergeLimbPost (sp : Word) (src_off next_off dst_off : BitVec 12)
+    (src next bit_shift antiShift mask : Word) : Assertion :=
+  let shiftedSrc := src >>> (bit_shift.toNat % 64)
+  let shiftedNext := (next <<< (antiShift.toNat % 64)) &&& mask
+  let result := shiftedSrc ||| shiftedNext
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ shiftedNext) ** (.x11 ↦ᵣ mask) **
+  ((sp + signExtend12 src_off) ↦ₘ src) ** ((sp + signExtend12 next_off) ↦ₘ next) **
+  ((sp + signExtend12 dst_off) ↦ₘ result)
+
+/-- Bundled postcondition for `shr_merge_limb_inplace_spec_within`. -/
+@[irreducible]
+def shrMergeInplaceLimbPost (sp : Word) (off next_off : BitVec 12)
+    (src next bit_shift antiShift mask : Word) : Assertion :=
+  let shiftedSrc := src >>> (bit_shift.toNat % 64)
+  let shiftedNext := (next <<< (antiShift.toNat % 64)) &&& mask
+  let result := shiftedSrc ||| shiftedNext
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ shiftedNext) ** (.x11 ↦ᵣ mask) **
+  ((sp + signExtend12 off) ↦ₘ result) ** ((sp + signExtend12 next_off) ↦ₘ next)
+
+/-- Bundled postcondition for `shr_phase_b_spec_within`. Hides 5 computation lets. -/
+@[irreducible]
+def shrPhaseBPost (sp shift0 : Word) : Assertion :=
+  let bit_shift := shift0 &&& signExtend12 63
+  let limb_shift := shift0 >>> (6 : BitVec 6).toNat
+  let cond := if BitVec.ult (0 : Word) bit_shift then (1 : Word) else 0
+  let mask := (0 : Word) - cond
+  let antiShift := (64 : Word) - bit_shift
+  (.x5 ↦ᵣ limb_shift) ** (.x6 ↦ᵣ bit_shift) ** (.x0 ↦ᵣ (0 : Word)) **
+  (.x11 ↦ᵣ mask) ** (.x7 ↦ᵣ antiShift) ** (.x12 ↦ᵣ (sp + signExtend12 32))
+
+/-- Bundled postcondition for `shr_body_0_spec_within`. Hides result0-3. -/
+@[irreducible]
+def shrBody0Post (sp bit_shift antiShift mask v0 v1 v2 v3 : Word) : Assertion :=
+  let result0 := (v0 >>> (bit_shift.toNat % 64)) ||| ((v1 <<< (antiShift.toNat % 64)) &&& mask)
+  let result1 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+  let result2 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
+  let result3 := v3 >>> (bit_shift.toNat % 64)
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result3) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v3 <<< (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+  (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ result3)
+
+/-- Bundled postcondition for `shr_body_2_spec_within`. -/
+@[irreducible]
+def shrBody2Post (sp bit_shift antiShift mask v2 v3 : Word) : Assertion :=
+  let result0 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
+  let result1 := v3 >>> (bit_shift.toNat % 64)
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result1) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v3 <<< (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+  (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0)
+
+/-- Bundled postcondition for `shr_body_1_spec_within`. -/
+@[irreducible]
+def shrBody1Post (sp bit_shift antiShift mask v1 v2 v3 : Word) : Assertion :=
+  let result0 := (v1 >>> (bit_shift.toNat % 64)) ||| ((v2 <<< (antiShift.toNat % 64)) &&& mask)
+  let result1 := (v2 >>> (bit_shift.toNat % 64)) ||| ((v3 <<< (antiShift.toNat % 64)) &&& mask)
+  let result2 := v3 >>> (bit_shift.toNat % 64)
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result2) ** (.x6 ↦ᵣ bit_shift) **
+  (.x7 ↦ᵣ antiShift) ** (.x10 ↦ᵣ ((v3 <<< (antiShift.toNat % 64)) &&& mask)) ** (.x11 ↦ᵣ mask) **
+  (sp ↦ₘ result0) ** ((sp + 8) ↦ₘ result1) ** ((sp + 16) ↦ₘ result2) ** ((sp + 24) ↦ₘ 0)
 
 end EvmAsm.Evm64

@@ -4,7 +4,6 @@
   Per-limb ADD specs (from Arithmetic.lean).
 -/
 
-import EvmAsm.Evm64.Add.Program
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.RunBlock
 
@@ -126,5 +125,59 @@ theorem add_limb_carry_spec_within (offA offB : BitVec 12)
     aLimb (sp + signExtend12 offA) (base + 16)
   runBlock p1 p2
 
+/-- Code requirement for `add_limb0_spec_within`. -/
+abbrev addLimb0Code (offA offB : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 offA))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 offB))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SLTU .x5 .x7 .x6))
+   (CodeReq.singleton (base + 16) (.SD .x12 .x7 offB)))))
+
+/-- Bundled postcondition for `add_limb0_spec_within`. Hides `sum` and `carry` lets. -/
+@[irreducible]
+def addLimb0Post (sp : Word) (offA offB : BitVec 12) (aLimb bLimb : Word) : Assertion :=
+  let sum := aLimb + bLimb
+  let carry := if BitVec.ult sum bLimb then (1 : Word) else 0
+  (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ sum) ** (.x6 ↦ᵣ bLimb) ** (.x5 ↦ᵣ carry) **
+  ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ sum)
+
+/-- Code requirement for `add_limb_carry_spec_within`. -/
+abbrev addLimbCarryCode (offA offB : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x7 .x12 offA))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x6 .x12 offB))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.ADD .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SLTU .x11 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.ADD .x7 .x7 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.SLTU .x6 .x7 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.OR .x5 .x11 .x6))
+   (CodeReq.singleton (base + 28) (.SD .x12 .x7 offB))))))))
+
+/-- Bundled postcondition for `add_limb_carry_spec_within`. Hides 7 computation lets. -/
+@[irreducible]
+def addLimbCarryPost (sp : Word) (offA offB : BitVec 12) (aLimb bLimb carryIn : Word) : Assertion :=
+  let psum := aLimb + bLimb
+  let carry1 := if BitVec.ult psum bLimb then (1 : Word) else 0
+  let result := psum + carryIn
+  let carry2 := if BitVec.ult result carryIn then (1 : Word) else 0
+  let carryOut := carry1 ||| carry2
+  (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ carry2) ** (.x5 ↦ᵣ carryOut) ** (.x11 ↦ᵣ carry1) **
+  ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ result)
+
+/-- Bundled postcondition for `add_limb_carry_spec_phase1_within`. -/
+@[irreducible]
+def addLimbCarryPhase1Post (sp : Word) (offA offB : BitVec 12) (aLimb bLimb : Word) : Assertion :=
+  let psum := aLimb + bLimb
+  let carry1 := if BitVec.ult psum bLimb then (1 : Word) else 0
+  (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ psum) ** (.x6 ↦ᵣ bLimb) ** (.x11 ↦ᵣ carry1) **
+  ((sp + signExtend12 offA) ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ bLimb)
+
+/-- Bundled postcondition for `add_limb_carry_spec_phase2_within`. -/
+@[irreducible]
+def addLimbCarryPhase2Post (sp : Word) (offB : BitVec 12) (psum carryIn carry1 aLimb : Word) (memA : Word) : Assertion :=
+  let result := psum + carryIn
+  let carry2 := if BitVec.ult result carryIn then (1 : Word) else 0
+  let carryOut := carry1 ||| carry2
+  (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ carry2) ** (.x5 ↦ᵣ carryOut) ** (.x11 ↦ᵣ carry1) **
+  (memA ↦ₘ aLimb) ** ((sp + signExtend12 offB) ↦ₘ result)
 
 end EvmAsm.Evm64

@@ -32,41 +32,41 @@ open EvmAsm.Rv64
 /-- div128 product check 1: compute q1*dLo vs rhat*2^32+un1, conditionally correct.
     Instrs [17]-[24]. Both BLTU paths merge at base+32. -/
 theorem divK_div128_prodcheck1_merged_spec_within
-    (sp q1 rhat dHi un1 v1Old v5Old dlo : Word) (base : Word) :
+    (sp q1 rhat dHi un1 v9Old v5Old dlo : Word) (base : Word) :
     let qDlo := q1 * dlo
     let rhatUn1 := (rhat <<< (32 : BitVec 6).toNat) ||| un1
     let q1' := if BitVec.ult rhatUn1 qDlo then q1 + signExtend12 4095 else q1
     let rhat' := if BitVec.ult rhatUn1 qDlo then rhat + dHi else rhat
     let cr :=
-      CodeReq.union (CodeReq.singleton base (.LD .x1 .x12 3952))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x1))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x1 .x7 32))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.OR .x1 .x1 .x11))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BLTU .x1 .x5 8))
+      CodeReq.union (CodeReq.singleton base (.LD .x9 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x9 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.OR .x9 .x9 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.BLTU .x9 .x5 8))
       (CodeReq.union (CodeReq.singleton (base + 20) (.JAL .x0 12))
       (CodeReq.union (CodeReq.singleton (base + 24) (.ADDI .x10 .x10 4095))
        (CodeReq.singleton (base + 28) (.ADD .x7 .x7 .x6))))))))
     cpsTripleWithin 8 base (base + 32) cr
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) **
+       (.x5 ↦ᵣ v5Old) ** (.x9 ↦ᵣ v9Old) ** (.x6 ↦ᵣ dHi) **
        (sp + signExtend12 3952 ↦ₘ dlo))
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1') ** (.x7 ↦ᵣ rhat') ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1) ** (.x6 ↦ᵣ dHi) **
+       (.x5 ↦ᵣ qDlo) ** (.x9 ↦ᵣ rhatUn1) ** (.x6 ↦ᵣ dHi) **
        (sp + signExtend12 3952 ↦ₘ dlo)) := by
   intro qDlo rhatUn1 q1' rhat' cr
   have hbody : cpsTripleWithin 4 base (base + 16) cr
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) **
+       (.x5 ↦ᵣ v5Old) ** (.x9 ↦ᵣ v9Old) ** (.x6 ↦ᵣ dHi) **
        (sp + signExtend12 3952 ↦ₘ dlo))
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-       (.x5 ↦ᵣ qDlo) ** (.x1 ↦ᵣ rhatUn1) ** (.x6 ↦ᵣ dHi) **
+       (.x5 ↦ᵣ qDlo) ** (.x9 ↦ᵣ rhatUn1) ** (.x6 ↦ᵣ dHi) **
        (sp + signExtend12 3952 ↦ₘ dlo)) := by
-    have I0 := ld_spec_gen_within .x1 .x12 sp v1Old dlo 3952 base (by nofun)
-    have I1 := mul_spec_gen_within .x5 .x10 .x1 v5Old q1 dlo (base + 4) (by nofun)
-    have I2 := slli_spec_gen_within .x1 .x7 dlo rhat 32 (base + 8) (by nofun)
-    have I3 := or_spec_gen_rd_eq_rs1_within .x1 .x11 (rhat <<< (32 : BitVec 6).toNat) un1 (base + 12) (by nofun)
+    have I0 := ld_spec_gen_within .x9 .x12 sp v9Old dlo 3952 base (by nofun)
+    have I1 := mul_spec_gen_within .x5 .x10 .x9 v5Old q1 dlo (base + 4) (by nofun)
+    have I2 := slli_spec_gen_within .x9 .x7 dlo rhat 32 (base + 8) (by nofun)
+    have I3 := or_spec_gen_rd_eq_rs1_within .x9 .x11 (rhat <<< (32 : BitVec 6).toNat) un1 (base + 12) (by nofun)
     runBlock I0 I1 I2 I3
-  have hbltu_raw := bltu_spec_gen_within .x1 .x5 (8 : BitVec 13) rhatUn1 qDlo (base + 16)
+  have hbltu_raw := bltu_spec_gen_within .x9 .x5 (8 : BitVec 13) rhatUn1 qDlo (base + 16)
   have ha_t : (base + 16) + signExtend13 (8 : BitVec 13) = base + 24 := by rv64_addr
   have ha_f : (base + 16 : Word) + 4 = base + 20 := by bv_addr
   rw [ha_t, ha_f] at hbltu_raw
@@ -75,15 +75,15 @@ theorem divK_div128_prodcheck1_merged_spec_within
      (.x6 ↦ᵣ dHi) ** (sp + signExtend12 3952 ↦ₘ dlo))
     (by pcFree) hbltu_raw
   have hbltu_ext : cpsBranchWithin 1 (base + 16) cr
-      (((.x1 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo)) **
+      (((.x9 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo)) **
        ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
         (.x6 ↦ᵣ dHi) ** (sp + signExtend12 3952 ↦ₘ dlo)))
       (base + 24)
-        (((.x1 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo) ** ⌜BitVec.ult rhatUn1 qDlo⌝) **
+        (((.x9 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo) ** ⌜BitVec.ult rhatUn1 qDlo⌝) **
          ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
           (.x6 ↦ᵣ dHi) ** (sp + signExtend12 3952 ↦ₘ dlo)))
       (base + 20)
-        (((.x1 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo) ** ⌜¬BitVec.ult rhatUn1 qDlo⌝) **
+        (((.x9 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo) ** ⌜¬BitVec.ult rhatUn1 qDlo⌝) **
          ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
           (.x6 ↦ᵣ dHi) ** (sp + signExtend12 3952 ↦ₘ dlo))) :=
     fun R hR s hcr hPR hpc =>
@@ -111,7 +111,7 @@ theorem divK_div128_prodcheck1_merged_spec_within
         ((.x10 ↦ᵣ (q1 + signExtend12 4095)) ** (.x7 ↦ᵣ (rhat + dHi)) ** (.x6 ↦ᵣ dHi)) := by
       runBlock I4 I5
     have hcorr_framed := cpsTripleWithin_frameR
-      ((.x1 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ un1) **
+      ((.x9 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo) ** (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ un1) **
        (sp + signExtend12 3952 ↦ₘ dlo))
       (by pcFree) hcorr
     have full := cpsTripleWithin_seq_perm_same_cr
@@ -142,22 +142,22 @@ theorem divK_div128_prodcheck1_merged_spec_within
       · simp at h
     have I_jal_cr := cpsTripleWithin_extend_code hcr_jal I_jal
     have hjal_framed := cpsTripleWithin_frameR
-      ((.x1 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo) ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) **
+      ((.x9 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo) ** (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) **
        (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) ** (.x6 ↦ᵣ dHi) **
        (sp + signExtend12 3952 ↦ₘ dlo))
       (by pcFree) I_jal_cr
     simp only [sepConj_emp_left'] at hjal_framed
     have ntaken_clean : cpsTripleWithin 5 base (base + 20) cr
         ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
-         (.x5 ↦ᵣ v5Old) ** (.x1 ↦ᵣ v1Old) ** (.x6 ↦ᵣ dHi) **
+         (.x5 ↦ᵣ v5Old) ** (.x9 ↦ᵣ v9Old) ** (.x6 ↦ᵣ dHi) **
          (sp + signExtend12 3952 ↦ₘ dlo))
-        ((.x1 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo) **
+        ((.x9 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo) **
          (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
          (.x6 ↦ᵣ dHi) ** (sp + signExtend12 3952 ↦ₘ dlo)) :=
       cpsTripleWithin_weaken
         (fun h hp => hp)
         (fun h hp => by
-          have hp' : (((.x1 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo)) **
+          have hp' : (((.x9 ↦ᵣ rhatUn1) ** (.x5 ↦ᵣ qDlo)) **
             ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x11 ↦ᵣ un1) **
              (.x6 ↦ᵣ dHi) ** (sp + signExtend12 3952 ↦ₘ dlo))) h :=
             sepConj_mono_left (sepConj_mono_right

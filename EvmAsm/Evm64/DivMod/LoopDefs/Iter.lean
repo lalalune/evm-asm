@@ -171,8 +171,8 @@ def div128Quot (uHi uLo vTop : Word) : Word :=
     can falsely fire, producing `q1' = q_true - 1`. Numerically witnessed:
     on `(uHi=2^64-2^32+1, uLo=0, vTop=2^64-1)`, `div128Quot_v2` returns
     `2^64-2^33+1` but the true quotient is `2^64-2^32+1` (undershoot 2^32).
-    Verified by `div128Quot_v2_buggy_at_unreachable_uHi` (decide-checked)
-    in `SpecCallAddbackBeq/NumericalTests.lean`.
+    (Previously verified by a decide-checked theorem in
+    `SpecCallAddbackBeq/NumericalTests.lean`, since deleted as dead code.)
 
     **Why this hasn't broken anything yet**: the buggy regime requires
     `uHi ≥ 2^63`, which is unreachable through shift normalization
@@ -194,8 +194,8 @@ def div128Quot (uHi uLo vTop : Word) : Word :=
     The fix is no-op under runtime preconditions; only suppresses
     truncation-induced spurious fires at unreachable Word-level inputs.
     Verification chain:
-    1. Update this def + flip `div128Quot_v2_buggy_at_unreachable_uHi`'s
-       conclusion to assert correctness.
+    1. Update this def + add a new decide-checked correctness theorem
+       on the (currently unreachable) buggy regime.
     2. Drop `rhatc < 2^32` precondition from Stub 2
        (`_phase1b_check_iff_overshoot_under_runtime`) since the guard
        provides it automatically.
@@ -268,8 +268,8 @@ def div128Un0 (uLo : Word) : Word :=
 -- does only 1 Phase 1b correction, which under hshift_nz allows val256-level
 -- qHat overshoot up to ~2^33 (combining per-digit Knuth-B applied to q1' and
 -- q0' independently). On such inputs `iterWithDoubleAddback` exits with the
--- wrong q_out (off by ~2^32 from q_true), making
--- `n4CallAddbackBeqSemanticHolds` provably FALSE.
+-- wrong q_out (off by ~2^32 from q_true), falsifying the n=4
+-- call-addback semantic target.
 --
 -- See `memory/project_n4callbeq_addback_overshoot_2pow32.md` for the
 -- counterexample (a3 = 2^63+2^33, b3 = 1, b2 = 2^33-1) and
@@ -495,19 +495,5 @@ def isAddbackBorrowN2Call (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
   let qHat := div128Quot u2 u1 v1
   (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) ≠ (0 : Word)
 
-
-/-- j=0 BLTU condition for n=3 max path after j=1 max+skip: u3_j0 ≥ v2. -/
-def isMaxBltuN3After_j1_skip (v0 v1 v2 v3 u0 u1 u2 u3 : Word) : Prop :=
-  let qHat : Word := signExtend12 4095
-  let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
-  ¬BitVec.ult ms.2.2.1 v2
-
-/-- j=0 borrow=0 condition for n=3 max path after j=1 max+skip. -/
-def isSkipBorrowN3After_j1_skip (v0 v1 v2 v3 u0 u1 u2 u3 u0Orig : Word) : Prop :=
-  let qHat : Word := signExtend12 4095
-  let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
-  (if BitVec.ult ms.2.2.2.1
-      (mulsubN4_c3 qHat v0 v1 v2 v3 u0Orig ms.1 ms.2.1 ms.2.2.1)
-    then (1 : Word) else 0) = (0 : Word)
 
 end EvmAsm.Evm64
