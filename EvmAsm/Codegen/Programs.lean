@@ -7283,6 +7283,274 @@ def ziskU256MulU64BeProbeUnit : BuildUnit := {
   dataAsm     := ziskU256MulU64BeDataSection
 }
 
+/-! ## account_charge_gas_pre_exec -- PR-K81
+
+    Apply the pre-EVM sender-account mutation per Python's
+    `process_transaction`:
+
+      sender.balance -= effective_gas_price * gas_limit
+      sender.nonce   += 1
+
+    Mirrors the upfront max-gas-fee withdrawal in Python:
+
+      sender_account.balance -= effective_gas_price * tx.gas
+      sender_account.nonce   += 1
+
+    Note: tx.value is NOT deducted here — it's transferred
+    internally by the EVM via CALL/CREATE semantics. This helper
+    only handles the gas-fee deduction + nonce bump.
+
+    Post-execution, the caller refunds unused gas via:
+
+      sender.balance += remaining_gas * effective_gas_price
+
+    Composes:
+      - PR-K54 `u256_mul_u64_be` — compute gas_fee
+      - PR-K52 `u256_sub_be`     — deduct from balance
+
+    The caller passes the current nonce via an in-out `nonce_ptr`
+    (u64); this helper reads it, then writes back `nonce + 1`.
+    The balance is modified in place.
+
+    Calling convention:
+      a0 (input)  : balance ptr (32 B u256 BE; modified in place)
+      a1 (input)  : effective_gas_price ptr (32 B u256 BE)
+      a2 (input)  : gas_limit (u64)
+      a3 (input)  : nonce ptr (u64; in-out; receives nonce+1)
+      ra (input)  : return
+      a0 (output) :
+        0  : success — balance reduced, nonce incremented
+        1  : gas_fee computation overflowed u256
+        2  : balance < gas_fee (caller should have already
+             rejected via PR-K79 `validate_transaction_balance`,
+             but the underflow is reported as a safety net)
+
+    Uses 32 bytes of `.data` scratch (`acpg_gas_fee`) plus the
+    40-byte `u256m_acc` scratch from PR-K54. -/
+def accountChargeGasPreExecFunction : String :=
+  "account_charge_gas_pre_exec:\n" ++
+  "  addi sp, sp, -24\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0                   # balance ptr\n" ++
+  "  mv s1, a3                   # nonce ptr (in-out)\n" ++
+  "  # gas_fee = effective_gas_price × gas_limit\n" ++
+  "  mv a0, a1\n" ++
+  "  mv a1, a2\n" ++
+  "  la a2, acpg_gas_fee\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lacpg_fail_mul\n" ++
+  "  # balance -= gas_fee\n" ++
+  "  mv a0, s0\n" ++
+  "  la a1, acpg_gas_fee\n" ++
+  "  mv a2, s0\n" ++
+  "  jal ra, u256_sub_be\n" ++
+  "  bnez a0, .Lacpg_fail_sub\n" ++
+  "  # *nonce_ptr += 1\n" ++
+  "  ld t0, 0(s1)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  sd t0, 0(s1)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lacpg_ret\n" ++
+  ".Lacpg_fail_mul:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lacpg_ret\n" ++
+  ".Lacpg_fail_sub:\n" ++
+  "  li a0, 2\n" ++
+  ".Lacpg_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 24\n" ++
+  "  ret"
+
+/-- `zisk_account_charge_gas_pre_exec`: probe BuildUnit. Reads
+    (32B balance, 32B egp, 8B gas_limit LE, 8B nonce LE) from
+    host input; copies them into OUTPUT-resident buffers; calls
+    the helper; writes (status, new_balance, new_nonce) to
+    OUTPUT (8 + 32 + 8 = 48 bytes). -/
+def ziskAccountChargeGasPreExecPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  # Copy balance to OUTPUT + 8 (in-place mutation target)\n" ++
+  "  li a0, 0xa0010008\n" ++
+  "  addi t1, a4, 8\n" ++
+  "  ld t2,  0(t1); sd t2,  0(a0)\n" ++
+  "  ld t2,  8(t1); sd t2,  8(a0)\n" ++
+  "  ld t2, 16(t1); sd t2, 16(a0)\n" ++
+  "  ld t2, 24(t1); sd t2, 24(a0)\n" ++
+  "  # egp ptr → input region\n" ++
+  "  addi a1, a4, 40             # egp ptr at file offset 32\n" ++
+  "  ld a2, 72(a4)               # gas_limit\n" ++
+  "  # Copy nonce to OUTPUT + 40 (8 B in-out scratch)\n" ++
+  "  li a3, 0xa0010028\n" ++
+  "  ld t2, 80(a4)\n" ++
+  "  sd t2, 0(a3)\n" ++
+  "  jal ra, account_charge_gas_pre_exec\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lacpg_pdone\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  accountChargeGasPreExecFunction ++ "\n" ++
+  ".Lacpg_pdone:"
+
+def ziskAccountChargeGasPreExecDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40\n" ++
+  ".balign 32\n" ++
+  "acpg_gas_fee:\n" ++
+  "  .zero 32"
+
+def ziskAccountChargeGasPreExecProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountChargeGasPreExecPrologue
+  dataAsm     := ziskAccountChargeGasPreExecDataSection
+}
+
+/-! ## account_refund_gas_post_exec -- PR-K82
+
+    Apply the post-EVM gas accounting mutations per Python's
+    `process_transaction`:
+
+      gas_refund    = remaining_gas * effective_gas_price
+      sender.balance   += gas_refund
+      priority_credit  = gas_used * priority_fee_per_gas
+      coinbase.balance += priority_credit
+
+    Where `priority_fee_per_gas = effective_gas_price - base_fee_per_gas`
+    (the pre-computed result from PR-K62
+    `priority_fee_per_gas_eip1559`).
+
+    Sister to PR-K81 `account_charge_gas_pre_exec`. Together they
+    bracket `execute_message`:
+
+      pre:  K81 → sender.balance -= max_gas_fee; sender.nonce++
+      ...   EVM run
+      post: K82 → sender.balance += gas_refund;
+                 coinbase.balance += priority_credit
+
+    Composes:
+      - PR-K54 `u256_mul_u64_be` × 2 (sender_refund + coinbase_credit)
+      - PR-K51 `u256_add_be` × 2
+
+    Calling convention:
+      a0 (input)  : sender.balance ptr (32 B u256 BE; mod in place)
+      a1 (input)  : coinbase.balance ptr (32 B u256 BE; mod in place)
+      a2 (input)  : effective_gas_price ptr (32 B u256 BE)
+      a3 (input)  : priority_fee_per_gas ptr (32 B u256 BE)
+      a4 (input)  : gas_used (u64)
+      a5 (input)  : remaining_gas (u64)
+      ra (input)  : return
+      a0 (output) :
+        0  : success — both balances updated
+        1  : mul overflow on refund or credit
+        2  : add overflow on either balance
+
+    Uses 64 bytes of `.data` scratch (`arg_sender_refund` +
+    `arg_coinbase_credit`) plus the 40-byte `u256m_acc`. -/
+def accountRefundGasPostExecFunction : String :=
+  "account_refund_gas_post_exec:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # sender ptr\n" ++
+  "  mv s1, a1                   # coinbase ptr\n" ++
+  "  mv s2, a3                   # priority_fee ptr (saved for step 2)\n" ++
+  "  mv s3, a4                   # gas_used (saved for step 2)\n" ++
+  "  mv s4, a2                   # egp ptr (also saved; step 1 uses)\n" ++
+  "  # Step 1: sender_refund = remaining_gas × egp\n" ++
+  "  mv a0, s4\n" ++
+  "  mv a1, a5\n" ++
+  "  la a2, arg_sender_refund\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Largpe_fail_mul\n" ++
+  "  # Step 2: coinbase_credit = gas_used × priority_fee\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a1, s3\n" ++
+  "  la a2, arg_coinbase_credit\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Largpe_fail_mul\n" ++
+  "  # Step 3: sender.balance += sender_refund\n" ++
+  "  mv a0, s0\n" ++
+  "  la a1, arg_sender_refund\n" ++
+  "  mv a2, s0\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Largpe_fail_add\n" ++
+  "  # Step 4: coinbase.balance += coinbase_credit\n" ++
+  "  mv a0, s1\n" ++
+  "  la a1, arg_coinbase_credit\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Largpe_fail_add\n" ++
+  "  li a0, 0\n" ++
+  "  j .Largpe_ret\n" ++
+  ".Largpe_fail_mul:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Largpe_ret\n" ++
+  ".Largpe_fail_add:\n" ++
+  "  li a0, 2\n" ++
+  ".Largpe_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_account_refund_gas_post_exec`: probe BuildUnit. Reads
+    (32B sender_bal, 32B coinbase_bal, 32B egp, 32B priority_fee,
+    8B gas_used, 8B remaining_gas) from host input. Copies the
+    two balances to OUTPUT-resident scratch buffers, calls the
+    helper, then writes (status, new_sender, new_coinbase) to
+    OUTPUT. Total OUTPUT bytes: 8 + 32 + 32 = 72. -/
+def ziskAccountRefundGasPostExecPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a6, 0x40000000\n" ++
+  "  # Copy sender balance to OUTPUT + 8\n" ++
+  "  li a0, 0xa0010008\n" ++
+  "  addi t1, a6, 8\n" ++
+  "  ld t2,  0(t1); sd t2,  0(a0)\n" ++
+  "  ld t2,  8(t1); sd t2,  8(a0)\n" ++
+  "  ld t2, 16(t1); sd t2, 16(a0)\n" ++
+  "  ld t2, 24(t1); sd t2, 24(a0)\n" ++
+  "  # Copy coinbase balance to OUTPUT + 40\n" ++
+  "  li a1, 0xa0010028\n" ++
+  "  addi t1, a6, 40\n" ++
+  "  ld t2,  0(t1); sd t2,  0(a1)\n" ++
+  "  ld t2,  8(t1); sd t2,  8(a1)\n" ++
+  "  ld t2, 16(t1); sd t2, 16(a1)\n" ++
+  "  ld t2, 24(t1); sd t2, 24(a1)\n" ++
+  "  addi a2, a6, 72             # egp ptr\n" ++
+  "  addi a3, a6, 104            # priority_fee ptr\n" ++
+  "  ld a4, 136(a6)              # gas_used\n" ++
+  "  ld a5, 144(a6)              # remaining_gas\n" ++
+  "  jal ra, account_refund_gas_post_exec\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Largpe_pdone\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  accountRefundGasPostExecFunction ++ "\n" ++
+  ".Largpe_pdone:"
+
+def ziskAccountRefundGasPostExecDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40\n" ++
+  ".balign 32\n" ++
+  "arg_sender_refund:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "arg_coinbase_credit:\n" ++
+  "  .zero 32"
+
+def ziskAccountRefundGasPostExecProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountRefundGasPostExecPrologue
+  dataAsm     := ziskAccountRefundGasPostExecDataSection
+}
+
 /-! ## eip1559_calc_base_fee_per_gas -- PR-K73
 
     Full EIP-1559 base-fee formula. Mirrors Python's
@@ -11278,6 +11546,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
   | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit
+  | "zisk_account_charge_gas_pre_exec" => some ziskAccountChargeGasPreExecProbeUnit
+  | "zisk_account_refund_gas_post_exec" => some ziskAccountRefundGasPostExecProbeUnit
   | "zisk_eip1559_calc_base_fee_per_gas" => some ziskEip1559CalcBaseFeePerGasProbeUnit
   | "zisk_header_validate_base_fee" => some ziskHeaderValidateBaseFeeProbeUnit
   | "zisk_validate_header_full" => some ziskValidateHeaderFullProbeUnit
@@ -11373,6 +11643,8 @@ def knownProgramNames : List String :=
    "zisk_u256_sub_be",
    "zisk_u256_eq",
    "zisk_u256_mul_u64_be",
+   "zisk_account_charge_gas_pre_exec",
+   "zisk_account_refund_gas_post_exec",
    "zisk_eip1559_calc_base_fee_per_gas",
    "zisk_header_validate_base_fee",
    "zisk_validate_header_full",
