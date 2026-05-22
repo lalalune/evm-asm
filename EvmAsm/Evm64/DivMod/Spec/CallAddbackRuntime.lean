@@ -117,6 +117,21 @@ theorem n4CallAddbackBeqCarry2Nz_of_runtime {a b : EvmWord}
     n4CallAddbackBeqAntiShift
   simpa using h_raw
 
+/-- A nonzero original top divisor limb makes the normalized n=4 divisor
+    nonzero, as required by double-addback value conservation. -/
+theorem n4CallAddbackBeqNormalizedDivisor_ne_zero {b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0) :
+    n4CallAddbackBeqB0Prime b ||| n4CallAddbackBeqB1Prime b |||
+        n4CallAddbackBeqB2Prime b ||| n4CallAddbackBeqB3Prime b ≠ 0 := by
+  intro h_zero
+  have h_b3_zero : n4CallAddbackBeqB3Prime b = 0 := by
+    bv_decide
+  have h_top_ge := n4CallAddbackBeqB3Prime_ge_pow63 hb3nz
+  rw [h_b3_zero] at h_top_ge
+  have h_zero_toNat : (0 : Word).toNat = 0 := by decide
+  rw [h_zero_toNat] at h_top_ge
+  norm_num at h_top_ge
+
 /-- Runtime-condition wrapper for double-addback value conservation over the
     normalized n=4 v4 call+addback marker limbs. -/
 theorem n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime
