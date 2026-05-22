@@ -1991,6 +1991,94 @@ def ziskHeadersParentHashProbeUnit : BuildUnit := {
   dataAsm     := ziskHeadersParentHashDataSection
 }
 
+/-! ## mpt_account_path_nibbles -- PR-K100
+
+    Compute the state trie's path for a given 20-byte address:
+
+      digest   = keccak256(address)         # 32 bytes
+      nibbles  = unpack_high_low(digest)    # 64 nibbles
+
+    The MPT walks paths in nibble units (each byte = two
+    consecutive nibbles, high first). Account lookups in the state
+    trie use `keccak256(address)` as the path key, expressed as 64
+    nibbles. PR-K24 `mpt_walk` consumes such a nibble array; this
+    helper produces it from an address in one call.
+
+    Storage slots use the analogous `keccak256(slot_key_BE)` path;
+    K100 also handles that case directly when callers feed in a
+    32-byte slot key (see calling convention).
+
+    Composes PR-K3 `zkvm_keccak256`. Uses 32 bytes of `.data`
+    scratch (`mapn_digest`).
+
+    Calling convention:
+      a0 (input)  : address (or slot key) ptr
+      a1 (input)  : input length (20 for address, 32 for slot key)
+      a2 (input)  : 64-byte nibble output ptr
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def mptAccountPathNibblesFunction : String :=
+  "mpt_account_path_nibbles:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  mv s0, a2                   # nibble output ptr (stash)\n" ++
+  "  # keccak256(input, len) → mapn_digest\n" ++
+  "  la a2, mapn_digest\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # Unpack 32 bytes → 64 nibbles.\n" ++
+  "  la t0, mapn_digest\n" ++
+  "  mv t1, s0                   # cursor over output\n" ++
+  "  li t2, 32                   # remaining bytes\n" ++
+  ".Lmapn_loop:\n" ++
+  "  beqz t2, .Lmapn_done\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  srli t4, t3, 4              # high nibble\n" ++
+  "  andi t5, t3, 15             # low nibble\n" ++
+  "  sb t4, 0(t1)\n" ++
+  "  sb t5, 1(t1)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, 2\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lmapn_loop\n" ++
+  ".Lmapn_done:\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_mpt_account_path_nibbles`: probe BuildUnit. Reads
+    (input_len, input_bytes) from host input, writes (status, 64
+    nibbles) to OUTPUT (72 bytes total). -/
+def ziskMptAccountPathNibblesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # input length\n" ++
+  "  addi a0, a3, 16             # input ptr\n" ++
+  "  li a2, 0xa0010008           # 64-byte nibble output\n" ++
+  "  jal ra, mpt_account_path_nibbles\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmapn_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptAccountPathNibblesFunction ++ "\n" ++
+  ".Lmapn_pdone:"
+
+def ziskMptAccountPathNibblesDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "mapn_digest:\n" ++
+  "  .zero 32"
+
+def ziskMptAccountPathNibblesProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptAccountPathNibblesPrologue
+  dataAsm     := ziskMptAccountPathNibblesDataSection
+}
+
 /-! ## headers_validate_chain -- PR-K18 parent_hash chain check
 
     Composes PR-K16 `headers_keccak_array` (build per-header
@@ -11871,6 +11959,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
   | "zisk_headers_parent_hash"  => some ziskHeadersParentHashProbeUnit
+  | "zisk_mpt_account_path_nibbles" => some ziskMptAccountPathNibblesProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
@@ -11971,6 +12060,7 @@ def knownProgramNames : List String :=
    "zisk_headers_keccak_chain",
    "zisk_headers_keccak_array",
    "zisk_headers_parent_hash",
+   "zisk_mpt_account_path_nibbles",
    "zisk_headers_validate_chain",
    "zisk_witness_lookup_by_hash",
    "zisk_rlp_list_nth_item",
