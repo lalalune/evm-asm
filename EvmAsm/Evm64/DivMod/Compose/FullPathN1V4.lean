@@ -940,4 +940,47 @@ theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_bltu
     (loopN1CallMaxmaxmaxExactInputHypotheses_of_bltu I
       hbltu3 hbltu2 hbltu1 hbltu0 hcarry2)
 
+/-- Full-code final spec wrapper for the canonical full-DIV n=1 call/max/max/max
+    bundled inputs. -/
+@[irreducible]
+def fullDivN1CallMaxmaxmaxExactInputSpecV4 (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word) :
+    Prop :=
+  loopN1CallMaxmaxmaxExactInputSpecV4
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+
+/-- Final exact path for the canonical full-DIV n=1 call/max/max/max
+    bundled inputs over the full `divCode_v4` bundle. -/
+theorem fullDivN1_call_maxmaxmax_exact_x1_scratch_v4
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (halign : fullDivN1CallMaxmaxmaxExactInputAligned sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hh : fullDivN1CallMaxmaxmaxExactInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    fullDivN1CallMaxmaxmaxExactInputSpecV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal := by
+  unfold fullDivN1CallMaxmaxmaxExactInputSpecV4
+  unfold fullDivN1CallMaxmaxmaxExactInputAligned at halign
+  unfold fullDivN1CallMaxmaxmaxExactInputHypotheses at hh
+  exact divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    halign hh
+
 end EvmAsm.Evm64
