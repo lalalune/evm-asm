@@ -132,6 +132,17 @@ theorem n4CallAddbackBeqNormalizedDivisor_ne_zero {b : EvmWord}
   rw [h_zero_toNat] at h_top_ge
   norm_num at h_top_ge
 
+/-- Positivity of the normalized n=4 divisor value from the original runtime
+    top-limb nonzero condition. -/
+theorem n4CallAddbackBeqNormalizedDivisor_pos {b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0) :
+    0 < EvmWord.val256
+      (n4CallAddbackBeqB0Prime b)
+      (n4CallAddbackBeqB1Prime b)
+      (n4CallAddbackBeqB2Prime b)
+      (n4CallAddbackBeqB3Prime b) :=
+  val256_pos_of_or_ne_zero (n4CallAddbackBeqNormalizedDivisor_ne_zero hb3nz)
+
 /-- Runtime-normalized c3 bridge: if the normalized trial quotient is within
     one of the normalized true quotient, the raw borrow condition pins the
     mulsub carry-out to one. -/
