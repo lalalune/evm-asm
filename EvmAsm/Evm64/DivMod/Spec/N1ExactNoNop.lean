@@ -9,6 +9,7 @@ import EvmAsm.Evm64.DivMod.Spec.CallablePost
 import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
+import EvmAsm.Evm64.DivMod.Compose.V4Code
 
 namespace EvmAsm.Evm64
 
@@ -794,6 +795,17 @@ theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_noNop_v4_preNoX1_callab
         base (base + nopOff) (divCode_noNop_v4 base) P Q) :
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v4 base) P Q := by
   exact cpsTripleWithin_mono_nSteps (by unfold unifiedDivBound; decide) h
+
+/-- Lift a no-NOP v4 spec-layer triple to the full v4 dispatcher code. This is
+    the common final step for stack-facing specs that have already been proved
+    against the no-NOP body. -/
+theorem evm_div_n1_stack_spec_within_word_v4_of_noNop
+    {P Q : Assertion} (base : Word)
+    (h :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v4 base)
+        P Q) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_v4 base) P Q := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4 h
 
 /-- Unified-bound form of the N1 v4 call/max/max/max path with arbitrary
     incoming `x9` and the v4-only scratch cell framed explicitly. -/
