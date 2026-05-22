@@ -684,6 +684,47 @@ theorem n4CallAddbackBeqCarryV4_eq_normalized {a b : EvmWord} :
         (n4CallAddbackBeqB3Prime b)) :=
   rfl
 
+theorem n4CallAddbackBeqCarryV4_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqCarryV4 a b =
+      (let b3' :=
+        ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b2' :=
+        ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b1' :=
+        ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let u3 :=
+        ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u2 :=
+        ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u1 :=
+        ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let qHat :=
+        div128Quot_v4
+          ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+          u3
+          b3'
+       let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+       addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3') := by
+  rw [n4CallAddbackBeqCarryV4_eq_normalized]
+  rw [n4CallAddbackBeqQHatV4_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqB0Prime_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqB1Prime_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqB2Prime_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqB3Prime_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqU0_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqU1_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqU2_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqU3_eq_direct hshift_nz]
+
 /-- Corrected quotient produced by the n=4 v4 call+addback-BEQ semantic marker. -/
 def n4CallAddbackBeqQOutV4 (a b : EvmWord) : Word :=
   let qHat := n4CallAddbackBeqQHatV4 a b
