@@ -5771,6 +5771,123 @@ def ziskCoinbaseExtractFromHeaderProbeUnit : BuildUnit := {
   dataAsm     := ziskCoinbaseExtractFromHeaderDataSection
 }
 
+/-! ## block_validate_blob_gas_max_cap -- PR-K93
+
+    Cancun cap enforcement: a block's `blob_gas_used` cannot exceed
+    `MAX_BLOB_GAS_PER_BLOCK = BLOB_SCHEDULE_MAX × GAS_PER_BLOB`.
+
+    Python reference (`forks/amsterdam/fork.py`):
+
+      MAX_BLOB_GAS_PER_BLOCK = BLOB_SCHEDULE_MAX * GAS_PER_BLOB
+      blob_gas_available = MAX_BLOB_GAS_PER_BLOCK - block_output.blob_gas_used
+      # …enforced per-tx as `tx_blob_gas_used > blob_gas_available`
+
+    The block-level cap is the loop invariant: at end-of-block,
+    `block_output.blob_gas_used == header.blob_gas_used`, so the
+    consensus check that `header.blob_gas_used ≤ MAX_BLOB_GAS_PER_BLOCK`
+    is the closed form. On Amsterdam mainnet:
+
+      MAX_BLOB_GAS_PER_BLOCK = 21 × 131072 = 2,752,512
+
+    Both parameters are passed in so the helper works across
+    forks that adjust either.
+
+    Computation:
+      1. Extract `header.blob_gas_used` (field 17, u64) via PR-K53
+         `rlp_field_to_u64`.
+      2. Compute `cap = max_blobs_per_block × gas_per_blob`; reject
+         on u64 overflow.
+      3. Compare `blob_gas_used ≤ cap`.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : max_blobs_per_block (u64; 21 on mainnet Amsterdam)
+      a3 (input)  : gas_per_blob (u64; 131072 on mainnet)
+      ra (input)  : return
+      a0 (output) : composite status
+
+    Status encoding:
+      0 : within cap
+      1 : header parse / field 17 missing / not u64
+      2 : `max_blobs_per_block × gas_per_blob` overflows u64
+      3 : `blob_gas_used > cap`
+
+    Composes PR-K20 `rlp_list_nth_item` via PR-K53
+    `rlp_field_to_u64`. -/
+def blockValidateBlobGasMaxCapFunction : String :=
+  "block_validate_blob_gas_max_cap:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a2                   # max_blobs_per_block\n" ++
+  "  mv s1, a3                   # gas_per_blob\n" ++
+  "  # Step 1: extract header.blob_gas_used (field 17, u64).\n" ++
+  "  # a0,a1 still hold (header_ptr, header_len).\n" ++
+  "  li a2, 17\n" ++
+  "  la a3, bvbmc_bgu\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lbvbmc_step2\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvbmc_ret\n" ++
+  ".Lbvbmc_step2:\n" ++
+  "  # Step 2: cap = max_blobs × gas_per_blob, with u64 overflow check.\n" ++
+  "  mulhu t0, s0, s1            # high half of unsigned product\n" ++
+  "  bnez t0, .Lbvbmc_overflow\n" ++
+  "  mul s2, s0, s1              # cap (low 64 bits)\n" ++
+  "  # Step 3: compare blob_gas_used <= cap.\n" ++
+  "  la t0, bvbmc_bgu\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  bgtu t1, s2, .Lbvbmc_exceeds\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvbmc_ret\n" ++
+  ".Lbvbmc_overflow:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbvbmc_ret\n" ++
+  ".Lbvbmc_exceeds:\n" ++
+  "  li a0, 3\n" ++
+  ".Lbvbmc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_blob_gas_max_cap`: probe BuildUnit. Reads
+    (header_len, max_blobs, gas_per_blob, header_bytes) from host
+    input, writes 8-byte status to OUTPUT. -/
+def ziskBlockValidateBlobGasMaxCapPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # header_len\n" ++
+  "  ld a2, 16(a4)               # max_blobs_per_block\n" ++
+  "  ld a3, 24(a4)               # gas_per_blob\n" ++
+  "  addi a0, a4, 32             # header_ptr\n" ++
+  "  jal ra, block_validate_blob_gas_max_cap\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbvbmc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  blockValidateBlobGasMaxCapFunction ++ "\n" ++
+  ".Lbvbmc_pdone:"
+
+def ziskBlockValidateBlobGasMaxCapDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bvbmc_bgu:\n" ++
+  "  .zero 8"
+
+def ziskBlockValidateBlobGasMaxCapProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateBlobGasMaxCapPrologue
+  dataAsm     := ziskBlockValidateBlobGasMaxCapDataSection
+}
+
 /-! ## validate_header_basic -- PR-K43 per-header semantic checks
 
     Three u64 invariants from `validate_header` (Python:
@@ -12102,6 +12219,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
+  | "zisk_block_validate_blob_gas_max_cap" => some ziskBlockValidateBlobGasMaxCapProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
   | "zisk_check_gas_limit"      => some ziskCheckGasLimitProbeUnit
   | "zisk_tx_validate_against_block" => some ziskTxValidateAgainstBlockProbeUnit
@@ -12203,6 +12321,7 @@ def knownProgramNames : List String :=
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
+   "zisk_block_validate_blob_gas_max_cap",
    "zisk_validate_header_basic",
    "zisk_check_gas_limit",
    "zisk_tx_validate_against_block",
