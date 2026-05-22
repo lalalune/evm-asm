@@ -6970,7 +6970,6 @@ def ziskEffectiveGasPriceEip1559ProbeUnit : BuildUnit := {
   dataAsm     := ziskEffectiveGasPriceEip1559DataSection
 }
 
-
 /-! ## u256_eq -- PR-K53 equality companion to PR-K50 u256_lt
 
     Equality predicate on two 32-byte big-endian `u256` buffers.
@@ -7209,6 +7208,104 @@ def ziskU256MulU64BeProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskU256MulU64BePrologue
   dataAsm     := ziskU256MulU64BeDataSection
+}
+
+/-! ## tx_cost_compute -- PR-K71
+
+    Compute the full upfront cost of a transaction:
+
+      tx_cost = gas_limit × effective_gas_price + value
+
+    This is the value that must not exceed `account.balance` for
+    the tx to be valid. Mirrors the Python check in
+    `validate_transaction` / `process_transaction`:
+
+      max_gas_fee = tx.gas * effective_gas_price
+      if sender.balance < max_gas_fee + tx.value:
+          raise InsufficientBalance
+
+    Composes:
+      - PR-K54 `u256_mul_u64_be` for the multiplication step
+      - PR-K51 `u256_add_be` for adding `value`
+
+    Reports overflow on either step via `status=1`. In practice
+    `effective_gas_price ≤ max_fee_per_gas` is u128-sized at
+    most, so the multiplicand fits comfortably; overflow is a
+    "garbage input" safety net.
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : effective_gas_price ptr (32 B BE)
+      a1 (input)  : gas_limit (u64)
+      a2 (input)  : value ptr (32 B BE)
+      a3 (input)  : out ptr (32 B BE; receives tx_cost)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 overflow on mul or add. -/
+def txCostComputeFunction : String :=
+  "tx_cost_compute:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a2                   # value ptr\n" ++
+  "  mv s1, a3                   # out ptr\n" ++
+  "  # Step 1: out = effective_gas_price × gas_limit.\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Ltcc_fail\n" ++
+  "  # Step 2: out = out + value.\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s0\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Ltcc_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltcc_ret\n" ++
+  ".Ltcc_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Ltcc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_tx_cost_compute`: probe BuildUnit. Reads (32B egp, 8B
+    gas_limit LE, 32B value) from host input, writes (status,
+    32B tx_cost BE) to OUTPUT (40 bytes total). -/
+def ziskTxCostComputePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  addi a0, a4, 8              # egp ptr\n" ++
+  "  ld a1, 40(a4)               # gas_limit (u64)\n" ++
+  "  addi a2, a4, 48             # value ptr\n" ++
+  "  li a3, 0xa0010008           # out ptr\n" ++
+  "  mv t0, a3; li t1, 4\n" ++
+  ".Ltcc_zout:\n" ++
+  "  beqz t1, .Ltcc_zout_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Ltcc_zout\n" ++
+  ".Ltcc_zout_done:\n" ++
+  "  jal ra, tx_cost_compute\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Ltcc_pdone\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  txCostComputeFunction ++ "\n" ++
+  ".Ltcc_pdone:"
+
+def ziskTxCostComputeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40"
+
+def ziskTxCostComputeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxCostComputePrologue
+  dataAsm     := ziskTxCostComputeDataSection
 }
 
 /-! ## u256_to_u64_be -- PR-K57 truncate BE u256 → u64 with overflow flag
@@ -9888,6 +9985,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_div_u64_be"      => some ziskU256DivU64BeProbeUnit
   | "zisk_priority_fee_per_gas_eip1559" => some ziskPriorityFeePerGasEip1559ProbeUnit
   | "zisk_effective_gas_price_eip1559" => some ziskEffectiveGasPriceEip1559ProbeUnit
+  | "zisk_tx_cost_compute"      => some ziskTxCostComputeProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
@@ -9972,6 +10070,7 @@ def knownProgramNames : List String :=
    "zisk_u256_div_u64_be",
    "zisk_priority_fee_per_gas_eip1559",
    "zisk_effective_gas_price_eip1559",
+   "zisk_tx_cost_compute",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
