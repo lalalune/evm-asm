@@ -29,14 +29,14 @@ theorem smodCodeV4_wrapper_sub {base : Word} :
     ∀ a i, (EvmAsm.Rv64.CodeReq.ofProg base evm_smod_wrapper) a = some i →
       (smodCodeV4 base) a = some i := by
   unfold smodCodeV4
-  exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base base evm_smod_v4 evm_smod_wrapper 0
+  exact EvmAsm.Rv64.CodeReq.ofProg_mono_sub base base evm_smod evm_smod_wrapper 0
     (EvmAsm.Evm64.SMod.AddrNorm.wrapperStart_addr base)
-    (by unfold evm_smod_v4; simp only [EvmAsm.Rv64.seq, EvmAsm.Rv64.Program]; rfl)
+    (by unfold evm_smod; simp only [EvmAsm.Rv64.seq, EvmAsm.Rv64.Program]; rfl)
     (by
-      rw [evm_smod_v4_length, evm_smod_wrapper_length]
+      rw [evm_smod_length, evm_smod_wrapper_length]
       norm_num)
     (by
-      rw [evm_smod_v4_length]
+      rw [evm_smod_length]
       norm_num)
 
 /-- Bundled top-level SMOD code subsumptions for the wrapper and named appended
