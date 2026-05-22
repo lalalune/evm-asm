@@ -145,6 +145,20 @@ theorem n4CallAddbackBeqQOutV4_of_carry_ne_zero {a b : EvmWord}
   rw [n4CallAddbackBeqQOutV4]
   rw [if_neg h_carry]
 
+/-- `toNat` form of the zero-carry double-decrement qOut case. -/
+theorem n4CallAddbackBeqQOutV4_toNat_of_carry_eq_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
+    (n4CallAddbackBeqQOutV4 a b).toNat =
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat := by
+  rw [n4CallAddbackBeqQOutV4_of_carry_eq_zero h_carry]
+
+/-- `toNat` form of the nonzero-carry single-decrement qOut case. -/
+theorem n4CallAddbackBeqQOutV4_toNat_of_carry_ne_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0) :
+    (n4CallAddbackBeqQOutV4 a b).toNat =
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat := by
+  rw [n4CallAddbackBeqQOutV4_of_carry_ne_zero h_carry]
+
 /-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
 
     This is the v4 migration target for `n4CallAddbackBeqSemanticHolds`: it uses
