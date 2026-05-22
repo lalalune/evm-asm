@@ -722,11 +722,13 @@ emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
    * Phase 1 (`EvmAsm/Codegen/Proofs/RegistryInvariants.lean`) —
      6 theorems about `tinyInterpRegistry`'s structural well-formedness
      (Nodup on opcode bytes + labels, byte bounds, jump-table coverage).
-   * Phase 4 first instance (`EvmAsm/Codegen/Proofs/HandlerSpecs.lean`) —
-     a reusable `cleanRetHandlerSpec` template that lifts a verified
-     body spec to a full handler-subroutine `cpsTripleWithin` triple
-     (body + `ADDI x10 x10 n` + `JALR x0 x1 0`); ADD and POP have
-     concrete instances.
+   * Phase 4 (`EvmAsm/Codegen/Proofs/HandlerSpecs.lean`) — a reusable
+     `cleanRetHandlerSpec` template that lifts a verified body spec
+     to a full handler-subroutine `cpsTripleWithin` triple (body +
+     `ADDI x10 x10 n` + `JALR x0 x1 0`). **13 concrete handler-level
+     instances** cover ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO,
+     AND, OR, XOR, NOT — every clean-shape singleton with an empty
+     `preBody` and `.advanceAndRet 1` tail.
    All proofs use only `decide`, `omega`, `bv_omega`, and the
    `cpsTripleWithin` composition lemmas — no `native_decide` /
    `bv_decide`, per [`CLAUDE.md`](CLAUDE.md). Phase 2 (parser
@@ -864,6 +866,24 @@ emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
   may need a parameterized template variant). Drift detection
   validated by manually corrupting the advance width in one
   instance and confirming the build fails (then reverting).
+- **Codegen-proofs Phase 4 expansion — 11 clean singletons.**
+  ✅ `lake build` exits 0 (validated 2026-05-22). Extends
+  `EvmAsm/Codegen/Proofs/HandlerSpecs.lean` with handler-level
+  specs for the 11 remaining clean-shape singleton opcodes:
+  `evmSubHandlerSpec` (0x03), `evmLtHandlerSpec` (0x10),
+  `evmGtHandlerSpec` (0x11), `evmSltHandlerSpec` (0x12),
+  `evmSgtHandlerSpec` (0x13), `evmEqHandlerSpec` (0x14),
+  `evmIsZeroHandlerSpec` (0x15), `evmAndHandlerSpec` (0x16),
+  `evmOrHandlerSpec` (0x17), `evmXorHandlerSpec` (0x18),
+  `evmNotHandlerSpec` (0x19). Each is a 1-call invocation of the
+  `cleanRetHandlerSpec` template against the corresponding
+  `evm_<op>_spec_within` body spec. Compile cost: ~7 s for all 13
+  theorems combined; per-instance overhead negligible. Handler-
+  spec coverage now stands at **13 of the 91 wired opcodes** (~14%).
+  Follow-up PRs extend to memory handlers (MLOAD/MSTORE/MSTORE8),
+  the parameterized PUSH / DUP / SWAP families, and the
+  x10-clobber / saved-ra / self-calling variants. Drift detection
+  re-validated on SUB.
 
 ## Future work (post-M10)
 
@@ -894,11 +914,13 @@ Longer-term (genuine new design surface):
   - **Phase 4:** lift each `OpcodeHandlerSpec`'s spec from the body
     alone to `preBody + body + tail` — covers the ~90 wired
     handlers via ~8 templates (PUSH, DUP, SWAP, singleton, memory,
-    divModTail, signedDivModTail, self-calling). **First instance
-    shipped** (ADD + POP via `cleanRetHandlerSpec`); follow-ups
-    apply the template to other clean-shape handlers, then add
-    `withX10SavePreBody` (MUL/SIGNEXTEND/BYTE/SHR), trampoline
-    (SDIV/SMOD), and self-calling (ADDMOD) variants.
+    divModTail, signedDivModTail, self-calling). **13 of 91 wired
+    opcodes covered** (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO,
+    AND, OR, XOR, NOT — all using `cleanRetHandlerSpec`); follow-ups
+    extend to memory handlers (MLOAD/MSTORE/MSTORE8), parameterized
+    PUSH / DUP / SWAP families, and add `withX10SavePreBody`
+    (MUL/SIGNEXTEND/BYTE/SHR), trampoline (SDIV/SMOD), and
+    self-calling (ADDMOD) variants.
   - **Phase 5:** end-to-end refinement — for every bytecode `B`,
     the runtime dispatcher's final state matches the EVM
     executable-spec interpreter's final state.

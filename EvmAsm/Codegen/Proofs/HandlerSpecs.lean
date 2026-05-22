@@ -24,6 +24,17 @@
 import EvmAsm.Codegen.Programs
 import EvmAsm.Evm64.Add.Spec
 import EvmAsm.Evm64.Pop.Spec
+import EvmAsm.Evm64.Sub.Spec
+import EvmAsm.Evm64.Lt.Spec
+import EvmAsm.Evm64.Gt.Spec
+import EvmAsm.Evm64.Slt.Spec
+import EvmAsm.Evm64.Sgt.Spec
+import EvmAsm.Evm64.Eq.Spec
+import EvmAsm.Evm64.IsZero.Spec
+import EvmAsm.Evm64.And.Spec
+import EvmAsm.Evm64.Or.Spec
+import EvmAsm.Evm64.Xor.Spec
+import EvmAsm.Evm64.Not.Spec
 import EvmAsm.Evm64.CallingConvention
 import EvmAsm.Rv64.InstructionSpecs
 
@@ -328,6 +339,512 @@ theorem evmPopHandlerSpec (sp base : Word) (x10_init x1_init : Word) :
     simp only [fourTimes]; bv_omega
   rw [hExitEq] at h_body
   have hQpcFree : ((.x12 ↦ᵣ (sp + 32)) : Assertion).pcFree := pcFree_regIs
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 5. Concrete instance — SUB (0x03)
+-- ============================================================================
+
+/-- Handler-level spec for `h_SUB` (opcode 0x03). Mirrors `evmAddHandlerSpec`
+    but with `evm_sub_spec_within` as the underlying body. 30-instruction
+    body + 2-instruction tail = 32 RISC-V steps. -/
+theorem evmSubHandlerSpec (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (v7 v6 v5 v11 : Word)
+    (x10_init x1_init : Word) :
+    let borrow0 := if BitVec.ult a0 b0 then (1 : Word) else 0
+    let diff0 := a0 - b0
+    let borrow1a := if BitVec.ult a1 b1 then (1 : Word) else 0
+    let temp1 := a1 - b1
+    let borrow1b := if BitVec.ult temp1 borrow0 then (1 : Word) else 0
+    let result1 := temp1 - borrow0
+    let borrow1 := borrow1a ||| borrow1b
+    let borrow2a := if BitVec.ult a2 b2 then (1 : Word) else 0
+    let temp2 := a2 - b2
+    let borrow2b := if BitVec.ult temp2 borrow1 then (1 : Word) else 0
+    let result2 := temp2 - borrow1
+    let borrow2 := borrow2a ||| borrow2b
+    let borrow3a := if BitVec.ult a3 b3 then (1 : Word) else 0
+    let temp3 := a3 - b3
+    let borrow3b := if BitVec.ult temp3 borrow2 then (1 : Word) else 0
+    let result3 := temp3 - borrow2
+    let borrow3 := borrow3a ||| borrow3b
+    cpsTripleWithin 32 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_sub 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ result3) ** (.x6 ↦ᵣ borrow3b) ** (.x5 ↦ᵣ borrow3) **
+        (.x11 ↦ᵣ borrow3a) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ diff0) ** ((sp + 40) ↦ₘ result1) ** ((sp + 48) ↦ₘ result2) **
+        ((sp + 56) ↦ₘ result3))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  intro borrow0 diff0 borrow1a temp1 borrow1b result1 borrow1 borrow2a temp2 borrow2b result2 borrow2 borrow3a temp3 borrow3b result3 borrow3
+  have h_body := EvmAsm.Evm64.evm_sub_spec_within sp base a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 v5 v11
+  have hBodyLen : EvmAsm.Evm64.evm_sub.length = 30 := by decide
+  have hExitEq : (base + (120 : Word)) = base + fourTimes 30 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ result3) ** (.x6 ↦ᵣ borrow3b) ** (.x5 ↦ᵣ borrow3) **
+        (.x11 ↦ᵣ borrow3a) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ diff0) ** ((sp + 40) ↦ₘ result1) ** ((sp + 48) ↦ₘ result2) **
+        ((sp + 56) ↦ₘ result3)) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 6. Concrete instance — LT (0x10)
+-- ============================================================================
+
+/-- Handler-level spec for `h_LT` (opcode 0x10). 26-instruction body
+    (unsigned borrow chain → boolean result) + 2-instruction tail = 28 steps. -/
+theorem evmLtHandlerSpec (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (v7 v6 v5 v11 : Word)
+    (x10_init x1_init : Word) :
+    let borrow0 := if BitVec.ult a0 b0 then (1 : Word) else 0
+    let borrow1a := if BitVec.ult a1 b1 then (1 : Word) else 0
+    let temp1 := a1 - b1
+    let borrow1b := if BitVec.ult temp1 borrow0 then (1 : Word) else 0
+    let borrow1 := borrow1a ||| borrow1b
+    let borrow2a := if BitVec.ult a2 b2 then (1 : Word) else 0
+    let temp2 := a2 - b2
+    let borrow2b := if BitVec.ult temp2 borrow1 then (1 : Word) else 0
+    let borrow2 := borrow2a ||| borrow2b
+    let borrow3a := if BitVec.ult a3 b3 then (1 : Word) else 0
+    let temp3 := a3 - b3
+    let borrow3b := if BitVec.ult temp3 borrow2 then (1 : Word) else 0
+    let borrow3 := borrow3a ||| borrow3b
+    cpsTripleWithin 28 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_lt 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ temp3) ** (.x6 ↦ᵣ borrow3b) **
+        (.x5 ↦ᵣ borrow3) ** (.x11 ↦ᵣ borrow3a) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ borrow3) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  intro borrow0 borrow1a temp1 borrow1b borrow1 borrow2a temp2 borrow2b borrow2 borrow3a temp3 borrow3b borrow3
+  have h_body := EvmAsm.Evm64.evm_lt_spec_within sp base a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 v5 v11
+  have hBodyLen : EvmAsm.Evm64.evm_lt.length = 26 := by decide
+  have hExitEq : (base + (104 : Word)) = base + fourTimes 26 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ temp3) ** (.x6 ↦ᵣ borrow3b) **
+        (.x5 ↦ᵣ borrow3) ** (.x11 ↦ᵣ borrow3a) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ borrow3) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) **
+        ((sp + 56) ↦ₘ 0)) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 7. Concrete instance — GT (0x11)
+-- ============================================================================
+
+/-- Handler-level spec for `h_GT` (opcode 0x11). Same shape as LT with
+    swapped operands (GT(a, b) = LT(b, a)); 26-instruction body. -/
+theorem evmGtHandlerSpec (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (v7 v6 v5 v11 : Word)
+    (x10_init x1_init : Word) :
+    let borrow0 := if BitVec.ult b0 a0 then (1 : Word) else 0
+    let borrow1a := if BitVec.ult b1 a1 then (1 : Word) else 0
+    let temp1 := b1 - a1
+    let borrow1b := if BitVec.ult temp1 borrow0 then (1 : Word) else 0
+    let borrow1 := borrow1a ||| borrow1b
+    let borrow2a := if BitVec.ult b2 a2 then (1 : Word) else 0
+    let temp2 := b2 - a2
+    let borrow2b := if BitVec.ult temp2 borrow1 then (1 : Word) else 0
+    let borrow2 := borrow2a ||| borrow2b
+    let borrow3a := if BitVec.ult b3 a3 then (1 : Word) else 0
+    let temp3 := b3 - a3
+    let borrow3b := if BitVec.ult temp3 borrow2 then (1 : Word) else 0
+    let borrow3 := borrow3a ||| borrow3b
+    cpsTripleWithin 28 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_gt 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ temp3) ** (.x6 ↦ᵣ borrow3b) **
+        (.x5 ↦ᵣ borrow3) ** (.x11 ↦ᵣ borrow3a) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ borrow3) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  intro borrow0 borrow1a temp1 borrow1b borrow1 borrow2a temp2 borrow2b borrow2 borrow3a temp3 borrow3b borrow3
+  have h_body := EvmAsm.Evm64.evm_gt_spec_within sp base a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 v5 v11
+  have hBodyLen : EvmAsm.Evm64.evm_gt.length = 26 := by decide
+  have hExitEq : (base + (104 : Word)) = base + fourTimes 26 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ temp3) ** (.x6 ↦ᵣ borrow3b) **
+        (.x5 ↦ᵣ borrow3) ** (.x11 ↦ᵣ borrow3a) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ borrow3) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) **
+        ((sp + 56) ↦ₘ 0)) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 8. Concrete instance — SLT (0x12)
+-- ============================================================================
+
+/-- Handler-level spec for `h_SLT` (opcode 0x12). 25-instruction body
+    (signed less-than via MSB-equal/MSB-differ branches) + 2-instruction
+    tail = 27 steps. -/
+theorem evmSltHandlerSpec (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (v7 v6 v5 v11 : Word)
+    (x10_init x1_init : Word) :
+    let borrow0 := if BitVec.ult a0 b0 then (1 : Word) else 0
+    let borrow1a := if BitVec.ult a1 b1 then (1 : Word) else 0
+    let temp1 := a1 - b1
+    let borrow1b := if BitVec.ult temp1 borrow0 then (1 : Word) else 0
+    let borrow1 := borrow1a ||| borrow1b
+    let borrow2a := if BitVec.ult a2 b2 then (1 : Word) else 0
+    let temp2 := a2 - b2
+    let borrow2b := if BitVec.ult temp2 borrow1 then (1 : Word) else 0
+    let borrow2 := borrow2a ||| borrow2b
+    let sltMsb := if BitVec.slt a3 b3 then (1 : Word) else 0
+    let result := if a3 = b3 then borrow2 else sltMsb
+    cpsTripleWithin 27 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_slt 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ (sp + 32)) **
+        (.x7 ↦ᵣ (if a3 = b3 then temp2 else a3)) **
+        (.x6 ↦ᵣ (if a3 = b3 then borrow2b else b3)) **
+        (.x5 ↦ᵣ result) **
+        (.x11 ↦ᵣ (if a3 = b3 then borrow2a else v11)) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ result) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  intro borrow0 borrow1a temp1 borrow1b borrow1 borrow2a temp2 borrow2b borrow2 sltMsb result
+  have h_body := EvmAsm.Evm64.evm_slt_spec_within sp base a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 v5 v11
+  have hBodyLen : EvmAsm.Evm64.evm_slt.length = 25 := by decide
+  have hExitEq : (base + (100 : Word)) = base + fourTimes 25 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ (sp + 32)) **
+        (.x7 ↦ᵣ (if a3 = b3 then temp2 else a3)) **
+        (.x6 ↦ᵣ (if a3 = b3 then borrow2b else b3)) **
+        (.x5 ↦ᵣ result) **
+        (.x11 ↦ᵣ (if a3 = b3 then borrow2a else v11)) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ result) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) **
+        ((sp + 56) ↦ₘ 0)) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 9. Concrete instance — SGT (0x13)
+-- ============================================================================
+
+/-- Handler-level spec for `h_SGT` (opcode 0x13). Same shape as SLT with
+    swapped operands (SGT(a, b) = SLT(b, a)); 25-instruction body. -/
+theorem evmSgtHandlerSpec (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (v7 v6 v5 v11 : Word)
+    (x10_init x1_init : Word) :
+    let borrow0 := if BitVec.ult b0 a0 then (1 : Word) else 0
+    let borrow1a := if BitVec.ult b1 a1 then (1 : Word) else 0
+    let temp1 := b1 - a1
+    let borrow1b := if BitVec.ult temp1 borrow0 then (1 : Word) else 0
+    let borrow1 := borrow1a ||| borrow1b
+    let borrow2a := if BitVec.ult b2 a2 then (1 : Word) else 0
+    let temp2 := b2 - a2
+    let borrow2b := if BitVec.ult temp2 borrow1 then (1 : Word) else 0
+    let borrow2 := borrow2a ||| borrow2b
+    let sgtMsb := if BitVec.slt b3 a3 then (1 : Word) else 0
+    let result := if b3 = a3 then borrow2 else sgtMsb
+    cpsTripleWithin 27 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_sgt 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ (sp + 32)) **
+        (.x7 ↦ᵣ (if b3 = a3 then temp2 else b3)) **
+        (.x6 ↦ᵣ (if b3 = a3 then borrow2b else a3)) **
+        (.x5 ↦ᵣ result) **
+        (.x11 ↦ᵣ (if b3 = a3 then borrow2a else v11)) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ result) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  intro borrow0 borrow1a temp1 borrow1b borrow1 borrow2a temp2 borrow2b borrow2 sgtMsb result
+  have h_body := EvmAsm.Evm64.evm_sgt_spec_within sp base a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 v5 v11
+  have hBodyLen : EvmAsm.Evm64.evm_sgt.length = 25 := by decide
+  have hExitEq : (base + (100 : Word)) = base + fourTimes 25 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ (sp + 32)) **
+        (.x7 ↦ᵣ (if b3 = a3 then temp2 else b3)) **
+        (.x6 ↦ᵣ (if b3 = a3 then borrow2b else a3)) **
+        (.x5 ↦ᵣ result) **
+        (.x11 ↦ᵣ (if b3 = a3 then borrow2a else v11)) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ result) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) **
+        ((sp + 56) ↦ₘ 0)) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 10. Concrete instance — EQ (0x14)
+-- ============================================================================
+
+/-- Handler-level spec for `h_EQ` (opcode 0x14). 21-instruction body
+    (XOR-OR-accumulate → SLTIU) + 2-instruction tail = 23 steps. -/
+theorem evmEqHandlerSpec (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (v7 v6 v5 v11 : Word)
+    (x10_init x1_init : Word) :
+    let acc0 := a0 ^^^ b0
+    let acc1 := acc0 ||| (a1 ^^^ b1)
+    let acc2 := acc1 ||| (a2 ^^^ b2)
+    let acc3 := acc2 ||| (a3 ^^^ b3)
+    let eqResult := if BitVec.ult acc3 (1 : Word) then (1 : Word) else 0
+    cpsTripleWithin 23 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_eq 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) ** (.x5 ↦ᵣ v5) ** (.x11 ↦ᵣ v11) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ (sp + 32)) **
+        (.x7 ↦ᵣ eqResult) ** (.x6 ↦ᵣ (a3 ^^^ b3)) ** (.x5 ↦ᵣ b3) ** (.x11 ↦ᵣ v11) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ eqResult) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) ** ((sp + 56) ↦ₘ 0))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  intro acc0 acc1 acc2 acc3 eqResult
+  have h_body := EvmAsm.Evm64.evm_eq_spec_within sp base a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 v5 v11
+  have hBodyLen : EvmAsm.Evm64.evm_eq.length = 21 := by decide
+  have hExitEq : (base + (84 : Word)) = base + fourTimes 21 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ (sp + 32)) **
+        (.x7 ↦ᵣ eqResult) ** (.x6 ↦ᵣ (a3 ^^^ b3)) ** (.x5 ↦ᵣ b3) ** (.x11 ↦ᵣ v11) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ eqResult) ** ((sp + 40) ↦ₘ 0) ** ((sp + 48) ↦ₘ 0) **
+        ((sp + 56) ↦ₘ 0)) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 11. Concrete instance — ISZERO (0x15)
+-- ============================================================================
+
+/-- Handler-level spec for `h_ISZERO` (opcode 0x15). 12-instruction unary
+    body (OR-accumulate → SLTIU) + 2-instruction tail = 14 steps. -/
+theorem evmIsZeroHandlerSpec (sp base : Word)
+    (a0 a1 a2 a3 : Word) (v7 v6 : Word)
+    (x10_init x1_init : Word) :
+    let orAll := a0 ||| a1 ||| a2 ||| a3
+    let result := if BitVec.ult orAll (1 : Word) then (1 : Word) else 0
+    cpsTripleWithin 14 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_iszero 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ a3) **
+        (sp ↦ₘ result) ** ((sp + 8) ↦ₘ 0) ** ((sp + 16) ↦ₘ 0) ** ((sp + 24) ↦ₘ 0))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  intro orAll result
+  have h_body := EvmAsm.Evm64.evm_iszero_spec_within sp base a0 a1 a2 a3 v7 v6
+  have hBodyLen : EvmAsm.Evm64.evm_iszero.length = 12 := by decide
+  have hExitEq : (base + (48 : Word)) = base + fourTimes 12 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ result) ** (.x6 ↦ᵣ a3) **
+        (sp ↦ₘ result) ** ((sp + 8) ↦ₘ 0) ** ((sp + 16) ↦ₘ 0) **
+        ((sp + 24) ↦ₘ 0)) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 12. Concrete instance — AND (0x16)
+-- ============================================================================
+
+/-- Handler-level spec for `h_AND` (opcode 0x16). 17-instruction body
+    (bitwise AND per limb) + 2-instruction tail = 19 steps. -/
+theorem evmAndHandlerSpec (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (v7 v6 : Word)
+    (x10_init x1_init : Word) :
+    cpsTripleWithin 19 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_and 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a3 &&& b3)) ** (.x6 ↦ᵣ b3) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ (a0 &&& b0)) ** ((sp + 40) ↦ₘ (a1 &&& b1)) **
+        ((sp + 48) ↦ₘ (a2 &&& b2)) ** ((sp + 56) ↦ₘ (a3 &&& b3)))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  have h_body := EvmAsm.Evm64.evm_and_spec_within sp base a0 a1 a2 a3 b0 b1 b2 b3 v7 v6
+  have hBodyLen : EvmAsm.Evm64.evm_and.length = 17 := by decide
+  have hExitEq : (base + (68 : Word)) = base + fourTimes 17 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a3 &&& b3)) ** (.x6 ↦ᵣ b3) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ (a0 &&& b0)) ** ((sp + 40) ↦ₘ (a1 &&& b1)) **
+        ((sp + 48) ↦ₘ (a2 &&& b2)) **
+        ((sp + 56) ↦ₘ (a3 &&& b3))) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 13. Concrete instance — OR (0x17)
+-- ============================================================================
+
+/-- Handler-level spec for `h_OR` (opcode 0x17). 17-instruction body
+    (bitwise OR per limb) + 2-instruction tail = 19 steps. -/
+theorem evmOrHandlerSpec (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (v7 v6 : Word)
+    (x10_init x1_init : Word) :
+    cpsTripleWithin 19 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_or 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a3 ||| b3)) ** (.x6 ↦ᵣ b3) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ (a0 ||| b0)) ** ((sp + 40) ↦ₘ (a1 ||| b1)) **
+        ((sp + 48) ↦ₘ (a2 ||| b2)) ** ((sp + 56) ↦ₘ (a3 ||| b3)))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  have h_body := EvmAsm.Evm64.evm_or_spec_within sp base a0 a1 a2 a3 b0 b1 b2 b3 v7 v6
+  have hBodyLen : EvmAsm.Evm64.evm_or.length = 17 := by decide
+  have hExitEq : (base + (68 : Word)) = base + fourTimes 17 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a3 ||| b3)) ** (.x6 ↦ᵣ b3) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ (a0 ||| b0)) ** ((sp + 40) ↦ₘ (a1 ||| b1)) **
+        ((sp + 48) ↦ₘ (a2 ||| b2)) **
+        ((sp + 56) ↦ₘ (a3 ||| b3))) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 14. Concrete instance — XOR (0x18)
+-- ============================================================================
+
+/-- Handler-level spec for `h_XOR` (opcode 0x18). 17-instruction body
+    (bitwise XOR per limb) + 2-instruction tail = 19 steps. -/
+theorem evmXorHandlerSpec (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (v7 v6 : Word)
+    (x10_init x1_init : Word) :
+    cpsTripleWithin 19 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_xor 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a3 ^^^ b3)) ** (.x6 ↦ᵣ b3) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ (a0 ^^^ b0)) ** ((sp + 40) ↦ₘ (a1 ^^^ b1)) **
+        ((sp + 48) ↦ₘ (a2 ^^^ b2)) ** ((sp + 56) ↦ₘ (a3 ^^^ b3)))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  have h_body := EvmAsm.Evm64.evm_xor_spec_within sp base a0 a1 a2 a3 b0 b1 b2 b3 v7 v6
+  have hBodyLen : EvmAsm.Evm64.evm_xor.length = 17 := by decide
+  have hExitEq : (base + (68 : Word)) = base + fourTimes 17 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ (sp + 32)) ** (.x7 ↦ᵣ (a3 ^^^ b3)) ** (.x6 ↦ᵣ b3) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + 32) ↦ₘ (a0 ^^^ b0)) ** ((sp + 40) ↦ₘ (a1 ^^^ b1)) **
+        ((sp + 48) ↦ₘ (a2 ^^^ b2)) **
+        ((sp + 56) ↦ₘ (a3 ^^^ b3))) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 15. Concrete instance — NOT (0x19)
+-- ============================================================================
+
+/-- Handler-level spec for `h_NOT` (opcode 0x19). 12-instruction unary
+    body (bitwise complement per limb) + 2-instruction tail = 14 steps. -/
+theorem evmNotHandlerSpec (sp base : Word)
+    (a0 a1 a2 a3 : Word) (v7 : Word)
+    (x10_init x1_init : Word) :
+    let c := signExtend12 (-1 : BitVec 12)
+    cpsTripleWithin 14 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_not 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) **
+        (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a3 ^^^ c)) **
+        (sp ↦ₘ (a0 ^^^ c)) ** ((sp + 8) ↦ₘ (a1 ^^^ c)) **
+        ((sp + 16) ↦ₘ (a2 ^^^ c)) ** ((sp + 24) ↦ₘ (a3 ^^^ c)))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  intro c
+  have h_body := EvmAsm.Evm64.evm_not_spec_within sp base a0 a1 a2 a3 v7
+  have hBodyLen : EvmAsm.Evm64.evm_not.length = 12 := by decide
+  have hExitEq : (base + (48 : Word)) = base + fourTimes 12 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ (a3 ^^^ c)) **
+        (sp ↦ₘ (a0 ^^^ c)) ** ((sp + 8) ↦ₘ (a1 ^^^ c)) **
+        ((sp + 16) ↦ₘ (a2 ^^^ c)) **
+        ((sp + 24) ↦ₘ (a3 ^^^ c))) : Assertion).pcFree := by pcFree
   have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
   have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
     have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
