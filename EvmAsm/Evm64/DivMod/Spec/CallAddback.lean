@@ -15,6 +15,7 @@
 
 import EvmAsm.Evm64.DivMod.Spec.CallSkip
 import EvmAsm.Evm64.DivMod.Spec.CallSkipUnconditional
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
 import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
 
 namespace EvmAsm.Evm64
@@ -166,6 +167,96 @@ theorem n4CallAddbackBeqB3Prime_eq_direct {b : EvmWord}
   rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
   rw [n4CallAddbackBeqShift_eq_raw]
 
+theorem n4CallAddbackBeqB3Prime_ge_pow63 {b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0) :
+    (n4CallAddbackBeqB3Prime b).toNat ≥ 2^63 := by
+  rw [n4CallAddbackBeqB3Prime_unfold]
+  rw [n4CallAddbackBeqShift_unfold, n4CallAddbackBeqAntiShift_unfold]
+  have h_shifted := b3_shifted_ge_pow63 hb3nz
+  have h_or_ge :
+      ((((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64))) |||
+        ((b.getLimbN 2) >>>
+          ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 3)).1).toNat % 64))).toNat ≥
+        ((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)).toNat := by
+    rw [BitVec.toNat_or]
+    exact Nat.left_le_or
+  exact le_trans h_shifted h_or_ge
+
+theorem n4CallAddbackBeqDHi_ge_pow31 {b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0) :
+    (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat ≥ 2^31 := by
+  rw [divKTrialCallV4DHi_eq]
+  exact div128Quot_shift0_dHi_ge
+    (n4CallAddbackBeqB3Prime b)
+    (n4CallAddbackBeqB3Prime_ge_pow63 hb3nz)
+
+theorem n4CallAddbackBeqDHi_lt_pow32 {b : EvmWord} :
+    (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat < 2^32 := by
+  rw [divKTrialCallV4DHi_eq]
+  exact hi32_toNat_lt_pow32 (n4CallAddbackBeqB3Prime b)
+
+theorem n4CallAddbackBeqDLo_lt_pow32 {b : EvmWord} :
+    (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat < 2^32 := by
+  rw [divKTrialCallV4DLo_eq]
+  exact lo32_toNat_lt_pow32 (n4CallAddbackBeqB3Prime b)
+
+/-- Normalized divisor limb 2 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqB2Prime (b : EvmWord) : Word :=
+  ((b.getLimbN 2) <<< n4CallAddbackBeqShift b) |||
+    ((b.getLimbN 1) >>> n4CallAddbackBeqAntiShift b)
+
+theorem n4CallAddbackBeqB2Prime_unfold {b : EvmWord} :
+    n4CallAddbackBeqB2Prime b =
+      ((b.getLimbN 2) <<< n4CallAddbackBeqShift b) |||
+        ((b.getLimbN 1) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
+
+theorem n4CallAddbackBeqB2Prime_eq_direct {b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqB2Prime b =
+      ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)) := by
+  rw [n4CallAddbackBeqB2Prime_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
+/-- Normalized divisor limb 1 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqB1Prime (b : EvmWord) : Word :=
+  ((b.getLimbN 1) <<< n4CallAddbackBeqShift b) |||
+    ((b.getLimbN 0) >>> n4CallAddbackBeqAntiShift b)
+
+theorem n4CallAddbackBeqB1Prime_unfold {b : EvmWord} :
+    n4CallAddbackBeqB1Prime b =
+      ((b.getLimbN 1) <<< n4CallAddbackBeqShift b) |||
+        ((b.getLimbN 0) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
+
+theorem n4CallAddbackBeqB1Prime_eq_direct {b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqB1Prime b =
+      ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)) := by
+  rw [n4CallAddbackBeqB1Prime_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
+/-- Normalized divisor limb 0 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqB0Prime (b : EvmWord) : Word :=
+  (b.getLimbN 0) <<< n4CallAddbackBeqShift b
+
+theorem n4CallAddbackBeqB0Prime_unfold {b : EvmWord} :
+    n4CallAddbackBeqB0Prime b =
+      (b.getLimbN 0) <<< n4CallAddbackBeqShift b :=
+  rfl
+
+theorem n4CallAddbackBeqB0Prime_eq_direct {b : EvmWord}
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqB0Prime b =
+      (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat := by
+  rw [n4CallAddbackBeqB0Prime_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
 /-- Normalized overflow dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU4 (a b : EvmWord) : Word :=
   (a.getLimbN 3) >>> n4CallAddbackBeqAntiShift b
@@ -182,6 +273,20 @@ theorem n4CallAddbackBeqU4_eq_direct {a b : EvmWord}
   rw [n4CallAddbackBeqU4_unfold]
   rw [n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
   rw [n4CallAddbackBeqShift_eq_raw]
+
+theorem n4CallAddbackBeqU4_lt_vTop_of_call {a b : EvmWord}
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)) :
+    (n4CallAddbackBeqU4 a b).toNat <
+      (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat := by
+  have h_u4_lt_b3' :=
+    isCallTrialN4_toNat_lt (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3) hcall
+  rw [divKTrialCallV4DHi_eq, divKTrialCallV4DLo_eq]
+  rw [← div128Quot_vTop_decomp (n4CallAddbackBeqB3Prime b)]
+  rw [n4CallAddbackBeqU4_unfold, n4CallAddbackBeqAntiShift_unfold,
+    n4CallAddbackBeqB3Prime_unfold, n4CallAddbackBeqShift_unfold,
+    n4CallAddbackBeqAntiShift_unfold]
+  exact h_u4_lt_b3'
 
 /-- Normalized top in-range dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU3 (a b : EvmWord) : Word :=
@@ -201,6 +306,62 @@ theorem n4CallAddbackBeqU3_eq_direct {a b : EvmWord}
         ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)) := by
   rw [n4CallAddbackBeqU3_unfold]
   rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
+/-- Normalized dividend limb 2 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqU2 (a b : EvmWord) : Word :=
+  ((a.getLimbN 2) <<< n4CallAddbackBeqShift b) |||
+    ((a.getLimbN 1) >>> n4CallAddbackBeqAntiShift b)
+
+theorem n4CallAddbackBeqU2_unfold {a b : EvmWord} :
+    n4CallAddbackBeqU2 a b =
+      ((a.getLimbN 2) <<< n4CallAddbackBeqShift b) |||
+        ((a.getLimbN 1) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
+
+theorem n4CallAddbackBeqU2_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqU2 a b =
+      ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)) := by
+  rw [n4CallAddbackBeqU2_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
+/-- Normalized dividend limb 1 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqU1 (a b : EvmWord) : Word :=
+  ((a.getLimbN 1) <<< n4CallAddbackBeqShift b) |||
+    ((a.getLimbN 0) >>> n4CallAddbackBeqAntiShift b)
+
+theorem n4CallAddbackBeqU1_unfold {a b : EvmWord} :
+    n4CallAddbackBeqU1 a b =
+      ((a.getLimbN 1) <<< n4CallAddbackBeqShift b) |||
+        ((a.getLimbN 0) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
+
+theorem n4CallAddbackBeqU1_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqU1 a b =
+      ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)) := by
+  rw [n4CallAddbackBeqU1_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
+/-- Normalized dividend limb 0 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqU0 (a b : EvmWord) : Word :=
+  (a.getLimbN 0) <<< n4CallAddbackBeqShift b
+
+theorem n4CallAddbackBeqU0_unfold {a b : EvmWord} :
+    n4CallAddbackBeqU0 a b =
+      (a.getLimbN 0) <<< n4CallAddbackBeqShift b :=
+  rfl
+
+theorem n4CallAddbackBeqU0_eq_direct {a b : EvmWord}
+    (_hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqU0 a b =
+      (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat := by
+  rw [n4CallAddbackBeqU0_unfold]
   rw [n4CallAddbackBeqShift_eq_raw]
 
 /-- Trial quotient used by the n=4 v4 call+addback-BEQ semantic marker. -/
@@ -244,6 +405,142 @@ theorem n4CallAddbackBeqQHatV4_eq_direct {a b : EvmWord}
   rw [n4CallAddbackBeqU4_eq_direct hshift_nz]
   rw [n4CallAddbackBeqU3_eq_direct hshift_nz]
   rw [n4CallAddbackBeqB3Prime_eq_direct hshift_nz]
+
+theorem n4CallAddbackBeqQHatV4_eq_trialCallQHat {a b : EvmWord} :
+    n4CallAddbackBeqQHatV4 a b =
+      divKTrialCallV4QHat
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b) := by
+  rw [n4CallAddbackBeqQHatV4_eq_normalized]
+  rw [divKTrialCallV4QHat_eq_div128Quot_v4]
+
+theorem n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_un21_lt
+    {a b : EvmWord}
+    (hdHi_ge : (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat < 2^32)
+    (hu4_lt_vTop :
+      (n4CallAddbackBeqU4 a b).toNat <
+        (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+          (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+          (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat) :
+    (n4CallAddbackBeqQHatV4 a b).toNat =
+      (divKTrialCallV4Q1dd
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4Q0dd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b)).toNat := by
+  rw [n4CallAddbackBeqQHatV4_eq_normalized]
+  exact div128Quot_v4_toNat_eq_trialCall_halves_of_un21_lt
+    (n4CallAddbackBeqU4 a b)
+    (n4CallAddbackBeqU3 a b)
+    (n4CallAddbackBeqB3Prime b)
+    hdHi_ge hdHi_lt hdLo_lt hu4_lt_vTop hUn21_lt_vTop
+
+theorem n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_runtime_bounds
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hu4_lt_vTop :
+      (n4CallAddbackBeqU4 a b).toNat <
+        (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+          (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+          (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat) :
+    (n4CallAddbackBeqQHatV4 a b).toNat =
+      (divKTrialCallV4Q1dd
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4Q0dd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b)).toNat := by
+  exact n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_un21_lt
+    (n4CallAddbackBeqDHi_ge_pow31 hb3nz)
+    n4CallAddbackBeqDHi_lt_pow32
+    n4CallAddbackBeqDLo_lt_pow32
+    hu4_lt_vTop hUn21_lt_vTop
+
+theorem n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_call
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+          (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat) :
+    (n4CallAddbackBeqQHatV4 a b).toNat =
+      (divKTrialCallV4Q1dd
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4Q0dd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b)).toNat := by
+  exact n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_runtime_bounds
+    hb3nz
+    (n4CallAddbackBeqU4_lt_vTop_of_call hcall)
+    hUn21_lt_vTop
+
+theorem n4CallAddbackBeqUn21_lt_vTop_of_lt_b3prime {a b : EvmWord}
+    (hUn21_lt_b3prime :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (n4CallAddbackBeqB3Prime b).toNat) :
+    (divKTrialCallV4Un21
+      (n4CallAddbackBeqU4 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqB3Prime b)).toNat <
+      (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat := by
+  rw [divKTrialCallV4DHi_eq, divKTrialCallV4DLo_eq]
+  rw [← div128Quot_vTop_decomp (n4CallAddbackBeqB3Prime b)]
+  exact hUn21_lt_b3prime
+
+theorem n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_call_un21_lt_b3prime
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_b3prime :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (n4CallAddbackBeqB3Prime b).toNat) :
+    (n4CallAddbackBeqQHatV4 a b).toNat =
+      (divKTrialCallV4Q1dd
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4Q0dd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b)).toNat := by
+  exact n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_call
+    hb3nz
+    hcall
+    (n4CallAddbackBeqUn21_lt_vTop_of_lt_b3prime hUn21_lt_b3prime)
 
 theorem n4CallAddbackBeqRawTrialBound_direct {a b : EvmWord}
     (hb3nz : b.getLimbN 3 ≠ 0)
@@ -326,6 +623,66 @@ theorem n4CallAddbackBeqCarryV4_unfold {a b : EvmWord} :
        addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3') :=
   rfl
 
+theorem n4CallAddbackBeqCarryV4_eq_normalized {a b : EvmWord} :
+    n4CallAddbackBeqCarryV4 a b =
+      (let qHat := n4CallAddbackBeqQHatV4 a b
+       let ms := mulsubN4 qHat
+        (n4CallAddbackBeqB0Prime b)
+        (n4CallAddbackBeqB1Prime b)
+        (n4CallAddbackBeqB2Prime b)
+        (n4CallAddbackBeqB3Prime b)
+        (n4CallAddbackBeqU0 a b)
+        (n4CallAddbackBeqU1 a b)
+        (n4CallAddbackBeqU2 a b)
+        (n4CallAddbackBeqU3 a b)
+       addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+        (n4CallAddbackBeqB0Prime b)
+        (n4CallAddbackBeqB1Prime b)
+        (n4CallAddbackBeqB2Prime b)
+        (n4CallAddbackBeqB3Prime b)) :=
+  rfl
+
+theorem n4CallAddbackBeqCarryV4_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqCarryV4 a b =
+      (let b3' :=
+        ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b2' :=
+        ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b1' :=
+        ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let u3 :=
+        ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u2 :=
+        ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u1 :=
+        ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let qHat :=
+        div128Quot_v4
+          ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+          u3
+          b3'
+       let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+       addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3') := by
+  rw [n4CallAddbackBeqCarryV4_eq_normalized]
+  rw [n4CallAddbackBeqQHatV4_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqB0Prime_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqB1Prime_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqB2Prime_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqB3Prime_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqU0_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqU1_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqU2_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqU3_eq_direct hshift_nz]
+
 /-- Corrected quotient produced by the n=4 v4 call+addback-BEQ semantic marker. -/
 def n4CallAddbackBeqQOutV4 (a b : EvmWord) : Word :=
   let qHat := n4CallAddbackBeqQHatV4 a b
@@ -361,6 +718,93 @@ theorem n4CallAddbackBeqQOutV4_raw_unfold {a b : EvmWord} :
        if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
        else qHat + signExtend12 4095) :=
   rfl
+
+theorem n4CallAddbackBeqQOutV4_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqQOutV4 a b =
+      (let b3' :=
+        ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b2' :=
+        ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b1' :=
+        ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let u3 :=
+        ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u2 :=
+        ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u1 :=
+        ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let qHat :=
+        div128Quot_v4
+          ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+          u3
+          b3'
+       let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+       let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+       if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+       else qHat + signExtend12 4095) := by
+  rw [n4CallAddbackBeqQOutV4_unfold]
+  rw [n4CallAddbackBeqQHatV4_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqCarryV4_eq_direct hshift_nz]
+
+/-- On the addback branch, the loop iterator's quotient output agrees with the
+    v4 call+addback-BEQ marker quotient. -/
+theorem n4CallAddbackBeqIterWithDoubleAddback_qOutV4_of_borrow {a b : EvmWord}
+    (h_borrow :
+      BitVec.ult (n4CallAddbackBeqU4 a b)
+        (mulsubN4
+          (n4CallAddbackBeqQHatV4 a b)
+          (n4CallAddbackBeqB0Prime b)
+          (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b)
+          (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b)).2.2.2.2) :
+    (iterWithDoubleAddback
+      (n4CallAddbackBeqQHatV4 a b)
+      (n4CallAddbackBeqB0Prime b)
+      (n4CallAddbackBeqB1Prime b)
+      (n4CallAddbackBeqB2Prime b)
+      (n4CallAddbackBeqB3Prime b)
+      (n4CallAddbackBeqU0 a b)
+      (n4CallAddbackBeqU1 a b)
+      (n4CallAddbackBeqU2 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqU4 a b)).1 =
+      n4CallAddbackBeqQOutV4 a b := by
+  have h_iter := iterWithDoubleAddback_borrow h_borrow
+  have h_fst := congrArg Prod.fst h_iter
+  have h_carry_eq := n4CallAddbackBeqCarryV4_eq_normalized (a := a) (b := b)
+  by_cases h_carry : n4CallAddbackBeqCarryV4 a b = 0
+  · rw [← h_carry_eq] at h_fst
+    rw [if_pos h_carry] at h_fst
+    rw [n4CallAddbackBeqQOutV4_unfold, h_carry]
+    exact h_fst
+  · have h_carry_norm : ¬
+        (let qHat := n4CallAddbackBeqQHatV4 a b
+         let ms := mulsubN4 qHat
+          (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)
+         addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+          (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)) = 0 := by
+      intro h_norm
+      exact h_carry (h_carry_eq.trans h_norm)
+    rw [if_neg h_carry_norm] at h_fst
+    rw [n4CallAddbackBeqQOutV4_unfold, if_neg h_carry]
+    exact h_fst
 
 /-- The zero-carry call+addback-BEQ case decrements the trial quotient twice. -/
 theorem n4CallAddbackBeqQOutV4_of_carry_eq_zero {a b : EvmWord}
@@ -580,6 +1024,163 @@ theorem n4CallAddbackBeqSemanticV4_unfold {a b : EvmWord} :
        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
+
+theorem n4CallAddbackBeqSemanticHoldsV4_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqSemanticHoldsV4 a b =
+      (let b3' :=
+        ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b2' :=
+        ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b1' :=
+        ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let u3 :=
+        ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u2 :=
+        ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u1 :=
+        ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let qHat :=
+        div128Quot_v4
+          ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+          u3
+          b3'
+       let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+       let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+       let qOut : Word :=
+        if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+        else qHat + signExtend12 4095
+       qOut.toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
+  rw [n4CallAddbackBeqSemanticHoldsV4]
+  rw [n4CallAddbackBeqQOutV4_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqQTrue_unfold]
+
+theorem n4CallAddbackBeqSemanticHoldsV4_of_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_direct :
+      let b3' :=
+        ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let b2' :=
+        ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let b1' :=
+        ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+      let u3 :=
+        ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let u2 :=
+        ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let u1 :=
+        ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+      let qHat :=
+        div128Quot_v4
+          ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+          u3
+          b3'
+      let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+      let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+      let qOut : Word :=
+        if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+        else qHat + signExtend12 4095
+      qOut.toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    n4CallAddbackBeqSemanticHoldsV4 a b := by
+  rw [n4CallAddbackBeqSemanticHoldsV4_eq_direct hshift_nz]
+  exact h_direct
+
+theorem n4CallAddbackBeqSemanticHoldsV4_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    let b3' :=
+      ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let b2' :=
+      ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let b1' :=
+      ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+    let u3 :=
+      ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let u2 :=
+      ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let u1 :=
+      ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+    let qHat :=
+      div128Quot_v4
+        ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+        u3
+        b3'
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+    let qOut : Word :=
+      if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+      else qHat + signExtend12 4095
+    qOut.toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  rw [n4CallAddbackBeqSemanticHoldsV4_eq_direct hshift_nz] at hsem
+  exact hsem
+
+theorem n4CallAddbackBeqSemanticHoldsV4_direct_iff {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqSemanticHoldsV4 a b ↔
+      (let b3' :=
+        ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b2' :=
+        ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b1' :=
+        ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let u3 :=
+        ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u2 :=
+        ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u1 :=
+        ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let qHat :=
+        div128Quot_v4
+          ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+          u3
+          b3'
+       let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+       let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+       let qOut : Word :=
+        if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+        else qHat + signExtend12 4095
+       qOut.toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
+  rw [n4CallAddbackBeqSemanticHoldsV4_eq_direct hshift_nz]
 
 theorem n4CallAddbackBeqSemanticHoldsV4_qOutV4_eq {a b : EvmWord} :
     n4CallAddbackBeqSemanticHoldsV4 a b =
