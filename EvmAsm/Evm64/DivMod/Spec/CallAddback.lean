@@ -797,6 +797,57 @@ theorem n4CallAddbackBeqQOutV4_eq_direct {a b : EvmWord}
   rw [n4CallAddbackBeqQHatV4_eq_direct hshift_nz]
   rw [n4CallAddbackBeqCarryV4_eq_direct hshift_nz]
 
+/-- On the addback branch, the loop iterator's quotient output agrees with the
+    v4 call+addback-BEQ marker quotient. -/
+theorem n4CallAddbackBeqIterWithDoubleAddback_qOutV4_of_borrow {a b : EvmWord}
+    (h_borrow :
+      BitVec.ult (n4CallAddbackBeqU4 a b)
+        (mulsubN4
+          (n4CallAddbackBeqQHatV4 a b)
+          (n4CallAddbackBeqB0Prime b)
+          (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b)
+          (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b)).2.2.2.2) :
+    (iterWithDoubleAddback
+      (n4CallAddbackBeqQHatV4 a b)
+      (n4CallAddbackBeqB0Prime b)
+      (n4CallAddbackBeqB1Prime b)
+      (n4CallAddbackBeqB2Prime b)
+      (n4CallAddbackBeqB3Prime b)
+      (n4CallAddbackBeqU0 a b)
+      (n4CallAddbackBeqU1 a b)
+      (n4CallAddbackBeqU2 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqU4 a b)).1 =
+      n4CallAddbackBeqQOutV4 a b := by
+  have h_iter := iterWithDoubleAddback_borrow h_borrow
+  have h_fst := congrArg Prod.fst h_iter
+  have h_carry_eq := n4CallAddbackBeqCarryV4_eq_normalized (a := a) (b := b)
+  by_cases h_carry : n4CallAddbackBeqCarryV4 a b = 0
+  · rw [← h_carry_eq] at h_fst
+    rw [if_pos h_carry] at h_fst
+    rw [n4CallAddbackBeqQOutV4_unfold, h_carry]
+    exact h_fst
+  · have h_carry_norm : ¬
+        (let qHat := n4CallAddbackBeqQHatV4 a b
+         let ms := mulsubN4 qHat
+          (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)
+         addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+          (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)) = 0 := by
+      intro h_norm
+      exact h_carry (h_carry_eq.trans h_norm)
+    rw [if_neg h_carry_norm] at h_fst
+    rw [n4CallAddbackBeqQOutV4_unfold, if_neg h_carry]
+    exact h_fst
+
 /-- The zero-carry call+addback-BEQ case decrements the trial quotient twice. -/
 theorem n4CallAddbackBeqQOutV4_of_carry_eq_zero {a b : EvmWord}
     (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
