@@ -317,6 +317,36 @@ theorem n4CallAddbackBeqQHatBranchEqQTrue_carry_ne_zero_iff {a b : EvmWord}
         n4CallAddbackBeqQTrue a b := by
   rw [n4CallAddbackBeqQHatBranchEqQTrue, if_neg h_carry]
 
+theorem n4CallAddbackBeqQHatBranchEqQTrue_of_carry_eq_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0)
+    (h_qHat :
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b :=
+  (n4CallAddbackBeqQHatBranchEqQTrue_carry_eq_zero_iff h_carry).2 h_qHat
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_carry_eq_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0)
+    (h_qHat : n4CallAddbackBeqQHatBranchEqQTrue a b) :
+    (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+      n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqQHatBranchEqQTrue_carry_eq_zero_iff h_carry).1 h_qHat
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_of_carry_ne_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0)
+    (h_qHat :
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b :=
+  (n4CallAddbackBeqQHatBranchEqQTrue_carry_ne_zero_iff h_carry).2 h_qHat
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_carry_ne_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0)
+    (h_qHat : n4CallAddbackBeqQHatBranchEqQTrue a b) :
+    (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+      n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqQHatBranchEqQTrue_carry_ne_zero_iff h_carry).1 h_qHat
+
 theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_carry_eq_zero_iff {a b : EvmWord}
     (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
     (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b ↔
