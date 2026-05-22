@@ -681,4 +681,43 @@ theorem divK_loop_n3_call_j1_from_source_exact_loopIterScratch_v4_noNop (sp base
     (fun h hp => hp)
     J1f
 
+/-- A j=1 call iteration postcondition with v4 scratch cells specializes to the
+    j=0 call-body precondition, retaining the j=1 carried u4/q atoms as frame. -/
+theorem loopIterPostN3CallScratchNoX1_j1_to_call_j0_pre
+    (sp base qHat dLo divUn0 scratchOut : Word)
+    (v0 v1 v2 v3 u0Orig u1 u2 u3 uTop q0Old raVal : Word) :
+    let r := iterWithDoubleAddback qHat v0 v1 v2 v3 u0Orig u1 u2 u3 uTop
+    let c3 := mulsubN4_c3 qHat v0 v1 v2 v3 u0Orig u1 u2 u3
+    let uBase1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+    let qAddr1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+    ∀ h,
+      (((loopIterPostN3CallScratchNoX1 sp base (1 : Word)
+        qHat dLo divUn0 scratchOut v0 v1 v2 v3 u0Orig u1 u2 u3 uTop **
+        (.x1 ↦ᵣ raVal)) **
+        (((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig) **
+         ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old))) h) →
+      (((loopBodyN3CallSkipJ0PreV4NoX1 sp (1 : Word)
+          ((1 : Word) <<< (3 : BitVec 6).toNat) uBase1 qAddr1 c3 r.1
+          r.2.2.2.2.1 v0 v1 v2 v3 u0Orig r.2.1 r.2.2.1 r.2.2.2.1
+          r.2.2.2.2.1 q0Old
+          (base + div128CallRetOff) v2 dLo divUn0 scratchOut **
+          (.x1 ↦ᵣ raVal)) **
+        ((uBase1 + signExtend12 4064 ↦ₘ r.2.2.2.2.2) **
+         (qAddr1 ↦ₘ r.1))) h) := by
+  intro r c3 uBase1 qAddr1 h hp
+  subst uBase1
+  subst qAddr1
+  subst c3
+  subst r
+  delta loopIterPostN3CallScratchNoX1 loopExitPostN3 loopExitPost at hp
+  delta loopBodyN3CallSkipJ0PreV4NoX1
+  unfold mulsubN4_c3
+  simp only [] at hp ⊢
+  have hj' := EvmAsm.Evm64.DivMod.AddrNorm.jpred_1
+  rw [hj', u_j1_0_eq_j0_4088, u_j1_4088_eq_j0_4080,
+      u_j1_4080_eq_j0_4072, u_j1_4072_eq_j0_4064] at hp
+  rw [sepConj_assoc'] at hp
+  xperm_hyp hp
+
 end EvmAsm.Evm64
