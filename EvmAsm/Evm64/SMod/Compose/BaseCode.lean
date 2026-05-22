@@ -264,6 +264,22 @@ theorem smodCodeV4_block_subs {base : Word} :
     smodCodeV4_resultSignFix_sub, smodCodeV4_savedRaRet_sub,
     smodCodeV4_modCallable_sub⟩
 
+/-- Canonical production-code block subsumptions for SMOD. -/
+theorem smodCodeCanonical_block_subs {base : Word} :
+    (∀ a i, (saveRaCode base) a = some i → (smodCodeCanonical base) a = some i) ∧
+    (∀ a i, (dividendSignCode base) a = some i → (smodCodeCanonical base) a = some i) ∧
+    (∀ a i, (preserveDividendSignCode base) a = some i →
+      (smodCodeCanonical base) a = some i) ∧
+    (∀ a i, (divisorSignCode base) a = some i → (smodCodeCanonical base) a = some i) ∧
+    (∀ a i, (dividendAbsCode base) a = some i → (smodCodeCanonical base) a = some i) ∧
+    (∀ a i, (divisorAbsCode base) a = some i → (smodCodeCanonical base) a = some i) ∧
+    (∀ a i, (modCallCode base) a = some i → (smodCodeCanonical base) a = some i) ∧
+    (∀ a i, (resultSignFixCode base) a = some i → (smodCodeCanonical base) a = some i) ∧
+    (∀ a i, (savedRaRetCode base) a = some i → (smodCodeCanonical base) a = some i) ∧
+    (∀ a i, (modCallableCodeV4 base) a = some i →
+      (smodCodeCanonical base) a = some i) := by
+  simpa [smodCodeCanonical] using smodCodeV4_block_subs (base := base)
+
 /-- Bundled top-level SMOD code subsumptions for the wrapper and appended
     legacy v1 unsigned MOD callable. -/
 theorem smodCode_top_level_subs {base : Word} :
@@ -299,5 +315,14 @@ theorem smodCodeV4_top_level_subs {base : Word} :
       (by rw [EvmAsm.Evm64.evm_smod_length]; norm_num)
       a i h
   · exact smodCodeV4_modCallable_sub
+
+/-- Bundled top-level SMOD code subsumptions for the canonical production
+    wrapper and appended v4 unsigned MOD callable. -/
+theorem smodCodeCanonical_top_level_subs {base : Word} :
+    (∀ a i, (EvmAsm.Rv64.CodeReq.ofProg base EvmAsm.Evm64.evm_smod_wrapper) a = some i →
+      (smodCodeCanonical base) a = some i) ∧
+    (∀ a i, (modCallableCodeV4 base) a = some i →
+      (smodCodeCanonical base) a = some i) := by
+  simpa [smodCodeCanonical] using smodCodeV4_top_level_subs (base := base)
 
 end EvmAsm.Evm64.SMod.Compose

@@ -19,6 +19,18 @@ abbrev smodCode (base : Word) : EvmAsm.Rv64.CodeReq :=
 abbrev smodCodeV4 (base : Word) : EvmAsm.Rv64.CodeReq :=
   EvmAsm.Rv64.CodeReq.ofProg base EvmAsm.Evm64.evm_smod
 
+/-- Canonical production SMOD code region handle.
+
+    This is the non-legacy public handle for the current executable
+    `evm_smod`, kept separate from `smodCode` while legacy v1 compatibility
+    lemmas are still present. -/
+abbrev smodCodeCanonical (base : Word) : EvmAsm.Rv64.CodeReq :=
+  smodCodeV4 base
+
+theorem smodCodeCanonical_eq_v4 {base : Word} :
+    smodCodeCanonical base = smodCodeV4 base :=
+  rfl
+
 /-- Code handle for the saved-`ra` prologue block. -/
 abbrev saveRaCode (base : Word) : EvmAsm.Rv64.CodeReq :=
   EvmAsm.Rv64.CodeReq.ofProg (base + saveRaOff) (EvmAsm.Evm64.evm_smod_save_ra_block .x18)
