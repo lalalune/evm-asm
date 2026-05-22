@@ -1,12 +1,12 @@
 /-
   EvmAsm.Evm64.SMod.LimbSpec
 
-  Per-block / per-limb cpsTriple specs for SMOD sub-blocks (sign
-  extraction, abs negation, callable-modulo JAL, sign-correction).
+  Per-block / per-limb cpsTriple specs for SMOD sub-blocks.
 
-  Skeleton placeholder for GH #90 (beads slice evm-asm-kyp6). Per
-  `OPCODE_TEMPLATE.md`, each sub-block will get exactly one cpsTriple
-  lemma once the Compose layer pins the layout.
+  The leaf save-`ra` and saved-`ra` return blocks live here. The
+  multi-instruction sign extraction, abs negation, callable-modulo JAL,
+  and sign-correction blocks are exposed through the `SMod.Compose`
+  layer, where their code handles and caller frame are pinned.
 -/
 
 import EvmAsm.Evm64.SMod.Program
@@ -17,8 +17,6 @@ import EvmAsm.Rv64.Tactics.RunBlock
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-
--- Per-block specs land in slice evm-asm-bjnb and below.
 
 /-- CodeReq for `evm_smod_save_ra_block` at byte offset `base`. -/
 abbrev evm_smod_save_ra_block_code (savedRaReg : Reg) (base : Word) : CodeReq :=
