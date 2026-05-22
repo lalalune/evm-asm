@@ -197,6 +197,110 @@ def divKTrialCallV4QHat (uHi uLo vTop : Word) : Word :=
   (divKTrialCallV4Q1dd uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
     divKTrialCallV4Q0dd uHi uLo vTop
 
+theorem div128Quot_phase2b_q0'_and_form (q rhat dLo un : Word) :
+    (if rhat >>> (32 : BitVec 6).toNat = 0 ∧
+        BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo) then
+      q + signExtend12 4095
+    else q) = div128Quot_phase2b_q0' q rhat dLo un := by
+  unfold div128Quot_phase2b_q0'
+  by_cases h_hi : rhat >>> (32 : BitVec 6).toNat = (0 : Word)
+  · by_cases h_ult : BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+    · rw [if_pos ⟨h_hi, h_ult⟩]
+      rw [if_pos h_hi]
+      rw [if_pos h_ult]
+    · have h_and : ¬ (rhat >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+          BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)) := by
+        intro h
+        exact h_ult h.2
+      rw [if_neg h_and]
+      rw [if_pos h_hi]
+      rw [if_neg h_ult]
+  · have h_and : ¬ (rhat >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+        BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)) := by
+      intro h
+      exact h_hi h.1
+    rw [if_neg h_and]
+    rw [if_neg h_hi]
+
+theorem div128Quot_phase2b_rhat_and_form (q rhat dHi dLo un : Word) :
+    (if rhat >>> (32 : BitVec 6).toNat = 0 ∧
+        BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo) then
+      rhat + dHi
+    else rhat) =
+      (if rhat >>> (32 : BitVec 6).toNat = 0 then
+        let qDlo := q * dLo
+        let rhatUn := (rhat <<< (32 : BitVec 6).toNat) ||| un
+        if BitVec.ult rhatUn qDlo then rhat + dHi else rhat
+      else rhat) := by
+  by_cases h_hi : rhat >>> (32 : BitVec 6).toNat = (0 : Word)
+  · by_cases h_ult : BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+    · rw [if_pos ⟨h_hi, h_ult⟩]
+      rw [if_pos h_hi]
+      rw [if_pos h_ult]
+    · have h_and : ¬ (rhat >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+          BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)) := by
+        intro h
+        exact h_ult h.2
+      rw [if_neg h_and]
+      rw [if_pos h_hi]
+      rw [if_neg h_ult]
+  · have h_and : ¬ (rhat >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+        BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)) := by
+      intro h
+      exact h_hi h.1
+    rw [if_neg h_and]
+    rw [if_neg h_hi]
+
+theorem divKTrialCallV4Q1dd_eq_phase2b (uHi uLo vTop : Word) :
+    divKTrialCallV4Q1dd uHi uLo vTop =
+      (let dHi := divKTrialCallV4DHi vTop
+       let dLo := divKTrialCallV4DLo vTop
+       let un1 := divKTrialCallV4Un1 uLo
+       let q1 := rv64_divu uHi dHi
+       let rhat := uHi - q1 * dHi
+       let hi1 := q1 >>> (32 : BitVec 6).toNat
+       let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+       let rhatc := if hi1 = 0 then rhat else rhat + dHi
+       let qDlo := q1c * dLo
+       let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+       let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+       let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+       div128Quot_phase2b_q0' q1' rhat' dLo un1) := by
+  unfold divKTrialCallV4Q1dd
+  rw [div128Quot_phase2b_q0'_and_form]
+
+theorem divKTrialCallV4Rhatdd_eq_phase2b (uHi uLo vTop : Word) :
+    divKTrialCallV4Rhatdd uHi uLo vTop =
+      (let dHi := divKTrialCallV4DHi vTop
+       let dLo := divKTrialCallV4DLo vTop
+       let un1 := divKTrialCallV4Un1 uLo
+       let q1 := rv64_divu uHi dHi
+       let rhat := uHi - q1 * dHi
+       let hi1 := q1 >>> (32 : BitVec 6).toNat
+       let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+       let rhatc := if hi1 = 0 then rhat else rhat + dHi
+       let qDlo := q1c * dLo
+       let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+       let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+       let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+       if rhat' >>> (32 : BitVec 6).toNat = 0 then
+         let qDlo2 := q1' * dLo
+         let rhatUn1' := (rhat' <<< (32 : BitVec 6).toNat) ||| un1
+         if BitVec.ult rhatUn1' qDlo2 then rhat' + dHi else rhat'
+       else rhat') := by
+  unfold divKTrialCallV4Rhatdd
+  rw [div128Quot_phase2b_rhat_and_form]
+
+theorem divKTrialCallV4QHat_eq_div128Quot_v4 (uHi uLo vTop : Word) :
+    divKTrialCallV4QHat uHi uLo vTop = div128Quot_v4 uHi uLo vTop := by
+  unfold divKTrialCallV4QHat divKTrialCallV4Q0dd divKTrialCallV4Q0d divKTrialCallV4Rhat2d
+    divKTrialCallV4Q0c divKTrialCallV4Rhat2c divKTrialCallV4Un21
+  rw [divKTrialCallV4Rhatdd_eq_phase2b]
+  rw [divKTrialCallV4Q1dd_eq_phase2b]
+  unfold div128Quot_v4 divKTrialCallV4DHi divKTrialCallV4DLo divKTrialCallV4Un1
+    divKTrialCallV4Un0
+  rfl
+
 @[irreducible]
 def divKTrialCallV4X7Exit (uHi uLo vTop : Word) : Word :=
   let dLo := divKTrialCallV4DLo vTop
