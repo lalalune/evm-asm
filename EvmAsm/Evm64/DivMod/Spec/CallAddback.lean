@@ -217,6 +217,14 @@ theorem n4CallAddbackBeqU4_unfold {a b : EvmWord} :
       (a.getLimbN 3) >>> n4CallAddbackBeqAntiShift b :=
   rfl
 
+theorem n4CallAddbackBeqU4_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqU4 a b =
+      (a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat) := by
+  rw [n4CallAddbackBeqU4_unfold]
+  rw [n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
 /-- Normalized top in-range dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU3 (a b : EvmWord) : Word :=
   ((a.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
@@ -227,6 +235,15 @@ theorem n4CallAddbackBeqU3_unfold {a b : EvmWord} :
       ((a.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
         ((a.getLimbN 2) >>> n4CallAddbackBeqAntiShift b) :=
   rfl
+
+theorem n4CallAddbackBeqU3_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqU3 a b =
+      ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)) := by
+  rw [n4CallAddbackBeqU3_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
 
 /-- Trial quotient used by the n=4 v4 call+addback-BEQ semantic marker. -/
 def n4CallAddbackBeqQHatV4 (a b : EvmWord) : Word :=
