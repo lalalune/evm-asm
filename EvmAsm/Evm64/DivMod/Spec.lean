@@ -14,6 +14,7 @@ import EvmAsm.Evm64.DivMod.Spec.CallAddbackPureNat
 import EvmAsm.Evm64.DivMod.Spec.CallAddback
 import EvmAsm.Evm64.DivMod.Spec.N4V4StackPre
 import EvmAsm.Evm64.DivMod.Spec.ModN4V4StackPre
+import EvmAsm.Evm64.DivMod.Spec.ModMaxSkipV4
 import EvmAsm.Evm64.DivMod.Spec.N2RemainderWord
 import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 import EvmAsm.Evm64.DivMod.Spec.DispatcherPcFree
