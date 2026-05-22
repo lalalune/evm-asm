@@ -101,4 +101,27 @@ theorem divK_loop_body_n3_call_skip_j1_norm_v4 (sp base : Word)
       retMem dMem dloMem scratchUn0 scratchMem
       halign hbltu hborrow)
 
+/-- Loop body n=3, call+addback (BEQ double-addback), j>0 over the full
+    `divCode_v4` bundle. -/
+theorem divK_loop_body_n3_call_addback_jgt0_beq_norm_v4 (j sp base : Word)
+    (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u3 v2)
+    (hborrow : loopBodyN3CallAddbackBorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hcarry2_nz : loopBodyN3CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 224 (base + loopBodyOff) (base + loopBodyOff) (divCode_v4 base)
+      (loopBodyN3CallAddbackJgt0NormPreV4 j sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem)
+      (loopBodyN3CallAddbackJgt0PostV4 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem) := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_loop_body_n3_call_addback_jgt0_beq_norm_v4_noNop j sp base hpos
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
+      retMem dMem dloMem scratchUn0 scratchMem
+      halign hbltu hborrow hcarry2_nz)
+
 end EvmAsm.Evm64
