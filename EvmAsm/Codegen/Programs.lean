@@ -8381,6 +8381,161 @@ def ziskTxTypeDispatchProbeUnit : BuildUnit := {
   dataAsm     := ziskTxTypeDispatchDataSection
 }
 
+/-! ## tx_extract_to_address -- PR-K101
+
+    For any encoded tx (legacy or typed), extract the `to`
+    (recipient) field and a contract-creation flag:
+
+      is_creation = (to_field_length == 0)
+      to_bytes    = 20 raw bytes when not creation, zeros otherwise
+
+    Per-type RLP layout — the field index of `to`:
+
+      type 0 legacy   : field 3 of the outer list
+      type 1 EIP-2930 : field 4 of the inner RLP
+      type 2 EIP-1559 : field 5 of the inner RLP
+      type 3 EIP-4844 : field 5 of the inner RLP
+      type 4 EIP-7702 : field 5 of the inner RLP
+
+    Composes:
+      - PR-K40 `tx_type_dispatch`   — typed-tx detector
+      - PR-K20 `rlp_list_nth_item`  — field extractor
+
+    Useful for `apply_body` (CREATE vs CALL routing) and for any
+    pre-EVM check that needs the recipient without doing a full
+    per-type decode.
+
+    Calling convention:
+      a0 (input)  : tx_bytes ptr (encoded form)
+      a1 (input)  : tx_bytes byte length
+      a2 (input)  : 20-byte output ptr (zeros on creation / fail)
+      a3 (input)  : u64 out ptr (is_creation flag, 0 or 1)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : tx_type_dispatch failed
+        2 : `to` field extraction failed (not 0 or 20 B)
+
+    Uses two 8-byte `.data` scratch slots
+    (`tea_type` + `tea_inner_off`) plus K20's offset/length pair. -/
+def txExtractToAddressFunction : String :=
+  "tx_extract_to_address:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # tx_bytes ptr\n" ++
+  "  mv s1, a1                   # tx_len\n" ++
+  "  mv s2, a2                   # 20B out ptr\n" ++
+  "  mv s3, a3                   # is_creation out ptr\n" ++
+  "  # Pre-zero outputs in case of failure.\n" ++
+  "  sd zero,  0(s2); sd zero,  8(s2); sw zero, 16(s2)\n" ++
+  "  sd zero,  0(s3)\n" ++
+  "  # Step 1: tx_type_dispatch(tx, len, &type, &inner_off)\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, tea_type\n" ++
+  "  la a3, tea_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  beqz a0, .Ltea_after_dispatch\n" ++
+  "  li a0, 1\n" ++
+  "  j .Ltea_ret\n" ++
+  ".Ltea_after_dispatch:\n" ++
+  "  la t0, tea_type;      ld t4, 0(t0)    # type\n" ++
+  "  la t0, tea_inner_off; ld t5, 0(t0)    # inner_off\n" ++
+  "  add t6, s0, t5                         # inner_ptr\n" ++
+  "  sub t3, s1, t5                         # inner_len\n" ++
+  "  # Determine field index based on type.\n" ++
+  "  # type 0 → 3, type 1 → 4, type 2/3/4 → 5.\n" ++
+  "  li t0, 0\n" ++
+  "  beq t4, t0, .Ltea_legacy_idx\n" ++
+  "  li t0, 1\n" ++
+  "  beq t4, t0, .Ltea_t1_idx\n" ++
+  "  li t1, 5                              # type 2,3,4\n" ++
+  "  j .Ltea_have_idx\n" ++
+  ".Ltea_legacy_idx:\n" ++
+  "  li t1, 3\n" ++
+  "  j .Ltea_have_idx\n" ++
+  ".Ltea_t1_idx:\n" ++
+  "  li t1, 4\n" ++
+  ".Ltea_have_idx:\n" ++
+  "  # rlp_list_nth_item(inner_ptr, inner_len, idx, &off, &len)\n" ++
+  "  mv a0, t6\n" ++
+  "  mv a1, t3\n" ++
+  "  mv a2, t1\n" ++
+  "  la a3, tea_field_off\n" ++
+  "  la a4, tea_field_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ltea_field_fail\n" ++
+  "  la t0, tea_field_len; ld t2, 0(t0)\n" ++
+  "  beqz t2, .Ltea_creation\n" ++
+  "  li t1, 20\n" ++
+  "  bne t2, t1, .Ltea_field_fail\n" ++
+  "  # Copy 20 bytes from (inner_ptr + field_off) to s2.\n" ++
+  "  # We lost inner_ptr (t6); recompute from s0 + tea_inner_off.\n" ++
+  "  la t0, tea_inner_off; ld t5, 0(t0)\n" ++
+  "  add t6, s0, t5\n" ++
+  "  la t0, tea_field_off; ld t4, 0(t0)\n" ++
+  "  add t6, t6, t4\n" ++
+  "  ld t0,  0(t6); sd t0,  0(s2)\n" ++
+  "  ld t0,  8(t6); sd t0,  8(s2)\n" ++
+  "  lwu t0, 16(t6); sw t0, 16(s2)\n" ++
+  "  sd zero, 0(s3)              # is_creation = 0\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltea_ret\n" ++
+  ".Ltea_creation:\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3)                # is_creation = 1\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltea_ret\n" ++
+  ".Ltea_field_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Ltea_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_tx_extract_to_address`: probe BuildUnit. Reads
+    (tx_len, tx_bytes) from host input, writes (status, 20-byte
+    address, is_creation u64) to OUTPUT (40 bytes total).
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..28 : 20-byte to address (zeros on creation/fail)
+      bytes 28..32 : padding
+      bytes 32..40 : is_creation u64 -/
+def ziskTxExtractToAddressPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # tx_len\n" ++
+  "  addi a0, a4, 16             # tx ptr\n" ++
+  "  li a2, 0xa0010008           # 20B output\n" ++
+  "  li a3, 0xa0010020           # is_creation u64 (OUTPUT + 32)\n" ++
+  "  jal ra, tx_extract_to_address\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Ltea_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txExtractToAddressFunction ++ "\n" ++
+  ".Ltea_pdone:"
+
+def ziskTxExtractToAddressDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "tea_type:\n" ++
+  "  .zero 8\n" ++
+  "tea_inner_off:\n" ++
+  "  .zero 8\n" ++
+  "tea_field_off:\n" ++
+  "  .zero 8\n" ++
+  "tea_field_len:\n" ++
+  "  .zero 8"
+
+def ziskTxExtractToAddressProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxExtractToAddressPrologue
+  dataAsm     := ziskTxExtractToAddressDataSection
+}
+
 /-! ## tx_eip1559_decode -- PR-K41 full 12-field EIP-1559 decoder
 
     Decode the inner (post-type-byte) RLP body of an EIP-1559
@@ -11924,6 +12079,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_cost_compute"      => some ziskTxCostComputeProbeUnit
   | "zisk_validate_transaction_balance" => some ziskValidateTransactionBalanceProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
+  | "zisk_tx_extract_to_address" => some ziskTxExtractToAddressProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
@@ -12024,6 +12180,7 @@ def knownProgramNames : List String :=
    "zisk_tx_cost_compute",
    "zisk_validate_transaction_balance",
    "zisk_tx_type_dispatch",
+   "zisk_tx_extract_to_address",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
