@@ -58,4 +58,22 @@ theorem divK_loop_body_n1_max_j3_exact_loopIter_v4 (sp base : Word)
       jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal hbltu hcarry2_nz)
 
+/-- Loop body n=1, max path, j=2 over the full `divCode_v4` bundle. -/
+theorem divK_loop_body_n1_max_j2_exact_loopIter_v4 (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal : Word)
+    (hbltu : ¬BitVec.ult u1 v0)
+    (hcarry2_nz : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 152 (base + loopBodyOff) (base + loopBodyOff) (divCode_v4 base)
+      (loopBodyN1MaxSkipJgt0NormPreV4 (2 : Word)
+        sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld **
+        (.x1 ↦ᵣ raVal))
+      (loopIterPostN1Max sp (2 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+        (.x1 ↦ᵣ raVal)) := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_loop_body_n1_max_j2_exact_loopIter_v4_noNop sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal hbltu hcarry2_nz)
+
 end EvmAsm.Evm64
