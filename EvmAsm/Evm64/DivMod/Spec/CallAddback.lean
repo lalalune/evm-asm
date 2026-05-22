@@ -260,6 +260,20 @@ theorem n4CallAddbackBeqU4_eq_direct {a b : EvmWord}
   rw [n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
   rw [n4CallAddbackBeqShift_eq_raw]
 
+theorem n4CallAddbackBeqU4_lt_vTop_of_call {a b : EvmWord}
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)) :
+    (n4CallAddbackBeqU4 a b).toNat <
+      (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat := by
+  have h_u4_lt_b3' :=
+    isCallTrialN4_toNat_lt (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3) hcall
+  rw [divKTrialCallV4DHi_eq, divKTrialCallV4DLo_eq]
+  rw [← div128Quot_vTop_decomp (n4CallAddbackBeqB3Prime b)]
+  rw [n4CallAddbackBeqU4_unfold, n4CallAddbackBeqAntiShift_unfold,
+    n4CallAddbackBeqB3Prime_unfold, n4CallAddbackBeqShift_unfold,
+    n4CallAddbackBeqAntiShift_unfold]
+  exact h_u4_lt_b3'
+
 /-- Normalized top in-range dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU3 (a b : EvmWord) : Word :=
   ((a.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
