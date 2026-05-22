@@ -15,7 +15,117 @@ open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
+open EvmAsm.Rv64.AddrNorm (bv64_4mul_3 se12_32 se12_40 se12_48 se12_56)
+
+/-- MOD denorm body over the no-NOP v4 MOD code bundle. -/
+theorem mod_denorm_body_spec_within_noNop_v4
+    (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word) :
+    cpsTripleWithin 23 (base + denormOff + 8) (base + epilogueOff) (modCode_noNop_v4 base)
+      (divKDenormBodyPre sp u0 u1 u2 u3 v2 v5 v7 shift)
+      (divKDenormBodyPost sp u0 u1 u2 u3 shift) := by
+  rw [divKDenormBodyPre_unfold, divKDenormBodyPost_unfold]
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let u0' := (u0 >>> (shift.toNat % 64)) ||| (u1 <<< (antiShift.toNat % 64))
+  let u1' := (u1 >>> (shift.toNat % 64)) ||| (u2 <<< (antiShift.toNat % 64))
+  let u2' := (u2 >>> (shift.toNat % 64)) ||| (u3 <<< (antiShift.toNat % 64))
+  let u3' := u3 >>> (shift.toNat % 64)
+  have haddi := addi_x0_spec_gen_within .x2 v2 0 (base + denormOff + 8) (by nofun)
+  rw [show (base + denormOff + 8 : Word) + 4 = base + denormOff + 12 from by bv_addr] at haddi
+  have haddie := cpsTripleWithin_extend_code (hmono := fun a i h =>
+    sharedNoNop_v4_b9_mod a i
+      (CodeReq.ofProg_mono_sub (base + denormOff) (base + denormOff + 8) divK_denorm
+        [.ADDI .x2 .x0 0] 2
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) haddi
+  have haddief := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ shift) **
+     ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+     ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
+    (by pcFree) haddie
+  have hsub := sub_spec_gen_rd_eq_rs1_within .x2 .x6
+    (signExtend12 (0 : BitVec 12)) shift (base + denormOff + 12) (by nofun)
+  rw [show (base + denormOff + 12 : Word) + 4 = base + denormOff + 16 from by bv_addr] at hsub
+  have hsube := cpsTripleWithin_extend_code (hmono := fun a i h =>
+    sharedNoNop_v4_b9_mod a i
+      (CodeReq.singleton_mono (by
+        have hlookup := CodeReq.ofProg_lookup (base + denormOff) divK_denorm 3
+          (by decide) (by decide)
+        rw [bv64_4mul_3] at hlookup
+        exact hlookup) a i h)) hsub
+  have hsubf := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)) **
+     ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+     ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
+    (by pcFree) hsube
+  have h_anti := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) haddief hsubf
+  have hm0 := divK_denorm_merge_spec_within 4056 4048 sp u0 u1 v5 v7 shift antiShift (base + denormOff + 16)
+  rw [show (base + denormOff + 16 : Word) + 24 = base + denormOff + 40 from by bv_addr] at hm0
+  have hm0e := cpsTripleWithin_extend_code (hmono := fun a i h =>
+    sharedNoNop_v4_b9_mod a i
+      (CodeReq.ofProg_mono_sub (base + denormOff) (base + denormOff + 16) divK_denorm
+        (divK_denorm_merge_prog 4056 4048) 4
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm0
+  have hm0ef := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) **
+     ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
+    (by pcFree) hm0e
+  have h_m0 := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) h_anti hm0ef
+  have hm1 := divK_denorm_merge_spec_within 4048 4040 sp u1 u2
+    u0' (u1 <<< (antiShift.toNat % 64)) shift antiShift (base + denormOff + 40)
+  rw [show (base + denormOff + 40 : Word) + 24 = base + denormOff + 64 from by bv_addr] at hm1
+  have hm1e := cpsTripleWithin_extend_code (hmono := fun a i h =>
+    sharedNoNop_v4_b9_mod a i
+      (CodeReq.ofProg_mono_sub (base + denormOff) (base + denormOff + 40) divK_denorm
+        (divK_denorm_merge_prog 4048 4040) 10
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm1
+  have hm1ef := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) **
+     ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4032) ↦ₘ u3))
+    (by pcFree) hm1e
+  have h_m1 := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) h_m0 hm1ef
+  have hm2 := divK_denorm_merge_spec_within 4040 4032 sp u2 u3
+    u1' (u2 <<< (antiShift.toNat % 64)) shift antiShift (base + denormOff + 64)
+  rw [show (base + denormOff + 64 : Word) + 24 = base + denormOff + 88 from by bv_addr] at hm2
+  have hm2e := cpsTripleWithin_extend_code (hmono := fun a i h =>
+    sharedNoNop_v4_b9_mod a i
+      (CodeReq.ofProg_mono_sub (base + denormOff) (base + denormOff + 64) divK_denorm
+        (divK_denorm_merge_prog 4040 4032) 16
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hm2
+  have hm2ef := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) **
+     ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1'))
+    (by pcFree) hm2e
+  have h_m2 := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) h_m1 hm2ef
+  have hl := divK_denorm_last_spec_within 4032 sp u3 u2' shift (base + denormOff + 88)
+  rw [show (base + denormOff + 88 : Word) + 12 = base + epilogueOff from by bv_addr] at hl
+  have hle := cpsTripleWithin_extend_code (hmono := fun a i h =>
+    sharedNoNop_v4_b9_mod a i
+      (CodeReq.ofProg_mono_sub (base + denormOff) (base + denormOff + 88) divK_denorm
+        (divK_denorm_last_prog 4032) 22
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hl
+  have hlef := cpsTripleWithin_frameR
+    ((.x7 ↦ᵣ (u3 <<< (antiShift.toNat % 64))) ** (.x2 ↦ᵣ antiShift) ** (.x0 ↦ᵣ (0 : Word)) **
+     ((sp + signExtend12 4056) ↦ₘ u0') ** ((sp + signExtend12 4048) ↦ₘ u1') **
+     ((sp + signExtend12 4040) ↦ₘ u2'))
+    (by pcFree) hle
+  have h_all := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) h_m2 hlef
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    h_all
+
+/-- MOD denorm body over the full v4 MOD code bundle. -/
+theorem mod_denorm_body_spec_within_v4
+    (sp u0 u1 u2 u3 v2 v5 v7 shift : Word) (base : Word) :
+    cpsTripleWithin 23 (base + denormOff + 8) (base + epilogueOff) (modCode_v4 base)
+      (divKDenormBodyPre sp u0 u1 u2 u3 v2 v5 v7 shift)
+      (divKDenormBodyPost sp u0 u1 u2 u3 shift) := by
+  exact cpsTripleWithin_modCode_noNop_v4_to_modCode_v4
+    (mod_denorm_body_spec_within_noNop_v4 sp u0 u1 u2 u3 v2 v5 v7 shift base)
 
 /-- MOD epilogue over the no-NOP v4 MOD code bundle. -/
 theorem divK_mod_epilogue_spec_within_noNop_v4 (sp : Word) (base : Word)
