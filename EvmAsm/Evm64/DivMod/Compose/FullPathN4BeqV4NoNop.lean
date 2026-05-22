@@ -151,6 +151,32 @@ theorem isAddbackCarry2NzN4CallV4Ab_raw
   unfold loopBodyN4CallAddbackCarry2NzV4 at hcarry2_nz
   simpa using hcarry2_nz
 
+/-- If the first v4 call-addback carry is already nonzero, the carry2
+    predicate holds vacuously: the double-addback premise `carry = 0` is false. -/
+theorem isAddbackCarry2NzN4CallV4Ab_of_first_carry_ne_zero
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hcarry_nz :
+      let shift := (clzResult b3).1
+      let antiShift := signExtend12 (0 : BitVec 12) - shift
+      let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+      let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+      let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+      let b0' := b0 <<< (shift.toNat % 64)
+      let u4 := a3 >>> (antiShift.toNat % 64)
+      let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+      let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+      let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+      let u0 := a0 <<< (shift.toNat % 64)
+      let qHat := divKTrialCallV4QHat u4 u3 b3'
+      let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+      addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3' ≠ 0) :
+    isAddbackCarry2NzN4CallV4Ab a0 a1 a2 a3 b0 b1 b2 b3 := by
+  unfold isAddbackCarry2NzN4CallV4Ab
+  unfold loopBodyN4CallAddbackCarry2NzV4
+  simp only []
+  intro hcarry_zero
+  exact False.elim (hcarry_nz hcarry_zero)
+
 /-- n=4 pre-loop + call+addback BEQ loop body over `divCode_noNop_v4`. -/
 theorem evm_div_n4_preloop_call_addback_beq_spec_v4_noNop (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
