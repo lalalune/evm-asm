@@ -117,6 +117,75 @@ theorem n4CallAddbackBeqCarry2Nz_of_runtime {a b : EvmWord}
     n4CallAddbackBeqAntiShift
   simpa using h_raw
 
+/-- Runtime-condition wrapper for double-addback value conservation over the
+    normalized n=4 v4 call+addback marker limbs. -/
+theorem n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime
+    {a b : EvmWord}
+    (hbnz :
+      n4CallAddbackBeqB0Prime b ||| n4CallAddbackBeqB1Prime b |||
+        n4CallAddbackBeqB2Prime b ||| n4CallAddbackBeqB3Prime b ≠ 0)
+    (hc3_one_of_borrow :
+      BitVec.ult (n4CallAddbackBeqU4 a b)
+        (mulsubN4
+          (n4CallAddbackBeqQHatV4 a b)
+          (n4CallAddbackBeqB0Prime b)
+          (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b)
+          (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b)).2.2.2.2 →
+        (mulsubN4
+          (n4CallAddbackBeqQHatV4 a b)
+          (n4CallAddbackBeqB0Prime b)
+          (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b)
+          (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b)).2.2.2.2 = 1)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    let out := iterWithDoubleAddback
+      (n4CallAddbackBeqQHatV4 a b)
+      (n4CallAddbackBeqB0Prime b)
+      (n4CallAddbackBeqB1Prime b)
+      (n4CallAddbackBeqB2Prime b)
+      (n4CallAddbackBeqB3Prime b)
+      (n4CallAddbackBeqU0 a b)
+      (n4CallAddbackBeqU1 a b)
+      (n4CallAddbackBeqU2 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqU4 a b)
+    EvmWord.val256
+        (n4CallAddbackBeqU0 a b)
+        (n4CallAddbackBeqU1 a b)
+        (n4CallAddbackBeqU2 a b)
+        (n4CallAddbackBeqU3 a b) +
+      (n4CallAddbackBeqU4 a b).toNat * 2^256 =
+      out.1.toNat * EvmWord.val256
+        (n4CallAddbackBeqB0Prime b)
+        (n4CallAddbackBeqB1Prime b)
+        (n4CallAddbackBeqB2Prime b)
+        (n4CallAddbackBeqB3Prime b) +
+      EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+      out.2.2.2.2.2.toNat * 2^256 := by
+  exact iterWithDoubleAddback_val256_conservation_of_carry2
+    (n4CallAddbackBeqQHatV4 a b)
+    (n4CallAddbackBeqB0Prime b)
+    (n4CallAddbackBeqB1Prime b)
+    (n4CallAddbackBeqB2Prime b)
+    (n4CallAddbackBeqB3Prime b)
+    (n4CallAddbackBeqU0 a b)
+    (n4CallAddbackBeqU1 a b)
+    (n4CallAddbackBeqU2 a b)
+    (n4CallAddbackBeqU3 a b)
+    (n4CallAddbackBeqU4 a b)
+    hbnz
+    hc3_one_of_borrow
+    (n4CallAddbackBeqCarry2Nz_of_runtime h_carry2)
+
 end EvmWord
 
 end EvmAsm.Evm64
