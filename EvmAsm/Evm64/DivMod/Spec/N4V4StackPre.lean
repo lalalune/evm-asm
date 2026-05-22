@@ -164,9 +164,7 @@ theorem evm_div_n4_preloop_call_skip_stack_pre_spec_v4 (sp base : Word)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff)
     (hbltu : isCallTrialN4Evm a b)
-    (hborrow : isSkipBorrowN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hborrow : isSkipBorrowN4CallV4Evm a b) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 148)
       base (base + denormOff) (divCode_v4 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -212,9 +210,7 @@ theorem evm_div_n4_preloop_call_skip_stack_pre_spec_bundled_v4 (sp base : Word)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff)
     (hbltu : isCallTrialN4Evm a b)
-    (hborrow : isSkipBorrowN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hborrow : isSkipBorrowN4CallV4Evm a b) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 148)
       base (base + denormOff) (divCode_v4 base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
@@ -249,12 +245,8 @@ theorem evm_div_n4_preloop_call_addback_beq_stack_pre_spec_v4 (sp base : Word)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff)
     (hbltu : isCallTrialN4Evm a b)
-    (hcarry2_nz : isAddbackCarry2NzN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
-    (hborrow : isAddbackBorrowN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hcarry2_nz : isAddbackCarry2NzN4CallV4Evm a b)
+    (hborrow : isAddbackBorrowN4CallV4Evm a b) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224)
       base (base + denormOff) (divCode_v4 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -300,12 +292,8 @@ theorem evm_div_n4_preloop_call_addback_beq_stack_pre_spec_bundled_v4 (sp base :
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff)
     (hbltu : isCallTrialN4Evm a b)
-    (hcarry2_nz : isAddbackCarry2NzN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
-    (hborrow : isAddbackBorrowN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hcarry2_nz : isAddbackCarry2NzN4CallV4Evm a b)
+    (hborrow : isAddbackBorrowN4CallV4Evm a b) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224)
       base (base + denormOff) (divCode_v4 base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
@@ -340,9 +328,7 @@ theorem evm_div_n4_full_call_skip_stack_pre_spec_v4 (sp base : Word)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff)
     (hbltu : isCallTrialN4Evm a b)
-    (hborrow : isSkipBorrowN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hborrow : isSkipBorrowN4CallV4Evm a b) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 148 + 2 + 23 + 10)
       base (base + nopOff) (divCode_v4 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -388,9 +374,7 @@ theorem evm_div_n4_full_call_skip_stack_pre_spec_bundled_v4 (sp base : Word)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff)
     (hbltu : isCallTrialN4Evm a b)
-    (hborrow : isSkipBorrowN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hborrow : isSkipBorrowN4CallV4Evm a b) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 148 + 2 + 23 + 10)
       base (base + nopOff) (divCode_v4 base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
@@ -425,12 +409,8 @@ theorem evm_div_n4_full_call_addback_beq_stack_pre_spec_v4 (sp base : Word)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff)
     (hbltu : isCallTrialN4Evm a b)
-    (hcarry2_nz : isAddbackCarry2NzN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
-    (hborrow : isAddbackBorrowN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hcarry2_nz : isAddbackCarry2NzN4CallV4Evm a b)
+    (hborrow : isAddbackBorrowN4CallV4Evm a b) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
       base (base + nopOff) (divCode_v4 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -476,12 +456,8 @@ theorem evm_div_n4_full_call_addback_beq_stack_pre_spec_bundled_v4 (sp base : Wo
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff)
     (hbltu : isCallTrialN4Evm a b)
-    (hcarry2_nz : isAddbackCarry2NzN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
-    (hborrow : isAddbackBorrowN4CallV4Ab
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hcarry2_nz : isAddbackCarry2NzN4CallV4Evm a b)
+    (hborrow : isAddbackBorrowN4CallV4Evm a b) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
       base (base + nopOff) (divCode_v4 base)
       (divN4StackPreCall sp a b v5 v6 v7 v10 v11
