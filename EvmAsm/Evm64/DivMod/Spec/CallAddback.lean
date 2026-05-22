@@ -312,6 +312,29 @@ theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch_iff {a b : EvmWord} :
   · rw [if_neg h_carry]
     exact n4CallAddbackBeqQOutV4_toNat_eq_qTrue_carry_ne_zero_iff h_carry
 
+/-- Introduce `qOut = qTrue` from the carry-selected qHat equality. -/
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_of_qHat_branch {a b : EvmWord}
+    (h_qHat :
+      if n4CallAddbackBeqCarryV4 a b = 0 then
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b
+      else
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b) :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch_iff).2 h_qHat
+
+/-- Eliminate `qOut = qTrue` to the carry-selected qHat equality. -/
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch {a b : EvmWord}
+    (h_qOut : (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b) :
+    if n4CallAddbackBeqCarryV4 a b = 0 then
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b
+    else
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch_iff).1 h_qOut
+
 /-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
 
     This is the v4 migration target for `n4CallAddbackBeqSemanticHolds`: it uses
