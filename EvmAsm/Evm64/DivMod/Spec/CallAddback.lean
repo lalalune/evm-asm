@@ -1001,10 +1001,6 @@ theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue {a b : EvmWord}
 def n4CallAddbackBeqSemanticHoldsV4 (a b : EvmWord) : Prop :=
   (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b
 
-theorem n4CallAddbackBeqSemanticHolds_eq_v4 {a b : EvmWord} :
-    n4CallAddbackBeqSemanticHolds a b = n4CallAddbackBeqSemanticHoldsV4 a b :=
-  rfl
-
 theorem n4CallAddbackBeqSemanticV4_unfold {a b : EvmWord} :
     n4CallAddbackBeqSemanticHoldsV4 a b =
     (let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
@@ -1026,9 +1022,27 @@ theorem n4CallAddbackBeqSemanticV4_unfold {a b : EvmWord} :
        if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
        else qHat + signExtend12 4095
      q_out.toNat =
-       val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
-         val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
+         val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+           val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
+
+theorem n4CallAddbackBeqSemanticHolds_eq_v4 {a b : EvmWord} :
+    n4CallAddbackBeqSemanticHolds a b = n4CallAddbackBeqSemanticHoldsV4 a b := by
+  rw [n4CallAddbackBeqSemantic_unfold, n4CallAddbackBeqSemanticV4_unfold]
+
+theorem n4CallAddbackBeqSemanticHolds_iff_v4 {a b : EvmWord} :
+    n4CallAddbackBeqSemanticHolds a b ↔ n4CallAddbackBeqSemanticHoldsV4 a b := by
+  rw [n4CallAddbackBeqSemanticHolds_eq_v4]
+
+theorem n4CallAddbackBeqSemanticHolds_of_v4 {a b : EvmWord}
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    n4CallAddbackBeqSemanticHolds a b :=
+  n4CallAddbackBeqSemanticHolds_iff_v4.2 hsem
+
+theorem n4CallAddbackBeqSemanticHolds_v4 {a b : EvmWord}
+    (hsem : n4CallAddbackBeqSemanticHolds a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHolds_iff_v4.1 hsem
 
 theorem n4CallAddbackBeqSemanticHoldsV4_eq_direct {a b : EvmWord}
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
