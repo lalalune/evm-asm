@@ -616,4 +616,69 @@ theorem divK_loop_body_n3_call_j1_exact_loopIterScratch_v4_noNop (sp base : Word
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
         retMem dMem dloMem scratchUn0 scratchMem halign hbltu hborrow_zero
 
+/-- The callable-ready v4 n=3 loop source specializes to the j=1 call-body
+    precondition, with j=0 source atoms retained as a frame. -/
+theorem loopN3PreWithScratchV4NoX1_to_call_j1_pre
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word) :
+    ∀ h,
+      (loopN3PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratchUn0 scratchMem ** (.x1 ↦ᵣ raVal)) h →
+      ((loopBodyN3CallSkipJgt0PreV4NoX1 sp (1 : Word)
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old
+        retMem dMem dloMem scratchUn0 scratchMem ** (.x1 ↦ᵣ raVal)) **
+        (((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig) **
+         ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old))) h := by
+  intro h hp
+  delta loopN3PreWithScratchV4NoX1 loopN3PreWithScratchNoX1 loopN3Pre at hp
+  delta loopBodyN3CallSkipJgt0PreV4NoX1
+  simp only []
+  xperm_hyp hp
+
+/-- First n=3 call iteration from the callable-ready v4 loop source, preserving
+    concrete `x1` and carrying the j=0 source atoms as a frame. -/
+theorem divK_loop_n3_call_j1_from_source_exact_loopIterScratch_v4_noNop (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u3 v2)
+    (hcarry2_nz : loopBodyN3CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 224 (base + loopBodyOff) (base + loopBodyOff) (divCode_noNop_v4 base)
+      (loopN3PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      ((loopIterPostN3CallScratchNoX1 sp base (1 : Word)
+        (divKTrialCallV4QHat u3 u2 v2)
+        (divKTrialCallV4DLo v2)
+        (divKTrialCallV4Un0 u2)
+        (divKTrialCallV4ScratchOut u3 u2 v2 scratchMem)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+        (.x1 ↦ᵣ raVal)) **
+        (((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig) **
+         ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old))) := by
+  have J1 := divK_loop_body_n3_call_j1_exact_loopIterScratch_v4_noNop sp base
+    jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old raVal
+    retMem dMem dloMem scratchUn0 scratchMem halign hbltu hcarry2_nz
+  have J1f := cpsTripleWithin_frameR
+    ((((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
+      signExtend12 0 ↦ₘ u0Orig) **
+     ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old)))
+    (by pcFree) J1
+  exact cpsTripleWithin_weaken
+    (loopN3PreWithScratchV4NoX1_to_call_j1_pre
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal
+      retMem dMem dloMem scratchUn0 scratchMem)
+    (fun h hp => hp)
+    J1f
+
 end EvmAsm.Evm64
