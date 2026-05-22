@@ -7283,6 +7283,175 @@ def ziskU256MulU64BeProbeUnit : BuildUnit := {
   dataAsm     := ziskU256MulU64BeDataSection
 }
 
+/-! ## eip1559_calc_base_fee_per_gas -- PR-K73
+
+    Full EIP-1559 base-fee formula. Mirrors Python's
+    `calculate_base_fee_per_gas`:
+
+      parent_gas_target = parent.gas_limit // 2
+
+      if parent.gas_used == parent_gas_target:
+          expected = parent.base_fee_per_gas
+      elif parent.gas_used > parent_gas_target:
+          gas_used_delta = parent.gas_used - parent_gas_target
+          parent_fee_gas_delta = parent.base_fee_per_gas * gas_used_delta
+          target_fee_gas_delta = parent_fee_gas_delta // parent_gas_target
+          base_fee_delta = max(target_fee_gas_delta // 8, 1)
+          expected = parent.base_fee_per_gas + base_fee_delta
+      else:
+          gas_used_delta = parent_gas_target - parent.gas_used
+          parent_fee_gas_delta = parent.base_fee_per_gas * gas_used_delta
+          target_fee_gas_delta = parent_fee_gas_delta // parent_gas_target
+          base_fee_delta = target_fee_gas_delta // 8
+          expected = parent.base_fee_per_gas - base_fee_delta
+
+    Where `ELASTICITY_MULTIPLIER = 2` and
+    `BASE_FEE_MAX_CHANGE_DENOMINATOR = 8`.
+
+    First end-to-end EIP-1559 helper composed on the u256 toolkit:
+    - PR-K54 `u256_mul_u64_be` — parent.base_fee × gas_used_delta
+    - PR-K61 `u256_div_u64_be` — divide by parent_gas_target, then by 8
+    - PR-K58 `u256_is_zero`    — max(_, 1) on the above path
+    - PR-K56 `u256_from_u64_be` — materialize the literal 1
+    - PR-K51 `u256_add_be`     — final add (above path)
+    - PR-K52 `u256_sub_be`     — final sub (below path)
+
+    ## Preconditions
+
+    - `parent.gas_limit >= 2` (so `parent_gas_target >= 1`; we
+      divide by it). Mainnet has GAS_LIMIT_MINIMUM = 5000, so
+      this always holds for valid chains.
+    - `parent.base_fee_per_gas <= 2^56` (PR-K61 div precondition).
+      All mainnet base fees fit easily.
+
+    Calling convention:
+      a0 (input)  : parent.gas_limit       (u64)
+      a1 (input)  : parent.gas_used        (u64)
+      a2 (input)  : parent.base_fee_per_gas ptr (u256 BE, 32 B)
+      a3 (input)  : output ptr (u256 BE, 32 B; receives expected
+                    base_fee_per_gas)
+      ra (input)  : return
+      a0 (output) : 0 on success, 1 on overflow at any step. -/
+def eip1559CalcBaseFeePerGasFunction : String :=
+  "eip1559_calc_base_fee_per_gas:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a2                    # base_fee ptr\n" ++
+  "  mv s1, a3                    # out ptr\n" ++
+  "  srli s2, a0, 1               # parent_gas_target = parent.gas_limit / 2\n" ++
+  "  beq a1, s2, .Lebf_eq         # gas_used == target → expected = base_fee\n" ++
+  "  li s4, 0                     # path flag: 0 = below, 1 = above\n" ++
+  "  bgtu a1, s2, .Lebf_set_above\n" ++
+  "  sub s3, s2, a1               # below: delta = target - gas_used\n" ++
+  "  j .Lebf_compute\n" ++
+  ".Lebf_set_above:\n" ++
+  "  li s4, 1\n" ++
+  "  sub s3, a1, s2               # above: delta = gas_used - target\n" ++
+  ".Lebf_compute:\n" ++
+  "  # parent_fee_gas_delta = parent.base_fee × gas_used_delta\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s3\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lebf_fail\n" ++
+  "  # target_fee_gas_delta = parent_fee_gas_delta / parent_gas_target\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_div_u64_be\n" ++
+  "  # base_fee_delta = target_fee_gas_delta / 8\n" ++
+  "  mv a0, s1\n" ++
+  "  li a1, 8\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_div_u64_be\n" ++
+  "  # If above path: max(delta, 1).\n" ++
+  "  beqz s4, .Lebf_apply\n" ++
+  "  mv a0, s1\n" ++
+  "  jal ra, u256_is_zero\n" ++
+  "  beqz a0, .Lebf_apply\n" ++
+  "  li a0, 1\n" ++
+  "  mv a1, s1\n" ++
+  "  jal ra, u256_from_u64_be\n" ++
+  ".Lebf_apply:\n" ++
+  "  beqz s4, .Lebf_sub_path\n" ++
+  "  # above: out = base_fee + delta\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lebf_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lebf_ret\n" ++
+  ".Lebf_sub_path:\n" ++
+  "  # below: out = base_fee - delta\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_sub_be\n" ++
+  "  bnez a0, .Lebf_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lebf_ret\n" ++
+  ".Lebf_eq:\n" ++
+  "  # Copy base_fee to out (32 B chunk copy).\n" ++
+  "  ld t0,  0(s0); sd t0,  0(s1)\n" ++
+  "  ld t0,  8(s0); sd t0,  8(s1)\n" ++
+  "  ld t0, 16(s0); sd t0, 16(s1)\n" ++
+  "  ld t0, 24(s0); sd t0, 24(s1)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lebf_ret\n" ++
+  ".Lebf_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lebf_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_eip1559_calc_base_fee_per_gas`: probe BuildUnit. Reads
+    (parent_gas_limit u64, parent_gas_used u64, parent_base_fee
+    u256 BE) from host input, writes (status, expected_base_fee
+    BE) to OUTPUT (40 bytes total). -/
+def ziskEip1559CalcBaseFeePerGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a0,  8(a4)               # parent.gas_limit\n" ++
+  "  ld a1, 16(a4)               # parent.gas_used\n" ++
+  "  addi a2, a4, 24             # parent.base_fee ptr\n" ++
+  "  li a3, 0xa0010008           # out ptr\n" ++
+  "  mv t0, a3; li t1, 4\n" ++
+  ".Lebf_zout:\n" ++
+  "  beqz t1, .Lebf_zout_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lebf_zout\n" ++
+  ".Lebf_zout_done:\n" ++
+  "  jal ra, eip1559_calc_base_fee_per_gas\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lebf_pdone\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256DivU64BeFunction ++ "\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  u256FromU64BeFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  eip1559CalcBaseFeePerGasFunction ++ "\n" ++
+  ".Lebf_pdone:"
+
+def ziskEip1559CalcBaseFeePerGasDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40"
+
+def ziskEip1559CalcBaseFeePerGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskEip1559CalcBaseFeePerGasPrologue
+  dataAsm     := ziskEip1559CalcBaseFeePerGasDataSection
+}
+
 /-! ## tx_cost_compute -- PR-K71
 
     Compute the full upfront cost of a transaction:
@@ -10051,6 +10220,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
   | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit
+  | "zisk_eip1559_calc_base_fee_per_gas" => some ziskEip1559CalcBaseFeePerGasProbeUnit
   | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
@@ -10137,6 +10307,7 @@ def knownProgramNames : List String :=
    "zisk_u256_sub_be",
    "zisk_u256_eq",
    "zisk_u256_mul_u64_be",
+   "zisk_eip1559_calc_base_fee_per_gas",
    "zisk_u256_from_u64_be",
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero",
