@@ -11178,6 +11178,178 @@ def ziskBlockBodyBlobGasTotalProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockBodyBlobGasTotalDataSection
 }
 
+/-! ## block_validate_blob_gas_consistency -- PR-K91
+
+    Cancun-era consensus rule: the value of `header.blob_gas_used`
+    must equal the sum of per-tx blob gas across the block's body.
+
+      header.blob_gas_used == sum(
+        len(tx.blob_versioned_hashes) × GAS_PER_BLOB
+        for tx in block.transactions
+        if tx.type == 3
+      )
+
+    Composes:
+      - PR-K53 `rlp_field_to_u64`        — extract header field 17
+      - PR-K89 `block_body_blob_gas_total` — sum over body
+
+    The Python reference (`forks/amsterdam/fork.py`) enforces this
+    inside `apply_body`. This helper packages the check into a
+    single ECALL-shaped routine so callers don't need to thread
+    intermediate values through registers.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : body_rlp ptr
+      a3 (input)  : body_rlp byte length
+      a4 (input)  : gas_per_blob (u64; 131072 on mainnet Cancun)
+      ra (input)  : return
+      a0 (output) : composite status code
+
+    Status decade encoding (floor(status/100) identifies the
+    failing step):
+
+      0          : success — header.blob_gas_used == body total
+      1          : header parse / field 17 missing / not u64
+      2          : mismatch (header.blob_gas_used ≠ body total)
+      101        : body decode failed
+      201        : body rlp_list_count_items failed
+      301        : body rlp_list_nth_item failed
+      401        : body tx_type_dispatch failed
+      501..502   : body tx_eip4844_compute_blob_gas forwarded
+                   (501 = K45 decode, 502 = K64 sum)
+
+    Uses 32 bytes of `.data` scratch (`bvbgc_header_bgu` +
+    `bvbgc_body_total`) plus the scratch buffers inherited from
+    PR-K89 / K88 / K83. -/
+def blockValidateBlobGasConsistencyFunction : String :=
+  "block_validate_blob_gas_consistency:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a2                   # body_rlp ptr\n" ++
+  "  mv s1, a3                   # body_len\n" ++
+  "  mv s2, a4                   # gas_per_blob\n" ++
+  "  # Step 1: extract header.blob_gas_used (field 17, u64).\n" ++
+  "  # a0,a1 still hold (header_ptr, header_len).\n" ++
+  "  li a2, 17\n" ++
+  "  la a3, bvbgc_header_bgu\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lbvbgc_step2\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvbgc_ret\n" ++
+  ".Lbvbgc_step2:\n" ++
+  "  # Step 2: body total via K89.\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  mv a2, s2                   # gas_per_blob\n" ++
+  "  la a3, bvbgc_body_total\n" ++
+  "  jal ra, block_body_blob_gas_total\n" ++
+  "  beqz a0, .Lbvbgc_compare\n" ++
+  "  # K89 returns: 1=body decode, 101=count, 201=nth, 301=dispatch,\n" ++
+  "  # 401..402=K88 forwarded. Re-map onto our 101+ decade space.\n" ++
+  "  li t0, 100\n" ++
+  "  add a0, a0, t0              # 1→101, 101→201, 201→301, 301→401,\n" ++
+  "                              # 401→501, 402→502\n" ++
+  "  j .Lbvbgc_ret\n" ++
+  ".Lbvbgc_compare:\n" ++
+  "  la t0, bvbgc_header_bgu\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  la t0, bvbgc_body_total\n" ++
+  "  ld t2, 0(t0)\n" ++
+  "  beq t1, t2, .Lbvbgc_ok\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbvbgc_ret\n" ++
+  ".Lbvbgc_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbvbgc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_blob_gas_consistency`: probe BuildUnit.
+    Input layout (LE u64s + variable bytes):
+      bytes  0.. 8 : header_len
+      bytes  8..16 : body_len
+      bytes 16..24 : gas_per_blob
+      bytes 24..   : header_rlp ‖ body_rlp (concatenated, no padding
+                     between)
+    OUTPUT layout (8 bytes):
+      bytes  0.. 8 : status code -/
+def ziskBlockValidateBlobGasConsistencyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # header_len\n" ++
+  "  ld a3, 16(a5)               # body_len\n" ++
+  "  ld a4, 24(a5)               # gas_per_blob\n" ++
+  "  addi a0, a5, 32             # header_ptr\n" ++
+  "  add a2, a0, a1              # body_ptr = header_ptr + header_len\n" ++
+  "  jal ra, block_validate_blob_gas_consistency\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbvbgc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  blobGasUsedFromVersionedHashesFunction ++ "\n" ++
+  txEip4844ComputeBlobGasFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodyBlobGasTotalFunction ++ "\n" ++
+  blockValidateBlobGasConsistencyFunction ++ "\n" ++
+  ".Lbvbgc_pdone:"
+
+def ziskBlockValidateBlobGasConsistencyDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bgvh_count_scratch:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tcbg_struct:\n" ++
+  "  .zero 248\n" ++
+  ".balign 8\n" ++
+  "bbbgt_struct:\n" ++
+  "  .zero 48\n" ++
+  ".balign 8\n" ++
+  "bbbgt_count:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_item_off:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_item_len:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_type:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_inner_off:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_blob_gas:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bvbgc_header_bgu:\n" ++
+  "  .zero 8\n" ++
+  "bvbgc_body_total:\n" ++
+  "  .zero 8"
+
+def ziskBlockValidateBlobGasConsistencyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateBlobGasConsistencyPrologue
+  dataAsm     := ziskBlockValidateBlobGasConsistencyDataSection
+}
+
+
 
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
@@ -12471,6 +12643,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
   | "zisk_tx_eip4844_compute_blob_gas" => some ziskTxEip4844ComputeBlobGasProbeUnit
   | "zisk_block_body_blob_gas_total" => some ziskBlockBodyBlobGasTotalProbeUnit
+  | "zisk_block_validate_blob_gas_consistency" => some ziskBlockValidateBlobGasConsistencyProbeUnit
   | "zisk_tx_decode_dispatch"   => some ziskTxDecodeDispatchProbeUnit
   | "zisk_intrinsic_gas_legacy" => some ziskIntrinsicGasLegacyProbeUnit
   | "zisk_tx_validate_intrinsic_gas_legacy" => some ziskTxValidateIntrinsicGasLegacyProbeUnit
@@ -12574,6 +12747,7 @@ def knownProgramNames : List String :=
    "zisk_tx_eip4844_decode",
    "zisk_tx_eip4844_compute_blob_gas",
    "zisk_block_body_blob_gas_total",
+   "zisk_block_validate_blob_gas_consistency",
    "zisk_tx_decode_dispatch",
    "zisk_intrinsic_gas_legacy",
    "zisk_tx_validate_intrinsic_gas_legacy",
