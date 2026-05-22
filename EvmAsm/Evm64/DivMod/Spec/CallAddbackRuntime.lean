@@ -132,6 +132,52 @@ theorem n4CallAddbackBeqNormalizedDivisor_ne_zero {b : EvmWord}
   rw [h_zero_toNat] at h_top_ge
   norm_num at h_top_ge
 
+/-- Runtime-normalized c3 bridge: if the normalized trial quotient is within
+    one of the normalized true quotient, the raw borrow condition pins the
+    mulsub carry-out to one. -/
+theorem n4CallAddbackBeqC3_eq_one_of_borrow_and_qhat_le_div_plus_one {a b : EvmWord}
+    (hbnz :
+      n4CallAddbackBeqB0Prime b ||| n4CallAddbackBeqB1Prime b |||
+        n4CallAddbackBeqB2Prime b ||| n4CallAddbackBeqB3Prime b ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        EvmWord.val256
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b) /
+          EvmWord.val256
+            (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b)
+            (n4CallAddbackBeqB2Prime b)
+            (n4CallAddbackBeqB3Prime b) + 1)
+    (h_borrow :
+      BitVec.ult (n4CallAddbackBeqU4 a b)
+        (mulsubN4
+          (n4CallAddbackBeqQHatV4 a b)
+          (n4CallAddbackBeqB0Prime b)
+          (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b)
+          (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b)).2.2.2.2) :
+      (mulsubN4
+        (n4CallAddbackBeqQHatV4 a b)
+        (n4CallAddbackBeqB0Prime b)
+        (n4CallAddbackBeqB1Prime b)
+        (n4CallAddbackBeqB2Prime b)
+        (n4CallAddbackBeqB3Prime b)
+        (n4CallAddbackBeqU0 a b)
+        (n4CallAddbackBeqU1 a b)
+        (n4CallAddbackBeqU2 a b)
+        (n4CallAddbackBeqU3 a b)).2.2.2.2 = 1 := by
+  apply mulsubN4_c3_ne_zero_imp_one hbnz hq_over
+  intro h_zero
+  rw [h_zero] at h_borrow
+  simp [BitVec.ult] at h_borrow
+
 /-- Runtime-condition wrapper for double-addback value conservation over the
     normalized n=4 v4 call+addback marker limbs. -/
 theorem n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime
