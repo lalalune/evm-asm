@@ -129,6 +129,13 @@ theorem divCode_noNop_v4_sub_divCode_v4 {base : Word} :
     (CodeReq.union_split_mono div128_v4_ofProg_sub_divCode_v4
     (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
 
+/-- Lift a DIV proof over the no-NOP v4 code surface to the full v4 bundle. -/
+theorem cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    {nSteps : Nat} {entry exit_ base : Word} {P Q : Assertion}
+    (h : cpsTripleWithin nSteps entry exit_ (divCode_noNop_v4 base) P Q) :
+    cpsTripleWithin nSteps entry exit_ (divCode_v4 base) P Q := by
+  exact cpsTripleWithin_extend_code (hmono := divCode_noNop_v4_sub_divCode_v4) h
+
 -- Per-block bridge from the no-NOP v4 MOD surface to the full MOD v4 bundle.
 private theorem noNop_v4_b0_mod {b : Word} :
     ∀ a i, (CodeReq.ofProg b (divK_phaseA 1020)) a = some i → (modCode_v4 b) a = some i := by
@@ -185,5 +192,12 @@ theorem modCode_noNop_v4_sub_modCode_v4 {base : Word} :
     (CodeReq.union_split_mono noNop_v4_b11_mod
     (CodeReq.union_split_mono div128_v4_ofProg_sub_modCode_v4
     (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
+
+/-- Lift a MOD proof over the no-NOP v4 code surface to the full v4 bundle. -/
+theorem cpsTripleWithin_modCode_noNop_v4_to_modCode_v4
+    {nSteps : Nat} {entry exit_ base : Word} {P Q : Assertion}
+    (h : cpsTripleWithin nSteps entry exit_ (modCode_noNop_v4 base) P Q) :
+    cpsTripleWithin nSteps entry exit_ (modCode_v4 base) P Q := by
+  exact cpsTripleWithin_extend_code (hmono := modCode_noNop_v4_sub_modCode_v4) h
 
 end EvmAsm.Evm64
