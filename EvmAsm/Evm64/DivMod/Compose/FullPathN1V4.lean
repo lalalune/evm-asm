@@ -694,4 +694,42 @@ theorem divK_loop_n1_call_j3_exact_x1_framed_v4 (sp base : Word)
       u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old
       retMem dMem dloMem scratchUn0 scratchMem raVal halign hbltu hcarry2_nz)
 
+/-- N1 call/max/max/max denormalization and DIV epilogue over the full `divCode_v4` bundle. -/
+theorem evm_div_n1_call_maxmaxmax_denorm_epilogue_spec_v4
+    (sp base shift : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
+    (hshift_nz : shift ≠ 0) :
+    cpsTripleWithin (2 + 23 + 10) (base + denormOff) (base + nopOff) (divCode_v4 base)
+      (fullDivN1CallMaxmaxmaxDenormPre sp shift
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0)
+      (fullDivN1CallMaxmaxmaxDenormPost sp shift
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (evm_div_n1_call_maxmaxmax_denorm_epilogue_spec_v4_noNop
+      sp base shift v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig2 u0Orig1 u0Orig0 hshift_nz)
+
+/-- Exact-`x1` framed N1 call/max/max/max denormalization and DIV epilogue over the full
+    `divCode_v4` bundle. -/
+theorem evm_div_n1_call_maxmaxmax_denorm_epilogue_spec_v4_exact_x1
+    (sp base shift : Word)
+    (a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 scratchMem raVal : Word)
+    (hshift_nz : shift ≠ 0) :
+    cpsTripleWithin (2 + 23 + 10) (base + denormOff) (base + nopOff) (divCode_v4 base)
+      (fullDivN1CallMaxmaxmaxDenormPre sp shift
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 **
+       fullDivN1CallMaxmaxmaxDenormFrameNoX1 sp base
+        a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig2 u0Orig1 u0Orig0 scratchMem **
+       (.x1 ↦ᵣ raVal))
+      (fullDivN1CallMaxmaxmaxUnifiedPostNoX1 sp base shift
+        a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig2 u0Orig1 u0Orig0 scratchMem **
+       (.x1 ↦ᵣ raVal)) := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (evm_div_n1_call_maxmaxmax_denorm_epilogue_spec_v4_noNop_exact_x1
+      sp base shift a0 a1 a2 a3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig2 u0Orig1 u0Orig0 scratchMem raVal hshift_nz)
+
 end EvmAsm.Evm64
