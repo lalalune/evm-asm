@@ -132,4 +132,31 @@ theorem divK_loop_n1_iter10_maxmax_exact_x1_v4 (sp base : Word)
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
       retMem dMem dloMem scratch_un0 raVal hbltu_1 hbltu_0 hcarry2)
 
+/-- Exact-`x1` N1 three-iteration all-max path over the full `divCode_v4` bundle. -/
+theorem divK_loop_n1_iter210_maxmaxmax_exact_x1_v4 (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 q2Old q1Old q0Old : Word)
+    (retMem dMem dloMem scratch_un0 raVal : Word)
+    (hbltu_2 : ¬BitVec.ult u1 v0)
+    (hbltu_1 : ¬BitVec.ult (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
+    (hbltu_0 : ¬BitVec.ult
+      (iterN1Max v0 v1 v2 v3 u0Orig1
+        (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.1 v0)
+    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
+    cpsTripleWithin 556 (base + loopBodyOff) (base + denormOff) (divCode_v4 base)
+      (loopN1Iter210PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig1 u0Orig0 q2Old q1Old q0Old
+        retMem dMem dloMem scratch_un0 ** (.x1 ↦ᵣ raVal))
+      (loopN1Iter210PostNoX1 false false false sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig1 u0Orig0 retMem dMem dloMem scratch_un0 ** (.x1 ↦ᵣ raVal)) := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 q2Old q1Old q0Old
+      retMem dMem dloMem scratch_un0 raVal hbltu_2 hbltu_1 hbltu_0 hcarry2)
+
 end EvmAsm.Evm64
