@@ -974,6 +974,163 @@ theorem n4CallAddbackBeqSemanticV4_unfold {a b : EvmWord} :
          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
 
+theorem n4CallAddbackBeqSemanticHoldsV4_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqSemanticHoldsV4 a b =
+      (let b3' :=
+        ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b2' :=
+        ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b1' :=
+        ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let u3 :=
+        ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u2 :=
+        ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u1 :=
+        ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let qHat :=
+        div128Quot_v4
+          ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+          u3
+          b3'
+       let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+       let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+       let qOut : Word :=
+        if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+        else qHat + signExtend12 4095
+       qOut.toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
+  rw [n4CallAddbackBeqSemanticHoldsV4]
+  rw [n4CallAddbackBeqQOutV4_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqQTrue_unfold]
+
+theorem n4CallAddbackBeqSemanticHoldsV4_of_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_direct :
+      let b3' :=
+        ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let b2' :=
+        ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let b1' :=
+        ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+      let u3 :=
+        ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let u2 :=
+        ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let u1 :=
+        ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+      let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+      let qHat :=
+        div128Quot_v4
+          ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+          u3
+          b3'
+      let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+      let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+      let qOut : Word :=
+        if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+        else qHat + signExtend12 4095
+      qOut.toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    n4CallAddbackBeqSemanticHoldsV4 a b := by
+  rw [n4CallAddbackBeqSemanticHoldsV4_eq_direct hshift_nz]
+  exact h_direct
+
+theorem n4CallAddbackBeqSemanticHoldsV4_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    let b3' :=
+      ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let b2' :=
+      ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let b1' :=
+      ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+    let u3 :=
+      ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let u2 :=
+      ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let u1 :=
+      ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+    let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+    let qHat :=
+      div128Quot_v4
+        ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+        u3
+        b3'
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+    let qOut : Word :=
+      if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+      else qHat + signExtend12 4095
+    qOut.toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  rw [n4CallAddbackBeqSemanticHoldsV4_eq_direct hshift_nz] at hsem
+  exact hsem
+
+theorem n4CallAddbackBeqSemanticHoldsV4_direct_iff {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqSemanticHoldsV4 a b ↔
+      (let b3' :=
+        ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b2' :=
+        ((b.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b1' :=
+        ((b.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let b0' := (b.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let u3 :=
+        ((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u2 :=
+        ((a.getLimbN 2) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 1) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u1 :=
+        ((a.getLimbN 1) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 0) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+       let u0 := (a.getLimbN 0) <<< (clzResult (b.getLimbN 3)).1.toNat
+       let qHat :=
+        div128Quot_v4
+          ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+          u3
+          b3'
+       let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+       let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+       let qOut : Word :=
+        if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+        else qHat + signExtend12 4095
+       qOut.toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) := by
+  rw [n4CallAddbackBeqSemanticHoldsV4_eq_direct hshift_nz]
+
 theorem n4CallAddbackBeqSemanticHoldsV4_qOutV4_eq {a b : EvmWord} :
     n4CallAddbackBeqSemanticHoldsV4 a b =
       ((n4CallAddbackBeqQOutV4 a b).toNat =
