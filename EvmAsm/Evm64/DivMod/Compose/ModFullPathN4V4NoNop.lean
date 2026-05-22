@@ -17,6 +17,67 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
 
+/-- MOD epilogue over the no-NOP v4 MOD code bundle. -/
+theorem divK_mod_epilogue_spec_within_noNop_v4 (sp : Word) (base : Word)
+    (u0 u1 u2 u3 v5 v6 v7 v10 m0 m8 m16 m24 : Word) :
+    cpsTripleWithin 10 (base + epilogueOff) (base + nopOff) (modCode_noNop_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
+       ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
+      ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ u0) ** (.x6 ↦ᵣ u1) ** (.x7 ↦ᵣ u2) ** (.x10 ↦ᵣ u3) **
+       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + 32) ↦ₘ u0) ** ((sp + 40) ↦ₘ u1) **
+       ((sp + 48) ↦ₘ u2) ** ((sp + 56) ↦ₘ u3)) := by
+  have hload := divK_epilogue_load_spec_within 4056 4048 4040 4032 sp u0 u1 u2 u3 v5 v6 v7 v10
+    (base + epilogueOff)
+  have hloade := cpsTripleWithin_extend_code (hmono := fun a i h =>
+    modNoNop_v4_b10_modEpilogue a i
+      (CodeReq.ofProg_mono_sub (base + epilogueOff) (base + epilogueOff) (divK_mod_epilogue 24)
+        (divK_epilogue_load_prog 4056 4048 4040 4032) 0
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hload
+  have hstore := divK_epilogue_store_spec_within sp (base + epilogueOff + 16) u0 u1 u2 u3 m0 m8 m16 m24 24
+  rw [show (base + epilogueOff + 16 : Word) + 20 + signExtend21 24 = base + nopOff from by rv64_addr]
+    at hstore
+  have hstoree := cpsTripleWithin_extend_code (hmono := fun a i h =>
+    modNoNop_v4_b10_modEpilogue a i
+      (CodeReq.ofProg_mono_sub (base + epilogueOff) (base + epilogueOff + 16) (divK_mod_epilogue 24)
+        (divK_epilogue_store_prog 24) 4
+        (by bv_addr) (by decide) (by decide) (by decide) a i h)) hstore
+  have hloadef := cpsTripleWithin_frameR
+    (((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) ** ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
+    (by pcFree) hloade
+  have hstoref := cpsTripleWithin_frameR
+    (((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+     ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3))
+    (by pcFree) hstoree
+  have h12 := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hloadef hstoref
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    h12
+
+/-- MOD epilogue over the full v4 MOD code bundle. -/
+theorem divK_mod_epilogue_spec_within_v4 (sp : Word) (base : Word)
+    (u0 u1 u2 u3 v5 v6 v7 v10 m0 m8 m16 m24 : Word) :
+    cpsTripleWithin 10 (base + epilogueOff) (base + nopOff) (modCode_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
+       ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
+      ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ u0) ** (.x6 ↦ᵣ u1) ** (.x7 ↦ᵣ u2) ** (.x10 ↦ᵣ u3) **
+       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + 32) ↦ₘ u0) ** ((sp + 40) ↦ₘ u1) **
+       ((sp + 48) ↦ₘ u2) ** ((sp + 56) ↦ₘ u3)) := by
+  exact cpsTripleWithin_modCode_noNop_v4_to_modCode_v4
+    (divK_mod_epilogue_spec_within_noNop_v4 sp base
+      u0 u1 u2 u3 v5 v6 v7 v10 m0 m8 m16 m24)
+
 /-- Loop body n=4, max+skip, j=0 over `modCode_noNop_v4`, with
     sp-relative addresses in the precondition. -/
 theorem divK_loop_body_n4_max_skip_j0_norm_mod_v4_noNop (sp base : Word)
