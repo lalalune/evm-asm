@@ -98,6 +98,74 @@ theorem n4CallAddbackBeqSemantic_unfold {a b : EvmWord} :
          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
 
+/-- CLZ normalization shift used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqShift (b : EvmWord) : Nat :=
+  (clzResult (b.getLimbN 3)).1.toNat % 64
+
+theorem n4CallAddbackBeqShift_unfold {b : EvmWord} :
+    n4CallAddbackBeqShift b = (clzResult (b.getLimbN 3)).1.toNat % 64 :=
+  rfl
+
+theorem n4CallAddbackBeqShift_raw_lt_64 {b : EvmWord} :
+    (clzResult (b.getLimbN 3)).1.toNat < 64 := by
+  have h_le := clzResult_fst_toNat_le (b.getLimbN 3)
+  omega
+
+theorem n4CallAddbackBeqShift_eq_raw {b : EvmWord} :
+    n4CallAddbackBeqShift b = (clzResult (b.getLimbN 3)).1.toNat := by
+  rw [n4CallAddbackBeqShift_unfold]
+  exact Nat.mod_eq_of_lt n4CallAddbackBeqShift_raw_lt_64
+
+theorem n4CallAddbackBeqShift_pos_of_ne_zero {b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    0 < n4CallAddbackBeqShift b := by
+  rw [n4CallAddbackBeqShift_eq_raw]
+  rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h_zero | h_pos
+  · exfalso
+    apply hshift_nz
+    exact BitVec.eq_of_toNat_eq (by simp [h_zero])
+  · exact h_pos
+
+/-- Anti-shift used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqAntiShift (b : EvmWord) : Nat :=
+  (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+
+theorem n4CallAddbackBeqAntiShift_unfold {b : EvmWord} :
+    n4CallAddbackBeqAntiShift b =
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64 :=
+  rfl
+
+/-- Normalized top divisor limb used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqB3Prime (b : EvmWord) : Word :=
+  ((b.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
+    ((b.getLimbN 2) >>> n4CallAddbackBeqAntiShift b)
+
+theorem n4CallAddbackBeqB3Prime_unfold {b : EvmWord} :
+    n4CallAddbackBeqB3Prime b =
+      ((b.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
+        ((b.getLimbN 2) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
+
+/-- Normalized overflow dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqU4 (a b : EvmWord) : Word :=
+  (a.getLimbN 3) >>> n4CallAddbackBeqAntiShift b
+
+theorem n4CallAddbackBeqU4_unfold {a b : EvmWord} :
+    n4CallAddbackBeqU4 a b =
+      (a.getLimbN 3) >>> n4CallAddbackBeqAntiShift b :=
+  rfl
+
+/-- Normalized top in-range dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqU3 (a b : EvmWord) : Word :=
+  ((a.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
+    ((a.getLimbN 2) >>> n4CallAddbackBeqAntiShift b)
+
+theorem n4CallAddbackBeqU3_unfold {a b : EvmWord} :
+    n4CallAddbackBeqU3 a b =
+      ((a.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
+        ((a.getLimbN 2) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
+
 /-- Trial quotient used by the n=4 v4 call+addback-BEQ semantic marker. -/
 def n4CallAddbackBeqQHatV4 (a b : EvmWord) : Word :=
   let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
@@ -116,6 +184,14 @@ theorem n4CallAddbackBeqQHatV4_unfold {a b : EvmWord} :
        let u4 := (a.getLimbN 3) >>> antiShift
        let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
        div128Quot_v4 u4 u3 b3') :=
+  rfl
+
+theorem n4CallAddbackBeqQHatV4_eq_normalized {a b : EvmWord} :
+    n4CallAddbackBeqQHatV4 a b =
+      div128Quot_v4
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b) :=
   rfl
 
 /-- First addback carry used by the n=4 v4 call+addback-BEQ semantic marker. -/
@@ -227,6 +303,151 @@ theorem n4CallAddbackBeqQTrue_unfold {a b : EvmWord} :
       val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
         val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
   rfl
+
+theorem eq_n4CallAddbackBeqQTrue_iff {a b : EvmWord} {q : Nat} :
+    q = n4CallAddbackBeqQTrue a b ↔
+      q =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  Iff.rfl
+
+theorem n4CallAddbackBeqQTrue_eq_iff {a b : EvmWord} {q : Nat} :
+    n4CallAddbackBeqQTrue a b = q ↔
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        q :=
+  Iff.rfl
+
+/-- Carry-selected qHat equality targeted by the v4 n=4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqQHatBranchEqQTrue (a b : EvmWord) : Prop :=
+  if n4CallAddbackBeqCarryV4 a b = 0 then
+    (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+      n4CallAddbackBeqQTrue a b
+  else
+    (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+      n4CallAddbackBeqQTrue a b
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_unfold {a b : EvmWord} :
+    n4CallAddbackBeqQHatBranchEqQTrue a b =
+      if n4CallAddbackBeqCarryV4 a b = 0 then
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b
+      else
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b :=
+  rfl
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_carry_eq_zero_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  rw [n4CallAddbackBeqQHatBranchEqQTrue, if_pos h_carry]
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_carry_ne_zero_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  rw [n4CallAddbackBeqQHatBranchEqQTrue, if_neg h_carry]
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_of_carry_eq_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0)
+    (h_qHat :
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b :=
+  (n4CallAddbackBeqQHatBranchEqQTrue_carry_eq_zero_iff h_carry).2 h_qHat
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_carry_eq_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0)
+    (h_qHat : n4CallAddbackBeqQHatBranchEqQTrue a b) :
+    (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+      n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqQHatBranchEqQTrue_carry_eq_zero_iff h_carry).1 h_qHat
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_of_carry_ne_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0)
+    (h_qHat :
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b :=
+  (n4CallAddbackBeqQHatBranchEqQTrue_carry_ne_zero_iff h_carry).2 h_qHat
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_carry_ne_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0)
+    (h_qHat : n4CallAddbackBeqQHatBranchEqQTrue a b) :
+    (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+      n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqQHatBranchEqQTrue_carry_ne_zero_iff h_carry).1 h_qHat
+
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_carry_eq_zero_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  rw [n4CallAddbackBeqQOutV4_toNat_of_carry_eq_zero h_carry]
+
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_carry_ne_zero_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0) :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  rw [n4CallAddbackBeqQOutV4_toNat_of_carry_ne_zero h_carry]
+
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch_iff {a b : EvmWord} :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b ↔
+      if n4CallAddbackBeqCarryV4 a b = 0 then
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b
+      else
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b := by
+  by_cases h_carry : n4CallAddbackBeqCarryV4 a b = 0
+  · rw [if_pos h_carry]
+    exact n4CallAddbackBeqQOutV4_toNat_eq_qTrue_carry_eq_zero_iff h_carry
+  · rw [if_neg h_carry]
+    exact n4CallAddbackBeqQOutV4_toNat_eq_qTrue_carry_ne_zero_iff h_carry
+
+/-- Introduce `qOut = qTrue` from the carry-selected qHat equality. -/
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_of_qHat_branch {a b : EvmWord}
+    (h_qHat :
+      if n4CallAddbackBeqCarryV4 a b = 0 then
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b
+      else
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b) :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch_iff).2 h_qHat
+
+/-- Eliminate `qOut = qTrue` to the carry-selected qHat equality. -/
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch {a b : EvmWord}
+    (h_qOut : (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b) :
+    if n4CallAddbackBeqCarryV4 a b = 0 then
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b
+    else
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch_iff).1 h_qOut
+
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue_iff {a b : EvmWord} :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b ↔
+      n4CallAddbackBeqQHatBranchEqQTrue a b := by
+  exact n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch_iff
+
+/-- Introduce `qOut = qTrue` from the named carry-selected qHat predicate. -/
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_of_qHatBranchEqQTrue {a b : EvmWord}
+    (h_qHat : n4CallAddbackBeqQHatBranchEqQTrue a b) :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue_iff).2 h_qHat
+
+/-- Eliminate `qOut = qTrue` to the named carry-selected qHat predicate. -/
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue {a b : EvmWord}
+    (h_qOut : (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b :=
+  (n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue_iff).1 h_qOut
 
 /-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
 
@@ -350,6 +571,124 @@ theorem n4CallAddbackBeqSemanticHoldsV4_carry_ne_zero_qHat {a b : EvmWord}
         val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
   rw [← n4CallAddbackBeqQOutV4_toNat_of_carry_ne_zero h_carry]
   exact n4CallAddbackBeqSemanticHoldsV4_qOutV4_toNat_eq hsem
+
+/-- Introduce the v4 semantic predicate from the zero-carry qHat equality to
+    the compact qTrue target. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_carry_eq_zero_qHat_qTrue {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0)
+    (h_qHat :
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b := by
+  apply n4CallAddbackBeqSemanticHoldsV4_of_qOutV4_toNat_eq_qTrue
+  rw [n4CallAddbackBeqQOutV4_toNat_of_carry_eq_zero h_carry]
+  exact h_qHat
+
+/-- Introduce the v4 semantic predicate from the nonzero-carry qHat equality to
+    the compact qTrue target. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_carry_ne_zero_qHat_qTrue {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0)
+    (h_qHat :
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b := by
+  apply n4CallAddbackBeqSemanticHoldsV4_of_qOutV4_toNat_eq_qTrue
+  rw [n4CallAddbackBeqQOutV4_toNat_of_carry_ne_zero h_carry]
+  exact h_qHat
+
+/-- Eliminate the v4 semantic predicate to the zero-carry qHat equality against
+    the compact qTrue target. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_carry_eq_zero_qHat_qTrue {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0)
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+      n4CallAddbackBeqQTrue a b := by
+  rw [← n4CallAddbackBeqQOutV4_toNat_of_carry_eq_zero h_carry]
+  exact n4CallAddbackBeqSemanticHoldsV4_qOutV4_toNat_eq_qTrue hsem
+
+/-- Eliminate the v4 semantic predicate to the nonzero-carry qHat equality
+    against the compact qTrue target. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_carry_ne_zero_qHat_qTrue {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0)
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+      n4CallAddbackBeqQTrue a b := by
+  rw [← n4CallAddbackBeqQOutV4_toNat_of_carry_ne_zero h_carry]
+  exact n4CallAddbackBeqSemanticHoldsV4_qOutV4_toNat_eq_qTrue hsem
+
+/-- Zero-carry branch-local qHat characterization of the v4 semantic predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_carry_eq_zero_qHat_qTrue_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
+    n4CallAddbackBeqSemanticHoldsV4 a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  constructor
+  · exact n4CallAddbackBeqSemanticHoldsV4_carry_eq_zero_qHat_qTrue h_carry
+  · exact n4CallAddbackBeqSemanticHoldsV4_of_carry_eq_zero_qHat_qTrue h_carry
+
+/-- Nonzero-carry branch-local qHat characterization of the v4 semantic predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_carry_ne_zero_qHat_qTrue_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0) :
+    n4CallAddbackBeqSemanticHoldsV4 a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  constructor
+  · exact n4CallAddbackBeqSemanticHoldsV4_carry_ne_zero_qHat_qTrue h_carry
+  · exact n4CallAddbackBeqSemanticHoldsV4_of_carry_ne_zero_qHat_qTrue h_carry
+
+theorem n4CallAddbackBeqSemanticHoldsV4_qHat_branch_iff {a b : EvmWord} :
+    n4CallAddbackBeqSemanticHoldsV4 a b ↔
+      if n4CallAddbackBeqCarryV4 a b = 0 then
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b
+      else
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b := by
+  by_cases h_carry : n4CallAddbackBeqCarryV4 a b = 0
+  · rw [if_pos h_carry]
+    exact n4CallAddbackBeqSemanticHoldsV4_carry_eq_zero_qHat_qTrue_iff h_carry
+  · rw [if_neg h_carry]
+    exact n4CallAddbackBeqSemanticHoldsV4_carry_ne_zero_qHat_qTrue_iff h_carry
+
+/-- Introduce the v4 semantic predicate from the carry-selected qHat equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_qHat_branch {a b : EvmWord}
+    (h_qHat :
+      if n4CallAddbackBeqCarryV4 a b = 0 then
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b
+      else
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  (n4CallAddbackBeqSemanticHoldsV4_qHat_branch_iff).2 h_qHat
+
+/-- Eliminate the v4 semantic predicate to the carry-selected qHat equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_qHat_branch {a b : EvmWord}
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    if n4CallAddbackBeqCarryV4 a b = 0 then
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b
+    else
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqSemanticHoldsV4_qHat_branch_iff).1 hsem
+
+theorem n4CallAddbackBeqSemanticHoldsV4_qHatBranchEqQTrue_iff {a b : EvmWord} :
+    n4CallAddbackBeqSemanticHoldsV4 a b ↔
+      n4CallAddbackBeqQHatBranchEqQTrue a b := by
+  exact n4CallAddbackBeqSemanticHoldsV4_qHat_branch_iff
+
+/-- Introduce the v4 semantic predicate from the named carry-selected qHat predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_qHatBranchEqQTrue {a b : EvmWord}
+    (h_qHat : n4CallAddbackBeqQHatBranchEqQTrue a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  (n4CallAddbackBeqSemanticHoldsV4_qHatBranchEqQTrue_iff).2 h_qHat
+
+/-- Eliminate the v4 semantic predicate to the named carry-selected qHat predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_qHatBranchEqQTrue {a b : EvmWord}
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b :=
+  (n4CallAddbackBeqSemanticHoldsV4_qHatBranchEqQTrue_iff).1 hsem
 
 /-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the raw
     normalized `q_out` equality. -/
