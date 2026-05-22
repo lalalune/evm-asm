@@ -1,3 +1,4 @@
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMax
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopLoopBody
 import EvmAsm.Evm64.DivMod.Compose.V4Code
 
@@ -647,5 +648,50 @@ theorem divK_loop_body_n1_call_j3_exact_loopIterScratch_v4 (sp base : Word)
       jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
       retMem dMem dloMem scratchUn0 scratchMem halign hbltu hcarry2_nz)
+
+/-- N1 call/max/max/max j=3 setup over the full `divCode_v4` bundle. -/
+theorem divK_loop_n1_call_j3_exact_x1_framed_v4 (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop
+     u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u1 v0)
+    (hcarry2_nz :
+      let qHat := divKTrialCallV4QHat u1 u0 v0
+      let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
+      let c3 := ms.2.2.2.2
+      let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
+      let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - c3) v0 v1 v2 v3
+      carry = 0 → addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0) :
+    cpsTripleWithin 224 (base + loopBodyOff) (base + loopBodyOff) (divCode_v4 base)
+      (loopN1CallMaxmaxmaxScratchPreNoX1 sp
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old
+        retMem dMem dloMem scratchUn0 scratchMem ** (.x1 ↦ᵣ raVal))
+      (loopIterPostN1CallScratchNoX1 sp base (3 : Word)
+        (divKTrialCallV4QHat u1 u0 v0)
+        (divKTrialCallV4DLo v0)
+        (divKTrialCallV4Un0 u0)
+        (divKTrialCallV4ScratchOut u1 u0 v0 scratchMem)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+        (.x1 ↦ᵣ raVal) **
+        ((sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat +
+          signExtend12 0) ↦ₘ u0Orig2) **
+        ((sp + signExtend12 4088 - (2 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q2Old) **
+        ((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat +
+          signExtend12 0) ↦ₘ u0Orig1) **
+        ((sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q1Old) **
+        ((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat +
+          signExtend12 0) ↦ₘ u0Orig0) **
+        ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old)) := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_loop_n1_call_j3_exact_x1_framed_v4_noNop sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig2 u0Orig1 u0Orig0 q3Old q2Old q1Old q0Old
+      retMem dMem dloMem scratchUn0 scratchMem raVal halign hbltu hcarry2_nz)
 
 end EvmAsm.Evm64
