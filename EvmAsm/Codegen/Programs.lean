@@ -9201,6 +9201,111 @@ def ziskWithdrawalDecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskWithdrawalDecodeDataSection
 }
 
+/-! ## process_withdrawal -- PR-K77
+
+    Apply a Shanghai+ Withdrawal credit to a recipient's account
+    balance. Per Python's `process_withdrawal`:
+
+      account.balance += withdrawal.amount * 10^9
+
+    The withdrawal amount is denominated in Gwei; the balance is
+    in wei. We convert by multiplying by `GWEI_TO_WEI = 10^9`.
+
+    Composes:
+      - PR-K56 `u256_from_u64_be` — zero-extend amount to u256
+      - PR-K54 `u256_mul_u64_be`  — × 10^9 to convert Gwei → wei
+      - PR-K51 `u256_add_be`      — fold credit into balance
+
+    The mul step can't realistically overflow u256: amount ≤ 2^41
+    Gwei (full validator balance ~32 ETH ≈ 2^35 Gwei; ≤ 2^41
+    even for stake-pool aggregates), so amount × 10^9 < 2^71 ≪
+    2^256. The add can't realistically overflow either since
+    mainnet total wei < 2^87. Both are checked as safety nets.
+
+    Calling convention:
+      a0 (input)  : withdrawal struct ptr (48 B; from PR-K49
+                    `withdrawal_decode`, with amount at offset 40)
+      a1 (input)  : account.balance ptr (32 B u256 BE; modified
+                    in place)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 overflow on mul or add.
+
+    Uses 32 bytes of `.data` scratch (`pw_amount_wei`) plus the
+    40-byte `u256m_acc` scratch from PR-K54. -/
+def processWithdrawalFunction : String :=
+  "process_withdrawal:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0                   # withdrawal struct ptr\n" ++
+  "  mv s1, a1                   # balance ptr\n" ++
+  "  # Step 1: zero-extend amount (Gwei) to u256.\n" ++
+  "  ld t0, 40(s0)               # amount (u64)\n" ++
+  "  mv a0, t0\n" ++
+  "  la a1, pw_amount_wei\n" ++
+  "  jal ra, u256_from_u64_be\n" ++
+  "  # Step 2: amount_wei = amount × 10^9 (in place).\n" ++
+  "  la a0, pw_amount_wei\n" ++
+  "  li a1, 1000000000\n" ++
+  "  la a2, pw_amount_wei\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lpw_fail\n" ++
+  "  # Step 3: balance += amount_wei.\n" ++
+  "  mv a0, s1\n" ++
+  "  la a1, pw_amount_wei\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lpw_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lpw_ret\n" ++
+  ".Lpw_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lpw_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_process_withdrawal`: probe BuildUnit. Reads (48 B
+    withdrawal struct, 32 B initial balance) from host input;
+    copies initial balance to OUTPUT + 8, calls
+    process_withdrawal on it, then writes status to OUTPUT. -/
+def ziskProcessWithdrawalPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a2, 0x40000000\n" ++
+  "  addi a0, a2, 8              # withdrawal struct ptr\n" ++
+  "  li a1, 0xa0010008           # balance buffer at OUTPUT + 8\n" ++
+  "  # Copy initial balance (input offset 48..80) to OUTPUT + 8.\n" ++
+  "  addi t0, a2, 56             # initial balance ptr\n" ++
+  "  ld t1,  0(t0); sd t1,  0(a1)\n" ++
+  "  ld t1,  8(t0); sd t1,  8(a1)\n" ++
+  "  ld t1, 16(t0); sd t1, 16(a1)\n" ++
+  "  ld t1, 24(t0); sd t1, 24(a1)\n" ++
+  "  jal ra, process_withdrawal\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lpw_pdone\n" ++
+  u256FromU64BeFunction ++ "\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  processWithdrawalFunction ++ "\n" ++
+  ".Lpw_pdone:"
+
+def ziskProcessWithdrawalDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40\n" ++
+  ".balign 32\n" ++
+  "pw_amount_wei:\n" ++
+  "  .zero 32"
+
+def ziskProcessWithdrawalProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskProcessWithdrawalPrologue
+  dataAsm     := ziskProcessWithdrawalDataSection
+}
+
 /-! ## withdrawals_sum_amounts -- PR-K65 block withdrawal-credit total
 
     Walk an RLP-encoded list of Shanghai+ Withdrawal records
@@ -10638,6 +10743,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_validate_intrinsic_gas_legacy" => some ziskTxValidateIntrinsicGasLegacyProbeUnit
   | "zisk_validate_transaction_basic" => some ziskValidateTransactionBasicProbeUnit
   | "zisk_withdrawal_decode"    => some ziskWithdrawalDecodeProbeUnit
+  | "zisk_process_withdrawal"   => some ziskProcessWithdrawalProbeUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
@@ -10728,6 +10834,7 @@ def knownProgramNames : List String :=
    "zisk_tx_validate_intrinsic_gas_legacy",
    "zisk_validate_transaction_basic",
    "zisk_withdrawal_decode",
+   "zisk_process_withdrawal",
    "zisk_withdrawals_sum_amounts",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
