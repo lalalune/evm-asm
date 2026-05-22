@@ -343,6 +343,55 @@ theorem n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime_top
     hq_over
     h_carry2
 
+/-- Runtime-condition value conservation with the iterator quotient rewritten
+    to the named v4 call-addback quotient output. -/
+theorem n4CallAddbackBeqQOutV4_val256_conservation_of_runtime_top_nonzero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        EvmWord.val256
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b) /
+          EvmWord.val256
+            (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b)
+            (n4CallAddbackBeqB2Prime b)
+            (n4CallAddbackBeqB3Prime b) + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    let out := iterWithDoubleAddback
+      (n4CallAddbackBeqQHatV4 a b)
+      (n4CallAddbackBeqB0Prime b)
+      (n4CallAddbackBeqB1Prime b)
+      (n4CallAddbackBeqB2Prime b)
+      (n4CallAddbackBeqB3Prime b)
+      (n4CallAddbackBeqU0 a b)
+      (n4CallAddbackBeqU1 a b)
+      (n4CallAddbackBeqU2 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqU4 a b)
+    EvmWord.val256
+        (n4CallAddbackBeqU0 a b)
+        (n4CallAddbackBeqU1 a b)
+        (n4CallAddbackBeqU2 a b)
+        (n4CallAddbackBeqU3 a b) +
+      (n4CallAddbackBeqU4 a b).toNat * 2^256 =
+      (n4CallAddbackBeqQOutV4 a b).toNat * EvmWord.val256
+        (n4CallAddbackBeqB0Prime b)
+        (n4CallAddbackBeqB1Prime b)
+        (n4CallAddbackBeqB2Prime b)
+        (n4CallAddbackBeqB3Prime b) +
+      EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+      out.2.2.2.2.2.toNat * 2^256 := by
+  have h := n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime_top_nonzero
+    hb3nz hq_over h_carry2
+  dsimp only at h ⊢
+  rw [n4CallAddbackBeqIterWithDoubleAddback_qOutV4_of_runtime_borrow h_borrow] at h
+  exact h
+
 end EvmWord
 
 end EvmAsm.Evm64
