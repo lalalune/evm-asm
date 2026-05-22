@@ -471,6 +471,29 @@ theorem n4CallAddbackBeqSemanticHoldsV4_qHat_branch_iff {a b : EvmWord} :
   · rw [if_neg h_carry]
     exact n4CallAddbackBeqSemanticHoldsV4_carry_ne_zero_qHat_qTrue_iff h_carry
 
+/-- Introduce the v4 semantic predicate from the carry-selected qHat equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_qHat_branch {a b : EvmWord}
+    (h_qHat :
+      if n4CallAddbackBeqCarryV4 a b = 0 then
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b
+      else
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  (n4CallAddbackBeqSemanticHoldsV4_qHat_branch_iff).2 h_qHat
+
+/-- Eliminate the v4 semantic predicate to the carry-selected qHat equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_qHat_branch {a b : EvmWord}
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    if n4CallAddbackBeqCarryV4 a b = 0 then
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b
+    else
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqSemanticHoldsV4_qHat_branch_iff).1 hsem
+
 /-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the raw
     normalized `q_out` equality. -/
 theorem n4CallAddbackBeqSemanticHoldsV4_of_qOut_toNat_eq {a b : EvmWord}
