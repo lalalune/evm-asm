@@ -9179,6 +9179,132 @@ def ziskTxEip4844DecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskTxEip4844DecodeDataSection
 }
 
+/-! ## tx_eip4844_compute_blob_gas -- PR-K88
+
+    Given an EIP-4844 (type 3) tx inner RLP body, decode it and
+    compute the per-tx `blob_gas_used` field:
+
+      blob_gas_used = len(tx.blob_versioned_hashes) × GAS_PER_BLOB
+
+    Where `GAS_PER_BLOB = 131072` (mainnet Cancun); parameterized
+    so the helper works across forks that adjust it.
+
+    Composes:
+      - PR-K45 `tx_eip4844_decode` — decode inner body → 248 B struct
+      - PR-K64 `blob_gas_used_from_versioned_hashes` — count × gas_per_blob
+
+    Useful for verifying that
+    `header.blob_gas_used == sum(tx.blob_gas_used for tx in block)`.
+
+    The K45 struct at offsets 168..172 (u32 LE) holds
+    `blob_versioned_hashes_offset` (relative to `inner_ptr`), and
+    offsets 172..176 hold `blob_versioned_hashes_length`. This
+    helper reads those, computes the absolute pointer, and
+    invokes K64.
+
+    Calling convention:
+      a0 (input)  : inner_rlp ptr (post-0x03 type byte)
+      a1 (input)  : inner_rlp byte length
+      a2 (input)  : gas_per_blob (u64; 131072 on mainnet)
+      a3 (input)  : u64 out ptr (receives blob_gas_used)
+      ra (input)  : return
+      a0 (output) :
+        0  : success
+        1  : tx_eip4844_decode failed (parse error)
+        2  : blob_gas_used_from_versioned_hashes failed (parse error)
+
+    Uses 248 + 8 bytes of `.data` scratch (`tcbg_struct` for the
+    decoded EIP-4844 struct, plus an inherited count scratch). -/
+def txEip4844ComputeBlobGasFunction : String :=
+  "tx_eip4844_compute_blob_gas:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # inner_rlp ptr\n" ++
+  "  mv s1, a2                   # gas_per_blob\n" ++
+  "  mv s2, a3                   # out ptr\n" ++
+  "  # Step 1: K45 tx_eip4844_decode(inner, len, tcbg_struct)\n" ++
+  "  la a2, tcbg_struct\n" ++
+  "  # Pre-zero 248 bytes (31 dwords)\n" ++
+  "  mv t0, a2; li t1, 31\n" ++
+  ".Ltcbg_zinit:\n" ++
+  "  beqz t1, .Ltcbg_zdone\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Ltcbg_zinit\n" ++
+  ".Ltcbg_zdone:\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Ltcbg_decode_fail\n" ++
+  "  # Step 2: K64 blob_gas_used_from_versioned_hashes(...)\n" ++
+  "  la t0, tcbg_struct\n" ++
+  "  lwu t1, 168(t0)             # blob_versioned_hashes_offset (u32)\n" ++
+  "  lwu t2, 172(t0)             # blob_versioned_hashes_length (u32)\n" ++
+  "  add a0, s0, t1              # absolute blob_list ptr\n" ++
+  "  mv a1, t2                   # blob_list length\n" ++
+  "  mv a2, s1                   # gas_per_blob\n" ++
+  "  mv a3, s2                   # out ptr\n" ++
+  "  jal ra, blob_gas_used_from_versioned_hashes\n" ++
+  "  beqz a0, .Ltcbg_ret\n" ++
+  "  li a0, 2\n" ++
+  "  j .Ltcbg_ret\n" ++
+  ".Ltcbg_decode_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Ltcbg_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_tx_eip4844_compute_blob_gas`: probe BuildUnit. Reads
+    (inner_len, gas_per_blob, inner_bytes) from host input,
+    writes (status, blob_gas_used) to OUTPUT (16 bytes). -/
+def ziskTxEip4844ComputeBlobGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # inner_len\n" ++
+  "  ld a2, 16(a4)               # gas_per_blob\n" ++
+  "  addi a0, a4, 24             # inner_ptr\n" ++
+  "  li a3, 0xa0010008           # out u64 ptr\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  jal ra, tx_eip4844_compute_blob_gas\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Ltcbg_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  blobGasUsedFromVersionedHashesFunction ++ "\n" ++
+  txEip4844ComputeBlobGasFunction ++ "\n" ++
+  ".Ltcbg_pdone:"
+
+def ziskTxEip4844ComputeBlobGasDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bgvh_count_scratch:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tcbg_struct:\n" ++
+  "  .zero 248"
+
+def ziskTxEip4844ComputeBlobGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxEip4844ComputeBlobGasPrologue
+  dataAsm     := ziskTxEip4844ComputeBlobGasDataSection
+}
+
 /-! ## intrinsic_gas_legacy -- PR-K46 base + creation + data gas
 
     Compute the intrinsic gas cost portion of a legacy /
@@ -11927,6 +12053,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
+  | "zisk_tx_eip4844_compute_blob_gas" => some ziskTxEip4844ComputeBlobGasProbeUnit
   | "zisk_intrinsic_gas_legacy" => some ziskIntrinsicGasLegacyProbeUnit
   | "zisk_tx_validate_intrinsic_gas_legacy" => some ziskTxValidateIntrinsicGasLegacyProbeUnit
   | "zisk_validate_transaction_basic" => some ziskValidateTransactionBasicProbeUnit
@@ -12027,6 +12154,7 @@ def knownProgramNames : List String :=
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
+   "zisk_tx_eip4844_compute_blob_gas",
    "zisk_intrinsic_gas_legacy",
    "zisk_tx_validate_intrinsic_gas_legacy",
    "zisk_validate_transaction_basic",
