@@ -10636,6 +10636,142 @@ def ziskBlockSummaryProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockSummaryDataSection
 }
 
+/-! ## block_compute_tx_hashes -- PR-K97
+
+    Walk the block body's `transactions` RLP list and compute the
+    keccak256 of each encoded tx, packed into a contiguous output
+    buffer. For each item returned by PR-K20 `rlp_list_nth_item`:
+
+      tx_hash = keccak256(tx_bytes_as_returned_by_nth_item)
+
+    `rlp_list_nth_item` returns the byte-string content for typed
+    txs (so for a type-3 EIP-4844 tx the bytes are
+    `[0x03 || rlp(inner)]`) and the full RLP list bytes for legacy
+    txs. In both cases the tx hash on Ethereum is
+    `keccak256(encoded_bytes)`, which is precisely what this helper
+    computes — matching what `Block.transactions` callers feed
+    downstream (receipts, MPT keys, etc.).
+
+    Composes:
+      - PR-K47 `rlp_list_count_items` — N
+      - PR-K20 `rlp_list_nth_item`    — per-item bounds
+      - PR-K3  `zkvm_keccak256`       — per-item hash
+
+    Calling convention:
+      a0 (input)  : txs_list_rlp ptr (the txs sub-list bytes)
+      a1 (input)  : txs_list byte length
+      a2 (input)  : output buffer ptr (must hold N × 32 bytes)
+      a3 (input)  : u64 out count ptr (writes N on success)
+      ra (input)  : return
+      a0 (output) : composite status
+
+    Status decade encoding:
+      0          : success — N hashes written, *count = N
+      101        : `rlp_list_count_items` failed
+      201        : `rlp_list_nth_item` failed (mid-loop)
+
+    Uses 32 bytes of `.data` scratch (`bcth_item_off` +
+    `bcth_item_len` + `bcth_count`). -/
+def blockComputeTxHashesFunction : String :=
+  "block_compute_tx_hashes:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # txs_list ptr\n" ++
+  "  mv s1, a1                   # txs_len\n" ++
+  "  mv s2, a2                   # out hashes buffer\n" ++
+  "  mv s3, a3                   # out count ptr\n" ++
+  "  # Step 1: rlp_list_count_items.\n" ++
+  "  la a2, bcth_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  beqz a0, .Lbcth_loop_init\n" ++
+  "  li a0, 101\n" ++
+  "  j .Lbcth_ret\n" ++
+  ".Lbcth_loop_init:\n" ++
+  "  la t0, bcth_count\n" ++
+  "  ld s5, 0(t0)                # N = tx_count\n" ++
+  "  li s4, 0                    # i = 0\n" ++
+  ".Lbcth_loop:\n" ++
+  "  beq s4, s5, .Lbcth_done\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  mv a2, s4\n" ++
+  "  la a3, bcth_item_off\n" ++
+  "  la a4, bcth_item_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  beqz a0, .Lbcth_after_nth\n" ++
+  "  li a0, 201\n" ++
+  "  j .Lbcth_ret\n" ++
+  ".Lbcth_after_nth:\n" ++
+  "  la t0, bcth_item_off\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  la t0, bcth_item_len\n" ++
+  "  ld t2, 0(t0)\n" ++
+  "  add a0, s0, t1              # tx_ptr\n" ++
+  "  mv a1, t2                   # tx_len\n" ++
+  "  slli s6, s4, 5              # i × 32\n" ++
+  "  add a2, s2, s6              # &out[i*32]\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lbcth_loop\n" ++
+  ".Lbcth_done:\n" ++
+  "  sd s5, 0(s3)                # *count = N\n" ++
+  "  li a0, 0\n" ++
+  ".Lbcth_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_block_compute_tx_hashes`: probe BuildUnit. Reads
+    (txs_list_len, txs_list_bytes) from host input, writes
+    (status, count, N × 32-byte hashes) to OUTPUT. The host caller
+    must size OUTPUT for at least 16 + N × 32 bytes.
+    Input layout:
+      bytes  0.. 8 : txs_list_len
+      bytes  8..   : txs_list RLP bytes
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : count (u64 LE)
+      bytes 16..   : N concatenated 32-byte hashes -/
+def ziskBlockComputeTxHashesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # txs_list_len\n" ++
+  "  addi a0, a4, 16             # txs_list ptr\n" ++
+  "  li a2, 0xa0010010           # hashes buffer (OUTPUT + 16)\n" ++
+  "  li a3, 0xa0010008           # count ptr (OUTPUT + 8)\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  jal ra, block_compute_tx_hashes\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbcth_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  blockComputeTxHashesFunction ++ "\n" ++
+  ".Lbcth_pdone:"
+
+def ziskBlockComputeTxHashesDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "bcth_count:\n" ++
+  "  .zero 8\n" ++
+  "bcth_item_off:\n" ++
+  "  .zero 8\n" ++
+  "bcth_item_len:\n" ++
+  "  .zero 8"
+
+def ziskBlockComputeTxHashesProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockComputeTxHashesPrologue
+  dataAsm     := ziskBlockComputeTxHashesDataSection
+}
+
 
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
@@ -11939,6 +12075,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_block_withdrawals_total" => some ziskBlockWithdrawalsTotalProbeUnit
   | "zisk_block_summary"        => some ziskBlockSummaryProbeUnit
+  | "zisk_block_compute_tx_hashes" => some ziskBlockComputeTxHashesProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -12039,6 +12176,7 @@ def knownProgramNames : List String :=
    "zisk_withdrawals_sum_amounts",
    "zisk_block_withdrawals_total",
    "zisk_block_summary",
+   "zisk_block_compute_tx_hashes",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
