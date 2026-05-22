@@ -1,9 +1,12 @@
 /-
   EvmAsm.Evm64.SMod.Compose.Base
 
-  Shared composition infrastructure for SMOD: `smodCode` (the union of
-  all sub-block `CodeReq`s), subsumption helpers tying sub-block codes
-  back to `smodCode`, and shared length lemmas.
+  Shared composition infrastructure for SMOD.
+
+  `smodCodeCanonical` is the production code handle for the current
+  `evm_smod` implementation, which appends the v4 unsigned MOD callable.
+  `smodCode` remains as the legacy v1 compatibility handle while downstream
+  proofs finish migrating.
 
   This module re-exports the first concrete SMOD compose scaffolding:
   wrapper offsets, code handles, and top-level code subsumption lemmas.
