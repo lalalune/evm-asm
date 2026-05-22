@@ -21,3 +21,4 @@ import EvmAsm.Evm64.SMod.LimbSpec
 import EvmAsm.Evm64.SMod.AddrNorm
 import EvmAsm.Evm64.SMod.Compose.Base
 import EvmAsm.Evm64.SMod.Spec
+import EvmAsm.Evm64.SMod.SpecBzero
