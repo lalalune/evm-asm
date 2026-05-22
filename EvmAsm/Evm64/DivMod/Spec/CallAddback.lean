@@ -231,6 +231,20 @@ theorem n4CallAddbackBeqQHatV4_eq_normalized {a b : EvmWord} :
         (n4CallAddbackBeqB3Prime b) :=
   rfl
 
+theorem n4CallAddbackBeqQHatV4_eq_direct {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqQHatV4 a b =
+      div128Quot_v4
+        ((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))
+        (((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)))
+        (((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))) := by
+  rw [n4CallAddbackBeqQHatV4_eq_normalized]
+  rw [n4CallAddbackBeqU4_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqU3_eq_direct hshift_nz]
+  rw [n4CallAddbackBeqB3Prime_eq_direct hshift_nz]
+
 /-- First addback carry used by the n=4 v4 call+addback-BEQ semantic marker. -/
 def n4CallAddbackBeqCarryV4 (a b : EvmWord) : Word :=
   let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
