@@ -242,6 +242,25 @@ theorem n4CallAddbackBeqQTrue_eq_iff {a b : EvmWord} {q : Nat} :
         q :=
   Iff.rfl
 
+/-- Carry-selected qHat equality targeted by the v4 n=4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqQHatBranchEqQTrue (a b : EvmWord) : Prop :=
+  if n4CallAddbackBeqCarryV4 a b = 0 then
+    (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+      n4CallAddbackBeqQTrue a b
+  else
+    (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+      n4CallAddbackBeqQTrue a b
+
+theorem n4CallAddbackBeqQHatBranchEqQTrue_unfold {a b : EvmWord} :
+    n4CallAddbackBeqQHatBranchEqQTrue a b =
+      if n4CallAddbackBeqCarryV4 a b = 0 then
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b
+      else
+        (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+          n4CallAddbackBeqQTrue a b :=
+  rfl
+
 theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_carry_eq_zero_iff {a b : EvmWord}
     (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
     (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b ↔
@@ -292,6 +311,11 @@ theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch {a b : EvmWord}
       (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
         n4CallAddbackBeqQTrue a b :=
   (n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch_iff).1 h_qOut
+
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue_iff {a b : EvmWord} :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b ↔
+      n4CallAddbackBeqQHatBranchEqQTrue a b := by
+  exact n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch_iff
 
 /-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
 
@@ -516,6 +540,11 @@ theorem n4CallAddbackBeqSemanticHoldsV4_qHat_branch {a b : EvmWord}
       (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
         n4CallAddbackBeqQTrue a b :=
   (n4CallAddbackBeqSemanticHoldsV4_qHat_branch_iff).1 hsem
+
+theorem n4CallAddbackBeqSemanticHoldsV4_qHatBranchEqQTrue_iff {a b : EvmWord} :
+    n4CallAddbackBeqSemanticHoldsV4 a b ↔
+      n4CallAddbackBeqQHatBranchEqQTrue a b := by
+  exact n4CallAddbackBeqSemanticHoldsV4_qHat_branch_iff
 
 /-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the raw
     normalized `q_out` equality. -/
