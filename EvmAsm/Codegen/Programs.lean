@@ -5751,6 +5751,82 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderBasicDataSection
 }
 
+/-! ## header_validate_extra_data_length -- PR-K68
+
+    Verify the Ethereum spec constraint that `header.extra_data`
+    is at most 32 bytes (Yellow Paper §4.4.4).
+
+    Mirrors the Python check in `validate_header`:
+
+      assert len(header.extra_data) <= 32
+
+    Composes PR-K20 `rlp_list_nth_item` to extract field 12
+    (extra_data) and a single u64 compare.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      ra (input)  : return
+      a0 (output) :
+        0  : extra_data length ≤ 32 bytes
+        1  : extra_data length > 32 bytes (reject)
+        2  : RLP parse failure (e.g. not a list, field missing)
+
+    Uses two 8-byte `.data` scratch slots (`hved_off`,
+    `hved_len`). -/
+def headerValidateExtraDataLengthFunction : String :=
+  "header_validate_extra_data_length:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  li a2, 12\n" ++
+  "  la a3, hved_off\n" ++
+  "  la a4, hved_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhved_parse_fail\n" ++
+  "  la t0, hved_len; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Lhved_too_long\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhved_ret\n" ++
+  ".Lhved_too_long:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhved_ret\n" ++
+  ".Lhved_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhved_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_header_validate_extra_data_length`: probe BuildUnit.
+    Reads (header_len, header_bytes), writes 8-byte status. -/
+def ziskHeaderValidateExtraDataLengthPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  jal ra, header_validate_extra_data_length\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhved_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerValidateExtraDataLengthFunction ++ "\n" ++
+  ".Lhved_pdone:"
+
+def ziskHeaderValidateExtraDataLengthDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "hved_off:\n" ++
+  "  .zero 8\n" ++
+  "hved_len:\n" ++
+  "  .zero 8"
+
+def ziskHeaderValidateExtraDataLengthProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderValidateExtraDataLengthPrologue
+  dataAsm     := ziskHeaderValidateExtraDataLengthDataSection
+}
+
 /-! ## u256_add_be -- PR-K51 modular addition on BE u256 buffers
 
     Compute `(a + b) mod 2^256` over two 32-byte big-endian
@@ -8885,6 +8961,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
+  | "zisk_header_validate_extra_data_length" => some ziskHeaderValidateExtraDataLengthProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
@@ -8959,6 +9036,7 @@ def knownProgramNames : List String :=
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
    "zisk_validate_header_basic",
+   "zisk_header_validate_extra_data_length",
    "zisk_u256_add_be",
    "zisk_u256_sub_be",
    "zisk_u256_eq",
