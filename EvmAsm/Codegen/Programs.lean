@@ -12961,7 +12961,6 @@ def ziskBlockValidateBlobGasConsistencyProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockValidateBlobGasConsistencyDataSection
 }
 
-
 /-! ## block_compute_tx_hashes -- PR-K97
 
     Walk the block body's `transactions` RLP list and compute the
@@ -13096,6 +13095,83 @@ def ziskBlockComputeTxHashesProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskBlockComputeTxHashesPrologue
   dataAsm     := ziskBlockComputeTxHashesDataSection
+}
+
+/-! ## calldata_byte_counts -- PR-K105
+
+    Count zero and non-zero bytes in an arbitrary byte buffer.
+    Used by intrinsic-gas pricing across all post-Istanbul forks:
+
+      EIP-2028 standard pricing:
+        data_cost = zero_count × 4  +  non_zero_count × 16
+      EIP-7623 calldata-floor pricing (Pectra+):
+        floor_cost = zero_count × 10  +  non_zero_count × 40
+
+    A pure-leaf helper: no callee-saved registers used (apart from
+    saving s0..s1 so the loop is human-readable), no scratch
+    memory, no transitive calls. Returns both counts in one pass.
+
+    Calling convention:
+      a0 (input)  : bytes ptr
+      a1 (input)  : byte length
+      a2 (input)  : u64 out ptr (zero_count)
+      a3 (input)  : u64 out ptr (non_zero_count)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds — total over the buffer).
+
+    `zero_count + non_zero_count == byte_length` exactly. -/
+def calldataByteCountsFunction : String :=
+  "calldata_byte_counts:\n" ++
+  "  # Pure-leaf, but we read into t-regs and update in-place; no\n" ++
+  "  # callee-saved usage needed.\n" ++
+  "  li t0, 0                    # zero_count\n" ++
+  "  li t1, 0                    # non_zero_count\n" ++
+  "  mv t2, a0                   # cursor\n" ++
+  "  mv t3, a1                   # remaining bytes\n" ++
+  ".Lcbc_loop:\n" ++
+  "  beqz t3, .Lcbc_done\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bnez t4, .Lcbc_nz\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lcbc_step\n" ++
+  ".Lcbc_nz:\n" ++
+  "  addi t1, t1, 1\n" ++
+  ".Lcbc_step:\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lcbc_loop\n" ++
+  ".Lcbc_done:\n" ++
+  "  sd t0, 0(a2)\n" ++
+  "  sd t1, 0(a3)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_calldata_byte_counts`: probe BuildUnit. Reads
+    (length, bytes) from host input, writes (status,
+    zero_count, non_zero_count) to OUTPUT (24 bytes total). -/
+def ziskCalldataByteCountsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # byte length\n" ++
+  "  addi a0, a4, 16             # bytes ptr\n" ++
+  "  li a2, 0xa0010008           # zero_count out\n" ++
+  "  li a3, 0xa0010010           # non_zero_count out\n" ++
+  "  jal ra, calldata_byte_counts\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcbc_pdone\n" ++
+  calldataByteCountsFunction ++ "\n" ++
+  ".Lcbc_pdone:"
+
+def ziskCalldataByteCountsDataSection : String :=
+  ".section .data\n" ++
+  "cbc_scratch:\n" ++
+  "  .zero 8"
+
+def ziskCalldataByteCountsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskCalldataByteCountsPrologue
+  dataAsm     := ziskCalldataByteCountsDataSection
 }
 
 
@@ -14419,6 +14495,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_block_withdrawals_total" => some ziskBlockWithdrawalsTotalProbeUnit
   | "zisk_block_summary"        => some ziskBlockSummaryProbeUnit
   | "zisk_block_compute_tx_hashes" => some ziskBlockComputeTxHashesProbeUnit
+  | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -14537,6 +14614,7 @@ def knownProgramNames : List String :=
    "zisk_block_withdrawals_total",
    "zisk_block_summary",
    "zisk_block_compute_tx_hashes",
+   "zisk_calldata_byte_counts",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
