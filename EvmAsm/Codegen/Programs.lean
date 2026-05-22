@@ -2218,6 +2218,86 @@ def ziskHeaderChainWalkStepProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderChainWalkStepDataSection
 }
 
+/-! ## address_from_pubkey -- PR-K99
+
+    Compute an Ethereum address from an uncompressed secp256k1
+    public key:
+
+      address = keccak256(pubkey_x ‖ pubkey_y)[12:32]   (20 bytes)
+
+    This is the canonical 20-byte address derivation used by:
+    - secp256k1 ecrecover (the final step after curve recovery)
+    - CREATE / CREATE2 address computation (with different inputs)
+    - Account address generation from a key
+
+    Input layout (64 bytes, big-endian):
+       0..32  : X coordinate
+      32..64  : Y coordinate
+
+    Output (20 bytes): the rightmost 20 bytes of keccak256 of the
+    above. The leading 12 bytes of the digest are discarded.
+
+    Composes PR-K3 `zkvm_keccak256`. Uses 32 bytes of `.data`
+    scratch (`afp_digest`).
+
+    Calling convention:
+      a0 (input)  : pubkey ptr (64 bytes, x ‖ y BE)
+      a1 (input)  : 20-byte output ptr
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds; keccak is total). -/
+def addressFromPubkeyFunction : String :=
+  "address_from_pubkey:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  mv s0, a1                   # output ptr (stash)\n" ++
+  "  # keccak256(pubkey, 64) → afp_digest\n" ++
+  "  li a1, 64\n" ++
+  "  la a2, afp_digest\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # Copy digest[12..32] (20 bytes) to output.\n" ++
+  "  la t0, afp_digest\n" ++
+  "  # 20 bytes = 8 + 8 + 4. Loads may be unaligned (offset 12).\n" ++
+  "  ld t1, 12(t0); sd t1,  0(s0)\n" ++
+  "  ld t1, 20(t0); sd t1,  8(s0)\n" ++
+  "  lwu t1, 28(t0); sw t1, 16(s0)\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_address_from_pubkey`: probe BuildUnit. Reads 64 bytes
+    of pubkey from host input, writes (status, 20-byte address +
+    4 byte padding) to OUTPUT (32 bytes total). -/
+def ziskAddressFromPubkeyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 16             # pubkey ptr\n" ++
+  "  li a1, 0xa0010008           # 20B address output\n" ++
+  "  sd zero, 0(a1); sd zero, 8(a1); sw zero, 16(a1)\n" ++
+  "  jal ra, address_from_pubkey\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lafp_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  addressFromPubkeyFunction ++ "\n" ++
+  ".Lafp_pdone:"
+
+def ziskAddressFromPubkeyDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "afp_digest:\n" ++
+  "  .zero 32"
+
+def ziskAddressFromPubkeyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAddressFromPubkeyPrologue
+  dataAsm     := ziskAddressFromPubkeyDataSection
+}
+
 /-! ## headers_validate_chain -- PR-K18 parent_hash chain check
 
     Composes PR-K16 `headers_keccak_array` (build per-header
@@ -13594,6 +13674,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_validate_parent_hash" => some ziskHeaderValidateParentHashProbeUnit
   | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
   | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
+  | "zisk_address_from_pubkey"  => some ziskAddressFromPubkeyProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
@@ -13706,6 +13787,7 @@ def knownProgramNames : List String :=
    "zisk_header_validate_parent_hash",
    "zisk_header_chain_walk_step",
    "zisk_account_validate_code_hash",
+   "zisk_address_from_pubkey",
    "zisk_headers_validate_chain",
    "zisk_witness_lookup_by_hash",
    "zisk_rlp_list_nth_item",
