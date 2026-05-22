@@ -67,6 +67,48 @@ theorem isSkipBorrowN4CallEvm_or_isAddbackBorrowN4CallEvm (a b : EvmWord) :
   · exact Or.inl h
   · exact Or.inr h
 
+/-- **v4 call-path skip/addback dichotomy** at the EvmWord predicate surface.
+
+    This mirrors `isSkipBorrowN4CallEvm_or_isAddbackBorrowN4CallEvm`, but for
+    the v4 trial-call surface. The two predicates split on the same mulsub
+    borrow indicator, so one of skip/addback always holds. -/
+theorem isSkipBorrowN4CallV4Evm_or_isAddbackBorrowN4CallV4Evm (a b : EvmWord) :
+    isSkipBorrowN4CallV4Evm a b ∨ isAddbackBorrowN4CallV4Evm a b := by
+  rw [isSkipBorrowN4CallV4Evm_def, isAddbackBorrowN4CallV4Evm_def]
+  unfold isSkipBorrowN4CallV4Ab isAddbackBorrowN4CallV4Ab
+  unfold loopBodyN4CallSkipJ0BorrowV4 loopBodyN4CallAddbackBorrowV4
+  simp only []
+  let shift := (clzResult (b.getLimbN 3)).1
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let b3' := ((b.getLimbN 3) <<< (shift.toNat % 64)) |||
+    ((b.getLimbN 2) >>> (antiShift.toNat % 64))
+  let b2' := ((b.getLimbN 2) <<< (shift.toNat % 64)) |||
+    ((b.getLimbN 1) >>> (antiShift.toNat % 64))
+  let b1' := ((b.getLimbN 1) <<< (shift.toNat % 64)) |||
+    ((b.getLimbN 0) >>> (antiShift.toNat % 64))
+  let b0' := (b.getLimbN 0) <<< (shift.toNat % 64)
+  let u4 := (a.getLimbN 3) >>> (antiShift.toNat % 64)
+  let u3 := ((a.getLimbN 3) <<< (shift.toNat % 64)) |||
+    ((a.getLimbN 2) >>> (antiShift.toNat % 64))
+  let u2 := ((a.getLimbN 2) <<< (shift.toNat % 64)) |||
+    ((a.getLimbN 1) >>> (antiShift.toNat % 64))
+  let u1 := ((a.getLimbN 1) <<< (shift.toNat % 64)) |||
+    ((a.getLimbN 0) >>> (antiShift.toNat % 64))
+  let u0 := (a.getLimbN 0) <<< (shift.toNat % 64)
+  let qHat := divKTrialCallV4QHat u4 u3 b3'
+  let c3 := mulsubN4_c3 qHat b0' b1' b2' b3' u0 u1 u2 u3
+  by_cases h : (if BitVec.ult u4 c3 then (1 : Word) else 0) = (0 : Word)
+  · left
+    unfold mulsubN4NoBorrow
+    subst qHat
+    subst c3
+    simp only []
+    exact h
+  · right
+    subst qHat
+    subst c3
+    exact h
+
 /-- **`evm_div_n4_call_skip_stack_spec` without `hsem`** — discharges the
     semantic hypothesis from the call-trial preconditions (CLOSED).
 
