@@ -11,6 +11,10 @@
 #   * Files named Program.lean are exempt — concrete bytecode + tests
 #     are intrinsically long and cheap to compile.
 #
+# No per-file opt-out comments are recognized. A `file-size-exception`
+# marker in a checked Lean file is itself a guardrail violation; split
+# the file instead.
+#
 # Usage:
 #   scripts/check-file-size.sh           # exit 1 on any violation
 #   scripts/check-file-size.sh --report  # always exit 0; print summary
@@ -32,6 +36,7 @@ fi
 
 violations=0
 checked=0
+exception_markers=0
 
 # Collect files in deterministic order.
 mapfile -t files < <(cd "$ROOT" && find "$ROOT_REL" -name '*.lean' -type f | LC_ALL=C sort)
@@ -57,6 +62,14 @@ for rel in "${files[@]}"; do
 
   lines=$(wc -l < "$path")
 
+  if grep -q 'file-size-exception' "$path"; then
+    violations=$((violations + 1))
+    exception_markers=$((exception_markers + 1))
+    printf '  FAIL    forbidden file-size-exception marker  %s  [%s]\n' \
+      "$rel" "$bucket"
+    continue
+  fi
+
   if (( lines <= cap )); then
     continue
   fi
@@ -67,7 +80,8 @@ for rel in "${files[@]}"; do
 done
 
 if [[ "$mode" == "report" ]]; then
-  printf '\nchecked %d files, %d over cap\n' "$checked" "$violations"
+  printf '\nchecked %d files, %d over cap, %d forbidden exemption marker(s)\n' \
+    "$checked" "$((violations - exception_markers))" "$exception_markers"
   exit 0
 fi
 
@@ -81,7 +95,8 @@ Caps:
   Compose/**/*.lean   $COMPOSE_CAP lines
   other Lean files    $DEFAULT_CAP lines  (Program.lean exempt)
 
-To fix, split the file. Compose/ is the canonical pattern — see
+Per-file file-size-exception markers are not supported. To fix, split
+the file. Compose/ is the canonical pattern — see
 AGENTS.md "Parallel file splitting for Compose files". The DivMod
 Compose split took monolithic build time from 87s to 55s.
 ==================================================================
