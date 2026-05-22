@@ -164,7 +164,7 @@ To run the check locally:
 
 ```sh
 scripts/check-file-size.sh           # exit 1 on any violation
-scripts/check-file-size.sh --report  # always exit 0; print all over-cap files
+scripts/check-file-size.sh --report  # always exit 0; summarize over-cap files and forbidden exemption markers
 ```
 
 ### Benchmark history (`benchmark-history` orphan branch)

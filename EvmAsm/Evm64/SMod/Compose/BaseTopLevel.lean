@@ -39,6 +39,12 @@ theorem smodCodeV4_wrapper_sub {base : Word} :
       rw [evm_smod_length]
       norm_num)
 
+/-- Wrapper sub-region inside the canonical production SMOD code region. -/
+theorem smodCodeCanonical_wrapper_sub {base : Word} :
+    ∀ a i, (EvmAsm.Rv64.CodeReq.ofProg base evm_smod_wrapper) a = some i →
+      (smodCodeCanonical base) a = some i := by
+  simpa [smodCodeCanonical] using smodCodeV4_wrapper_sub (base := base)
+
 /-- Bundled top-level SMOD code subsumptions for the wrapper and named appended
     legacy v1 unsigned MOD callable code. -/
 theorem smodCode_named_top_level_subs {base : Word} :
@@ -56,6 +62,15 @@ theorem smodCodeV4_named_top_level_subs {base : Word} :
     (∀ a i, (EvmAsm.Evm64.evm_mod_callable_code_v4 (base + wrapperEndOff)) a = some i →
       (smodCodeV4 base) a = some i) := by
   exact ⟨smodCodeV4_wrapper_sub, evm_mod_callable_code_v4_sub_smodCodeV4⟩
+
+/-- Bundled top-level SMOD code subsumptions for the canonical production
+    wrapper and named appended v4 unsigned MOD callable code. -/
+theorem smodCodeCanonical_named_top_level_subs {base : Word} :
+    (∀ a i, (EvmAsm.Rv64.CodeReq.ofProg base evm_smod_wrapper) a = some i →
+      (smodCodeCanonical base) a = some i) ∧
+    (∀ a i, (EvmAsm.Evm64.evm_mod_callable_code_v4 (base + wrapperEndOff)) a = some i →
+      (smodCodeCanonical base) a = some i) := by
+  simpa [smodCodeCanonical] using smodCodeV4_named_top_level_subs (base := base)
 
 /-- The near `JAL` at the SMOD wrapper's `modCall` block targets the appended
     unsigned MOD callable, which starts at `base + wrapperEndOff`. -/
