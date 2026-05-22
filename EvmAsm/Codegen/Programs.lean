@@ -1991,6 +1991,121 @@ def ziskHeadersParentHashProbeUnit : BuildUnit := {
   dataAsm     := ziskHeadersParentHashDataSection
 }
 
+/-! ## header_chain_walk_step -- PR-K96
+
+    Per-step primitive for chain validation: given the previous
+    block's hash and a candidate child header's RLP, verify
+    `child.parent_hash == previous_hash` and compute
+    `keccak256(child_rlp)` as the new running hash.
+
+    A caller iterating over N headers does N calls; at the end
+    `*new_hash` holds the latest block's hash, and any mid-chain
+    mismatch returns status 2.
+
+    PR-K18 `headers_validate_chain` already implements the chain
+    walk on top of a pre-computed SSZ digest table; K96 is the
+    standalone per-step that works without that pipeline (raw
+    RLP-encoded headers in, no precomputed digest array required).
+
+    Composes:
+      - PR-K17 `headers_parent_hash` — extract child's parent_hash
+      - PR-K3  `zkvm_keccak256`      — compute child's hash
+
+    Calling convention:
+      a0 (input)  : prev_hash ptr (32 B, caller-supplied)
+      a1 (input)  : child_header_rlp ptr
+      a2 (input)  : child_header_rlp byte length
+      a3 (input)  : 32-byte out ptr (receives child's hash on
+                    success, zeros on failure)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : child header parse failed (field 0 not 32 B)
+        2 : mismatch — child.parent_hash != prev_hash
+
+    Uses 32 bytes of `.data` scratch (`hcws_claimed`). -/
+def headerChainWalkStepFunction : String :=
+  "header_chain_walk_step:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # prev_hash ptr\n" ++
+  "  mv s1, a1                   # child_rlp ptr\n" ++
+  "  mv s2, a2                   # child_len\n" ++
+  "  mv s3, a3                   # out ptr\n" ++
+  "  # Step 1: extract child's parent_hash → hcws_claimed.\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  la a2, hcws_claimed\n" ++
+  "  jal ra, headers_parent_hash\n" ++
+  "  beqz a0, .Lhcws_compare\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhcws_zero_out\n" ++
+  ".Lhcws_compare:\n" ++
+  "  # Compare prev_hash (s0) to claimed (hcws_claimed) byte-by-byte.\n" ++
+  "  la t0, hcws_claimed\n" ++
+  "  ld t1,  0(s0); ld t2,  0(t0); bne t1, t2, .Lhcws_diff\n" ++
+  "  ld t1,  8(s0); ld t2,  8(t0); bne t1, t2, .Lhcws_diff\n" ++
+  "  ld t1, 16(s0); ld t2, 16(t0); bne t1, t2, .Lhcws_diff\n" ++
+  "  ld t1, 24(s0); ld t2, 24(t0); bne t1, t2, .Lhcws_diff\n" ++
+  "  # Match — compute child hash → *out.\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhcws_ret\n" ++
+  ".Lhcws_diff:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhcws_zero_out:\n" ++
+  "  # Zero the output on any failure.\n" ++
+  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
+  ".Lhcws_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_header_chain_walk_step`: probe BuildUnit. Reads
+    (child_len, prev_hash[32], child_rlp) from host input, writes
+    (status, child_hash[32]) to OUTPUT.
+    Input layout:
+      bytes  0.. 8 : child_header_len
+      bytes  8..40 : prev_hash (32 B)
+      bytes 40..   : child_header_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..40 : child block hash on success, zero otherwise -/
+def ziskHeaderChainWalkStepPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a2, 8(a4)                # child_header_len\n" ++
+  "  addi a0, a4, 16             # prev_hash ptr\n" ++
+  "  addi a1, a4, 48             # child_rlp ptr\n" ++
+  "  li a3, 0xa0010008           # child_hash output (OUTPUT + 8)\n" ++
+  "  jal ra, header_chain_walk_step\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhcws_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  headersParentHashFunction ++ "\n" ++
+  headerChainWalkStepFunction ++ "\n" ++
+  ".Lhcws_pdone:"
+
+def ziskHeaderChainWalkStepDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "hcws_claimed:\n" ++
+  "  .zero 32"
+
+def ziskHeaderChainWalkStepProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderChainWalkStepPrologue
+  dataAsm     := ziskHeaderChainWalkStepDataSection
+}
+
 /-! ## headers_validate_chain -- PR-K18 parent_hash chain check
 
     Composes PR-K16 `headers_keccak_array` (build per-header
@@ -11871,6 +11986,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
   | "zisk_headers_parent_hash"  => some ziskHeadersParentHashProbeUnit
+  | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
@@ -11971,6 +12087,7 @@ def knownProgramNames : List String :=
    "zisk_headers_keccak_chain",
    "zisk_headers_keccak_array",
    "zisk_headers_parent_hash",
+   "zisk_header_chain_walk_step",
    "zisk_headers_validate_chain",
    "zisk_witness_lookup_by_hash",
    "zisk_rlp_list_nth_item",
