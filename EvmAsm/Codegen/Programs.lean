@@ -10636,6 +10636,102 @@ def ziskBlockSummaryProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockSummaryDataSection
 }
 
+/-! ## intrinsic_gas_calldata_floor_eip7623 -- PR-K106
+
+    Compute the EIP-7623 calldata-floor gas cost for a tx, in
+    closed form:
+
+      tokens     = zero_count + 4 × non_zero_count
+      floor_cost = tokens × GAS_TX_DATA_TOKEN_FLOOR  +  GAS_TX_BASE
+                 = tokens × 10                       +  21000
+
+    This is the lower bound on a tx's overall gas charge per
+    EIP-7623; the actual charged amount is
+    `max(intrinsic + execution, floor)`. PR-K46 covers the
+    standard intrinsic-gas computation; K106 covers the floor
+    side so callers can take the `max` cheaply.
+
+    The Amsterdam constants are passed as arguments so the helper
+    works across forks that re-cost the floor.
+
+    Calling convention:
+      a0 (input)  : data ptr
+      a1 (input)  : data byte length
+      a2 (input)  : floor_gas_per_token (10 on Amsterdam mainnet)
+      a3 (input)  : token_per_nonzero (4 on Amsterdam mainnet)
+      a4 (input)  : base_gas (21000 on mainnet)
+      a5 (input)  : u64 out ptr (floor_cost)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds — total function).
+
+    Pure-leaf semantics: no scratch memory, no transitive calls. -/
+def intrinsicGasCalldataFloorEip7623Function : String :=
+  "intrinsic_gas_calldata_floor_eip7623:\n" ++
+  "  # Count zeros and non-zeros in one pass.\n" ++
+  "  li t0, 0                    # zero_count\n" ++
+  "  li t1, 0                    # non_zero_count\n" ++
+  "  mv t2, a0                   # cursor\n" ++
+  "  mv t3, a1                   # remaining\n" ++
+  ".Ligcf_loop:\n" ++
+  "  beqz t3, .Ligcf_done\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bnez t4, .Ligcf_nz\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Ligcf_step\n" ++
+  ".Ligcf_nz:\n" ++
+  "  addi t1, t1, 1\n" ++
+  ".Ligcf_step:\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Ligcf_loop\n" ++
+  ".Ligcf_done:\n" ++
+  "  # tokens = zero + non_zero × token_per_nonzero\n" ++
+  "  mul t5, t1, a3              # non_zero × token_per_nz\n" ++
+  "  add t5, t5, t0              # tokens\n" ++
+  "  # floor = tokens × floor_gas_per_token + base_gas\n" ++
+  "  mul t6, t5, a2\n" ++
+  "  add t6, t6, a4\n" ++
+  "  sd t6, 0(a5)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_intrinsic_gas_calldata_floor_eip7623`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : data length
+      bytes  8..16 : floor_gas_per_token
+      bytes 16..24 : token_per_nonzero
+      bytes 24..32 : base_gas
+      bytes 32..   : data bytes
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : floor_cost (u64 LE) -/
+def ziskIntrinsicGasCalldataFloorEip7623Prologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a6, 0x40000000\n" ++
+  "  ld a1, 8(a6)                # data length\n" ++
+  "  ld a2, 16(a6)               # floor_gas_per_token\n" ++
+  "  ld a3, 24(a6)               # token_per_nonzero\n" ++
+  "  ld a4, 32(a6)               # base_gas\n" ++
+  "  addi a0, a6, 40             # data ptr\n" ++
+  "  li a5, 0xa0010008           # floor_cost out\n" ++
+  "  jal ra, intrinsic_gas_calldata_floor_eip7623\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Ligcf_pdone\n" ++
+  intrinsicGasCalldataFloorEip7623Function ++ "\n" ++
+  ".Ligcf_pdone:"
+
+def ziskIntrinsicGasCalldataFloorEip7623DataSection : String :=
+  ".section .data\n" ++
+  "igcf_scratch:\n" ++
+  "  .zero 8"
+
+def ziskIntrinsicGasCalldataFloorEip7623ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskIntrinsicGasCalldataFloorEip7623Prologue
+  dataAsm     := ziskIntrinsicGasCalldataFloorEip7623DataSection
+}
+
 
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
@@ -11939,6 +12035,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_block_withdrawals_total" => some ziskBlockWithdrawalsTotalProbeUnit
   | "zisk_block_summary"        => some ziskBlockSummaryProbeUnit
+  | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -12039,6 +12136,7 @@ def knownProgramNames : List String :=
    "zisk_withdrawals_sum_amounts",
    "zisk_block_withdrawals_total",
    "zisk_block_summary",
+   "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
