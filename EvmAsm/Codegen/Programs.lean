@@ -13347,6 +13347,7 @@ def ziskSszPairHashProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskSszPairHashPrologue
   dataAsm     := ziskSszPairHashDataSection
+}
 
 /-! ## ssz_zero_hashes — PR-S5 precomputed SSZ Z_0..Z_31 table
 
