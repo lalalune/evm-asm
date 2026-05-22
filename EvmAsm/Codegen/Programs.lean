@@ -10966,6 +10966,218 @@ def ziskBlockSummaryProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockSummaryDataSection
 }
 
+/-! ## block_body_blob_gas_total -- PR-K89
+
+    Sum blob_gas_used over all EIP-4844 (type 3) txs in a block body:
+
+      block.blob_gas_used = sum(
+        len(tx.blob_versioned_hashes) × GAS_PER_BLOB
+        for tx in block.transactions
+        if tx.type == 3
+      )
+
+    Useful for the consensus rule
+    `header.blob_gas_used == this sum` (post-Cancun).
+
+    Composes:
+      - PR-K83 `block_body_decode`            — split body
+      - PR-K47 `rlp_list_count_items`         — number of txs
+      - PR-K20 `rlp_list_nth_item`            — i-th tx bytes
+      - PR-K40 `tx_type_dispatch`             — typed-tx detector
+      - PR-K88 `tx_eip4844_compute_blob_gas`  — per-tx blob gas
+
+    Iteration policy: skip every non-type-3 tx without examining
+    its body. Pre-Cancun blocks (no type-3 txs) return 0 cleanly.
+
+    Status encoding (callers can floor(status/100) to identify
+    the failing step):
+
+      0          : success
+      1          : block_body_decode failed
+      101        : rlp_list_count_items failed
+      201        : rlp_list_nth_item failed
+      301        : tx_type_dispatch failed
+      401..402   : tx_eip4844_compute_blob_gas failed
+                   (1=K45 decode fail, 2=K64 sum fail)
+
+    Calling convention:
+      a0 (input)  : body_rlp ptr
+      a1 (input)  : body_rlp byte length
+      a2 (input)  : gas_per_blob (u64; 131072 on mainnet Cancun)
+      a3 (input)  : u64 out ptr (receives total blob_gas_used)
+      ra (input)  : return
+      a0 (output) : composite status code
+
+    Uses 48 bytes `.data` scratch (`bbbgt_struct`) plus the small
+    scratch buffers inherited from K88 / K83. -/
+def blockBodyBlobGasTotalFunction : String :=
+  "block_body_blob_gas_total:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0                   # body_rlp ptr\n" ++
+  "  mv s3, a2                   # gas_per_blob\n" ++
+  "  mv s4, a3                   # out ptr\n" ++
+  "  li s5, 0                    # total = 0\n" ++
+  "  # Step 1: block_body_decode → bbbgt_struct\n" ++
+  "  la a2, bbbgt_struct\n" ++
+  "  jal ra, block_body_decode\n" ++
+  "  bnez a0, .Lbbbgt_body_fail\n" ++
+  "  # Load txs sub-list bounds.\n" ++
+  "  la t0, bbbgt_struct\n" ++
+  "  ld t1, 0(t0)                # txs_offset\n" ++
+  "  ld s2, 8(t0)                # s2 = txs_length\n" ++
+  "  add s1, s0, t1              # s1 = absolute txs ptr\n" ++
+  "  # Step 2: tx_count = rlp_list_count_items(txs)\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  la a2, bbbgt_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  beqz a0, .Lbbbgt_loop_init\n" ++
+  "  li a0, 101\n" ++
+  "  j .Lbbbgt_ret\n" ++
+  ".Lbbbgt_loop_init:\n" ++
+  "  la t0, bbbgt_count\n" ++
+  "  ld s7, 0(t0)                # s7 = tx_count\n" ++
+  "  li s6, 0                    # s6 = i\n" ++
+  ".Lbbbgt_loop:\n" ++
+  "  beq s6, s7, .Lbbbgt_done\n" ++
+  "  # rlp_list_nth_item(s1, s2, s6, &item_off, &item_len)\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  mv a2, s6\n" ++
+  "  la a3, bbbgt_item_off\n" ++
+  "  la a4, bbbgt_item_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  beqz a0, .Lbbbgt_after_nth\n" ++
+  "  li a0, 201\n" ++
+  "  j .Lbbbgt_ret\n" ++
+  ".Lbbbgt_after_nth:\n" ++
+  "  la t0, bbbgt_item_off\n" ++
+  "  ld t1, 0(t0)                # item_off\n" ++
+  "  la t0, bbbgt_item_len\n" ++
+  "  ld t2, 0(t0)                # item_len\n" ++
+  "  add t3, s1, t1              # tx_ptr = txs + item_off\n" ++
+  "  # tx_type_dispatch(tx_ptr, item_len, &type, &inner_off)\n" ++
+  "  mv a0, t3\n" ++
+  "  mv a1, t2\n" ++
+  "  la a2, bbbgt_type\n" ++
+  "  la a3, bbbgt_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  beqz a0, .Lbbbgt_after_dispatch\n" ++
+  "  li a0, 301\n" ++
+  "  j .Lbbbgt_ret\n" ++
+  ".Lbbbgt_after_dispatch:\n" ++
+  "  la t0, bbbgt_type\n" ++
+  "  ld t1, 0(t0)                # type\n" ++
+  "  li t4, 3\n" ++
+  "  bne t1, t4, .Lbbbgt_step\n" ++
+  "  # type 3: compute blob_gas\n" ++
+  "  la t0, bbbgt_item_off\n" ++
+  "  ld t1, 0(t0)                # item_off\n" ++
+  "  la t0, bbbgt_item_len\n" ++
+  "  ld t2, 0(t0)                # item_len\n" ++
+  "  la t0, bbbgt_inner_off\n" ++
+  "  ld t5, 0(t0)                # inner_off\n" ++
+  "  add t3, s1, t1\n" ++
+  "  add a0, t3, t5              # inner_ptr = tx_ptr + inner_off\n" ++
+  "  sub a1, t2, t5              # inner_len = item_len - inner_off\n" ++
+  "  mv a2, s3                   # gas_per_blob\n" ++
+  "  la a3, bbbgt_blob_gas\n" ++
+  "  jal ra, tx_eip4844_compute_blob_gas\n" ++
+  "  beqz a0, .Lbbbgt_after_blob\n" ++
+  "  li t0, 400\n" ++
+  "  add a0, a0, t0              # 1 → 401, 2 → 402\n" ++
+  "  j .Lbbbgt_ret\n" ++
+  ".Lbbbgt_after_blob:\n" ++
+  "  la t0, bbbgt_blob_gas\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s5, s5, t1              # total += blob_gas\n" ++
+  ".Lbbbgt_step:\n" ++
+  "  addi s6, s6, 1\n" ++
+  "  j .Lbbbgt_loop\n" ++
+  ".Lbbbgt_done:\n" ++
+  "  sd s5, 0(s4)                # *out = total\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbbbgt_ret\n" ++
+  ".Lbbbgt_body_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbbbgt_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
+/-- `zisk_block_body_blob_gas_total`: probe BuildUnit. Reads
+    (body_len, gas_per_blob, body_bytes) from host input,
+    writes (status, total_blob_gas) to OUTPUT (16 bytes). -/
+def ziskBlockBodyBlobGasTotalPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # body_len\n" ++
+  "  ld a2, 16(a4)               # gas_per_blob\n" ++
+  "  addi a0, a4, 24             # body ptr\n" ++
+  "  li a3, 0xa0010008           # out u64 ptr\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  jal ra, block_body_blob_gas_total\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbbbgt_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  blobGasUsedFromVersionedHashesFunction ++ "\n" ++
+  txEip4844ComputeBlobGasFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodyBlobGasTotalFunction ++ "\n" ++
+  ".Lbbbgt_pdone:"
+
+def ziskBlockBodyBlobGasTotalDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bgvh_count_scratch:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tcbg_struct:\n" ++
+  "  .zero 248\n" ++
+  ".balign 8\n" ++
+  "bbbgt_struct:\n" ++
+  "  .zero 48\n" ++
+  ".balign 8\n" ++
+  "bbbgt_count:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_item_off:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_item_len:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_type:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_inner_off:\n" ++
+  "  .zero 8\n" ++
+  "bbbgt_blob_gas:\n" ++
+  "  .zero 8"
+
+def ziskBlockBodyBlobGasTotalProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockBodyBlobGasTotalPrologue
+  dataAsm     := ziskBlockBodyBlobGasTotalDataSection
+}
+
 
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
@@ -12258,6 +12470,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
   | "zisk_tx_eip4844_compute_blob_gas" => some ziskTxEip4844ComputeBlobGasProbeUnit
+  | "zisk_block_body_blob_gas_total" => some ziskBlockBodyBlobGasTotalProbeUnit
   | "zisk_tx_decode_dispatch"   => some ziskTxDecodeDispatchProbeUnit
   | "zisk_intrinsic_gas_legacy" => some ziskIntrinsicGasLegacyProbeUnit
   | "zisk_tx_validate_intrinsic_gas_legacy" => some ziskTxValidateIntrinsicGasLegacyProbeUnit
@@ -12360,6 +12573,7 @@ def knownProgramNames : List String :=
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
    "zisk_tx_eip4844_compute_blob_gas",
+   "zisk_block_body_blob_gas_total",
    "zisk_tx_decode_dispatch",
    "zisk_intrinsic_gas_legacy",
    "zisk_tx_validate_intrinsic_gas_legacy",
