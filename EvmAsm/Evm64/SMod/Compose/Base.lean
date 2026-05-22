@@ -48,6 +48,7 @@ import EvmAsm.Evm64.SMod.Compose.DivisorSignSequence
 import EvmAsm.Evm64.SMod.Compose.DividendAbsSequence
 import EvmAsm.Evm64.SMod.Compose.DivisorAbsSequence
 import EvmAsm.Evm64.SMod.Compose.ModCallSequence
+import EvmAsm.Evm64.SMod.Compose.ModCallDispatchReadySequence
 
 namespace EvmAsm.Evm64.SMod.Compose
 
