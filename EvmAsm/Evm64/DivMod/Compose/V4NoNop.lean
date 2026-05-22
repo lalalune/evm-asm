@@ -195,6 +195,14 @@ theorem sharedNoNop_v4_b9_mod {b : Word} :
     ∀ a i, (CodeReq.ofProg (b + denormOff) divK_denorm) a = some i →
       (modCode_noNop_v4 b) a = some i := by
   unfold modCode_noNop_v4; simp only [CodeReq.unionAll_cons]; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; exact CodeReq.union_mono_left
+/-- MOD epilogue block is included in the MOD no-NOP v4 code surface. -/
+theorem modNoNop_v4_b10_modEpilogue {b : Word} :
+    ∀ a i, (CodeReq.ofProg (b + epilogueOff) (divK_mod_epilogue 24)) a = some i →
+      (modCode_noNop_v4 b) a = some i := by
+  unfold modCode_noNop_v4; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  exact CodeReq.union_mono_left
 theorem sharedNoNop_v4_b10_mod {b : Word} :
     ∀ a i, (CodeReq.ofProg (b + zeroPathOff) divK_zeroPath) a = some i →
       (modCode_noNop_v4 b) a = some i := by

@@ -9,6 +9,7 @@ import EvmAsm.Evm64.DivMod.Spec.CallablePost
 import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
+import EvmAsm.Evm64.DivMod.Compose.V4Code
 
 namespace EvmAsm.Evm64
 
@@ -795,6 +796,17 @@ theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_noNop_v4_preNoX1_callab
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v4 base) P Q := by
   exact cpsTripleWithin_mono_nSteps (by unfold unifiedDivBound; decide) h
 
+/-- Lift a no-NOP v4 spec-layer triple to the full v4 dispatcher code. This is
+    the common final step for stack-facing specs that have already been proved
+    against the no-NOP body. -/
+theorem evm_div_n1_stack_spec_within_word_v4_of_noNop
+    {P Q : Assertion} (base : Word)
+    (h :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v4 base)
+        P Q) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_v4 base) P Q := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4 h
+
 /-- Unified-bound form of the N1 v4 call/max/max/max path with arbitrary
     incoming `x9` and the v4-only scratch cell framed explicitly. -/
 theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_noNop_v4_preNoX1_callableExtra_x9In_unified
@@ -1122,6 +1134,44 @@ theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_noNop_v4_preNoX1_callab
       ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1z
       hshift_nz halign hbltu3 hbltu2 hbltu1 hbltu0 hcarry2
       hdiv0 hdiv1 hdiv2 hdiv3)
+
+/-- Exact-frame N1 call/max/max/max spec-layer bridge from the no-NOP v4 body
+    to the full v4 dispatcher code. This keeps downstream callers from
+    mentioning the generic `P Q` bridge directly. -/
+theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtra_x9In_exactFrame_unified_of_noNop
+    (sp base : Word) (a b : EvmWord)
+    (b0 v5 v6 v7 v10 v11Old x9In : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (raVal : Word) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v4 base)
+      (divModStackDispatchPreNoX1 sp a b x9In raVal
+        ((clzResult b0).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divStackDispatchPostCallableExactFrame sp a b raVal (signExtend12 4095 : Word) **
+       ((sp + signExtend12 3936) ↦ₘ
+        divKTrialCallV4ScratchOut
+          (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) b0).2.2.2.2
+          (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) b0).2.2.2.1
+          (fullDivN1NormV b0 (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 scratchMem)) →
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_v4 base)
+      (divModStackDispatchPreNoX1 sp a b x9In raVal
+        ((clzResult b0).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divStackDispatchPostCallableExactFrame sp a b raVal (signExtend12 4095 : Word) **
+       ((sp + signExtend12 3936) ↦ₘ
+        divKTrialCallV4ScratchOut
+          (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) b0).2.2.2.2
+          (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) b0).2.2.2.1
+          (fullDivN1NormV b0 (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 scratchMem)) := by
+  intro h
+  exact evm_div_n1_stack_spec_within_word_v4_of_noNop base h
 
 /-- Recombine the split no-`x1` full-path post with separate `x1` ownership. -/
 theorem fullDivN1UnifiedPostNoX1_frame_to_fullDivN1UnifiedPost
