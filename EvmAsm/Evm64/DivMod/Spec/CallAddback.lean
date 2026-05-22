@@ -311,6 +311,25 @@ theorem n4CallAddbackBeqSemanticHoldsV4_qOutV4_eq {a b : EvmWord} :
           val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
 
+theorem n4CallAddbackBeqSemanticHoldsV4_qOutV4_qTrue_eq {a b : EvmWord} :
+    n4CallAddbackBeqSemanticHoldsV4 a b =
+      ((n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b) :=
+  rfl
+
+/-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the compact
+    `qOut = qTrue` equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_qOutV4_toNat_eq_qTrue {a b : EvmWord}
+    (h_qOut : (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  h_qOut
+
+/-- Eliminate the v4 n=4 call+addback-BEQ semantic predicate to the compact
+    `qOut = qTrue` equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_qOutV4_toNat_eq_qTrue {a b : EvmWord}
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b :=
+  hsem
+
 /-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the named
     corrected quotient equality. -/
 theorem n4CallAddbackBeqSemanticHoldsV4_of_qOutV4_toNat_eq {a b : EvmWord}
