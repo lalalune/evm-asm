@@ -104,4 +104,37 @@ theorem divKTrialCallV4QHat_toNat_eq (uHi uLo vTop : Word)
     (divKTrialCallV4Q1dd uHi uLo vTop)
     (divKTrialCallV4Q0dd uHi uLo vTop) hq1_lt hq0_lt
 
+theorem divKTrialCallV4QHat_toNat_eq_of_q0c_lt (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (huHi_lt_vTop :
+      uHi.toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat)
+    (hq0c_lt : (divKTrialCallV4Q0c uHi uLo vTop).toNat < 2^32) :
+    (divKTrialCallV4QHat uHi uLo vTop).toNat =
+      (divKTrialCallV4Q1dd uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Q0dd uHi uLo vTop).toNat := by
+  exact divKTrialCallV4QHat_toNat_eq uHi uLo vTop
+    (divKTrialCallV4Q1dd_lt_pow32 uHi uLo vTop
+      hdHi_ge hdHi_lt hdLo_lt huHi_lt_vTop)
+    (divKTrialCallV4Q0dd_lt_pow32_of_q0c_lt uHi uLo vTop hq0c_lt)
+
+theorem div128Quot_v4_toNat_eq_trialCall_halves_of_q0c_lt (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (huHi_lt_vTop :
+      uHi.toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat)
+    (hq0c_lt : (divKTrialCallV4Q0c uHi uLo vTop).toNat < 2^32) :
+    (div128Quot_v4 uHi uLo vTop).toNat =
+      (divKTrialCallV4Q1dd uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Q0dd uHi uLo vTop).toNat := by
+  rw [← divKTrialCallV4QHat_eq_div128Quot_v4]
+  exact divKTrialCallV4QHat_toNat_eq_of_q0c_lt uHi uLo vTop
+    hdHi_ge hdHi_lt hdLo_lt huHi_lt_vTop hq0c_lt
+
 end EvmAsm.Evm64
