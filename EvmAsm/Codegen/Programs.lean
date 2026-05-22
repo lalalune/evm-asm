@@ -2298,6 +2298,94 @@ def ziskAddressFromPubkeyProbeUnit : BuildUnit := {
   dataAsm     := ziskAddressFromPubkeyDataSection
 }
 
+/-! ## mpt_account_path_nibbles -- PR-K100
+
+    Compute the state trie's path for a given 20-byte address:
+
+      digest   = keccak256(address)         # 32 bytes
+      nibbles  = unpack_high_low(digest)    # 64 nibbles
+
+    The MPT walks paths in nibble units (each byte = two
+    consecutive nibbles, high first). Account lookups in the state
+    trie use `keccak256(address)` as the path key, expressed as 64
+    nibbles. PR-K24 `mpt_walk` consumes such a nibble array; this
+    helper produces it from an address in one call.
+
+    Storage slots use the analogous `keccak256(slot_key_BE)` path;
+    K100 also handles that case directly when callers feed in a
+    32-byte slot key (see calling convention).
+
+    Composes PR-K3 `zkvm_keccak256`. Uses 32 bytes of `.data`
+    scratch (`mapn_digest`).
+
+    Calling convention:
+      a0 (input)  : address (or slot key) ptr
+      a1 (input)  : input length (20 for address, 32 for slot key)
+      a2 (input)  : 64-byte nibble output ptr
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def mptAccountPathNibblesFunction : String :=
+  "mpt_account_path_nibbles:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  mv s0, a2                   # nibble output ptr (stash)\n" ++
+  "  # keccak256(input, len) → mapn_digest\n" ++
+  "  la a2, mapn_digest\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # Unpack 32 bytes → 64 nibbles.\n" ++
+  "  la t0, mapn_digest\n" ++
+  "  mv t1, s0                   # cursor over output\n" ++
+  "  li t2, 32                   # remaining bytes\n" ++
+  ".Lmapn_loop:\n" ++
+  "  beqz t2, .Lmapn_done\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  srli t4, t3, 4              # high nibble\n" ++
+  "  andi t5, t3, 15             # low nibble\n" ++
+  "  sb t4, 0(t1)\n" ++
+  "  sb t5, 1(t1)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, 2\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lmapn_loop\n" ++
+  ".Lmapn_done:\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_mpt_account_path_nibbles`: probe BuildUnit. Reads
+    (input_len, input_bytes) from host input, writes (status, 64
+    nibbles) to OUTPUT (72 bytes total). -/
+def ziskMptAccountPathNibblesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # input length\n" ++
+  "  addi a0, a3, 16             # input ptr\n" ++
+  "  li a2, 0xa0010008           # 64-byte nibble output\n" ++
+  "  jal ra, mpt_account_path_nibbles\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmapn_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptAccountPathNibblesFunction ++ "\n" ++
+  ".Lmapn_pdone:"
+
+def ziskMptAccountPathNibblesDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "mapn_digest:\n" ++
+  "  .zero 32"
+
+def ziskMptAccountPathNibblesProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptAccountPathNibblesPrologue
+  dataAsm     := ziskMptAccountPathNibblesDataSection
+}
+
 /-! ## headers_validate_chain -- PR-K18 parent_hash chain check
 
     Composes PR-K16 `headers_keccak_array` (build per-header
@@ -9187,6 +9275,307 @@ def ziskTxTypeDispatchProbeUnit : BuildUnit := {
   dataAsm     := ziskTxTypeDispatchDataSection
 }
 
+/-! ## tx_extract_nonce_and_gas -- PR-K102
+
+    Extract the (`nonce`, `gas_limit`) pair from any encoded tx
+    type. Both are u64-bounded by EIP-2681 / EIP-1559 / EIP-4844.
+
+    Per-type field indices (post type-byte stripping):
+
+      type 0 legacy   : nonce = 0,  gas_limit = 2
+      type 1 EIP-2930 : nonce = 1,  gas_limit = 3
+      type 2 EIP-1559 : nonce = 1,  gas_limit = 4
+      type 3 EIP-4844 : nonce = 1,  gas_limit = 4
+      type 4 EIP-7702 : nonce = 1,  gas_limit = 4
+
+    Composes:
+      - PR-K40 `tx_type_dispatch`  — typed-tx detector
+      - PR-K53 `rlp_field_to_u64`  — u64 field extraction
+
+    Useful as a fast prelude to `check_transaction` (nonce
+    ordering + gas-availability) without a full per-type decode.
+
+    Calling convention:
+      a0 (input)  : tx_bytes ptr (encoded form)
+      a1 (input)  : tx_bytes byte length
+      a2 (input)  : u64 nonce out ptr
+      a3 (input)  : u64 gas_limit out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : tx_type_dispatch failed
+        2 : nonce field extraction failed
+        3 : gas_limit field extraction failed
+
+    Both outputs are zeroed on failure. Uses two 8-byte `.data`
+    scratch slots (`teng_type`, `teng_inner_off`). -/
+def txExtractNonceAndGasFunction : String :=
+  "tx_extract_nonce_and_gas:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # tx_ptr\n" ++
+  "  mv s1, a1                   # tx_len\n" ++
+  "  mv s2, a2                   # nonce out\n" ++
+  "  mv s3, a3                   # gas out\n" ++
+  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
+  "  # Step 1: tx_type_dispatch\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, teng_type\n" ++
+  "  la a3, teng_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  beqz a0, .Lteng_after_dispatch\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lteng_ret\n" ++
+  ".Lteng_after_dispatch:\n" ++
+  "  la t0, teng_type;      ld s4, 0(t0)    # type → s4\n" ++
+  "  la t0, teng_inner_off; ld t5, 0(t0)\n" ++
+  "  add s5, s0, t5                          # inner_ptr → s5\n" ++
+  "  sub s6, s1, t5                          # inner_len → s6\n" ++
+  "  # Step 2: extract nonce.\n" ++
+  "  li t0, 0\n" ++
+  "  beq s4, t0, .Lteng_n_legacy\n" ++
+  "  li t1, 1                              # typed: nonce index = 1\n" ++
+  "  j .Lteng_n_have\n" ++
+  ".Lteng_n_legacy:\n" ++
+  "  li t1, 0                              # legacy: nonce index = 0\n" ++
+  ".Lteng_n_have:\n" ++
+  "  mv a0, s5\n" ++
+  "  mv a1, s6\n" ++
+  "  mv a2, t1\n" ++
+  "  mv a3, s2\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lteng_step3\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lteng_ret\n" ++
+  ".Lteng_step3:\n" ++
+  "  # Step 3: extract gas_limit.\n" ++
+  "  li t0, 0\n" ++
+  "  beq s4, t0, .Lteng_g_legacy\n" ++
+  "  li t0, 1\n" ++
+  "  beq s4, t0, .Lteng_g_2930\n" ++
+  "  li t1, 4                              # type 2/3/4: gas index = 4\n" ++
+  "  j .Lteng_g_have\n" ++
+  ".Lteng_g_legacy:\n" ++
+  "  li t1, 2                              # legacy: gas index = 2\n" ++
+  "  j .Lteng_g_have\n" ++
+  ".Lteng_g_2930:\n" ++
+  "  li t1, 3                              # 2930: gas index = 3\n" ++
+  ".Lteng_g_have:\n" ++
+  "  mv a0, s5\n" ++
+  "  mv a1, s6\n" ++
+  "  mv a2, t1\n" ++
+  "  mv a3, s3\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lteng_ok\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li a0, 3\n" ++
+  "  j .Lteng_ret\n" ++
+  ".Lteng_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Lteng_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_tx_extract_nonce_and_gas`: probe BuildUnit. Reads
+    (tx_len, tx_bytes) from host input, writes (status, nonce u64,
+    gas u64) to OUTPUT (24 bytes total). -/
+def ziskTxExtractNonceAndGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # tx_len\n" ++
+  "  addi a0, a4, 16             # tx_ptr\n" ++
+  "  li a2, 0xa0010008           # nonce out\n" ++
+  "  li a3, 0xa0010010           # gas out\n" ++
+  "  jal ra, tx_extract_nonce_and_gas\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lteng_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txExtractNonceAndGasFunction ++ "\n" ++
+  ".Lteng_pdone:"
+
+def ziskTxExtractNonceAndGasDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "teng_type:\n" ++
+  "  .zero 8\n" ++
+  "teng_inner_off:\n" ++
+  "  .zero 8"
+
+def ziskTxExtractNonceAndGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxExtractNonceAndGasPrologue
+  dataAsm     := ziskTxExtractNonceAndGasDataSection
+}
+
+/-! ## tx_extract_to_address -- PR-K101
+
+    For any encoded tx (legacy or typed), extract the `to`
+    (recipient) field and a contract-creation flag:
+
+      is_creation = (to_field_length == 0)
+      to_bytes    = 20 raw bytes when not creation, zeros otherwise
+
+    Per-type RLP layout — the field index of `to`:
+
+      type 0 legacy   : field 3 of the outer list
+      type 1 EIP-2930 : field 4 of the inner RLP
+      type 2 EIP-1559 : field 5 of the inner RLP
+      type 3 EIP-4844 : field 5 of the inner RLP
+      type 4 EIP-7702 : field 5 of the inner RLP
+
+    Composes:
+      - PR-K40 `tx_type_dispatch`   — typed-tx detector
+      - PR-K20 `rlp_list_nth_item`  — field extractor
+
+    Useful for `apply_body` (CREATE vs CALL routing) and for any
+    pre-EVM check that needs the recipient without doing a full
+    per-type decode.
+
+    Calling convention:
+      a0 (input)  : tx_bytes ptr (encoded form)
+      a1 (input)  : tx_bytes byte length
+      a2 (input)  : 20-byte output ptr (zeros on creation / fail)
+      a3 (input)  : u64 out ptr (is_creation flag, 0 or 1)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : tx_type_dispatch failed
+        2 : `to` field extraction failed (not 0 or 20 B)
+
+    Uses two 8-byte `.data` scratch slots
+    (`tea_type` + `tea_inner_off`) plus K20's offset/length pair. -/
+def txExtractToAddressFunction : String :=
+  "tx_extract_to_address:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # tx_bytes ptr\n" ++
+  "  mv s1, a1                   # tx_len\n" ++
+  "  mv s2, a2                   # 20B out ptr\n" ++
+  "  mv s3, a3                   # is_creation out ptr\n" ++
+  "  # Pre-zero outputs in case of failure.\n" ++
+  "  sd zero,  0(s2); sd zero,  8(s2); sw zero, 16(s2)\n" ++
+  "  sd zero,  0(s3)\n" ++
+  "  # Step 1: tx_type_dispatch(tx, len, &type, &inner_off)\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, tea_type\n" ++
+  "  la a3, tea_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  beqz a0, .Ltea_after_dispatch\n" ++
+  "  li a0, 1\n" ++
+  "  j .Ltea_ret\n" ++
+  ".Ltea_after_dispatch:\n" ++
+  "  la t0, tea_type;      ld t4, 0(t0)    # type\n" ++
+  "  la t0, tea_inner_off; ld t5, 0(t0)    # inner_off\n" ++
+  "  add t6, s0, t5                         # inner_ptr\n" ++
+  "  sub t3, s1, t5                         # inner_len\n" ++
+  "  # Determine field index based on type.\n" ++
+  "  # type 0 → 3, type 1 → 4, type 2/3/4 → 5.\n" ++
+  "  li t0, 0\n" ++
+  "  beq t4, t0, .Ltea_legacy_idx\n" ++
+  "  li t0, 1\n" ++
+  "  beq t4, t0, .Ltea_t1_idx\n" ++
+  "  li t1, 5                              # type 2,3,4\n" ++
+  "  j .Ltea_have_idx\n" ++
+  ".Ltea_legacy_idx:\n" ++
+  "  li t1, 3\n" ++
+  "  j .Ltea_have_idx\n" ++
+  ".Ltea_t1_idx:\n" ++
+  "  li t1, 4\n" ++
+  ".Ltea_have_idx:\n" ++
+  "  # rlp_list_nth_item(inner_ptr, inner_len, idx, &off, &len)\n" ++
+  "  mv a0, t6\n" ++
+  "  mv a1, t3\n" ++
+  "  mv a2, t1\n" ++
+  "  la a3, tea_field_off\n" ++
+  "  la a4, tea_field_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ltea_field_fail\n" ++
+  "  la t0, tea_field_len; ld t2, 0(t0)\n" ++
+  "  beqz t2, .Ltea_creation\n" ++
+  "  li t1, 20\n" ++
+  "  bne t2, t1, .Ltea_field_fail\n" ++
+  "  # Copy 20 bytes from (inner_ptr + field_off) to s2.\n" ++
+  "  # We lost inner_ptr (t6); recompute from s0 + tea_inner_off.\n" ++
+  "  la t0, tea_inner_off; ld t5, 0(t0)\n" ++
+  "  add t6, s0, t5\n" ++
+  "  la t0, tea_field_off; ld t4, 0(t0)\n" ++
+  "  add t6, t6, t4\n" ++
+  "  ld t0,  0(t6); sd t0,  0(s2)\n" ++
+  "  ld t0,  8(t6); sd t0,  8(s2)\n" ++
+  "  lwu t0, 16(t6); sw t0, 16(s2)\n" ++
+  "  sd zero, 0(s3)              # is_creation = 0\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltea_ret\n" ++
+  ".Ltea_creation:\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3)                # is_creation = 1\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltea_ret\n" ++
+  ".Ltea_field_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Ltea_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_tx_extract_to_address`: probe BuildUnit. Reads
+    (tx_len, tx_bytes) from host input, writes (status, 20-byte
+    address, is_creation u64) to OUTPUT (40 bytes total).
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..28 : 20-byte to address (zeros on creation/fail)
+      bytes 28..32 : padding
+      bytes 32..40 : is_creation u64 -/
+def ziskTxExtractToAddressPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # tx_len\n" ++
+  "  addi a0, a4, 16             # tx ptr\n" ++
+  "  li a2, 0xa0010008           # 20B output\n" ++
+  "  li a3, 0xa0010020           # is_creation u64 (OUTPUT + 32)\n" ++
+  "  jal ra, tx_extract_to_address\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Ltea_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txExtractToAddressFunction ++ "\n" ++
+  ".Ltea_pdone:"
+
+def ziskTxExtractToAddressDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "tea_type:\n" ++
+  "  .zero 8\n" ++
+  "tea_inner_off:\n" ++
+  "  .zero 8\n" ++
+  "tea_field_off:\n" ++
+  "  .zero 8\n" ++
+  "tea_field_len:\n" ++
+  "  .zero 8"
+
+def ziskTxExtractToAddressProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxExtractToAddressPrologue
+  dataAsm     := ziskTxExtractToAddressDataSection
+}
+
 /-! ## tx_eip1559_decode -- PR-K41 full 12-field EIP-1559 decoder
 
     Decode the inner (post-type-byte) RLP body of an EIP-1559
@@ -13675,6 +14064,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
   | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
   | "zisk_address_from_pubkey"  => some ziskAddressFromPubkeyProbeUnit
+  | "zisk_mpt_account_path_nibbles" => some ziskMptAccountPathNibblesProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
@@ -13731,6 +14121,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_cost_compute"      => some ziskTxCostComputeProbeUnit
   | "zisk_validate_transaction_balance" => some ziskValidateTransactionBalanceProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
+  | "zisk_tx_extract_nonce_and_gas" => some ziskTxExtractNonceAndGasProbeUnit
+  | "zisk_tx_extract_to_address" => some ziskTxExtractToAddressProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
@@ -13788,6 +14180,7 @@ def knownProgramNames : List String :=
    "zisk_header_chain_walk_step",
    "zisk_account_validate_code_hash",
    "zisk_address_from_pubkey",
+   "zisk_mpt_account_path_nibbles",
    "zisk_headers_validate_chain",
    "zisk_witness_lookup_by_hash",
    "zisk_rlp_list_nth_item",
@@ -13844,6 +14237,8 @@ def knownProgramNames : List String :=
    "zisk_tx_cost_compute",
    "zisk_validate_transaction_balance",
    "zisk_tx_type_dispatch",
+   "zisk_tx_extract_nonce_and_gas",
+   "zisk_tx_extract_to_address",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
