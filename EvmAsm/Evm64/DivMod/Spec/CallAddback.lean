@@ -1001,6 +1001,10 @@ theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue {a b : EvmWord}
 def n4CallAddbackBeqSemanticHoldsV4 (a b : EvmWord) : Prop :=
   (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b
 
+theorem n4CallAddbackBeqSemanticHolds_eq_v4 {a b : EvmWord} :
+    n4CallAddbackBeqSemanticHolds a b = n4CallAddbackBeqSemanticHoldsV4 a b :=
+  rfl
+
 theorem n4CallAddbackBeqSemanticV4_unfold {a b : EvmWord} :
     n4CallAddbackBeqSemanticHoldsV4 a b =
     (let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
