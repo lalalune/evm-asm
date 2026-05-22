@@ -364,6 +364,31 @@ theorem n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_runtime_bounds
     n4CallAddbackBeqDLo_lt_pow32
     hu4_lt_vTop hUn21_lt_vTop
 
+theorem n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_call
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+          (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat) :
+    (n4CallAddbackBeqQHatV4 a b).toNat =
+      (divKTrialCallV4Q1dd
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4Q0dd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b)).toNat := by
+  exact n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_runtime_bounds
+    hb3nz
+    (n4CallAddbackBeqU4_lt_vTop_of_call hcall)
+    hUn21_lt_vTop
+
 theorem n4CallAddbackBeqRawTrialBound_direct {a b : EvmWord}
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
