@@ -13840,6 +13840,121 @@ def ziskMptNodeClassifyProbeUnit : BuildUnit := {
   dataAsm     := ziskMptNodeClassifyDataSection
 }
 
+/-! ## mpt_encode_internal_node -- PR-K112
+
+    Compute the canonical MPT "node reference" used by parent
+    nodes to point at this node. Matches
+    `encode_internal_node(node)` in `forks/amsterdam/trie.py`:
+
+      encoded = rlp.encode(node)
+      if len(encoded) < 32:
+          return encoded            # embedded RLP (in-place ref)
+      else:
+          return keccak256(encoded) # 32-byte hash ref
+
+    Callers pass in the already-RLP-encoded node bytes. The helper
+    returns either the same bytes verbatim (when short enough to
+    embed) or their keccak256 digest (when ≥ 32 bytes).
+
+    Used by:
+    - MPT walk when descending into a branch's child: the slot's
+      stored bytes are this encoding, and the walker decides
+      whether to dereference via the node DB hash table or to
+      recurse on the embedded RLP directly.
+    - MPT root recomputation, which propagates this encoding up
+      the tree.
+
+    Composes PR-K3 `zkvm_keccak256`. Uses 200 bytes of `.data`
+    scratch (`zk3_state`, the keccak sponge state).
+
+    Calling convention:
+      a0 (input)  : node_rlp ptr
+      a1 (input)  : node_rlp byte length
+      a2 (input)  : output bytes ptr (caller supplies max(32, len) B)
+      a3 (input)  : u64 out ptr (output length: 32 hashed, len embedded)
+      a4 (input)  : u64 out ptr (is_hashed flag: 1 hashed, 0 embedded)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds — total function). -/
+def mptEncodeInternalNodeFunction : String :=
+  "mpt_encode_internal_node:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a2                   # out_bytes ptr\n" ++
+  "  mv s1, a3                   # out_len ptr\n" ++
+  "  mv s2, a4                   # is_hashed out\n" ++
+  "  li t0, 32\n" ++
+  "  bltu a1, t0, .Lmein_embed\n" ++
+  "  # Hash path: keccak256(node_rlp, len) → out.\n" ++
+  "  mv a2, s0\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li t0, 32\n" ++
+  "  sd t0, 0(s1)\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmein_ret\n" ++
+  ".Lmein_embed:\n" ++
+  "  # Embedded path: copy node_rlp bytes to out_bytes.\n" ++
+  "  mv t0, a0                   # src cursor\n" ++
+  "  mv t1, s0                   # dst cursor\n" ++
+  "  mv t2, a1                   # remaining\n" ++
+  ".Lmein_copy:\n" ++
+  "  beqz t2, .Lmein_copy_done\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  sb t3, 0(t1)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lmein_copy\n" ++
+  ".Lmein_copy_done:\n" ++
+  "  sd a1, 0(s1)\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  ".Lmein_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_mpt_encode_internal_node`: probe BuildUnit. Reads
+    (node_len, node_bytes), writes (status, output_len, is_hashed,
+    output_bytes...) to OUTPUT.
+    Input layout:
+      bytes  0.. 8 : node byte length
+      bytes  8..   : node RLP bytes
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : output_len
+      bytes 16..24 : is_hashed flag
+      bytes 24..   : output bytes (32 if hashed, node_len if embedded) -/
+def ziskMptEncodeInternalNodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # node length\n" ++
+  "  addi a0, a5, 16             # node ptr\n" ++
+  "  li a2, 0xa0010018           # output bytes\n" ++
+  "  li a3, 0xa0010008           # output_len out\n" ++
+  "  li a4, 0xa0010010           # is_hashed out\n" ++
+  "  jal ra, mpt_encode_internal_node\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmein_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptEncodeInternalNodeFunction ++ "\n" ++
+  ".Lmein_pdone:"
+
+def ziskMptEncodeInternalNodeDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200"
+
+def ziskMptEncodeInternalNodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptEncodeInternalNodePrologue
+  dataAsm     := ziskMptEncodeInternalNodeDataSection
+}
+
 
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
@@ -15168,6 +15283,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_nibbles_to_compact" => some ziskMptNibblesToCompactProbeUnit
   | "zisk_mpt_compact_to_nibbles" => some ziskMptCompactToNibblesProbeUnit
   | "zisk_mpt_node_classify"      => some ziskMptNodeClassifyProbeUnit
+  | "zisk_mpt_encode_internal_node" => some ziskMptEncodeInternalNodeProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -15293,6 +15409,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_nibbles_to_compact",
    "zisk_mpt_compact_to_nibbles",
    "zisk_mpt_node_classify",
+   "zisk_mpt_encode_internal_node",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
