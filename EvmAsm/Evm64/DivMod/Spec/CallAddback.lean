@@ -140,6 +140,28 @@ theorem n4CallAddbackBeqSemantic_unfold {a b : EvmWord} :
          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
 
+/-- CLZ normalization shift used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqShift (b : EvmWord) : Nat :=
+  (clzResult (b.getLimbN 3)).1.toNat % 64
+
+/-- Anti-shift used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqAntiShift (b : EvmWord) : Nat :=
+  (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+
+/-- Normalized top divisor limb used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqB3Prime (b : EvmWord) : Word :=
+  ((b.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
+    ((b.getLimbN 2) >>> n4CallAddbackBeqAntiShift b)
+
+/-- Normalized overflow dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqU4 (a b : EvmWord) : Word :=
+  (a.getLimbN 3) >>> n4CallAddbackBeqAntiShift b
+
+/-- Normalized top in-range dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqU3 (a b : EvmWord) : Word :=
+  ((a.getLimbN 3) <<< n4CallAddbackBeqShift b) |||
+    ((a.getLimbN 2) >>> n4CallAddbackBeqAntiShift b)
+
 /-- Trial quotient used by the n=4 v4 call+addback-BEQ semantic marker. -/
 def n4CallAddbackBeqQHatV4 (a b : EvmWord) : Word :=
   let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
@@ -158,6 +180,14 @@ theorem n4CallAddbackBeqQHatV4_unfold {a b : EvmWord} :
        let u4 := (a.getLimbN 3) >>> antiShift
        let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
        div128Quot_v4 u4 u3 b3') :=
+  rfl
+
+theorem n4CallAddbackBeqQHatV4_eq_normalized {a b : EvmWord} :
+    n4CallAddbackBeqQHatV4 a b =
+      div128Quot_v4
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b) :=
   rfl
 
 /-- First addback carry used by the n=4 v4 call+addback-BEQ semantic marker. -/
