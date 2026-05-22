@@ -188,6 +188,58 @@ theorem divK_mod_epilogue_spec_within_v4 (sp : Word) (base : Word)
     (divK_mod_epilogue_spec_within_noNop_v4 sp base
       u0 u1 u2 u3 v5 v6 v7 v10 m0 m8 m16 m24)
 
+/-- MOD post-loop denorm+epilogue over the no-NOP v4 MOD code bundle. -/
+theorem evm_mod_denorm_epilogue_spec_within_noNop_v4 (sp base : Word)
+    (u0 u1 u2 u3 v2 v5 v7 v10 shift : Word)
+    (m0 m8 m16 m24 : Word) :
+    cpsTripleWithin 33 (base + denormOff + 8) (base + nopOff) (modCode_noNop_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ v7) **
+       (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
+       ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
+      (denormModPost sp shift u0 u1 u2 u3) := by
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let u0' := (u0 >>> (shift.toNat % 64)) ||| (u1 <<< (antiShift.toNat % 64))
+  let u1' := (u1 >>> (shift.toNat % 64)) ||| (u2 <<< (antiShift.toNat % 64))
+  let u2' := (u2 >>> (shift.toNat % 64)) ||| (u3 <<< (antiShift.toNat % 64))
+  let u3' := u3 >>> (shift.toNat % 64)
+  have hDenorm := mod_denorm_body_spec_within_noNop_v4 sp u0 u1 u2 u3 v2 v5 v7 shift base
+  simp only [divKDenormBodyPre_unfold, divKDenormBodyPost_unfold] at hDenorm
+  have hDenormF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ v10) **
+     ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
+     ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
+    (by pcFree) hDenorm
+  have hEpi := divK_mod_epilogue_spec_within_noNop_v4 sp base u0' u1' u2' u3'
+    u3' shift (u3 <<< (antiShift.toNat % 64)) v10 m0 m8 m16 m24
+  have hEpiF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ antiShift) ** (.x0 ↦ᵣ (0 : Word)))
+    (by pcFree) hEpi
+  have hFull := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hDenormF hEpiF
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by delta denormModPost; xperm_hyp hq)
+    hFull
+
+/-- MOD post-loop denorm+epilogue over the full v4 MOD code bundle. -/
+theorem evm_mod_denorm_epilogue_spec_within_v4 (sp base : Word)
+    (u0 u1 u2 u3 v2 v5 v7 v10 shift : Word)
+    (m0 m8 m16 m24 : Word) :
+    cpsTripleWithin 33 (base + denormOff + 8) (base + nopOff) (modCode_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ shift) ** (.x7 ↦ᵣ v7) **
+       (.x2 ↦ᵣ v2) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
+       ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
+      (denormModPost sp shift u0 u1 u2 u3) := by
+  exact cpsTripleWithin_modCode_noNop_v4_to_modCode_v4
+    (evm_mod_denorm_epilogue_spec_within_noNop_v4 sp base
+      u0 u1 u2 u3 v2 v5 v7 v10 shift m0 m8 m16 m24)
+
 /-- Loop body n=4, max+skip, j=0 over `modCode_noNop_v4`, with
     sp-relative addresses in the precondition. -/
 theorem divK_loop_body_n4_max_skip_j0_norm_mod_v4_noNop (sp base : Word)
