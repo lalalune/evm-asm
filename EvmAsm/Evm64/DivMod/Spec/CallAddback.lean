@@ -993,12 +993,16 @@ theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue {a b : EvmWord}
 
 /-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
 
-    This is the v4 migration target for `n4CallAddbackBeqSemanticHolds`: it uses
-    the fully corrected `div128Quot_v4` trial quotient. The closure theorem
-    `n4CallAddbackBeqSemanticHolds_of_runtime_conditions` should target this
-    quotient surface and then retire the legacy v1 marker. -/
+    This is the named quotient-output surface for the repaired
+    `n4CallAddbackBeqSemanticHolds` marker. Both predicates use the fully
+    corrected `div128Quot_v4` trial quotient; the runtime-condition closure is
+    exported under the non-`V4` historical name in `CallAddbackRuntime.lean`. -/
 def n4CallAddbackBeqSemanticHoldsV4 (a b : EvmWord) : Prop :=
   (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b
+
+theorem n4CallAddbackBeqSemanticHolds_eq_v4 {a b : EvmWord} :
+    n4CallAddbackBeqSemanticHolds a b = n4CallAddbackBeqSemanticHoldsV4 a b :=
+  rfl
 
 theorem n4CallAddbackBeqSemanticV4_unfold {a b : EvmWord} :
     n4CallAddbackBeqSemanticHoldsV4 a b =
