@@ -2748,6 +2748,144 @@ def ziskRlpListNthItemProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpListNthItemDataSection
 }
 
+/-! ## account_validate_code_hash -- PR-K98
+
+    Verify that an account's `code_hash` field matches the
+    keccak256 of a claimed bytecode buffer:
+
+      account.code_hash == keccak256(claimed_code)
+
+    Used during witness validation to assert that the contract
+    code supplied by the host matches the `code_hash` committed in
+    the account trie leaf. EOAs (no contract) carry the canonical
+    empty-code hash `EMPTY_CODE_HASH`:
+
+      keccak256(b'') ==
+        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+
+    A `claimed_code_len == 0` reproduces this exact value.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — extract field 3 (code_hash)
+      - PR-K3  `zkvm_keccak256`    — compute claimed digest
+
+    Account RLP layout (4 items):
+      field 0 : nonce        (uint)
+      field 1 : balance      (uint)
+      field 2 : storage_root (32-byte string)
+      field 3 : code_hash    (32-byte string)
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : claimed_code ptr (may be unused when len == 0)
+      a3 (input)  : claimed_code byte length
+      ra (input)  : return
+      a0 (output) :
+        0 : match
+        1 : account RLP parse failure (field 3 not 32 B)
+        2 : mismatch — both succeeded, digests differ
+
+    Uses 64 bytes of `.data` scratch (`avch_claimed` 32 B +
+    `avch_computed` 32 B), plus K20's offset/length slots. -/
+def accountValidateCodeHashFunction : String :=
+  "account_validate_code_hash:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s2, a0                   # account_ptr (stash)\n" ++
+  "  mv s3, a1                   # account_len (stash)\n" ++
+  "  mv s0, a2                   # claimed_code ptr\n" ++
+  "  mv s1, a3                   # claimed_code_len\n" ++
+  "  # Step 1: extract account.code_hash (field 3, 32 B).\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a1, s3\n" ++
+  "  li a2, 3\n" ++
+  "  la a3, avch_offset\n" ++
+  "  la a4, avch_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lavch_fail\n" ++
+  "  la t0, avch_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lavch_fail\n" ++
+  "  # Copy 32 bytes from (account_ptr + offset) to avch_claimed.\n" ++
+  "  la t0, avch_offset; ld t4, 0(t0)\n" ++
+  "  add t3, s2, t4\n" ++
+  "  la t5, avch_claimed\n" ++
+  "  ld t0,  0(t3); sd t0,  0(t5)\n" ++
+  "  ld t0,  8(t3); sd t0,  8(t5)\n" ++
+  "  ld t0, 16(t3); sd t0, 16(t5)\n" ++
+  "  ld t0, 24(t3); sd t0, 24(t5)\n" ++
+  "  # Step 2: keccak256(claimed_code) → avch_computed.\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  la a2, avch_computed\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # Step 3: compare avch_claimed vs avch_computed.\n" ++
+  "  la t0, avch_claimed\n" ++
+  "  la t1, avch_computed\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lavch_diff\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lavch_diff\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lavch_diff\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lavch_diff\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lavch_ret\n" ++
+  ".Lavch_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lavch_ret\n" ++
+  ".Lavch_diff:\n" ++
+  "  li a0, 2\n" ++
+  ".Lavch_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_account_validate_code_hash`: probe BuildUnit. Reads
+    (account_len, code_len, account_rlp ‖ code_bytes) from host
+    input, writes 8-byte status to OUTPUT.
+    Input layout:
+      bytes  0.. 8 : account_rlp_len
+      bytes  8..16 : code_len
+      bytes 16..   : account_rlp ‖ code_bytes -/
+def ziskAccountValidateCodeHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # account_rlp_len\n" ++
+  "  ld a3, 16(a4)               # code_len\n" ++
+  "  addi a0, a4, 24             # account_rlp_ptr\n" ++
+  "  add a2, a0, a1              # code_ptr = account_ptr + account_len\n" ++
+  "  jal ra, account_validate_code_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lavch_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountValidateCodeHashFunction ++ "\n" ++
+  ".Lavch_pdone:"
+
+def ziskAccountValidateCodeHashDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "avch_offset:\n" ++
+  "  .zero 8\n" ++
+  "avch_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "avch_claimed:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "avch_computed:\n" ++
+  "  .zero 32"
+
+def ziskAccountValidateCodeHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountValidateCodeHashPrologue
+  dataAsm     := ziskAccountValidateCodeHashDataSection
+}
+
 /-! ## rlp_list_count_items -- PR-K47 top-level item counter
 
     Walk an RLP-encoded list once and return the number of
@@ -13455,6 +13593,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_headers_parent_hash"  => some ziskHeadersParentHashProbeUnit
   | "zisk_header_validate_parent_hash" => some ziskHeaderValidateParentHashProbeUnit
   | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
+  | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
@@ -13566,6 +13705,7 @@ def knownProgramNames : List String :=
    "zisk_headers_parent_hash",
    "zisk_header_validate_parent_hash",
    "zisk_header_chain_walk_step",
+   "zisk_account_validate_code_hash",
    "zisk_headers_validate_chain",
    "zisk_witness_lookup_by_hash",
    "zisk_rlp_list_nth_item",
