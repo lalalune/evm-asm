@@ -10636,6 +10636,122 @@ def ziskBlockSummaryProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockSummaryDataSection
 }
 
+/-! ## mpt_node_classify -- PR-K111
+
+    Classify an MPT node from its RLP-encoded bytes.
+
+    An MPT node is one of three shapes:
+    - 17-item list → **branch** (16 children + value)
+    - 2-item list with leaf-flagged compact path → **leaf**
+    - 2-item list with extension-flagged compact path → **extension**
+
+    PR-K23/K24 already walk MPT trees; this primitive lets callers
+    introspect a single node's kind cheaply without a full decode,
+    so dispatch tables (`branch_get_child` vs `leaf_decode` vs
+    `extension_skip`) can pick the right path.
+
+    Composes:
+      - PR-K47 `rlp_list_count_items` — top-level item count
+      - PR-K20 `rlp_list_nth_item`    — field 0 bounds (for 2-item)
+
+    The MPT compact-encoded path's first byte high nibble carries
+    `(is_leaf, parity)` flags (see PR-K109/K110): bit 1 → is_leaf.
+
+    Calling convention:
+      a0 (input)  : node_rlp ptr
+      a1 (input)  : node_rlp byte length
+      a2 (input)  : u64 out ptr (kind)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — kind in {0,1,2}
+        1 : invalid (not a 2- or 17-item list, or path missing)
+
+    Kind encoding:
+      0 : branch (17 items)
+      1 : extension (2 items, compact prefix indicates not-leaf)
+      2 : leaf (2 items, compact prefix indicates leaf) -/
+def mptNodeClassifyFunction : String :=
+  "mpt_node_classify:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # node ptr\n" ++
+  "  mv s1, a1                   # node len\n" ++
+  "  mv s2, a2                   # kind out\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  # Count items.\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, mnodc_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lmnodc_fail\n" ++
+  "  la t0, mnodc_count; ld t1, 0(t0)\n" ++
+  "  li t2, 17\n" ++
+  "  beq t1, t2, .Lmnodc_branch\n" ++
+  "  li t2, 2\n" ++
+  "  bne t1, t2, .Lmnodc_fail\n" ++
+  "  # 2-item: read first byte of compact-encoded path.\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
+  "  la a3, mnodc_path_off; la a4, mnodc_path_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmnodc_fail\n" ++
+  "  la t0, mnodc_path_len; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lmnodc_fail\n" ++
+  "  la t0, mnodc_path_off; ld t2, 0(t0)\n" ++
+  "  add t3, s0, t2\n" ++
+  "  lbu t4, 0(t3)\n" ++
+  "  srli t5, t4, 5\n" ++
+  "  andi t5, t5, 1\n" ++
+  "  addi t5, t5, 1              # 1 = ext, 2 = leaf\n" ++
+  "  sd t5, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmnodc_ret\n" ++
+  ".Lmnodc_branch:\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmnodc_ret\n" ++
+  ".Lmnodc_fail:\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 1\n" ++
+  ".Lmnodc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_mpt_node_classify`: probe BuildUnit. Reads
+    (node_len, node_bytes) from host input, writes (status, kind)
+    to OUTPUT (16 bytes total). -/
+def ziskMptNodeClassifyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # node_len\n" ++
+  "  addi a0, a3, 16             # node ptr\n" ++
+  "  li a2, 0xa0010008           # kind out\n" ++
+  "  jal ra, mpt_node_classify\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmnodc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  mptNodeClassifyFunction ++ "\n" ++
+  ".Lmnodc_pdone:"
+
+def ziskMptNodeClassifyDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "mnodc_count:\n" ++
+  "  .zero 8\n" ++
+  "mnodc_path_off:\n" ++
+  "  .zero 8\n" ++
+  "mnodc_path_len:\n" ++
+  "  .zero 8"
+
+def ziskMptNodeClassifyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptNodeClassifyPrologue
+  dataAsm     := ziskMptNodeClassifyDataSection
+}
+
 
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
@@ -11939,6 +12055,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_block_withdrawals_total" => some ziskBlockWithdrawalsTotalProbeUnit
   | "zisk_block_summary"        => some ziskBlockSummaryProbeUnit
+  | "zisk_mpt_node_classify"    => some ziskMptNodeClassifyProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -12039,6 +12156,7 @@ def knownProgramNames : List String :=
    "zisk_withdrawals_sum_amounts",
    "zisk_block_withdrawals_total",
    "zisk_block_summary",
+   "zisk_mpt_node_classify",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
