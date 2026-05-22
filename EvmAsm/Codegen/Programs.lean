@@ -2816,6 +2816,93 @@ def ziskAccessListCountProbeUnit : BuildUnit := {
   dataAsm     := ziskAccessListCountDataSection
 }
 
+/-! ## blob_gas_used_from_versioned_hashes -- PR-K64
+
+    Compute the EIP-4844 `blob_gas_used` field as:
+
+      blob_gas_used = len(tx.blob_versioned_hashes) × GAS_PER_BLOB
+
+    where `GAS_PER_BLOB = 131072 = 0x20000` per spec. The
+    `gas_per_blob` constant is parameterized so the helper works
+    across forks that might adjust it.
+
+    Direct use case — validating header.blob_gas_used and
+    rejecting blob-fee under-pays:
+
+      header.blob_gas_used  ==  sum(tx.blob_versioned_hashes count
+                                    × GAS_PER_BLOB
+                                    for tx in block.txs
+                                    if tx.is_blob)
+
+    Composes PR-K47 `rlp_list_count_items` (#5532) + a `mul`.
+    `rlp_list_count_items` is inlined into the probe BuildUnit.
+
+    Calling convention:
+      a0 (input)  : blob_versioned_hashes_rlp ptr (whole encoded
+                    sub-list as returned by PR-K45
+                    `tx_eip4844_decode` field 10)
+      a1 (input)  : blob_versioned_hashes_rlp byte length
+      a2 (input)  : gas_per_blob (u64; 131072 on mainnet)
+      a3 (input)  : u64 out ptr (receives blob_gas_used)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail (output zeroed).
+
+    Uses 8 bytes of `.data` scratch (`bgvh_count_scratch`). -/
+def blobGasUsedFromVersionedHashesFunction : String :=
+  "blob_gas_used_from_versioned_hashes:\n" ++
+  "  addi sp, sp, -24\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a2                   # gas_per_blob\n" ++
+  "  mv s1, a3                   # out ptr\n" ++
+  "  la a2, bgvh_count_scratch\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbgvh_fail\n" ++
+  "  la t0, bgvh_count_scratch; ld t1, 0(t0)\n" ++
+  "  mul t2, t1, s0\n" ++
+  "  sd t2, 0(s1)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbgvh_ret\n" ++
+  ".Lbgvh_fail:\n" ++
+  "  sd zero, 0(s1)\n" ++
+  "  li a0, 1\n" ++
+  ".Lbgvh_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 24\n" ++
+  "  ret"
+
+/-- `zisk_blob_gas_used_from_versioned_hashes`: probe BuildUnit.
+    Reads (list_len, gas_per_blob, list_bytes) from host input,
+    writes (status, blob_gas_used) to OUTPUT (16 bytes total). -/
+def ziskBlobGasUsedFromVersionedHashesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # list_len\n" ++
+  "  ld a2, 16(a4)               # gas_per_blob\n" ++
+  "  addi a0, a4, 24             # list ptr\n" ++
+  "  li a3, 0xa0010008           # out at OUTPUT + 8\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  jal ra, blob_gas_used_from_versioned_hashes\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbgvh_pdone\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  blobGasUsedFromVersionedHashesFunction ++ "\n" ++
+  ".Lbgvh_pdone:"
+
+def ziskBlobGasUsedFromVersionedHashesDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "bgvh_count_scratch:\n" ++
+  "  .zero 8"
+
+def ziskBlobGasUsedFromVersionedHashesProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlobGasUsedFromVersionedHashesPrologue
+  dataAsm     := ziskBlobGasUsedFromVersionedHashesDataSection
+}
+
 /-! ## mpt_node_kind -- PR-K21 classifier
 
     Determines whether an RLP-encoded MPT node is a leaf,
@@ -5762,6 +5849,373 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderBasicDataSection
 }
 
+/-! ## tx_validate_against_block -- PR-K69
+
+    Combine three u64 tx-validation invariants into one helper:
+
+      1. tx.chain_id == block.chain_id
+      2. tx.gas_limit <= block.gas_limit
+      3. tx.nonce == account.nonce
+
+    These are the cheapest tx-validation checks (pre-EVM
+    execution); a tx that fails any of them is rejected without
+    further work. Mirrors three of the assertions in Python's
+    `validate_transaction`:
+
+      assert tx.chain_id == chain.chain_id
+      assert tx.gas <= block.gas_limit
+      assert tx.nonce == account.nonce
+
+    Pure u64 compares; no scratch memory; leaf-callable.
+
+    Calling convention:
+      a0 (input)  : tx.chain_id      (u64)
+      a1 (input)  : block.chain_id   (u64)
+      a2 (input)  : tx.gas_limit     (u64)
+      a3 (input)  : block.gas_limit  (u64)
+      a4 (input)  : tx.nonce         (u64)
+      a5 (input)  : account.nonce    (u64)
+      ra (input)  : return
+      a0 (output) :
+        0  : all three invariants hold
+        1  : chain_id mismatch
+        2  : tx.gas_limit > block.gas_limit
+        3  : tx.nonce != account.nonce
+
+    Distinct codes let callers pinpoint which check fired
+    without re-running individual asserts. -/
+def txValidateAgainstBlockFunction : String :=
+  "tx_validate_against_block:\n" ++
+  "  bne a0, a1, .Ltvab_fail_chain\n" ++
+  "  bgtu a2, a3, .Ltvab_fail_gas\n" ++
+  "  bne a4, a5, .Ltvab_fail_nonce\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Ltvab_fail_chain:\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Ltvab_fail_gas:\n" ++
+  "  li a0, 2\n" ++
+  "  ret\n" ++
+  ".Ltvab_fail_nonce:\n" ++
+  "  li a0, 3\n" ++
+  "  ret"
+
+/-- `zisk_tx_validate_against_block`: probe BuildUnit. Reads
+    (tx_chain, block_chain, tx_gas, block_gas, tx_nonce,
+    account_nonce) as 6 u64 LE words from host input, writes
+    8-byte status to OUTPUT. -/
+def ziskTxValidateAgainstBlockPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a0,  8(t0)               # tx.chain_id\n" ++
+  "  ld a1, 16(t0)               # block.chain_id\n" ++
+  "  ld a2, 24(t0)               # tx.gas_limit\n" ++
+  "  ld a3, 32(t0)               # block.gas_limit\n" ++
+  "  ld a4, 40(t0)               # tx.nonce\n" ++
+  "  ld a5, 48(t0)               # account.nonce\n" ++
+  "  jal ra, tx_validate_against_block\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Ltvab_pdone\n" ++
+  txValidateAgainstBlockFunction ++ "\n" ++
+  ".Ltvab_pdone:"
+
+def ziskTxValidateAgainstBlockDataSection : String :=
+  ".section .data\n" ++
+  "tvab_pad:\n" ++
+  "  .zero 8"
+
+def ziskTxValidateAgainstBlockProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxValidateAgainstBlockPrologue
+  dataAsm     := ziskTxValidateAgainstBlockDataSection
+}
+
+/-! ## calc_excess_blob_gas -- PR-K63 EIP-4844 excess blob gas formula
+
+    Compute the next header's `excess_blob_gas` field from the
+    parent header. Python (`forks/cancun/fork.py::
+    calculate_excess_blob_gas`):
+
+      def calculate_excess_blob_gas(parent_header):
+          excess_blob_gas = (
+              parent_header.excess_blob_gas
+              + parent_header.blob_gas_used
+          )
+          if excess_blob_gas < TARGET_BLOB_GAS_PER_BLOCK:
+              return 0
+          return excess_blob_gas - TARGET_BLOB_GAS_PER_BLOCK
+
+    Equivalent to: `max(0, parent.excess_blob_gas +
+    parent.blob_gas_used - target)`.
+
+    Used by `validate_header` to check that
+    `header.excess_blob_gas == calc_excess_blob_gas(parent,
+    target)`.
+
+    The `target` is parameterized — Cancun uses 3 blobs × 131072
+    bytes = 393216; Prague/Amsterdam may use a higher target via
+    EIP-7691 (e.g. 6 blobs × 131072 = 786432). The function takes
+    `target` as an explicit u64 input so it works across forks.
+
+    ## Precondition
+
+    `parent_excess + parent_blob_used` must not overflow u64. In
+    practice both terms are small (each < 2^30 on mainnet), so
+    overflow doesn't occur. The function does NOT check.
+
+    Calling convention:
+      a0 (input)  : parent.excess_blob_gas (u64)
+      a1 (input)  : parent.blob_gas_used (u64)
+      a2 (input)  : target_blob_gas_per_block (u64)
+      ra (input)  : return
+      a0 (output) : excess_blob_gas for this header (u64).
+
+    Pure register arithmetic, no scratch memory, leaf-callable. -/
+def calcExcessBlobGasFunction : String :=
+  "calc_excess_blob_gas:\n" ++
+  "  add t0, a0, a1              # parent_excess + parent_used\n" ++
+  "  bgeu t0, a2, .Lcebg_pos     # >= target → return diff\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lcebg_pos:\n" ++
+  "  sub a0, t0, a2\n" ++
+  "  ret"
+
+/-- `zisk_calc_excess_blob_gas`: probe BuildUnit. Reads
+    (parent_excess, parent_used, target) from host input, writes
+    the u64 result to OUTPUT. -/
+def ziskCalcExcessBlobGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a0, 8(a3)                # parent_excess_blob_gas\n" ++
+  "  ld a1, 16(a3)               # parent_blob_gas_used\n" ++
+  "  ld a2, 24(a3)               # target_blob_gas_per_block\n" ++
+  "  jal ra, calc_excess_blob_gas\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcebg_pdone\n" ++
+  calcExcessBlobGasFunction ++ "\n" ++
+  ".Lcebg_pdone:"
+
+def ziskCalcExcessBlobGasDataSection : String :=
+  ".section .data\n" ++
+  "cebg_pad:\n" ++
+  "  .zero 8"
+
+def ziskCalcExcessBlobGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskCalcExcessBlobGasPrologue
+  dataAsm     := ziskCalcExcessBlobGasDataSection
+}
+
+/-! ## header_validate_post_merge -- PR-K67
+
+    Verify the three post-merge header invariants:
+
+      1. header.ommers_hash == EMPTY_OMMERS_HASH
+         (= keccak256(rlp([])) = 0x1dcc4de8...49347)
+      2. header.difficulty == 0   (canonical RLP: empty-string,
+                                   content_length == 0)
+      3. header.nonce == 0x0000000000000000   (8 zero bytes)
+
+    Mirrors the Python `validate_header` checks added at the
+    Merge fork:
+
+      assert header.ommers_hash == EMPTY_OMMERS_HASH
+      assert header.difficulty == 0
+      assert header.nonce == b"\\x00" * 8
+
+    Composes PR-K20 `rlp_list_nth_item` for field extraction.
+    Each check has a distinct return code so callers can pinpoint
+    which invariant failed.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      ra (input)  : return
+      a0 (output) :
+        0  : all three invariants hold
+        1  : ommers_hash mismatch
+        2  : difficulty != 0
+        3  : nonce not 8 zero bytes
+        4  : RLP parse failure (e.g. not a list, field missing)
+
+    Uses 40 bytes of `.data` scratch (`hvpm_off`, `hvpm_len`
+    + 32-byte `empty_ommers_hash` constant). -/
+def headerValidatePostMergeFunction : String :=
+  "header_validate_post_merge:\n" ++
+  "  addi sp, sp, -24\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0                   # header ptr\n" ++
+  "  mv s1, a1                   # header_len\n" ++
+  "  # Check 1: field 1 (ommers_hash) == EMPTY_OMMERS_HASH.\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
+  "  la a3, hvpm_off; la a4, hvpm_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhvpm_fail_parse\n" ++
+  "  la t0, hvpm_len; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhvpm_fail_oh\n" ++
+  "  la t0, hvpm_off; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  la t4, empty_ommers_hash\n" ++
+  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
+  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
+  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
+  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
+  "  # Check 2: field 7 (difficulty) is canonical-zero (len 0).\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
+  "  la a3, hvpm_off; la a4, hvpm_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhvpm_fail_parse\n" ++
+  "  la t0, hvpm_len; ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lhvpm_fail_diff\n" ++
+  "  # Check 3: field 14 (nonce) is 8 zero bytes.\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 14\n" ++
+  "  la a3, hvpm_off; la a4, hvpm_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhvpm_fail_parse\n" ++
+  "  la t0, hvpm_len; ld t1, 0(t0)\n" ++
+  "  li t2, 8\n" ++
+  "  bne t1, t2, .Lhvpm_fail_nonce\n" ++
+  "  la t0, hvpm_off; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t5, 0(t3)\n" ++
+  "  bnez t5, .Lhvpm_fail_nonce\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhvpm_ret\n" ++
+  ".Lhvpm_fail_oh:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhvpm_ret\n" ++
+  ".Lhvpm_fail_diff:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lhvpm_ret\n" ++
+  ".Lhvpm_fail_nonce:\n" ++
+  "  li a0, 3\n" ++
+  "  j .Lhvpm_ret\n" ++
+  ".Lhvpm_fail_parse:\n" ++
+  "  li a0, 4\n" ++
+  ".Lhvpm_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 24\n" ++
+  "  ret"
+
+/-- `zisk_header_validate_post_merge`: probe BuildUnit. Reads
+    (header_len, header_bytes) from host input, writes 8-byte
+    status to OUTPUT. -/
+def ziskHeaderValidatePostMergePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  jal ra, header_validate_post_merge\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhvpm_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerValidatePostMergeFunction ++ "\n" ++
+  ".Lhvpm_pdone:"
+
+def ziskHeaderValidatePostMergeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 32\n" ++
+  "empty_ommers_hash:\n" ++
+  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
+  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
+  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
+  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
+  ".balign 8\n" ++
+  "hvpm_off:\n" ++
+  "  .zero 8\n" ++
+  "hvpm_len:\n" ++
+  "  .zero 8"
+
+def ziskHeaderValidatePostMergeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderValidatePostMergePrologue
+  dataAsm     := ziskHeaderValidatePostMergeDataSection
+}
+
+
+/-! ## header_validate_extra_data_length -- PR-K68
+
+    Verify the Ethereum spec constraint that `header.extra_data`
+    is at most 32 bytes (Yellow Paper §4.4.4).
+
+    Mirrors the Python check in `validate_header`:
+
+      assert len(header.extra_data) <= 32
+
+    Composes PR-K20 `rlp_list_nth_item` to extract field 12
+    (extra_data) and a single u64 compare.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      ra (input)  : return
+      a0 (output) :
+        0  : extra_data length ≤ 32 bytes
+        1  : extra_data length > 32 bytes (reject)
+        2  : RLP parse failure (e.g. not a list, field missing)
+
+    Uses two 8-byte `.data` scratch slots (`hved_off`,
+    `hved_len`). -/
+def headerValidateExtraDataLengthFunction : String :=
+  "header_validate_extra_data_length:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  li a2, 12\n" ++
+  "  la a3, hved_off\n" ++
+  "  la a4, hved_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhved_parse_fail\n" ++
+  "  la t0, hved_len; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Lhved_too_long\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhved_ret\n" ++
+  ".Lhved_too_long:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhved_ret\n" ++
+  ".Lhved_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhved_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_header_validate_extra_data_length`: probe BuildUnit.
+    Reads (header_len, header_bytes), writes 8-byte status. -/
+def ziskHeaderValidateExtraDataLengthPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  jal ra, header_validate_extra_data_length\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhved_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerValidateExtraDataLengthFunction ++ "\n" ++
+  ".Lhved_pdone:"
+
+def ziskHeaderValidateExtraDataLengthDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "hved_off:\n" ++
+  "  .zero 8\n" ++
+  "hved_len:\n" ++
+  "  .zero 8"
+
+def ziskHeaderValidateExtraDataLengthProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderValidateExtraDataLengthPrologue
+  dataAsm     := ziskHeaderValidateExtraDataLengthDataSection
+}
+
+
 /-! ## u256_add_be -- PR-K51 modular addition on BE u256 buffers
 
     Compute `(a + b) mod 2^256` over two 32-byte big-endian
@@ -6137,6 +6591,383 @@ def ziskU256MinProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskU256MinPrologue
   dataAsm     := ziskU256MinDataSection
+}
+
+/-! ## u256_max -- PR-K60 maximum of two BE u256 buffers
+
+    Direct companion to PR-K59 `u256_min`. Compares two 32-byte
+    big-endian `u256` buffers and copies the larger (or `a` on
+    equality) into `out`. Same byte-walk + inline pick logic as
+    `u256_min` with inverted selection; no separate `u256_lt`
+    dependency.
+
+    Direct use case — EIP-1559 base-fee delta floor:
+
+      base_fee_delta = u256_max(target_fee_delta_div_8,
+                                u256_from_u64(1))
+
+    (Per Python `calculate_base_fee_per_gas`'s `max(..., 1)`
+    when parent.gas_used > parent_gas_target.)
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 a ptr (32 bytes, BE)
+      a1 (input)  : u256 b ptr (32 bytes, BE)
+      a2 (input)  : u256 out ptr (may alias a or b)
+      ra (input)  : return
+      a0 (output) : 0.
+
+    Short-circuits on the first differing byte. Pure register
+    arithmetic + 4 × (ld + sd) chunk copy. Leaf-callable.
+    Aliasing safe. -/
+def u256MaxFunction : String :=
+  "u256_max:\n" ++
+  "  li t0, 0                   # byte index\n" ++
+  "  li t6, 32\n" ++
+  ".Lumax_loop:\n" ++
+  "  beq t0, t6, .Lumax_pick_a  # all bytes equal → return a\n" ++
+  "  add t1, a0, t0\n" ++
+  "  add t2, a1, t0\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bgtu t3, t4, .Lumax_pick_a # a > b → return a\n" ++
+  "  bltu t3, t4, .Lumax_pick_b # a < b → return b\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lumax_loop\n" ++
+  ".Lumax_pick_a:\n" ++
+  "  mv t0, a0\n" ++
+  "  j .Lumax_copy\n" ++
+  ".Lumax_pick_b:\n" ++
+  "  mv t0, a1\n" ++
+  ".Lumax_copy:\n" ++
+  "  ld t1,  0(t0); sd t1,  0(a2)\n" ++
+  "  ld t1,  8(t0); sd t1,  8(a2)\n" ++
+  "  ld t1, 16(t0); sd t1, 16(a2)\n" ++
+  "  ld t1, 24(t0); sd t1, 24(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_u256_max`: probe BuildUnit. Reads (32B a, 32B b) from
+    host input, writes the 32B max into OUTPUT. -/
+def ziskU256MaxPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # a ptr\n" ++
+  "  addi a1, a3, 40             # b ptr\n" ++
+  "  li a2, 0xa0010000           # out ptr at OUTPUT\n" ++
+  "  jal ra, u256_max\n" ++
+  "  j .Lumax_pdone\n" ++
+  u256MaxFunction ++ "\n" ++
+  ".Lumax_pdone:"
+
+def ziskU256MaxDataSection : String :=
+  ".section .data\n" ++
+  "umax_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256MaxProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256MaxPrologue
+  dataAsm     := ziskU256MaxDataSection
+}
+
+/-! ## u256_div_u64_be -- PR-K61 u256 / u64 byte-by-byte long division
+
+    Compute `(quotient, remainder)` where
+    `src = quotient * b + remainder` with `0 <= remainder < b`.
+    Stores the 32-byte BE quotient at `out` and returns the
+    u64 remainder.
+
+    Direct use case — EIP-1559 base-fee formula:
+
+      parent_gas_target  = parent.gas_limit / 2   (b = 2)
+      target_fee_delta   = parent_fee_gas_delta / parent_gas_target  (b ≤ 2^30)
+      base_fee_per_gas_delta = target_fee_delta / BASE_FEE_MAX_CHANGE_DENOMINATOR  (b = 8)
+
+    All three divisors fit far inside the safe range.
+
+    ## Precondition: divisor ≤ 2^56
+
+    The byte-by-byte algorithm maintains `carry < b` across
+    iterations. Each step computes `num = (carry << 8) | a[i]`.
+    For `num` to fit in `u64` we need `carry << 8 < 2^64`, i.e.
+    `carry < 2^56`. Since `carry < b`, this is satisfied iff
+    `b ≤ 2^56`. The function does NOT check this precondition;
+    passing `b > 2^56` produces garbage but no crash.
+
+    The precondition still admits a 56-bit divisor (≈ `7.2e16`),
+    which covers every Ethereum-state-related divisor:
+
+      - Gas limits / targets:  < 2^30
+      - EIP-1559 denominator:  = 8
+      - Withdrawal counts:     < 2^32
+      - Per-block tx counts:   < 2^20
+
+    For larger divisors, a future PR can ship a bit-by-bit
+    long-division helper supporting `b ≤ 2^63`.
+
+    Also: caller must pass `b > 0`. Passing `b == 0` invokes
+    RV64's `divu`-by-zero behavior (quotient = all-1s, remainder
+    = dividend) — not a crash, but the output is meaningless.
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 src ptr (32 bytes, BE)
+      a1 (input)  : u64 b (0 < b ≤ 2^56)
+      a2 (input)  : u256 out ptr (32 bytes, BE; may alias src)
+      ra (input)  : return
+      a0 (output) : u64 remainder.
+
+    Aliasing safe: each iteration reads `src[i]` then writes
+    `out[i]`; subsequent iterations advance to `src[i+1]`. -/
+def u256DivU64BeFunction : String :=
+  "u256_div_u64_be:\n" ++
+  "  li t0, 0                   # carry (< b)\n" ++
+  "  li t1, 0                   # byte index (MSB → LSB)\n" ++
+  ".Lu256d_loop:\n" ++
+  "  li t2, 32\n" ++
+  "  beq t1, t2, .Lu256d_done\n" ++
+  "  add t3, a0, t1\n" ++
+  "  lbu t4, 0(t3)              # src[i]\n" ++
+  "  slli t5, t0, 8\n" ++
+  "  or t5, t5, t4              # num = (carry << 8) | src[i]\n" ++
+  "  divu t6, t5, a1            # q_byte = num / b  (< 256)\n" ++
+  "  remu t0, t5, a1            # new carry = num mod b\n" ++
+  "  add t3, a2, t1\n" ++
+  "  sb t6, 0(t3)               # out[i] = q_byte (low 8 bits)\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  j .Lu256d_loop\n" ++
+  ".Lu256d_done:\n" ++
+  "  mv a0, t0                  # remainder\n" ++
+  "  ret"
+
+/-- `zisk_u256_div_u64_be`: probe BuildUnit. Reads (32B BE src,
+    8B LE b) from host input, writes (u64 remainder, 32B BE
+    quotient) to OUTPUT (40 bytes total). -/
+def ziskU256DivU64BePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # src ptr (32B BE)\n" ++
+  "  ld a1, 40(a3)               # b (u64 LE)\n" ++
+  "  li a2, 0xa0010008           # out ptr at OUTPUT + 8\n" ++
+  "  # Pre-zero 32 output bytes (defensive).\n" ++
+  "  mv t0, a2; li t1, 4\n" ++
+  ".Lu256d_zout:\n" ++
+  "  beqz t1, .Lu256d_zout_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lu256d_zout\n" ++
+  ".Lu256d_zout_done:\n" ++
+  "  jal ra, u256_div_u64_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # remainder\n" ++
+  "  j .Lu256d_pdone\n" ++
+  u256DivU64BeFunction ++ "\n" ++
+  ".Lu256d_pdone:"
+
+def ziskU256DivU64BeDataSection : String :=
+  ".section .data\n" ++
+  "u256d_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256DivU64BeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256DivU64BePrologue
+  dataAsm     := ziskU256DivU64BeDataSection
+}
+
+
+/-! ## priority_fee_per_gas_eip1559 -- PR-K62
+
+    Compute the effective priority fee per gas for a post-EIP-1559
+    transaction. Mirrors Python's
+    `transaction_priority_fee_per_gas` from
+    `forks/amsterdam/transaction_helpers.py`:
+
+      surplus = tx.max_fee_per_gas - block.base_fee_per_gas
+      priority_fee = min(tx.max_priority_fee_per_gas, surplus)
+
+    Where `surplus = max_fee - base_fee` would underflow
+    (`max_fee < base_fee`), the tx is invalid; this helper
+    returns `1` so the caller can reject without inspecting the
+    output. Otherwise returns `0` and the 32-byte priority fee
+    is written to `*out` in big-endian.
+
+    First higher-level helper composed on the K-stack's u256
+    toolkit: PR-K52 `u256_sub_be` + PR-K59 `u256_min`. Both are
+    inlined into the probe BuildUnit so this PR doesn't require
+    any new external symbols.
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : max_priority_fee_per_gas ptr (32 B BE)
+      a1 (input)  : max_fee_per_gas ptr (32 B BE)
+      a2 (input)  : base_fee_per_gas ptr (32 B BE)
+      a3 (input)  : output ptr (32 B BE; receives priority fee)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 max_fee < base_fee (reject tx). -/
+def priorityFeePerGasEip1559Function : String :=
+  "priority_fee_per_gas_eip1559:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # max_priority ptr\n" ++
+  "  mv s1, a1                   # max_fee ptr\n" ++
+  "  mv s2, a2                   # base_fee ptr\n" ++
+  "  mv s3, a3                   # out ptr\n" ++
+  "  # surplus = max_fee - base_fee  (store in out)\n" ++
+  "  mv a0, s1; mv a1, s2; mv a2, s3\n" ++
+  "  jal ra, u256_sub_be\n" ++
+  "  bnez a0, .Lpfee_fail        # borrow → max_fee < base_fee\n" ++
+  "  # priority_fee = min(max_priority, surplus); aliasing OK\n" ++
+  "  mv a0, s0; mv a1, s3; mv a2, s3\n" ++
+  "  jal ra, u256_min\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lpfee_ret\n" ++
+  ".Lpfee_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lpfee_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_priority_fee_per_gas_eip1559`: probe BuildUnit. Reads
+    (32B max_priority, 32B max_fee, 32B base_fee) from host
+    input, writes (status, 32B priority fee BE) to OUTPUT (40
+    bytes total). -/
+def ziskPriorityFeePerGasEip1559Prologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  addi a0, a4, 8              # max_priority ptr\n" ++
+  "  addi a1, a4, 40             # max_fee ptr\n" ++
+  "  addi a2, a4, 72             # base_fee ptr\n" ++
+  "  li a3, 0xa0010008           # out ptr\n" ++
+  "  mv t0, a3; li t1, 4\n" ++
+  ".Lpfee_zout:\n" ++
+  "  beqz t1, .Lpfee_zout_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lpfee_zout\n" ++
+  ".Lpfee_zout_done:\n" ++
+  "  jal ra, priority_fee_per_gas_eip1559\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lpfee_pdone\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256MinFunction ++ "\n" ++
+  priorityFeePerGasEip1559Function ++ "\n" ++
+  ".Lpfee_pdone:"
+
+def ziskPriorityFeePerGasEip1559DataSection : String :=
+  ".section .data\n" ++
+  "pfee_pad:\n" ++
+  "  .zero 8"
+
+def ziskPriorityFeePerGasEip1559ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskPriorityFeePerGasEip1559Prologue
+  dataAsm     := ziskPriorityFeePerGasEip1559DataSection
+}
+
+/-! ## effective_gas_price_eip1559 -- PR-K70
+
+    Compute the effective gas price for an EIP-1559 transaction:
+
+      effective_gas_price = base_fee
+                           + min(max_priority_fee, max_fee - base_fee)
+
+    Equivalent (per Python `transaction_effective_gas_price`):
+
+      effective_gas_price = min(max_fee, base_fee + max_priority_fee)
+
+    The two formulations match because
+    `base + min(max_priority, max_fee - base) =
+     min(base + max_priority, max_fee)`.
+
+    Composes PR-K62 `priority_fee_per_gas_eip1559` (#5612) with
+    PR-K51 `u256_add_be`. The priority-fee step writes its
+    result to `out`; the add step folds `base_fee` in place.
+
+    If `max_fee < base_fee` (would-underflow in the priority-fee
+    step), this helper returns `1` so the caller can reject the
+    tx without inspecting the output.
+
+    Calling convention:
+      a0 (input)  : max_priority_fee_per_gas ptr (32 B BE)
+      a1 (input)  : max_fee_per_gas ptr (32 B BE)
+      a2 (input)  : base_fee_per_gas ptr (32 B BE)
+      a3 (input)  : output ptr (32 B BE; receives effective gas price)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 max_fee < base_fee (reject tx). -/
+def effectiveGasPriceEip1559Function : String :=
+  "effective_gas_price_eip1559:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a2                   # base_fee ptr\n" ++
+  "  mv s1, a3                   # out ptr\n" ++
+  "  # Step 1: priority_fee = priority_fee_per_gas_eip1559(...)\n" ++
+  "  jal ra, priority_fee_per_gas_eip1559\n" ++
+  "  bnez a0, .Legpe_fail\n" ++
+  "  # Step 2: effective = base_fee + priority_fee   (out = base + out)\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_add_be         # overflow flag in a0 (always 0 in practice)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Legpe_ret\n" ++
+  ".Legpe_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Legpe_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_effective_gas_price_eip1559`: probe BuildUnit. Reads
+    (max_priority, max_fee, base_fee) from host input, writes
+    (status, effective_gas_price) to OUTPUT (40 bytes). -/
+def ziskEffectiveGasPriceEip1559Prologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  addi a0, a4, 8              # max_priority ptr\n" ++
+  "  addi a1, a4, 40             # max_fee ptr\n" ++
+  "  addi a2, a4, 72             # base_fee ptr\n" ++
+  "  li a3, 0xa0010008           # out ptr\n" ++
+  "  mv t0, a3; li t1, 4\n" ++
+  ".Legpe_zout:\n" ++
+  "  beqz t1, .Legpe_zout_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Legpe_zout\n" ++
+  ".Legpe_zout_done:\n" ++
+  "  jal ra, effective_gas_price_eip1559\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Legpe_pdone\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256MinFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  priorityFeePerGasEip1559Function ++ "\n" ++
+  effectiveGasPriceEip1559Function ++ "\n" ++
+  ".Legpe_pdone:"
+
+def ziskEffectiveGasPriceEip1559DataSection : String :=
+  ".section .data\n" ++
+  "egpe_pad:\n" ++
+  "  .zero 8"
+
+def ziskEffectiveGasPriceEip1559ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskEffectiveGasPriceEip1559Prologue
+  dataAsm     := ziskEffectiveGasPriceEip1559DataSection
 }
 
 
@@ -7436,6 +8267,83 @@ def ziskIntrinsicGasLegacyProbeUnit : BuildUnit := {
   dataAsm     := ziskIntrinsicGasLegacyDataSection
 }
 
+/-! ## tx_validate_intrinsic_gas_legacy -- PR-K66
+
+    Compose PR-K46 `intrinsic_gas_legacy` with the standard tx
+    validation check `intrinsic_gas <= tx.gas_limit`. Mirrors
+    Python's check in `validate_transaction`:
+
+      if tx.gas < calculate_intrinsic_gas(tx):
+          raise InvalidTransaction
+
+    Returns the actual intrinsic-gas value via an out pointer so
+    callers don't have to re-call PR-K46; this lets downstream
+    `process_transaction` deduct it from the tx's gas allowance.
+
+    Calling convention:
+      a0 (input)  : data ptr
+      a1 (input)  : data byte length
+      a2 (input)  : is_creation (0 or 1)
+      a3 (input)  : tx.gas_limit (u64)
+      a4 (input)  : u64 out ptr (receives intrinsic_gas)
+      ra (input)  : return
+      a0 (output) : 0 ok / 1 intrinsic_gas > tx.gas_limit (reject)
+
+    The `out` pointer always receives the computed intrinsic gas,
+    even on reject — callers can record it for receipt purposes
+    or further analysis. -/
+def txValidateIntrinsicGasLegacyFunction : String :=
+  "tx_validate_intrinsic_gas_legacy:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a3                   # tx.gas_limit\n" ++
+  "  mv s1, a4                   # out ptr\n" ++
+  "  jal ra, intrinsic_gas_legacy # a0 = intrinsic_gas\n" ++
+  "  sd a0, 0(s1)                # write to out, regardless of reject\n" ++
+  "  bltu s0, a0, .Ltvil_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltvil_ret\n" ++
+  ".Ltvil_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Ltvil_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_tx_validate_intrinsic_gas_legacy`: probe BuildUnit.
+    Reads (data_len, is_creation, gas_limit, data_bytes) from
+    host input, writes (status, intrinsic_gas) to OUTPUT (16
+    bytes total). -/
+def ziskTxValidateIntrinsicGasLegacyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # data_len\n" ++
+  "  ld a2, 16(a5)               # is_creation\n" ++
+  "  ld a3, 24(a5)               # tx.gas_limit\n" ++
+  "  addi a0, a5, 32             # data ptr\n" ++
+  "  li a4, 0xa0010008           # out ptr for intrinsic_gas\n" ++
+  "  sd zero, 0(a4)\n" ++
+  "  jal ra, tx_validate_intrinsic_gas_legacy\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Ltvil_pdone\n" ++
+  intrinsicGasLegacyFunction ++ "\n" ++
+  txValidateIntrinsicGasLegacyFunction ++ "\n" ++
+  ".Ltvil_pdone:"
+
+def ziskTxValidateIntrinsicGasLegacyDataSection : String :=
+  ".section .data\n" ++
+  "tvil_pad:\n" ++
+  "  .zero 8"
+
+def ziskTxValidateIntrinsicGasLegacyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxValidateIntrinsicGasLegacyPrologue
+  dataAsm     := ziskTxValidateIntrinsicGasLegacyDataSection
+}
+
 /-! ## withdrawal_decode -- PR-K49 4-field withdrawal RLP decoder
 
     Decode a post-Shanghai Withdrawal record into a flat struct.
@@ -7554,6 +8462,152 @@ def ziskWithdrawalDecodeProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskWithdrawalDecodePrologue
   dataAsm     := ziskWithdrawalDecodeDataSection
+}
+
+/-! ## withdrawals_sum_amounts -- PR-K65 block withdrawal-credit total
+
+    Walk an RLP-encoded list of Shanghai+ Withdrawal records
+    (one Withdrawal = `rlp([index, validator_index, address,
+    amount])`) and return the total of all `amount` fields
+    (in Gwei) as a `u64`.
+
+    Used by `apply_body` to compute the block's total
+    withdrawal credit before applying it to recipient
+    balances — useful as a sanity check against the
+    `withdrawals_root` MPT computation and for tracking
+    coinbase credits per block.
+
+    First multi-helper composition on the K-stack:
+    - PR-K47 `rlp_list_count_items` — outer cardinality
+    - PR-K20 `rlp_list_nth_item` — per-entry bounds
+    - PR-K49 `withdrawal_decode` — extract `amount` (u64 at
+      struct offset 40)
+
+    Each entry's `amount` is added to a u64 accumulator with
+    overflow detection (unsigned-wrap check: if `sum < prev`,
+    we overflowed). On overflow the function returns status=2
+    so the caller can react (in practice withdrawals per block
+    are capped at 16 with amounts ≤ ~2^41 Gwei, so overflow
+    can't occur on valid chains, but the check makes garbage
+    input safe).
+
+    Calling convention:
+      a0 (input)  : withdrawals_rlp ptr
+      a1 (input)  : withdrawals_rlp byte length
+      a2 (input)  : u64 out ptr (sum of all amounts in Gwei)
+      ra (input)  : return
+      a0 (output) :
+        0  : success
+        1  : parse fail (output zeroed)
+        2  : sum overflowed u64 (output zeroed)
+
+    Uses 64 bytes of `.data` scratch
+    (`wsa_count`, `wsa_entry_offset`, `wsa_entry_length`,
+    `wsa_struct[48]`). -/
+def withdrawalsSumAmountsFunction : String :=
+  "withdrawals_sum_amounts:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # rlp_ptr\n" ++
+  "  mv s1, a1                   # rlp_len\n" ++
+  "  mv s2, a2                   # out_ptr\n" ++
+  "  # Step 1: count = rlp_list_count_items(...)\n" ++
+  "  la a2, wsa_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lwsa_fail\n" ++
+  "  la t0, wsa_count; ld s3, 0(t0)\n" ++
+  "  li s4, 0                    # acc (u64)\n" ++
+  "  li s5, 0                    # i\n" ++
+  ".Lwsa_loop:\n" ++
+  "  beq s5, s3, .Lwsa_done\n" ++
+  "  # Step 2: get entry i bounds.\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s5\n" ++
+  "  la a3, wsa_entry_offset\n" ++
+  "  la a4, wsa_entry_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lwsa_fail\n" ++
+  "  # Step 3: decode entry into wsa_struct.\n" ++
+  "  la t0, wsa_entry_offset; ld t1, 0(t0)\n" ++
+  "  la t0, wsa_entry_length; ld t2, 0(t0)\n" ++
+  "  add a0, s0, t1\n" ++
+  "  mv a1, t2\n" ++
+  "  la a2, wsa_struct\n" ++
+  "  jal ra, withdrawal_decode\n" ++
+  "  bnez a0, .Lwsa_fail\n" ++
+  "  # Step 4: accumulate amount (at struct offset 40) with overflow.\n" ++
+  "  la t0, wsa_struct; ld t1, 40(t0)\n" ++
+  "  add t2, s4, t1\n" ++
+  "  bltu t2, s4, .Lwsa_overflow\n" ++
+  "  mv s4, t2\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lwsa_loop\n" ++
+  ".Lwsa_done:\n" ++
+  "  sd s4, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lwsa_ret\n" ++
+  ".Lwsa_overflow:\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lwsa_ret\n" ++
+  ".Lwsa_fail:\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 1\n" ++
+  ".Lwsa_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_withdrawals_sum_amounts`: probe BuildUnit. Reads
+    (rlp_len, rlp_bytes) from host input, writes (status, sum)
+    to OUTPUT (16 bytes total). -/
+def ziskWithdrawalsSumAmountsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # rlp_len\n" ++
+  "  addi a0, a3, 16             # rlp ptr\n" ++
+  "  li a2, 0xa0010008           # out ptr\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  jal ra, withdrawals_sum_amounts\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lwsa_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  withdrawalDecodeFunction ++ "\n" ++
+  withdrawalsSumAmountsFunction ++ "\n" ++
+  ".Lwsa_pdone:"
+
+def ziskWithdrawalsSumAmountsDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wd_offset:\n" ++
+  "  .zero 8\n" ++
+  "wd_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wsa_count:\n" ++
+  "  .zero 8\n" ++
+  "wsa_entry_offset:\n" ++
+  "  .zero 8\n" ++
+  "wsa_entry_length:\n" ++
+  "  .zero 8\n" ++
+  "wsa_struct:\n" ++
+  "  .zero 48"
+
+def ziskWithdrawalsSumAmountsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskWithdrawalsSumAmountsPrologue
+  dataAsm     := ziskWithdrawalsSumAmountsDataSection
 }
 
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
@@ -8795,6 +9849,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
   | "zisk_rlp_list_count_items" => some ziskRlpListCountItemsProbeUnit
   | "zisk_access_list_count"    => some ziskAccessListCountProbeUnit
+  | "zisk_blob_gas_used_from_versioned_hashes" => some ziskBlobGasUsedFromVersionedHashesProbeUnit
   | "zisk_mpt_node_kind"        => some ziskMptNodeKindProbeUnit
   | "zisk_mpt_branch_child"     => some ziskMptBranchChildProbeUnit
   | "zisk_hp_decode_nibbles"    => some ziskHpDecodeNibblesProbeUnit
@@ -8817,6 +9872,10 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
+  | "zisk_tx_validate_against_block" => some ziskTxValidateAgainstBlockProbeUnit
+  | "zisk_calc_excess_blob_gas" => some ziskCalcExcessBlobGasProbeUnit
+  | "zisk_header_validate_post_merge" => some ziskHeaderValidatePostMergeProbeUnit
+  | "zisk_header_validate_extra_data_length" => some ziskHeaderValidateExtraDataLengthProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
@@ -8825,12 +9884,18 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
   | "zisk_u256_min"             => some ziskU256MinProbeUnit
+  | "zisk_u256_max"             => some ziskU256MaxProbeUnit
+  | "zisk_u256_div_u64_be"      => some ziskU256DivU64BeProbeUnit
+  | "zisk_priority_fee_per_gas_eip1559" => some ziskPriorityFeePerGasEip1559ProbeUnit
+  | "zisk_effective_gas_price_eip1559" => some ziskEffectiveGasPriceEip1559ProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
   | "zisk_intrinsic_gas_legacy" => some ziskIntrinsicGasLegacyProbeUnit
+  | "zisk_tx_validate_intrinsic_gas_legacy" => some ziskTxValidateIntrinsicGasLegacyProbeUnit
   | "zisk_withdrawal_decode"    => some ziskWithdrawalDecodeProbeUnit
+  | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -8868,6 +9933,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_list_nth_item",
    "zisk_rlp_list_count_items",
    "zisk_access_list_count",
+   "zisk_blob_gas_used_from_versioned_hashes",
    "zisk_mpt_node_kind",
    "zisk_mpt_branch_child",
    "zisk_hp_decode_nibbles",
@@ -8890,6 +9956,10 @@ def knownProgramNames : List String :=
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
    "zisk_validate_header_basic",
+   "zisk_tx_validate_against_block",
+   "zisk_calc_excess_blob_gas",
+   "zisk_header_validate_post_merge",
+   "zisk_header_validate_extra_data_length",
    "zisk_u256_add_be",
    "zisk_u256_sub_be",
    "zisk_u256_eq",
@@ -8898,12 +9968,18 @@ def knownProgramNames : List String :=
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero",
    "zisk_u256_min",
+   "zisk_u256_max",
+   "zisk_u256_div_u64_be",
+   "zisk_priority_fee_per_gas_eip1559",
+   "zisk_effective_gas_price_eip1559",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
    "zisk_intrinsic_gas_legacy",
+   "zisk_tx_validate_intrinsic_gas_legacy",
    "zisk_withdrawal_decode",
+   "zisk_withdrawals_sum_amounts",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
