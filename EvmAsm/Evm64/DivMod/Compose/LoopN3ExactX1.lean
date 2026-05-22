@@ -37,4 +37,42 @@ theorem evm_div_n3_loop_unified_inst_noNop_exact_x1_frame
       v10Old v11Old jMem retMem dMem dloMem scratch_un0
       halign hbltu_1 hbltu_0 hcarry2)
 
+/-- Max×max n=3 no-NOP loop path with caller `x1` kept as a concrete
+    register atom. This is the first non-vacuous no-`x1` source path: unlike
+    `loopN3PreWithScratch`, `loopN3PreWithScratchNoX1` does not already own
+    `x1`. -/
+theorem divK_loop_n3_max_max_spec_within_noNop_exact_x1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
+    (retMem dMem dloMem scratch_un0 raVal : Word)
+    (base : Word)
+    (hbltu_1 : ¬BitVec.ult u3 v2)
+    (hbltu_0 : ¬BitVec.ult (iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1 v2)
+    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
+    cpsTripleWithin 304 (base + loopBodyOff) (base + denormOff) (divCode_noNop base)
+      (loopN3PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0 ** (.x1 ↦ᵣ raVal))
+      (loopN3MaxPost sp v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratch_un0) ** (.x1 ↦ᵣ raVal)) := by
+  have hMM := divK_loop_n3_max_max_spec_within_noNop
+    sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+    base hbltu_1 hbltu_0 hcarry2
+  have hMMF := cpsTripleWithin_frameR
+    ((sp + signExtend12 3968 ↦ₘ retMem) **
+     (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) **
+     (sp + signExtend12 3944 ↦ₘ scratch_un0) ** (.x1 ↦ᵣ raVal))
+    (by pcFree) hMM
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      delta loopN3PreWithScratchNoX1 at hp
+      xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    hMMF
+
 end EvmAsm.Evm64
