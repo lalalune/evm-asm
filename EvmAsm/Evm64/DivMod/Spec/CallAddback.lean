@@ -98,6 +98,67 @@ theorem n4CallAddbackBeqSemantic_unfold {a b : EvmWord} :
          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
 
+/-- Trial quotient used by the n=4 v4 call+addback-BEQ semantic marker. -/
+def n4CallAddbackBeqQHatV4 (a b : EvmWord) : Word :=
+  let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+  let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+  let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+  let u4 := (a.getLimbN 3) >>> antiShift
+  let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+  div128Quot_v4 u4 u3 b3'
+
+/-- First addback carry used by the n=4 v4 call+addback-BEQ semantic marker. -/
+def n4CallAddbackBeqCarryV4 (a b : EvmWord) : Word :=
+  let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+  let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+  let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+  let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+  let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+  let b0' := (b.getLimbN 0) <<< shift
+  let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+  let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+  let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+  let u0 := (a.getLimbN 0) <<< shift
+  let qHat := n4CallAddbackBeqQHatV4 a b
+  let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+  addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+
+/-- Corrected quotient produced by the n=4 v4 call+addback-BEQ semantic marker. -/
+def n4CallAddbackBeqQOutV4 (a b : EvmWord) : Word :=
+  let qHat := n4CallAddbackBeqQHatV4 a b
+  let carry := n4CallAddbackBeqCarryV4 a b
+  if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+  else qHat + signExtend12 4095
+
+/-- The zero-carry call+addback-BEQ case decrements the trial quotient twice. -/
+theorem n4CallAddbackBeqQOutV4_of_carry_eq_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
+    n4CallAddbackBeqQOutV4 a b =
+      n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095 := by
+  simp [n4CallAddbackBeqQOutV4, h_carry]
+
+/-- The nonzero-carry call+addback-BEQ case decrements the trial quotient once. -/
+theorem n4CallAddbackBeqQOutV4_of_carry_ne_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0) :
+    n4CallAddbackBeqQOutV4 a b =
+      n4CallAddbackBeqQHatV4 a b + signExtend12 4095 := by
+  rw [n4CallAddbackBeqQOutV4]
+  rw [if_neg h_carry]
+
+/-- `toNat` form of the zero-carry double-decrement qOut case. -/
+theorem n4CallAddbackBeqQOutV4_toNat_of_carry_eq_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
+    (n4CallAddbackBeqQOutV4 a b).toNat =
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat := by
+  rw [n4CallAddbackBeqQOutV4_of_carry_eq_zero h_carry]
+
+/-- `toNat` form of the nonzero-carry single-decrement qOut case. -/
+theorem n4CallAddbackBeqQOutV4_toNat_of_carry_ne_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0) :
+    (n4CallAddbackBeqQOutV4 a b).toNat =
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat := by
+  rw [n4CallAddbackBeqQOutV4_of_carry_ne_zero h_carry]
+
 /-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
 
     This is the v4 migration target for `n4CallAddbackBeqSemanticHolds`: it uses
@@ -105,24 +166,7 @@ theorem n4CallAddbackBeqSemantic_unfold {a b : EvmWord} :
     `n4CallAddbackBeqSemanticHolds_of_runtime_conditions` should target this
     quotient surface and then retire the legacy v1 marker. -/
 def n4CallAddbackBeqSemanticHoldsV4 (a b : EvmWord) : Prop :=
-  let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
-  let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
-  let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
-  let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
-  let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
-  let b0' := (b.getLimbN 0) <<< shift
-  let u4 := (a.getLimbN 3) >>> antiShift
-  let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
-  let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
-  let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
-  let u0 := (a.getLimbN 0) <<< shift
-  let qHat := div128Quot_v4 u4 u3 b3'
-  let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
-  let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
-  let q_out : Word :=
-    if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
-    else qHat + signExtend12 4095
-  q_out.toNat =
+  (n4CallAddbackBeqQOutV4 a b).toNat =
     val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
       val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
@@ -150,5 +194,88 @@ theorem n4CallAddbackBeqSemanticV4_unfold {a b : EvmWord} :
        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
+
+theorem n4CallAddbackBeqSemanticHoldsV4_qOutV4_eq {a b : EvmWord} :
+    n4CallAddbackBeqSemanticHoldsV4 a b =
+      ((n4CallAddbackBeqQOutV4 a b).toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
+  rfl
+
+/-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the named
+    corrected quotient equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_qOutV4_toNat_eq {a b : EvmWord}
+    (h_qOut :
+      (n4CallAddbackBeqQOutV4 a b).toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  h_qOut
+
+/-- Eliminate the v4 n=4 call+addback-BEQ semantic predicate to the named
+    corrected quotient equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_qOutV4_toNat_eq {a b : EvmWord}
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    (n4CallAddbackBeqQOutV4 a b).toNat =
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hsem
+
+/-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the raw
+    normalized `q_out` equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_qOut_toNat_eq {a b : EvmWord}
+    (h_qOut :
+      let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+      let antiShift :=
+        (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+      let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+      let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+      let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+      let b0' := (b.getLimbN 0) <<< shift
+      let u4 := (a.getLimbN 3) >>> antiShift
+      let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+      let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+      let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+      let u0 := (a.getLimbN 0) <<< shift
+      let qHat := div128Quot_v4 u4 u3 b3'
+      let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+      let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+      let q_out : Word :=
+        if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+        else qHat + signExtend12 4095
+      q_out.toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    n4CallAddbackBeqSemanticHoldsV4 a b := by
+  rw [n4CallAddbackBeqSemanticV4_unfold]
+  exact h_qOut
+
+/-- Eliminate the v4 n=4 call+addback-BEQ semantic predicate to the raw
+    normalized `q_out` equality. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_qOut_toNat_eq {a b : EvmWord}
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
+    let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
+    let b0' := (b.getLimbN 0) <<< shift
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
+    let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
+    let u0 := (a.getLimbN 0) <<< shift
+    let qHat := div128Quot_v4 u4 u3 b3'
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+    let q_out : Word :=
+      if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+      else qHat + signExtend12 4095
+    q_out.toNat =
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  rw [n4CallAddbackBeqSemanticV4_unfold] at hsem
+  exact hsem
 
 end EvmAsm.Evm64
