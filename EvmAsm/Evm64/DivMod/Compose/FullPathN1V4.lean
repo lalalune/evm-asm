@@ -871,4 +871,20 @@ theorem divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input
     (loopN1CallMaxmaxmaxIter210FrameInput I) (by pcFree) H210
   exact H210f
 
+/-- Framed all-max tail from the actual bundled j=3 post to the final N1
+    call/max/max/max scratch post over the full `divCode_v4` bundle. -/
+theorem divK_loop_n1_call_iter210_framed_exact_x1_v4_input
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    cpsTripleWithin 556 (I.base + loopBodyOff) (I.base + denormOff)
+      (divCode_v4 I.base)
+      (loopN1CallMaxmaxmaxJ3PostInput I)
+      (loopN1CallMaxmaxmaxScratchPostNoX1 I.sp I.base
+        I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2 I.u0Orig1 I.u0Orig0 I.scratchMem ** (.x1 ↦ᵣ I.raVal)) := by
+  exact cpsTripleWithin_weaken
+    (loopN1CallMaxmaxmaxJ3PostInput_to_iter210FramedPre I)
+    (loopN1CallMaxmaxmaxIter210FramedPostInput_to_scratchPost I)
+    (divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input I hh)
+
 end EvmAsm.Evm64
