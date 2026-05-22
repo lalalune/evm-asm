@@ -130,6 +130,21 @@ def n4CallAddbackBeqQOutV4 (a b : EvmWord) : Word :=
   if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
   else qHat + signExtend12 4095
 
+/-- The zero-carry call+addback-BEQ case decrements the trial quotient twice. -/
+theorem n4CallAddbackBeqQOutV4_of_carry_eq_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
+    n4CallAddbackBeqQOutV4 a b =
+      n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095 := by
+  simp [n4CallAddbackBeqQOutV4, h_carry]
+
+/-- The nonzero-carry call+addback-BEQ case decrements the trial quotient once. -/
+theorem n4CallAddbackBeqQOutV4_of_carry_ne_zero {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0) :
+    n4CallAddbackBeqQOutV4 a b =
+      n4CallAddbackBeqQHatV4 a b + signExtend12 4095 := by
+  rw [n4CallAddbackBeqQOutV4]
+  rw [if_neg h_carry]
+
 /-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
 
     This is the v4 migration target for `n4CallAddbackBeqSemanticHolds`: it uses
