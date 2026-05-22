@@ -8786,6 +8786,133 @@ def ziskTxValidateIntrinsicGasLegacyProbeUnit : BuildUnit := {
   dataAsm     := ziskTxValidateIntrinsicGasLegacyDataSection
 }
 
+/-! ## validate_transaction_basic -- PR-K76 cheap pre-EVM tx validation
+
+    Run the two cheap u64-level transaction validation checks in
+    sequence and return a composite status:
+
+      1. PR-K69 `tx_validate_against_block`        — chain_id, gas_limit, nonce
+      2. PR-K66 `tx_validate_intrinsic_gas_legacy` — intrinsic_gas ≤ tx.gas_limit
+
+    These are the cheapest pre-EVM checks; a tx that fails any
+    of them is rejected without invoking the EVM. Mirrors the
+    `chain_id == ...`, `tx.gas <= block.gas_limit`, `tx.nonce ==
+    account.nonce`, and `intrinsic_gas <= tx.gas` assertions in
+    Python's `validate_transaction`.
+
+    The intrinsic_gas check applies to legacy / EIP-2930 / EIP-1559
+    txs sharing the base + creation + per-byte data formula.
+    EIP-2930+ access-list and EIP-7702 authorization-list gas
+    additions land in follow-up PRs that compose this helper
+    with K48 + future authorization counters.
+
+    Status encoding (analogous to PR-K75 validate_header_full):
+
+      0          : all checks pass
+      101..103   : step 1 (K69) failed (chain_id / gas_limit / nonce)
+      201        : step 2 (K66) failed (intrinsic_gas > tx.gas_limit)
+
+    The intrinsic_gas value is also written to an out pointer
+    regardless of the verdict — callers can deduct it from
+    tx.gas_limit on the success path or record it for analysis.
+
+    Calling convention:
+      a0 (input)  : tx.chain_id (u64)
+      a1 (input)  : block.chain_id (u64)
+      a2 (input)  : tx.gas_limit (u64)
+      a3 (input)  : block.gas_limit (u64)
+      a4 (input)  : tx.nonce (u64)
+      a5 (input)  : account.nonce (u64)
+      a6 (input)  : data ptr
+      a7 (input)  : packed input: low bits = data_len, bit 63 = is_creation
+      ra (input)  : return
+      a0 (output) : composite status code
+
+    The `a7` packing avoids needing an 8th and 9th register
+    (RV64 has only 8 arg regs). data_len in the low 32 bits is
+    plenty (mainnet caps tx data well below 4 GiB), and
+    is_creation is one bit.
+
+    Note: this helper does NOT take an intrinsic_gas out
+    pointer — the cost of forwarding through the stack adds
+    register pressure. Callers that need the intrinsic gas can
+    call PR-K46 `intrinsic_gas_legacy` directly. -/
+def validateTransactionBasicFunction : String :=
+  "validate_transaction_basic:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  # Save data ptr, gas_limit, and a7 for step 2.\n" ++
+  "  mv s0, a6                   # data ptr\n" ++
+  "  mv s1, a2                   # tx.gas_limit\n" ++
+  "  mv s2, a7                   # packed: low 32 = data_len, bit 63 = is_creation\n" ++
+  "  # Step 1: K69 tx_validate_against_block(chain, block_chain, gas, block_gas, nonce, acct_nonce)\n" ++
+  "  jal ra, tx_validate_against_block\n" ++
+  "  beqz a0, .Lvtb_s2\n" ++
+  "  li t0, 100\n" ++
+  "  add a0, a0, t0\n" ++
+  "  j .Lvtb_ret\n" ++
+  ".Lvtb_s2:\n" ++
+  "  # Step 2: K66 tx_validate_intrinsic_gas_legacy(data, len, is_creation, gas_limit, gas_out)\n" ++
+  "  mv a0, s0\n" ++
+  "  li t0, 0xffffffff           # mask for low 32 bits (data_len)\n" ++
+  "  and a1, s2, t0\n" ++
+  "  srli a2, s2, 63             # is_creation = high bit\n" ++
+  "  mv a3, s1                   # tx.gas_limit\n" ++
+  "  la a4, vtb_gas_scratch      # intrinsic_gas out (scratch, unused by caller)\n" ++
+  "  jal ra, tx_validate_intrinsic_gas_legacy\n" ++
+  "  beqz a0, .Lvtb_ret\n" ++
+  "  li t0, 200\n" ++
+  "  add a0, a0, t0\n" ++
+  ".Lvtb_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_validate_transaction_basic`: probe BuildUnit. Reads
+    (tx_chain, block_chain, tx_gas, block_gas, tx_nonce,
+    account_nonce, is_creation, data_len, data_bytes) from host
+    input, writes 8-byte composite status to OUTPUT. -/
+def ziskValidateTransactionBasicPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a0,  8(t0)               # tx.chain_id\n" ++
+  "  ld a1, 16(t0)               # block.chain_id\n" ++
+  "  ld a2, 24(t0)               # tx.gas_limit\n" ++
+  "  ld a3, 32(t0)               # block.gas_limit\n" ++
+  "  ld a4, 40(t0)               # tx.nonce\n" ++
+  "  ld a5, 48(t0)               # account.nonce\n" ++
+  "  ld t1, 56(t0)               # is_creation (u64)\n" ++
+  "  ld t2, 64(t0)               # data_len (u64; low 32 used)\n" ++
+  "  addi a6, t0, 72             # data ptr\n" ++
+  "  # Pack t1 (is_creation, 0 or 1) and t2 (data_len) into a7.\n" ++
+  "  slli t1, t1, 63\n" ++
+  "  li t3, 0xffffffff\n" ++
+  "  and t2, t2, t3\n" ++
+  "  or  a7, t1, t2\n" ++
+  "  jal ra, validate_transaction_basic\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lvtb_pdone\n" ++
+  txValidateAgainstBlockFunction ++ "\n" ++
+  intrinsicGasLegacyFunction ++ "\n" ++
+  txValidateIntrinsicGasLegacyFunction ++ "\n" ++
+  validateTransactionBasicFunction ++ "\n" ++
+  ".Lvtb_pdone:"
+
+def ziskValidateTransactionBasicDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "vtb_gas_scratch:\n" ++
+  "  .zero 8"
+
+def ziskValidateTransactionBasicProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateTransactionBasicPrologue
+  dataAsm     := ziskValidateTransactionBasicDataSection
+}
+
 /-! ## withdrawal_decode -- PR-K49 4-field withdrawal RLP decoder
 
     Decode a post-Shanghai Withdrawal record into a flat struct.
@@ -10340,6 +10467,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
   | "zisk_intrinsic_gas_legacy" => some ziskIntrinsicGasLegacyProbeUnit
   | "zisk_tx_validate_intrinsic_gas_legacy" => some ziskTxValidateIntrinsicGasLegacyProbeUnit
+  | "zisk_validate_transaction_basic" => some ziskValidateTransactionBasicProbeUnit
   | "zisk_withdrawal_decode"    => some ziskWithdrawalDecodeProbeUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
@@ -10428,6 +10556,7 @@ def knownProgramNames : List String :=
    "zisk_tx_eip4844_decode",
    "zisk_intrinsic_gas_legacy",
    "zisk_tx_validate_intrinsic_gas_legacy",
+   "zisk_validate_transaction_basic",
    "zisk_withdrawal_decode",
    "zisk_withdrawals_sum_amounts",
    "zisk_sha256_from_input",
