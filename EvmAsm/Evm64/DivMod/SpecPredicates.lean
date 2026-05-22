@@ -179,10 +179,6 @@ theorem isAddbackCarry2NzN4CallV4Evm_of_first_carry_ne_zero {a b : EvmWord}
       addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3' ≠ 0) :
     isAddbackCarry2NzN4CallV4Evm a b := by
   rw [isAddbackCarry2NzN4CallV4Evm_def]
-  unfold isAddbackCarry2NzN4CallV4Ab
-  unfold loopBodyN4CallAddbackCarry2NzV4
-  simp only []
-  intro hcarry_zero
-  exact False.elim (hcarry_nz hcarry_zero)
+  exact isAddbackCarry2NzN4CallV4Ab_of_first_carry_ne_zero hcarry_nz
 
 end EvmAsm.Evm64
