@@ -431,6 +431,47 @@ theorem n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_call
     (n4CallAddbackBeqU4_lt_vTop_of_call hcall)
     hUn21_lt_vTop
 
+theorem n4CallAddbackBeqUn21_lt_vTop_of_lt_b3prime {a b : EvmWord}
+    (hUn21_lt_b3prime :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (n4CallAddbackBeqB3Prime b).toNat) :
+    (divKTrialCallV4Un21
+      (n4CallAddbackBeqU4 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqB3Prime b)).toNat <
+      (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat := by
+  rw [divKTrialCallV4DHi_eq, divKTrialCallV4DLo_eq]
+  rw [← div128Quot_vTop_decomp (n4CallAddbackBeqB3Prime b)]
+  exact hUn21_lt_b3prime
+
+theorem n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_call_un21_lt_b3prime
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_b3prime :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (n4CallAddbackBeqB3Prime b).toNat) :
+    (n4CallAddbackBeqQHatV4 a b).toNat =
+      (divKTrialCallV4Q1dd
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4Q0dd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b)).toNat := by
+  exact n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_call
+    hb3nz
+    hcall
+    (n4CallAddbackBeqUn21_lt_vTop_of_lt_b3prime hUn21_lt_b3prime)
+
 theorem n4CallAddbackBeqRawTrialBound_direct {a b : EvmWord}
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
