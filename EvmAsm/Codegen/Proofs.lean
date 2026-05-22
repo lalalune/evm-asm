@@ -7,3 +7,4 @@
 -/
 
 import EvmAsm.Codegen.Proofs.RegistryInvariants
+import EvmAsm.Codegen.Proofs.HandlerSpecs
