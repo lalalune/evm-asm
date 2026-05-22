@@ -7374,6 +7374,41 @@ def ziskAccountChargeGasPreExecPrologue : String :=
   "  # Copy balance to OUTPUT + 8 (in-place mutation target)\n" ++
   "  li a0, 0xa0010008\n" ++
   "  addi t1, a4, 8\n" ++
+  "  ld t2,  0(t1); sd t2,  0(a0)\n" ++
+  "  ld t2,  8(t1); sd t2,  8(a0)\n" ++
+  "  ld t2, 16(t1); sd t2, 16(a0)\n" ++
+  "  ld t2, 24(t1); sd t2, 24(a0)\n" ++
+  "  # egp ptr → input region\n" ++
+  "  addi a1, a4, 40             # egp ptr at file offset 32\n" ++
+  "  ld a2, 72(a4)               # gas_limit\n" ++
+  "  # Copy nonce to OUTPUT + 40 (8 B in-out scratch)\n" ++
+  "  li a3, 0xa0010028\n" ++
+  "  ld t2, 80(a4)\n" ++
+  "  sd t2, 0(a3)\n" ++
+  "  jal ra, account_charge_gas_pre_exec\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lacpg_pdone\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  accountChargeGasPreExecFunction ++ "\n" ++
+  ".Lacpg_pdone:"
+
+def ziskAccountChargeGasPreExecDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40\n" ++
+  ".balign 32\n" ++
+  "acpg_gas_fee:\n" ++
+  "  .zero 32"
+
+def ziskAccountChargeGasPreExecProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountChargeGasPreExecPrologue
+  dataAsm     := ziskAccountChargeGasPreExecDataSection
+}
+
 /-! ## account_refund_gas_post_exec -- PR-K82
 
     Apply the post-EVM gas accounting mutations per Python's
@@ -7478,23 +7513,6 @@ def ziskAccountRefundGasPostExecPrologue : String :=
   "  ld t2,  8(t1); sd t2,  8(a0)\n" ++
   "  ld t2, 16(t1); sd t2, 16(a0)\n" ++
   "  ld t2, 24(t1); sd t2, 24(a0)\n" ++
-  "  # egp ptr → input region\n" ++
-  "  addi a1, a4, 40             # egp ptr at file offset 32\n" ++
-  "  ld a2, 72(a4)               # gas_limit\n" ++
-  "  # Copy nonce to OUTPUT + 40 (8 B in-out scratch)\n" ++
-  "  li a3, 0xa0010028\n" ++
-  "  ld t2, 80(a4)\n" ++
-  "  sd t2, 0(a3)\n" ++
-  "  jal ra, account_charge_gas_pre_exec\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lacpg_pdone\n" ++
-  u256MulU64BeFunction ++ "\n" ++
-  u256SubBeFunction ++ "\n" ++
-  accountChargeGasPreExecFunction ++ "\n" ++
-  ".Lacpg_pdone:"
-
-def ziskAccountChargeGasPreExecDataSection : String :=
   "  # Copy coinbase balance to OUTPUT + 40\n" ++
   "  li a1, 0xa0010028\n" ++
   "  addi t1, a6, 40\n" ++
@@ -7521,13 +7539,6 @@ def ziskAccountRefundGasPostExecDataSection : String :=
   "u256m_acc:\n" ++
   "  .zero 40\n" ++
   ".balign 32\n" ++
-  "acpg_gas_fee:\n" ++
-  "  .zero 32"
-
-def ziskAccountChargeGasPreExecProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountChargeGasPreExecPrologue
-  dataAsm     := ziskAccountChargeGasPreExecDataSection
   "arg_sender_refund:\n" ++
   "  .zero 32\n" ++
   ".balign 32\n" ++
