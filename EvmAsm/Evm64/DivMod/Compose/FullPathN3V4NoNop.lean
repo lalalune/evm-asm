@@ -685,14 +685,14 @@ theorem divK_loop_n3_call_j1_from_source_exact_loopIterScratch_v4_noNop (sp base
     j=0 call-body precondition, retaining the j=1 carried u4/q atoms as frame. -/
 theorem loopIterPostN3CallScratchNoX1_j1_to_call_j0_pre
     (sp base qHat dLo divUn0 scratchOut : Word)
-    (v0 v1 v2 v3 u0Orig u1 u2 u3 uTop q0Old raVal : Word) :
-    let r := iterWithDoubleAddback qHat v0 v1 v2 v3 u0Orig u1 u2 u3 uTop
-    let c3 := mulsubN4_c3 qHat v0 v1 v2 v3 u0Orig u1 u2 u3
+    (v0 v1 v2 v3 u0J1 u1 u2 u3 uTop u0Orig q0Old raVal : Word) :
+    let r := iterWithDoubleAddback qHat v0 v1 v2 v3 u0J1 u1 u2 u3 uTop
+    let c3 := mulsubN4_c3 qHat v0 v1 v2 v3 u0J1 u1 u2 u3
     let uBase1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
     let qAddr1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
     ∀ h,
       (((loopIterPostN3CallScratchNoX1 sp base (1 : Word)
-        qHat dLo divUn0 scratchOut v0 v1 v2 v3 u0Orig u1 u2 u3 uTop **
+        qHat dLo divUn0 scratchOut v0 v1 v2 v3 u0J1 u1 u2 u3 uTop **
         (.x1 ↦ᵣ raVal)) **
         (((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
           signExtend12 0 ↦ₘ u0Orig) **
@@ -719,5 +719,90 @@ theorem loopIterPostN3CallScratchNoX1_j1_to_call_j0_pre
       u_j1_4080_eq_j0_4072, u_j1_4072_eq_j0_4064] at hp
   rw [sepConj_assoc'] at hp
   xperm_hyp hp
+
+/-- Full n=3 call×call path from the callable-ready v4 loop source, preserving
+    concrete `x1` and carrying the j=1 stored u4/q atoms. -/
+theorem divK_loop_n3_call_call_from_source_exact_loopIterScratch_v4_noNop (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu_1 : BitVec.ult u3 v2)
+    (hcarry2_nz_1 : loopBodyN3CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hbltu_0 :
+      BitVec.ult
+        (iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+          v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1 v2)
+    (hcarry2_nz_0 :
+      let r1 := iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      loopBodyN3CallAddbackCarry2NzV4 v0 v1 v2 v3
+        u0Orig r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1) :
+    let r1 := iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    let uBase1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+    let qAddr1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin (224 + 224) (base + loopBodyOff) (base + denormOff) (divCode_noNop_v4 base)
+      (loopN3PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      ((loopIterPostN3CallScratchNoX1 sp base (0 : Word)
+        (divKTrialCallV4QHat r1.2.2.2.1 r1.2.2.1 v2)
+        (divKTrialCallV4DLo v2)
+        (divKTrialCallV4Un0 r1.2.2.1)
+        (divKTrialCallV4ScratchOut r1.2.2.2.1 r1.2.2.1 v2
+          (divKTrialCallV4ScratchOut u3 u2 v2 scratchMem))
+        v0 v1 v2 v3 u0Orig r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 **
+        (.x1 ↦ᵣ raVal)) **
+        ((uBase1 + signExtend12 4064 ↦ₘ r1.2.2.2.2.2) **
+         (qAddr1 ↦ₘ r1.1))) := by
+  intro r1 uBase1 qAddr1
+  have J1 := divK_loop_n3_call_j1_from_source_exact_loopIterScratch_v4_noNop
+    sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal
+    retMem dMem dloMem scratchUn0 scratchMem halign hbltu_1 hcarry2_nz_1
+  subst r1
+  subst uBase1
+  subst qAddr1
+  have J0 := divK_loop_body_n3_call_j0_exact_loopIterScratch_v4_noNop sp base
+    (1 : Word)
+    ((1 : Word) <<< (3 : BitVec 6).toNat)
+    (sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat)
+    (sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat)
+    (mulsubN4_c3 (divKTrialCallV4QHat u3 u2 v2) v0 v1 v2 v3 u0 u1 u2 u3)
+    (iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop).1
+    (iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
+    v0 v1 v2 v3 u0Orig
+    (iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+    (iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+    (iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+    (iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
+    q0Old raVal
+    (base + div128CallRetOff) v2 (divKTrialCallV4DLo v2)
+    (divKTrialCallV4Un0 u2) (divKTrialCallV4ScratchOut u3 u2 v2 scratchMem)
+    halign hbltu_0 hcarry2_nz_0
+  have J0f := cpsTripleWithin_frameR
+    (((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) +
+      signExtend12 4064 ↦ₘ
+        (iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+          v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
+     ((sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ
+        (iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+          v0 v1 v2 v3 u0 u1 u2 u3 uTop).1))
+    (by pcFree) J0
+  exact cpsTripleWithin_seq_perm_same_cr
+    (loopIterPostN3CallScratchNoX1_j1_to_call_j0_pre
+      sp base (divKTrialCallV4QHat u3 u2 v2) (divKTrialCallV4DLo v2)
+      (divKTrialCallV4Un0 u2) (divKTrialCallV4ScratchOut u3 u2 v2 scratchMem)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q0Old raVal)
+    J1 J0f
 
 end EvmAsm.Evm64
