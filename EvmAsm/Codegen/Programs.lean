@@ -5795,33 +5795,6 @@ def ziskCoinbaseExtractFromHeaderProbeUnit : BuildUnit := {
     Output layout (16 bytes):
        0..  8  blob_gas_used    (u64 LE)
        8.. 16  excess_blob_gas  (u64 LE)
-/-! ## block_validate_blob_gas_max_cap -- PR-K93
-
-    Cancun cap enforcement: a block's `blob_gas_used` cannot exceed
-    `MAX_BLOB_GAS_PER_BLOCK = BLOB_SCHEDULE_MAX × GAS_PER_BLOB`.
-
-    Python reference (`forks/amsterdam/fork.py`):
-
-      MAX_BLOB_GAS_PER_BLOCK = BLOB_SCHEDULE_MAX * GAS_PER_BLOB
-      blob_gas_available = MAX_BLOB_GAS_PER_BLOCK - block_output.blob_gas_used
-      # …enforced per-tx as `tx_blob_gas_used > blob_gas_available`
-
-    The block-level cap is the loop invariant: at end-of-block,
-    `block_output.blob_gas_used == header.blob_gas_used`, so the
-    consensus check that `header.blob_gas_used ≤ MAX_BLOB_GAS_PER_BLOCK`
-    is the closed form. On Amsterdam mainnet:
-
-      MAX_BLOB_GAS_PER_BLOCK = 21 × 131072 = 2,752,512
-
-    Both parameters are passed in so the helper works across
-    forks that adjust either.
-
-    Computation:
-      1. Extract `header.blob_gas_used` (field 17, u64) via PR-K53
-         `rlp_field_to_u64`.
-      2. Compute `cap = max_blobs_per_block × gas_per_blob`; reject
-         on u64 overflow.
-      3. Compare `blob_gas_used ≤ cap`.
 
     Calling convention:
       a0 (input)  : header_rlp ptr
@@ -5864,6 +5837,75 @@ def headerExtractBlobGasPairFunction : String :=
   ".Lhebgp_ok:\n" ++
   "  li a0, 0\n" ++
   ".Lhebgp_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_blob_gas_pair`: probe BuildUnit. Reads
+    (header_len, header_bytes), writes (status, blob_gas_used,
+    excess_blob_gas) to OUTPUT (24 bytes total). -/
+def ziskHeaderExtractBlobGasPairPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  li a2, 0xa0010008           # 16B output at OUTPUT + 8\n" ++
+  "  sd zero, 0(a2); sd zero, 8(a2)\n" ++
+  "  jal ra, header_extract_blob_gas_pair\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhebgp_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractBlobGasPairFunction ++ "\n" ++
+  ".Lhebgp_pdone:"
+
+def ziskHeaderExtractBlobGasPairDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractBlobGasPairProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractBlobGasPairPrologue
+  dataAsm     := ziskHeaderExtractBlobGasPairDataSection
+}
+
+/-! ## block_validate_blob_gas_max_cap -- PR-K93
+
+    Cancun cap enforcement: a block's `blob_gas_used` cannot exceed
+    `MAX_BLOB_GAS_PER_BLOCK = BLOB_SCHEDULE_MAX × GAS_PER_BLOB`.
+
+    Python reference (`forks/amsterdam/fork.py`):
+
+      MAX_BLOB_GAS_PER_BLOCK = BLOB_SCHEDULE_MAX * GAS_PER_BLOB
+      blob_gas_available = MAX_BLOB_GAS_PER_BLOCK - block_output.blob_gas_used
+      # …enforced per-tx as `tx_blob_gas_used > blob_gas_available`
+
+    The block-level cap is the loop invariant: at end-of-block,
+    `block_output.blob_gas_used == header.blob_gas_used`, so the
+    consensus check that `header.blob_gas_used ≤ MAX_BLOB_GAS_PER_BLOCK`
+    is the closed form. On Amsterdam mainnet:
+
+      MAX_BLOB_GAS_PER_BLOCK = 21 × 131072 = 2,752,512
+
+    Both parameters are passed in so the helper works across
+    forks that adjust either.
+
+    Computation:
+      1. Extract `header.blob_gas_used` (field 17, u64) via PR-K53
+         `rlp_field_to_u64`.
+      2. Compute `cap = max_blobs_per_block × gas_per_blob`; reject
+         on u64 overflow.
+      3. Compare `blob_gas_used ≤ cap`.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
       a2 (input)  : max_blobs_per_block (u64; 21 on mainnet Amsterdam)
       a3 (input)  : gas_per_blob (u64; 131072 on mainnet)
       ra (input)  : return
@@ -5914,26 +5956,6 @@ def blockValidateBlobGasMaxCapFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret"
 
-/-- `zisk_header_extract_blob_gas_pair`: probe BuildUnit. Reads
-    (header_len, header_bytes), writes (status, blob_gas_used,
-    excess_blob_gas) to OUTPUT (24 bytes total). -/
-def ziskHeaderExtractBlobGasPairPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # header_len\n" ++
-  "  addi a0, a3, 16             # header ptr\n" ++
-  "  li a2, 0xa0010008           # 16B output at OUTPUT + 8\n" ++
-  "  sd zero, 0(a2); sd zero, 8(a2)\n" ++
-  "  jal ra, header_extract_blob_gas_pair\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lhebgp_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  headerExtractBlobGasPairFunction ++ "\n" ++
-  ".Lhebgp_pdone:"
-
-def ziskHeaderExtractBlobGasPairDataSection : String :=
 /-- `zisk_block_validate_blob_gas_max_cap`: probe BuildUnit. Reads
     (header_len, max_blobs, gas_per_blob, header_bytes) from host
     input, writes 8-byte status to OUTPUT. -/
@@ -5959,12 +5981,6 @@ def ziskBlockValidateBlobGasMaxCapDataSection : String :=
   "rfu_offset:\n" ++
   "  .zero 8\n" ++
   "rfu_length:\n" ++
-  "  .zero 8"
-
-def ziskHeaderExtractBlobGasPairProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractBlobGasPairPrologue
-  dataAsm     := ziskHeaderExtractBlobGasPairDataSection
   "  .zero 8\n" ++
   ".balign 8\n" ++
   "bvbmc_bgu:\n" ++
