@@ -5751,6 +5751,134 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderBasicDataSection
 }
 
+/-! ## header_validate_post_merge -- PR-K67
+
+    Verify the three post-merge header invariants:
+
+      1. header.ommers_hash == EMPTY_OMMERS_HASH
+         (= keccak256(rlp([])) = 0x1dcc4de8...49347)
+      2. header.difficulty == 0   (canonical RLP: empty-string,
+                                   content_length == 0)
+      3. header.nonce == 0x0000000000000000   (8 zero bytes)
+
+    Mirrors the Python `validate_header` checks added at the
+    Merge fork:
+
+      assert header.ommers_hash == EMPTY_OMMERS_HASH
+      assert header.difficulty == 0
+      assert header.nonce == b"\\x00" * 8
+
+    Composes PR-K20 `rlp_list_nth_item` for field extraction.
+    Each check has a distinct return code so callers can pinpoint
+    which invariant failed.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      ra (input)  : return
+      a0 (output) :
+        0  : all three invariants hold
+        1  : ommers_hash mismatch
+        2  : difficulty != 0
+        3  : nonce not 8 zero bytes
+        4  : RLP parse failure (e.g. not a list, field missing)
+
+    Uses 40 bytes of `.data` scratch (`hvpm_off`, `hvpm_len`
+    + 32-byte `empty_ommers_hash` constant). -/
+def headerValidatePostMergeFunction : String :=
+  "header_validate_post_merge:\n" ++
+  "  addi sp, sp, -24\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0                   # header ptr\n" ++
+  "  mv s1, a1                   # header_len\n" ++
+  "  # Check 1: field 1 (ommers_hash) == EMPTY_OMMERS_HASH.\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
+  "  la a3, hvpm_off; la a4, hvpm_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhvpm_fail_parse\n" ++
+  "  la t0, hvpm_len; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhvpm_fail_oh\n" ++
+  "  la t0, hvpm_off; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  la t4, empty_ommers_hash\n" ++
+  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
+  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
+  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
+  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lhvpm_fail_oh\n" ++
+  "  # Check 2: field 7 (difficulty) is canonical-zero (len 0).\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
+  "  la a3, hvpm_off; la a4, hvpm_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhvpm_fail_parse\n" ++
+  "  la t0, hvpm_len; ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lhvpm_fail_diff\n" ++
+  "  # Check 3: field 14 (nonce) is 8 zero bytes.\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 14\n" ++
+  "  la a3, hvpm_off; la a4, hvpm_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhvpm_fail_parse\n" ++
+  "  la t0, hvpm_len; ld t1, 0(t0)\n" ++
+  "  li t2, 8\n" ++
+  "  bne t1, t2, .Lhvpm_fail_nonce\n" ++
+  "  la t0, hvpm_off; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t5, 0(t3)\n" ++
+  "  bnez t5, .Lhvpm_fail_nonce\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhvpm_ret\n" ++
+  ".Lhvpm_fail_oh:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhvpm_ret\n" ++
+  ".Lhvpm_fail_diff:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lhvpm_ret\n" ++
+  ".Lhvpm_fail_nonce:\n" ++
+  "  li a0, 3\n" ++
+  "  j .Lhvpm_ret\n" ++
+  ".Lhvpm_fail_parse:\n" ++
+  "  li a0, 4\n" ++
+  ".Lhvpm_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 24\n" ++
+  "  ret"
+
+/-- `zisk_header_validate_post_merge`: probe BuildUnit. Reads
+    (header_len, header_bytes) from host input, writes 8-byte
+    status to OUTPUT. -/
+def ziskHeaderValidatePostMergePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  jal ra, header_validate_post_merge\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhvpm_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerValidatePostMergeFunction ++ "\n" ++
+  ".Lhvpm_pdone:"
+
+def ziskHeaderValidatePostMergeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 32\n" ++
+  "empty_ommers_hash:\n" ++
+  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
+  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
+  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
+  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
+  ".balign 8\n" ++
+  "hvpm_off:\n" ++
+  "  .zero 8\n" ++
+  "hvpm_len:\n" ++
+  "  .zero 8"
+
+def ziskHeaderValidatePostMergeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderValidatePostMergePrologue
+  dataAsm     := ziskHeaderValidatePostMergeDataSection
+}
+
 /-! ## u256_add_be -- PR-K51 modular addition on BE u256 buffers
 
     Compute `(a + b) mod 2^256` over two 32-byte big-endian
@@ -8885,6 +9013,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
+  | "zisk_header_validate_post_merge" => some ziskHeaderValidatePostMergeProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
@@ -8959,6 +9088,7 @@ def knownProgramNames : List String :=
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
    "zisk_validate_header_basic",
+   "zisk_header_validate_post_merge",
    "zisk_u256_add_be",
    "zisk_u256_sub_be",
    "zisk_u256_eq",
