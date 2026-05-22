@@ -7992,6 +7992,152 @@ def ziskWithdrawalDecodeProbeUnit : BuildUnit := {
   dataAsm     := ziskWithdrawalDecodeDataSection
 }
 
+/-! ## withdrawals_sum_amounts -- PR-K65 block withdrawal-credit total
+
+    Walk an RLP-encoded list of Shanghai+ Withdrawal records
+    (one Withdrawal = `rlp([index, validator_index, address,
+    amount])`) and return the total of all `amount` fields
+    (in Gwei) as a `u64`.
+
+    Used by `apply_body` to compute the block's total
+    withdrawal credit before applying it to recipient
+    balances — useful as a sanity check against the
+    `withdrawals_root` MPT computation and for tracking
+    coinbase credits per block.
+
+    First multi-helper composition on the K-stack:
+    - PR-K47 `rlp_list_count_items` — outer cardinality
+    - PR-K20 `rlp_list_nth_item` — per-entry bounds
+    - PR-K49 `withdrawal_decode` — extract `amount` (u64 at
+      struct offset 40)
+
+    Each entry's `amount` is added to a u64 accumulator with
+    overflow detection (unsigned-wrap check: if `sum < prev`,
+    we overflowed). On overflow the function returns status=2
+    so the caller can react (in practice withdrawals per block
+    are capped at 16 with amounts ≤ ~2^41 Gwei, so overflow
+    can't occur on valid chains, but the check makes garbage
+    input safe).
+
+    Calling convention:
+      a0 (input)  : withdrawals_rlp ptr
+      a1 (input)  : withdrawals_rlp byte length
+      a2 (input)  : u64 out ptr (sum of all amounts in Gwei)
+      ra (input)  : return
+      a0 (output) :
+        0  : success
+        1  : parse fail (output zeroed)
+        2  : sum overflowed u64 (output zeroed)
+
+    Uses 64 bytes of `.data` scratch
+    (`wsa_count`, `wsa_entry_offset`, `wsa_entry_length`,
+    `wsa_struct[48]`). -/
+def withdrawalsSumAmountsFunction : String :=
+  "withdrawals_sum_amounts:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # rlp_ptr\n" ++
+  "  mv s1, a1                   # rlp_len\n" ++
+  "  mv s2, a2                   # out_ptr\n" ++
+  "  # Step 1: count = rlp_list_count_items(...)\n" ++
+  "  la a2, wsa_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lwsa_fail\n" ++
+  "  la t0, wsa_count; ld s3, 0(t0)\n" ++
+  "  li s4, 0                    # acc (u64)\n" ++
+  "  li s5, 0                    # i\n" ++
+  ".Lwsa_loop:\n" ++
+  "  beq s5, s3, .Lwsa_done\n" ++
+  "  # Step 2: get entry i bounds.\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s5\n" ++
+  "  la a3, wsa_entry_offset\n" ++
+  "  la a4, wsa_entry_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lwsa_fail\n" ++
+  "  # Step 3: decode entry into wsa_struct.\n" ++
+  "  la t0, wsa_entry_offset; ld t1, 0(t0)\n" ++
+  "  la t0, wsa_entry_length; ld t2, 0(t0)\n" ++
+  "  add a0, s0, t1\n" ++
+  "  mv a1, t2\n" ++
+  "  la a2, wsa_struct\n" ++
+  "  jal ra, withdrawal_decode\n" ++
+  "  bnez a0, .Lwsa_fail\n" ++
+  "  # Step 4: accumulate amount (at struct offset 40) with overflow.\n" ++
+  "  la t0, wsa_struct; ld t1, 40(t0)\n" ++
+  "  add t2, s4, t1\n" ++
+  "  bltu t2, s4, .Lwsa_overflow\n" ++
+  "  mv s4, t2\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lwsa_loop\n" ++
+  ".Lwsa_done:\n" ++
+  "  sd s4, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lwsa_ret\n" ++
+  ".Lwsa_overflow:\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lwsa_ret\n" ++
+  ".Lwsa_fail:\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 1\n" ++
+  ".Lwsa_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_withdrawals_sum_amounts`: probe BuildUnit. Reads
+    (rlp_len, rlp_bytes) from host input, writes (status, sum)
+    to OUTPUT (16 bytes total). -/
+def ziskWithdrawalsSumAmountsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # rlp_len\n" ++
+  "  addi a0, a3, 16             # rlp ptr\n" ++
+  "  li a2, 0xa0010008           # out ptr\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  jal ra, withdrawals_sum_amounts\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lwsa_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  withdrawalDecodeFunction ++ "\n" ++
+  withdrawalsSumAmountsFunction ++ "\n" ++
+  ".Lwsa_pdone:"
+
+def ziskWithdrawalsSumAmountsDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wd_offset:\n" ++
+  "  .zero 8\n" ++
+  "wd_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wsa_count:\n" ++
+  "  .zero 8\n" ++
+  "wsa_entry_offset:\n" ++
+  "  .zero 8\n" ++
+  "wsa_entry_length:\n" ++
+  "  .zero 8\n" ++
+  "wsa_struct:\n" ++
+  "  .zero 48"
+
+def ziskWithdrawalsSumAmountsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskWithdrawalsSumAmountsPrologue
+  dataAsm     := ziskWithdrawalsSumAmountsDataSection
+}
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -9272,6 +9418,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
   | "zisk_intrinsic_gas_legacy" => some ziskIntrinsicGasLegacyProbeUnit
   | "zisk_withdrawal_decode"    => some ziskWithdrawalDecodeProbeUnit
+  | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -9350,6 +9497,7 @@ def knownProgramNames : List String :=
    "zisk_tx_eip4844_decode",
    "zisk_intrinsic_gas_legacy",
    "zisk_withdrawal_decode",
+   "zisk_withdrawals_sum_amounts",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
