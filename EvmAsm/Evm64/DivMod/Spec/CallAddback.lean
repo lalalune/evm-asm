@@ -106,6 +106,26 @@ theorem n4CallAddbackBeqShift_unfold {b : EvmWord} :
     n4CallAddbackBeqShift b = (clzResult (b.getLimbN 3)).1.toNat % 64 :=
   rfl
 
+theorem n4CallAddbackBeqShift_raw_lt_64 {b : EvmWord} :
+    (clzResult (b.getLimbN 3)).1.toNat < 64 := by
+  have h_le := clzResult_fst_toNat_le (b.getLimbN 3)
+  omega
+
+theorem n4CallAddbackBeqShift_eq_raw {b : EvmWord} :
+    n4CallAddbackBeqShift b = (clzResult (b.getLimbN 3)).1.toNat := by
+  rw [n4CallAddbackBeqShift_unfold]
+  exact Nat.mod_eq_of_lt n4CallAddbackBeqShift_raw_lt_64
+
+theorem n4CallAddbackBeqShift_pos_of_ne_zero {b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    0 < n4CallAddbackBeqShift b := by
+  rw [n4CallAddbackBeqShift_eq_raw]
+  rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h_zero | h_pos
+  · exfalso
+    apply hshift_nz
+    exact BitVec.eq_of_toNat_eq (by simp [h_zero])
+  · exact h_pos
+
 /-- Anti-shift used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqAntiShift (b : EvmWord) : Nat :=
   (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
