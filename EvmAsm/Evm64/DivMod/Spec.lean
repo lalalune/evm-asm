@@ -35,6 +35,7 @@ import EvmAsm.Evm64.DivMod.Spec.UnifiedExactNoNopCallableFrame
 import EvmAsm.Evm64.DivMod.Spec.BzeroV4ExactCallable
 import EvmAsm.Evm64.DivMod.Spec.ModBzeroV4Callable
 import EvmAsm.Evm64.DivMod.Spec.BzeroV4ExactFrame
+import EvmAsm.Evm64.DivMod.Spec.ModBzeroV4ExactFrame
 import EvmAsm.Evm64.DivMod.Spec.N1ExactV4
 import EvmAsm.Evm64.DivMod.Spec.DispatcherN1NoHdivWord
 import EvmAsm.Evm64.DivMod.Spec.DispatcherN2NoHdivWord
