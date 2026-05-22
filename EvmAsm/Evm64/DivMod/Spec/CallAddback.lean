@@ -140,13 +140,8 @@ theorem n4CallAddbackBeqSemantic_unfold {a b : EvmWord} :
          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
 
-/-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
-
-    This is the v4 migration target for `n4CallAddbackBeqSemanticHolds`: it uses
-    the fully corrected `div128Quot_v4` trial quotient. The closure theorem
-    `n4CallAddbackBeqSemanticHolds_of_runtime_conditions` should target this
-    quotient surface and then retire the legacy v1 marker. -/
-def n4CallAddbackBeqSemanticHoldsV4 (a b : EvmWord) : Prop :=
+/-- Corrected quotient produced by the n=4 v4 call+addback-BEQ semantic marker. -/
+def n4CallAddbackBeqQOutV4 (a b : EvmWord) : Word :=
   let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
   let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
   let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
@@ -161,10 +156,17 @@ def n4CallAddbackBeqSemanticHoldsV4 (a b : EvmWord) : Prop :=
   let qHat := div128Quot_v4 u4 u3 b3'
   let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
   let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
-  let q_out : Word :=
-    if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
-    else qHat + signExtend12 4095
-  q_out.toNat =
+  if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
+  else qHat + signExtend12 4095
+
+/-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
+
+    This is the v4 migration target for `n4CallAddbackBeqSemanticHolds`: it uses
+    the fully corrected `div128Quot_v4` trial quotient. The closure theorem
+    `n4CallAddbackBeqSemanticHolds_of_runtime_conditions` should target this
+    quotient surface and then retire the legacy v1 marker. -/
+def n4CallAddbackBeqSemanticHoldsV4 (a b : EvmWord) : Prop :=
+  (n4CallAddbackBeqQOutV4 a b).toNat =
     val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
       val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
@@ -191,6 +193,13 @@ theorem n4CallAddbackBeqSemanticV4_unfold {a b : EvmWord} :
      q_out.toNat =
        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
+  rfl
+
+theorem n4CallAddbackBeqSemanticHoldsV4_qOutV4_eq {a b : EvmWord} :
+    n4CallAddbackBeqSemanticHoldsV4 a b =
+      ((n4CallAddbackBeqQOutV4 a b).toNat =
+        val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
 
 /-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the raw
