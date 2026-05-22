@@ -274,6 +274,24 @@ theorem n4CallAddbackBeqRawTrialBound_direct {a b : EvmWord}
   rw [hsmod, hasmod] at h
   exact h
 
+theorem n4CallAddbackBeqQHatV4_le_val256_div_plus_two_of_le_rawTrial
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hq_le_raw :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        (((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)).toNat * 2^64 +
+            (((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+              ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))).toNat) /
+          (((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+            ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))).toNat) :
+    (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) + 2 := by
+  exact le_trans hq_le_raw
+    (n4CallAddbackBeqRawTrialBound_direct hb3nz hshift_nz hcall)
+
 /-- First addback carry used by the n=4 v4 call+addback-BEQ semantic marker. -/
 def n4CallAddbackBeqCarryV4 (a b : EvmWord) : Word :=
   let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
