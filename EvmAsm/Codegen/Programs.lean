@@ -13271,6 +13271,72 @@ def ziskIntrinsicGasCalldataFloorEip7623ProbeUnit : BuildUnit := {
 }
 
 
+/-! ## init_code_cost -- PR-K107
+
+    Compute the EIP-3860 init-code gas cost for a contract-creation
+    tx's init bytecode:
+
+      init_code_cost = GAS_CODE_INIT_PER_WORD × ceil(len / 32)
+                     = 2 × ((len + 31) ÷ 32)        (mainnet)
+
+    Used inside `calculate_intrinsic_cost(tx)` whenever
+    `tx.to == empty` (CREATE-shaped tx); pre-EIP-3860 forks
+    skip this term.
+
+    The `gas_per_word` constant is passed in so the helper works
+    across forks that adjust it.
+
+    Calling convention:
+      a0 (input)  : init_code_length (u64)
+      a1 (input)  : gas_per_word (u64; 2 on mainnet)
+      a2 (input)  : u64 out ptr (init_code_cost)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds — total function).
+
+    Pure-leaf semantics: no scratch memory, no transitive calls.
+    The arithmetic stays in u64; for any `init_code_length` within
+    the EIP-3860 cap (`MAX_INIT_CODE_SIZE = 49_152`) and any
+    `gas_per_word ≤ 2^48`, the cost fits in u64. -/
+def initCodeCostFunction : String :=
+  "init_code_cost:\n" ++
+  "  addi t0, a0, 31             # len + 31\n" ++
+  "  srli t0, t0, 5              # / 32 → ceil(len/32)\n" ++
+  "  mul t0, t0, a1              # × gas_per_word\n" ++
+  "  sd t0, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_init_code_cost`: probe BuildUnit. Reads
+    (init_code_length, gas_per_word) from host input, writes
+    (status, init_code_cost) to OUTPUT (16 bytes total).
+    Input layout:
+      bytes  0.. 8 : init_code_length
+      bytes  8..16 : gas_per_word -/
+def ziskInitCodeCostPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a0, 8(a3)                # init_code_length\n" ++
+  "  ld a1, 16(a3)               # gas_per_word\n" ++
+  "  li a2, 0xa0010008           # cost out\n" ++
+  "  jal ra, init_code_cost\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Licc_pdone\n" ++
+  initCodeCostFunction ++ "\n" ++
+  ".Licc_pdone:"
+
+def ziskInitCodeCostDataSection : String :=
+  ".section .data\n" ++
+  "icc_scratch:\n" ++
+  "  .zero 8"
+
+def ziskInitCodeCostProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskInitCodeCostPrologue
+  dataAsm     := ziskInitCodeCostDataSection
+}
+
+
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
     First consumer of the SSZ `hash_tree_root` shim:
@@ -14593,6 +14659,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_block_compute_tx_hashes" => some ziskBlockComputeTxHashesProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
+  | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -14713,6 +14780,7 @@ def knownProgramNames : List String :=
    "zisk_block_compute_tx_hashes",
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
+   "zisk_init_code_cost",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
