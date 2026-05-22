@@ -157,6 +157,15 @@ theorem n4CallAddbackBeqB3Prime_unfold {b : EvmWord} :
         ((b.getLimbN 2) >>> n4CallAddbackBeqAntiShift b) :=
   rfl
 
+theorem n4CallAddbackBeqB3Prime_eq_direct {b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqB3Prime b =
+      ((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)) := by
+  rw [n4CallAddbackBeqB3Prime_unfold]
+  rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
+  rw [n4CallAddbackBeqShift_eq_raw]
+
 /-- Normalized overflow dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU4 (a b : EvmWord) : Word :=
   (a.getLimbN 3) >>> n4CallAddbackBeqAntiShift b
