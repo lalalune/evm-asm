@@ -140,22 +140,35 @@ theorem n4CallAddbackBeqSemantic_unfold {a b : EvmWord} :
          val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :=
   rfl
 
-/-- Corrected quotient produced by the n=4 v4 call+addback-BEQ semantic marker. -/
-def n4CallAddbackBeqQOutV4 (a b : EvmWord) : Word :=
+/-- Trial quotient used by the n=4 v4 call+addback-BEQ semantic marker. -/
+def n4CallAddbackBeqQHatV4 (a b : EvmWord) : Word :=
+  let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+  let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+  let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+  let u4 := (a.getLimbN 3) >>> antiShift
+  let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+  div128Quot_v4 u4 u3 b3'
+
+/-- First addback carry used by the n=4 v4 call+addback-BEQ semantic marker. -/
+def n4CallAddbackBeqCarryV4 (a b : EvmWord) : Word :=
   let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
   let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
   let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
   let b2' := ((b.getLimbN 2) <<< shift) ||| ((b.getLimbN 1) >>> antiShift)
   let b1' := ((b.getLimbN 1) <<< shift) ||| ((b.getLimbN 0) >>> antiShift)
   let b0' := (b.getLimbN 0) <<< shift
-  let u4 := (a.getLimbN 3) >>> antiShift
   let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
   let u2 := ((a.getLimbN 2) <<< shift) ||| ((a.getLimbN 1) >>> antiShift)
   let u1 := ((a.getLimbN 1) <<< shift) ||| ((a.getLimbN 0) >>> antiShift)
   let u0 := (a.getLimbN 0) <<< shift
-  let qHat := div128Quot_v4 u4 u3 b3'
+  let qHat := n4CallAddbackBeqQHatV4 a b
   let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
-  let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+  addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+
+/-- Corrected quotient produced by the n=4 v4 call+addback-BEQ semantic marker. -/
+def n4CallAddbackBeqQOutV4 (a b : EvmWord) : Word :=
+  let qHat := n4CallAddbackBeqQHatV4 a b
+  let carry := n4CallAddbackBeqCarryV4 a b
   if carry = 0 then qHat + signExtend12 4095 + signExtend12 4095
   else qHat + signExtend12 4095
 
