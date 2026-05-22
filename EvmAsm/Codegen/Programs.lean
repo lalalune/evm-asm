@@ -8381,6 +8381,144 @@ def ziskTxTypeDispatchProbeUnit : BuildUnit := {
   dataAsm     := ziskTxTypeDispatchDataSection
 }
 
+/-! ## tx_extract_data_section -- PR-K104
+
+    Extract the `data` (calldata / init-code) field's absolute
+    pointer and byte length from any encoded tx type. The data
+    field is variable-length: 0 bytes for value transfers, up to
+    `MAX_INIT_CODE_SIZE` bytes for contract creations, longer for
+    `CALL`-style payloads.
+
+    Per-type RLP layout — the field index of `data`:
+
+      type 0 legacy   : field 5 of the outer list
+      type 1 EIP-2930 : field 6 of the inner RLP
+      type 2 EIP-1559 : field 7 of the inner RLP
+      type 3 EIP-4844 : field 7 of the inner RLP
+      type 4 EIP-7702 : field 7 of the inner RLP
+
+    Composes:
+      - PR-K40 `tx_type_dispatch`   — typed-tx detector
+      - PR-K20 `rlp_list_nth_item`  — byte-string content bounds
+
+    Useful for:
+    - intrinsic-gas pricing (zero/non-zero byte counts)
+    - EIP-3860 init-code size check (CREATE / CREATE2)
+    - feeding the EVM's `calldata` region pre-execution
+
+    Calling convention:
+      a0 (input)  : tx_bytes ptr (encoded form)
+      a1 (input)  : tx_bytes byte length
+      a2 (input)  : u64 out ptr (data_ptr — absolute address)
+      a3 (input)  : u64 out ptr (data_len)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : tx_type_dispatch failed
+        2 : data field extraction failed (parse error)
+
+    Both outputs zeroed on failure. Uses two 8-byte `.data`
+    scratch slots (`teds_type`, `teds_inner_off`). -/
+def txExtractDataSectionFunction : String :=
+  "tx_extract_data_section:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # tx_ptr\n" ++
+  "  mv s1, a1                   # tx_len\n" ++
+  "  mv s2, a2                   # data_ptr out\n" ++
+  "  mv s3, a3                   # data_len out\n" ++
+  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
+  "  # Step 1: tx_type_dispatch.\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, teds_type\n" ++
+  "  la a3, teds_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  beqz a0, .Lteds_after_dispatch\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lteds_ret\n" ++
+  ".Lteds_after_dispatch:\n" ++
+  "  la t0, teds_type;      ld t4, 0(t0)     # type\n" ++
+  "  la t0, teds_inner_off; ld t5, 0(t0)\n" ++
+  "  add t6, s0, t5                           # inner_ptr\n" ++
+  "  sub t3, s1, t5                           # inner_len\n" ++
+  "  # Determine field index.\n" ++
+  "  li t0, 0\n" ++
+  "  beq t4, t0, .Lteds_legacy_idx\n" ++
+  "  li t0, 1\n" ++
+  "  beq t4, t0, .Lteds_t1_idx\n" ++
+  "  li t1, 7                                # type 2/3/4: data = 7\n" ++
+  "  j .Lteds_have_idx\n" ++
+  ".Lteds_legacy_idx:\n" ++
+  "  li t1, 5                                # legacy: data = 5\n" ++
+  "  j .Lteds_have_idx\n" ++
+  ".Lteds_t1_idx:\n" ++
+  "  li t1, 6                                # EIP-2930: data = 6\n" ++
+  ".Lteds_have_idx:\n" ++
+  "  mv a0, t6\n" ++
+  "  mv a1, t3\n" ++
+  "  mv a2, t1\n" ++
+  "  la a3, teds_field_off\n" ++
+  "  la a4, teds_field_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteds_field_fail\n" ++
+  "  # data_ptr = inner_ptr + field_off; data_len = field_len.\n" ++
+  "  la t0, teds_inner_off; ld t5, 0(t0)\n" ++
+  "  add t6, s0, t5\n" ++
+  "  la t0, teds_field_off; ld t4, 0(t0)\n" ++
+  "  add t6, t6, t4\n" ++
+  "  sd t6, 0(s2)\n" ++
+  "  la t0, teds_field_len; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lteds_ret\n" ++
+  ".Lteds_field_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lteds_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_tx_extract_data_section`: probe BuildUnit. Reads
+    (tx_len, tx_bytes), writes (status, data_ptr, data_len) to
+    OUTPUT (24 bytes total). The data_ptr is an absolute address
+    in the guest's memory space (inside the INPUT region for this
+    probe). -/
+def ziskTxExtractDataSectionPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # tx_len\n" ++
+  "  addi a0, a4, 16             # tx_ptr\n" ++
+  "  li a2, 0xa0010008           # data_ptr out\n" ++
+  "  li a3, 0xa0010010           # data_len out\n" ++
+  "  jal ra, tx_extract_data_section\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lteds_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txExtractDataSectionFunction ++ "\n" ++
+  ".Lteds_pdone:"
+
+def ziskTxExtractDataSectionDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "teds_type:\n" ++
+  "  .zero 8\n" ++
+  "teds_inner_off:\n" ++
+  "  .zero 8\n" ++
+  "teds_field_off:\n" ++
+  "  .zero 8\n" ++
+  "teds_field_len:\n" ++
+  "  .zero 8"
+
+def ziskTxExtractDataSectionProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxExtractDataSectionPrologue
+  dataAsm     := ziskTxExtractDataSectionDataSection
+}
+
 /-! ## tx_eip1559_decode -- PR-K41 full 12-field EIP-1559 decoder
 
     Decode the inner (post-type-byte) RLP body of an EIP-1559
@@ -11924,6 +12062,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_cost_compute"      => some ziskTxCostComputeProbeUnit
   | "zisk_validate_transaction_balance" => some ziskValidateTransactionBalanceProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
+  | "zisk_tx_extract_data_section" => some ziskTxExtractDataSectionProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
@@ -12024,6 +12163,7 @@ def knownProgramNames : List String :=
    "zisk_tx_cost_compute",
    "zisk_validate_transaction_balance",
    "zisk_tx_type_dispatch",
+   "zisk_tx_extract_data_section",
    "zisk_tx_eip2930_decode",
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
