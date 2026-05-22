@@ -6207,6 +6207,114 @@ def ziskU256MaxProbeUnit : BuildUnit := {
   dataAsm     := ziskU256MaxDataSection
 }
 
+/-! ## u256_div_u64_be -- PR-K61 u256 / u64 byte-by-byte long division
+
+    Compute `(quotient, remainder)` where
+    `src = quotient * b + remainder` with `0 <= remainder < b`.
+    Stores the 32-byte BE quotient at `out` and returns the
+    u64 remainder.
+
+    Direct use case — EIP-1559 base-fee formula:
+
+      parent_gas_target  = parent.gas_limit / 2   (b = 2)
+      target_fee_delta   = parent_fee_gas_delta / parent_gas_target  (b ≤ 2^30)
+      base_fee_per_gas_delta = target_fee_delta / BASE_FEE_MAX_CHANGE_DENOMINATOR  (b = 8)
+
+    All three divisors fit far inside the safe range.
+
+    ## Precondition: divisor ≤ 2^56
+
+    The byte-by-byte algorithm maintains `carry < b` across
+    iterations. Each step computes `num = (carry << 8) | a[i]`.
+    For `num` to fit in `u64` we need `carry << 8 < 2^64`, i.e.
+    `carry < 2^56`. Since `carry < b`, this is satisfied iff
+    `b ≤ 2^56`. The function does NOT check this precondition;
+    passing `b > 2^56` produces garbage but no crash.
+
+    The precondition still admits a 56-bit divisor (≈ `7.2e16`),
+    which covers every Ethereum-state-related divisor:
+
+      - Gas limits / targets:  < 2^30
+      - EIP-1559 denominator:  = 8
+      - Withdrawal counts:     < 2^32
+      - Per-block tx counts:   < 2^20
+
+    For larger divisors, a future PR can ship a bit-by-bit
+    long-division helper supporting `b ≤ 2^63`.
+
+    Also: caller must pass `b > 0`. Passing `b == 0` invokes
+    RV64's `divu`-by-zero behavior (quotient = all-1s, remainder
+    = dividend) — not a crash, but the output is meaningless.
+
+    BE storage convention: byte 0 = MSB, byte 31 = LSB.
+
+    Calling convention:
+      a0 (input)  : u256 src ptr (32 bytes, BE)
+      a1 (input)  : u64 b (0 < b ≤ 2^56)
+      a2 (input)  : u256 out ptr (32 bytes, BE; may alias src)
+      ra (input)  : return
+      a0 (output) : u64 remainder.
+
+    Aliasing safe: each iteration reads `src[i]` then writes
+    `out[i]`; subsequent iterations advance to `src[i+1]`. -/
+def u256DivU64BeFunction : String :=
+  "u256_div_u64_be:\n" ++
+  "  li t0, 0                   # carry (< b)\n" ++
+  "  li t1, 0                   # byte index (MSB → LSB)\n" ++
+  ".Lu256d_loop:\n" ++
+  "  li t2, 32\n" ++
+  "  beq t1, t2, .Lu256d_done\n" ++
+  "  add t3, a0, t1\n" ++
+  "  lbu t4, 0(t3)              # src[i]\n" ++
+  "  slli t5, t0, 8\n" ++
+  "  or t5, t5, t4              # num = (carry << 8) | src[i]\n" ++
+  "  divu t6, t5, a1            # q_byte = num / b  (< 256)\n" ++
+  "  remu t0, t5, a1            # new carry = num mod b\n" ++
+  "  add t3, a2, t1\n" ++
+  "  sb t6, 0(t3)               # out[i] = q_byte (low 8 bits)\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  j .Lu256d_loop\n" ++
+  ".Lu256d_done:\n" ++
+  "  mv a0, t0                  # remainder\n" ++
+  "  ret"
+
+/-- `zisk_u256_div_u64_be`: probe BuildUnit. Reads (32B BE src,
+    8B LE b) from host input, writes (u64 remainder, 32B BE
+    quotient) to OUTPUT (40 bytes total). -/
+def ziskU256DivU64BePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 8              # src ptr (32B BE)\n" ++
+  "  ld a1, 40(a3)               # b (u64 LE)\n" ++
+  "  li a2, 0xa0010008           # out ptr at OUTPUT + 8\n" ++
+  "  # Pre-zero 32 output bytes (defensive).\n" ++
+  "  mv t0, a2; li t1, 4\n" ++
+  ".Lu256d_zout:\n" ++
+  "  beqz t1, .Lu256d_zout_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lu256d_zout\n" ++
+  ".Lu256d_zout_done:\n" ++
+  "  jal ra, u256_div_u64_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # remainder\n" ++
+  "  j .Lu256d_pdone\n" ++
+  u256DivU64BeFunction ++ "\n" ++
+  ".Lu256d_pdone:"
+
+def ziskU256DivU64BeDataSection : String :=
+  ".section .data\n" ++
+  "u256d_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256DivU64BeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256DivU64BePrologue
+  dataAsm     := ziskU256DivU64BeDataSection
+}
+
+
 /-! ## priority_fee_per_gas_eip1559 -- PR-K62
 
     Compute the effective priority fee per gas for a post-EIP-1559
@@ -8989,6 +9097,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
   | "zisk_u256_min"             => some ziskU256MinProbeUnit
   | "zisk_u256_max"             => some ziskU256MaxProbeUnit
+  | "zisk_u256_div_u64_be"      => some ziskU256DivU64BeProbeUnit
   | "zisk_priority_fee_per_gas_eip1559" => some ziskPriorityFeePerGasEip1559ProbeUnit
   | "zisk_tx_type_dispatch"     => some ziskTxTypeDispatchProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
@@ -9064,6 +9173,7 @@ def knownProgramNames : List String :=
    "zisk_u256_is_zero",
    "zisk_u256_min",
    "zisk_u256_max",
+   "zisk_u256_div_u64_be",
    "zisk_priority_fee_per_gas_eip1559",
    "zisk_tx_type_dispatch",
    "zisk_tx_eip2930_decode",
