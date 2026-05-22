@@ -925,6 +925,154 @@ theorem divK_loop_body_n3_max_j0_exact_loopIterScratch_v4_noNop (sp base : Word)
           xperm_hyp hp)
         Jf
 
+/-- Loop body n=3, max path, j=1 over `divCode_noNop_v4`, preserving
+    concrete `x1` and callable scratch cells as frame. -/
+theorem divK_loop_body_n3_max_j1_exact_loopIterScratch_v4_noNop (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hbltu : ¬BitVec.ult u3 v2)
+    (hcarry2_nz : isAddbackCarry2NzN3Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 152 (base + loopBodyOff) (base + loopBodyOff) (divCode_noNop_v4 base)
+      ((loopBodyN3MaxSkipJ1NormPreV4 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal)))
+      ((loopIterPostN3Max sp (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal))) := by
+  by_cases hborrow : BitVec.ult uTop
+      (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+  · have hborrow_nz :
+        (if BitVec.ult uTop
+          (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+         then (1 : Word) else 0) ≠ (0 : Word) := by
+      rw [if_pos hborrow]
+      decide
+    have J := divK_loop_body_n3_max_addback_jgt0_beq_norm_v4_noNop
+      (1 : Word) sp base EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld hbltu hcarry2_nz hborrow_nz
+    have Jf := cpsTripleWithin_frameR
+      ((sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) **
+       (.x1 ↦ᵣ raVal))
+      (by pcFree) J
+    exact cpsTripleWithin_weaken
+      (fun h hp => by
+        delta loopBodyN3MaxSkipJ1NormPreV4 loopBodyN3MaxAddbackJgt0NormPreV4 at hp ⊢
+        xperm_hyp hp)
+      (fun h hp => by
+        rw [loopIterPostN3Max_addback hborrow] at hp
+        xperm_hyp hp)
+      Jf
+  · have hborrow_zero :
+        (if BitVec.ult uTop
+          (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+         then (1 : Word) else 0) = (0 : Word) := by
+      rw [if_neg hborrow]
+    have J := divK_loop_body_n3_max_skip_j1_norm_v4_noNop
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld hbltu hborrow_zero
+    have Jf := cpsTripleWithin_frameR
+      ((sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) **
+       (.x1 ↦ᵣ raVal))
+      (by pcFree) J
+    exact cpsTripleWithin_mono_nSteps (by decide) <|
+      cpsTripleWithin_weaken
+        (fun h hp => by xperm_hyp hp)
+        (fun h hp => by
+          rw [loopIterPostN3Max_skip hborrow] at hp
+          xperm_hyp hp)
+        Jf
+
+/-- The callable-ready v4 n=3 loop source specializes to the j=1 max-body
+    precondition, with j=0 source atoms retained as a frame. -/
+theorem loopN3PreWithScratchV4NoX1_to_max_j1_pre
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word) :
+    ∀ h,
+      (loopN3PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratchUn0 scratchMem ** (.x1 ↦ᵣ raVal)) h →
+      ((loopBodyN3MaxSkipJ1NormPreV4 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal)) **
+        (((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig) **
+         ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old))) h := by
+  intro h hp
+  delta loopN3PreWithScratchV4NoX1 loopN3PreWithScratchNoX1 loopN3Pre at hp
+  delta loopBodyN3MaxSkipJ1NormPreV4
+  rw [loopBodyN3MaxSkipPre_unfold]
+  xperm_hyp hp
+
+/-- A j=1 max iteration postcondition with v4 scratch cells specializes to the
+    j=0 call-body precondition, retaining exact `x1` and j=1 carried u4/q
+    atoms as frame. -/
+theorem loopIterPostN3MaxScratchX1_j1_to_call_j0_pre
+    (sp retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (v0 v1 v2 v3 u0J1 u1 u2 u3 uTop u0Orig q0Old raVal : Word) :
+    let r := iterN3Max v0 v1 v2 v3 u0J1 u1 u2 u3 uTop
+    let c3 := mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0J1 u1 u2 u3
+    let uBase1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+    let qAddr1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+    ∀ h,
+      (((loopIterPostN3Max sp (1 : Word) v0 v1 v2 v3 u0J1 u1 u2 u3 uTop **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal)) **
+        (((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig) **
+         ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old))) h) →
+      (((loopBodyN3CallSkipJ0PreV4NoX1 sp (1 : Word)
+          ((1 : Word) <<< (3 : BitVec 6).toNat) uBase1 qAddr1 c3 r.1
+          r.2.2.2.2.1 v0 v1 v2 v3 u0Orig r.2.1 r.2.2.1 r.2.2.2.1
+          r.2.2.2.2.1 q0Old retMem dMem dloMem scratchUn0 scratchMem **
+          (.x1 ↦ᵣ raVal)) **
+        ((uBase1 + signExtend12 4064 ↦ₘ r.2.2.2.2.2) **
+         (qAddr1 ↦ₘ r.1))) h) := by
+  intro r c3 uBase1 qAddr1 h hp
+  subst uBase1
+  subst qAddr1
+  subst c3
+  subst r
+  delta loopIterPostN3Max loopExitPostN3 loopExitPost at hp
+  delta loopBodyN3CallSkipJ0PreV4NoX1
+  unfold mulsubN4_c3
+  simp only [] at hp ⊢
+  have hj' := EvmAsm.Evm64.DivMod.AddrNorm.jpred_1
+  rw [hj', u_j1_0_eq_j0_4088, u_j1_4088_eq_j0_4080,
+      u_j1_4080_eq_j0_4072, u_j1_4072_eq_j0_4064] at hp
+  simp only [se12_32, se12_40, se12_48, se12_56,
+             u_base_off0_j0, q_addr_j0] at hp ⊢
+  rw [sepConj_assoc'] at hp
+  xperm_hyp hp
+
 /-- Full n=3 call×max path from the callable-ready v4 loop source, preserving
     concrete `x1`, scratch, and the j=1 stored u4/q atoms. -/
 theorem divK_loop_n3_call_max_from_source_exact_loopIterScratch_v4_noNop (sp base : Word)
