@@ -5875,6 +5875,146 @@ def ziskHeaderExtractBlobGasPairProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractBlobGasPairDataSection
 }
 
+/-! ## header_extract_block_roots -- PR-K95
+
+    Extract the three remaining 32-byte root fields from an
+    Amsterdam header that the existing extended-decode helpers
+    don't cover:
+
+       0..32   transactions_root  (field 4)
+      32..64   receipt_root       (field 5)
+      64..96   withdrawals_root   (field 16)
+
+    Used by `validate_block_body` callers that cross-check the
+    body's tx/receipt/withdrawal MPT roots against the consensus-
+    layer commitment, and by the trie-rebuild path. The state_root
+    (field 3) is already covered by PR-K39 `header_extended_decode`;
+    `parent_hash` by PR-K17; `coinbase` by PR-K55.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 96-byte output ptr (caller-supplied)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : field 4 (transactions_root) missing / not 32 B
+        2 : field 5 (receipt_root) missing / not 32 B
+        3 : field 16 (withdrawals_root) missing / not 32 B
+            (pre-Shanghai headers don't have this field)
+
+    Composes PR-K20 `rlp_list_nth_item`. Uses two 8-byte `.data`
+    scratch slots (`hebr_offset`, `hebr_length`). -/
+def headerExtractBlockRootsFunction : String :=
+  "header_extract_block_roots:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_len\n" ++
+  "  mv s2, a2                  # 96B output ptr\n" ++
+  "  # Field 4: transactions_root → out[0..32]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
+  "  la a3, hebr_offset; la a4, hebr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhebr_f4_fail\n" ++
+  "  la t0, hebr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhebr_f4_fail\n" ++
+  "  la t0, hebr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  # Field 5: receipt_root → out[32..64]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
+  "  la a3, hebr_offset; la a4, hebr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhebr_f5_fail\n" ++
+  "  la t0, hebr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhebr_f5_fail\n" ++
+  "  la t0, hebr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  addi t5, s2, 32\n" ++
+  "  ld t4,  0(t3); sd t4,  0(t5)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(t5)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(t5)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(t5)\n" ++
+  "  # Field 16: withdrawals_root → out[64..96]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 16\n" ++
+  "  la a3, hebr_offset; la a4, hebr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhebr_f16_fail\n" ++
+  "  la t0, hebr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhebr_f16_fail\n" ++
+  "  la t0, hebr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  addi t5, s2, 64\n" ++
+  "  ld t4,  0(t3); sd t4,  0(t5)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(t5)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(t5)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(t5)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhebr_ret\n" ++
+  ".Lhebr_f4_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhebr_zero_ret\n" ++
+  ".Lhebr_f5_fail:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lhebr_zero_ret\n" ++
+  ".Lhebr_f16_fail:\n" ++
+  "  li a0, 3\n" ++
+  ".Lhebr_zero_ret:\n" ++
+  "  # Zero the output on any failure.\n" ++
+  "  mv t0, s2; li t1, 12\n" ++
+  ".Lhebr_zero:\n" ++
+  "  beqz t1, .Lhebr_ret\n" ++
+  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1\n" ++
+  "  j .Lhebr_zero\n" ++
+  ".Lhebr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_block_roots`: probe BuildUnit. Reads
+    (header_len, header_bytes), writes (status, 3 × 32-byte roots)
+    to OUTPUT (104 bytes total). -/
+def ziskHeaderExtractBlockRootsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  li a2, 0xa0010008           # 96B output at OUTPUT + 8\n" ++
+  "  # Pre-zero 96 bytes (12 dwords).\n" ++
+  "  mv t0, a2; li t1, 12\n" ++
+  ".Lhebr_pzero:\n" ++
+  "  beqz t1, .Lhebr_pzdone\n" ++
+  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1\n" ++
+  "  j .Lhebr_pzero\n" ++
+  ".Lhebr_pzdone:\n" ++
+  "  jal ra, header_extract_block_roots\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhebr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractBlockRootsFunction ++ "\n" ++
+  ".Lhebr_pdone:"
+
+def ziskHeaderExtractBlockRootsDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "hebr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hebr_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractBlockRootsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractBlockRootsPrologue
+  dataAsm     := ziskHeaderExtractBlockRootsDataSection
+}
+
 /-! ## validate_header_basic -- PR-K43 per-header semantic checks
 
     Three u64 invariants from `validate_header` (Python:
@@ -12861,6 +13001,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
   | "zisk_header_extract_blob_gas_pair" => some ziskHeaderExtractBlobGasPairProbeUnit
+  | "zisk_header_extract_block_roots" => some ziskHeaderExtractBlockRootsProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
   | "zisk_check_gas_limit"      => some ziskCheckGasLimitProbeUnit
   | "zisk_tx_validate_against_block" => some ziskTxValidateAgainstBlockProbeUnit
@@ -12967,6 +13108,7 @@ def knownProgramNames : List String :=
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
    "zisk_header_extract_blob_gas_pair",
+   "zisk_header_extract_block_roots",
    "zisk_validate_header_basic",
    "zisk_check_gas_limit",
    "zisk_tx_validate_against_block",
