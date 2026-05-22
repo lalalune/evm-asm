@@ -5771,6 +5771,30 @@ def ziskCoinbaseExtractFromHeaderProbeUnit : BuildUnit := {
   dataAsm     := ziskCoinbaseExtractFromHeaderDataSection
 }
 
+/-! ## header_extract_blob_gas_pair -- PR-K90 Cancun blob fields
+
+    Extract the EIP-4844 blob-gas fields from an Amsterdam header:
+
+      blob_gas_used    (header field 17, u64) — total blob gas
+        consumed by all transactions in this block (= sum of
+        `len(tx.blob_versioned_hashes) × GAS_PER_BLOB` over type-3
+        txs). Cross-checks against PR-K89.
+
+      excess_blob_gas  (header field 18, u64) — running total used
+        for the blob-fee adjustment formula.
+
+    Cancun-era (and later) headers always have both. Pre-Cancun
+    headers don't, and the extractor reports a parse failure.
+
+    Direct inputs to:
+      * the apply_body invariant
+        `header.blob_gas_used == sum(tx.blob_gas_used)`
+      * the next-block `excess_blob_gas` recurrence used in
+        `calculate_excess_blob_gas`.
+
+    Output layout (16 bytes):
+       0..  8  blob_gas_used    (u64 LE)
+       8.. 16  excess_blob_gas  (u64 LE)
 /-! ## block_validate_blob_gas_max_cap -- PR-K93
 
     Cancun cap enforcement: a block's `blob_gas_used` cannot exceed
@@ -5802,6 +5826,44 @@ def ziskCoinbaseExtractFromHeaderProbeUnit : BuildUnit := {
     Calling convention:
       a0 (input)  : header_rlp ptr
       a1 (input)  : header_rlp byte length
+      a2 (input)  : 16-byte output ptr (caller-supplied)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : header parse failed / field 17 missing / not u64
+        2 : field 18 missing / not u64
+
+    Composes PR-K20 `rlp_list_nth_item` via PR-K53
+    `rlp_field_to_u64`. Uses two 8-byte `.data` scratch slots
+    (`rfu_offset`, `rfu_length`) shared with other K-helpers. -/
+def headerExtractBlobGasPairFunction : String :=
+  "header_extract_blob_gas_pair:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_len\n" ++
+  "  mv s2, a2                  # output 16B ptr\n" ++
+  "  # Field 17: blob_gas_used → out[0..8]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 17\n" ++
+  "  mv a3, s2\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lhebgp_f18\n" ++
+  "  sd zero, 0(s2); sd zero, 8(s2)\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhebgp_ret\n" ++
+  ".Lhebgp_f18:\n" ++
+  "  # Field 18: excess_blob_gas → out[8..16]\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 18\n" ++
+  "  addi a3, s2, 8\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Lhebgp_ok\n" ++
+  "  sd zero, 0(s2); sd zero, 8(s2)\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lhebgp_ret\n" ++
+  ".Lhebgp_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Lhebgp_ret:\n" ++
       a2 (input)  : max_blobs_per_block (u64; 21 on mainnet Amsterdam)
       a3 (input)  : gas_per_blob (u64; 131072 on mainnet)
       ra (input)  : return
@@ -5852,6 +5914,26 @@ def blockValidateBlobGasMaxCapFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret"
 
+/-- `zisk_header_extract_blob_gas_pair`: probe BuildUnit. Reads
+    (header_len, header_bytes), writes (status, blob_gas_used,
+    excess_blob_gas) to OUTPUT (24 bytes total). -/
+def ziskHeaderExtractBlobGasPairPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_len\n" ++
+  "  addi a0, a3, 16             # header ptr\n" ++
+  "  li a2, 0xa0010008           # 16B output at OUTPUT + 8\n" ++
+  "  sd zero, 0(a2); sd zero, 8(a2)\n" ++
+  "  jal ra, header_extract_blob_gas_pair\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lhebgp_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractBlobGasPairFunction ++ "\n" ++
+  ".Lhebgp_pdone:"
+
+def ziskHeaderExtractBlobGasPairDataSection : String :=
 /-- `zisk_block_validate_blob_gas_max_cap`: probe BuildUnit. Reads
     (header_len, max_blobs, gas_per_blob, header_bytes) from host
     input, writes 8-byte status to OUTPUT. -/
@@ -5877,6 +5959,12 @@ def ziskBlockValidateBlobGasMaxCapDataSection : String :=
   "rfu_offset:\n" ++
   "  .zero 8\n" ++
   "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractBlobGasPairProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractBlobGasPairPrologue
+  dataAsm     := ziskHeaderExtractBlobGasPairDataSection
   "  .zero 8\n" ++
   ".balign 8\n" ++
   "bvbmc_bgu:\n" ++
@@ -9626,6 +9714,150 @@ def ziskTxEip4844ComputeBlobGasProbeUnit : BuildUnit := {
   dataAsm     := ziskTxEip4844ComputeBlobGasDataSection
 }
 
+/-! ## tx_calculate_total_blob_gas -- PR-K92
+
+    Python reference (`forks/amsterdam/vm/gas.py`):
+
+      def calculate_total_blob_gas(tx) -> U64:
+          if isinstance(tx, BlobTransaction):
+              return GAS_PER_BLOB * U64(len(tx.blob_versioned_hashes))
+          else:
+              return U64(0)
+
+    Accepts a transaction in its encoded form (legacy RLP list,
+    or typed `[type_byte || rlp(inner)]`) and returns the per-tx
+    blob_gas_used: 0 for any non-EIP-4844 type, otherwise the
+    blob-count × gas-per-blob product computed by PR-K88.
+
+    Composes:
+      - PR-K40 `tx_type_dispatch`           — typed-tx detector
+      - PR-K88 `tx_eip4844_compute_blob_gas` — count × gas_per_blob
+
+    Useful per-tx primitive for `apply_body` and for receipt-side
+    bookkeeping that needs the same number on every tx without
+    branching on type in the caller.
+
+    Calling convention:
+      a0 (input)  : tx_bytes ptr (encoded form)
+      a1 (input)  : tx_bytes byte length
+      a2 (input)  : gas_per_blob (u64; 131072 on mainnet Cancun)
+      a3 (input)  : u64 out ptr (receives total blob gas)
+      ra (input)  : return
+      a0 (output) : composite status code
+
+    Status decade encoding (floor(status/100) identifies the
+    failing step):
+
+      0          : success
+      1          : tx_type_dispatch failed (unknown tx type / empty)
+      101..102   : tx_eip4844_compute_blob_gas forwarded
+                   (101 = K45 decode, 102 = K64 sum)
+
+    Uses two 8-byte `.data` scratch slots (`tctbg_type`,
+    `tctbg_inner_off`) plus the buffers inherited from K88. -/
+def txCalculateTotalBlobGasFunction : String :=
+  "tx_calculate_total_blob_gas:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # tx ptr\n" ++
+  "  mv s1, a1                   # tx_len\n" ++
+  "  mv s3, a2                   # gas_per_blob (stash)\n" ++
+  "  mv s2, a3                   # out ptr\n" ++
+  "  # Default zero in case of early non-type-3 exit.\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  # Step 1: tx_type_dispatch(tx, len, &type, &inner_off)\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, tctbg_type\n" ++
+  "  la a3, tctbg_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  beqz a0, .Lctbg_after_dispatch\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lctbg_ret\n" ++
+  ".Lctbg_after_dispatch:\n" ++
+  "  la t0, tctbg_type\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  li t2, 3\n" ++
+  "  bne t1, t2, .Lctbg_zero_ok\n" ++
+  "  # type 3: compute blob gas via K88.\n" ++
+  "  la t0, tctbg_inner_off\n" ++
+  "  ld t3, 0(t0)\n" ++
+  "  add a0, s0, t3              # inner_ptr\n" ++
+  "  sub a1, s1, t3              # inner_len\n" ++
+  "  mv a2, s3                   # gas_per_blob\n" ++
+  "  mv a3, s2                   # out ptr\n" ++
+  "  jal ra, tx_eip4844_compute_blob_gas\n" ++
+  "  beqz a0, .Lctbg_ok\n" ++
+  "  li t0, 100\n" ++
+  "  add a0, a0, t0              # 1 → 101, 2 → 102\n" ++
+  "  j .Lctbg_ret\n" ++
+  ".Lctbg_zero_ok:\n" ++
+  "  # *out already 0.\n" ++
+  ".Lctbg_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Lctbg_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_tx_calculate_total_blob_gas`: probe BuildUnit. Reads
+    (tx_len, gas_per_blob, tx_bytes) from host input, writes
+    (status, total_blob_gas) to OUTPUT (16 bytes). -/
+def ziskTxCalculateTotalBlobGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # tx_len\n" ++
+  "  ld a2, 16(a4)               # gas_per_blob\n" ++
+  "  addi a0, a4, 24             # tx_ptr\n" ++
+  "  li a3, 0xa0010008           # out u64 ptr\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  jal ra, tx_calculate_total_blob_gas\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lctbg_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  blobGasUsedFromVersionedHashesFunction ++ "\n" ++
+  txEip4844ComputeBlobGasFunction ++ "\n" ++
+  txCalculateTotalBlobGasFunction ++ "\n" ++
+  ".Lctbg_pdone:"
+
+def ziskTxCalculateTotalBlobGasDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bgvh_count_scratch:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tcbg_struct:\n" ++
+  "  .zero 248\n" ++
+  ".balign 8\n" ++
+  "tctbg_type:\n" ++
+  "  .zero 8\n" ++
+  "tctbg_inner_off:\n" ++
+  "  .zero 8"
+
+def ziskTxCalculateTotalBlobGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxCalculateTotalBlobGasPrologue
+  dataAsm     := ziskTxCalculateTotalBlobGasDataSection
+}
+
+
 /-! ## intrinsic_gas_legacy -- PR-K46 base + creation + data gas
 
     Compute the intrinsic gas cost portion of a legacy /
@@ -12729,6 +12961,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
+  | "zisk_header_extract_blob_gas_pair" => some ziskHeaderExtractBlobGasPairProbeUnit
   | "zisk_block_validate_blob_gas_max_cap" => some ziskBlockValidateBlobGasMaxCapProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
   | "zisk_check_gas_limit"      => some ziskCheckGasLimitProbeUnit
@@ -12760,6 +12993,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
   | "zisk_tx_eip4844_compute_blob_gas" => some ziskTxEip4844ComputeBlobGasProbeUnit
+  | "zisk_tx_calculate_total_blob_gas" => some ziskTxCalculateTotalBlobGasProbeUnit
   | "zisk_block_body_blob_gas_total" => some ziskBlockBodyBlobGasTotalProbeUnit
   | "zisk_block_validate_blob_gas_consistency" => some ziskBlockValidateBlobGasConsistencyProbeUnit
   | "zisk_tx_decode_dispatch"   => some ziskTxDecodeDispatchProbeUnit
@@ -12834,6 +13068,7 @@ def knownProgramNames : List String :=
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
+   "zisk_header_extract_blob_gas_pair",
    "zisk_block_validate_blob_gas_max_cap",
    "zisk_validate_header_basic",
    "zisk_check_gas_limit",
@@ -12865,6 +13100,7 @@ def knownProgramNames : List String :=
    "zisk_tx_eip7702_decode",
    "zisk_tx_eip4844_decode",
    "zisk_tx_eip4844_compute_blob_gas",
+   "zisk_tx_calculate_total_blob_gas",
    "zisk_block_body_blob_gas_total",
    "zisk_block_validate_blob_gas_consistency",
    "zisk_tx_decode_dispatch",
