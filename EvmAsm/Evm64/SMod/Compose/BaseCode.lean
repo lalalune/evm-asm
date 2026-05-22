@@ -276,9 +276,9 @@ theorem smodCodeCanonical_block_subs {base : Word} :
     (∀ a i, (modCallCode base) a = some i → (smodCodeCanonical base) a = some i) ∧
     (∀ a i, (resultSignFixCode base) a = some i → (smodCodeCanonical base) a = some i) ∧
     (∀ a i, (savedRaRetCode base) a = some i → (smodCodeCanonical base) a = some i) ∧
-    (∀ a i, (modCallableCodeV4 base) a = some i →
+    (∀ a i, (modCallableCodeCanonical base) a = some i →
       (smodCodeCanonical base) a = some i) := by
-  simpa [smodCodeCanonical] using smodCodeV4_block_subs (base := base)
+  simpa [smodCodeCanonical, modCallableCodeCanonical] using smodCodeV4_block_subs (base := base)
 
 /-- Bundled top-level SMOD code subsumptions for the wrapper and appended
     legacy v1 unsigned MOD callable. -/
