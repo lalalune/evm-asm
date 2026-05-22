@@ -189,6 +189,14 @@ def n4CallAddbackBeqIterRNormVal (a b : EvmWord) : Nat :=
   EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
     out.2.2.2.2.2.toNat * 2^256
 
+/-- Compact arithmetic obligations left after the runtime branch predicates:
+    the v4 trial quotient is within one of the lower normalized quotient, and
+    the corrected iterator remainder is below the normalized divisor. -/
+def n4CallAddbackBeqRuntimeBounds (a b : EvmWord) : Prop :=
+  (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1 ∧
+    n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b
+
 /-- Runtime-normalized c3 bridge: if the normalized trial quotient is within
     one of the normalized true quotient, the raw borrow condition pins the
     mulsub carry-out to one. -/
@@ -619,6 +627,19 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions_compact
     (by
       simpa [n4CallAddbackBeqULoNormVal, n4CallAddbackBeqBNormVal] using hq_over)
     h_borrow h_carry2 h_rem_lt
+
+/-- Runtime-condition semantic bridge with the remaining compact arithmetic
+    bounds bundled as one named predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_bounds : n4CallAddbackBeqRuntimeBounds a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions_compact
+    hb3nz hshift_nz h_bounds.1 h_borrow h_carry2 h_bounds.2
 
 end EvmWord
 
