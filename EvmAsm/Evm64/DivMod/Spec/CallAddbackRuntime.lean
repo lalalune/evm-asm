@@ -160,6 +160,15 @@ def n4CallAddbackBeqBNormVal (b : EvmWord) : Nat :=
     (n4CallAddbackBeqB2Prime b)
     (n4CallAddbackBeqB3Prime b)
 
+/-- Lower four limbs of the normalized dividend used by the v4 n=4 trial
+    quotient bound. The overflow limb is tracked separately in `UNormVal`. -/
+def n4CallAddbackBeqULoNormVal (a b : EvmWord) : Nat :=
+  EvmWord.val256
+    (n4CallAddbackBeqU0 a b)
+    (n4CallAddbackBeqU1 a b)
+    (n4CallAddbackBeqU2 a b)
+    (n4CallAddbackBeqU3 a b)
+
 /-- Iterator output used by the v4 n=4 call-addback path. -/
 def n4CallAddbackBeqIterOut (a b : EvmWord) :=
   iterWithDoubleAddback
@@ -509,6 +518,34 @@ theorem n4CallAddbackBeqQOutV4_toNat_eq_normalized_div_of_runtime_top_nonzero
       hb3nz hq_over h_borrow h_carry2)
     h_rem_lt
 
+/-- The compact normalized quotient target is the original unnormalized
+    `qTrue`, since both dividend and divisor were scaled by the same CLZ
+    normalization factor. -/
+theorem n4CallAddbackBeqNormalized_div_eq_qTrue
+    {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    n4CallAddbackBeqUNormVal a b / n4CallAddbackBeqBNormVal b =
+      n4CallAddbackBeqQTrue a b := by
+  have h_norm_u := u_val256_eq_scaled_with_overflow
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 3) hshift_nz
+  have h_norm_b := b3_prime_val256_eq_scaled
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hshift_nz
+  rw [n4CallAddbackBeqQTrue_unfold]
+  rw [n4CallAddbackBeqUNormVal, n4CallAddbackBeqBNormVal]
+  rw [n4CallAddbackBeqU0_unfold, n4CallAddbackBeqU1_unfold,
+    n4CallAddbackBeqU2_unfold, n4CallAddbackBeqU3_unfold,
+    n4CallAddbackBeqU4_unfold, n4CallAddbackBeqB0Prime_unfold,
+    n4CallAddbackBeqB1Prime_unfold, n4CallAddbackBeqB2Prime_unfold,
+    n4CallAddbackBeqB3Prime_unfold, n4CallAddbackBeqShift_unfold,
+    n4CallAddbackBeqAntiShift_unfold]
+  rw [h_norm_u, h_norm_b]
+  exact val256_div_scale_invariant
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (clzResult (b.getLimbN 3)).1.toNat
+
 /-- Runtime-condition semantic bridge after the normalized quotient target has
     been identified with the original unnormalized `qTrue`. -/
 theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_top_nonzero
@@ -537,6 +574,51 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_top_nonzero
   rw [n4CallAddbackBeqQOutV4_toNat_eq_normalized_div_of_runtime_top_nonzero
     hb3nz hq_over h_borrow h_carry2 h_rem_lt]
   exact h_norm_div
+
+/-- Runtime-condition semantic bridge after discharging the normalized-divisor
+    scaling step from the CLZ shift nonzero condition. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        EvmWord.val256
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b) /
+          EvmWord.val256
+            (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b)
+            (n4CallAddbackBeqB2Prime b)
+            (n4CallAddbackBeqB3Prime b) + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_rem_lt : n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_top_nonzero
+    hb3nz hq_over h_borrow h_carry2 h_rem_lt
+    (n4CallAddbackBeqNormalized_div_eq_qTrue hshift_nz)
+
+/-- Compact runtime-condition semantic bridge with the qhat-over side
+    condition stated using named normalized values. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions_compact
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_rem_lt : n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions
+    hb3nz hshift_nz
+    (by
+      simpa [n4CallAddbackBeqULoNormVal, n4CallAddbackBeqBNormVal] using hq_over)
+    h_borrow h_carry2 h_rem_lt
 
 end EvmWord
 
