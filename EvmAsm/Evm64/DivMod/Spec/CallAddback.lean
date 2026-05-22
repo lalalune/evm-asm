@@ -287,6 +287,35 @@ theorem n4CallAddbackBeqQHatV4_eq_direct {a b : EvmWord}
   rw [n4CallAddbackBeqU3_eq_direct hshift_nz]
   rw [n4CallAddbackBeqB3Prime_eq_direct hshift_nz]
 
+theorem n4CallAddbackBeqRawTrialBound_direct {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)) :
+    (((a.getLimbN 3) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat)).toNat * 2^64 +
+        (((a.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+          ((a.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))).toNat) /
+      (((b.getLimbN 3) <<< (clzResult (b.getLimbN 3)).1.toNat) |||
+        ((b.getLimbN 2) >>> (64 - (clzResult (b.getLimbN 3)).1.toNat))).toNat ≤
+    val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+      val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) + 2 := by
+  have h_shift_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rw [← n4CallAddbackBeqShift_eq_raw]
+    exact n4CallAddbackBeqShift_pos_of_ne_zero hshift_nz
+  have hsmod :
+      (clzResult (b.getLimbN 3)).1.toNat % 64 =
+        (clzResult (b.getLimbN 3)).1.toNat :=
+    Nat.mod_eq_of_lt (by have := clzResult_fst_toNat_le (b.getLimbN 3); omega)
+  have hasmod :
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64 =
+        64 - (clzResult (b.getLimbN 3)).1.toNat :=
+    antiShift_toNat_mod_eq h_shift_pos (clzResult_fst_toNat_le (b.getLimbN 3))
+  have h := knuth_theorem_b_from_clz
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hb3nz hshift_nz hcall
+  rw [hsmod, hasmod] at h
+  exact h
+
 /-- First addback carry used by the n=4 v4 call+addback-BEQ semantic marker. -/
 def n4CallAddbackBeqCarryV4 (a b : EvmWord) : Word :=
   let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
