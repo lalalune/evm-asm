@@ -124,6 +124,33 @@ def isAddbackCarry2NzN4CallV4Ab (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
   let u0 := a0 <<< (shift.toNat % 64)
   loopBodyN4CallAddbackCarry2NzV4 b0' b1' b2' b3' u0 u1 u2 u3 u4
 
+/-- Eliminate the packaged v4 n=4 call-addback carry2 predicate to the
+    raw implication consumed by double-addback loop-body proofs. -/
+theorem isAddbackCarry2NzN4CallV4Ab_raw
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hcarry2_nz : isAddbackCarry2NzN4CallV4Ab a0 a1 a2 a3 b0 b1 b2 b3) :
+    let shift := (clzResult b3).1
+    let antiShift := signExtend12 (0 : BitVec 12) - shift
+    let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+    let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+    let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+    let b0' := b0 <<< (shift.toNat % 64)
+    let u4 := a3 >>> (antiShift.toNat % 64)
+    let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+    let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+    let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+    let u0 := a0 <<< (shift.toNat % 64)
+    let qHat := divKTrialCallV4QHat u4 u3 b3'
+    let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+    let c3 := ms.2.2.2.2
+    let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (u4 - c3) b0' b1' b2' b3'
+    carry = 0 →
+      addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 b0' b1' b2' b3' ≠ 0 := by
+  unfold isAddbackCarry2NzN4CallV4Ab at hcarry2_nz
+  unfold loopBodyN4CallAddbackCarry2NzV4 at hcarry2_nz
+  simpa using hcarry2_nz
+
 /-- n=4 pre-loop + call+addback BEQ loop body over `divCode_noNop_v4`. -/
 theorem evm_div_n4_preloop_call_addback_beq_spec_v4_noNop (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
