@@ -395,6 +395,26 @@ theorem n4CallAddbackBeqSemanticHoldsV4_carry_ne_zero_qHat_qTrue {a b : EvmWord}
   rw [← n4CallAddbackBeqQOutV4_toNat_of_carry_ne_zero h_carry]
   exact n4CallAddbackBeqSemanticHoldsV4_qOutV4_toNat_eq_qTrue hsem
 
+/-- Zero-carry branch-local qHat characterization of the v4 semantic predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_carry_eq_zero_qHat_qTrue_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
+    n4CallAddbackBeqSemanticHoldsV4 a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  constructor
+  · exact n4CallAddbackBeqSemanticHoldsV4_carry_eq_zero_qHat_qTrue h_carry
+  · exact n4CallAddbackBeqSemanticHoldsV4_of_carry_eq_zero_qHat_qTrue h_carry
+
+/-- Nonzero-carry branch-local qHat characterization of the v4 semantic predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_carry_ne_zero_qHat_qTrue_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0) :
+    n4CallAddbackBeqSemanticHoldsV4 a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  constructor
+  · exact n4CallAddbackBeqSemanticHoldsV4_carry_ne_zero_qHat_qTrue h_carry
+  · exact n4CallAddbackBeqSemanticHoldsV4_of_carry_ne_zero_qHat_qTrue h_carry
+
 /-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the raw
     normalized `q_out` equality. -/
 theorem n4CallAddbackBeqSemanticHoldsV4_of_qOut_toNat_eq {a b : EvmWord}
