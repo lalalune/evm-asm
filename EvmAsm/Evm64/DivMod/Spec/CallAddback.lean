@@ -242,6 +242,20 @@ theorem n4CallAddbackBeqQTrue_eq_iff {a b : EvmWord} {q : Nat} :
         q :=
   Iff.rfl
 
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_carry_eq_zero_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b = 0) :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095 + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  rw [n4CallAddbackBeqQOutV4_toNat_of_carry_eq_zero h_carry]
+
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_carry_ne_zero_iff {a b : EvmWord}
+    (h_carry : n4CallAddbackBeqCarryV4 a b ≠ 0) :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b ↔
+      (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat =
+        n4CallAddbackBeqQTrue a b := by
+  rw [n4CallAddbackBeqQOutV4_toNat_of_carry_ne_zero h_carry]
+
 /-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
 
     This is the v4 migration target for `n4CallAddbackBeqSemanticHolds`: it uses
