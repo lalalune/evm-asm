@@ -8,8 +8,7 @@
   - Zero divisor path (b = 0): evm_div_bzero_stack_spec_within, evm_mod_bzero_stack_spec_within
   - Normal path (b ≠ 0): infrastructure complete; final composition pending.
 
-  Stack-spec infrastructure (for the n=4 max+skip sub-path and its symmetric
-  MOD counterpart):
+  Stack-spec infrastructure (for the n=4 max+skip sub-path):
 
   * Precondition bundle: `divN4StackPre` (`modN4StackPre`) — `@[irreducible]`,
     bundles 9 registers + `evmWordIs sp a` + `evmWordIs (sp+32) b` +
@@ -18,8 +17,8 @@
   * Postcondition bundle: `divN4MaxSkipStackPost` — `@[irreducible]`, bundles
     9 registers (7 weakened to `regOwn`) + `evmWordIs sp a` (preserved) +
     `evmWordIs (sp+32) (EvmWord.div a b)` + `divScratchOwn`. Unfold helpers:
-    `_unfold`, `_unfold_atoms`. (The MOD counterpart used a different
-    denormalization bridge and is no longer materialized here.)
+    `_unfold`, `_unfold_atoms`. The MOD counterpart lives in
+    `Spec.ModMaxSkipV4` because it uses the v4 denormalization bridge.
   * Runtime condition wrappers (EvmWord form): `isMaxTrialN4Evm`,
     `isSkipBorrowN4MaxEvm`, `isCallTrialN4Evm`, `isSkipBorrowN4CallEvm`,
     `isAddbackBorrowN4CallEvm`. Each is a thin shim over the Word-level
@@ -29,8 +28,8 @@
     `n4_max_skip_div_mod_getLimbN` consumes.
   * Weakener: `div_n4_max_skip_stack_weaken` — turns specific register values
     + `evmWordIs` operand atoms + `divScratchValues` into
-    `divN4MaxSkipStackPost`. (The MOD counterpart `mod_n4_max_skip_stack_weaken`
-    has been removed along with `modN4MaxSkipStackPost`.)
+    `divN4MaxSkipStackPost`. The MOD counterpart is
+    `mod_n4_max_skip_stack_weaken` in `Spec.ModMaxSkipV4`.
   * `pcFree` instances for the stack-pre/post bundles defined here
     (`divN4StackPre`, `modN4StackPre`, `divN4MaxSkipStackPost`). `pcFree` instances for the post bundles
     defined in `Compose/Base.lean` (`divScratchOwn`, `denormDivPost`,
@@ -40,6 +39,9 @@
   * Pre-wrapper: `evm_div_n4_full_max_skip_stack_pre_spec` and its bundled
     variant `evm_div_n4_full_max_skip_stack_pre_spec_bundled` — wrap the
     limb-level full-path spec in the EvmWord-level pre shape.
+  * V4 final stack specs are split out of this base module:
+    `Spec.DivMaxSkipV4` exposes `evm_div_n4_max_skip_stack_spec_v4`, and
+    `Spec.ModMaxSkipV4` exposes `evm_mod_n4_max_skip_stack_spec_within_v4`.
 -/
 
 import EvmAsm.Evm64.DivMod.Compose
@@ -91,9 +93,11 @@ def n4MaxSkipSemanticHolds (a b : EvmWord) : Prop :=
       operand slot.
     * `divScratchOwn sp` — ownership of all 15 scratch cells, values unspecified.
 
-    Paired with the forthcoming `evm_div_n4_max_skip_stack_spec` and derived
-    from the concrete `fullDivN4MaxSkipPost` via the `n4_max_skip_div_mod_getLimbN`
-    semantic bridge + `divScratchValues_implies_divScratchOwn` weakener. -/
+    Paired with `evm_div_n4_max_skip_stack_spec` below and the v4 split
+    theorem `evm_div_n4_max_skip_stack_spec_v4` in `Spec.DivMaxSkipV4`.
+    Both are derived from the concrete `fullDivN4MaxSkipPost` via the
+    `n4_max_skip_div_mod_getLimbN` semantic bridge +
+    `divScratchValues_implies_divScratchOwn` weakener. -/
 @[irreducible]
 def divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
   (.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** regOwn .x2 **
@@ -108,9 +112,10 @@ def divN4MaxSkipStackPost (sp : Word) (a b : EvmWord) : Assertion :=
     operand slots, and the `divScratchValues` starting state into a single
     named assertion.
 
-    Paired with `divN4MaxSkipStackPost` — the forthcoming
-    `evm_div_n4_max_skip_stack_spec` will have this as its precondition and
-    that as its postcondition. -/
+    Paired with `divN4MaxSkipStackPost` — the legacy
+    `evm_div_n4_max_skip_stack_spec` below and the v4 split theorem
+    `evm_div_n4_max_skip_stack_spec_v4` both have this as their precondition
+    and that as their postcondition. -/
 @[irreducible]
 def divN4StackPre (sp : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11 : Word)
