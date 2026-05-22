@@ -259,6 +259,17 @@ theorem n4CallAddbackBeqQOutV4_toNat_of_carry_ne_zero {a b : EvmWord}
       (n4CallAddbackBeqQHatV4 a b + signExtend12 4095).toNat := by
   rw [n4CallAddbackBeqQOutV4_of_carry_ne_zero h_carry]
 
+/-- True 256-bit quotient targeted by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqQTrue (a b : EvmWord) : Nat :=
+  val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+    val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+theorem n4CallAddbackBeqQTrue_unfold {a b : EvmWord} :
+    n4CallAddbackBeqQTrue a b =
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  rfl
+
 /-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
 
     This is the v4 migration target for `n4CallAddbackBeqSemanticHolds`: it uses
@@ -266,9 +277,7 @@ theorem n4CallAddbackBeqQOutV4_toNat_of_carry_ne_zero {a b : EvmWord}
     `n4CallAddbackBeqSemanticHolds_of_runtime_conditions` should target this
     quotient surface and then retire the legacy v1 marker. -/
 def n4CallAddbackBeqSemanticHoldsV4 (a b : EvmWord) : Prop :=
-  (n4CallAddbackBeqQOutV4 a b).toNat =
-    val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
-      val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+  (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b
 
 theorem n4CallAddbackBeqSemanticV4_unfold {a b : EvmWord} :
     n4CallAddbackBeqSemanticHoldsV4 a b =
