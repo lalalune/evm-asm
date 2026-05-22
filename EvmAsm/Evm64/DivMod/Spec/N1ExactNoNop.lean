@@ -275,6 +275,37 @@ theorem fullDivN1UnifiedPostNoX1_to_divConcretePostNoX1Frame
     exact fun _ hp => hp
     exact hpLeft
 
+/-- Convert the N1 no-`x1` full-path post plus exact caller `x1` into the
+    named public callable exact-frame postcondition. -/
+theorem fullDivN1UnifiedPostNoX1_frame_to_divStackDispatchPostCallableExactFrame
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (sp base : Word) (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 : Word)
+    (raVal : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hdiv0 : (EvmWord.div a b).getLimbN 0 =
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1)
+    (hdiv1 : (EvmWord.div a b).getLimbN 1 =
+      (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1)
+    (hdiv2 : (EvmWord.div a b).getLimbN 2 =
+      (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1)
+    (hdiv3 : (EvmWord.div a b).getLimbN 3 =
+      (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1) :
+    ∀ h,
+      (fullDivN1UnifiedPostNoX1 bltu_3 bltu_2 bltu_1 bltu_0 sp base
+        a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 **
+        (.x1 ↦ᵣ raVal)) h →
+      divStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) h := by
+  intro h hp
+  rw [divStackDispatchPostCallableExactFrame_unfold]
+  exact divConcretePostNoX1_weaken_callable_frame sp a b h
+    (fullDivN1UnifiedPostNoX1_to_divConcretePostNoX1Frame
+      bltu_3 bltu_2 bltu_1 bltu_0 sp base a b
+      a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 raVal
+      ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hp)
+
 /-- Bridge the v4 call/max/max/max N1 post into the concrete callable DIV
     post frame, retaining the v4-only scratch word at `sp+3936` as a separate
     frame atom. Quotient arithmetic is supplied as four limb equalities so this
