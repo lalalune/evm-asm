@@ -286,4 +286,30 @@ theorem divK_loop_body_n1_call_addback_jgt0_exact_loopIterScratch_v4 (j sp base 
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
       retMem dMem dloMem scratchUn0 scratchMem halign hbltu hborrow hcarry2_nz)
 
+/-- Loop body n=1, call+skip, j=0 over the full `divCode_v4` bundle, preserving `x1`. -/
+theorem divK_loop_body_n1_call_skip_j0_exact_loopIterScratch_v4 (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u1 v0)
+    (hborrow : loopBodyN1CallSkipJ0BorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 148 (base + loopBodyOff) (base + denormOff) (divCode_v4 base)
+      (loopBodyN1CallSkipJ0PreV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopIterPostN1CallScratchNoX1 sp base (0 : Word)
+        (divKTrialCallV4QHat u1 u0 v0)
+        (divKTrialCallV4DLo v0)
+        (divKTrialCallV4Un0 u0)
+        (divKTrialCallV4ScratchOut u1 u0 v0 scratchMem)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+        (.x1 ↦ᵣ raVal)) := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_loop_body_n1_call_skip_j0_exact_loopIterScratch_v4_noNop sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
+      retMem dMem dloMem scratchUn0 scratchMem halign hbltu hborrow)
+
 end EvmAsm.Evm64
