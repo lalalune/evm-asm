@@ -9496,6 +9496,134 @@ def ziskBlockSummaryProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockSummaryDataSection
 }
 
+/-! ## mpt_branch_get_child -- PR-K115
+
+    Extract the i-th child reference of an MPT branch node.
+
+    A branch node is a 17-item RLP list: `[c0, c1, …, c15, value]`.
+    Each child slot `ci` (i in 0..15) holds the i-th child's node
+    reference — either a 32-byte keccak digest or an embedded RLP
+    blob (see PR-K112 `encode_internal_node`). An empty child slot
+    is encoded as the empty RLP string (length 0).
+
+    Pairs with PR-K113 `mpt_leaf_extract` and PR-K114
+    `mpt_extension_extract` to cover the three MPT node shapes
+    (leaf / extension / branch). Used by the MPT walker
+    (PR-K24 `mpt_walk`) every time it descends through a branch
+    along the path's current nibble.
+
+    Composes:
+      - PR-K47 `rlp_list_count_items` — sanity-check 17 items
+      - PR-K20 `rlp_list_nth_item`    — i-th field bounds
+
+    Calling convention:
+      a0 (input)  : branch_rlp ptr
+      a1 (input)  : branch_rlp byte length
+      a2 (input)  : nibble index (0..15)
+      a3 (input)  : u64 out ptr (child_ptr — absolute)
+      a4 (input)  : u64 out ptr (child_len)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — child slot extracted (may be empty / 32 B / embedded)
+        1 : not a 17-item list (or RLP parse failure)
+        2 : invalid index (> 15)
+        3 : i-th field extraction failed (mid-list parse error)
+
+    Uses two 8-byte `.data` scratch slots
+    (`mbc_count`, `mbc_off` + `mbc_len`). -/
+def mptBranchGetChildFunction : String :=
+  "mpt_branch_get_child:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # branch ptr\n" ++
+  "  mv s1, a1                   # branch len\n" ++
+  "  mv s2, a2                   # index\n" ++
+  "  mv s3, a3                   # child_ptr out\n" ++
+  "  mv s4, a4                   # child_len out\n" ++
+  "  sd zero, 0(s3); sd zero, 0(s4)\n" ++
+  "  # Bounds-check index.\n" ++
+  "  li t0, 16\n" ++
+  "  bgeu s2, t0, .Lmbc_bad_idx\n" ++
+  "  # Verify 17-item list.\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, mbc_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lmbc_not_branch\n" ++
+  "  la t0, mbc_count; ld t1, 0(t0)\n" ++
+  "  li t2, 17\n" ++
+  "  bne t1, t2, .Lmbc_not_branch\n" ++
+  "  # Extract i-th field.\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  mv a2, s2\n" ++
+  "  la a3, mbc_off; la a4, mbc_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmbc_nth_fail\n" ++
+  "  la t0, mbc_off; ld t1, 0(t0)\n" ++
+  "  add t2, s0, t1\n" ++
+  "  sd t2, 0(s3)\n" ++
+  "  la t0, mbc_len; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmbc_ret\n" ++
+  ".Lmbc_bad_idx:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lmbc_ret\n" ++
+  ".Lmbc_not_branch:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lmbc_ret\n" ++
+  ".Lmbc_nth_fail:\n" ++
+  "  li a0, 3\n" ++
+  ".Lmbc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_mpt_branch_get_child`: probe BuildUnit. Reads
+    (branch_len, index, branch_bytes), writes
+    (status, child_offset, child_len, child_bytes...) to OUTPUT.
+    Probe converts the absolute `child_ptr` to a relative offset
+    within `branch_rlp` so the test harness can rehydrate. -/
+def ziskMptBranchGetChildPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # branch length\n" ++
+  "  ld a2, 16(a5)               # index\n" ++
+  "  addi a0, a5, 24             # branch ptr\n" ++
+  "  li a3, 0xa0010008           # child_ptr (absolute) out\n" ++
+  "  li a4, 0xa0010010           # child_len out\n" ++
+  "  jal ra, mpt_branch_get_child\n" ++
+  "  li t0, 0xa0010008\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lmbc_skip_rel\n" ++
+  "  addi t2, a5, 24\n" ++
+  "  sub t1, t1, t2\n" ++
+  "  sd t1, 0(t0)\n" ++
+  ".Lmbc_skip_rel:\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmbc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  mptBranchGetChildFunction ++ "\n" ++
+  ".Lmbc_pdone:"
+
+def ziskMptBranchGetChildDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "mbc_count:\n" ++
+  "  .zero 8\n" ++
+  "mbc_off:\n" ++
+  "  .zero 8\n" ++
+  "mbc_len:\n" ++
+  "  .zero 8"
+
+def ziskMptBranchGetChildProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptBranchGetChildPrologue
+  dataAsm     := ziskMptBranchGetChildDataSection
+}
 
 
 /-! ## stateless_guest body — PR-K5 keccak hash field
@@ -9727,6 +9855,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_block_withdrawals_total" => some ziskBlockWithdrawalsTotalProbeUnit
   | "zisk_block_summary"        => some ziskBlockSummaryProbeUnit
+  | "zisk_mpt_branch_get_child" => some ziskMptBranchGetChildProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -9827,6 +9956,7 @@ def knownProgramNames : List String :=
    "zisk_withdrawals_sum_amounts",
    "zisk_block_withdrawals_total",
    "zisk_block_summary",
+   "zisk_mpt_branch_get_child",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
