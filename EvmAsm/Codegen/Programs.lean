@@ -5751,6 +5751,84 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderBasicDataSection
 }
 
+/-! ## calc_excess_blob_gas -- PR-K63 EIP-4844 excess blob gas formula
+
+    Compute the next header's `excess_blob_gas` field from the
+    parent header. Python (`forks/cancun/fork.py::
+    calculate_excess_blob_gas`):
+
+      def calculate_excess_blob_gas(parent_header):
+          excess_blob_gas = (
+              parent_header.excess_blob_gas
+              + parent_header.blob_gas_used
+          )
+          if excess_blob_gas < TARGET_BLOB_GAS_PER_BLOCK:
+              return 0
+          return excess_blob_gas - TARGET_BLOB_GAS_PER_BLOCK
+
+    Equivalent to: `max(0, parent.excess_blob_gas +
+    parent.blob_gas_used - target)`.
+
+    Used by `validate_header` to check that
+    `header.excess_blob_gas == calc_excess_blob_gas(parent,
+    target)`.
+
+    The `target` is parameterized — Cancun uses 3 blobs × 131072
+    bytes = 393216; Prague/Amsterdam may use a higher target via
+    EIP-7691 (e.g. 6 blobs × 131072 = 786432). The function takes
+    `target` as an explicit u64 input so it works across forks.
+
+    ## Precondition
+
+    `parent_excess + parent_blob_used` must not overflow u64. In
+    practice both terms are small (each < 2^30 on mainnet), so
+    overflow doesn't occur. The function does NOT check.
+
+    Calling convention:
+      a0 (input)  : parent.excess_blob_gas (u64)
+      a1 (input)  : parent.blob_gas_used (u64)
+      a2 (input)  : target_blob_gas_per_block (u64)
+      ra (input)  : return
+      a0 (output) : excess_blob_gas for this header (u64).
+
+    Pure register arithmetic, no scratch memory, leaf-callable. -/
+def calcExcessBlobGasFunction : String :=
+  "calc_excess_blob_gas:\n" ++
+  "  add t0, a0, a1              # parent_excess + parent_used\n" ++
+  "  bgeu t0, a2, .Lcebg_pos     # >= target → return diff\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lcebg_pos:\n" ++
+  "  sub a0, t0, a2\n" ++
+  "  ret"
+
+/-- `zisk_calc_excess_blob_gas`: probe BuildUnit. Reads
+    (parent_excess, parent_used, target) from host input, writes
+    the u64 result to OUTPUT. -/
+def ziskCalcExcessBlobGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a0, 8(a3)                # parent_excess_blob_gas\n" ++
+  "  ld a1, 16(a3)               # parent_blob_gas_used\n" ++
+  "  ld a2, 24(a3)               # target_blob_gas_per_block\n" ++
+  "  jal ra, calc_excess_blob_gas\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcebg_pdone\n" ++
+  calcExcessBlobGasFunction ++ "\n" ++
+  ".Lcebg_pdone:"
+
+def ziskCalcExcessBlobGasDataSection : String :=
+  ".section .data\n" ++
+  "cebg_pad:\n" ++
+  "  .zero 8"
+
+def ziskCalcExcessBlobGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskCalcExcessBlobGasPrologue
+  dataAsm     := ziskCalcExcessBlobGasDataSection
+}
+
 /-! ## u256_add_be -- PR-K51 modular addition on BE u256 buffers
 
     Compute `(a + b) mod 2^256` over two 32-byte big-endian
@@ -9088,6 +9166,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
+  | "zisk_calc_excess_blob_gas" => some ziskCalcExcessBlobGasProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
@@ -9164,6 +9243,7 @@ def knownProgramNames : List String :=
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
    "zisk_validate_header_basic",
+   "zisk_calc_excess_blob_gas",
    "zisk_u256_add_be",
    "zisk_u256_sub_be",
    "zisk_u256_eq",
