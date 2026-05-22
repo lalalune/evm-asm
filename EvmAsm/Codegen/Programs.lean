@@ -9306,6 +9306,179 @@ def ziskProcessWithdrawalProbeUnit : BuildUnit := {
   dataAsm     := ziskProcessWithdrawalDataSection
 }
 
+/-! ## process_withdrawals_block -- PR-K78
+
+    Iterate over a block's RLP-encoded withdrawals list and apply
+    each Gwei→wei credit to a parallel pre-fetched balance array.
+    Mirrors the inner loop of Python's `apply_body`:
+
+      for wd in block.withdrawals:
+          process_withdrawal(state, wd)
+
+    Caller responsibilities:
+      1. Pre-fetch the current balance of each withdrawal recipient
+         from the state trie (via PR-K28 `account_at_address` etc.)
+         into a parallel `balances[N]` array (each 32 B u256 BE).
+      2. After this helper returns, write each updated `balances[i]`
+         back to state (via the still-pending MPT mutation path).
+
+    The parallel-array indirection lets this PR ship without
+    requiring the MPT mutation infrastructure that
+    `compute_state_root_and_trie_changes` will add.
+
+    Composes:
+      - PR-K47 `rlp_list_count_items` — outer cardinality
+      - PR-K20 `rlp_list_nth_item`    — per-entry bounds
+      - PR-K49 `withdrawal_decode`    — extract amount
+      - PR-K77 `process_withdrawal`   — credit `balances[i]`
+
+    Calling convention:
+      a0 (input)  : withdrawals_rlp ptr
+      a1 (input)  : withdrawals_rlp byte length
+      a2 (input)  : balances array ptr (N × 32 B; in-place updated)
+      ra (input)  : return
+      a0 (output) :
+        0  : success (every entry credited)
+        1  : RLP parse failure at outer count or entry walk
+        2  : `withdrawal_decode` failed on an entry
+        3  : `process_withdrawal` overflow on credit step
+
+    Uses 64 bytes of `.data` scratch (`pwb_count`,
+    `pwb_entry_offset`, `pwb_entry_length`, `pwb_struct[48]`)
+    plus `pw_amount_wei` and `u256m_acc` carried in from K77. -/
+def processWithdrawalsBlockFunction : String :=
+  "process_withdrawals_block:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # rlp_ptr\n" ++
+  "  mv s1, a1                   # rlp_len\n" ++
+  "  mv s2, a2                   # balances ptr\n" ++
+  "  # Step 1: count outer entries\n" ++
+  "  la a2, pwb_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lpwb_fail_parse\n" ++
+  "  la t0, pwb_count; ld s3, 0(t0)\n" ++
+  "  li s5, 0                    # current entry index i\n" ++
+  ".Lpwb_loop:\n" ++
+  "  beq s5, s3, .Lpwb_done\n" ++
+  "  # Get entry i bounds\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s5\n" ++
+  "  la a3, pwb_entry_offset\n" ++
+  "  la a4, pwb_entry_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lpwb_fail_parse\n" ++
+  "  # Decode entry into pwb_struct (48 B)\n" ++
+  "  la t0, pwb_entry_offset; ld t1, 0(t0)\n" ++
+  "  la t0, pwb_entry_length; ld t2, 0(t0)\n" ++
+  "  add a0, s0, t1\n" ++
+  "  mv a1, t2\n" ++
+  "  la a2, pwb_struct\n" ++
+  "  jal ra, withdrawal_decode\n" ++
+  "  bnez a0, .Lpwb_fail_decode\n" ++
+  "  # process_withdrawal(struct, &balances[i])\n" ++
+  "  la a0, pwb_struct\n" ++
+  "  # balances[i] = s2 + i * 32\n" ++
+  "  slli s4, s5, 5\n" ++
+  "  add a1, s2, s4\n" ++
+  "  jal ra, process_withdrawal\n" ++
+  "  bnez a0, .Lpwb_fail_credit\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lpwb_loop\n" ++
+  ".Lpwb_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lpwb_ret\n" ++
+  ".Lpwb_fail_parse:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lpwb_ret\n" ++
+  ".Lpwb_fail_decode:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lpwb_ret\n" ++
+  ".Lpwb_fail_credit:\n" ++
+  "  li a0, 3\n" ++
+  ".Lpwb_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_process_withdrawals_block`: probe BuildUnit. Reads
+    (wd_count u64, balances initial N × 32 B, rlp_len u64,
+    rlp_bytes) from host input. Writes (status, balances after
+    credits) to OUTPUT. -/
+def ziskProcessWithdrawalsBlockPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld t1, 8(a4)                # wd_count (N)\n" ++
+  "  # Copy initial balances (input offset 16..16+N*32) to OUTPUT + 8.\n" ++
+  "  addi t2, a4, 16             # source ptr\n" ++
+  "  li t3, 0xa0010008           # dst ptr\n" ++
+  "  slli t4, t1, 5              # N × 32 bytes\n" ++
+  "  add t5, t3, t4              # dst end\n" ++
+  ".Lpwb_copy:\n" ++
+  "  beq t3, t5, .Lpwb_copy_done\n" ++
+  "  ld t6, 0(t2)\n" ++
+  "  sd t6, 0(t3)\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  j .Lpwb_copy\n" ++
+  ".Lpwb_copy_done:\n" ++
+  "  # Now read rlp_len and rlp ptr.\n" ++
+  "  add t0, a4, t4              # 0x40000000 + 16 + N*32\n" ++
+  "  ld a1, 16(t0)               # rlp_len at offset 16+N*32\n" ++
+  "  addi a0, t0, 24             # rlp ptr after the length\n" ++
+  "  li a2, 0xa0010008           # balances array\n" ++
+  "  jal ra, process_withdrawals_block\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lpwb_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  withdrawalDecodeFunction ++ "\n" ++
+  u256FromU64BeFunction ++ "\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  processWithdrawalFunction ++ "\n" ++
+  processWithdrawalsBlockFunction ++ "\n" ++
+  ".Lpwb_pdone:"
+
+def ziskProcessWithdrawalsBlockDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wd_offset:\n" ++
+  "  .zero 8\n" ++
+  "wd_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40\n" ++
+  ".balign 32\n" ++
+  "pw_amount_wei:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "pwb_count:\n" ++
+  "  .zero 8\n" ++
+  "pwb_entry_offset:\n" ++
+  "  .zero 8\n" ++
+  "pwb_entry_length:\n" ++
+  "  .zero 8\n" ++
+  "pwb_struct:\n" ++
+  "  .zero 48"
+
+def ziskProcessWithdrawalsBlockProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskProcessWithdrawalsBlockPrologue
+  dataAsm     := ziskProcessWithdrawalsBlockDataSection
+}
+
 /-! ## withdrawals_sum_amounts -- PR-K65 block withdrawal-credit total
 
     Walk an RLP-encoded list of Shanghai+ Withdrawal records
@@ -10744,6 +10917,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_validate_transaction_basic" => some ziskValidateTransactionBasicProbeUnit
   | "zisk_withdrawal_decode"    => some ziskWithdrawalDecodeProbeUnit
   | "zisk_process_withdrawal"   => some ziskProcessWithdrawalProbeUnit
+  | "zisk_process_withdrawals_block" => some ziskProcessWithdrawalsBlockProbeUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
@@ -10835,6 +11009,7 @@ def knownProgramNames : List String :=
    "zisk_validate_transaction_basic",
    "zisk_withdrawal_decode",
    "zisk_process_withdrawal",
+   "zisk_process_withdrawals_block",
    "zisk_withdrawals_sum_amounts",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
