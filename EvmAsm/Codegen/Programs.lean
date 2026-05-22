@@ -10636,6 +10636,166 @@ def ziskBlockSummaryProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockSummaryDataSection
 }
 
+/-! ## mpt_leaf_extract -- PR-K113
+
+    Fully decode an MPT leaf node RLP:
+
+      node = [compact_path, value]
+
+    into:
+    - path nibbles (decompressed from compact form)
+    - absolute pointer to the value bytes (inside `node_rlp`)
+    - value byte length
+
+    Rejects branch (17-item), extension (2-item with non-leaf
+    prefix), and malformed RLP inputs.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — field extractor
+      - PR-K110 (compact_to_nibbles, inlined here) — path decode
+
+    Callers chain this with PR-K27 `account_decode` to walk the
+    state trie's leaves into structured account fields, or with
+    storage-slot decoders to read slot values straight out of
+    leaves.
+
+    Calling convention:
+      a0 (input)  : node_rlp ptr
+      a1 (input)  : node_rlp byte length
+      a2 (input)  : 64-byte nibbles output ptr
+      a3 (input)  : u64 out ptr (nibble count)
+      a4 (input)  : u64 out ptr (value_ptr — absolute)
+      a5 (input)  : u64 out ptr (value_len)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse / not 2-item list / missing path
+        2 : compact prefix says extension, not leaf
+
+    Uses two 8-byte `.data` scratch slots (`mle_path_off`,
+    `mle_path_len`). -/
+def mptLeafExtractFunction : String :=
+  "mpt_leaf_extract:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # node ptr\n" ++
+  "  mv s1, a1                   # node len\n" ++
+  "  mv s2, a2                   # nibbles out\n" ++
+  "  mv s3, a3                   # nibble_count out\n" ++
+  "  mv s4, a4                   # value_ptr out\n" ++
+  "  mv s5, a5                   # value_len out\n" ++
+  "  sd zero, 0(s3); sd zero, 0(s4); sd zero, 0(s5)\n" ++
+  "  # Field 0: compact path bytes.\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
+  "  la a3, mle_path_off; la a4, mle_path_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmle_parse_fail\n" ++
+  "  la t0, mle_path_len; ld t6, 0(t0)\n" ++
+  "  beqz t6, .Lmle_parse_fail\n" ++
+  "  la t0, mle_path_off; ld t5, 0(t0)\n" ++
+  "  add s6, s0, t5\n" ++
+  "  # Inline compact_to_nibbles: read prefix byte.\n" ++
+  "  lbu t0, 0(s6)\n" ++
+  "  srli t1, t0, 4\n" ++
+  "  andi t2, t1, 2\n" ++
+  "  beqz t2, .Lmle_not_leaf\n" ++
+  "  andi t3, t1, 1\n" ++
+  "  mv t4, s2\n" ++
+  "  li t5, 0\n" ++
+  "  beqz t3, .Lmle_path_even\n" ++
+  "  andi t6, t0, 0xf\n" ++
+  "  sb t6, 0(t4)\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t5, t5, 1\n" ++
+  ".Lmle_path_even:\n" ++
+  "  la t0, mle_path_len; ld t1, 0(t0)\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  addi t6, s6, 1\n" ++
+  ".Lmle_path_loop:\n" ++
+  "  beqz t1, .Lmle_path_done\n" ++
+  "  lbu t0, 0(t6)\n" ++
+  "  srli t2, t0, 4\n" ++
+  "  andi t3, t0, 0xf\n" ++
+  "  sb t2, 0(t4)\n" ++
+  "  sb t3, 1(t4)\n" ++
+  "  addi t4, t4, 2\n" ++
+  "  addi t5, t5, 2\n" ++
+  "  addi t6, t6, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lmle_path_loop\n" ++
+  ".Lmle_path_done:\n" ++
+  "  sd t5, 0(s3)\n" ++
+  "  # Field 1: value bytes.\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
+  "  la a3, mle_path_off; la a4, mle_path_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmle_parse_fail\n" ++
+  "  la t0, mle_path_off; ld t1, 0(t0)\n" ++
+  "  add t2, s0, t1\n" ++
+  "  sd t2, 0(s4)\n" ++
+  "  la t0, mle_path_len; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s5)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmle_ret\n" ++
+  ".Lmle_not_leaf:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lmle_ret\n" ++
+  ".Lmle_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lmle_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_mpt_leaf_extract`: probe BuildUnit. Reads
+    (node_len, node_bytes), writes (status, nibble_count,
+    value_offset_in_node, value_len, nibbles...) to OUTPUT.
+    The probe rewrites the returned absolute `value_ptr` to a
+    relative offset within `node_rlp` so the test harness can
+    rehydrate the value from the host `-i` file. -/
+def ziskMptLeafExtractPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a6, 0x40000000\n" ++
+  "  ld a1, 8(a6)                # node length\n" ++
+  "  addi a0, a6, 16             # node ptr\n" ++
+  "  li a2, 0xa0010020           # nibbles output\n" ++
+  "  li a3, 0xa0010008           # nibble_count out\n" ++
+  "  li a4, 0xa0010010           # value_ptr (absolute) out\n" ++
+  "  li a5, 0xa0010018           # value_len out\n" ++
+  "  jal ra, mpt_leaf_extract\n" ++
+  "  # Convert absolute value_ptr to relative offset within node_rlp.\n" ++
+  "  li t0, 0xa0010010\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lmle_skip_rel\n" ++
+  "  addi t2, a6, 16\n" ++
+  "  sub t1, t1, t2\n" ++
+  "  sd t1, 0(t0)\n" ++
+  ".Lmle_skip_rel:\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmle_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptLeafExtractFunction ++ "\n" ++
+  ".Lmle_pdone:"
+
+def ziskMptLeafExtractDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "mle_path_off:\n" ++
+  "  .zero 8\n" ++
+  "mle_path_len:\n" ++
+  "  .zero 8"
+
+def ziskMptLeafExtractProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptLeafExtractPrologue
+  dataAsm     := ziskMptLeafExtractDataSection
+}
+
 
 /-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
 
@@ -11939,6 +12099,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_block_withdrawals_total" => some ziskBlockWithdrawalsTotalProbeUnit
   | "zisk_block_summary"        => some ziskBlockSummaryProbeUnit
+  | "zisk_mpt_leaf_extract"     => some ziskMptLeafExtractProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -12039,6 +12200,7 @@ def knownProgramNames : List String :=
    "zisk_withdrawals_sum_amounts",
    "zisk_block_withdrawals_total",
    "zisk_block_summary",
+   "zisk_mpt_leaf_extract",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
