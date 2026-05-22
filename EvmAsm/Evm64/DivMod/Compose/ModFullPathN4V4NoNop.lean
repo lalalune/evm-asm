@@ -240,6 +240,119 @@ theorem evm_mod_denorm_epilogue_spec_within_v4 (sp base : Word)
     (evm_mod_denorm_epilogue_spec_within_noNop_v4 sp base
       u0 u1 u2 u3 v2 v5 v7 v10 shift m0 m8 m16 m24)
 
+/-- MOD denorm preamble over the no-NOP v4 MOD code bundle. -/
+theorem mod_denorm_preamble_spec_within_noNop_v4 (sp shift v5 v6 v7 v2 v10 : Word)
+    (base : Word) (hshift_nz : shift ≠ 0) :
+    cpsTripleWithin 2 (base + denormOff) (base + denormOff + 8) (modCode_noNop_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 3992) ↦ₘ shift))
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 3992) ↦ₘ shift)) := by
+  have hld := ld_spec_gen_within .x6 .x12 sp v6 shift (3992 : BitVec 12) (base + denormOff) (by nofun)
+  have hlde := cpsTripleWithin_extend_code (hmono := by
+    intro a i h
+    exact sharedNoNop_v4_b9_mod a i
+      (CodeReq.ofProg_mono_sub (base + denormOff) (base + denormOff) divK_denorm
+        [.LD .x6 .x12 3992] 0 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hld
+  have hbeq := beq_spec_gen_within .x6 .x0 (96 : BitVec 13) shift (0 : Word) (base + denormOff + 4)
+  rw [show (base + denormOff + 4 : Word) + signExtend13 (96 : BitVec 13) = base + epilogueOff from by rv64_addr,
+      show (base + denormOff + 4 : Word) + 4 = base + denormOff + 8 from by bv_addr] at hbeq
+  have hbeqe := cpsBranchWithin_extend_code (hmono := by
+    intro a i h
+    exact sharedNoNop_v4_b9_mod a i
+      (CodeReq.ofProg_mono_sub (base + denormOff) (base + denormOff + 4) divK_denorm
+        [.BEQ .x6 .x0 96] 1 (by bv_addr) (by decide) (by decide) (by decide) a i h)) hbeq
+  have hbeq_exit := cpsBranchWithin_ntakenPath hbeqe
+    (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQt
+      exact hshift_nz hpure)
+  have hbeq_clean := cpsTripleWithin_weaken
+    (fun h hp => hp)
+    (fun h hp => sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
+    hbeq_exit
+  have hldf := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10))
+    (by pcFree) hlde
+  have hbeqf := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
+     ((sp + signExtend12 3992) ↦ₘ shift))
+    (by pcFree) hbeq_clean
+  have full := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hldf hbeqf
+  exact cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    full
+
+/-- MOD denorm preamble over the full v4 MOD code bundle. -/
+theorem mod_denorm_preamble_spec_within_v4 (sp shift v5 v6 v7 v2 v10 : Word)
+    (base : Word) (hshift_nz : shift ≠ 0) :
+    cpsTripleWithin 2 (base + denormOff) (base + denormOff + 8) (modCode_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 3992) ↦ₘ shift))
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ shift) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 3992) ↦ₘ shift)) := by
+  exact cpsTripleWithin_modCode_noNop_v4_to_modCode_v4
+    (mod_denorm_preamble_spec_within_noNop_v4 sp shift v5 v6 v7 v2 v10 base hshift_nz)
+
+/-- MOD post-loop preamble+denorm+epilogue over the no-NOP v4 MOD code bundle. -/
+theorem evm_mod_preamble_denorm_epilogue_spec_within_noNop_v4 (sp base : Word)
+    (u0 u1 u2 u3 shift v2 v5 v6 v7 v10 : Word)
+    (m0 m8 m16 m24 : Word)
+    (hshift_nz : shift ≠ 0) :
+    cpsTripleWithin 35 (base + denormOff) (base + nopOff) (modCode_noNop_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 3992) ↦ₘ shift) **
+       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
+       ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
+      (denormModPost sp shift u0 u1 u2 u3 **
+       ((sp + signExtend12 3992) ↦ₘ shift)) := by
+  have hPre := mod_denorm_preamble_spec_within_noNop_v4 sp shift v5 v6 v7 v2 v10 base hshift_nz
+  have hPreF := cpsTripleWithin_frameR
+    (((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+     ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+     ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
+     ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
+    (by pcFree) hPre
+  have hDE := evm_mod_denorm_epilogue_spec_within_noNop_v4 sp base u0 u1 u2 u3 v2 v5 v7 v10 shift
+    m0 m8 m16 m24
+  have hDEF := cpsTripleWithin_frameR
+    (((sp + signExtend12 3992) ↦ₘ shift))
+    (by pcFree) hDE
+  have hFull := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hPreF hDEF
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    hFull
+
+/-- MOD post-loop preamble+denorm+epilogue over the full v4 MOD code bundle. -/
+theorem evm_mod_preamble_denorm_epilogue_spec_within_v4 (sp base : Word)
+    (u0 u1 u2 u3 shift v2 v5 v6 v7 v10 : Word)
+    (m0 m8 m16 m24 : Word)
+    (hshift_nz : shift ≠ 0) :
+    cpsTripleWithin 35 (base + denormOff) (base + nopOff) (modCode_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 3992) ↦ₘ shift) **
+       ((sp + signExtend12 4056) ↦ₘ u0) ** ((sp + signExtend12 4048) ↦ₘ u1) **
+       ((sp + signExtend12 4040) ↦ₘ u2) ** ((sp + signExtend12 4032) ↦ₘ u3) **
+       ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
+       ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
+      (denormModPost sp shift u0 u1 u2 u3 **
+       ((sp + signExtend12 3992) ↦ₘ shift)) := by
+  exact cpsTripleWithin_modCode_noNop_v4_to_modCode_v4
+    (evm_mod_preamble_denorm_epilogue_spec_within_noNop_v4 sp base
+      u0 u1 u2 u3 shift v2 v5 v6 v7 v10 m0 m8 m16 m24 hshift_nz)
+
 /-- Loop body n=4, max+skip, j=0 over `modCode_noNop_v4`, with
     sp-relative addresses in the precondition. -/
 theorem divK_loop_body_n4_max_skip_j0_norm_mod_v4_noNop (sp base : Word)
