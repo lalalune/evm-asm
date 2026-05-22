@@ -359,6 +359,18 @@ theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue_iff {a b : EvmWo
       n4CallAddbackBeqQHatBranchEqQTrue a b := by
   exact n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHat_branch_iff
 
+/-- Introduce `qOut = qTrue` from the named carry-selected qHat predicate. -/
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_of_qHatBranchEqQTrue {a b : EvmWord}
+    (h_qHat : n4CallAddbackBeqQHatBranchEqQTrue a b) :
+    (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b :=
+  (n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue_iff).2 h_qHat
+
+/-- Eliminate `qOut = qTrue` to the named carry-selected qHat predicate. -/
+theorem n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue {a b : EvmWord}
+    (h_qOut : (n4CallAddbackBeqQOutV4 a b).toNat = n4CallAddbackBeqQTrue a b) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b :=
+  (n4CallAddbackBeqQOutV4_toNat_eq_qTrue_qHatBranchEqQTrue_iff).1 h_qOut
+
 /-- V4 semantic-correctness precondition for the n=4 call+addback-BEQ sub-path.
 
     This is the v4 migration target for `n4CallAddbackBeqSemanticHolds`: it uses
@@ -587,6 +599,18 @@ theorem n4CallAddbackBeqSemanticHoldsV4_qHatBranchEqQTrue_iff {a b : EvmWord} :
     n4CallAddbackBeqSemanticHoldsV4 a b ↔
       n4CallAddbackBeqQHatBranchEqQTrue a b := by
   exact n4CallAddbackBeqSemanticHoldsV4_qHat_branch_iff
+
+/-- Introduce the v4 semantic predicate from the named carry-selected qHat predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_qHatBranchEqQTrue {a b : EvmWord}
+    (h_qHat : n4CallAddbackBeqQHatBranchEqQTrue a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  (n4CallAddbackBeqSemanticHoldsV4_qHatBranchEqQTrue_iff).2 h_qHat
+
+/-- Eliminate the v4 semantic predicate to the named carry-selected qHat predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_qHatBranchEqQTrue {a b : EvmWord}
+    (hsem : n4CallAddbackBeqSemanticHoldsV4 a b) :
+    n4CallAddbackBeqQHatBranchEqQTrue a b :=
+  (n4CallAddbackBeqSemanticHoldsV4_qHatBranchEqQTrue_iff).1 hsem
 
 /-- Introduce the v4 n=4 call+addback-BEQ semantic predicate from the raw
     normalized `q_out` equality. -/
