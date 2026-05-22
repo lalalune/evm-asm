@@ -201,6 +201,37 @@ theorem n4CallAddbackBeqDLo_lt_pow32 {b : EvmWord} :
   rw [divKTrialCallV4DLo_eq]
   exact lo32_toNat_lt_pow32 (n4CallAddbackBeqB3Prime b)
 
+/-- Normalized divisor limb 2 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqB2Prime (b : EvmWord) : Word :=
+  ((b.getLimbN 2) <<< n4CallAddbackBeqShift b) |||
+    ((b.getLimbN 1) >>> n4CallAddbackBeqAntiShift b)
+
+theorem n4CallAddbackBeqB2Prime_unfold {b : EvmWord} :
+    n4CallAddbackBeqB2Prime b =
+      ((b.getLimbN 2) <<< n4CallAddbackBeqShift b) |||
+        ((b.getLimbN 1) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
+
+/-- Normalized divisor limb 1 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqB1Prime (b : EvmWord) : Word :=
+  ((b.getLimbN 1) <<< n4CallAddbackBeqShift b) |||
+    ((b.getLimbN 0) >>> n4CallAddbackBeqAntiShift b)
+
+theorem n4CallAddbackBeqB1Prime_unfold {b : EvmWord} :
+    n4CallAddbackBeqB1Prime b =
+      ((b.getLimbN 1) <<< n4CallAddbackBeqShift b) |||
+        ((b.getLimbN 0) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
+
+/-- Normalized divisor limb 0 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqB0Prime (b : EvmWord) : Word :=
+  (b.getLimbN 0) <<< n4CallAddbackBeqShift b
+
+theorem n4CallAddbackBeqB0Prime_unfold {b : EvmWord} :
+    n4CallAddbackBeqB0Prime b =
+      (b.getLimbN 0) <<< n4CallAddbackBeqShift b :=
+  rfl
+
 /-- Normalized overflow dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU4 (a b : EvmWord) : Word :=
   (a.getLimbN 3) >>> n4CallAddbackBeqAntiShift b
@@ -251,6 +282,37 @@ theorem n4CallAddbackBeqU3_eq_direct {a b : EvmWord}
   rw [n4CallAddbackBeqU3_unfold]
   rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
   rw [n4CallAddbackBeqShift_eq_raw]
+
+/-- Normalized dividend limb 2 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqU2 (a b : EvmWord) : Word :=
+  ((a.getLimbN 2) <<< n4CallAddbackBeqShift b) |||
+    ((a.getLimbN 1) >>> n4CallAddbackBeqAntiShift b)
+
+theorem n4CallAddbackBeqU2_unfold {a b : EvmWord} :
+    n4CallAddbackBeqU2 a b =
+      ((a.getLimbN 2) <<< n4CallAddbackBeqShift b) |||
+        ((a.getLimbN 1) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
+
+/-- Normalized dividend limb 1 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqU1 (a b : EvmWord) : Word :=
+  ((a.getLimbN 1) <<< n4CallAddbackBeqShift b) |||
+    ((a.getLimbN 0) >>> n4CallAddbackBeqAntiShift b)
+
+theorem n4CallAddbackBeqU1_unfold {a b : EvmWord} :
+    n4CallAddbackBeqU1 a b =
+      ((a.getLimbN 1) <<< n4CallAddbackBeqShift b) |||
+        ((a.getLimbN 0) >>> n4CallAddbackBeqAntiShift b) :=
+  rfl
+
+/-- Normalized dividend limb 0 used by the n=4 v4 call+addback-BEQ marker. -/
+def n4CallAddbackBeqU0 (a b : EvmWord) : Word :=
+  (a.getLimbN 0) <<< n4CallAddbackBeqShift b
+
+theorem n4CallAddbackBeqU0_unfold {a b : EvmWord} :
+    n4CallAddbackBeqU0 a b =
+      (a.getLimbN 0) <<< n4CallAddbackBeqShift b :=
+  rfl
 
 /-- Trial quotient used by the n=4 v4 call+addback-BEQ semantic marker. -/
 def n4CallAddbackBeqQHatV4 (a b : EvmWord) : Word :=
@@ -509,6 +571,25 @@ theorem n4CallAddbackBeqCarryV4_unfold {a b : EvmWord} :
        let qHat := n4CallAddbackBeqQHatV4 a b
        let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
        addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3') :=
+  rfl
+
+theorem n4CallAddbackBeqCarryV4_eq_normalized {a b : EvmWord} :
+    n4CallAddbackBeqCarryV4 a b =
+      (let qHat := n4CallAddbackBeqQHatV4 a b
+       let ms := mulsubN4 qHat
+        (n4CallAddbackBeqB0Prime b)
+        (n4CallAddbackBeqB1Prime b)
+        (n4CallAddbackBeqB2Prime b)
+        (n4CallAddbackBeqB3Prime b)
+        (n4CallAddbackBeqU0 a b)
+        (n4CallAddbackBeqU1 a b)
+        (n4CallAddbackBeqU2 a b)
+        (n4CallAddbackBeqU3 a b)
+       addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+        (n4CallAddbackBeqB0Prime b)
+        (n4CallAddbackBeqB1Prime b)
+        (n4CallAddbackBeqB2Prime b)
+        (n4CallAddbackBeqB3Prime b)) :=
   rfl
 
 /-- Corrected quotient produced by the n=4 v4 call+addback-BEQ semantic marker. -/
