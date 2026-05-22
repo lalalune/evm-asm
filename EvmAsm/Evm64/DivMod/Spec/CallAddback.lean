@@ -15,6 +15,7 @@
 
 import EvmAsm.Evm64.DivMod.Spec.CallSkip
 import EvmAsm.Evm64.DivMod.Spec.CallSkipUnconditional
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
 import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
 
 namespace EvmAsm.Evm64
@@ -244,6 +245,47 @@ theorem n4CallAddbackBeqQHatV4_eq_direct {a b : EvmWord}
   rw [n4CallAddbackBeqU4_eq_direct hshift_nz]
   rw [n4CallAddbackBeqU3_eq_direct hshift_nz]
   rw [n4CallAddbackBeqB3Prime_eq_direct hshift_nz]
+
+theorem n4CallAddbackBeqQHatV4_eq_trialCallQHat {a b : EvmWord} :
+    n4CallAddbackBeqQHatV4 a b =
+      divKTrialCallV4QHat
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b) := by
+  rw [n4CallAddbackBeqQHatV4_eq_normalized]
+  rw [divKTrialCallV4QHat_eq_div128Quot_v4]
+
+theorem n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_un21_lt
+    {a b : EvmWord}
+    (hdHi_ge : (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat < 2^32)
+    (hu4_lt_vTop :
+      (n4CallAddbackBeqU4 a b).toNat <
+        (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+          (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+          (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat) :
+    (n4CallAddbackBeqQHatV4 a b).toNat =
+      (divKTrialCallV4Q1dd
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4Q0dd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b)).toNat := by
+  rw [n4CallAddbackBeqQHatV4_eq_normalized]
+  exact div128Quot_v4_toNat_eq_trialCall_halves_of_un21_lt
+    (n4CallAddbackBeqU4 a b)
+    (n4CallAddbackBeqU3 a b)
+    (n4CallAddbackBeqB3Prime b)
+    hdHi_ge hdHi_lt hdLo_lt hu4_lt_vTop hUn21_lt_vTop
 
 theorem n4CallAddbackBeqRawTrialBound_direct {a b : EvmWord}
     (hb3nz : b.getLimbN 3 ≠ 0)
