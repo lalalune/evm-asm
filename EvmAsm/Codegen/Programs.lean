@@ -5838,6 +5838,89 @@ def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderBasicDataSection
 }
 
+/-! ## tx_validate_against_block -- PR-K69
+
+    Combine three u64 tx-validation invariants into one helper:
+
+      1. tx.chain_id == block.chain_id
+      2. tx.gas_limit <= block.gas_limit
+      3. tx.nonce == account.nonce
+
+    These are the cheapest tx-validation checks (pre-EVM
+    execution); a tx that fails any of them is rejected without
+    further work. Mirrors three of the assertions in Python's
+    `validate_transaction`:
+
+      assert tx.chain_id == chain.chain_id
+      assert tx.gas <= block.gas_limit
+      assert tx.nonce == account.nonce
+
+    Pure u64 compares; no scratch memory; leaf-callable.
+
+    Calling convention:
+      a0 (input)  : tx.chain_id      (u64)
+      a1 (input)  : block.chain_id   (u64)
+      a2 (input)  : tx.gas_limit     (u64)
+      a3 (input)  : block.gas_limit  (u64)
+      a4 (input)  : tx.nonce         (u64)
+      a5 (input)  : account.nonce    (u64)
+      ra (input)  : return
+      a0 (output) :
+        0  : all three invariants hold
+        1  : chain_id mismatch
+        2  : tx.gas_limit > block.gas_limit
+        3  : tx.nonce != account.nonce
+
+    Distinct codes let callers pinpoint which check fired
+    without re-running individual asserts. -/
+def txValidateAgainstBlockFunction : String :=
+  "tx_validate_against_block:\n" ++
+  "  bne a0, a1, .Ltvab_fail_chain\n" ++
+  "  bgtu a2, a3, .Ltvab_fail_gas\n" ++
+  "  bne a4, a5, .Ltvab_fail_nonce\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Ltvab_fail_chain:\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Ltvab_fail_gas:\n" ++
+  "  li a0, 2\n" ++
+  "  ret\n" ++
+  ".Ltvab_fail_nonce:\n" ++
+  "  li a0, 3\n" ++
+  "  ret"
+
+/-- `zisk_tx_validate_against_block`: probe BuildUnit. Reads
+    (tx_chain, block_chain, tx_gas, block_gas, tx_nonce,
+    account_nonce) as 6 u64 LE words from host input, writes
+    8-byte status to OUTPUT. -/
+def ziskTxValidateAgainstBlockPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a0,  8(t0)               # tx.chain_id\n" ++
+  "  ld a1, 16(t0)               # block.chain_id\n" ++
+  "  ld a2, 24(t0)               # tx.gas_limit\n" ++
+  "  ld a3, 32(t0)               # block.gas_limit\n" ++
+  "  ld a4, 40(t0)               # tx.nonce\n" ++
+  "  ld a5, 48(t0)               # account.nonce\n" ++
+  "  jal ra, tx_validate_against_block\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Ltvab_pdone\n" ++
+  txValidateAgainstBlockFunction ++ "\n" ++
+  ".Ltvab_pdone:"
+
+def ziskTxValidateAgainstBlockDataSection : String :=
+  ".section .data\n" ++
+  "tvab_pad:\n" ++
+  "  .zero 8"
+
+def ziskTxValidateAgainstBlockProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxValidateAgainstBlockPrologue
+  dataAsm     := ziskTxValidateAgainstBlockDataSection
+}
+
 /-! ## calc_excess_blob_gas -- PR-K63 EIP-4844 excess blob gas formula
 
     Compute the next header's `excess_blob_gas` field from the
@@ -9683,6 +9766,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
   | "zisk_validate_header_basic" => some ziskValidateHeaderBasicProbeUnit
+  | "zisk_tx_validate_against_block" => some ziskTxValidateAgainstBlockProbeUnit
   | "zisk_calc_excess_blob_gas" => some ziskCalcExcessBlobGasProbeUnit
   | "zisk_header_validate_post_merge" => some ziskHeaderValidatePostMergeProbeUnit
   | "zisk_header_validate_extra_data_length" => some ziskHeaderValidateExtraDataLengthProbeUnit
@@ -9765,6 +9849,7 @@ def knownProgramNames : List String :=
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
    "zisk_validate_header_basic",
+   "zisk_tx_validate_against_block",
    "zisk_calc_excess_blob_gas",
    "zisk_header_validate_post_merge",
    "zisk_header_validate_extra_data_length",
