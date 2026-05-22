@@ -7555,6 +7555,174 @@ def ziskHeaderValidateBaseFeeProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderValidateBaseFeeDataSection
 }
 
+/-! ## validate_header_full -- PR-K75 complete per-header validation
+
+    Run all five per-header validation checks in sequence, returning
+    a single status code that distinguishes which step failed:
+
+      1. PR-K67 `header_validate_post_merge`        — ommers/difficulty/nonce
+      2. PR-K68 `header_validate_extra_data_length` — extra_data ≤ 32 bytes
+      3. PR-K43 `validate_header_basic`             — gas_used ≤ gas_limit + number/timestamp
+      4. PR-K72 `check_gas_limit`                   — elasticity
+      5. PR-K74 `header_validate_base_fee`          — EIP-1559 invariant
+
+    Chain-level checks (parent_hash continuity, validate_chain
+    PR-K18) are NOT included here — they iterate across multiple
+    headers and live at the SSZ-list walk level.
+
+    Status encoding:
+
+      0                : all five checks pass
+      100..104         : step 1 failed with K67's sub-status 0..4
+      201..202         : step 2 failed with K68's sub-status 1..2
+      301..303         : step 3 failed with K43's sub-status 1..3
+      401..402         : step 4 failed with K72's sub-status 1..2
+      501..502         : step 5 failed with K74's sub-status 1..2
+
+    Distinct decades let callers `floor(status/100)` to identify
+    the failing step.
+
+    Calling convention:
+      a0 (input)  : this header's RLP ptr
+      a1 (input)  : this header's RLP byte length
+      a2 (input)  : this header's PR-K39 extended-decode struct
+                    (128 B, with gas_limit @ 80, gas_used @ 88,
+                    base_fee_per_gas @ 96..128)
+      a3 (input)  : parent header's PR-K39 extended-decode struct
+                    (same layout)
+      ra (input)  : return
+      a0 (output) : composite status (see encoding above).
+
+    Composes 5 validators + their transitive deps (rlp_list_nth_item,
+    eip1559_calc_base_fee_per_gas plus the u256 toolkit). The probe
+    inlines every function it transitively calls. -/
+def validateHeaderFullFunction : String :=
+  "validate_header_full:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # this_rlp ptr\n" ++
+  "  mv s1, a1                   # this_rlp_len\n" ++
+  "  mv s2, a2                   # this_struct (128 B)\n" ++
+  "  mv s3, a3                   # parent_struct (128 B)\n" ++
+  "  # Step 1: post_merge check\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  jal ra, header_validate_post_merge\n" ++
+  "  beqz a0, .Lvhf_s2\n" ++
+  "  li t0, 100\n" ++
+  "  add a0, a0, t0\n" ++
+  "  j .Lvhf_ret\n" ++
+  ".Lvhf_s2:\n" ++
+  "  # Step 2: extra_data length check\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  jal ra, header_validate_extra_data_length\n" ++
+  "  beqz a0, .Lvhf_s3\n" ++
+  "  li t0, 200\n" ++
+  "  add a0, a0, t0\n" ++
+  "  j .Lvhf_ret\n" ++
+  ".Lvhf_s3:\n" ++
+  "  # Step 3: gas_used/number/timestamp\n" ++
+  "  mv a0, s2; mv a1, s3\n" ++
+  "  jal ra, validate_header_basic\n" ++
+  "  beqz a0, .Lvhf_s4\n" ++
+  "  li t0, 300\n" ++
+  "  add a0, a0, t0\n" ++
+  "  j .Lvhf_ret\n" ++
+  ".Lvhf_s4:\n" ++
+  "  # Step 4: check_gas_limit(this.gas_limit, parent.gas_limit)\n" ++
+  "  ld a0, 80(s2)\n" ++
+  "  ld a1, 80(s3)\n" ++
+  "  jal ra, check_gas_limit\n" ++
+  "  beqz a0, .Lvhf_s5\n" ++
+  "  li t0, 400\n" ++
+  "  add a0, a0, t0\n" ++
+  "  j .Lvhf_ret\n" ++
+  ".Lvhf_s5:\n" ++
+  "  # Step 5: base_fee continuity\n" ++
+  "  addi a0, s2, 96\n" ++
+  "  ld a1, 80(s3)\n" ++
+  "  ld a2, 88(s3)\n" ++
+  "  addi a3, s3, 96\n" ++
+  "  jal ra, header_validate_base_fee\n" ++
+  "  beqz a0, .Lvhf_ret\n" ++
+  "  li t0, 500\n" ++
+  "  add a0, a0, t0\n" ++
+  ".Lvhf_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_validate_header_full`: probe BuildUnit. Reads (this_rlp_len,
+    this_rlp_bytes [up to 1024 B], this_struct 128 B, parent_struct
+    128 B) from host input, writes 8-byte composite status to OUTPUT. -/
+def ziskValidateHeaderFullPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # this_rlp_len\n" ++
+  "  addi a0, a4, 16             # this_rlp ptr\n" ++
+  "  addi a2, a4, 16             # placeholder; reset after rlp\n" ++
+  "  # this_struct offset = 16 + rlp_len_aligned\n" ++
+  "  # parent_struct offset = this_struct + 128\n" ++
+  "  # We require the caller to lay them out at fixed positions:\n" ++
+  "  # bytes 8..16  : rlp_len\n" ++
+  "  # bytes 16..16+1024 : this_rlp (padded to 1024)\n" ++
+  "  # bytes 1040..1168  : this_struct (128 B)\n" ++
+  "  # bytes 1168..1296  : parent_struct (128 B)\n" ++
+  "  li a2, 0x40000410           # this_struct  (= INPUT_ADDR + 1040)\n" ++
+  "  li a3, 0x40000490           # parent_struct (= INPUT_ADDR + 1168)\n" ++
+  "  jal ra, validate_header_full\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lvhf_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256DivU64BeFunction ++ "\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  u256FromU64BeFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256EqFunction ++ "\n" ++
+  validateHeaderBasicFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  headerValidatePostMergeFunction ++ "\n" ++
+  headerValidateExtraDataLengthFunction ++ "\n" ++
+  eip1559CalcBaseFeePerGasFunction ++ "\n" ++
+  headerValidateBaseFeeFunction ++ "\n" ++
+  validateHeaderFullFunction ++ "\n" ++
+  ".Lvhf_pdone:"
+
+def ziskValidateHeaderFullDataSection : String :=
+  ".section .data\n" ++
+  ".balign 32\n" ++
+  "empty_ommers_hash:\n" ++
+  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
+  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
+  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
+  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
+  ".balign 32\n" ++
+  "hvbf_expected:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40\n" ++
+  ".balign 8\n" ++
+  "hvpm_off:\n" ++
+  "  .zero 8\n" ++
+  "hvpm_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "hved_off:\n" ++
+  "  .zero 8\n" ++
+  "hved_len:\n" ++
+  "  .zero 8"
+
+def ziskValidateHeaderFullProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateHeaderFullPrologue
+  dataAsm     := ziskValidateHeaderFullDataSection
+}
+
 /-! ## tx_cost_compute -- PR-K71
 
     Compute the full upfront cost of a transaction:
@@ -10325,6 +10493,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit
   | "zisk_eip1559_calc_base_fee_per_gas" => some ziskEip1559CalcBaseFeePerGasProbeUnit
   | "zisk_header_validate_base_fee" => some ziskHeaderValidateBaseFeeProbeUnit
+  | "zisk_validate_header_full" => some ziskValidateHeaderFullProbeUnit
   | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
@@ -10413,6 +10582,7 @@ def knownProgramNames : List String :=
    "zisk_u256_mul_u64_be",
    "zisk_eip1559_calc_base_fee_per_gas",
    "zisk_header_validate_base_fee",
+   "zisk_validate_header_full",
    "zisk_u256_from_u64_be",
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero",
