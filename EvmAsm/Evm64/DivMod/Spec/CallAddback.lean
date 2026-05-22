@@ -209,6 +209,40 @@ theorem n4CallAddbackBeqB3Prime_eq_direct {b : EvmWord}
   rw [n4CallAddbackBeqShift_eq_raw, n4CallAddbackBeqAntiShift_eq_sub_shift hshift_nz]
   rw [n4CallAddbackBeqShift_eq_raw]
 
+theorem n4CallAddbackBeqB3Prime_ge_pow63 {b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0) :
+    (n4CallAddbackBeqB3Prime b).toNat ≥ 2^63 := by
+  rw [n4CallAddbackBeqB3Prime_unfold]
+  rw [n4CallAddbackBeqShift_unfold, n4CallAddbackBeqAntiShift_unfold]
+  have h_shifted := b3_shifted_ge_pow63 hb3nz
+  have h_or_ge :
+      ((((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64))) |||
+        ((b.getLimbN 2) >>>
+          ((signExtend12 (0 : BitVec 12) -
+            (clzResult (b.getLimbN 3)).1).toNat % 64))).toNat ≥
+        ((b.getLimbN 3) <<< ((clzResult (b.getLimbN 3)).1.toNat % 64)).toNat := by
+    rw [BitVec.toNat_or]
+    exact Nat.left_le_or
+  exact le_trans h_shifted h_or_ge
+
+theorem n4CallAddbackBeqDHi_ge_pow31 {b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0) :
+    (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat ≥ 2^31 := by
+  rw [divKTrialCallV4DHi_eq]
+  exact div128Quot_shift0_dHi_ge
+    (n4CallAddbackBeqB3Prime b)
+    (n4CallAddbackBeqB3Prime_ge_pow63 hb3nz)
+
+theorem n4CallAddbackBeqDHi_lt_pow32 {b : EvmWord} :
+    (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat < 2^32 := by
+  rw [divKTrialCallV4DHi_eq]
+  exact hi32_toNat_lt_pow32 (n4CallAddbackBeqB3Prime b)
+
+theorem n4CallAddbackBeqDLo_lt_pow32 {b : EvmWord} :
+    (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat < 2^32 := by
+  rw [divKTrialCallV4DLo_eq]
+  exact lo32_toNat_lt_pow32 (n4CallAddbackBeqB3Prime b)
+
 /-- Normalized overflow dividend limb used by the n=4 v4 call+addback-BEQ marker. -/
 def n4CallAddbackBeqU4 (a b : EvmWord) : Word :=
   (a.getLimbN 3) >>> n4CallAddbackBeqAntiShift b
