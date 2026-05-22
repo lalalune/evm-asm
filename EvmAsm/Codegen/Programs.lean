@@ -2805,6 +2805,93 @@ def ziskAccessListCountProbeUnit : BuildUnit := {
   dataAsm     := ziskAccessListCountDataSection
 }
 
+/-! ## blob_gas_used_from_versioned_hashes -- PR-K64
+
+    Compute the EIP-4844 `blob_gas_used` field as:
+
+      blob_gas_used = len(tx.blob_versioned_hashes) × GAS_PER_BLOB
+
+    where `GAS_PER_BLOB = 131072 = 0x20000` per spec. The
+    `gas_per_blob` constant is parameterized so the helper works
+    across forks that might adjust it.
+
+    Direct use case — validating header.blob_gas_used and
+    rejecting blob-fee under-pays:
+
+      header.blob_gas_used  ==  sum(tx.blob_versioned_hashes count
+                                    × GAS_PER_BLOB
+                                    for tx in block.txs
+                                    if tx.is_blob)
+
+    Composes PR-K47 `rlp_list_count_items` (#5532) + a `mul`.
+    `rlp_list_count_items` is inlined into the probe BuildUnit.
+
+    Calling convention:
+      a0 (input)  : blob_versioned_hashes_rlp ptr (whole encoded
+                    sub-list as returned by PR-K45
+                    `tx_eip4844_decode` field 10)
+      a1 (input)  : blob_versioned_hashes_rlp byte length
+      a2 (input)  : gas_per_blob (u64; 131072 on mainnet)
+      a3 (input)  : u64 out ptr (receives blob_gas_used)
+      ra (input)  : return
+      a0 (output) : 0 success / 1 parse fail (output zeroed).
+
+    Uses 8 bytes of `.data` scratch (`bgvh_count_scratch`). -/
+def blobGasUsedFromVersionedHashesFunction : String :=
+  "blob_gas_used_from_versioned_hashes:\n" ++
+  "  addi sp, sp, -24\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a2                   # gas_per_blob\n" ++
+  "  mv s1, a3                   # out ptr\n" ++
+  "  la a2, bgvh_count_scratch\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbgvh_fail\n" ++
+  "  la t0, bgvh_count_scratch; ld t1, 0(t0)\n" ++
+  "  mul t2, t1, s0\n" ++
+  "  sd t2, 0(s1)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbgvh_ret\n" ++
+  ".Lbgvh_fail:\n" ++
+  "  sd zero, 0(s1)\n" ++
+  "  li a0, 1\n" ++
+  ".Lbgvh_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 24\n" ++
+  "  ret"
+
+/-- `zisk_blob_gas_used_from_versioned_hashes`: probe BuildUnit.
+    Reads (list_len, gas_per_blob, list_bytes) from host input,
+    writes (status, blob_gas_used) to OUTPUT (16 bytes total). -/
+def ziskBlobGasUsedFromVersionedHashesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # list_len\n" ++
+  "  ld a2, 16(a4)               # gas_per_blob\n" ++
+  "  addi a0, a4, 24             # list ptr\n" ++
+  "  li a3, 0xa0010008           # out at OUTPUT + 8\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  jal ra, blob_gas_used_from_versioned_hashes\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  j .Lbgvh_pdone\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  blobGasUsedFromVersionedHashesFunction ++ "\n" ++
+  ".Lbgvh_pdone:"
+
+def ziskBlobGasUsedFromVersionedHashesDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "bgvh_count_scratch:\n" ++
+  "  .zero 8"
+
+def ziskBlobGasUsedFromVersionedHashesProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlobGasUsedFromVersionedHashesPrologue
+  dataAsm     := ziskBlobGasUsedFromVersionedHashesDataSection
+}
+
 /-! ## mpt_node_kind -- PR-K21 classifier
 
     Determines whether an RLP-encoded MPT node is a leaf,
@@ -8863,6 +8950,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
   | "zisk_rlp_list_count_items" => some ziskRlpListCountItemsProbeUnit
   | "zisk_access_list_count"    => some ziskAccessListCountProbeUnit
+  | "zisk_blob_gas_used_from_versioned_hashes" => some ziskBlobGasUsedFromVersionedHashesProbeUnit
   | "zisk_mpt_node_kind"        => some ziskMptNodeKindProbeUnit
   | "zisk_mpt_branch_child"     => some ziskMptBranchChildProbeUnit
   | "zisk_hp_decode_nibbles"    => some ziskHpDecodeNibblesProbeUnit
@@ -8937,6 +9025,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_list_nth_item",
    "zisk_rlp_list_count_items",
    "zisk_access_list_count",
+   "zisk_blob_gas_used_from_versioned_hashes",
    "zisk_mpt_node_kind",
    "zisk_mpt_branch_child",
    "zisk_hp_decode_nibbles",
