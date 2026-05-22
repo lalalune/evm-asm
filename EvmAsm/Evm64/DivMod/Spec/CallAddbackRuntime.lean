@@ -143,6 +143,43 @@ theorem n4CallAddbackBeqNormalizedDivisor_pos {b : EvmWord}
       (n4CallAddbackBeqB3Prime b) :=
   val256_pos_of_or_ne_zero (n4CallAddbackBeqNormalizedDivisor_ne_zero hb3nz)
 
+/-- Normalized five-limb dividend value used by the v4 n=4 call-addback path. -/
+def n4CallAddbackBeqUNormVal (a b : EvmWord) : Nat :=
+  EvmWord.val256
+      (n4CallAddbackBeqU0 a b)
+      (n4CallAddbackBeqU1 a b)
+      (n4CallAddbackBeqU2 a b)
+      (n4CallAddbackBeqU3 a b) +
+    (n4CallAddbackBeqU4 a b).toNat * 2^256
+
+/-- Normalized divisor value used by the v4 n=4 call-addback path. -/
+def n4CallAddbackBeqBNormVal (b : EvmWord) : Nat :=
+  EvmWord.val256
+    (n4CallAddbackBeqB0Prime b)
+    (n4CallAddbackBeqB1Prime b)
+    (n4CallAddbackBeqB2Prime b)
+    (n4CallAddbackBeqB3Prime b)
+
+/-- Iterator output used by the v4 n=4 call-addback path. -/
+def n4CallAddbackBeqIterOut (a b : EvmWord) :=
+  iterWithDoubleAddback
+    (n4CallAddbackBeqQHatV4 a b)
+    (n4CallAddbackBeqB0Prime b)
+    (n4CallAddbackBeqB1Prime b)
+    (n4CallAddbackBeqB2Prime b)
+    (n4CallAddbackBeqB3Prime b)
+    (n4CallAddbackBeqU0 a b)
+    (n4CallAddbackBeqU1 a b)
+    (n4CallAddbackBeqU2 a b)
+    (n4CallAddbackBeqU3 a b)
+    (n4CallAddbackBeqU4 a b)
+
+/-- Normalized remainder value returned by the v4 n=4 call-addback iterator. -/
+def n4CallAddbackBeqIterRNormVal (a b : EvmWord) : Nat :=
+  let out := n4CallAddbackBeqIterOut a b
+  EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+    out.2.2.2.2.2.toNat * 2^256
+
 /-- Runtime-normalized c3 bridge: if the normalized trial quotient is within
     one of the normalized true quotient, the raw borrow condition pins the
     mulsub carry-out to one. -/
