@@ -269,6 +269,55 @@ theorem fullModN3PathConditionsScaledV4_of_normalized_euclidean
   exact EvmWord.normalized_remainder_eq_mod_mul_pow
     ((fullDivN3Shift (b.getLimbN 2)).toNat) hmulsub hrlt
 
+theorem fullDivN3NormalizedRemainderLtV4_of_mulsub_path
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hdivPath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b)
+    (hmulsub : fullDivN3NormalizedMulSubEqV4 bltu_1 bltu_0 a b) :
+    fullDivN3NormalizedRemainderLtV4 bltu_1 bltu_0 a b := by
+  obtain ⟨_, _, _, _, hge⟩ := hdivPath
+  have hbnz' :
+      b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  have hbVal : 0 <
+      EvmWord.val256
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+    EvmWord.val256_pos_of_or_ne_zero hbnz'
+  have hpow : 0 < 2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat := by
+    positivity
+  have hbScaled : 0 <
+      EvmWord.val256
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+        2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat := by
+    positivity
+  have hgeScaled :
+      (EvmWord.val256
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+          2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat) /
+        (EvmWord.val256
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+          2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat) ≤
+        ((fullDivN3R1V4 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat *
+          2 ^ 64 +
+        ((fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat := by
+    rw [Nat.mul_div_mul_right _ _ hpow]
+    exact hge
+  exact (EvmWord.remainder_lt_of_ge_floor hbScaled hmulsub hgeScaled).2
+
+theorem fullModN3PathConditionsNormalizedV4_of_mulsub
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hdivPath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b)
+    (hmulsub : fullDivN3NormalizedMulSubEqV4 bltu_1 bltu_0 a b) :
+    fullModN3PathConditionsNormalizedV4 bltu_1 bltu_0 a b :=
+  ⟨hdivPath, hmulsub,
+    fullDivN3NormalizedRemainderLtV4_of_mulsub_path
+      bltu_1 bltu_0 a b hbnz hdivPath hmulsub⟩
+
 theorem fullModN3PathConditionsScaledV4_of_normalized
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hpath : fullModN3PathConditionsNormalizedV4 bltu_1 bltu_0 a b) :
