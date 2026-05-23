@@ -9890,6 +9890,122 @@ def ziskReceiptExtractLogsBloomProbeUnit : BuildUnit := {
   dataAsm     := ziskReceiptExtractLogsBloomDataSection
 }
 
+/-! ## header_extract_logs_bloom -- PR-K153
+
+    Extract the 256-byte `logs_bloom` field (field 6, 0-indexed)
+    from a block header RLP. Header field layout from genesis on:
+
+      [parent_hash, ommers_hash, coinbase,
+       state_root, transactions_root, receipts_root,
+       logs_bloom,                                   <-- field 6
+       difficulty, number, gas_limit, gas_used,
+       timestamp, extra_data, prev_randao / mix_hash,
+       nonce, base_fee_per_gas?, withdrawals_root?,
+       blob_gas_used?, excess_blob_gas?,
+       parent_beacon_block_root?, requests_hash?]
+
+    The bloom's position at field 6 is invariant across every
+    fork from Frontier through Amsterdam; later forks only
+    append new fields after it.
+
+    Direct counterpart to PR-K152 `receipt_extract_logs_bloom`.
+    Together with PR-K151 `bloom_or_into`, the verifier's
+    `block_validate_logs_bloom` check becomes:
+
+      header_extract_logs_bloom(header_rlp, header_bloom)
+      bzero(computed_bloom)
+      for receipt in receipts:
+        receipt_extract_logs_bloom(receipt, scratch)
+        bloom_or_into(computed_bloom, scratch)
+      assert memcmp(header_bloom, computed_bloom) == 0
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` on field 6
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 256-byte output bloom ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / fewer than 7 fields
+        2 : logs_bloom field length != 256 -/
+def headerExtractLogsBloomFunction : String :=
+  "header_extract_logs_bloom:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # header_rlp ptr\n" ++
+  "  mv s1, a1                   # header_rlp len\n" ++
+  "  mv s2, a2                   # output bloom ptr\n" ++
+  "  # ---- Field 6: logs_bloom (must be 256 bytes) ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 6\n" ++
+  "  la a3, helb_offset; la a4, helb_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhelb_fail\n" ++
+  "  la t0, helb_length; ld t1, 0(t0)\n" ++
+  "  li t2, 256\n" ++
+  "  bne t1, t2, .Lhelb_size_fail\n" ++
+  "  la t0, helb_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1                              # src ptr\n" ++
+  "  mv t4, s2                                   # dst ptr\n" ++
+  "  li t5, 32                                   # 256 / 8 = 32 words\n" ++
+  ".Lhelb_loop:\n" ++
+  "  beqz t5, .Lhelb_done\n" ++
+  "  ld t6, 0(t3)\n" ++
+  "  sd t6, 0(t4)\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  addi t4, t4, 8\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  j .Lhelb_loop\n" ++
+  ".Lhelb_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhelb_ret\n" ++
+  ".Lhelb_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhelb_ret\n" ++
+  ".Lhelb_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhelb_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_logs_bloom`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : header_rlp_len
+      bytes  8..   : header_rlp
+    Output layout (256 B, full ziskemu cap):
+      bytes  0..256 : 256-byte logs_bloom on success;
+                       caller-zeroed buffer on failure. -/
+def ziskHeaderExtractLogsBloomPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # header_rlp_len\n" ++
+  "  addi a0, a3, 16             # header_rlp ptr\n" ++
+  "  li a2, 0xa0010000           # output bloom ptr (256 B)\n" ++
+  "  jal ra, header_extract_logs_bloom\n" ++
+  "  j .Lhelb_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractLogsBloomFunction ++ "\n" ++
+  ".Lhelb_pdone:"
+
+def ziskHeaderExtractLogsBloomDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "helb_offset:\n" ++
+  "  .zero 8\n" ++
+  "helb_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractLogsBloomProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractLogsBloomPrologue
+  dataAsm     := ziskHeaderExtractLogsBloomDataSection
+}
+
 /-! ## calldata_byte_counts -- PR-K105
 
     Count zero and non-zero bytes in an arbitrary byte buffer.
@@ -10659,6 +10775,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_logs_list_bloom_add" => some ziskLogsListBloomAddProbeUnit
   | "zisk_bloom_or_into" => some ziskBloomOrIntoProbeUnit
   | "zisk_receipt_extract_logs_bloom" => some ziskReceiptExtractLogsBloomProbeUnit
+  | "zisk_header_extract_logs_bloom" => some ziskHeaderExtractLogsBloomProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
@@ -10825,6 +10942,7 @@ def knownProgramNames : List String :=
    "zisk_logs_list_bloom_add",
    "zisk_bloom_or_into",
    "zisk_receipt_extract_logs_bloom",
+   "zisk_header_extract_logs_bloom",
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost",
