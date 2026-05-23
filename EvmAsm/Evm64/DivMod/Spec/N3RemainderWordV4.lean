@@ -154,6 +154,31 @@ abbrev fullModN3PathConditionsWordV4 (bltu_1 bltu_0 : Bool)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
       EvmWord.mod a b
 
+/-- MOD-specific N3 v4 path predicate with the remaining arithmetic obligation
+stated at `val256` level. This is the preferred shape for closing the current
+N3 MOD semantic gap, since it can be discharged by normalized-remainder
+arithmetic and then bridged to `EvmWord.mod`. -/
+abbrev fullModN3PathConditionsVal256V4 (bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) : Prop :=
+  fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b ∧
+  fullModN3RemainderVal256V4 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+      EvmWord.val256
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
+      EvmWord.val256
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+theorem fullModN3PathConditionsWordV4_of_val256
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hpath : fullModN3PathConditionsVal256V4 bltu_1 bltu_0 a b) :
+    fullModN3PathConditionsWordV4 bltu_1 bltu_0 a b := by
+  obtain ⟨hdivPath, hval⟩ := hpath
+  exact ⟨hdivPath,
+    fullModN3RemainderWordV4_eq_mod_of_val256_eq_mod
+      bltu_1 bltu_0 a b hbnz hval⟩
+
 theorem fullModN3RemainderWordV4_eq_mod_of_mod_path_conditions
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hpath : fullModN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
