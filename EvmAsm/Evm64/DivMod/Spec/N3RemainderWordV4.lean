@@ -271,6 +271,12 @@ abbrev fullDivN3FinalCarryZeroV4 (bltu_1 bltu_0 : Bool)
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.2 = 0
 
+abbrev fullDivN3R1CarryZeroV4 (bltu_1 : Bool)
+    (a b : EvmWord) : Prop :=
+  (fullDivN3R1V4 bltu_1
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.2 = 0
+
 theorem fullDivN3NormalizedMulSubEqV4_of_conservation
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hcons : fullDivN3NormalizedConservationV4 bltu_1 bltu_0 a b)
@@ -502,6 +508,144 @@ theorem fullDivN3NormV_val256_eq_scaled_of_b3_zero
   dsimp only
   rw [fullDivN3Shift_toNat_mod_eq, hanti]
   exact EvmWord.val256_normalize hs0 hs b0 b1 b2 b3 hb3_bound
+
+theorem fullDivN3NormalizedConservationV4_of_scaled_iter_conservation
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hshift_nz : fullDivN3Shift (b.getLimbN 2) ≠ 0)
+    (hcarry1 : fullDivN3R1CarryZeroV4 bltu_1 a b)
+    (hiter1 :
+      EvmWord.val256
+          (fullDivN3NormU
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 2)).2.1
+          (fullDivN3NormU
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 2)).2.2.1
+          (fullDivN3NormU
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 2)).2.2.2.1
+          (fullDivN3NormU
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 2)).2.2.2.2 =
+        ((fullDivN3R1V4 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat *
+          (EvmWord.val256
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+            2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat) +
+        EvmWord.val256
+          (fullDivN3R1V4 bltu_1
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+          (fullDivN3R1V4 bltu_1
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+          (fullDivN3R1V4 bltu_1
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+          (fullDivN3R1V4 bltu_1
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 +
+        ((fullDivN3R1V4 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.2).toNat *
+          2 ^ 256)
+    (hiter0 :
+      (fullDivN3NormU
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 2)).1.toNat +
+        2 ^ 64 *
+          EvmWord.val256
+            (fullDivN3R1V4 bltu_1
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+            (fullDivN3R1V4 bltu_1
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+            (fullDivN3R1V4 bltu_1
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+            (fullDivN3R1V4 bltu_1
+              (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 =
+        ((fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat *
+          (EvmWord.val256
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+            2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat) +
+        EvmWord.val256
+          (fullDivN3R0V4 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+          (fullDivN3R0V4 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+          (fullDivN3R0V4 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+          (fullDivN3R0V4 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 +
+        ((fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.2).toNat *
+          2 ^ 256) :
+    fullDivN3NormalizedConservationV4 bltu_1 bltu_0 a b := by
+  have hnormU := fullDivN3NormU_val256_eq_scaled_with_overflow
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 2) hshift_nz
+  have hfirst :
+      EvmWord.val256
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+          2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat =
+        (fullDivN3NormU
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 2)).1.toNat +
+          2 ^ 64 *
+            EvmWord.val256
+              (fullDivN3NormU
+                (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 2)).2.1
+              (fullDivN3NormU
+                (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 2)).2.2.1
+              (fullDivN3NormU
+                (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 2)).2.2.2.1
+              (fullDivN3NormU
+                (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+                (b.getLimbN 2)).2.2.2.2 := by
+    rw [← hnormU]
+    exact val256_with_overflow_eq_low_add_tail
+      (fullDivN3NormU
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 2)).1
+      (fullDivN3NormU
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 2)).2.1
+      (fullDivN3NormU
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 2)).2.2.1
+      (fullDivN3NormU
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 2)).2.2.2.1
+      (fullDivN3NormU
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 2)).2.2.2.2
+  have hc1 :
+      ((fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.2).toNat = 0 := by
+    unfold fullDivN3R1CarryZeroV4 at hcarry1
+    rw [hcarry1]
+    rfl
+  unfold fullDivN3NormalizedConservationV4
+  exact n3_two_step_conservation_of_iter_nat
+    ((fullDivN3NormU
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 2)).1.toNat)
+    hfirst hiter1 hc1 hiter0
 
 theorem fullDivN3FinalCarryZeroV4_of_conservation_path
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
