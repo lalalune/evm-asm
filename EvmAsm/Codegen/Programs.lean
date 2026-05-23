@@ -6318,6 +6318,175 @@ def ziskDeriveChainIdFromVProbeUnit : BuildUnit := {
   dataAsm     := ziskDeriveChainIdFromVDataSection
 }
 
+/-! ## tx_legacy_extract_signature -- PR-K138
+
+    Extract `(v, r, s)` from a 9-field legacy transaction RLP:
+
+      legacy_tx = rlp([nonce, gas_price, gas_limit, to,
+                       value, data, v, r, s])
+
+    Output convention:
+      * v: u64 (the on-the-wire v byte; pass through
+        `derive_chain_id_from_v` (K37) to split into chain_id /
+        is_eip155).
+      * r, s: 32-byte right-aligned, zero-padded big-endian
+        buffers — the canonical signature scalars.
+
+    Used by the legacy-tx sender-recovery path:
+      1. K138 extracts `(v, r, s)`.
+      2. K37 `derive_chain_id_from_v` splits v.
+      3. tx_signing_hash_legacy (future) computes the message
+         digest from fields 0..5 (+ optional EIP-155 tail).
+      4. `zkvm_secp256k1_ecrecover` produces a 64-byte pubkey.
+      5. K99 `address_from_pubkey` derives the 20-byte sender
+         address.
+
+    PR-K36 `tx_legacy_decode` already extracts these three
+    fields as part of full-record extraction; K138 is the
+    narrower accessor for callers that only need the signature
+    (e.g., when the other fields were already extracted by a
+    previous pass).
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` on fields 6, 7, 8
+
+    Calling convention:
+      a0 (input)  : tx_rlp ptr
+      a1 (input)  : tx_rlp byte length
+      a2 (input)  : v u64 out ptr
+      a3 (input)  : r 32-byte BE out ptr
+      a4 (input)  : s 32-byte BE out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / fields 6/7/8 missing
+        2 : v > 8 bytes (cannot fit in u64) or r/s > 32 bytes -/
+def txLegacyExtractSignatureFunction : String :=
+  "tx_legacy_extract_signature:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # tx_rlp ptr\n" ++
+  "  mv s1, a1                   # tx_rlp len\n" ++
+  "  mv s2, a2                   # v out\n" ++
+  "  mv s3, a3                   # r out (32 B)\n" ++
+  "  mv s4, a4                   # s out (32 B)\n" ++
+  "  # ---- Field 6: v (uint <= 8 bytes) → u64 ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 6\n" ++
+  "  la a3, tlxs_offset; la a4, tlxs_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ltlxs_fail\n" ++
+  "  la t0, tlxs_length; ld t1, 0(t0)\n" ++
+  "  li t2, 8\n" ++
+  "  bgtu t1, t2, .Ltlxs_size\n" ++
+  "  la t0, tlxs_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  li t2, 0\n" ++
+  ".Ltlxs_vloop:\n" ++
+  "  beqz t1, .Ltlxs_vdone\n" ++
+  "  slli t2, t2, 8\n" ++
+  "  lbu t4, 0(t3)\n" ++
+  "  or t2, t2, t4\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Ltlxs_vloop\n" ++
+  ".Ltlxs_vdone:\n" ++
+  "  sd t2, 0(s2)\n" ++
+  "  # ---- Field 7: r (u256 BE <= 32 bytes) ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
+  "  la a3, tlxs_offset; la a4, tlxs_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ltlxs_fail\n" ++
+  "  la t0, tlxs_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Ltlxs_size\n" ++
+  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
+  "  sub t2, t2, t1               # 32 - len\n" ++
+  "  add t4, s3, t2               # dst (right-aligned)\n" ++
+  "  la t0, tlxs_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  ".Ltlxs_rloop:\n" ++
+  "  beqz t1, .Ltlxs_rdone\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb  t5, 0(t4)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Ltlxs_rloop\n" ++
+  ".Ltlxs_rdone:\n" ++
+  "  # ---- Field 8: s (u256 BE <= 32 bytes) ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
+  "  la a3, tlxs_offset; la a4, tlxs_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ltlxs_fail\n" ++
+  "  la t0, tlxs_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Ltlxs_size\n" ++
+  "  sd zero,  0(s4); sd zero,  8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
+  "  sub t2, t2, t1\n" ++
+  "  add t4, s4, t2\n" ++
+  "  la t0, tlxs_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  ".Ltlxs_sloop:\n" ++
+  "  beqz t1, .Ltlxs_sdone\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb  t5, 0(t4)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Ltlxs_sloop\n" ++
+  ".Ltlxs_sdone:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltlxs_ret\n" ++
+  ".Ltlxs_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Ltlxs_ret\n" ++
+  ".Ltlxs_size:\n" ++
+  "  li a0, 2\n" ++
+  ".Ltlxs_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_tx_legacy_extract_signature`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : tx_rlp_len
+      bytes  8..   : tx_rlp
+    Output layout (72 bytes):
+      bytes  0.. 8 : status
+      bytes  8..16 : v
+      bytes 16..48 : r (32 B BE)
+      bytes 48..80 : s (32 B BE) -- truncated at 256 B cap is fine -/
+def ziskTxLegacyExtractSignaturePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # tx_rlp_len\n" ++
+  "  addi a0, a5, 16             # tx_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # v out\n" ++
+  "  li a3, 0xa0010010           # r out (32 B)\n" ++
+  "  li a4, 0xa0010030           # s out (32 B)\n" ++
+  "  jal ra, tx_legacy_extract_signature\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Ltlxs_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  txLegacyExtractSignatureFunction ++ "\n" ++
+  ".Ltlxs_pdone:"
+
+def ziskTxLegacyExtractSignatureDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "tlxs_offset:\n" ++
+  "  .zero 8\n" ++
+  "tlxs_length:\n" ++
+  "  .zero 8"
+
+def ziskTxLegacyExtractSignatureProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxLegacyExtractSignaturePrologue
+  dataAsm     := ziskTxLegacyExtractSignatureDataSection
+}
+
 /-! ## header_minimal_decode -- PR-K38
 
     Decode the 4 STF-essential fields of an RLP-encoded
@@ -14508,6 +14677,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_legacy_decode"     => some ziskTxLegacyDecodeProbeUnit
   | "zisk_tx_eip1559_decode"    => some ziskTxEip1559DecodeProbeUnit
   | "zisk_derive_chain_id_from_v" => some ziskDeriveChainIdFromVProbeUnit
+  | "zisk_tx_legacy_extract_signature" => some ziskTxLegacyExtractSignatureProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
@@ -14656,6 +14826,7 @@ def knownProgramNames : List String :=
    "zisk_tx_legacy_decode",
    "zisk_tx_eip1559_decode",
    "zisk_derive_chain_id_from_v",
+   "zisk_tx_legacy_extract_signature",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
