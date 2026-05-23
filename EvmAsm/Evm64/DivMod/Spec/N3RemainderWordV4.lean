@@ -11,6 +11,7 @@ import EvmAsm.Evm64.DivMod.Spec.CallablePost
 import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
 import EvmAsm.Evm64.EvmWordArith.DivAccumulate
 import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
+import EvmAsm.Evm64.EvmWordArith.ModBridgeUtop
 
 namespace EvmAsm.Evm64
 
@@ -281,6 +282,23 @@ theorem fullDivN3NormalizedMulSubEqV4_of_conservation
   rw [hcarry_zero] at hcons
   simpa using hcons
 
+private theorem finalCarryZero_of_conservation_bound
+    {a b q r carry : Nat}
+    (hbpos : 0 < b)
+    (hcons : a = q * b + r + carry * 2 ^ 256)
+    (hge : a / b ≤ q)
+    (hb_lt : b < 2 ^ 256) :
+    carry = 0 := by
+  have hcons' : a = q * b + (r + carry * 2 ^ 256) := by
+    omega
+  have hrem_lt : r + carry * 2 ^ 256 < b :=
+    (EvmWord.remainder_lt_of_ge_floor hbpos hcons' hge).2
+  by_contra hcarry_nz
+  have hcarry_pos : 0 < carry := by omega
+  have hrem_ge : 2 ^ 256 ≤ r + carry * 2 ^ 256 := by
+    nlinarith
+  omega
+
 /-- Normalized remainder bound paired with
 `fullDivN3NormalizedMulSubEqV4`. Together these are the standard Euclidean
 facts needed to recover the EVM MOD remainder. -/
@@ -416,6 +434,103 @@ theorem fullDivN3AntiShift_toNat_mod_eq_of_shift_ne {b2 : Word}
     omega
   have h63 := fullDivN3Shift_toNat_le_63 b2
   exact antiShift_toNat_mod_eq h1 h63
+
+theorem fullDivN3FinalCarryZeroV4_of_conservation_path
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hb3z : b.getLimbN 3 = 0)
+    (hdivPath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b)
+    (hcons : fullDivN3NormalizedConservationV4 bltu_1 bltu_0 a b) :
+    fullDivN3FinalCarryZeroV4 bltu_1 bltu_0 a b := by
+  obtain ⟨_, _, _, _, hge⟩ := hdivPath
+  have hbnz' :
+      b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  have hbVal : 0 <
+      EvmWord.val256
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+    EvmWord.val256_pos_of_or_ne_zero hbnz'
+  have hpow : 0 < 2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat := by
+    positivity
+  have hbScaled_pos : 0 <
+      EvmWord.val256
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+        2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat := by
+    positivity
+  have hgeScaled :
+      (EvmWord.val256
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+          2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat) /
+        (EvmWord.val256
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+          2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat) ≤
+        ((fullDivN3R1V4 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat *
+          2 ^ 64 +
+        ((fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat := by
+    rw [Nat.mul_div_mul_right _ _ hpow]
+    exact hge
+  have hs_le64 : (fullDivN3Shift (b.getLimbN 2)).toNat ≤ 64 := by
+    have hs_le63 := fullDivN3Shift_toNat_le_63 (b.getLimbN 2)
+    omega
+  have hb3_bound :
+      (b.getLimbN 3).toNat <
+        2 ^ (64 - (fullDivN3Shift (b.getLimbN 2)).toNat) := by
+    rw [hb3z]
+    simp
+  have hbVal_lt :
+      EvmWord.val256
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) <
+        2 ^ (256 - (fullDivN3Shift (b.getLimbN 2)).toNat) :=
+    EvmWord.val256_lt_of_b3_bound
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hs_le64 hb3_bound
+  have hbScaled_lt :
+      EvmWord.val256
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+          2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat <
+        2 ^ 256 := by
+    calc
+      EvmWord.val256
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+          2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat
+          < 2 ^ (256 - (fullDivN3Shift (b.getLimbN 2)).toNat) *
+              2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat :=
+            (Nat.mul_lt_mul_right hpow).mpr hbVal_lt
+      _ = 2 ^ 256 := by
+            rw [← pow_add]
+            congr 1
+            have hs_le256 :
+                (fullDivN3Shift (b.getLimbN 2)).toNat ≤ 256 := by
+              omega
+            omega
+  have hcarry_toNat_zero :
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.2).toNat = 0 := by
+    unfold fullDivN3NormalizedConservationV4 at hcons
+    exact finalCarryZero_of_conservation_bound
+      (hbpos := hbScaled_pos)
+      (hcons := hcons)
+      (hge := hgeScaled)
+      (hb_lt := hbScaled_lt)
+  unfold fullDivN3FinalCarryZeroV4
+  exact BitVec.eq_of_toNat_eq hcarry_toNat_zero
+
+theorem fullModN3PathConditionsNormalizedV4_of_conservation
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hb3z : b.getLimbN 3 = 0)
+    (hdivPath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b)
+    (hcons : fullDivN3NormalizedConservationV4 bltu_1 bltu_0 a b) :
+    fullModN3PathConditionsNormalizedV4 bltu_1 bltu_0 a b :=
+  fullModN3PathConditionsNormalizedV4_of_mulsub bltu_1 bltu_0 a b hbnz hdivPath
+    (fullDivN3NormalizedMulSubEqV4_of_conservation bltu_1 bltu_0 a b hcons
+      (fullDivN3FinalCarryZeroV4_of_conservation_path
+        bltu_1 bltu_0 a b hbnz hb3z hdivPath hcons))
 
 /-- Reduce the N3 v4 MOD `val256` remainder obligation to the normalized
 scaled-remainder equality produced before denormalization. -/
