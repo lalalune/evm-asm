@@ -2036,10 +2036,6 @@ def accountExtractCodeHashFunction : String :=
     (account_len, account_bytes), writes (status, 32-byte
     storage_root) to OUTPUT (40 bytes total). -/
 def ziskAccountExtractStorageRootPrologue : String :=
-/-- `zisk_account_extract_code_hash`: probe BuildUnit. Reads
-    (account_len, account_bytes), writes (status, 32-byte
-    code_hash) to OUTPUT (40 bytes). -/
-def ziskAccountExtractCodeHashPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a3, 0x40000000\n" ++
   "  ld a1, 8(a3)                # account_rlp_len\n" ++
@@ -2065,6 +2061,17 @@ def ziskAccountExtractStorageRootProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskAccountExtractStorageRootPrologue
   dataAsm     := ziskAccountExtractStorageRootDataSection
+}
+
+/-- `zisk_account_extract_code_hash`: probe BuildUnit. Reads
+    (account_len, account_bytes), writes (status, 32-byte
+    code_hash) to OUTPUT (40 bytes). -/
+def ziskAccountExtractCodeHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # account_rlp_len\n" ++
+  "  addi a0, a3, 16             # account_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # 32B output\n" ++
   "  jal ra, account_extract_code_hash\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
