@@ -1760,6 +1760,166 @@ def ziskEip7702AuthorizationExtractSignatureProbeUnit : BuildUnit := {
   dataAsm     := ziskEip7702AuthorizationExtractSignatureDataSection
 }
 
+/-! ## rlp_list_truncate_to_n_fields -- PR-K144
+
+    Given an RLP-encoded list and a count `n`, write a freshly
+    re-encoded RLP list containing only the first `n` fields of
+    the input. The child encodings are reused verbatim (RLP is
+    context-free at child level); only the outer list prefix is
+    re-emitted to reflect the smaller payload.
+
+    Direct building block for transaction signing-hash computation:
+
+      * Legacy pre-EIP-155 signing hash = `keccak256(rlp([nonce,
+        gas_price, gas_limit, to, value, data]))` — i.e., the
+        legacy tx's 9-field RLP truncated to its first 6 fields
+        (dropping `v, r, s`).
+      * EIP-1559 signing hash body = first 9 fields of the
+        12-field inner list (dropping `y_parity, r, s`).
+      * EIP-2930 signing hash body = first 8 fields of 11.
+      * EIP-4844 signing hash body = first 11 fields of 14.
+      * EIP-7702 signing hash body = first 10 fields of 13.
+      * EIP-7702 authorization signing hash body = first 3 fields
+        of the 6-field authorization tuple (dropping
+        `y_parity, r, s`).
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item`     — locate first / last fields
+      - PR-K129 `rlp_encode_list_prefix` — new outer prefix
+
+    Calling convention:
+      a0 (input)  : input_rlp ptr (encoded list)
+      a1 (input)  : input_rlp byte length
+      a2 (input)  : n_fields (u64) — keep first n
+      a3 (input)  : output buffer ptr (caller supplies
+                    >= 9 + len(retained payload) bytes)
+      a4 (input)  : u64 out_length ptr (receives total written
+                    bytes, prefix + payload)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / input not a list
+        2 : input has fewer than `n` fields
+    Edge cases:
+      * n == 0 → output is `0xc0` (empty list, 1 byte). -/
+def rlpListTruncateToNFieldsFunction : String :=
+  "rlp_list_truncate_to_n_fields:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # input_rlp ptr\n" ++
+  "  mv s1, a1                   # input_rlp len\n" ++
+  "  mv s2, a2                   # n_fields\n" ++
+  "  mv s3, a3                   # output buffer ptr\n" ++
+  "  mv s4, a4                   # out_length ptr\n" ++
+  "  beqz s2, .Lrltn_empty       # n == 0 → emit `0xc0`\n" ++
+  "  # ---- Locate field 0 to get payload_start ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
+  "  la a3, rltn_offset_lo; la a4, rltn_length_lo\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lrltn_parse_fail\n" ++
+  "  # ---- Locate field (n-1) to get end-of-payload ----\n" ++
+  "  addi t0, s2, -1\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, t0\n" ++
+  "  la a3, rltn_offset_hi; la a4, rltn_length_hi\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lrltn_too_few\n" ++
+  "  la t0, rltn_offset_lo; ld s5, 0(t0)        # payload_start\n" ++
+  "  la t0, rltn_offset_hi; ld t1, 0(t0)\n" ++
+  "  la t0, rltn_length_hi; ld t2, 0(t0)\n" ++
+  "  add t1, t1, t2                              # end-of-payload\n" ++
+  "  sub s6, t1, s5                              # new_payload_len\n" ++
+  "  # ---- Write new outer list prefix ----\n" ++
+  "  mv a0, s6; mv a1, s3\n" ++
+  "  la a2, rltn_prefix_len\n" ++
+  "  jal ra, rlp_encode_list_prefix\n" ++
+  "  la t0, rltn_prefix_len; ld t1, 0(t0)        # prefix_len\n" ++
+  "  # ---- Copy payload bytes ----\n" ++
+  "  add t2, s3, t1                              # dst = output + prefix\n" ++
+  "  add t3, s0, s5                              # src = input + payload_start\n" ++
+  "  mv t4, s6                                   # remaining bytes\n" ++
+  ".Lrltn_cploop:\n" ++
+  "  beqz t4, .Lrltn_cpdone\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb t5, 0(t2)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lrltn_cploop\n" ++
+  ".Lrltn_cpdone:\n" ++
+  "  add t1, t1, s6                              # out_len = prefix + payload\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lrltn_ret\n" ++
+  ".Lrltn_empty:\n" ++
+  "  li t0, 0xc0\n" ++
+  "  sb t0, 0(s3)\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lrltn_ret\n" ++
+  ".Lrltn_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lrltn_ret\n" ++
+  ".Lrltn_too_few:\n" ++
+  "  li a0, 2\n" ++
+  ".Lrltn_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_rlp_list_truncate_to_n_fields`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : input_rlp_len
+      bytes  8..16 : n_fields (u64 LE)
+      bytes 16..   : input_rlp
+    Output layout (1 KiB ought to be plenty for fixtures):
+      bytes  0.. 8 : status
+      bytes  8..16 : out_length
+      bytes 16..   : written RLP bytes (truncated to 256-byte
+                     ziskemu cap; the fixture script reconstructs
+                     the slice from the input and the expected
+                     prefix). -/
+def ziskRlpListTruncateToNFieldsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # input_rlp_len\n" ++
+  "  ld a2, 16(a5)               # n_fields\n" ++
+  "  addi a0, a5, 24             # input_rlp ptr\n" ++
+  "  li a3, 0xa0010010           # output buffer\n" ++
+  "  li a4, 0xa0010008           # out_length\n" ++
+  "  jal ra, rlp_list_truncate_to_n_fields\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lrltn_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpListTruncateToNFieldsFunction ++ "\n" ++
+  ".Lrltn_pdone:"
+
+def ziskRlpListTruncateToNFieldsDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rltn_offset_lo:\n" ++
+  "  .zero 8\n" ++
+  "rltn_length_lo:\n" ++
+  "  .zero 8\n" ++
+  "rltn_offset_hi:\n" ++
+  "  .zero 8\n" ++
+  "rltn_length_hi:\n" ++
+  "  .zero 8\n" ++
+  "rltn_prefix_len:\n" ++
+  "  .zero 8"
+
+def ziskRlpListTruncateToNFieldsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRlpListTruncateToNFieldsPrologue
+  dataAsm     := ziskRlpListTruncateToNFieldsDataSection
+}
+
 /-! ## blob_gas_used_from_versioned_hashes -- PR-K64
 
     Compute the EIP-4844 `blob_gas_used` field as:
