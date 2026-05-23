@@ -3951,6 +3951,164 @@ def ziskRlpEncodeUintBeProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpEncodeUintBeDataSection
 }
 
+/-! ## rlp_encode_bytes -- PR-K128
+
+    Generic RLP encoder for a raw byte string. Matches the
+    `rlp.encode(bytes)` reference (Ethereum yellow-paper §B):
+
+      len == 1 AND byte < 0x80   → single byte (no prefix)
+      len < 56                   → 0x80 + len, then `len` bytes
+      else                       → 0xb7 + bc, then `bc`-byte BE
+                                   length, then `len` bytes
+                                   (`bc` = effective byte count of
+                                    `len`, no leading zeros, 1..8)
+
+    PR-K30 `rlp_encode_uint_be` covers the *uint* shape (BE bytes
+    + canonical-form leading-zero stripping); K128 covers the
+    *arbitrary bytes* shape, which doesn't strip leading zeros and
+    handles the single-byte-no-prefix short-cut. Together they're
+    the two RLP-string primitives needed for trie / node /
+    header / tx re-encoding.
+
+    Calling convention:
+      a0 (input)  : data ptr
+      a1 (input)  : data byte length
+      a2 (input)  : output bytes ptr
+                    (caller must have space for `9 + len` bytes)
+      a3 (input)  : u64 out ptr (output byte length)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds — total function).
+
+    Pure-leaf semantics: no scratch memory, no transitive calls. -/
+def rlpEncodeBytesFunction : String :=
+  "rlp_encode_bytes:\n" ++
+  "  # t0 = data cursor; t1 = remaining; t2 = out cursor.\n" ++
+  "  mv t0, a0\n" ++
+  "  mv t1, a1\n" ++
+  "  mv t2, a2\n" ++
+  "  # Single-byte short-cut: len == 1 AND byte < 0x80.\n" ++
+  "  li t3, 1\n" ++
+  "  bne t1, t3, .Lreb_check_short\n" ++
+  "  lbu t4, 0(t0)\n" ++
+  "  li t5, 0x80\n" ++
+  "  bgeu t4, t5, .Lreb_check_short\n" ++
+  "  sb t4, 0(t2)\n" ++
+  "  li t6, 1\n" ++
+  "  sd t6, 0(a3)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lreb_check_short:\n" ++
+  "  li t3, 56\n" ++
+  "  bgeu t1, t3, .Lreb_long\n" ++
+  "  # Short string: prefix = 0x80 + len, then data.\n" ++
+  "  addi t3, t1, 0x80\n" ++
+  "  sb t3, 0(t2)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  mv t4, t1                   # bytes to copy\n" ++
+  ".Lreb_short_copy:\n" ++
+  "  beqz t4, .Lreb_short_done\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  sb t3, 0(t2)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lreb_short_copy\n" ++
+  ".Lreb_short_done:\n" ++
+  "  addi t6, t1, 1              # out_len = 1 + len\n" ++
+  "  sd t6, 0(a3)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lreb_long:\n" ++
+  "  # Long string: prefix = 0xb7 + bc, then bc-byte BE len, then data.\n" ++
+  "  # Compute bc = effective byte count of t1 (1..8).\n" ++
+  "  # Write t1 as 8 BE bytes to a small scratch on the stack (or use\n" ++
+  "  # shifts directly into the out buffer). Use direct write approach:\n" ++
+  "  # determine bc, then write bc BE bytes from t1 by shifting right.\n" ++
+  "  li t3, 1\n" ++
+  "  li t4, 0x100                # 2^8\n" ++
+  "  bltu t1, t4, .Lreb_have_bc\n" ++
+  "  li t3, 2\n" ++
+  "  slli t4, t4, 8              # 2^16\n" ++
+  "  bltu t1, t4, .Lreb_have_bc\n" ++
+  "  li t3, 3\n" ++
+  "  slli t4, t4, 8              # 2^24\n" ++
+  "  bltu t1, t4, .Lreb_have_bc\n" ++
+  "  li t3, 4\n" ++
+  "  slli t4, t4, 8              # 2^32\n" ++
+  "  bltu t1, t4, .Lreb_have_bc\n" ++
+  "  li t3, 5\n" ++
+  "  slli t4, t4, 8              # 2^40\n" ++
+  "  bltu t1, t4, .Lreb_have_bc\n" ++
+  "  li t3, 6\n" ++
+  "  slli t4, t4, 8              # 2^48\n" ++
+  "  bltu t1, t4, .Lreb_have_bc\n" ++
+  "  li t3, 7\n" ++
+  "  slli t4, t4, 8              # 2^56\n" ++
+  "  bltu t1, t4, .Lreb_have_bc\n" ++
+  "  li t3, 8\n" ++
+  ".Lreb_have_bc:\n" ++
+  "  # t3 = bc. Write prefix 0xb7 + bc.\n" ++
+  "  addi t4, t3, 0xb7\n" ++
+  "  sb t4, 0(t2)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  # Write bc bytes of t1 in BE order. Use a counter i = bc-1..0,\n" ++
+  "  # shift t1 right by 8*i, store low byte.\n" ++
+  "  addi t4, t3, -1             # i = bc-1\n" ++
+  ".Lreb_emit_be:\n" ++
+  "  bltz t4, .Lreb_be_done\n" ++
+  "  slli t5, t4, 3              # 8 * i\n" ++
+  "  srl t6, t1, t5\n" ++
+  "  sb t6, 0(t2)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lreb_emit_be\n" ++
+  ".Lreb_be_done:\n" ++
+  "  # Copy data bytes.\n" ++
+  "  mv t4, t1\n" ++
+  ".Lreb_long_copy:\n" ++
+  "  beqz t4, .Lreb_long_done\n" ++
+  "  lbu t5, 0(t0)\n" ++
+  "  sb t5, 0(t2)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lreb_long_copy\n" ++
+  ".Lreb_long_done:\n" ++
+  "  # out_len = 1 + bc + len\n" ++
+  "  addi t5, t3, 1\n" ++
+  "  add t5, t5, t1\n" ++
+  "  sd t5, 0(a3)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_rlp_encode_bytes`: probe BuildUnit. Reads (data_len,
+    data_bytes) from host input, writes (status, out_len,
+    out_bytes...) to OUTPUT. -/
+def ziskRlpEncodeBytesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # data length\n" ++
+  "  addi a0, a4, 16             # data ptr\n" ++
+  "  li a2, 0xa0010010           # out bytes\n" ++
+  "  li a3, 0xa0010008           # out_len out\n" ++
+  "  jal ra, rlp_encode_bytes\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lreb_pdone\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  ".Lreb_pdone:"
+
+def ziskRlpEncodeBytesDataSection : String :=
+  ".section .data\n" ++
+  "reb_scratch:\n" ++
+  "  .zero 8"
+
+def ziskRlpEncodeBytesProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRlpEncodeBytesPrologue
+  dataAsm     := ziskRlpEncodeBytesDataSection
+}
+
 /-! ## account_encode -- PR-K31 mutating side of account_decode
 
     Encode (nonce, balance, storage_root, code_hash) into the
@@ -13565,6 +13723,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_at_address"   => some ziskAccountAtAddressProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
+  | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
@@ -13695,6 +13854,7 @@ def knownProgramNames : List String :=
    "zisk_account_at_address",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
+   "zisk_rlp_encode_bytes",
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
    "zisk_state_root_single_account",
