@@ -9,6 +9,7 @@ import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
 import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
+import EvmAsm.Evm64.EvmWordArith.DivAccumulate
 import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
 
 namespace EvmAsm.Evm64
@@ -194,6 +195,70 @@ abbrev fullModN3PathConditionsScaledV4 (bltu_1 bltu_0 : Bool)
       EvmWord.val256
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
       2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat
+
+/-- Normalized Euclidean equation expected from the remaining N3 v4 loop
+arithmetic proof. The final normalized remainder `fullDivN3R0V4` is paired
+with the two accumulated quotient limbs. -/
+abbrev fullDivN3NormalizedMulSubEqV4 (bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) : Prop :=
+  EvmWord.val256
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+      2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat =
+    (((fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat *
+        2 ^ 64 +
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat) *
+      (EvmWord.val256
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+        2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat) +
+    EvmWord.val256
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1
+
+/-- Normalized remainder bound paired with
+`fullDivN3NormalizedMulSubEqV4`. Together these are the standard Euclidean
+facts needed to recover the EVM MOD remainder. -/
+abbrev fullDivN3NormalizedRemainderLtV4 (bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) : Prop :=
+  EvmWord.val256
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <
+    EvmWord.val256
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+      2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat
+
+theorem fullModN3PathConditionsScaledV4_of_normalized_euclidean
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hdivPath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b)
+    (hmulsub : fullDivN3NormalizedMulSubEqV4 bltu_1 bltu_0 a b)
+    (hrlt : fullDivN3NormalizedRemainderLtV4 bltu_1 bltu_0 a b) :
+    fullModN3PathConditionsScaledV4 bltu_1 bltu_0 a b := by
+  refine ⟨hdivPath, ?_⟩
+  exact EvmWord.normalized_remainder_eq_mod_mul_pow
+    ((fullDivN3Shift (b.getLimbN 2)).toNat) hmulsub hrlt
 
 theorem fullModN3PathConditionsWordV4_of_val256
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
