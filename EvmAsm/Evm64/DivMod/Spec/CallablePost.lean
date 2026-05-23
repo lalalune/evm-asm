@@ -260,6 +260,29 @@ theorem divStackDispatchPostCallableExactFrame_weaken_own_x1_frame_x9
   exact divStackDispatchPostCallable_exact_x1_weaken_own_x1_frame_x9
     sp a b raVal x9Val h hp
 
+/-- Public no-NOP MOD callable post with exact caller-framed `x1` and `x9`.
+    This mirrors `divStackDispatchPostCallableExactFrame` for MOD callers. -/
+@[irreducible]
+def modStackDispatchPostCallableExactFrame
+    (sp : Word) (a b : EvmWord) (raVal x9Val : Word) : Assertion :=
+  (modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) **
+    (.x9 ↦ᵣ x9Val)
+
+theorem modStackDispatchPostCallableExactFrame_unfold
+    {sp : Word} {a b : EvmWord} {raVal x9Val : Word} :
+    modStackDispatchPostCallableExactFrame sp a b raVal x9Val =
+      ((modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) **
+        (.x9 ↦ᵣ x9Val)) := by
+  delta modStackDispatchPostCallableExactFrame
+  rfl
+
+theorem modStackDispatchPostCallableExactFrame_pcFree
+    (sp : Word) (a b : EvmWord) (raVal x9Val : Word) :
+    (modStackDispatchPostCallableExactFrame sp a b raVal x9Val).pcFree := by
+  rw [modStackDispatchPostCallableExactFrame_unfold,
+    modStackDispatchPostCallable_unfold, divScratchOwnCallNoX1_unfold]
+  pcFree
+
 /-- Concrete no-NOP MOD callable post bundle before weakening. -/
 @[irreducible]
 def modConcretePostNoX1Frame (sp : Word) (a b : EvmWord)

@@ -658,6 +658,64 @@ theorem loopIterPostN3Call_skip {sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
         loopBodyN3CallSkipPostJ loopBodyN3SkipPost loopBodySkipPost loopExitPostN3 loopExitPost
   unfold mulsubN4_c3 at hb; simp only [if_neg hb]
 
+@[irreducible] def loopIterPostN3CallScratchNoX1
+    (sp base j qHat dLo divUn0 scratchOut v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Assertion :=
+  let r := iterWithDoubleAddback qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let c3 := (mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+  loopExitPostN3 sp j r.1 c3 r.2.1 r.2.2.1 r.2.2.2.1 r.2.2.2.2.1 r.2.2.2.2.2 v0 v1 v2 v3 **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v2) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ divUn0) **
+  (sp + signExtend12 3936 ↦ₘ scratchOut)
+
+@[irreducible] def loopBodyN3CallSkipPostJScratchNoX1
+    (sp base j qHat dLo divUn0 scratchOut v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Assertion :=
+  loopBodyN3SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v2) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ divUn0) **
+  (sp + signExtend12 3936 ↦ₘ scratchOut)
+
+@[irreducible] def loopBodyN3CallAddbackBeqPostJScratchNoX1
+    (sp base j qHat dLo divUn0 scratchOut v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Assertion :=
+  loopBodyN3AddbackBeqPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v2) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ divUn0) **
+  (sp + signExtend12 3936 ↦ₘ scratchOut)
+
+theorem loopIterPostN3CallScratchNoX1_skip
+    {sp base j qHat dLo divUn0 scratchOut v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
+    (hb : ¬BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)) :
+    loopBodyN3CallSkipPostJScratchNoX1 sp base j qHat dLo divUn0 scratchOut
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      loopIterPostN3CallScratchNoX1 sp base j qHat dLo divUn0 scratchOut
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  delta loopIterPostN3CallScratchNoX1 loopBodyN3CallSkipPostJScratchNoX1
+    iterWithDoubleAddback loopBodyN3SkipPost loopBodySkipPost loopExitPostN3 loopExitPost
+  unfold mulsubN4_c3 at hb
+  simp only [if_neg hb]
+
+theorem loopIterPostN3CallScratchNoX1_addback
+    {sp base j qHat dLo divUn0 scratchOut v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word}
+    (hb : BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3)) :
+    loopBodyN3CallAddbackBeqPostJScratchNoX1 sp base j qHat dLo divUn0 scratchOut
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      loopIterPostN3CallScratchNoX1 sp base j qHat dLo divUn0 scratchOut
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  delta loopIterPostN3CallScratchNoX1 loopBodyN3CallAddbackBeqPostJScratchNoX1
+    iterWithDoubleAddback loopBodyN3AddbackBeqPost loopBodyAddbackBeqPost
+    loopExitPostN3 loopExitPost
+  unfold mulsubN4_c3 at hb
+  simp only [if_pos hb]
+  split <;> rfl
+
 -- (Bool-dispatch wrapper loopIterPostN3 was removed as dead code; callers use
 -- loopIterPostN3Max / loopIterPostN3Call directly per execution path.)
 
