@@ -11,6 +11,45 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+def isTrialN3V4_j1 (bltu : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  bltu =
+    BitVec.ult (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+      (fullDivN3NormV b0 b1 b2 b3).2.2.1
+
+def isTrialN3V4_j0 (bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  bltu_0 =
+    if bltu_1 then
+      BitVec.ult
+        (iterWithDoubleAddback
+          (divKTrialCallV4QHat
+            (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+            (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+            (fullDivN3NormV b0 b1 b2 b3).2.2.1)
+          (fullDivN3NormV b0 b1 b2 b3).1
+          (fullDivN3NormV b0 b1 b2 b3).2.1
+          (fullDivN3NormV b0 b1 b2 b3).2.2.1
+          (fullDivN3NormV b0 b1 b2 b3).2.2.2
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+          (0 : Word)).2.2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+    else
+      BitVec.ult
+        (iterN3Max
+          (fullDivN3NormV b0 b1 b2 b3).1
+          (fullDivN3NormV b0 b1 b2 b3).2.1
+          (fullDivN3NormV b0 b1 b2 b3).2.2.1
+          (fullDivN3NormV b0 b1 b2 b3).2.2.2
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+          (0 : Word)).2.2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+
 abbrev fullDivN3MulSubEqV4 (bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
   EvmWord.val256 a0 a1 a2 a3 =
