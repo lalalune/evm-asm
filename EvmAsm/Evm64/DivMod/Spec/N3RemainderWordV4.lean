@@ -287,4 +287,42 @@ theorem fullModN3UnifiedPostNoX1V4_frame_to_modStackDispatchPostCallableExactFra
     (fun h hp => modConcretePostNoX1ExactRegs_weaken_callable_frame sp a b h hp)
     h hExact
 
+/-- Remainder-word form of
+    `fullModN3UnifiedPostNoX1V4_frame_to_modStackDispatchPostCallableExactFrame_scratch`. -/
+theorem fullModN3UnifiedPostNoX1V4_frame_to_modStackDispatchPostCallableExactFrame_scratch_word
+    (bltu_1 bltu_0 : Bool)
+    (sp base : Word) (a b : EvmWord)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (raVal : Word)
+    (hmodWord : fullModN3RemainderWordV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.mod a b) :
+    ∀ h,
+      (fullModN3UnifiedPostNoX1V4 bltu_1 bltu_0 sp base
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal)) h →
+      (modStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       ((sp + signExtend12 3936) ↦ₘ
+        fullDivN3ScratchMemV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          scratchMem)) h := by
+  obtain ⟨hmod0, hmod1, hmod2, hmod3⟩ :=
+    fullModN3V4_hmods_of_word_eq bltu_1 bltu_0 a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hmodWord
+  intro h hp
+  rw [modStackDispatchPostCallableExactFrame_unfold]
+  exact fullModN3UnifiedPostNoX1V4_frame_to_modStackDispatchPostCallableExactFrame_scratch
+    bltu_1 bltu_0 sp base a b
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    retMem dMem dloMem scratchUn0 scratchMem raVal
+    rfl rfl rfl rfl hmod0 hmod1 hmod2 hmod3 h hp
+
 end EvmAsm.Evm64
