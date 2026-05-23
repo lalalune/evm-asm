@@ -134,7 +134,7 @@ theorem evm_smod_mod_call_return_stack_spec_within
     (h_stack :
       EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
         (base + wrapperEndOff) ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
-        (EvmAsm.Evm64.sharedDivModCodeNoNop_v4 (base + wrapperEndOff))
+        (EvmAsm.Evm64.modCode_noNop_v4 (base + wrapperEndOff))
         (EvmAsm.Evm64.divModStackDispatchPreCallable sp
           (smodAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
             (dividend.getLimbN 2) (dividend.getLimbN 3))
@@ -201,7 +201,7 @@ theorem evm_smod_canonical_mod_call_return_stack_spec_within
     (h_stack :
       EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
         (base + wrapperEndOff) ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
-        (EvmAsm.Evm64.sharedDivModCodeNoNop_v4 (base + wrapperEndOff))
+        (EvmAsm.Evm64.modCode_noNop_v4 (base + wrapperEndOff))
         (EvmAsm.Evm64.divModStackDispatchPreCallable sp
           (smodAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
             (dividend.getLimbN 2) (dividend.getLimbN 3))
