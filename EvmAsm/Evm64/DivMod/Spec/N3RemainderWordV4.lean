@@ -5,13 +5,14 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
+import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.AddrNorm (word_add_zero)
+open EvmAsm.Rv64.AddrNorm (word_add_zero se12_32 se12_40 se12_48 se12_56)
 
 /-- v4 n=3 MOD remainder word, using the v4 call-path `fullDivN3R0V4`
 computation before the usual denormalization shift. -/
@@ -64,6 +65,79 @@ def fullModN3UnifiedPostNoX1V4 (bltu_1 bltu_0 : Bool)
     retMem dMem dloMem scratchUn0 **
   ((sp + signExtend12 3936) ↦ₘ
     fullDivN3ScratchMemV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 scratchMem)
+
+/-- N3 denormalization and MOD epilogue over the v4/no-NOP dispatcher body,
+    using the v4 callable-trial final computation family. -/
+theorem evm_mod_n3_denorm_epilogue_bundled_spec_v4_noNop_v4Final
+    (bltu_1 bltu_0 : Bool)
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hshift_nz : fullDivN3Shift b2 ≠ 0) :
+    cpsTripleWithin (2 + 23 + 10) (base + denormOff) (base + nopOff) (modCode_noNop_v4 base)
+      (fullDivN3DenormPreV4 bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3)
+      (fullModN3DenormPostV4 bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3) := by
+  let shift := fullDivN3Shift b2
+  let v := fullDivN3NormV b0 b1 b2 b3
+  let r1 := fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  let r0 := fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  let c3 := fullDivN3C3V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+  have h := evm_mod_preamble_denorm_epilogue_spec_within_noNop_v4 sp base
+    r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 shift
+    r0.2.2.2.2.1 (0 : Word) (sp + signExtend12 4056) (sp + signExtend12 4088)
+    c3 v.1 v.2.1 v.2.2.1 v.2.2.2 hshift_nz
+  have hF := cpsTripleWithin_frameR
+    (((sp + signExtend12 4088) ↦ₘ r0.1) **
+     ((sp + signExtend12 4080) ↦ₘ r1.1) **
+     ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4064) ↦ₘ (0 : Word)))
+    (by pcFree) h
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      subst shift; subst v; subst r1; subst r0; subst c3
+      delta fullDivN3DenormPreV4 at hp
+      simp only [se12_32, se12_40, se12_48, se12_56] at hp
+      xperm_hyp hp)
+    (fun h hq => by
+      subst shift; subst r1; subst r0
+      delta fullModN3DenormPostV4
+      xperm_hyp hq)
+    hF
+
+/-- N3 denormalization and MOD epilogue over v4/no-NOP for the v4 final
+    computation family, preserving exact caller `x1` and the final v4 div128
+    scratch cell. -/
+theorem evm_mod_n3_denorm_epilogue_bundled_spec_v4_noNop_v4Final_exact_x1_scratch_frame
+    (bltu_1 bltu_0 : Bool)
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hshift_nz : fullDivN3Shift b2 ≠ 0) :
+    cpsTripleWithin (2 + 23 + 10) (base + denormOff) (base + nopOff)
+      (modCode_noNop_v4 base)
+      (fullDivN3DenormPreV4 bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3 **
+       fullDivN3FrameNoX1V4 bltu_1 bltu_0 sp base
+         a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ
+         fullDivN3ScratchMemV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 scratchMem) **
+       (.x1 ↦ᵣ raVal))
+      (fullModN3UnifiedPostNoX1V4 bltu_1 bltu_0 sp base
+        a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0 scratchMem **
+       (.x1 ↦ᵣ raVal)) := by
+  have hDenorm := evm_mod_n3_denorm_epilogue_bundled_spec_v4_noNop_v4Final
+    bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3 hshift_nz
+  have hFramed := cpsTripleWithin_frameR
+    (fullDivN3FrameNoX1V4 bltu_1 bltu_0 sp base
+     a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0 **
+     ((sp + signExtend12 3936) ↦ₘ
+       fullDivN3ScratchMemV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 scratchMem) **
+     (.x1 ↦ᵣ raVal))
+    (by
+      delta fullDivN3FrameNoX1V4 fullDivN3ScratchNoX1V4
+      pcFree) hDenorm
+  exact cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by
+      delta fullModN3UnifiedPostNoX1V4
+      xperm_hyp hq)
+    hFramed
 
 /-- Project a packed v4 n=3 MOD remainder equality into limb equalities. -/
 theorem fullModN3V4_hmods_of_word_eq
