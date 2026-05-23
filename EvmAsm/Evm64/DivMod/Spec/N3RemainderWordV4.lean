@@ -179,6 +179,58 @@ theorem fullModN3PathConditionsWordV4_of_val256
     fullModN3RemainderWordV4_eq_mod_of_val256_eq_mod
       bltu_1 bltu_0 a b hbnz hval⟩
 
+/-- Reduce the N3 v4 MOD `val256` remainder obligation to the normalized
+scaled-remainder equality produced before denormalization. -/
+theorem fullModN3RemainderVal256V4_eq_mod_of_scaled_remainder
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    {s : Nat} (hs0 : 0 < s) (hs : s < 64)
+    (hshift : (fullDivN3Shift (b.getLimbN 2)).toNat % 64 = s)
+    (hanti :
+      (signExtend12 (0 : BitVec 12) - fullDivN3Shift (b.getLimbN 2)).toNat % 64 =
+        64 - s)
+    (hscaled :
+      EvmWord.val256
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 =
+      EvmWord.val256
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
+        EvmWord.val256
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) * 2 ^ s) :
+    fullModN3RemainderVal256V4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.val256
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
+        EvmWord.val256
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  let r0 := (fullDivN3R0V4 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+  let r1 := (fullDivN3R0V4 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+  let r2 := (fullDivN3R0V4 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+  let r3 := (fullDivN3R0V4 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1
+  have hdenorm := EvmWord.val256_denormalize hs0 hs r0 r1 r2 r3
+  subst r0; subst r1; subst r2; subst r3
+  delta fullModN3RemainderVal256V4
+  rw [hshift, hanti, hdenorm, hscaled]
+  exact Nat.mul_div_cancel _ (by positivity : 0 < 2 ^ s)
+
 theorem fullModN3RemainderWordV4_eq_mod_of_mod_path_conditions
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hpath : fullModN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
