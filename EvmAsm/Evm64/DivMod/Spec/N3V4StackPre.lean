@@ -8,6 +8,7 @@ import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
 import EvmAsm.Evm64.DivMod.Spec.N3QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
+import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
 
 namespace EvmAsm.Evm64
@@ -798,5 +799,15 @@ theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_of_mulsub_overestimate
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
     hbnz hb3z hb2nz hshift_nz halign hbltu_1 hbltu_0 hcarry2 hdivWord
+
+/-- Lift the N3 v4 stack-pre/callable-post path to the shared
+    `unifiedDivBound` used by dispatcher-facing stack specs. -/
+theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_bound_unified
+    {P Q : Assertion} (base : Word)
+    (h :
+      cpsTripleWithin ((8 + 21 + 24 + 4 + 21 + 21 + 4 + 448) + (2 + 23 + 10))
+        base (base + nopOff) (divCode_v4 base) P Q) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_v4 base) P Q := by
+  exact cpsTripleWithin_mono_nSteps (by unfold unifiedDivBound; decide) h
 
 end EvmAsm.Evm64
