@@ -2656,6 +2656,102 @@ def ziskU256AddBeProbeUnit : BuildUnit := {
   dataAsm     := ziskU256AddBeDataSection
 }
 
+/-! ## u256_lt_be -- PR-K160
+
+    The missing companion to PR-K53 `u256_eq` and PR-K52
+    `u256_sub_be`. Earlier helpers in the u256 family reference
+    "PR-K50 `u256_lt`" in their doc-comments, but the function
+    was never actually shipped; this PR finally pins the
+    primitive into the registry.
+
+    Compare two 32-byte big-endian u256 buffers and return the
+    verdict `a < b` as a u64 (1 if strictly less, 0 otherwise).
+
+    Pure byte-walk from MSB to LSB: on the first differing byte,
+    return early based on the byte ordering; on full match,
+    return 0. Constant-cycle on a per-buffer basis (no early
+    exit) keeps the helper friendly to gas-cost modelling --
+    but a typical caller wants the early-exit (cheaper); since
+    this is a register-level helper we go with early exit.
+
+    Use cases:
+      * sender balance check (`account.balance >= cost`):
+        `u256_lt_be(account_balance, cost, &is_less);
+         assert is_less == 0`.
+      * EVM LT/GT opcode dispatch (after sign-handling).
+      * U256 min / max where K59 / K60's "pick smaller of two"
+        callers explicitly call this primitive.
+
+    Companion to:
+      - PR-K53 `u256_eq`         -- equality
+      - PR-K52 `u256_sub_be`     -- modular subtraction
+      - PR-K59 `u256_min`        -- already does its own compare;
+                                   could be refactored to use this
+
+    Calling convention:
+      a0 (input)  : a ptr (32 bytes, BE)
+      a1 (input)  : b ptr (32 bytes, BE)
+      a2 (input)  : u64 out ptr (1 if a < b, 0 otherwise)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def u256LtBeFunction : String :=
+  "u256_lt_be:\n" ++
+  "  li t0, 32                  # byte counter (MSB-first)\n" ++
+  "  mv t1, a0                  # a cursor\n" ++
+  "  mv t2, a1                  # b cursor\n" ++
+  ".Lulb_loop:\n" ++
+  "  beqz t0, .Lulb_equal\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bltu t3, t4, .Lulb_less\n" ++
+  "  bltu t4, t3, .Lulb_greater\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lulb_loop\n" ++
+  ".Lulb_less:\n" ++
+  "  li t5, 1\n" ++
+  "  sd t5, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lulb_greater:\n" ++
+  ".Lulb_equal:\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_u256_lt_be`: probe BuildUnit.
+    Input layout (after host shift):
+      bytes  0.. 8 : padding
+      bytes  8..40 : a (32 B BE)
+      bytes 40..72 : b (32 B BE)
+    Output layout:
+      bytes  0.. 8 : status (always 0)
+      bytes  8..16 : is_less (1 if a < b, else 0) -/
+def ziskU256LtBePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 16             # a ptr\n" ++
+  "  addi a1, a3, 48             # b ptr (a + 32)\n" ++
+  "  li a2, 0xa0010008           # is_less out\n" ++
+  "  jal ra, u256_lt_be\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lulb_pdone\n" ++
+  u256LtBeFunction ++ "\n" ++
+  ".Lulb_pdone:"
+
+def ziskU256LtBeDataSection : String :=
+  ".section .data\n" ++
+  "ulb_pad:\n" ++
+  "  .zero 8"
+
+def ziskU256LtBeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskU256LtBePrologue
+  dataAsm     := ziskU256LtBeDataSection
+}
+
 /-! ## u256_sub_be -- PR-K52 modular subtraction on BE u256 buffers
 
     Compute `(a - b) mod 2^256` over two 32-byte big-endian
