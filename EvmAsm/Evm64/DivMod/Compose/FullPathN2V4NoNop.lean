@@ -9,6 +9,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN2MaxV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN2CallV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN2AddbackV4NoNop
+import EvmAsm.Evm64.DivMod.LoopIterN2CallAddbackV4NoNop
 
 open EvmAsm.Rv64.Tactics
 
@@ -375,6 +376,54 @@ theorem divK_loop_body_n2_call_addback_jgt0_beq_norm_v4_noNop (j sp base : Word)
     (fun h hp => hp)
     raw'
 
+/-- Loop body n=2, call+addback (BEQ double-addback), j>0 over
+    `divCode_noNop_v4`, preserving the concrete caller `x1` outside the
+    normalized call precondition. -/
+theorem divK_loop_body_n2_call_addback_jgt0_beq_norm_v4_noNop_exact_x1 (j sp base : Word)
+    (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hborrow : loopBodyN2CallAddbackBorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hcarry2_nz : loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 224 (base + loopBodyOff) (base + loopBodyOff) (divCode_noNop_v4 base)
+      (loopBodyN2CallSkipJgt0NormPreV4NoX1 j sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopBodyN2CallAddbackBeqJgt0PostV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        scratchMem ** (.x1 ↦ᵣ raVal)) := by
+  have hborrow' : (if BitVec.ult uTop
+        (mulsubN4 (divKTrialCallV4QHat u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+      then (1 : Word) else 0) ≠ (0 : Word) := by
+    simpa [loopBodyN2CallAddbackBorrowV4, mulsubN4_c3] using hborrow
+  have hcarry2_nz' :
+      let qHat := divKTrialCallV4QHat u2 u1 v1
+      let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
+      let c3 := ms.2.2.2.2
+      let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
+      let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - c3) v0 v1 v2 v3
+      carry = 0 → addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0 := by
+    simpa [loopBodyN2CallAddbackCarry2NzV4] using hcarry2_nz
+  have raw :=
+    cpsTripleWithin_extend_code
+      (hmono := sharedDivModCodeNoNop_v4_sub_divCode_noNop_v4)
+      (divK_loop_body_n2_call_addback_jgt0_beq_v4_spec_within_noNop_exact_x1 j hpos
+        sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
+        retMem dMem dloMem scratchUn0 scratchMem base
+        halign hbltu hborrow' hcarry2_nz')
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      delta loopBodyN2CallSkipJgt0NormPreV4NoX1 loopBodyN2MaxSkipJgt0NormPreV4 at hp
+      unfold loopBodyN2CallSkipJgt0PreV4NoX1
+      rw [loopBodyN2MaxJgt0Pre_unfold] at hp
+      xperm_hyp hp)
+    (fun h hp => hp)
+    raw
+
 /-- Loop body n=2, max+addback (BEQ double-addback), j=0 over
     `divCode_noNop_v4`, with sp-relative addresses hidden behind a named
     precondition. -/
@@ -436,6 +485,55 @@ theorem divK_loop_body_n2_call_addback_j0_beq_norm_v4_noNop (sp base : Word)
   exact cpsTripleWithin_weaken
     (fun h hp => by
       delta loopBodyN2CallSkipJ0NormPreV4 loopBodyN2MaxSkipJ0NormPreV4 at hp
+      xperm_hyp hp)
+    (fun h hp => hp)
+    raw
+
+/-- Loop body n=2, call+addback (BEQ double-addback), j=0 over
+    `divCode_noNop_v4`, preserving the concrete caller `x1` outside the
+    normalized call precondition. -/
+theorem divK_loop_body_n2_call_addback_j0_beq_norm_v4_noNop_exact_x1 (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hborrow : loopBodyN2CallAddbackBorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hcarry2_nz : loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 224 (base + loopBodyOff) (base + denormOff) (divCode_noNop_v4 base)
+      (loopBodyN2CallSkipJ0NormPreV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopBodyN2CallAddbackBeqJ0PostV4NoX1 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem **
+        (.x1 ↦ᵣ raVal)) := by
+  have hborrow' : (if BitVec.ult uTop
+        (mulsubN4 (divKTrialCallV4QHat u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
+      then (1 : Word) else 0) ≠ (0 : Word) := by
+    simpa [loopBodyN2CallAddbackBorrowV4, mulsubN4_c3] using hborrow
+  have hcarry2_nz' :
+      let qHat := divKTrialCallV4QHat u2 u1 v1
+      let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
+      let c3 := ms.2.2.2.2
+      let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
+      let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - c3) v0 v1 v2 v3
+      carry = 0 → addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3 ≠ 0 := by
+    simpa [loopBodyN2CallAddbackCarry2NzV4] using hcarry2_nz
+  have raw :=
+    cpsTripleWithin_extend_code
+      (hmono := sharedDivModCodeNoNop_v4_sub_divCode_noNop_v4)
+      (divK_loop_body_n2_call_addback_j0_beq_v4_spec_within_noNop_exact_x1
+        sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
+        retMem dMem dloMem scratchUn0 scratchMem base
+        halign hbltu hborrow' hcarry2_nz')
+  unfold loopBodyN2CallSkipJ0PreV4NoX1 at raw
+  simp only [se12_32, se12_40, se12_48, se12_56,
+             u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
+             u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at raw
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      delta loopBodyN2CallSkipJ0NormPreV4NoX1 loopBodyN2MaxSkipJ0NormPreV4 at hp
       xperm_hyp hp)
     (fun h hp => hp)
     raw
