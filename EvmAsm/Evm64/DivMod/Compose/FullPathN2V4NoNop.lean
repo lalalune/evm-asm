@@ -644,4 +644,63 @@ theorem divK_loop_body_n2_call_addback_j0_beq_norm_v4_noNop_exact_x1 (sp base : 
     (fun h hp => hp)
     raw
 
+/-- Unified j=2 N2 call iteration over v4/no-NOP code, preserving concrete
+    `x1` and exposing the v4 scratch cell in the postcondition. -/
+theorem divK_loop_body_n2_call_j2_exact_loopIterScratch_v4_noNop (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hcarry2_nz : loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 224 (base + loopBodyOff) (base + loopBodyOff) (divCode_noNop_v4 base)
+      (loopBodyN2CallSkipJgt0NormPreV4NoX1 (2 : Word) sp
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
+        retMem dMem dloMem scratchUn0 scratchMem ** (.x1 ↦ᵣ raVal))
+      (loopIterPostN2CallScratchNoX1 sp base (2 : Word)
+        (divKTrialCallV4QHat u2 u1 v1)
+        (divKTrialCallV4DLo v1)
+        (divKTrialCallV4Un0 u1)
+        (divKTrialCallV4ScratchOut u2 u1 v1 scratchMem)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop ** (.x1 ↦ᵣ raVal)) := by
+  by_cases hborrow :
+      BitVec.ult uTop
+        (mulsubN4_c3 (divKTrialCallV4QHat u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3)
+  · have hborrow_nz : loopBodyN2CallAddbackBorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+      simp [loopBodyN2CallAddbackBorrowV4, hborrow]
+    exact cpsTripleWithin_weaken
+      (fun h hp => hp)
+      (fun h hp => by
+        rw [loopBodyN2CallAddbackBeqJgt0PostV4NoX1_eq_scratch] at hp
+        rw [loopIterPostN2CallScratchNoX1_addback hborrow] at hp
+        xperm_hyp hp)
+      (divK_loop_body_n2_call_addback_jgt0_beq_norm_v4_noNop_exact_x1
+        (2 : Word) sp base EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
+        retMem dMem dloMem scratchUn0 scratchMem raVal
+        halign hbltu hborrow_nz hcarry2_nz)
+  · have hborrow_zero :
+        mulsubN4NoBorrow (divKTrialCallV4QHat u2 u1 v1)
+          v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+      unfold mulsubN4NoBorrow
+      dsimp only
+      unfold mulsubN4_c3 at hborrow
+      rw [if_neg hborrow]
+    exact cpsTripleWithin_mono_nSteps (by decide) <|
+      cpsTripleWithin_weaken
+        (fun h hp => hp)
+        (fun h hp => by
+          rw [loopBodyN2CallSkipJgt0PostV4NoX1_eq_scratch] at hp
+          rw [loopIterPostN2CallScratchNoX1_skip hborrow] at hp
+          xperm_hyp hp)
+        (divK_loop_body_n2_call_skip_jgt0_norm_v4_noNop_exact_x1
+          (2 : Word) sp base EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
+          jOld v5Old v6Old v7Old v10Old v11Old v2Old
+          v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
+          retMem dMem dloMem scratchUn0 scratchMem raVal
+          halign hbltu hborrow_zero)
+
 end EvmAsm.Evm64
