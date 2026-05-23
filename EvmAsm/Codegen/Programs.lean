@@ -1914,6 +1914,114 @@ def ziskAccountValidateCodeHashProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountValidateCodeHashDataSection
 }
 
+/-! ## account_has_empty_code -- PR-K131
+
+    Predicate: does this account's `code_hash` field equal
+    `EMPTY_CODE_HASH = keccak256(b'')`?
+
+      EMPTY_CODE_HASH =
+        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+
+    A `true` result means the account has no associated bytecode
+    — i.e., it is an EOA (or an unfilled contract slot). Distinct
+    from PR-K123 `account_is_empty`, which additionally requires
+    `nonce == 0` and `balance == 0` per EIP-161.
+
+    Used by:
+    - CALL / DELEGATECALL / STATICCALL paths to detect EOA targets
+      (no code → no execution, refund or fall-through)
+    - EXTCODECOPY / EXTCODESIZE fast paths
+    - state-tracker bookkeeping (touch behaviour differs for
+      empty-code accounts)
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — field 3 bounds
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : u64 out ptr (1 if EOA, 0 if contract)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse failure / field 3 missing
+        2 : field 3 length != 32 -/
+def accountHasEmptyCodeFunction : String :=
+  "account_has_empty_code:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # account_ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # u64 out ptr\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
+  "  la a3, ahec_offset; la a4, ahec_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lahec_parse_fail\n" ++
+  "  la t0, ahec_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lahec_size_fail\n" ++
+  "  la t0, ahec_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  la t4, ahec_empty_code_hash\n" ++
+  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lahec_neq\n" ++
+  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lahec_neq\n" ++
+  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lahec_neq\n" ++
+  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lahec_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lahec_ret\n" ++
+  ".Lahec_neq:\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lahec_ret\n" ++
+  ".Lahec_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lahec_ret\n" ++
+  ".Lahec_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lahec_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_account_has_empty_code`: probe BuildUnit. -/
+def ziskAccountHasEmptyCodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # account_rlp_len\n" ++
+  "  addi a0, a3, 16             # account_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # is_eoa out\n" ++
+  "  jal ra, account_has_empty_code\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lahec_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountHasEmptyCodeFunction ++ "\n" ++
+  ".Lahec_pdone:"
+
+def ziskAccountHasEmptyCodeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "ahec_offset:\n" ++
+  "  .zero 8\n" ++
+  "ahec_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "ahec_empty_code_hash:\n" ++
+  "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
+  "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
+  "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
+  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70"
+
+def ziskAccountHasEmptyCodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountHasEmptyCodePrologue
+  dataAsm     := ziskAccountHasEmptyCodeDataSection
+}
+
 /-! ## rlp_list_count_items -- PR-K47 top-level item counter
 
     Walk an RLP-encoded list once and return the number of
@@ -13547,6 +13655,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_validate_parent_hash" => some ziskHeaderValidateParentHashProbeUnit
   | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
   | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
+  | "zisk_account_has_empty_code" => some ziskAccountHasEmptyCodeProbeUnit
   | "zisk_address_from_pubkey"  => some ziskAddressFromPubkeyProbeUnit
   | "zisk_mpt_account_path_nibbles" => some ziskMptAccountPathNibblesProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
@@ -13677,6 +13786,7 @@ def knownProgramNames : List String :=
    "zisk_header_validate_parent_hash",
    "zisk_header_chain_walk_step",
    "zisk_account_validate_code_hash",
+   "zisk_account_has_empty_code",
    "zisk_address_from_pubkey",
    "zisk_mpt_account_path_nibbles",
    "zisk_headers_validate_chain",
