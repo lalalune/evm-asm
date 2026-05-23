@@ -9982,6 +9982,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_list_truncate_to_n_fields" => some ziskRlpListTruncateToNFieldsProbeUnit
   | "zisk_tx_signing_hash" => some ziskTxSigningHashProbeUnit
   | "zisk_tx_signing_hash_legacy_eip155" => some ziskTxSigningHashLegacyEip155ProbeUnit
+  | "zisk_eip7702_authorization_signing_hash" => some ziskEip7702AuthorizationSigningHashProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
@@ -10142,6 +10143,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_list_truncate_to_n_fields",
    "zisk_tx_signing_hash",
    "zisk_tx_signing_hash_legacy_eip155",
+   "zisk_eip7702_authorization_signing_hash",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
