@@ -316,6 +316,17 @@ private theorem n3_two_step_conservation_nat
   rw [hfirst, hiter1]
   nlinarith
 
+private theorem n3_two_step_conservation_of_iter_nat
+    {a b q1 q0 uhi r0 r1 c1 c0 : Nat}
+    (u0 : Nat)
+    (hfirst : a = u0 + 2 ^ 64 * uhi)
+    (hiter1 : uhi = q1 * b + r1 + c1 * 2 ^ 256)
+    (hc1 : c1 = 0)
+    (hiter0 : u0 + 2 ^ 64 * r1 = q0 * b + r0 + c0 * 2 ^ 256) :
+    a = (q1 * 2 ^ 64 + q0) * b + r0 + c0 * 2 ^ 256 := by
+  subst c1
+  exact n3_two_step_conservation_nat u0 hfirst (by simpa using hiter1) hiter0
+
 /-- Normalized remainder bound paired with
 `fullDivN3NormalizedMulSubEqV4`. Together these are the standard Euclidean
 facts needed to recover the EVM MOD remainder. -/
