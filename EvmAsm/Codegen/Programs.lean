@@ -2128,8 +2128,7 @@ def ziskAccountStorageRootEqProbeUnit : BuildUnit := {
         1 : RLP parse failure / field 3 missing
         2 : field 3 length != 32 -/
 def accountCodeHashEqFunction : String :=
-  "account_code_hash_eq:\n" ++  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
+  "account_code_hash_eq:\n" ++  "  addi sp, sp, -48\n" ++  "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  mv s0, a0                   # account_ptr\n" ++
   "  mv s1, a1                   # account_len\n" ++
@@ -2161,8 +2160,7 @@ def accountCodeHashEqFunction : String :=
   "  j .Lache_ret\n" ++
   ".Lache_size_fail:\n" ++
   "  li a0, 2\n" ++
-  ".Lache_ret:\n" ++  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  ".Lache_ret:\n" ++  "  ld ra,  0(sp)\n" ++  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"
 
@@ -2199,6 +2197,113 @@ def ziskAccountCodeHashEqProbeUnit : BuildUnit := {
   prologueAsm := ziskAccountCodeHashEqPrologue
   dataAsm     := ziskAccountCodeHashEqDataSection
 }
+
+/-! ## account_nonce_eq -- PR-K136
+
+    Narrow equality predicate on an account's `nonce` field:
+    does `RLP-decoded(account.nonce) == expected_nonce` ?
+
+    Field 0 of `[nonce, balance, storage_root, code_hash]` is the
+    RLP-canonical big-endian encoding of the account nonce. EOA
+    nonces fit comfortably in u64 — the RLP-canonical encoding
+    omits leading zeros, so the encoded length is in `0..8` for any
+    realistic account. K27 `account_decode` already big-endian-
+    decodes this field to a u64 as part of full-record extraction;
+    K136 is the narrower accessor for callers that only need the
+    equality check and don't want to allocate the 96-byte struct.
+
+    Used by:
+      * sender-validation in `check_transaction` (asserts
+        `tx.nonce == account.nonce` before charging gas)
+      * EIP-7702 authorization-list checks
+        (`authorization.nonce == account.nonce`)
+      * post-tx state validation (asserts the post-state account
+        has the bumped nonce)
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — field 0 bounds
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : expected_nonce (u64, native)      a3 (input)  : u64 out ptr (1 if equal, 0 if not)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse failure / field 0 missing / nonce > 8 bytes -/
+def accountNonceEqFunction : String :=
+  "account_nonce_eq:\n" ++  "  addi sp, sp, -48\n" ++  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # account_ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # expected_nonce\n" ++
+  "  mv s3, a3                   # is_equal out\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
+  "  la a3, ane_offset; la a4, ane_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lane_fail\n" ++
+  "  la t0, ane_length; ld t1, 0(t0)\n" ++
+  "  li t2, 8\n" ++
+  "  bgtu t1, t2, .Lane_fail      # nonce > 8 bytes\n" ++
+  "  la t0, ane_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  li t2, 0                    # u64 accumulator\n" ++
+  ".Lane_loop:\n" ++
+  "  beqz t1, .Lane_done\n" ++
+  "  slli t2, t2, 8\n" ++
+  "  lbu t4, 0(t3)\n" ++
+  "  or t2, t2, t4\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lane_loop\n" ++
+  ".Lane_done:\n" ++
+  "  bne t2, s2, .Lane_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lane_ret\n" ++
+  ".Lane_neq:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lane_ret\n" ++
+  ".Lane_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lane_ret:\n" ++  "  ld ra,  0(sp)\n" ++  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_account_nonce_eq`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : account_rlp_len
+      bytes  8..16 : expected_nonce (u64 LE)
+      bytes 16..   : account_rlp -/
+def ziskAccountNonceEqPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # account_rlp_len\n" ++
+  "  ld a2, 16(a4)               # expected_nonce\n" ++
+  "  addi a0, a4, 24             # account_rlp ptr\n" ++
+  "  li a3, 0xa0010008           # is_equal out\n" ++
+  "  jal ra, account_nonce_eq\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lane_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountNonceEqFunction ++ "\n" ++
+  ".Lane_pdone:"
+
+def ziskAccountNonceEqDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "ane_offset:\n" ++
+  "  .zero 8\n" ++
+  "ane_length:\n" ++
+  "  .zero 8"
+
+def ziskAccountNonceEqProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountNonceEqPrologue
+  dataAsm     := ziskAccountNonceEqDataSection}
 /-! ## account_is_eip161_empty -- PR-K137
 
     EIP-161 empty-account predicate:
@@ -14842,6 +14947,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
   | "zisk_account_storage_root_eq" => some ziskAccountStorageRootEqProbeUnit
   | "zisk_account_code_hash_eq" => some ziskAccountCodeHashEqProbeUnit
+  | "zisk_account_nonce_eq" => some ziskAccountNonceEqProbeUnit
   | "zisk_account_is_eip161_empty" => some ziskAccountIsEip161EmptyProbeUnit
   | "zisk_account_extract_storage_root" => some ziskAccountExtractStorageRootProbeUnit
   | "zisk_account_extract_balance" => some ziskAccountExtractBalanceProbeUnit
@@ -14993,6 +15099,7 @@ def knownProgramNames : List String :=
    "zisk_account_validate_code_hash",
    "zisk_account_storage_root_eq",
    "zisk_account_code_hash_eq",
+   "zisk_account_nonce_eq",
    "zisk_account_is_eip161_empty",
    "zisk_account_extract_storage_root",
    "zisk_account_extract_balance",
