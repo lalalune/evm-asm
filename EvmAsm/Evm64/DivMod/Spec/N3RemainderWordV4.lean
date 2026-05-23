@@ -8,6 +8,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
+import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
 
 namespace EvmAsm.Evm64
 
@@ -39,6 +40,26 @@ def fullModN3RemainderWordV4 (bltu_1 bltu_0 : Bool)
     | 3 =>
         ((fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 >>>
           ((fullDivN3Shift b2).toNat % 64)))
+
+/-- MOD-specific N3 v4 path predicate for caller-facing bridges. The first
+component is the shared DIV quotient/path predicate; the second records that
+the packed denormalized remainder is the EVM MOD result. -/
+abbrev fullModN3PathConditionsWordV4 (bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) : Prop :=
+  fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b ∧
+  fullModN3RemainderWordV4 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+      EvmWord.mod a b
+
+theorem fullModN3RemainderWordV4_eq_mod_of_mod_path_conditions
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullModN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullModN3RemainderWordV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.mod a b :=
+  hpath.2
 
 /-- N3 MOD denorm post paired with the v4 call-path final computation. -/
 @[irreducible]
