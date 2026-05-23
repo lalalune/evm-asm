@@ -1979,8 +1979,39 @@ def ziskAccountValidateCodeHashProbeUnit : BuildUnit := {
     (`aesr_offset`, `aesr_length`). -/
 def accountExtractStorageRootFunction : String :=
   "account_extract_storage_root:\n" ++
-        1 : RLP parse failure / field 3 missing
-        2 : field 3 length != 32 -/
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # account_rlp ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # 32B output ptr\n" ++
+  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
+  "  # Extract field 2 (storage_root).\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  la a3, aesr_offset; la a4, aesr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Laesr_parse_fail\n" ++
+  "  la t0, aesr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Laesr_size_fail\n" ++
+  "  la t0, aesr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Laesr_ret\n" ++
+  ".Laesr_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Laesr_ret\n" ++
+  ".Laesr_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Laesr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
 def accountExtractCodeHashFunction : String :=
   "account_extract_code_hash:\n" ++
   "  addi sp, sp, -32\n" ++
