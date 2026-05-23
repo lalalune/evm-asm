@@ -1917,6 +1917,40 @@ def ziskAccountValidateCodeHashProbeUnit : BuildUnit := {
 /-! ## account_extract_storage_root -- PR-K119
 
     Extract the 32-byte `storage_root` field (RLP field 2) from a
+    fully RLP-encoded Ethereum account:
+
+      account = [nonce, balance, storage_root, code_hash]
+
+    The storage_root is the MPT root of this account's per-account
+    storage trie (keccak256 of the empty trie's RLP encoding,
+    a.k.a. `EMPTY_TRIE_ROOT`, for EOAs and unused contracts):
+
+      EMPTY_TRIE_ROOT =
+        0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421
+
+    Direct input to per-account storage trie walks
+    (`mpt_lookup_by_key` for SLOAD) and to state-root recomputation
+    after SSTORE writes.
+
+    K27 `account_decode` already extracts the full account record;
+    K119 is the narrower accessor for callers that only need the
+    storage root and don't want to allocate the 96-byte struct.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — field 2 bounds
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : 32-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 2 missing
+        2 : field 2 length != 32
+
+    Output zeroed on failure. Uses two 8-byte `.data` scratch slots
+    (`aesr_offset`, `aesr_length`). -/
 /-! ## account_extract_code_hash -- PR-K122
 
     Extract the 32-byte `code_hash` field (RLP field 3) from a
