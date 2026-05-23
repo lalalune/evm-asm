@@ -435,6 +435,46 @@ theorem fullDivN3AntiShift_toNat_mod_eq_of_shift_ne {b2 : Word}
   have h63 := fullDivN3Shift_toNat_le_63 b2
   exact antiShift_toNat_mod_eq h1 h63
 
+theorem fullDivN3NormU_val256_eq_scaled_with_overflow
+    (a0 a1 a2 a3 b2 : Word)
+    (hshift_nz : fullDivN3Shift b2 ≠ 0) :
+    EvmWord.val256
+        (fullDivN3NormU a0 a1 a2 a3 b2).1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1 +
+      (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2.toNat * 2 ^ 256 =
+  EvmWord.val256 a0 a1 a2 a3 * 2 ^ (fullDivN3Shift b2).toNat := by
+  delta fullDivN3NormU fullDivN3Shift fullDivN3AntiShift at hshift_nz ⊢
+  exact u_val256_eq_scaled_with_overflow a0 a1 a2 a3 b2 hshift_nz
+
+theorem fullDivN3NormV_val256_eq_scaled_of_b3_zero
+    (b0 b1 b2 b3 : Word)
+    (hshift_nz : fullDivN3Shift b2 ≠ 0)
+    (hb3z : b3 = 0) :
+    EvmWord.val256
+        (fullDivN3NormV b0 b1 b2 b3).1
+        (fullDivN3NormV b0 b1 b2 b3).2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.2 =
+    EvmWord.val256 b0 b1 b2 b3 * 2 ^ (fullDivN3Shift b2).toNat := by
+  have hs0 := fullDivN3Shift_toNat_pos_of_ne hshift_nz
+  have hs : (fullDivN3Shift b2).toNat < 64 := by
+    have h_le := fullDivN3Shift_toNat_le_63 b2
+    omega
+  have hb3_bound : b3.toNat < 2 ^ (64 - (fullDivN3Shift b2).toNat) := by
+    rw [hb3z]
+    simp
+  have hanti :
+      (fullDivN3AntiShift b2).toNat % 64 =
+        64 - (fullDivN3Shift b2).toNat := by
+    unfold fullDivN3AntiShift
+    exact fullDivN3AntiShift_toNat_mod_eq_of_shift_ne hshift_nz
+  rw [fullDivN3NormV_unfold]
+  dsimp only
+  rw [fullDivN3Shift_toNat_mod_eq, hanti]
+  exact EvmWord.val256_normalize hs0 hs b0 b1 b2 b3 hb3_bound
+
 theorem fullDivN3FinalCarryZeroV4_of_conservation_path
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hbnz : b ≠ 0)
