@@ -12027,6 +12027,41 @@ def ziskBlockWithdrawalsTotalProbeUnit : BuildUnit := {
 
     Uses 48 bytes of `.data` scratch (`bcw_struct`) plus K83/K47's
     own scratch slots. -/
+/-! ## block_count_transactions -- PR-K125
+
+    Return `len(block.transactions)` as a u64, directly from the
+    body RLP. Useful for receipt bookkeeping, per-tx iteration
+    sizing, and as a pre-flight before per-tx processing.
+
+    PR-K86 `block_summary` already extracts tx_count alongside
+    withdrawal_total and ommers_empty; K125 is the narrow counter
+    when only the tx-count cardinality matters (mirror of PR-K124
+    `block_count_withdrawals`).
+
+    Composes:
+      - PR-K83 `block_body_decode`    — split body
+      - PR-K47 `rlp_list_count_items` — N
+
+    Status decade encoding (floor(status/100) identifies failing
+    step):
+
+      0          : success
+      1          : `block_body_decode` failed
+      101        : `rlp_list_count_items` on withdrawals failed
+    Status decade encoding:
+      0          : success
+      1          : `block_body_decode` failed
+      101        : `rlp_list_count_items` on txs failed
+
+    Calling convention:
+      a0 (input)  : body_rlp ptr
+      a1 (input)  : body_rlp byte length
+      a2 (input)  : u64 out ptr (count)
+      ra (input)  : return
+      a0 (output) : composite status
+
+    Uses 48 bytes of `.data` scratch (`bcw_struct`) plus K83/K47's
+    own scratch slots. -/
 def blockCountWithdrawalsFunction : String :=
   "block_count_withdrawals:\n" ++
   "  addi sp, sp, -32\n" ++
@@ -12036,7 +12071,7 @@ def blockCountWithdrawalsFunction : String :=
   "  mv s1, a1                   # body_rlp_len\n" ++
   "  mv s2, a2                   # count out\n" ++
   "  sd zero, 0(s2)\n" ++
-  "  # Step 1: block_body_decode → bcw_struct.\n" ++
+  "  # Step 1: block_body_decode \u2192 bcw_struct.\n" ++
   "  la a2, bcw_struct\n" ++
   "  jal ra, block_body_decode\n" ++
   "  bnez a0, .Lbcw_body_fail\n" ++
@@ -12093,6 +12128,73 @@ def ziskBlockCountWithdrawalsProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskBlockCountWithdrawalsPrologue
   dataAsm     := ziskBlockCountWithdrawalsDataSection
+}
+
+def blockCountTransactionsFunction : String :=
+  "block_count_transactions:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # body_rlp ptr\n" ++
+  "  mv s1, a1                   # body_rlp_len\n" ++
+  "  mv s2, a2                   # count out\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  # Step 1: block_body_decode \u2192 bct_struct.\n" ++
+  "  la a2, bct_struct\n" ++
+  "  jal ra, block_body_decode\n" ++
+  "  bnez a0, .Lbct_body_fail\n" ++
+  "  # Step 2: rlp_list_count_items on txs sub-list.\n" ++
+  "  la t0, bct_struct\n" ++
+  "  ld t1, 0(t0)                # txs_offset\n" ++
+  "  ld t2, 8(t0)                # txs_length\n" ++
+  "  add a0, s0, t1\n" ++
+  "  mv a1, t2\n" ++
+  "  mv a2, s2\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  beqz a0, .Lbct_ret\n" ++
+  "  li a0, 101\n" ++
+  "  j .Lbct_ret\n" ++
+  ".Lbct_body_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbct_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_block_count_transactions`: probe BuildUnit. Reads
+    (body_len, body_bytes), writes (status, tx_count) to OUTPUT. -/
+def ziskBlockCountTransactionsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # body_len\n" ++
+  "  addi a0, a3, 16             # body ptr\n" ++
+  "  li a2, 0xa0010008           # count out\n" ++
+  "  jal ra, block_count_transactions\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbct_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockCountTransactionsFunction ++ "\n" ++
+  ".Lbct_pdone:"
+
+def ziskBlockCountTransactionsDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bct_struct:\n" ++
+  "  .zero 48"
+
+def ziskBlockCountTransactionsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockCountTransactionsPrologue
+  dataAsm     := ziskBlockCountTransactionsDataSection
 }
 
 /-! ## block_summary -- PR-K86
@@ -14547,6 +14649,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
   | "zisk_block_withdrawals_total" => some ziskBlockWithdrawalsTotalProbeUnit
   | "zisk_block_count_withdrawals" => some ziskBlockCountWithdrawalsProbeUnit
+  | "zisk_block_count_transactions" => some ziskBlockCountTransactionsProbeUnit
   | "zisk_block_summary"        => some ziskBlockSummaryProbeUnit
   | "zisk_block_compute_tx_hashes" => some ziskBlockComputeTxHashesProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
@@ -14685,6 +14788,7 @@ def knownProgramNames : List String :=
    "zisk_withdrawals_sum_amounts",
    "zisk_block_withdrawals_total",
    "zisk_block_count_withdrawals",
+   "zisk_block_count_transactions",
    "zisk_block_summary",
    "zisk_block_compute_tx_hashes",
    "zisk_calldata_byte_counts",
