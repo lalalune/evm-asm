@@ -5,12 +5,115 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
+import EvmAsm.Evm64.DivMod.LoopIterN3CallV4NoNop
+import EvmAsm.Evm64.DivMod.LoopIterN3AddbackV4NoNop
 
 open EvmAsm.Rv64.Tactics
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+
+/-- No-NOP/v4 n=3 call+skip j=0 over the MOD code bundle, preserving
+    concrete caller `x1`. -/
+theorem divK_loop_body_n3_call_skip_j0_mod_v4_spec_within_noNop_exact_x1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u3 v2)
+    (hborrow : loopBodyN3CallSkipJ0BorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 148 (base + loopBodyOff) (base + denormOff) (modCode_noNop_v4 base)
+      (loopBodyN3CallSkipJ0PreV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopBodyN3CallSkipJ0PostV4NoX1 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem **
+        (.x1 ↦ᵣ raVal)) := by
+  exact cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_modCode_noNop_v4)
+    (divK_loop_body_n3_call_skip_j0_v4_spec_within_noNop_exact_x1
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
+      retMem dMem dloMem scratchUn0 scratchMem base halign hbltu hborrow)
+
+/-- No-NOP/v4 n=3 call+addback j=0 over the MOD code bundle, preserving
+    concrete caller `x1`. -/
+theorem divK_loop_body_n3_call_addback_j0_mod_v4_spec_within_noNop_exact_x1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u3 v2)
+    (hborrow : loopBodyN3CallAddbackBorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hcarry2_nz : loopBodyN3CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 224 (base + loopBodyOff) (base + denormOff) (modCode_noNop_v4 base)
+      (loopBodyN3CallSkipJ0PreV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopBodyN3CallAddbackJ0PostV4NoX1 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem **
+        (.x1 ↦ᵣ raVal)) := by
+  exact cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_modCode_noNop_v4)
+    (divK_loop_body_n3_call_addback_j0_beq_v4_spec_within_noNop_exact_x1
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
+      retMem dMem dloMem scratchUn0 scratchMem base halign hbltu hborrow hcarry2_nz)
+
+/-- No-NOP/v4 n=3 call+skip j=1 over the MOD code bundle, preserving
+    concrete caller `x1`. -/
+theorem divK_loop_body_n3_call_skip_j1_mod_v4_spec_within_noNop_exact_x1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u3 v2)
+    (hborrow : mulsubN4NoBorrow (divKTrialCallV4QHat u3 u2 v2) v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 148 (base + loopBodyOff) (base + loopBodyOff) (modCode_noNop_v4 base)
+      (loopBodyN3CallSkipJgt0PreV4NoX1 sp (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopBodyN3CallSkipJgt0PostV4NoX1 sp base (1 : Word)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem **
+        (.x1 ↦ᵣ raVal)) := by
+  exact cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_modCode_noNop_v4)
+    (divK_loop_body_n3_call_skip_j1_v4_spec_within_noNop_exact_x1
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
+      retMem dMem dloMem scratchUn0 scratchMem base halign hbltu hborrow)
+
+/-- No-NOP/v4 n=3 call+addback j=1 over the MOD code bundle, preserving
+    concrete caller `x1`. -/
+theorem divK_loop_body_n3_call_addback_j1_mod_v4_spec_within_noNop_exact_x1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u3 v2)
+    (hborrow : loopBodyN3CallAddbackBorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hcarry2_nz : loopBodyN3CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 224 (base + loopBodyOff) (base + loopBodyOff) (modCode_noNop_v4 base)
+      (loopBodyN3CallSkipJgt0PreV4NoX1 sp (1 : Word) jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopBodyN3CallAddbackJgt0PostV4NoX1 sp base (1 : Word)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem **
+        (.x1 ↦ᵣ raVal)) := by
+  exact cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_modCode_noNop_v4)
+    (divK_loop_body_n3_call_addback_jgt0_beq_v4_spec_within_noNop_exact_x1
+      (1 : Word) EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
+      sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
+      retMem dMem dloMem scratchUn0 scratchMem base halign hbltu hborrow hcarry2_nz)
 
 /-- MOD n=3 path from entry to NormA over the no-NOP v4 MOD code bundle. -/
 theorem evm_mod_n3_to_normB_spec_within_v4_noNop (sp base : Word)
