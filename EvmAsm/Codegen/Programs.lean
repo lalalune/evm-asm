@@ -1702,6 +1702,227 @@ def ziskAccountValidateCodeHashProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountValidateCodeHashDataSection
 }
 
+/-! ## account_extract_storage_root -- PR-K119
+
+    Extract the 32-byte `storage_root` field (RLP field 2) from a
+    fully RLP-encoded Ethereum account:
+
+      account = [nonce, balance, storage_root, code_hash]
+
+    The storage_root is the MPT root of this account's per-account
+    storage trie (keccak256 of the empty trie's RLP encoding,
+    a.k.a. `EMPTY_TRIE_ROOT`, for EOAs and unused contracts):
+
+      EMPTY_TRIE_ROOT =
+        0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421
+
+    Direct input to per-account storage trie walks
+    (`mpt_lookup_by_key` for SLOAD) and to state-root recomputation
+    after SSTORE writes.
+
+    K27 `account_decode` already extracts the full account record;
+    K119 is the narrower accessor for callers that only need the
+    storage root and don't want to allocate the 96-byte struct.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — field 2 bounds
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : 32-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 2 missing
+        2 : field 2 length != 32
+
+    Output zeroed on failure. Uses two 8-byte `.data` scratch slots
+    (`aesr_offset`, `aesr_length`). -/
+def accountExtractStorageRootFunction : String :=
+  "account_extract_storage_root:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # account_rlp ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # 32B output ptr\n" ++
+  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
+  "  # Extract field 2 (storage_root).\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  la a3, aesr_offset; la a4, aesr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Laesr_parse_fail\n" ++
+  "  la t0, aesr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Laesr_size_fail\n" ++
+  "  la t0, aesr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Laesr_ret\n" ++
+  ".Laesr_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Laesr_ret\n" ++
+  ".Laesr_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Laesr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_account_extract_storage_root`: probe BuildUnit. Reads
+    (account_len, account_bytes), writes (status, 32-byte
+    storage_root) to OUTPUT (40 bytes total). -/
+def ziskAccountExtractStorageRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # account_rlp_len\n" ++
+  "  addi a0, a3, 16             # account_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # 32B output\n" ++
+  "  jal ra, account_extract_storage_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Laesr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountExtractStorageRootFunction ++ "\n" ++
+  ".Laesr_pdone:"
+
+def ziskAccountExtractStorageRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "aesr_offset:\n" ++
+  "  .zero 8\n" ++
+  "aesr_length:\n" ++
+  "  .zero 8"
+
+def ziskAccountExtractStorageRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountExtractStorageRootPrologue
+  dataAsm     := ziskAccountExtractStorageRootDataSection
+}
+
+/-! ## rlp_list_count_items -- PR-K47 top-level item counter
+
+    Walk an RLP-encoded list once and return the number of
+    top-level items it contains. Building block for callers
+    that need cardinality but not the items themselves:
+    `access_list_count`, `authorization_list_count`,
+    `blob_versioned_hashes_count`, `tx_count_per_block`.
+
+    Mirrors the item-skip logic in PR-K20 `rlp_list_nth_item`
+    but doesn't track a target index; counts every item it
+    can walk past until the list payload ends.
+
+    Calling convention:
+      a0 (input)  : list bytes ptr (start of outer RLP list
+                    prefix, byte 0xc0..0xff)
+      a1 (input)  : total list byte length (full encoded item
+                    incl. prefix)
+      a2 (input)  : u64 out ptr (receives count on success)
+      ra (input)  : return
+      a0 (output) : 0 on success, 1 on parse error
+                    (not a list, truncated, item runs past end)
+
+    Pure register arithmetic except for the count store; no
+    scratch memory; leaf-callable. -/
+def rlpListCountItemsFunction : String :=
+  "rlp_list_count_items:\n" ++
+  "  beqz a1, .Lrlc_fail        # empty input cannot encode a list\n" ++
+  "  lbu t0, 0(a0)\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lrlc_fail    # not an RLP list\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lrlc_short_outer\n" ++
+  "  # Long outer list: prefix bytes = 1 + (t0 - 0xf7)\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  addi t2, t2, 1             # total prefix bytes\n" ++
+  "  add t3, a0, t2             # cursor at first item\n" ++
+  "  j .Lrlc_walk\n" ++
+  ".Lrlc_short_outer:\n" ++
+  "  addi t3, a0, 1\n" ++
+  ".Lrlc_walk:\n" ++
+  "  add t4, a0, a1             # end-of-list cursor (exclusive)\n" ++
+  "  li t5, 0                   # count\n" ++
+  ".Lrlc_loop:\n" ++
+  "  beq t3, t4, .Lrlc_done\n" ++
+  "  bgtu t3, t4, .Lrlc_fail    # cursor walked past end → malformed\n" ++
+  "  lbu t0, 0(t3)\n" ++
+  "  li t1, 0x80\n" ++
+  "  bltu t0, t1, .Lrlc_skip_single\n" ++
+  "  li t1, 0xb8\n" ++
+  "  bltu t0, t1, .Lrlc_skip_short_str\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lrlc_skip_long_str\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lrlc_skip_short_list\n" ++
+  "  # Long list at t3: lol = t0 - 0xf7\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  li a3, 0                   # decoded length accumulator\n" ++
+  "  mv a4, t2                  # remaining length bytes\n" ++
+  "  addi a5, t3, 1\n" ++
+  ".Lrlc_skll_be:\n" ++
+  "  beqz a4, .Lrlc_skll_done\n" ++
+  "  slli a3, a3, 8\n" ++
+  "  lbu a6, 0(a5)\n" ++
+  "  or  a3, a3, a6\n" ++
+  "  addi a5, a5, 1\n" ++
+  "  addi a4, a4, -1\n" ++
+  "  j .Lrlc_skll_be\n" ++
+  ".Lrlc_skll_done:\n" ++
+  "  addi a6, t2, 1\n" ++
+  "  add  a6, a6, a3            # 1 + lol + decoded\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_short_list:\n" ++
+  "  li t1, 0xc0\n" ++
+  "  sub a6, t0, t1\n" ++
+  "  addi a6, a6, 1             # 1 + (t0 - 0xc0)\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_long_str:\n" ++
+  "  li t1, 0xb7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  li a3, 0\n" ++
+  "  mv a4, t2\n" ++
+  "  addi a5, t3, 1\n" ++
+  ".Lrlc_skls_be:\n" ++
+  "  beqz a4, .Lrlc_skls_done\n" ++
+  "  slli a3, a3, 8\n" ++
+  "  lbu a6, 0(a5)\n" ++
+  "  or  a3, a3, a6\n" ++
+  "  addi a5, a5, 1\n" ++
+  "  addi a4, a4, -1\n" ++
+  "  j .Lrlc_skls_be\n" ++
+  ".Lrlc_skls_done:\n" ++
+  "  addi a6, t2, 1\n" ++
+  "  add  a6, a6, a3\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_short_str:\n" ++
+  "  li t1, 0x80\n" ++
+  "  sub a6, t0, t1\n" ++
+  "  addi a6, a6, 1\n" ++
+  "  add  t3, t3, a6\n" ++
+  "  j .Lrlc_step\n" ++
+  ".Lrlc_skip_single:\n" ++
+  "  addi t3, t3, 1\n" ++
+  ".Lrlc_step:\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  j .Lrlc_loop\n" ++
+  ".Lrlc_done:\n" ++
+  "  sd t5, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lrlc_fail:\n" ++
+  "  sd zero, 0(a2)\n" ++
+  "  li a0, 1\n" ++
+  "  ret"
 
 /-- `zisk_rlp_list_count_items`: probe BuildUnit. Reads
     (list_len, list_bytes) from host input, writes
@@ -12016,6 +12237,118 @@ def ziskInitCodeCostProbeUnit : BuildUnit := {
 }
 
 
+/-! ## mpt_branch_used_count -- PR-K117
+
+    Count the number of non-empty child slots in an MPT branch
+    node's `[c0, c1, …, c15, value]` head. A child slot is
+    "non-empty" iff its RLP byte-length is > 0 (empty children
+    serialise as the empty RLP string `0x80`, len 0).
+
+    Used by state-root recomputation to detect *single-child*
+    branches that can collapse into an extension after a delete
+    operation: the trie invariant says a branch must always have
+    ≥ 2 children or be replaced by an extension/leaf.
+
+    The `value` field (item 16) is **not** counted; only the 16
+    nibble-indexed children. A branch where the value slot is the
+    only non-empty entry still returns 0 here (and is itself a
+    consensus violation under the standard trie invariants).
+
+    Composes:
+      - PR-K47 `rlp_list_count_items` — sanity-check 17 items
+      - PR-K20 `rlp_list_nth_item`    — per-child length probe
+
+    Calling convention:
+      a0 (input)  : branch_rlp ptr
+      a1 (input)  : branch_rlp byte length
+      a2 (input)  : u64 out ptr (used_count, 0..16)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : not a 17-item list (or RLP parse failure)
+        2 : mid-list nth_item failure -/
+def mptBranchUsedCountFunction : String :=
+  "mpt_branch_used_count:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # branch ptr\n" ++
+  "  mv s1, a1                   # branch len\n" ++
+  "  mv s2, a2                   # used_count out\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  # Verify 17-item list.\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, mbuc_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lmbuc_not_branch\n" ++
+  "  la t0, mbuc_count; ld t1, 0(t0)\n" ++
+  "  li t2, 17\n" ++
+  "  bne t1, t2, .Lmbuc_not_branch\n" ++
+  "  li s3, 0                    # i = 0\n" ++
+  "  li s4, 0                    # used = 0\n" ++
+  ".Lmbuc_loop:\n" ++
+  "  li t0, 16\n" ++
+  "  beq s3, t0, .Lmbuc_done\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  mv a2, s3\n" ++
+  "  la a3, mbuc_off; la a4, mbuc_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmbuc_nth_fail\n" ++
+  "  la t0, mbuc_len; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lmbuc_step\n" ++
+  "  addi s4, s4, 1\n" ++
+  ".Lmbuc_step:\n" ++
+  "  addi s3, s3, 1\n" ++
+  "  j .Lmbuc_loop\n" ++
+  ".Lmbuc_done:\n" ++
+  "  sd s4, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmbuc_ret\n" ++
+  ".Lmbuc_not_branch:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lmbuc_ret\n" ++
+  ".Lmbuc_nth_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lmbuc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_mpt_branch_used_count`: probe BuildUnit. Reads
+    (branch_len, branch_bytes), writes (status, used_count) to
+    OUTPUT (16 bytes). -/
+def ziskMptBranchUsedCountPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # branch length\n" ++
+  "  addi a0, a3, 16             # branch ptr\n" ++
+  "  li a2, 0xa0010008           # used_count out\n" ++
+  "  jal ra, mpt_branch_used_count\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmbuc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  mptBranchUsedCountFunction ++ "\n" ++
+  ".Lmbuc_pdone:"
+
+def ziskMptBranchUsedCountDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "mbuc_count:\n" ++
+  "  .zero 8\n" ++
+  "mbuc_off:\n" ++
+  "  .zero 8\n" ++
+  "mbuc_len:\n" ++
+  "  .zero 8"
+
+def ziskMptBranchUsedCountProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptBranchUsedCountPrologue
+  dataAsm     := ziskMptBranchUsedCountDataSection
+}
+
 
 /-! ## stateless_guest body — PR-K5 keccak hash field
 
@@ -12181,6 +12514,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_validate_parent_hash" => some ziskHeaderValidateParentHashProbeUnit
   | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
   | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
+  | "zisk_account_extract_storage_root" => some ziskAccountExtractStorageRootProbeUnit
   | "zisk_address_from_pubkey"  => some ziskAddressFromPubkeyProbeUnit
   | "zisk_mpt_account_path_nibbles" => some ziskMptAccountPathNibblesProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
@@ -12276,6 +12610,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_branch_get_value" => some ziskMptBranchGetValueProbeUnit
   | "zisk_mpt_leaf_extract"     => some ziskMptLeafExtractProbeUnit
   | "zisk_mpt_extension_extract" => some ziskMptExtensionExtractProbeUnit
+  | "zisk_mpt_branch_used_count" => some ziskMptBranchUsedCountProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -12311,6 +12646,7 @@ def knownProgramNames : List String :=
    "zisk_header_validate_parent_hash",
    "zisk_header_chain_walk_step",
    "zisk_account_validate_code_hash",
+   "zisk_account_extract_storage_root",
    "zisk_address_from_pubkey",
    "zisk_mpt_account_path_nibbles",
    "zisk_headers_validate_chain",
@@ -12406,6 +12742,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_branch_get_value",
    "zisk_mpt_leaf_extract",
    "zisk_mpt_extension_extract",
+   "zisk_mpt_branch_used_count",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
