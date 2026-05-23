@@ -482,6 +482,32 @@ theorem fullDivN3NormU_val256_eq_scaled_with_overflow
   delta fullDivN3NormU fullDivN3Shift fullDivN3AntiShift at hshift_nz ⊢
   exact u_val256_eq_scaled_with_overflow a0 a1 a2 a3 b2 hshift_nz
 
+theorem fullDivN3NormU_val256_eq_scaled_with_overflow_word
+    (a b : EvmWord)
+    (hshift_nz : fullDivN3Shift (b.getLimbN 2) ≠ 0) :
+    EvmWord.val256
+        (fullDivN3NormU
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 2)).1
+        (fullDivN3NormU
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 2)).2.1
+        (fullDivN3NormU
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 2)).2.2.1
+        (fullDivN3NormU
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 2)).2.2.2.1 +
+      (fullDivN3NormU
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 2)).2.2.2.2.toNat * 2 ^ 256 =
+    EvmWord.val256
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+      2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat :=
+  fullDivN3NormU_val256_eq_scaled_with_overflow
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 2) hshift_nz
+
 theorem fullDivN3NormV_val256_eq_scaled_of_b3_zero
     (b0 b1 b2 b3 : Word)
     (hshift_nz : fullDivN3Shift b2 ≠ 0)
@@ -508,6 +534,26 @@ theorem fullDivN3NormV_val256_eq_scaled_of_b3_zero
   dsimp only
   rw [fullDivN3Shift_toNat_mod_eq, hanti]
   exact EvmWord.val256_normalize hs0 hs b0 b1 b2 b3 hb3_bound
+
+theorem fullDivN3NormV_val256_eq_scaled_of_b3_zero_word
+    (b : EvmWord)
+    (hshift_nz : fullDivN3Shift (b.getLimbN 2) ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) :
+    EvmWord.val256
+        (fullDivN3NormV
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN3NormV
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN3NormV
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN3NormV
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2 =
+    EvmWord.val256
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+      2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat :=
+  fullDivN3NormV_val256_eq_scaled_of_b3_zero
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hshift_nz hb3z
 
 private theorem limbs_or_ne_zero_of_val256_pos
     {b0 b1 b2 b3 : Word}
