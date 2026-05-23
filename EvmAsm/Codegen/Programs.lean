@@ -10220,6 +10220,194 @@ def ziskRlpEncodeU64ProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpEncodeU64DataSection
 }
 
+/-! ## receipt_encode -- PR-K156
+
+    Encode an Ethereum tx receipt as RLP:
+
+      receipt = rlp([status, cumulative_gas_used,
+                     logs_bloom (256 B), logs])
+
+    This is the encoder side of PR-K152 `receipt_extract_logs_bloom`,
+    and the input to receipts-trie / receipts-root computation.
+    For typed receipts (EIP-2718), the caller prepends the
+    `0x<type>` byte to the output of this helper; the wire-format
+    typed receipt is `type_byte || rlp(inner)`.
+
+    Algorithm:
+      1. Write status (u64) at receipt_pl_buf[0..]    via K155.
+      2. Write cumulative_gas (u64) at next slot      via K155.
+      3. Write logs_bloom (256 B as RLP string) at
+         next slot                                    via K128.
+      4. Copy logs_rlp (pre-encoded list) verbatim    (memcpy).
+      5. Compute total payload length.
+      6. Write outer list prefix to output[0..]       via K129.
+      7. Copy receipt_pl_buf[..total_payload] to
+         output[prefix_len..].
+
+    Composes:
+      - PR-K155 `rlp_encode_u64`        -- status / gas
+      - PR-K128 `rlp_encode_bytes`      -- logs_bloom
+      - PR-K129 `rlp_encode_list_prefix`-- outer list prefix
+
+    Calling convention:
+      a0 (input)  : status (u64)
+      a1 (input)  : cumulative_gas_used (u64)
+      a2 (input)  : logs_bloom ptr (exactly 256 bytes)
+      a3 (input)  : logs_rlp ptr (pre-encoded list, copied verbatim)
+      a4 (input)  : logs_rlp byte length
+      a5 (input)  : output buffer ptr
+      a6 (input)  : u64 out length ptr (total bytes written)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds).
+
+    Uses a 16 KiB scratch buffer `re_payload_buf` in `.data` for
+    the intermediate payload. Should comfortably hold mainnet
+    receipt payloads (logs_bloom is 257 RLP bytes, status/gas
+    add <= 18 bytes, logs section is variable but typically
+    KBs at most). -/
+def receiptEncodeFunction : String :=
+  "receipt_encode:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # status\n" ++
+  "  mv s1, a1                   # cumulative_gas\n" ++
+  "  mv s2, a2                   # bloom ptr\n" ++
+  "  mv s3, a3                   # logs_rlp ptr\n" ++
+  "  mv s4, a4                   # logs_rlp len\n" ++
+  "  mv s5, a5                   # output ptr\n" ++
+  "  mv s6, a6                   # out_length ptr\n" ++
+  "  # The running cursor (payload offset within re_payload_buf) is\n" ++
+  "  # stashed to `re_cursor` across `jal` calls since t-registers are\n" ++
+  "  # caller-saved and the encode helpers clobber them.\n" ++
+  "  la t0, re_cursor; sd zero, 0(t0)\n" ++
+  "  # ---- Step 1: encode status into re_payload_buf[0..] ----\n" ++
+  "  mv a0, s0\n" ++
+  "  la a1, re_payload_buf\n" ++
+  "  la a2, re_field_len\n" ++
+  "  jal ra, rlp_encode_u64\n" ++
+  "  la t0, re_field_len; ld t1, 0(t0)         # status_len\n" ++
+  "  la t0, re_cursor; sd t1, 0(t0)            # cursor = status_len\n" ++
+  "  # ---- Step 2: encode cumulative_gas at re_payload_buf[cursor] ----\n" ++
+  "  la t0, re_cursor; ld t2, 0(t0)\n" ++
+  "  mv a0, s1\n" ++
+  "  la a1, re_payload_buf; add a1, a1, t2\n" ++
+  "  la a2, re_field_len\n" ++
+  "  jal ra, rlp_encode_u64\n" ++
+  "  la t0, re_field_len; ld t1, 0(t0)         # gas_len\n" ++
+  "  la t0, re_cursor; ld t2, 0(t0)\n" ++
+  "  add t2, t2, t1\n" ++
+  "  la t0, re_cursor; sd t2, 0(t0)\n" ++
+  "  # ---- Step 3: encode bloom (256 B) ----\n" ++
+  "  mv a0, s2; li a1, 256\n" ++
+  "  la a2, re_payload_buf; add a2, a2, t2\n" ++
+  "  la a3, re_field_len\n" ++
+  "  jal ra, rlp_encode_bytes\n" ++
+  "  la t0, re_field_len; ld t1, 0(t0)         # bloom_enc_len\n" ++
+  "  la t0, re_cursor; ld t2, 0(t0)\n" ++
+  "  add t2, t2, t1\n" ++
+  "  # ---- Step 4: copy logs_rlp verbatim ----\n" ++
+  "  la t3, re_payload_buf; add t3, t3, t2     # dst\n" ++
+  "  mv t4, s3                                 # src\n" ++
+  "  mv t5, s4                                 # remaining bytes\n" ++
+  ".Lre_logs_cp:\n" ++
+  "  beqz t5, .Lre_logs_done\n" ++
+  "  lbu t6, 0(t4)\n" ++
+  "  sb t6, 0(t3)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  j .Lre_logs_cp\n" ++
+  ".Lre_logs_done:\n" ++
+  "  add t2, t2, s4                            # total payload len\n" ++
+  "  # Stash total_payload before the next jal clobbers caller-saved t2.\n" ++
+  "  la t0, re_total_payload; sd t2, 0(t0)\n" ++
+  "  # ---- Step 5: write outer list prefix at output[0..] ----\n" ++
+  "  mv a0, t2; mv a1, s5\n" ++
+  "  la a2, re_field_len\n" ++
+  "  jal ra, rlp_encode_list_prefix\n" ++
+  "  la t0, re_field_len; ld t1, 0(t0)        # outer_prefix_len\n" ++
+  "  # ---- Step 6: copy re_payload_buf[..total_payload] to output[prefix_len..] ----\n" ++
+  "  # Total payload was last stashed in t2; restore via .data\n" ++
+  "  # Actually we lost t2 across jal. Re-derive: total_payload =\n" ++
+  "  # bytes_written - bytes_p, but cleaner to re-compute it from\n" ++
+  "  # re_payload_buf metadata. Save total_payload before jal next time.\n" ++
+  "  # Use the stashed value: we'll save t2 to .data BEFORE the\n" ++
+  "  # rlp_encode_list_prefix call.\n" ++
+  "  # (Fixed by re-reading the saved payload total below.)\n" ++
+  "  la t0, re_total_payload; ld t2, 0(t0)\n" ++
+  "  add t3, s5, t1                            # dst = output + prefix_len\n" ++
+  "  la t4, re_payload_buf                     # src\n" ++
+  "  mv t5, t2                                 # remaining\n" ++
+  ".Lre_body_cp:\n" ++
+  "  beqz t5, .Lre_body_done\n" ++
+  "  lbu t6, 0(t4)\n" ++
+  "  sb t6, 0(t3)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  j .Lre_body_cp\n" ++
+  ".Lre_body_done:\n" ++
+  "  # total_written = outer_prefix_len + total_payload\n" ++
+  "  add t1, t1, t2\n" ++
+  "  sd t1, 0(s6)\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_receipt_encode`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : status (u64 LE)
+      bytes  8..16 : cumulative_gas (u64 LE)
+      bytes 16..272: logs_bloom (256 bytes)
+      bytes 272..280: logs_rlp_len (u64 LE)
+      bytes 280..   : logs_rlp
+    Output layout (256 B ziskemu cap):
+      bytes  0.. 8 : status (always 0)
+      bytes  8..16 : encoded receipt total length
+      bytes 16..   : encoded receipt bytes (truncated to fit) -/
+def ziskReceiptEncodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # status\n" ++
+  "  ld a1, 16(a7)               # cumulative_gas\n" ++
+  "  addi a2, a7, 24             # logs_bloom ptr (256 B)\n" ++
+  "  ld a4, 280(a7)              # logs_rlp_len\n" ++
+  "  addi a3, a7, 288            # logs_rlp ptr\n" ++
+  "  li a5, 0xa0010010           # output ptr\n" ++
+  "  li a6, 0xa0010008           # out length ptr\n" ++
+  "  jal ra, receipt_encode\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lre_pdone\n" ++
+  rlpEncodeU64Function ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  receiptEncodeFunction ++ "\n" ++
+  ".Lre_pdone:"
+
+def ziskReceiptEncodeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "re_field_len:\n" ++
+  "  .zero 8\n" ++
+  "re_cursor:\n" ++
+  "  .zero 8\n" ++
+  "re_total_payload:\n" ++
+  "  .zero 8\n" ++
+  "re_payload_buf:\n" ++
+  "  .zero 16384"
+
+def ziskReceiptEncodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskReceiptEncodePrologue
+  dataAsm     := ziskReceiptEncodeDataSection
+}
+
 /-! ## calldata_byte_counts -- PR-K105
 
     Count zero and non-zero bytes in an arbitrary byte buffer.
@@ -10992,6 +11180,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extract_logs_bloom" => some ziskHeaderExtractLogsBloomProbeUnit
   | "zisk_bloom_eq" => some ziskBloomEqProbeUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
+  | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
@@ -11161,6 +11350,7 @@ def knownProgramNames : List String :=
    "zisk_header_extract_logs_bloom",
    "zisk_bloom_eq",
    "zisk_rlp_encode_u64",
+   "zisk_receipt_encode",
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost",
