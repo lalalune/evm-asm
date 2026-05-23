@@ -105,4 +105,41 @@ theorem loopN2CallCallCallSourceConds_unfold
   delta loopN2CallCallCallSourceConds
   rfl
 
+/-- Compact CPS spec for the n=2 v4/no-NOP source path whose three loop
+    iterations all take the callable trial-division path.  This names the full
+    `cpsTripleWithin` proposition so the proof theorem can expose a small
+    result type and unfold the CPS surface only inside the proof. -/
+@[irreducible]
+def loopN2CallCallCallSourceSpec (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 q2Old q1Old q0Old raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word) : Prop :=
+  cpsTripleWithin (224 + 224 + 224) (base + loopBodyOff) (base + denormOff)
+    (divCode_noNop_v4 base)
+    (loopN2PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 q2Old q1Old q0Old
+      retMem dMem dloMem scratchUn0 scratchMem **
+      (.x1 ↦ᵣ raVal))
+    (loopN2CallCallCallSourceFinalPostNoX1 sp base
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 raVal scratchMem)
+
+theorem loopN2CallCallCallSourceSpec_unfold (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 q2Old q1Old q0Old raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word) :
+    loopN2CallCallCallSourceSpec sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 q2Old q1Old q0Old raVal
+      retMem dMem dloMem scratchUn0 scratchMem =
+    cpsTripleWithin (224 + 224 + 224) (base + loopBodyOff) (base + denormOff)
+      (divCode_noNop_v4 base)
+      (loopN2PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 q2Old q1Old q0Old
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopN2CallCallCallSourceFinalPostNoX1 sp base
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 raVal scratchMem) := by
+  delta loopN2CallCallCallSourceSpec
+  rfl
+
 end EvmAsm.Evm64
