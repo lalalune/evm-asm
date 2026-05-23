@@ -10100,6 +10100,126 @@ def ziskBloomEqProbeUnit : BuildUnit := {
   dataAsm     := ziskBloomEqDataSection
 }
 
+/-! ## rlp_encode_u64 -- PR-K155
+
+    Encode a `u64` register value as canonical RLP. A convenience
+    wrapper that takes the integer directly rather than the BE
+    byte buffer that PR-K30 `rlp_encode_uint_be` requires:
+
+      value == 0       -> 0x80                       (1 byte)
+      value < 0x80     -> single byte = value        (1 byte)
+      else             -> 0x80 + effective_len + BE bytes
+                          (effective_len in 1..8)    (2..9 bytes)
+
+    Pure register arithmetic, leaf-callable, no scratch memory.
+    Use cases where K30 with a stack-allocated BE buffer is
+    awkward boilerplate -- typical example is receipt encoding:
+
+      rlp_encode_u64(status, buf + cursor, &written); cursor += written
+      rlp_encode_u64(cumulative_gas, buf + cursor, &written); cursor += written
+      ...
+
+    Calling convention:
+      a0 (input)  : value (u64)
+      a1 (input)  : output buffer ptr (caller supplies >= 9 bytes)
+      a2 (input)  : u64 out length ptr (bytes written; 1..9)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def rlpEncodeU64Function : String :=
+  "rlp_encode_u64:\n" ++
+  "  beqz a0, .Lreu64_zero\n" ++
+  "  li t0, 0x80\n" ++
+  "  bgeu a0, t0, .Lreu64_multi\n" ++
+  "  # Single-byte form (value in 0x01..0x7f).\n" ++
+  "  sb a0, 0(a1)\n" ++
+  "  li t1, 1\n" ++
+  "  sd t1, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lreu64_zero:\n" ++
+  "  li t0, 0x80\n" ++
+  "  sb t0, 0(a1)\n" ++
+  "  li t1, 1\n" ++
+  "  sd t1, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lreu64_multi:\n" ++
+  "  # Compute effective byte length (1..8) by finding the top non-zero byte.\n" ++
+  "  # We already know value >= 0x80, so len >= 1.\n" ++
+  "  li t0, 1                   # effective_len candidate\n" ++
+  "  li t1, 0x100\n" ++
+  "  bltu a0, t1, .Lreu64_have_len\n" ++
+  "  li t0, 2\n" ++
+  "  slli t1, t1, 8\n" ++
+  "  bltu a0, t1, .Lreu64_have_len\n" ++
+  "  li t0, 3\n" ++
+  "  slli t1, t1, 8\n" ++
+  "  bltu a0, t1, .Lreu64_have_len\n" ++
+  "  li t0, 4\n" ++
+  "  slli t1, t1, 8\n" ++
+  "  bltu a0, t1, .Lreu64_have_len\n" ++
+  "  li t0, 5\n" ++
+  "  slli t1, t1, 8\n" ++
+  "  bltu a0, t1, .Lreu64_have_len\n" ++
+  "  li t0, 6\n" ++
+  "  slli t1, t1, 8\n" ++
+  "  bltu a0, t1, .Lreu64_have_len\n" ++
+  "  li t0, 7\n" ++
+  "  slli t1, t1, 8\n" ++
+  "  bltu a0, t1, .Lreu64_have_len\n" ++
+  "  li t0, 8\n" ++
+  ".Lreu64_have_len:\n" ++
+  "  # Write prefix 0x80 + effective_len.\n" ++
+  "  addi t2, t0, 0x80\n" ++
+  "  sb t2, 0(a1)\n" ++
+  "  # Write effective_len BE bytes of value into a1+1..a1+1+len.\n" ++
+  "  addi t3, a1, 1                 # dst cursor\n" ++
+  "  addi t4, t0, -1                # shift_byte_index = len - 1\n" ++
+  ".Lreu64_emit:\n" ++
+  "  bltz t4, .Lreu64_done\n" ++
+  "  slli t5, t4, 3                 # bit shift = 8 * byte_index\n" ++
+  "  srl t6, a0, t5\n" ++
+  "  sb t6, 0(t3)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lreu64_emit\n" ++
+  ".Lreu64_done:\n" ++
+  "  addi t1, t0, 1                 # bytes_written = 1 + effective_len\n" ++
+  "  sd t1, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_rlp_encode_u64`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : value (u64)
+    Output layout:
+      bytes  0.. 8 : status (always 0)
+      bytes  8..16 : bytes_written
+      bytes 16..25 : encoded RLP (up to 9 bytes) -/
+def ziskRlpEncodeU64Prologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a0, 8(a3)                # value\n" ++
+  "  li a1, 0xa0010010           # output buffer ptr\n" ++
+  "  li a2, 0xa0010008           # out length ptr\n" ++
+  "  jal ra, rlp_encode_u64\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lreu64_pdone\n" ++
+  rlpEncodeU64Function ++ "\n" ++
+  ".Lreu64_pdone:"
+
+def ziskRlpEncodeU64DataSection : String :=
+  ".section .data\n" ++
+  "reu64_pad:\n" ++
+  "  .zero 8"
+
+def ziskRlpEncodeU64ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRlpEncodeU64Prologue
+  dataAsm     := ziskRlpEncodeU64DataSection
+}
+
 /-! ## calldata_byte_counts -- PR-K105
 
     Count zero and non-zero bytes in an arbitrary byte buffer.
@@ -10871,6 +10991,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_receipt_extract_logs_bloom" => some ziskReceiptExtractLogsBloomProbeUnit
   | "zisk_header_extract_logs_bloom" => some ziskHeaderExtractLogsBloomProbeUnit
   | "zisk_bloom_eq" => some ziskBloomEqProbeUnit
+  | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
@@ -11039,6 +11160,7 @@ def knownProgramNames : List String :=
    "zisk_receipt_extract_logs_bloom",
    "zisk_header_extract_logs_bloom",
    "zisk_bloom_eq",
+   "zisk_rlp_encode_u64",
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost",
