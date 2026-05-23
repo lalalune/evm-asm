@@ -9395,6 +9395,166 @@ def ziskBloomAddValueProbeUnit : BuildUnit := {
   dataAsm     := ziskBloomAddValueDataSection
 }
 
+/-! ## log_bloom_add -- PR-K149
+
+    Add a full log's bloom contributions to a 256-byte bloom
+    filter, in place. A log is `rlp([address, topics, data])`
+    where:
+      * address : 20-byte string
+      * topics  : RLP list of 32-byte hashes (0..4 entries; the
+                  EVM opcodes LOG0..LOG4 enforce the upper bound)
+      * data    : opaque bytes (NOT part of the bloom; only the
+                  address and topics enter the filter)
+
+    For each `value` in `{address, topic[0], …, topic[k-1]}`:
+      bloom_add_value(bloom, value, len(value))
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item`        — locate address /
+        topics-list fields and individual topics
+      - PR-K47 `rlp_list_count_items`     — topic-list cardinality
+      - PR-K148 `bloom_add_value`         — bit-set per value
+      - `zkvm_keccak256` (via K148)        — hashing
+
+    Calling convention:
+      a0 (input)  : bloom ptr (256 bytes, mutable, in-place OR)
+      a1 (input)  : log_rlp ptr
+      a2 (input)  : log_rlp byte length
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / log shape invalid
+        2 : address field length != 20 bytes
+        3 : topic field length != 32 bytes
+
+    The data field is *not* part of the bloom, per the yellow
+    paper; it's read and discarded. Caller zero-initialises the
+    bloom buffer before the first call of a logs sequence. -/
+def logBloomAddFunction : String :=
+  "log_bloom_add:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # bloom ptr\n" ++
+  "  mv s1, a1                   # log_rlp ptr\n" ++
+  "  mv s2, a2                   # log_rlp len\n" ++
+  "  # ---- Field 0: address (20 bytes) ----\n" ++
+  "  mv a0, s1; mv a1, s2; li a2, 0\n" ++
+  "  la a3, lba_offset; la a4, lba_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Llba_fail\n" ++
+  "  la t0, lba_length; ld t1, 0(t0)\n" ++
+  "  li t2, 20\n" ++
+  "  bne t1, t2, .Llba_addr_size\n" ++
+  "  la t0, lba_offset; ld t1, 0(t0)\n" ++
+  "  add a1, s1, t1               # &address bytes\n" ++
+  "  mv a0, s0; li a2, 20\n" ++
+  "  jal ra, bloom_add_value\n" ++
+  "  # ---- Field 1: topics list — get bounds (full encoded item) ----\n" ++
+  "  mv a0, s1; mv a1, s2; li a2, 1\n" ++
+  "  la a3, lba_topics_offset; la a4, lba_topics_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Llba_fail\n" ++
+  "  la t0, lba_topics_offset; ld s3, 0(t0)        # topics absolute offset\n" ++
+  "  la t0, lba_topics_length; ld s4, 0(t0)        # topics full encoded len\n" ++
+  "  add t0, s1, s3                                # &topics_rlp\n" ++
+  "  # ---- Count topics ----\n" ++
+  "  mv a0, t0; mv a1, s4\n" ++
+  "  la a2, lba_topic_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Llba_fail\n" ++
+  "  la t0, lba_topic_count; ld s5, 0(t0)          # n_topics\n" ++
+  "  # ---- For each topic i in 0..n_topics-1, add to bloom ----\n" ++
+  "  li t6, 0                                      # i\n" ++
+  ".Llba_topic_loop:\n" ++
+  "  bge t6, s5, .Llba_topic_done\n" ++
+  "  # Extract topic i bounds.\n" ++
+  "  add a0, s1, s3                                # topics_rlp ptr\n" ++
+  "  mv a1, s4                                     # topics_rlp len\n" ++
+  "  mv a2, t6                                     # index\n" ++
+  "  la a3, lba_offset; la a4, lba_length\n" ++
+  "  # Save t6 across the call (caller-saved).\n" ++
+  "  addi sp, sp, -8; sd t6, 0(sp)\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  ld t6, 0(sp); addi sp, sp, 8\n" ++
+  "  bnez a0, .Llba_fail\n" ++
+  "  la t0, lba_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Llba_topic_size\n" ++
+  "  la t0, lba_offset; ld t1, 0(t0)               # offset (relative to topics_rlp)\n" ++
+  "  add t1, t1, s3                                # absolute offset in log_rlp\n" ++
+  "  add a1, s1, t1                                # &topic bytes\n" ++
+  "  mv a0, s0; li a2, 32\n" ++
+  "  addi sp, sp, -8; sd t6, 0(sp)\n" ++
+  "  jal ra, bloom_add_value\n" ++
+  "  ld t6, 0(sp); addi sp, sp, 8\n" ++
+  "  addi t6, t6, 1\n" ++
+  "  j .Llba_topic_loop\n" ++
+  ".Llba_topic_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Llba_ret\n" ++
+  ".Llba_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Llba_ret\n" ++
+  ".Llba_addr_size:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Llba_ret\n" ++
+  ".Llba_topic_size:\n" ++
+  "  li a0, 3\n" ++
+  ".Llba_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_log_bloom_add`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : log_rlp_len
+      bytes  8..   : log_rlp
+    Output layout:
+      bytes  0..256 : zero-initialised bloom, then log_bloom_add
+                      applied once to the supplied log. -/
+def ziskLogBloomAddPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a2, 8(a3)                # log_rlp_len\n" ++
+  "  addi a1, a3, 16             # log_rlp ptr\n" ++
+  "  li a0, 0xa0010000           # output bloom ptr\n" ++
+  "  jal ra, log_bloom_add\n" ++
+  "  j .Llba_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  bloomAddValueFunction ++ "\n" ++
+  logBloomAddFunction ++ "\n" ++
+  ".Llba_pdone:"
+
+def ziskLogBloomAddDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "bav_hash:\n" ++
+  "  .zero 32\n" ++
+  "lba_offset:\n" ++
+  "  .zero 8\n" ++
+  "lba_length:\n" ++
+  "  .zero 8\n" ++
+  "lba_topics_offset:\n" ++
+  "  .zero 8\n" ++
+  "lba_topics_length:\n" ++
+  "  .zero 8\n" ++
+  "lba_topic_count:\n" ++
+  "  .zero 8"
+
+def ziskLogBloomAddProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskLogBloomAddPrologue
+  dataAsm     := ziskLogBloomAddDataSection
+}
+
 /-! ## calldata_byte_counts -- PR-K105
 
     Count zero and non-zero bytes in an arbitrary byte buffer.
@@ -10160,6 +10320,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_block_summary"        => some ziskBlockSummaryProbeUnit
   | "zisk_block_compute_tx_hashes" => some ziskBlockComputeTxHashesProbeUnit
   | "zisk_bloom_add_value" => some ziskBloomAddValueProbeUnit
+  | "zisk_log_bloom_add" => some ziskLogBloomAddProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
@@ -10322,6 +10483,7 @@ def knownProgramNames : List String :=
    "zisk_block_summary",
    "zisk_block_compute_tx_hashes",
    "zisk_bloom_add_value",
+   "zisk_log_bloom_add",
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost",
