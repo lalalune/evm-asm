@@ -13501,6 +13501,7 @@ def ziskMptExtensionExtractProbeUnit : BuildUnit := {
     nibble-indexed children. A branch where the value slot is the
     only non-empty entry still returns 0 here (and is itself a
     consensus violation under the standard trie invariants).
+-/
 /-! ## mpt_branch_first_used_index -- PR-K118
 
     Find the lowest-indexed non-empty child slot in an MPT branch
