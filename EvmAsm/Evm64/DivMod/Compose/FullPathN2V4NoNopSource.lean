@@ -616,6 +616,58 @@ theorem loopIterPostN2CallScratchNoX1_j1_to_max_j0_pre
   rw [sepConj_assoc'] at hp
   xperm_hyp hp
 
+/-- A j=1 call iteration postcondition with v4 scratch cells specializes to the
+    j=0 max-body precondition while retaining both the j=1 and j=2 carried
+    u4/q atoms as frame. -/
+theorem loopIterPostN2CallScratchNoX1_j1_to_max_j0_pre_with_j2_frame
+    (sp base qHat dLo divUn0 scratchOut : Word)
+    (v0 v1 v2 v3 u0J1 u1 u2 u3 uTop u0Orig0 q0Old raVal : Word)
+    (uBase2 qAddr2 u4J2 q2 : Word) :
+    let r := iterWithDoubleAddback qHat v0 v1 v2 v3 u0J1 u1 u2 u3 uTop
+    let c3 := mulsubN4_c3 qHat v0 v1 v2 v3 u0J1 u1 u2 u3
+    let uBase1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+    let qAddr1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+    ∀ h,
+      (((loopIterPostN2CallScratchNoX1 sp base (1 : Word)
+        qHat dLo divUn0 scratchOut v0 v1 v2 v3 u0J1 u1 u2 u3 uTop **
+        (.x1 ↦ᵣ raVal)) **
+        (((uBase2 + signExtend12 4064 ↦ₘ u4J2) **
+          (qAddr2 ↦ₘ q2)) **
+         (((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig0) **
+         ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old)))) h) →
+      (((loopBodyN2MaxSkipJ0NormPreV4 sp (1 : Word)
+          ((1 : Word) <<< (3 : BitVec 6).toNat) uBase1 qAddr1 c3 r.1
+          r.2.2.2.2.1 v0 v1 v2 v3 u0Orig0 r.2.1 r.2.2.1 r.2.2.2.1
+          r.2.2.2.2.1 q0Old **
+          (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+          (sp + signExtend12 3960 ↦ₘ v1) **
+          (sp + signExtend12 3952 ↦ₘ dLo) **
+          (sp + signExtend12 3944 ↦ₘ divUn0) **
+          (sp + signExtend12 3936 ↦ₘ scratchOut) **
+          (.x1 ↦ᵣ raVal)) **
+        (((uBase1 + signExtend12 4064 ↦ₘ r.2.2.2.2.2) **
+          (qAddr1 ↦ₘ r.1)) **
+         ((uBase2 + signExtend12 4064 ↦ₘ u4J2) **
+          (qAddr2 ↦ₘ q2)))) h) := by
+  intro r c3 uBase1 qAddr1 h hp
+  subst uBase1
+  subst qAddr1
+  subst c3
+  subst r
+  delta loopIterPostN2CallScratchNoX1 loopExitPostN2 loopExitPost at hp
+  delta loopBodyN2MaxSkipJ0NormPreV4
+  unfold mulsubN4_c3
+  simp only [] at hp ⊢
+  have hj' := EvmAsm.Evm64.DivMod.AddrNorm.jpred_1
+  rw [hj', u_j1_0_eq_j0_4088, u_j1_4088_eq_j0_4080,
+      u_j1_4080_eq_j0_4072, u_j1_4072_eq_j0_4064] at hp
+  simp only [se12_32, se12_40, se12_48, se12_56,
+             u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
+             u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at hp ⊢
+  rw [sepConj_assoc'] at hp
+  xperm_hyp hp
+
 /-- A j=1 max iteration postcondition with v4 scratch cells specializes to the
     j=0 call-body precondition, retaining exact `x1` and j=1 carried u4/q
     atoms as frame. -/
@@ -644,6 +696,57 @@ theorem loopIterPostN2MaxScratchX1_j1_to_call_j0_pre
           (.x1 ↦ᵣ raVal)) **
         ((uBase1 + signExtend12 4064 ↦ₘ r.2.2.2.2.2) **
          (qAddr1 ↦ₘ r.1))) h) := by
+  intro r c3 uBase1 qAddr1 h hp
+  subst uBase1
+  subst qAddr1
+  subst c3
+  subst r
+  delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
+  delta loopBodyN2CallSkipJ0NormPreV4NoX1 loopBodyN2MaxSkipJ0NormPreV4
+  unfold mulsubN4_c3
+  simp only [] at hp ⊢
+  have hj' := EvmAsm.Evm64.DivMod.AddrNorm.jpred_1
+  rw [hj', u_j1_0_eq_j0_4088, u_j1_4088_eq_j0_4080,
+      u_j1_4080_eq_j0_4072, u_j1_4072_eq_j0_4064] at hp
+  simp only [se12_32, se12_40, se12_48, se12_56,
+             u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
+             u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at hp ⊢
+  rw [sepConj_assoc'] at hp
+  xperm_hyp hp
+
+/-- A j=1 max iteration postcondition with v4 scratch cells specializes to the
+    j=0 call-body precondition while retaining both the j=1 and j=2 carried
+    u4/q atoms as frame. -/
+theorem loopIterPostN2MaxScratchX1_j1_to_call_j0_pre_with_j2_frame
+    (sp retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (v0 v1 v2 v3 u0J1 u1 u2 u3 uTop u0Orig0 q0Old raVal : Word)
+    (uBase2 qAddr2 u4J2 q2 : Word) :
+    let r := iterN2Max v0 v1 v2 v3 u0J1 u1 u2 u3 uTop
+    let c3 := mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0J1 u1 u2 u3
+    let uBase1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+    let qAddr1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+    ∀ h,
+      (((loopIterPostN2Max sp (1 : Word) v0 v1 v2 v3 u0J1 u1 u2 u3 uTop **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal)) **
+        (((uBase2 + signExtend12 4064 ↦ₘ u4J2) **
+          (qAddr2 ↦ₘ q2)) **
+         (((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig0) **
+         ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old)))) h) →
+      (((loopBodyN2CallSkipJ0NormPreV4NoX1 sp (1 : Word)
+          ((1 : Word) <<< (3 : BitVec 6).toNat) uBase1 qAddr1 c3 r.1
+          r.2.2.2.2.1 v0 v1 v2 v3 u0Orig0 r.2.1 r.2.2.1 r.2.2.2.1
+          r.2.2.2.2.1 q0Old retMem dMem dloMem scratchUn0 scratchMem **
+          (.x1 ↦ᵣ raVal)) **
+        (((uBase1 + signExtend12 4064 ↦ₘ r.2.2.2.2.2) **
+          (qAddr1 ↦ₘ r.1)) **
+         ((uBase2 + signExtend12 4064 ↦ₘ u4J2) **
+          (qAddr2 ↦ₘ q2)))) h) := by
   intro r c3 uBase1 qAddr1 h hp
   subst uBase1
   subst qAddr1
@@ -695,6 +798,62 @@ theorem loopIterPostN2MaxScratchX1_j1_to_max_j0_pre
           (.x1 ↦ᵣ raVal)) **
         ((uBase1 + signExtend12 4064 ↦ₘ r.2.2.2.2.2) **
          (qAddr1 ↦ₘ r.1))) h) := by
+  intro r c3 uBase1 qAddr1 h hp
+  subst uBase1
+  subst qAddr1
+  subst c3
+  subst r
+  delta loopIterPostN2Max loopExitPostN2 loopExitPost at hp
+  delta loopBodyN2MaxSkipJ0NormPreV4
+  unfold mulsubN4_c3
+  simp only [] at hp ⊢
+  have hj' := EvmAsm.Evm64.DivMod.AddrNorm.jpred_1
+  rw [hj', u_j1_0_eq_j0_4088, u_j1_4088_eq_j0_4080,
+      u_j1_4080_eq_j0_4072, u_j1_4072_eq_j0_4064] at hp
+  simp only [se12_32, se12_40, se12_48, se12_56,
+             u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
+             u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at hp ⊢
+  rw [sepConj_assoc'] at hp
+  xperm_hyp hp
+
+/-- A j=1 max iteration postcondition with v4 scratch cells specializes to the
+    j=0 max-body precondition while retaining both the j=1 and j=2 carried
+    u4/q atoms as frame. -/
+theorem loopIterPostN2MaxScratchX1_j1_to_max_j0_pre_with_j2_frame
+    (sp retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (v0 v1 v2 v3 u0J1 u1 u2 u3 uTop u0Orig0 q0Old raVal : Word)
+    (uBase2 qAddr2 u4J2 q2 : Word) :
+    let r := iterN2Max v0 v1 v2 v3 u0J1 u1 u2 u3 uTop
+    let c3 := mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0J1 u1 u2 u3
+    let uBase1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+    let qAddr1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+    ∀ h,
+      (((loopIterPostN2Max sp (1 : Word) v0 v1 v2 v3 u0J1 u1 u2 u3 uTop **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal)) **
+        (((uBase2 + signExtend12 4064 ↦ₘ u4J2) **
+          (qAddr2 ↦ₘ q2)) **
+         (((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig0) **
+         ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old)))) h) →
+      (((loopBodyN2MaxSkipJ0NormPreV4 sp (1 : Word)
+          ((1 : Word) <<< (3 : BitVec 6).toNat) uBase1 qAddr1 c3 r.1
+          r.2.2.2.2.1 v0 v1 v2 v3 u0Orig0 r.2.1 r.2.2.1 r.2.2.2.1
+          r.2.2.2.2.1 q0Old **
+          (sp + signExtend12 3968 ↦ₘ retMem) **
+          (sp + signExtend12 3960 ↦ₘ dMem) **
+          (sp + signExtend12 3952 ↦ₘ dloMem) **
+          (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+          (sp + signExtend12 3936 ↦ₘ scratchMem) **
+          (.x1 ↦ᵣ raVal)) **
+        (((uBase1 + signExtend12 4064 ↦ₘ r.2.2.2.2.2) **
+          (qAddr1 ↦ₘ r.1)) **
+         ((uBase2 + signExtend12 4064 ↦ₘ u4J2) **
+          (qAddr2 ↦ₘ q2)))) h) := by
   intro r c3 uBase1 qAddr1 h hp
   subst uBase1
   subst qAddr1
