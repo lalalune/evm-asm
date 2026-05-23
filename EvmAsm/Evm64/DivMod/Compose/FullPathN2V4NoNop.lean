@@ -164,6 +164,55 @@ theorem loopN2PreWithScratchV4NoX1_to_call_j2_pre
   rw [loopBodyN2MaxJgt0Pre_unfold]
   xperm_hyp hp
 
+theorem loopBodyN2CallSkipJ0PostV4NoX1_eq_scratch
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) :
+    loopBodyN2CallSkipJ0PostV4NoX1 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem =
+      loopBodyN2CallSkipPostJScratchNoX1 sp base (0 : Word)
+        (divKTrialCallV4QHat u2 u1 v1)
+        (divKTrialCallV4DLo v1)
+        (divKTrialCallV4Un0 u1)
+        (divKTrialCallV4ScratchOut u2 u1 v1 scratchMem)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  delta loopBodyN2CallSkipJ0PostV4NoX1 loopBodyN2CallSkipPostJScratchNoX1
+  rfl
+
+theorem loopBodyN2CallSkipJgt0PostV4NoX1_eq_scratch
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) :
+    loopBodyN2CallSkipJgt0PostV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem =
+      loopBodyN2CallSkipPostJScratchNoX1 sp base j
+        (divKTrialCallV4QHat u2 u1 v1)
+        (divKTrialCallV4DLo v1)
+        (divKTrialCallV4Un0 u1)
+        (divKTrialCallV4ScratchOut u2 u1 v1 scratchMem)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  delta loopBodyN2CallSkipJgt0PostV4NoX1 loopBodyN2CallSkipPostJScratchNoX1
+  rfl
+
+theorem loopBodyN2CallAddbackBeqJ0PostV4NoX1_eq_scratch
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) :
+    loopBodyN2CallAddbackBeqJ0PostV4NoX1 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem =
+      loopBodyN2CallAddbackBeqPostJScratchNoX1 sp base (0 : Word)
+        (divKTrialCallV4QHat u2 u1 v1)
+        (divKTrialCallV4DLo v1)
+        (divKTrialCallV4Un0 u1)
+        (divKTrialCallV4ScratchOut u2 u1 v1 scratchMem)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  delta loopBodyN2CallAddbackBeqJ0PostV4NoX1 loopBodyN2CallAddbackBeqPostJScratchNoX1
+  rfl
+
+theorem loopBodyN2CallAddbackBeqJgt0PostV4NoX1_eq_scratch
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) :
+    loopBodyN2CallAddbackBeqJgt0PostV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        scratchMem =
+      loopBodyN2CallAddbackBeqPostJScratchNoX1 sp base j
+        (divKTrialCallV4QHat u2 u1 v1)
+        (divKTrialCallV4DLo v1)
+        (divKTrialCallV4Un0 u1)
+        (divKTrialCallV4ScratchOut u2 u1 v1 scratchMem)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  delta loopBodyN2CallAddbackBeqJgt0PostV4NoX1 loopBodyN2CallAddbackBeqPostJScratchNoX1
+  rfl
+
 /-- Loop body n=2, max+skip, j=0 over `divCode_noNop_v4`, with
     sp-relative addresses hidden behind a named precondition. -/
 theorem divK_loop_body_n2_max_skip_j0_norm_v4_noNop (sp base : Word)
