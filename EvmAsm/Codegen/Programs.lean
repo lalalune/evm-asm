@@ -1999,6 +1999,206 @@ def ziskAccountValidateCodeHashProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountValidateCodeHashDataSection
 }
 
+/-! ## account_storage_root_eq -- PR-K134
+
+    Generic equality check on an account's `storage_root` field:
+    does it equal the 32-byte hash passed in as `expected`?
+
+    Used during witness validation to assert that the storage trie
+    pointed at by an account matches a claimed root (e.g., the
+    pre-state root in a stateless witness's account proof). The
+    narrower PR-K133 `account_storage_root_is_empty` is the
+    specialization where the expected value is `EMPTY_TRIE_ROOT`.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — field 2 bounds
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : expected_root ptr (32 bytes)      a3 (input)  : u64 out ptr (1 if equal, 0 if not)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse failure / field 2 missing
+        2 : field 2 length != 32 -/
+def accountStorageRootEqFunction : String :=
+  "account_storage_root_eq:\n" ++  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # account_ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # expected_root ptr\n" ++
+  "  mv s3, a3                   # u64 out ptr\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  la a3, asre_offset; la a4, asre_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lasre_parse_fail\n" ++
+  "  la t0, asre_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lasre_size_fail\n" ++
+  "  la t0, asre_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t5,  0(t3); ld t6,  0(s2); bne t5, t6, .Lasre_neq\n" ++
+  "  ld t5,  8(t3); ld t6,  8(s2); bne t5, t6, .Lasre_neq\n" ++
+  "  ld t5, 16(t3); ld t6, 16(s2); bne t5, t6, .Lasre_neq\n" ++
+  "  ld t5, 24(t3); ld t6, 24(s2); bne t5, t6, .Lasre_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lasre_ret\n" ++
+  ".Lasre_neq:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lasre_ret\n" ++
+  ".Lasre_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lasre_ret\n" ++
+  ".Lasre_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lasre_ret:\n" ++  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_account_storage_root_eq`: probe BuildUnit. Reads
+    (account_len, expected_root[32], account_bytes), writes
+    (status, is_equal) to OUTPUT (16 bytes total).
+    Input layout:
+      bytes  0.. 8 : account_len
+      bytes  8..40 : expected_root (32 bytes)
+      bytes 40..   : account_rlp -/
+def ziskAccountStorageRootEqPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # account_rlp_len\n" ++
+  "  addi a2, a4, 16             # expected_root ptr\n" ++
+  "  addi a0, a4, 48             # account_rlp ptr\n" ++
+  "  li a3, 0xa0010008           # is_equal out\n" ++
+  "  jal ra, account_storage_root_eq\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lasre_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountStorageRootEqFunction ++ "\n" ++
+  ".Lasre_pdone:"
+
+def ziskAccountStorageRootEqDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "asre_offset:\n" ++
+  "  .zero 8\n" ++
+  "asre_length:\n" ++
+  "  .zero 8"
+
+def ziskAccountStorageRootEqProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountStorageRootEqPrologue
+  dataAsm     := ziskAccountStorageRootEqDataSection
+}
+
+
+
+/-! ## account_code_hash_eq -- PR-K135
+
+    Generic equality check on an account's `code_hash` field:
+    does it equal the 32-byte hash passed in as `expected`?
+
+    PR-K98 `account_validate_code_hash` *computes* the expected
+    digest from a bytecode buffer; K135 simply *compares* against
+    a caller-supplied digest. Use K98 when the bytecode is known
+    locally and we need an integrity check; use K135 when the
+    expected hash is already in hand (e.g., from a code-DB lookup
+    in a stateless witness, where the bytecode lives elsewhere).
+
+    Companion to PR-K131 `account_has_empty_code` (the specialised
+    EMPTY_CODE_HASH variant) and PR-K134
+    `account_storage_root_eq` (the storage-side equivalent).
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — field 3 bounds
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : expected_hash ptr (32 bytes)      a3 (input)  : u64 out ptr (1 if equal, 0 if not)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse failure / field 3 missing
+        2 : field 3 length != 32 -/
+def accountCodeHashEqFunction : String :=
+  "account_code_hash_eq:\n" ++  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # account_ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # expected_hash ptr\n" ++
+  "  mv s3, a3                   # u64 out ptr\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
+  "  la a3, ache_offset; la a4, ache_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lache_parse_fail\n" ++
+  "  la t0, ache_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lache_size_fail\n" ++
+  "  la t0, ache_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t5,  0(t3); ld t6,  0(s2); bne t5, t6, .Lache_neq\n" ++
+  "  ld t5,  8(t3); ld t6,  8(s2); bne t5, t6, .Lache_neq\n" ++
+  "  ld t5, 16(t3); ld t6, 16(s2); bne t5, t6, .Lache_neq\n" ++
+  "  ld t5, 24(t3); ld t6, 24(s2); bne t5, t6, .Lache_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lache_ret\n" ++
+  ".Lache_neq:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lache_ret\n" ++
+  ".Lache_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lache_ret\n" ++
+  ".Lache_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lache_ret:\n" ++  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_account_code_hash_eq`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : account_rlp_len
+      bytes  8..40 : expected_hash (32 bytes)
+      bytes 40..   : account_rlp -/
+def ziskAccountCodeHashEqPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # account_rlp_len\n" ++
+  "  addi a2, a4, 16             # expected_hash ptr\n" ++
+  "  addi a0, a4, 48             # account_rlp ptr\n" ++
+  "  li a3, 0xa0010008           # is_equal out\n" ++
+  "  jal ra, account_code_hash_eq\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lache_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountCodeHashEqFunction ++ "\n" ++
+  ".Lache_pdone:"
+
+def ziskAccountCodeHashEqDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "ache_offset:\n" ++
+  "  .zero 8\n" ++
+  "ache_length:\n" ++
+  "  .zero 8"
+
+def ziskAccountCodeHashEqProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountCodeHashEqPrologue
+  dataAsm     := ziskAccountCodeHashEqDataSection
+}
 /-! ## account_is_eip161_empty -- PR-K137
 
     EIP-161 empty-account predicate:
@@ -2481,6 +2681,9 @@ def accountHasEmptyCodeFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret"
+/-! ## rlp_list_count_items -- PR-K47
+    The function body now lives in `EvmAsm/Codegen/Programs/RlpRead.lean`
+    (see PR #5900). Only the zisk probe BuildUnit remains here. -/
 
 /-- `zisk_account_has_empty_code`: probe BuildUnit. -/
 def ziskAccountHasEmptyCodePrologue : String :=
@@ -14637,6 +14840,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_validate_parent_hash" => some ziskHeaderValidateParentHashProbeUnit
   | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
   | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
+  | "zisk_account_storage_root_eq" => some ziskAccountStorageRootEqProbeUnit
+  | "zisk_account_code_hash_eq" => some ziskAccountCodeHashEqProbeUnit
   | "zisk_account_is_eip161_empty" => some ziskAccountIsEip161EmptyProbeUnit
   | "zisk_account_extract_storage_root" => some ziskAccountExtractStorageRootProbeUnit
   | "zisk_account_extract_balance" => some ziskAccountExtractBalanceProbeUnit
@@ -14786,6 +14991,8 @@ def knownProgramNames : List String :=
    "zisk_header_validate_parent_hash",
    "zisk_header_chain_walk_step",
    "zisk_account_validate_code_hash",
+   "zisk_account_storage_root_eq",
+   "zisk_account_code_hash_eq",
    "zisk_account_is_eip161_empty",
    "zisk_account_extract_storage_root",
    "zisk_account_extract_balance",
