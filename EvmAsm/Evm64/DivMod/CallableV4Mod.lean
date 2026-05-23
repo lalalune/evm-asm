@@ -159,6 +159,27 @@ theorem sharedDivModCodeNoNop_v4_sub_mod_callable_code_v4 {base : Word} :
     (CodeReq.union_split_mono callable_b13_mod_v4
     (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h))))))))))))
 
+/-- `modCode_noNop_v4 ⊆ evm_mod_callable_code_v4`: the callable MOD code is
+    the no-NOP MOD body plus the return slot. -/
+theorem modCode_noNop_v4_sub_mod_callable_code_v4 {base : Word} :
+    ∀ a i, (modCode_noNop_v4 base) a = some i →
+           (evm_mod_callable_code_v4 base) a = some i := by
+  unfold modCode_noNop_v4; simp only [CodeReq.unionAll_cons]
+  exact CodeReq.union_split_mono callable_b0_mod_v4
+    (CodeReq.union_split_mono callable_b1_mod_v4
+    (CodeReq.union_split_mono callable_b2_mod_v4
+    (CodeReq.union_split_mono callable_b3_mod_v4
+    (CodeReq.union_split_mono callable_b4_mod_v4
+    (CodeReq.union_split_mono callable_b5_mod_v4
+    (CodeReq.union_split_mono callable_b6_mod_v4
+    (CodeReq.union_split_mono callable_b7_mod_v4
+    (CodeReq.union_split_mono callable_b8_mod_v4
+    (CodeReq.union_split_mono callable_b9_mod_v4
+    (CodeReq.union_split_mono callable_b10_mod_v4
+    (CodeReq.union_split_mono callable_b11_mod_v4
+    (CodeReq.union_split_mono callable_b13_mod_v4
+    (fun _ _ h => by simp [CodeReq.unionAll_nil, CodeReq.empty] at h)))))))))))))
+
 theorem evm_mod_callable_v4_spec_from_noNop_preserving_x1 (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -275,6 +296,85 @@ theorem evm_mod_callable_bzero_v4_preserving_x1_noX9_spec (sp base raVal : Word)
         sp base a b raVal v2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         nMem shiftMem jMem retMem dMem dloMem scratchUn0 hbz)
+
+/-- v4 callable MOD wrapper for `modCode_noNop_v4` body proofs that transform
+    an explicit PC-free frame and return a possibly different exact `x9`
+    value. -/
+theorem evm_mod_callable_v4_spec_from_modCode_noNop_preserving_x1_x9out_body_frame_transform
+    {FPre FPost : Assertion} [Assertion.PCFree FPost]
+    (sp base x9In x9Out raVal : Word) (a b : EvmWord)
+    (v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hStack :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode_noNop_v4 base)
+        (divModStackDispatchPreNoX1 sp a b
+          x9In raVal v2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** FPre)
+        (((modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) **
+          (.x9 ↦ᵣ x9Out)) ** FPost)) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_mod_callable_code_v4 base)
+      (divModStackDispatchPreNoX1 sp a b
+        x9In raVal v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** FPre)
+      (((modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) **
+        (.x9 ↦ᵣ x9Out)) ** FPost) := by
+  have hStackCall :=
+    cpsTripleWithin_extend_code
+      (hmono := modCode_noNop_v4_sub_mod_callable_code_v4) hStack
+  have hStackForRet :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (evm_mod_callable_code_v4 base)
+        (divModStackDispatchPreNoX1 sp a b
+          x9In raVal v2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** FPre)
+        (((modStackDispatchPostCallable sp a b ** (.x9 ↦ᵣ x9Out)) ** FPost) **
+          (.x1 ↦ᵣ raVal)) :=
+    cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => by xperm_hyp hp) hStackCall
+  have hRet :=
+    cpsTripleWithin_extend_code (hmono := evm_mod_callable_code_v4_ret_sub (base := base))
+      (ret_spec_within' (base + nopOff) raVal)
+  have hRetFramed :=
+    cpsTripleWithin_frameL ((modStackDispatchPostCallable sp a b ** (.x9 ↦ᵣ x9Out)) ** FPost)
+      (by
+        rw [modStackDispatchPostCallable_unfold, divScratchOwnCallNoX1_unfold,
+          divScratchOwn_unfold]
+        pcFree)
+      hRet
+  exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => by xperm_hyp hp)
+    (cpsTripleWithin_seq_same_cr hStackForRet hRetFramed)
+
+/-- Named-post variant of the v4 callable MOD wrapper for `modCode_noNop_v4`
+    body proofs that transform an explicit PC-free frame and return a possibly
+    different exact `x9` value. -/
+theorem evm_mod_callable_v4_spec_from_modCode_noNop_exact_frame_x9out_body_frame_transform
+    {FPre FPost : Assertion} [Assertion.PCFree FPost]
+    (sp base x9In x9Out raVal : Word) (a b : EvmWord)
+    (v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hStack :
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode_noNop_v4 base)
+        (divModStackDispatchPreNoX1 sp a b
+          x9In raVal v2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** FPre)
+        (modStackDispatchPostCallableExactFrame sp a b raVal x9Out ** FPost)) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_mod_callable_code_v4 base)
+      (divModStackDispatchPreNoX1 sp a b
+        x9In raVal v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** FPre)
+      (modStackDispatchPostCallableExactFrame sp a b raVal x9Out ** FPost) := by
+  rw [modStackDispatchPostCallableExactFrame_unfold] at hStack ⊢
+  exact evm_mod_callable_v4_spec_from_modCode_noNop_preserving_x1_x9out_body_frame_transform
+    sp base x9In x9Out raVal a b v2 v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 hStack
 
 theorem evm_mod_callable_v4_spec_from_noNop (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
