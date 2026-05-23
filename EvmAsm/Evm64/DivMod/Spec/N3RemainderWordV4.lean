@@ -9,6 +9,7 @@ import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
 import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
+import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
 
 namespace EvmAsm.Evm64
 
@@ -179,6 +180,34 @@ theorem fullModN3PathConditionsWordV4_of_val256
     fullModN3RemainderWordV4_eq_mod_of_val256_eq_mod
       bltu_1 bltu_0 a b hbnz hval⟩
 
+theorem fullDivN3Shift_toNat_pos_of_ne {b2 : Word}
+    (hshift_nz : fullDivN3Shift b2 ≠ 0) :
+    0 < (fullDivN3Shift b2).toNat := by
+  exact Nat.pos_of_ne_zero (by
+    intro h_zero
+    exact hshift_nz (BitVec.eq_of_toNat_eq h_zero))
+
+theorem fullDivN3Shift_toNat_le_63 (b2 : Word) :
+    (fullDivN3Shift b2).toNat ≤ 63 := by
+  delta fullDivN3Shift
+  exact clzResult_fst_toNat_le b2
+
+theorem fullDivN3Shift_toNat_mod_eq (b2 : Word) :
+    (fullDivN3Shift b2).toNat % 64 = (fullDivN3Shift b2).toNat :=
+  Nat.mod_eq_of_lt (by
+    have h_le := fullDivN3Shift_toNat_le_63 b2
+    omega)
+
+theorem fullDivN3AntiShift_toNat_mod_eq_of_shift_ne {b2 : Word}
+    (hshift_nz : fullDivN3Shift b2 ≠ 0) :
+    (signExtend12 (0 : BitVec 12) - fullDivN3Shift b2).toNat % 64 =
+      64 - (fullDivN3Shift b2).toNat := by
+  have h1 : 1 ≤ (fullDivN3Shift b2).toNat := by
+    have h_pos := fullDivN3Shift_toNat_pos_of_ne hshift_nz
+    omega
+  have h63 := fullDivN3Shift_toNat_le_63 b2
+  exact antiShift_toNat_mod_eq h1 h63
+
 /-- Reduce the N3 v4 MOD `val256` remainder obligation to the normalized
 scaled-remainder equality produced before denormalization. -/
 theorem fullModN3RemainderVal256V4_eq_mod_of_scaled_remainder
@@ -230,6 +259,47 @@ theorem fullModN3RemainderVal256V4_eq_mod_of_scaled_remainder
   delta fullModN3RemainderVal256V4
   rw [hshift, hanti, hdenorm, hscaled]
   exact Nat.mul_div_cancel _ (by positivity : 0 < 2 ^ s)
+
+/-- Version of `fullModN3RemainderVal256V4_eq_mod_of_scaled_remainder` with
+the CLZ shift side conditions discharged from `fullDivN3Shift b2 ≠ 0`. -/
+theorem fullModN3RemainderVal256V4_eq_mod_of_scaled_remainder_shift_ne
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hshift_nz : fullDivN3Shift (b.getLimbN 2) ≠ 0)
+    (hscaled :
+      EvmWord.val256
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 =
+      EvmWord.val256
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
+        EvmWord.val256
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+        2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat) :
+    fullModN3RemainderVal256V4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.val256
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
+        EvmWord.val256
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  fullModN3RemainderVal256V4_eq_mod_of_scaled_remainder
+    bltu_1 bltu_0 a b
+    (fullDivN3Shift_toNat_pos_of_ne hshift_nz)
+    (by
+      have h_le := fullDivN3Shift_toNat_le_63 (b.getLimbN 2)
+      omega)
+    (fullDivN3Shift_toNat_mod_eq (b.getLimbN 2))
+    (fullDivN3AntiShift_toNat_mod_eq_of_shift_ne hshift_nz)
+    hscaled
 
 theorem fullModN3RemainderWordV4_eq_mod_of_mod_path_conditions
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
