@@ -9692,6 +9692,87 @@ def ziskLogsListBloomAddProbeUnit : BuildUnit := {
   dataAsm     := ziskLogsListBloomAddDataSection
 }
 
+/-! ## bloom_or_into -- PR-K151
+
+    In-place 256-byte bitwise OR: `dst[i] |= src[i]` for
+    `i in 0..256`. Used to accumulate one bloom filter into
+    another -- in particular, to fold each receipt's `logs_bloom`
+    into the block-level `block.logs_bloom` field.
+
+    A natural complement to:
+      * PR-K148 `bloom_add_value`     -- single-value add
+      * PR-K149 `log_bloom_add`       -- per-log accumulation
+      * PR-K150 `logs_list_bloom_add` -- per-receipt accumulation
+      * PR-K151 (this PR) `bloom_or_into` -- per-block accumulation
+
+    Pure register arithmetic; processes 8 bytes per iteration
+    (32 iterations total) using `ld` + `or` + `sd`. No external
+    function calls.
+
+    Calling convention:
+      a0 (input)  : dst bloom ptr (256 bytes, mutable, in-place OR)
+      a1 (input)  : src bloom ptr (256 bytes, read-only)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def bloomOrIntoFunction : String :=
+  "bloom_or_into:\n" ++
+  "  li t0, 32                  # 256 bytes / 8 bytes per word\n" ++
+  "  mv t1, a0                  # dst cursor\n" ++
+  "  mv t2, a1                  # src cursor\n" ++
+  ".Lboi_loop:\n" ++
+  "  beqz t0, .Lboi_done\n" ++
+  "  ld t3, 0(t1)\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  or t3, t3, t4\n" ++
+  "  sd t3, 0(t1)\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lboi_loop\n" ++
+  ".Lboi_done:\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_bloom_or_into`: probe BuildUnit.
+    Input layout (after the host header):
+      bytes  0..256 : src bloom
+      bytes 256..512: dst bloom (will be OR-mutated)
+    The probe runs `bloom_or_into(dst, src)` and emits the
+    resulting dst bloom (256 bytes) as the output. -/
+def ziskBloomOrIntoPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a1, a3, 16             # src bloom ptr (after host header)\n" ++
+  "  addi a2, a3, 272            # dst bloom ptr (src + 256)\n" ++
+  "  # Copy dst into the output region first, then OR src into it.\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  li t1, 32\n" ++
+  ".Lboi_cp:\n" ++
+  "  beqz t1, .Lboi_cp_done\n" ++
+  "  ld t2, 0(a2)\n" ++
+  "  sd t2, 0(t0)\n" ++
+  "  addi a2, a2, 8\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lboi_cp\n" ++
+  ".Lboi_cp_done:\n" ++
+  "  li a0, 0xa0010000           # dst = output region\n" ++
+  "  jal ra, bloom_or_into\n" ++
+  "  j .Lboi_pdone\n" ++
+  bloomOrIntoFunction ++ "\n" ++
+  ".Lboi_pdone:"
+
+def ziskBloomOrIntoDataSection : String :=
+  ".section .data\n" ++
+  "boi_pad:\n" ++
+  "  .zero 8"
+
+def ziskBloomOrIntoProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBloomOrIntoPrologue
+  dataAsm     := ziskBloomOrIntoDataSection
+}
+
 /-! ## calldata_byte_counts -- PR-K105
 
     Count zero and non-zero bytes in an arbitrary byte buffer.
@@ -10459,6 +10540,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bloom_add_value" => some ziskBloomAddValueProbeUnit
   | "zisk_log_bloom_add" => some ziskLogBloomAddProbeUnit
   | "zisk_logs_list_bloom_add" => some ziskLogsListBloomAddProbeUnit
+  | "zisk_bloom_or_into" => some ziskBloomOrIntoProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
@@ -10623,6 +10705,7 @@ def knownProgramNames : List String :=
    "zisk_bloom_add_value",
    "zisk_log_bloom_add",
    "zisk_logs_list_bloom_add",
+   "zisk_bloom_or_into",
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost",
