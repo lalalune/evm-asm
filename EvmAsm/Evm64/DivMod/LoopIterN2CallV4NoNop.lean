@@ -49,6 +49,30 @@ def loopBodyN2CallSkipJ0PostV4
   regOwn .x1
 
 @[irreducible]
+def loopBodyN2CallSkipJ0PostV4NoX1
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) : Assertion :=
+  let dLo := divKTrialCallV4DLo v1
+  let divUn0 := divKTrialCallV4Un0 u1
+  let qHat := divKTrialCallV4QHat u2 u1 v1
+  let scratchOut := divKTrialCallV4ScratchOut u2 u1 v1 scratchMem
+  loopBodyN2SkipPost sp (0 : Word) qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v1) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ divUn0) **
+  (sp + signExtend12 3936 ↦ₘ scratchOut)
+
+theorem loopBodyN2CallSkipJ0PostV4NoX1_to_loopBodyN2CallSkipJ0PostV4
+    (sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) :
+    ∀ h,
+      (loopBodyN2CallSkipJ0PostV4NoX1 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem **
+        regOwn .x1) h →
+      loopBodyN2CallSkipJ0PostV4 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem h := by
+  intro h hp
+  delta loopBodyN2CallSkipJ0PostV4NoX1 loopBodyN2CallSkipJ0PostV4 at hp ⊢
+  xperm_hyp hp
+
+@[irreducible]
 def loopBodyN2CallSkipJgt0PostV4
     (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) : Assertion :=
   let dLo := divKTrialCallV4DLo v1
@@ -62,6 +86,30 @@ def loopBodyN2CallSkipJgt0PostV4
   (sp + signExtend12 3944 ↦ₘ divUn0) **
   (sp + signExtend12 3936 ↦ₘ scratchOut) **
   regOwn .x1
+
+@[irreducible]
+def loopBodyN2CallSkipJgt0PostV4NoX1
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) : Assertion :=
+  let dLo := divKTrialCallV4DLo v1
+  let divUn0 := divKTrialCallV4Un0 u1
+  let qHat := divKTrialCallV4QHat u2 u1 v1
+  let scratchOut := divKTrialCallV4ScratchOut u2 u1 v1 scratchMem
+  loopBodyN2SkipPost sp j qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+  (sp + signExtend12 3968 ↦ₘ (base + div128CallRetOff)) **
+  (sp + signExtend12 3960 ↦ₘ v1) **
+  (sp + signExtend12 3952 ↦ₘ dLo) **
+  (sp + signExtend12 3944 ↦ₘ divUn0) **
+  (sp + signExtend12 3936 ↦ₘ scratchOut)
+
+theorem loopBodyN2CallSkipJgt0PostV4NoX1_to_loopBodyN2CallSkipJgt0PostV4
+    (sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem : Word) :
+    ∀ h,
+      (loopBodyN2CallSkipJgt0PostV4NoX1 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem **
+        regOwn .x1) h →
+      loopBodyN2CallSkipJgt0PostV4 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem h := by
+  intro h hp
+  delta loopBodyN2CallSkipJgt0PostV4NoX1 loopBodyN2CallSkipJgt0PostV4 at hp ⊢
+  xperm_hyp hp
 
 @[irreducible]
 def loopBodyN2CallSkipJ0BorrowV4
