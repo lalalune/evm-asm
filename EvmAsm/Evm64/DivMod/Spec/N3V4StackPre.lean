@@ -10,6 +10,7 @@ import EvmAsm.Evm64.DivMod.Spec.N3QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
 import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
+import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3V4NoNop
 
 namespace EvmAsm.Evm64
 
@@ -148,6 +149,66 @@ theorem evm_div_n3_preloop_loop_stack_pre_spec_v4_noNop (sp base : Word)
       xperm_hyp hp)
     (fun _ hq => hq)
     hrawNoNop
+
+/-- EvmWord-level wrapper around the n=3 MOD v4/no-NOP path from dispatcher
+    entry to loop setup, preserving the callable `x1` and v4 scratch frame. -/
+theorem evm_mod_n3_to_loopSetup_stack_pre_spec_v4_noNop (sp base : Word)
+    (a b : EvmWord)
+    (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (raVal : Word)
+    (hbnz : b ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4)
+      base (base + loopBodyOff) (modCode_noNop_v4 base)
+      (divModStackDispatchPreNoX1 sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
+        ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (loopSetupPost sp (3 : Word) (clzResult (b.getLimbN 2)).1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) **
+       (.x11 ↦ᵣ v11Old) **
+       ((sp + signExtend12 3976) ↦ₘ jMem) **
+       ((sp + signExtend12 3968) ↦ₘ retMem) **
+       ((sp + signExtend12 3960) ↦ₘ dMem) **
+       ((sp + signExtend12 3952) ↦ₘ dloMem) **
+       ((sp + signExtend12 3944) ↦ₘ scratchUn0) **
+       (.x1 ↦ᵣ raVal) **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem)) := by
+  have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  have hraw := evm_mod_n3_to_loopSetup_spec_within_v4_noNop sp base
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    v5 v6 v7 v10
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    hbnz' hb3z hb2nz hshift_nz
+  have hfr := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ v11Old) **
+     ((sp + signExtend12 3976) ↦ₘ jMem) **
+     ((sp + signExtend12 3968) ↦ₘ retMem) **
+     ((sp + signExtend12 3960) ↦ₘ dMem) **
+     ((sp + signExtend12 3952) ↦ₘ dloMem) **
+     ((sp + signExtend12 3944) ↦ₘ scratchUn0) **
+     (.x1 ↦ᵣ raVal) **
+     ((sp + signExtend12 3936) ↦ₘ scratchMem))
+    (by pcFree) hraw
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [divModStackDispatchPreNoX1_unfold, divScratchValuesCallNoX1_unfold] at hp
+      rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
+          evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
+          divScratchValues_unfold] at hp
+      rw [word_add_zero]
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    hfr
 
 /-- Compose the n=3 v4 stack preloop+loop path through denormalization to the
     v4 final no-`x1` post, preserving the exact caller `x1`. -/
