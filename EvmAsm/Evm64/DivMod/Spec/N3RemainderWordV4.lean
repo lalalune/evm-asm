@@ -566,6 +566,31 @@ theorem fullDivN3NormV_or_ne_zero_of_word_ne_zero_b3_zero
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hshift_nz hb3z
 
+theorem fullDivN3NormV_val256_pos_of_b_ne_zero_b3_zero
+    (b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hshift_nz : fullDivN3Shift (b.getLimbN 2) ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) :
+    0 < EvmWord.val256
+      (fullDivN3NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN3NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN3NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN3NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2 := by
+  have h_scaled := fullDivN3NormV_val256_eq_scaled_of_b3_zero
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hshift_nz hb3z
+  have hb_pos : 0 <
+      EvmWord.val256
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+    EvmWord.val256_pos_of_or_ne_zero
+      ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz)
+  rw [h_scaled]
+  positivity
+
 theorem iterN3V4CallQHat_val256_conservation_of_carry2
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
