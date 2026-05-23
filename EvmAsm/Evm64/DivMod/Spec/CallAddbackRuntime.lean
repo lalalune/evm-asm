@@ -124,8 +124,8 @@ theorem n4CallAddbackBeqNormalizedDivisor_ne_zero {b : EvmWord}
     n4CallAddbackBeqB0Prime b ||| n4CallAddbackBeqB1Prime b |||
         n4CallAddbackBeqB2Prime b ||| n4CallAddbackBeqB3Prime b ≠ 0 := by
   intro h_zero
-  have h_b3_zero : n4CallAddbackBeqB3Prime b = 0 := by
-    bv_decide
+  have h_b3_zero : n4CallAddbackBeqB3Prime b = 0 :=
+    (BitVec.or_eq_zero_iff.mp h_zero).2
   have h_top_ge := n4CallAddbackBeqB3Prime_ge_pow63 hb3nz
   rw [h_b3_zero] at h_top_ge
   have h_zero_toNat : (0 : Word).toNat = 0 := by decide
