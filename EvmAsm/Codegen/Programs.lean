@@ -13511,6 +13511,118 @@ def ziskMptExtensionExtractProbeUnit : BuildUnit := {
   dataAsm     := ziskMptExtensionExtractDataSection
 }
 
+/-! ## mpt_branch_used_count -- PR-K117
+
+    Count the number of non-empty child slots in an MPT branch
+    node's `[c0, c1, …, c15, value]` head. A child slot is
+    "non-empty" iff its RLP byte-length is > 0 (empty children
+    serialise as the empty RLP string `0x80`, len 0).
+
+    Used by state-root recomputation to detect *single-child*
+    branches that can collapse into an extension after a delete
+    operation: the trie invariant says a branch must always have
+    ≥ 2 children or be replaced by an extension/leaf.
+
+    The `value` field (item 16) is **not** counted; only the 16
+    nibble-indexed children. A branch where the value slot is the
+    only non-empty entry still returns 0 here (and is itself a
+    consensus violation under the standard trie invariants).
+
+    Composes:
+      - PR-K47 `rlp_list_count_items` — sanity-check 17 items
+      - PR-K20 `rlp_list_nth_item`    — per-child length probe
+
+    Calling convention:
+      a0 (input)  : branch_rlp ptr
+      a1 (input)  : branch_rlp byte length
+      a2 (input)  : u64 out ptr (used_count, 0..16)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : not a 17-item list (or RLP parse failure)
+        2 : mid-list nth_item failure -/
+def mptBranchUsedCountFunction : String :=
+  "mpt_branch_used_count:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # branch ptr\n" ++
+  "  mv s1, a1                   # branch len\n" ++
+  "  mv s2, a2                   # used_count out\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  # Verify 17-item list.\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, mbuc_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lmbuc_not_branch\n" ++
+  "  la t0, mbuc_count; ld t1, 0(t0)\n" ++
+  "  li t2, 17\n" ++
+  "  bne t1, t2, .Lmbuc_not_branch\n" ++
+  "  li s3, 0                    # i = 0\n" ++
+  "  li s4, 0                    # used = 0\n" ++
+  ".Lmbuc_loop:\n" ++
+  "  li t0, 16\n" ++
+  "  beq s3, t0, .Lmbuc_done\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  mv a2, s3\n" ++
+  "  la a3, mbuc_off; la a4, mbuc_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmbuc_nth_fail\n" ++
+  "  la t0, mbuc_len; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lmbuc_step\n" ++
+  "  addi s4, s4, 1\n" ++
+  ".Lmbuc_step:\n" ++
+  "  addi s3, s3, 1\n" ++
+  "  j .Lmbuc_loop\n" ++
+  ".Lmbuc_done:\n" ++
+  "  sd s4, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmbuc_ret\n" ++
+  ".Lmbuc_not_branch:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lmbuc_ret\n" ++
+  ".Lmbuc_nth_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lmbuc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_mpt_branch_used_count`: probe BuildUnit. Reads
+    (branch_len, branch_bytes), writes (status, used_count) to
+    OUTPUT (16 bytes). -/
+def ziskMptBranchUsedCountPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # branch length\n" ++
+  "  addi a0, a3, 16             # branch ptr\n" ++
+  "  li a2, 0xa0010008           # used_count out\n" ++
+  "  jal ra, mpt_branch_used_count\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmbuc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  mptBranchUsedCountFunction ++ "\n" ++
+  ".Lmbuc_pdone:"
+
+def ziskMptBranchUsedCountDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "mbuc_count:\n" ++
+  "  .zero 8\n" ++
+  "mbuc_off:\n" ++
+  "  .zero 8\n" ++
+  "mbuc_len:\n" ++
+  "  .zero 8"
+
+def ziskMptBranchUsedCountProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptBranchUsedCountPrologue
+  dataAsm     := ziskMptBranchUsedCountDataSection
+}
+
 
 /-! ## stateless_guest body — PR-K5 keccak hash field
 
@@ -13772,6 +13884,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_branch_get_value" => some ziskMptBranchGetValueProbeUnit
   | "zisk_mpt_leaf_extract"     => some ziskMptLeafExtractProbeUnit
   | "zisk_mpt_extension_extract" => some ziskMptExtensionExtractProbeUnit
+  | "zisk_mpt_branch_used_count" => some ziskMptBranchUsedCountProbeUnit
   | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
@@ -13903,6 +14016,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_branch_get_value",
    "zisk_mpt_leaf_extract",
    "zisk_mpt_extension_extract",
+   "zisk_mpt_branch_used_count",
    "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
