@@ -8196,6 +8196,117 @@ def ziskMptLeafNodeEncodeProbeUnit : BuildUnit := {
   dataAsm     := ziskMptLeafNodeEncodeDataSection
 }
 
+/-! ## mpt_node_slot_encode -- PR-K163
+
+    Given a child MPT node's RLP, produce the bytes that go
+    *verbatim* into a parent node's child-slot when assembling
+    the parent's outer RLP list.
+
+      if len(node_rlp) < 32:
+        slot_bytes = node_rlp                  -- inline embed
+      else:
+        slot_bytes = 0xa0 || keccak256(node_rlp)  -- 32-byte
+                                                -- string item
+
+    This is the parent-side complement of PR-K112
+    `mpt_encode_internal_node`. K112 returns the *raw reference*
+    (either RLP bytes verbatim or just the 32-byte hash); K163
+    wraps the hashed case with the 0xa0 RLP string-prefix so the
+    output is ready to splice into the parent's RLP payload.
+
+    Building block for `mpt_branch_node_encode` (future) and
+    `mpt_extension_node_encode` (future).
+
+    Composes:
+      - `zkvm_keccak256` (HashBridge) when node_rlp_len >= 32
+
+    Calling convention:
+      a0 (input)  : node_rlp ptr
+      a1 (input)  : node_rlp byte length
+      a2 (input)  : output bytes ptr
+                    (caller supplies max(node_rlp_len, 33) bytes)
+      a3 (input)  : u64 out length ptr
+                    (33 when hashed, node_rlp_len when inline)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def mptNodeSlotEncodeFunction : String :=
+  "mpt_node_slot_encode:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a2                   # output ptr\n" ++
+  "  mv s1, a3                   # out_length ptr\n" ++
+  "  li t0, 32\n" ++
+  "  bltu a1, t0, .Lmnse_inline\n" ++
+  "  # Hash path: out[0] = 0xa0; keccak256(node_rlp) -> out[1..33].\n" ++
+  "  li t1, 0xa0\n" ++
+  "  sb t1, 0(s0)\n" ++
+  "  mv s2, a0                   # node_rlp ptr stashed\n" ++
+  "  # zkvm_keccak256(node_rlp, len, out + 1).\n" ++
+  "  addi a2, s0, 1\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li t0, 33\n" ++
+  "  sd t0, 0(s1)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmnse_ret\n" ++
+  ".Lmnse_inline:\n" ++
+  "  # Inline path: copy node_rlp bytes to out.\n" ++
+  "  mv t0, a0                   # src cursor\n" ++
+  "  mv t1, s0                   # dst cursor\n" ++
+  "  mv t2, a1                   # remaining\n" ++
+  ".Lmnse_cp:\n" ++
+  "  beqz t2, .Lmnse_cp_done\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  sb  t3, 0(t1)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lmnse_cp\n" ++
+  ".Lmnse_cp_done:\n" ++
+  "  sd a1, 0(s1)\n" ++
+  "  li a0, 0\n" ++
+  ".Lmnse_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_mpt_node_slot_encode`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : node_rlp_len
+      bytes  8..   : node_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : out_length
+      bytes 16..   : slot_bytes (up to 33 bytes for hash; up to
+                      ziskemu cap minus 16 for inline) -/
+def ziskMptNodeSlotEncodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # node_rlp_len\n" ++
+  "  addi a0, a4, 16             # node_rlp ptr\n" ++
+  "  li a2, 0xa0010010           # output slot ptr\n" ++
+  "  li a3, 0xa0010008           # out_length ptr\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lmnse_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  ".Lmnse_pdone:"
+
+def ziskMptNodeSlotEncodeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200"
+
+def ziskMptNodeSlotEncodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptNodeSlotEncodePrologue
+  dataAsm     := ziskMptNodeSlotEncodeDataSection
+}
+
 /-! ## block-level bloom composites K158-K159 — moved to `Programs/Bloom.lean` (file-size hard cap). -/
 
 /-! ## header_root_is_empty_trie -- PR-K161
@@ -9104,6 +9215,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_mpt_leaf_node_encode" => some ziskMptLeafNodeEncodeProbeUnit
+  | "zisk_mpt_node_slot_encode" => some ziskMptNodeSlotEncodeProbeUnit
   | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
   | "zisk_block_validate_logs_bloom" => some ziskBlockValidateLogsBloomProbeUnit
   | "zisk_header_root_is_empty_trie" => some ziskHeaderRootIsEmptyTrieProbeUnit
@@ -9280,6 +9392,7 @@ def knownProgramNames : List String :=
    "zisk_receipt_encode",
    "zisk_single_leaf_trie_root",
    "zisk_mpt_leaf_node_encode",
+   "zisk_mpt_node_slot_encode",
    "zisk_block_logs_bloom_from_receipts_list",
    "zisk_block_validate_logs_bloom",
    "zisk_header_root_is_empty_trie",
