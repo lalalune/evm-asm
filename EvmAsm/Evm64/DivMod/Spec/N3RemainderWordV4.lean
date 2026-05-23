@@ -549,6 +549,23 @@ theorem fullDivN3NormV_or_ne_zero_of_b_ne_zero_b3_zero
     positivity
   exact limbs_or_ne_zero_of_val256_pos hnorm_pos
 
+theorem fullDivN3NormV_or_ne_zero_of_word_ne_zero_b3_zero
+    (b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hshift_nz : fullDivN3Shift (b.getLimbN 2) ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) :
+    (fullDivN3NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 |||
+      (fullDivN3NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1 |||
+      (fullDivN3NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1 |||
+      (fullDivN3NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2 ≠ 0 := by
+  exact fullDivN3NormV_or_ne_zero_of_b_ne_zero_b3_zero
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hshift_nz hb3z
+
 theorem iterN3V4CallQHat_val256_conservation_of_carry2
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
