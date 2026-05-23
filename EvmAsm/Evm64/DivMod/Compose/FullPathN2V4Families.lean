@@ -179,6 +179,75 @@ def fullDivN2UnifiedPostNoX1V4 (bltu_2 bltu_1 bltu_0 : Bool)
     fullDivN2ScratchMemV4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 scratchMem)
 
 -- ============================================================================
+-- _unfold lemmas for the @[irreducible] V4 assertion bundles
+-- ============================================================================
+
+theorem fullDivN2DenormPostV4_unfold {bltu_2 bltu_1 bltu_0 : Bool}
+    {sp a0 a1 a2 a3 b0 b1 b2 b3 : Word} :
+    fullDivN2DenormPostV4 bltu_2 bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3 =
+    (let shift := fullDivN2Shift b1
+     let r2 := fullDivN2R2V4 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+     let r1 := fullDivN2R1V4 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+     let r0 := fullDivN2R0V4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+     denormDivPost sp shift r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1
+       r0.1 r1.1 r2.1 (0 : Word) **
+     ((sp + signExtend12 3992) ↦ₘ shift)) := by
+  delta fullDivN2DenormPostV4; rfl
+
+theorem fullDivN2ScratchNoX1V4_unfold {bltu_2 bltu_1 bltu_0 : Bool}
+    {sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0 : Word} :
+    fullDivN2ScratchNoX1V4 bltu_2 bltu_1 bltu_0 sp base
+      a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0 =
+    (let v := fullDivN2NormV b0 b1 b2 b3
+     let u := fullDivN2NormU a0 a1 a2 a3 b1
+     let r2 := fullDivN2R2V4 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+     let scratchRet2 := if bltu_2 then (base + div128CallRetOff) else retMem
+     let scratchD2 := if bltu_2 then v.2.1 else dMem
+     let scratchDLo2 := if bltu_2 then divKTrialCallV4DLo v.2.1 else dloMem
+     let scratchUn02 := if bltu_2 then divKTrialCallV4Un0 u.2.2.2.1 else scratchUn0
+     let scratchRet1 := if bltu_1 then (base + div128CallRetOff) else scratchRet2
+     let scratchD1 := if bltu_1 then v.2.1 else scratchD2
+     let scratchDLo1 := if bltu_1 then divKTrialCallV4DLo v.2.1 else scratchDLo2
+     let scratchUn01 := if bltu_1 then divKTrialCallV4Un0 r2.2.1 else scratchUn02
+     let r1 := fullDivN2R1V4 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+     (sp + signExtend12 3968 ↦ₘ (if bltu_0 then (base + div128CallRetOff) else scratchRet1)) **
+     (sp + signExtend12 3960 ↦ₘ (if bltu_0 then v.2.1 else scratchD1)) **
+     (sp + signExtend12 3952 ↦ₘ (if bltu_0 then divKTrialCallV4DLo v.2.1 else scratchDLo1)) **
+     (sp + signExtend12 3944 ↦ₘ (if bltu_0 then divKTrialCallV4Un0 r1.2.1 else scratchUn01))) := by
+  delta fullDivN2ScratchNoX1V4; rfl
+
+theorem fullDivN2FrameNoX1V4_unfold {bltu_2 bltu_1 bltu_0 : Bool}
+    {sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0 : Word} :
+    fullDivN2FrameNoX1V4 bltu_2 bltu_1 bltu_0 sp base
+      a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0 =
+    (let r2 := fullDivN2R2V4 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+     let r1 := fullDivN2R1V4 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+     let r0 := fullDivN2R0V4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4024) ↦ₘ r0.2.2.2.2.2) **
+     ((sp + signExtend12 4016) ↦ₘ r1.2.2.2.2.2) **
+     ((sp + signExtend12 4008) ↦ₘ r2.2.2.2.2.2) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ (0 : Word)) **
+     (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ r0.1) **
+     fullDivN2ScratchNoX1V4 bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
+       retMem dMem dloMem scratchUn0) := by
+  delta fullDivN2FrameNoX1V4; rfl
+
+theorem fullDivN2UnifiedPostNoX1V4_unfold {bltu_2 bltu_1 bltu_0 : Bool}
+    {sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0 scratchMem : Word} :
+    fullDivN2UnifiedPostNoX1V4 bltu_2 bltu_1 bltu_0 sp base
+      a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0 scratchMem =
+    (fullDivN2DenormPostV4 bltu_2 bltu_1 bltu_0 sp a0 a1 a2 a3 b0 b1 b2 b3 **
+     fullDivN2FrameNoX1V4 bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1 b2 b3
+       retMem dMem dloMem scratchUn0 **
+     ((sp + signExtend12 3936) ↦ₘ
+       fullDivN2ScratchMemV4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 scratchMem)) := by
+  delta fullDivN2UnifiedPostNoX1V4; rfl
+
+-- ============================================================================
 -- Quotient word
 -- ============================================================================
 
