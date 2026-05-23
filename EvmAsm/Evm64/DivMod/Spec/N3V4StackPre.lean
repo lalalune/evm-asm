@@ -17,9 +17,9 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (word_add_zero)
 
 /-- EvmWord-level wrapper around the n=3 exact-x1/scratch v4 preloop+loop
-    path. It exposes the proof over the full `divCode_v4` bundle while keeping
-    the stack precondition bundled as `evmWordIs` plus the v4 scratch cell. -/
-theorem evm_div_n3_preloop_loop_stack_pre_spec_v4 (sp base : Word)
+    path over the no-NOP v4 body. It keeps the stack precondition bundled as
+    `evmWordIs` plus the v4 scratch cell. -/
+theorem evm_div_n3_preloop_loop_stack_pre_spec_v4_noNop (sp base : Word)
     (a b : EvmWord)
     (v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
@@ -94,7 +94,7 @@ theorem evm_div_n3_preloop_loop_stack_pre_spec_v4 (sp base : Word)
       (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
       (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 448)
-      base (base + denormOff) (divCode_v4 base)
+      base (base + denormOff) (divCode_noNop_v4 base)
       (divModStackDispatchPreNoX1 sp a b
         (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
         ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat))
@@ -138,7 +138,6 @@ theorem evm_div_n3_preloop_loop_stack_pre_spec_v4 (sp base : Word)
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
     hbnz' hb3z hb2nz hshift_nz halign hbltu_1
     (by cases bltu_1 <;> simpa using hbltu_0) hcarry2
-  have hraw := fullDivN3_preloop_loop_unified_exact_x1_scratch_v4 base hrawNoNop
   exact cpsTripleWithin_weaken
     (fun _ hp => by
       rw [divModStackDispatchPreNoX1_unfold, divScratchValuesCallNoX1_unfold] at hp
@@ -148,7 +147,7 @@ theorem evm_div_n3_preloop_loop_stack_pre_spec_v4 (sp base : Word)
       rw [word_add_zero]
       xperm_hyp hp)
     (fun _ hq => hq)
-    hraw
+    hrawNoNop
 
 /-- Compose the n=3 v4 stack preloop+loop path through denormalization to the
     v4 final no-`x1` post, preserving the exact caller `x1`. -/
@@ -240,7 +239,7 @@ theorem evm_div_n3_stack_pre_to_unified_post_v4 (sp base : Word)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
         retMem dMem dloMem scratchUn0 scratchMem **
        (.x1 ↦ᵣ raVal)) := by
-  have hA := evm_div_n3_preloop_loop_stack_pre_spec_v4
+  have hA := evm_div_n3_preloop_loop_stack_pre_spec_v4_noNop
     sp base a b v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
@@ -253,7 +252,6 @@ theorem evm_div_n3_stack_pre_to_unified_post_v4 (sp base : Word)
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     retMem dMem dloMem scratchUn0 scratchMem raVal hshift_nz'
-  have hB := cpsTripleWithin_divCode_noNop_v4_to_divCode_v4 hBNoNop
   have hFull := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       cases bltu_1 <;> cases bltu_0
@@ -273,8 +271,9 @@ theorem evm_div_n3_stack_pre_to_unified_post_v4 (sp base : Word)
           sp base (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
           retMem dMem dloMem scratchUn0 scratchMem raVal h hp)
-    hA hB
-  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    hA hBNoNop
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4 <|
+    cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
     (fun h hp => hp)
     (fun h hq => hq)
     hFull
