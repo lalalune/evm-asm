@@ -1158,6 +1158,135 @@ def ziskAddressFromPubkeyProbeUnit : BuildUnit := {
   dataAsm     := ziskAddressFromPubkeyDataSection
 }
 
+/-! ## address_compute_create2 -- PR-K126
+
+    Compute the CREATE2 contract address per EIP-1014:
+
+      address = keccak256(0xff || sender || salt || keccak256(init_code))[12:32]
+
+    Preimage is exactly 85 bytes laid out as:
+       0       :  0xff (single byte marker)
+       1..21   :  sender (20 bytes)
+       21..53  :  salt (32 bytes, BE)
+       53..85  :  inner_hash = keccak256(init_code) (32 bytes)
+
+    Used by the EVM's `CREATE2` opcode and by off-chain tooling
+    that needs deterministic deploy addresses. Sister primitive to
+    PR-K99 `address_from_pubkey` (the ECRECOVER trailing step) and
+    a future `address_compute_create` (for the non-deterministic
+    nonce-based form).
+
+    Composes PR-K3 `zkvm_keccak256` (called twice — once over
+    `init_code` and once over the 85-byte preimage).
+
+    Calling convention:
+      a0 (input)  : sender ptr (20 B, big-endian)
+      a1 (input)  : salt ptr   (32 B, big-endian)
+      a2 (input)  : init_code ptr
+      a3 (input)  : init_code byte length
+      a4 (input)  : 20-byte output ptr
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds; keccak is total).
+
+    Uses 85 + 32 + 32 = 149 bytes of `.data` scratch
+    (`ac2_preimage` 85 B + `ac2_inner_digest` 32 B + `ac2_outer_digest`
+    32 B), plus the keccak sponge state (`zk3_state`, 200 B). -/
+def addressComputeCreate2Function : String :=
+  "address_compute_create2:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # sender ptr\n" ++
+  "  mv s1, a1                   # salt ptr\n" ++
+  "  mv s4, a4                   # output ptr (stash)\n" ++
+  "  # Step 1: inner = keccak256(init_code).\n" ++
+  "  # init_code ptr/len already in (a2, a3); rotate into (a0, a1).\n" ++
+  "  mv a0, a2\n" ++
+  "  mv a1, a3\n" ++
+  "  la a2, ac2_inner_digest\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # Step 2: build preimage.\n" ++
+  "  la s2, ac2_preimage\n" ++
+  "  li t0, 0xff\n" ++
+  "  sb t0, 0(s2)\n" ++
+  "  # Copy sender 20 B → preimage[1..21] (8 + 8 + 4).\n" ++
+  "  ld t0,  0(s0); sd t0,  1(s2)\n" ++
+  "  ld t0,  8(s0); sd t0,  9(s2)\n" ++
+  "  lwu t0, 16(s0); sw t0, 17(s2)\n" ++
+  "  # Copy salt 32 B → preimage[21..53] (8 × 4).\n" ++
+  "  ld t0,  0(s1); sd t0, 21(s2)\n" ++
+  "  ld t0,  8(s1); sd t0, 29(s2)\n" ++
+  "  ld t0, 16(s1); sd t0, 37(s2)\n" ++
+  "  ld t0, 24(s1); sd t0, 45(s2)\n" ++
+  "  # Copy inner digest 32 B → preimage[53..85].\n" ++
+  "  la t1, ac2_inner_digest\n" ++
+  "  ld t0,  0(t1); sd t0, 53(s2)\n" ++
+  "  ld t0,  8(t1); sd t0, 61(s2)\n" ++
+  "  ld t0, 16(t1); sd t0, 69(s2)\n" ++
+  "  ld t0, 24(t1); sd t0, 77(s2)\n" ++
+  "  # Step 3: outer = keccak256(preimage, 85).\n" ++
+  "  mv a0, s2\n" ++
+  "  li a1, 85\n" ++
+  "  la a2, ac2_outer_digest\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # Step 4: copy outer[12..32] (20 B) → out.\n" ++
+  "  la t0, ac2_outer_digest\n" ++
+  "  ld t1, 12(t0); sd t1,  0(s4)\n" ++
+  "  ld t1, 20(t0); sd t1,  8(s4)\n" ++
+  "  lwu t1, 28(t0); sw t1, 16(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_address_compute_create2`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : init_code length
+      bytes  8..28 : sender (20 bytes)
+      bytes 28..60 : salt (32 bytes)
+      bytes 60..   : init_code bytes
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..28 : 20-byte address
+      bytes 28..32 : padding -/
+def ziskAddressComputeCreate2Prologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a3, 8(a5)                # init_code length\n" ++
+  "  addi a0, a5, 16             # sender ptr\n" ++
+  "  addi a1, a5, 36             # salt ptr\n" ++
+  "  addi a2, a5, 68             # init_code ptr\n" ++
+  "  li a4, 0xa0010008           # 20B address output\n" ++
+  "  sd zero, 0(a4); sd zero, 8(a4); sw zero, 16(a4)\n" ++
+  "  jal ra, address_compute_create2\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lac2_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  addressComputeCreate2Function ++ "\n" ++
+  ".Lac2_pdone:"
+
+def ziskAddressComputeCreate2DataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "ac2_inner_digest:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ac2_outer_digest:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ac2_preimage:\n" ++
+  "  .zero 88"  -- 85 + 3 padding for 8-byte alignment of next
+
+def ziskAddressComputeCreate2ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAddressComputeCreate2Prologue
+  dataAsm     := ziskAddressComputeCreate2DataSection
+}
+
 /-! ## mpt_account_path_nibbles -- PR-K100
 
     Compute the state trie's path for a given 20-byte address:
@@ -13548,6 +13677,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
   | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
   | "zisk_address_from_pubkey"  => some ziskAddressFromPubkeyProbeUnit
+  | "zisk_address_compute_create2" => some ziskAddressComputeCreate2ProbeUnit
   | "zisk_mpt_account_path_nibbles" => some ziskMptAccountPathNibblesProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
@@ -13678,6 +13808,7 @@ def knownProgramNames : List String :=
    "zisk_header_chain_walk_step",
    "zisk_account_validate_code_hash",
    "zisk_address_from_pubkey",
+   "zisk_address_compute_create2",
    "zisk_mpt_account_path_nibbles",
    "zisk_headers_validate_chain",
    "zisk_witness_lookup_by_hash",
