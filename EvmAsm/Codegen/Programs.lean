@@ -10006,6 +10006,100 @@ def ziskHeaderExtractLogsBloomProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractLogsBloomDataSection
 }
 
+/-! ## bloom_eq -- PR-K154
+
+    Byte-equal check between two 256-byte bloom filters. The
+    final compare step in block-level bloom validation:
+
+      assert bloom_eq(header.logs_bloom, computed_block_bloom)
+
+    Returns the verdict as a u64 (1 if equal, 0 if not). The
+    return code in `a0` is always 0 (the predicate result lives
+    in the out pointer, not the status), so the caller can
+    distinguish "predicate is false" from "the call itself
+    failed" -- though here the call can never fail since there
+    are no parse / boundary conditions to honour.
+
+    Together with PR-K151 `bloom_or_into`, PR-K152
+    `receipt_extract_logs_bloom`, and PR-K153
+    `header_extract_logs_bloom`, this closes the
+    block-level bloom-validation pipeline:
+
+      header_extract_logs_bloom(header_rlp, header_bloom)
+      bzero(computed_bloom)
+      for receipt in receipts:
+        receipt_extract_logs_bloom(receipt, scratch)
+        bloom_or_into(computed_bloom, scratch)
+      bloom_eq(header_bloom, computed_bloom, is_equal_out)
+      assert is_equal_out == 1
+
+    Pure register arithmetic; processes 8 bytes per iteration
+    (32 iterations total) using `ld` + `xor` + `or`. Early-exit
+    on first mismatch is intentionally avoided to keep the
+    cycle count constant (256-byte compare is cheap and timing
+    invariance is friendlier to gas-cost modeling).
+
+    Calling convention:
+      a0 (input)  : bloom_a ptr (256 bytes, read-only)
+      a1 (input)  : bloom_b ptr (256 bytes, read-only)
+      a2 (input)  : u64 out ptr (1 if equal, 0 if not)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def bloomEqFunction : String :=
+  "bloom_eq:\n" ++
+  "  li t0, 32                  # 256 bytes / 8 bytes per word\n" ++
+  "  mv t1, a0\n" ++
+  "  mv t2, a1\n" ++
+  "  li t5, 0                   # diff_accumulator\n" ++
+  ".Lbeq_loop:\n" ++
+  "  beqz t0, .Lbeq_done\n" ++
+  "  ld t3, 0(t1)\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  xor t3, t3, t4\n" ++
+  "  or  t5, t5, t3             # accumulate any nonzero diff\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lbeq_loop\n" ++
+  ".Lbeq_done:\n" ++
+  "  # is_equal = (diff_accumulator == 0)\n" ++
+  "  seqz t5, t5\n" ++
+  "  sd t5, 0(a2)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_bloom_eq`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : pad
+      bytes  8..264: bloom_a
+      bytes 264..520: bloom_b
+    Output layout:
+      bytes  0.. 8 : status (always 0)
+      bytes  8..16 : is_equal (u64; 1 if equal, 0 if not) -/
+def ziskBloomEqPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi a0, a3, 16             # bloom_a ptr (after 8B host-shift + 8B placeholder)\n" ++
+  "  addi a1, a3, 272            # bloom_b ptr (a0 + 256)\n" ++
+  "  li a2, 0xa0010008           # is_equal out\n" ++
+  "  jal ra, bloom_eq\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbeq_pdone\n" ++
+  bloomEqFunction ++ "\n" ++
+  ".Lbeq_pdone:"
+
+def ziskBloomEqDataSection : String :=
+  ".section .data\n" ++
+  "beq_pad:\n" ++
+  "  .zero 8"
+
+def ziskBloomEqProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBloomEqPrologue
+  dataAsm     := ziskBloomEqDataSection
+}
+
 /-! ## calldata_byte_counts -- PR-K105
 
     Count zero and non-zero bytes in an arbitrary byte buffer.
@@ -10776,6 +10870,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bloom_or_into" => some ziskBloomOrIntoProbeUnit
   | "zisk_receipt_extract_logs_bloom" => some ziskReceiptExtractLogsBloomProbeUnit
   | "zisk_header_extract_logs_bloom" => some ziskHeaderExtractLogsBloomProbeUnit
+  | "zisk_bloom_eq" => some ziskBloomEqProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
@@ -10943,6 +11038,7 @@ def knownProgramNames : List String :=
    "zisk_bloom_or_into",
    "zisk_receipt_extract_logs_bloom",
    "zisk_header_extract_logs_bloom",
+   "zisk_bloom_eq",
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost",
