@@ -1920,6 +1920,164 @@ def ziskRlpListTruncateToNFieldsProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpListTruncateToNFieldsDataSection
 }
 
+/-! ## tx_signing_hash -- PR-K145
+
+    Unified transaction signing-hash builder. Given a tx inner
+    RLP, the number of fields to retain (everything before
+    `y_parity, r, s`), and an optional type-prefix byte, compute
+
+      keccak256( [type_prefix?] || rlp([first n fields]) )
+
+    in a single call. This is the digest fed to
+    `zkvm_secp256k1_ecrecover` together with the extracted
+    `(y_parity, r, s)` to recover the tx sender's pubkey.
+
+    Per-tx-type usage:
+
+      type   | type_prefix | n  | description
+      -------|-------------|----|-----------------------------
+      legacy | 0           | 6  | pre-EIP-155 signing hash
+      EIP-2930 | 0x01      | 8  | type-1 signing hash
+      EIP-1559 | 0x02      | 9  | type-2 signing hash
+      EIP-4844 | 0x03      | 11 | type-3 signing hash
+      EIP-7702 | 0x04      | 10 | type-4 signing hash
+
+    Legacy EIP-155 (chain_id-bearing) signing hash is **not**
+    covered by this helper: it appends `(chain_id, 0, 0)` after
+    the first 6 fields, which requires building a new 9-field
+    list rather than just truncating. That variant lands as
+    `tx_signing_hash_legacy_eip155` in a follow-up PR.
+
+    EIP-7702 authorization signing hash is similarly out of scope
+    (it computes over `MAGIC=0x05 || rlp([chain_id, address,
+    nonce])` where the body is a 3-field list freshly built from
+    the authorization tuple, not a truncation); follow-up.
+
+    Composes:
+      - PR-K144 `rlp_list_truncate_to_n_fields`  -- truncation
+      - `zkvm_keccak256` (HashBridge)            -- hashing
+
+    Calling convention:
+      a0 (input)  : tx_inner_rlp ptr (caller has stripped any
+                    leading type byte)
+      a1 (input)  : tx_inner_rlp byte length
+      a2 (input)  : n_fields (u64) -- fields to keep
+      a3 (input)  : type_prefix (u8 in low bits; 0 = no prefix)
+      a4 (input)  : 32-byte output hash ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- hash written
+        1 : truncation parse failure / fewer than n fields
+
+    Uses two `.data` scratch buffers:
+      * `tsh_buf` (8 KiB) -- holds `[optional type byte] ||
+        rlp([first n fields])` immediately before the keccak
+        call.
+      * `zk3_state` (200 bytes) -- reused from the existing
+        keccak bridge. -/
+def txSigningHashFunction : String :=
+  "tx_signing_hash:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # inner_rlp ptr\n" ++
+  "  mv s1, a1                   # inner_rlp len\n" ++
+  "  mv s2, a2                   # n_fields\n" ++
+  "  mv s3, a3                   # type_prefix (low byte)\n" ++
+  "  mv s4, a4                   # output hash ptr (32 B)\n" ++
+  "  # ---- Write optional type prefix at tsh_buf[0] ----\n" ++
+  "  la t0, tsh_buf\n" ++
+  "  beqz s3, .Ltsh_after_prefix\n" ++
+  "  sb s3, 0(t0)\n" ++
+  ".Ltsh_after_prefix:\n" ++
+  "  # ---- Truncate inner_rlp into tsh_buf[1..] ----\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
+  "  la a3, tsh_buf; addi a3, a3, 1\n" ++
+  "  la a4, tsh_trunc_len\n" ++
+  "  jal ra, rlp_list_truncate_to_n_fields\n" ++
+  "  bnez a0, .Ltsh_fail\n" ++
+  "  la t0, tsh_trunc_len; ld t1, 0(t0)        # trunc_len\n" ++
+  "  # ---- Compute (hash_data_ptr, hash_data_len) ----\n" ++
+  "  beqz s3, .Ltsh_no_prefix\n" ++
+  "  la a0, tsh_buf                            # start at byte 0 (prefix)\n" ++
+  "  addi a1, t1, 1                            # length = trunc_len + 1\n" ++
+  "  j .Ltsh_do_hash\n" ++
+  ".Ltsh_no_prefix:\n" ++
+  "  la a0, tsh_buf; addi a0, a0, 1            # start at byte 1\n" ++
+  "  mv a1, t1                                 # length = trunc_len\n" ++
+  ".Ltsh_do_hash:\n" ++
+  "  mv a2, s4                                 # output ptr\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltsh_ret\n" ++
+  ".Ltsh_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Ltsh_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_tx_signing_hash`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : inner_rlp_len
+      bytes  8..16 : n_fields (u64 LE)
+      bytes 16..24 : type_prefix (u64 LE; low byte is the byte;
+                     0 = no prefix)
+      bytes 24..   : inner_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..40 : 32-byte signing hash -/
+def ziskTxSigningHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # inner_rlp_len\n" ++
+  "  ld a2, 16(a5)               # n_fields\n" ++
+  "  ld a3, 24(a5)               # type_prefix (u64; low byte)\n" ++
+  "  addi a0, a5, 32             # inner_rlp ptr\n" ++
+  "  li a4, 0xa0010008           # output hash ptr (32 B)\n" ++
+  "  jal ra, tx_signing_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Ltsh_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpListTruncateToNFieldsFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  txSigningHashFunction ++ "\n" ++
+  ".Ltsh_pdone:"
+
+def ziskTxSigningHashDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "tsh_buf:\n" ++
+  "  .zero 8192\n" ++
+  "tsh_trunc_len:\n" ++
+  "  .zero 8\n" ++
+  -- Scratch labels owned by `rlp_list_truncate_to_n_fields` (K144);
+  -- the truncate function references them at fixed offsets through
+  -- `la`, so we re-declare them in this probe's `.data` section.
+  "rltn_offset_lo:\n" ++
+  "  .zero 8\n" ++
+  "rltn_length_lo:\n" ++
+  "  .zero 8\n" ++
+  "rltn_offset_hi:\n" ++
+  "  .zero 8\n" ++
+  "rltn_length_hi:\n" ++
+  "  .zero 8\n" ++
+  "rltn_prefix_len:\n" ++
+  "  .zero 8"
+
+def ziskTxSigningHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxSigningHashPrologue
+  dataAsm     := ziskTxSigningHashDataSection
+}
+
 /-! ## blob_gas_used_from_versioned_hashes -- PR-K64
 
     Compute the EIP-4844 `blob_gas_used` field as:
