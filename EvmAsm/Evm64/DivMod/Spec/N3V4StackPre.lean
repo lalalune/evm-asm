@@ -768,64 +768,12 @@ theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_of_mulsub_overestimate
     (hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff)
-    (hbltu_1 : bltu_1 =
-      BitVec.ult (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
-          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.2
-        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).2.2.1)
-    (hbltu_0 : bltu_0 =
-      match bltu_1, hbltu_1 with
-      | false, _ =>
-        BitVec.ult
-          (iterN3Max
-            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-              (b.getLimbN 2) (b.getLimbN 3)).1
-            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-              (b.getLimbN 2) (b.getLimbN 3)).2.1
-            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-              (b.getLimbN 2) (b.getLimbN 3)).2.2.1
-            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-              (b.getLimbN 2) (b.getLimbN 3)).2.2.2
-            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
-              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.1
-            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
-              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.1
-            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
-              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.1
-            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
-              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.2
-            (0 : Word)).2.2.2.1
-          (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-            (b.getLimbN 2) (b.getLimbN 3)).2.2.1
-      | true, _ =>
-        BitVec.ult
-          (iterWithDoubleAddback
-            (divKTrialCallV4QHat
-              (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
-                (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.2
-              (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
-                (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.1
-              (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-                (b.getLimbN 2) (b.getLimbN 3)).2.2.1)
-            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-              (b.getLimbN 2) (b.getLimbN 3)).1
-            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-              (b.getLimbN 2) (b.getLimbN 3)).2.1
-            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-              (b.getLimbN 2) (b.getLimbN 3)).2.2.1
-            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-              (b.getLimbN 2) (b.getLimbN 3)).2.2.2
-            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
-              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.1
-            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
-              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.1
-            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
-              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.1
-            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
-              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.2
-            (0 : Word)).2.2.2.1
-          (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
-            (b.getLimbN 2) (b.getLimbN 3)).2.2.1)
+    (hbltu_1 : isTrialN3V4_j1 bltu_1
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (hbltu_0 : isTrialN3V4_j0 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
     (hcarry2 : Carry2NzAll
       (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1
       (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
