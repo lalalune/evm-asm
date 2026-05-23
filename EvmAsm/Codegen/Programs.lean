@@ -4596,6 +4596,86 @@ def ziskRlpFieldToU64ProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpFieldToU64DataSection
 }
 
+/-! ## account_extract_nonce -- PR-K121
+
+    Extract the u64 `nonce` field (RLP field 0) from a fully
+    RLP-encoded Ethereum account:
+
+      account = [nonce, balance, storage_root, code_hash]
+
+    The nonce counts the number of outbound transactions an EOA
+    has issued (or contract creations for a contract). EIP-2681
+    caps it at `2^64 - 1` so a u64 fits.
+
+    K27 `account_decode` already extracts the full account record;
+    this narrower accessor avoids the 96-byte struct when only the
+    nonce is needed (e.g., the tx-replay-protection check inside
+    `check_transaction`, or to thread the nonce-mismatch error path
+    without unpacking balance / storage_root / code_hash).
+
+    Composes the existing `rlp_field_to_u64` helper (which in turn
+    uses PR-K20 `rlp_list_nth_item`).
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : u64 output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 0 missing / > 64 bits -/
+def accountExtractNonceFunction : String :=
+  "account_extract_nonce:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  mv s0, a2                   # u64 out ptr (stash)\n" ++
+  "  sd zero, 0(s0)\n" ++
+  "  # a0, a1 still hold (account_ptr, account_len).\n" ++
+  "  li a2, 0\n" ++
+  "  mv a3, s0\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  beqz a0, .Laen_ret\n" ++
+  "  sd zero, 0(s0)\n" ++
+  "  li a0, 1\n" ++
+  ".Laen_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_account_extract_nonce`: probe BuildUnit. Reads
+    (account_len, account_bytes), writes (status, nonce u64) to
+    OUTPUT (16 bytes). -/
+def ziskAccountExtractNoncePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # account_rlp_len\n" ++
+  "  addi a0, a3, 16             # account_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # nonce out\n" ++
+  "  jal ra, account_extract_nonce\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Laen_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  accountExtractNonceFunction ++ "\n" ++
+  ".Laen_pdone:"
+
+def ziskAccountExtractNonceDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskAccountExtractNonceProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountExtractNoncePrologue
+  dataAsm     := ziskAccountExtractNonceDataSection
+}
+
 /-! ## rlp_field_to_u256_be -- PR-K35
 
     Extract the N-th field of an RLP list and right-align its
@@ -13982,6 +14062,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
   | "zisk_account_extract_storage_root" => some ziskAccountExtractStorageRootProbeUnit
   | "zisk_account_extract_balance" => some ziskAccountExtractBalanceProbeUnit
+  | "zisk_account_extract_nonce" => some ziskAccountExtractNonceProbeUnit
   | "zisk_address_from_pubkey"  => some ziskAddressFromPubkeyProbeUnit
   | "zisk_mpt_account_path_nibbles" => some ziskMptAccountPathNibblesProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
@@ -14116,6 +14197,7 @@ def knownProgramNames : List String :=
    "zisk_account_validate_code_hash",
    "zisk_account_extract_storage_root",
    "zisk_account_extract_balance",
+   "zisk_account_extract_nonce",
    "zisk_address_from_pubkey",
    "zisk_mpt_account_path_nibbles",
    "zisk_headers_validate_chain",
