@@ -41,6 +41,108 @@ def fullModN3RemainderWordV4 (bltu_1 bltu_0 : Bool)
         ((fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 >>>
           ((fullDivN3Shift b2).toNat % 64)))
 
+/-- `val256` view of `fullModN3RemainderWordV4`.  This is the arithmetic
+target needed to discharge the current word-level MOD path predicate. -/
+@[irreducible]
+def fullModN3RemainderVal256V4 (bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Nat :=
+  EvmWord.val256
+    (((fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1 >>>
+        ((fullDivN3Shift b2).toNat % 64)) |||
+      ((fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 <<<
+        ((signExtend12 (0 : BitVec 12) - fullDivN3Shift b2).toNat % 64)))
+    (((fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 >>>
+        ((fullDivN3Shift b2).toNat % 64)) |||
+      ((fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 <<<
+        ((signExtend12 (0 : BitVec 12) - fullDivN3Shift b2).toNat % 64)))
+    (((fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 >>>
+        ((fullDivN3Shift b2).toNat % 64)) |||
+      ((fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <<<
+        ((signExtend12 (0 : BitVec 12) - fullDivN3Shift b2).toNat % 64)))
+    ((fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 >>>
+      ((fullDivN3Shift b2).toNat % 64))
+
+/-- Turn the `val256` denormalized-remainder equality into the public
+`EvmWord.mod` word equality for the n=3 v4 final computation. -/
+theorem fullModN3RemainderWordV4_eq_mod_of_val256_eq_mod
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hval : fullModN3RemainderVal256V4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.val256
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
+        EvmWord.val256
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    fullModN3RemainderWordV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.mod a b := by
+  let r0 :=
+    (((fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1 >>>
+        ((fullDivN3Shift (b.getLimbN 2)).toNat % 64)) |||
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1 <<<
+        ((signExtend12 (0 : BitVec 12) - fullDivN3Shift (b.getLimbN 2)).toNat % 64)))
+  let r1 :=
+    (((fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1 >>>
+        ((fullDivN3Shift (b.getLimbN 2)).toNat % 64)) |||
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1 <<<
+        ((signExtend12 (0 : BitVec 12) - fullDivN3Shift (b.getLimbN 2)).toNat % 64)))
+  let r2 :=
+    (((fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1 >>>
+        ((fullDivN3Shift (b.getLimbN 2)).toNat % 64)) |||
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <<<
+        ((signExtend12 (0 : BitVec 12) - fullDivN3Shift (b.getLimbN 2)).toNat % 64)))
+  let r3 :=
+    ((fullDivN3R0V4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 >>>
+      ((fullDivN3Shift (b.getLimbN 2)).toNat % 64))
+  have hraw := EvmWord.mod_of_val256_eq_mod
+    (a0 := a.getLimbN 0) (a1 := a.getLimbN 1)
+    (a2 := a.getLimbN 2) (a3 := a.getLimbN 3)
+    (b0 := b.getLimbN 0) (b1 := b.getLimbN 1)
+    (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
+    (r0 := r0) (r1 := r1) (r2 := r2) (r3 := r3)
+    hbnz (by
+      subst r0; subst r1; subst r2; subst r3
+      delta fullModN3RemainderVal256V4 at hval
+      exact hval)
+  dsimp only at hraw
+  have haFold : (EvmWord.fromLimbs fun i : Fin 4 => match i with
+      | 0 => a.getLimbN 0 | 1 => a.getLimbN 1
+      | 2 => a.getLimbN 2 | 3 => a.getLimbN 3) = a :=
+    EvmWord.fromLimbs_match_getLimbN_id a
+  have hbFold : (EvmWord.fromLimbs fun i : Fin 4 => match i with
+      | 0 => b.getLimbN 0 | 1 => b.getLimbN 1
+      | 2 => b.getLimbN 2 | 3 => b.getLimbN 3) = b :=
+    EvmWord.fromLimbs_match_getLimbN_id b
+  have hmodFold :
+      EvmWord.mod
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with
+          | 0 => a.getLimbN 0 | 1 => a.getLimbN 1
+          | 2 => a.getLimbN 2 | 3 => a.getLimbN 3)
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with
+          | 0 => b.getLimbN 0 | 1 => b.getLimbN 1
+          | 2 => b.getLimbN 2 | 3 => b.getLimbN 3) =
+        EvmWord.mod a b := by
+    rw [haFold, hbFold]
+  subst r0; subst r1; subst r2; subst r3
+  delta fullModN3RemainderWordV4
+  exact hraw.trans hmodFold
+
 /-- MOD-specific N3 v4 path predicate for caller-facing bridges. The first
 component is the shared DIV quotient/path predicate; the second records that
 the packed denormalized remainder is the EVM MOD result. -/
