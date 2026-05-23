@@ -1,5 +1,7 @@
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopSource
 
+open EvmAsm.Rv64.Tactics
+
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
@@ -61,6 +63,46 @@ theorem loopN2CallCallCallSourceFinalPostNoX1_unfold (sp base : Word)
        ((uBase2 + signExtend12 4064 ↦ₘ r2.2.2.2.2.2) **
         (qAddr2 ↦ₘ r2.1)))) := by
   delta loopN2CallCallCallSourceFinalPostNoX1
+  rfl
+
+/-- Branch/runtime conditions for the n=2 v4/no-NOP source path whose three
+    loop iterations all take the callable trial-division path.  Bundling these
+    conditions keeps downstream theorem signatures small. -/
+@[irreducible]
+def loopN2CallCallCallSourceConds
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word) : Prop :=
+  let r2 := iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let qHat1 := divKTrialCallV4QHat r2.2.2.1 r2.2.1 v1
+  let r1 := iterWithDoubleAddback qHat1
+    v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  BitVec.ult u2 v1 ∧
+  loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop ∧
+  BitVec.ult r2.2.2.1 v1 ∧
+  loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
+    u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 ∧
+  BitVec.ult r1.2.2.1 v1 ∧
+  loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
+    u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+
+theorem loopN2CallCallCallSourceConds_unfold
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word) :
+    loopN2CallCallCallSourceConds
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 =
+    let r2 := iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    let qHat1 := divKTrialCallV4QHat r2.2.2.1 r2.2.1 v1
+    let r1 := iterWithDoubleAddback qHat1
+      v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+    BitVec.ult u2 v1 ∧
+    loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop ∧
+    BitVec.ult r2.2.2.1 v1 ∧
+    loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
+      u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 ∧
+    BitVec.ult r1.2.2.1 v1 ∧
+    loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
+      u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 := by
+  delta loopN2CallCallCallSourceConds
   rfl
 
 end EvmAsm.Evm64
