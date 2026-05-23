@@ -1914,6 +1914,109 @@ def ziskAccountValidateCodeHashProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountValidateCodeHashDataSection
 }
 
+/-! ## account_extract_storage_root -- PR-K119
+
+    Extract the 32-byte `storage_root` field (RLP field 2) from a
+    fully RLP-encoded Ethereum account:
+
+      account = [nonce, balance, storage_root, code_hash]
+
+    The storage_root is the MPT root of this account's per-account
+    storage trie (keccak256 of the empty trie's RLP encoding,
+    a.k.a. `EMPTY_TRIE_ROOT`, for EOAs and unused contracts):
+
+      EMPTY_TRIE_ROOT =
+        0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421
+
+    Direct input to per-account storage trie walks
+    (`mpt_lookup_by_key` for SLOAD) and to state-root recomputation
+    after SSTORE writes.
+
+    K27 `account_decode` already extracts the full account record;
+    K119 is the narrower accessor for callers that only need the
+    storage root and don't want to allocate the 96-byte struct.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — field 2 bounds
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : 32-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 2 missing
+        2 : field 2 length != 32
+
+    Output zeroed on failure. Uses two 8-byte `.data` scratch slots
+    (`aesr_offset`, `aesr_length`). -/
+def accountExtractStorageRootFunction : String :=
+  "account_extract_storage_root:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # account_rlp ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # 32B output ptr\n" ++
+  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
+  "  # Extract field 2 (storage_root).\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  la a3, aesr_offset; la a4, aesr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Laesr_parse_fail\n" ++
+  "  la t0, aesr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Laesr_size_fail\n" ++
+  "  la t0, aesr_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Laesr_ret\n" ++
+  ".Laesr_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Laesr_ret\n" ++
+  ".Laesr_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Laesr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_account_extract_storage_root`: probe BuildUnit. Reads
+    (account_len, account_bytes), writes (status, 32-byte
+    storage_root) to OUTPUT (40 bytes total). -/
+def ziskAccountExtractStorageRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # account_rlp_len\n" ++
+  "  addi a0, a3, 16             # account_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # 32B output\n" ++
+  "  jal ra, account_extract_storage_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Laesr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountExtractStorageRootFunction ++ "\n" ++
+  ".Laesr_pdone:"
+
+def ziskAccountExtractStorageRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "aesr_offset:\n" ++
+  "  .zero 8\n" ++
+  "aesr_length:\n" ++
+  "  .zero 8"
+
+def ziskAccountExtractStorageRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountExtractStorageRootPrologue
+  dataAsm     := ziskAccountExtractStorageRootDataSection
+}
+
 /-! ## rlp_list_count_items -- PR-K47 top-level item counter
 
     Walk an RLP-encoded list once and return the number of
@@ -13793,6 +13896,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_validate_parent_hash" => some ziskHeaderValidateParentHashProbeUnit
   | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
   | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
+  | "zisk_account_extract_storage_root" => some ziskAccountExtractStorageRootProbeUnit
   | "zisk_address_from_pubkey"  => some ziskAddressFromPubkeyProbeUnit
   | "zisk_mpt_account_path_nibbles" => some ziskMptAccountPathNibblesProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
@@ -13925,6 +14029,7 @@ def knownProgramNames : List String :=
    "zisk_header_validate_parent_hash",
    "zisk_header_chain_walk_step",
    "zisk_account_validate_code_hash",
+   "zisk_account_extract_storage_root",
    "zisk_address_from_pubkey",
    "zisk_mpt_account_path_nibbles",
    "zisk_headers_validate_chain",
