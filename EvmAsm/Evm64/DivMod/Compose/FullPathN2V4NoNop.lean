@@ -780,4 +780,140 @@ theorem divK_loop_body_n2_max_j2_exact_loopIterScratch_v4_noNop (sp base : Word)
           xperm_hyp hp)
         Jf
 
+/-- Unified j=1 N2 call iteration over v4/no-NOP code, preserving concrete
+    `x1` and exposing the v4 scratch cell in the postcondition. -/
+theorem divK_loop_body_n2_call_j1_exact_loopIterScratch_v4_noNop (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hcarry2_nz : loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 224 (base + loopBodyOff) (base + loopBodyOff) (divCode_noNop_v4 base)
+      (loopBodyN2CallSkipJgt0NormPreV4NoX1 (1 : Word) sp
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
+        retMem dMem dloMem scratchUn0 scratchMem ** (.x1 ↦ᵣ raVal))
+      (loopIterPostN2CallScratchNoX1 sp base (1 : Word)
+        (divKTrialCallV4QHat u2 u1 v1)
+        (divKTrialCallV4DLo v1)
+        (divKTrialCallV4Un0 u1)
+        (divKTrialCallV4ScratchOut u2 u1 v1 scratchMem)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop ** (.x1 ↦ᵣ raVal)) := by
+  by_cases hborrow :
+      BitVec.ult uTop
+        (mulsubN4_c3 (divKTrialCallV4QHat u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3)
+  · have hborrow_nz : loopBodyN2CallAddbackBorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+      simp [loopBodyN2CallAddbackBorrowV4, hborrow]
+    exact cpsTripleWithin_weaken
+      (fun h hp => hp)
+      (fun h hp => by
+        rw [loopBodyN2CallAddbackBeqJgt0PostV4NoX1_eq_scratch] at hp
+        rw [loopIterPostN2CallScratchNoX1_addback hborrow] at hp
+        xperm_hyp hp)
+      (divK_loop_body_n2_call_addback_jgt0_beq_norm_v4_noNop_exact_x1
+        (1 : Word) sp base EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
+        retMem dMem dloMem scratchUn0 scratchMem raVal
+        halign hbltu hborrow_nz hcarry2_nz)
+  · have hborrow_zero :
+        mulsubN4NoBorrow (divKTrialCallV4QHat u2 u1 v1)
+          v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+      unfold mulsubN4NoBorrow
+      dsimp only
+      unfold mulsubN4_c3 at hborrow
+      rw [if_neg hborrow]
+    exact cpsTripleWithin_mono_nSteps (by decide) <|
+      cpsTripleWithin_weaken
+        (fun h hp => hp)
+        (fun h hp => by
+          rw [loopBodyN2CallSkipJgt0PostV4NoX1_eq_scratch] at hp
+          rw [loopIterPostN2CallScratchNoX1_skip hborrow] at hp
+          xperm_hyp hp)
+        (divK_loop_body_n2_call_skip_jgt0_norm_v4_noNop_exact_x1
+          (1 : Word) sp base EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
+          jOld v5Old v6Old v7Old v10Old v11Old v2Old
+          v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
+          retMem dMem dloMem scratchUn0 scratchMem raVal
+          halign hbltu hborrow_zero)
+
+/-- Unified j=1 N2 max iteration over v4/no-NOP code, preserving concrete
+    `x1` and carrying the v4 scratch cell as frame. -/
+theorem divK_loop_body_n2_max_j1_exact_loopIterScratch_v4_noNop (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hbltu : ¬BitVec.ult u2 v1)
+    (hcarry2_nz : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 152 (base + loopBodyOff) (base + loopBodyOff) (divCode_noNop_v4 base)
+      ((loopBodyN2MaxSkipJgt0NormPreV4 (1 : Word) sp
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal)))
+      ((loopIterPostN2Max sp (1 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal))) := by
+  by_cases hborrow :
+      BitVec.ult uTop
+        (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+  · have hborrow_nz :
+        (if BitVec.ult uTop
+          (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+         then (1 : Word) else 0) ≠ (0 : Word) := by
+      rw [if_pos hborrow]
+      decide
+    have J := divK_loop_body_n2_max_addback_jgt0_beq_norm_v4_noNop
+      (1 : Word) sp base EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld hbltu hcarry2_nz hborrow_nz
+    have Jf := cpsTripleWithin_frameR
+      ((sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) **
+       (.x1 ↦ᵣ raVal))
+      (by pcFree) J
+    exact cpsTripleWithin_weaken
+      (fun h hp => by xperm_hyp hp)
+      (fun h hp => by
+        rw [loopIterPostN2Max_addback hborrow] at hp
+        xperm_hyp hp)
+      Jf
+  · have hborrow_zero :
+        (if BitVec.ult uTop
+          (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+         then (1 : Word) else 0) = (0 : Word) := by
+      rw [if_neg hborrow]
+    have J := divK_loop_body_n2_max_skip_jgt0_norm_v4_noNop
+      (1 : Word) sp base EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_1
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld hbltu hborrow_zero
+    have Jf := cpsTripleWithin_frameR
+      ((sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) **
+       (.x1 ↦ᵣ raVal))
+      (by pcFree) J
+    exact cpsTripleWithin_mono_nSteps (by decide) <|
+      cpsTripleWithin_weaken
+        (fun h hp => by xperm_hyp hp)
+        (fun h hp => by
+          rw [loopIterPostN2Max_skip hborrow] at hp
+          xperm_hyp hp)
+        Jf
+
 end EvmAsm.Evm64
