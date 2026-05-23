@@ -635,6 +635,22 @@ theorem fullModN3PathConditionsVal256V4_of_scaled
     fullModN3RemainderVal256V4_eq_mod_of_scaled_remainder_shift_ne
       bltu_1 bltu_0 a b hshift_nz hscaled⟩
 
+theorem fullModN3PathConditionsWordV4_of_conservation
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hb3z : b.getLimbN 3 = 0)
+    (hshift_nz : fullDivN3Shift (b.getLimbN 2) ≠ 0)
+    (hdivPath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b)
+    (hcons : fullDivN3NormalizedConservationV4 bltu_1 bltu_0 a b) :
+    fullModN3PathConditionsWordV4 bltu_1 bltu_0 a b := by
+  have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  exact fullModN3PathConditionsWordV4_of_val256 bltu_1 bltu_0 a b hbnz'
+    (fullModN3PathConditionsVal256V4_of_scaled bltu_1 bltu_0 a b hshift_nz
+      (fullModN3PathConditionsScaledV4_of_normalized bltu_1 bltu_0 a b
+        (fullModN3PathConditionsNormalizedV4_of_conservation
+          bltu_1 bltu_0 a b hbnz hb3z hdivPath hcons)))
+
 theorem fullModN3RemainderWordV4_eq_mod_of_mod_path_conditions
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hpath : fullModN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
