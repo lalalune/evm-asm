@@ -5085,6 +5085,118 @@ def ziskWithdrawalRlpEncodeProbeUnit : BuildUnit := {
   dataAsm     := ziskWithdrawalRlpEncodeDataSection
 }
 
+/-! ## withdrawal_compute_hash -- PR-K132
+
+    Compute the keccak256 hash of an EIP-4895 Withdrawal record:
+
+      hash = keccak256(rlp.encode([index, validator_index, address, amount]))
+
+    Used as the leaf value when building/walking the withdrawals
+    trie, and for receipt-side `process_withdrawal` bookkeeping.
+    Direct composition of:
+
+      - PR-K130 `withdrawal_rlp_encode` — produce the RLP bytes
+      - PR-K3   `zkvm_keccak256`        — hash them
+
+    Calling convention:
+      a0 (input)  : index (u64)
+      a1 (input)  : validator_index (u64)
+      a2 (input)  : address ptr (20 bytes)
+      a3 (input)  : amount (u64, Gwei)
+      a4 (input)  : 32-byte output ptr (hash)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds — both legs are total).
+
+    Uses 64 bytes of `.data` scratch (`wch_rlp_buf` for the encoded
+    withdrawal, ≤ 49 bytes max; `wch_rlp_len` for the length). -/
+def withdrawalComputeHashFunction : String :=
+  "withdrawal_compute_hash:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp)\n" ++
+  "  mv s0, a4                   # output ptr (stash)\n" ++
+  "  # Call withdrawal_rlp_encode(index, validator_idx, addr, amt,\n" ++
+  "  #                           wch_rlp_buf, wch_rlp_len)\n" ++
+  "  # a0, a1, a2, a3 already hold the four input fields.\n" ++
+  "  la a4, wch_rlp_buf\n" ++
+  "  la a5, wch_rlp_len\n" ++
+  "  jal ra, withdrawal_rlp_encode\n" ++
+  "  # Call zkvm_keccak256(wch_rlp_buf, wch_rlp_len, s0)\n" ++
+  "  la a0, wch_rlp_buf\n" ++
+  "  la t0, wch_rlp_len; ld a1, 0(t0)\n" ++
+  "  mv a2, s0\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_withdrawal_compute_hash`: probe BuildUnit. Reads
+    (index, validator_index, amount, address_20B) from host input,
+    writes (status, hash[32]) to OUTPUT (40 bytes total). -/
+def ziskWithdrawalComputeHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a6, 0x40000000\n" ++
+  "  ld a0, 8(a6)                # index\n" ++
+  "  ld a1, 16(a6)               # validator_index\n" ++
+  "  ld a3, 24(a6)               # amount\n" ++
+  "  addi a2, a6, 40             # address ptr (INPUT + 40)\n" ++
+  "  li a4, 0xa0010008           # 32B hash output\n" ++
+  "  jal ra, withdrawal_compute_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lwch_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  withdrawalRlpEncodeFunction ++ "\n" ++
+  withdrawalComputeHashFunction ++ "\n" ++
+  ".Lwch_pdone:"
+
+def ziskWithdrawalComputeHashDataSection : String :=
+  ".section .data\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "wre_idx_be:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wre_idx_rlp:\n" ++
+  "  .zero 16\n" ++
+  ".balign 8\n" ++
+  "wre_idx_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wre_val_be:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wre_val_rlp:\n" ++
+  "  .zero 16\n" ++
+  ".balign 8\n" ++
+  "wre_val_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wre_amt_be:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wre_amt_rlp:\n" ++
+  "  .zero 16\n" ++
+  ".balign 8\n" ++
+  "wre_amt_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "wch_rlp_buf:\n" ++
+  "  .zero 64\n" ++
+  ".balign 8\n" ++
+  "wch_rlp_len:\n" ++
+  "  .zero 8"
+
+def ziskWithdrawalComputeHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskWithdrawalComputeHashPrologue
+  dataAsm     := ziskWithdrawalComputeHashDataSection
+}
+
 /-! ## account_encode -- PR-K31 mutating side of account_decode
 
     Encode (nonce, balance, storage_root, code_hash) into the
@@ -15479,6 +15591,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
   | "zisk_rlp_encode_list_prefix" => some ziskRlpEncodeListPrefixProbeUnit
   | "zisk_withdrawal_rlp_encode" => some ziskWithdrawalRlpEncodeProbeUnit
+  | "zisk_withdrawal_compute_hash" => some ziskWithdrawalComputeHashProbeUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
@@ -15624,6 +15737,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_encode_bytes",
    "zisk_rlp_encode_list_prefix",
    "zisk_withdrawal_rlp_encode",
+   "zisk_withdrawal_compute_hash",
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
    "zisk_state_root_single_account",
