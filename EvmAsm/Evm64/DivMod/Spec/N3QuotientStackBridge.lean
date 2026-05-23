@@ -11,6 +11,32 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+abbrev fullDivN3MulSubEqV4 (bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  EvmWord.val256 a0 a1 a2 a3 =
+    (((fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+        2^64 +
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+      EvmWord.val256 b0 b1 b2 b3 +
+    EvmWord.val256
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1)
+
+abbrev fullDivN3QuotientOverestimateV4 (bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+    ((fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+        2^64 +
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).1).toNat
+
 /-- n=3 quotient bridge specialized to the explicit limb variables used by the
     unified-bound wrappers. -/
 theorem fullDivN3QuotientWord_eq_div_of_limbs_mulsub_overestimate
@@ -87,28 +113,10 @@ theorem fullDivN3QuotientWordV4_eq_div_of_limbs_mulsub_overestimate
     (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
     (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
-    (hmulsub :
-      EvmWord.val256 a0 a1 a2 a3 =
-        (((fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
-            2^64 +
-          ((fullDivN3R0V4 bltu_1 bltu_0
-            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
-          EvmWord.val256 b0 b1 b2 b3 +
-        EvmWord.val256
-          ((fullDivN3R0V4 bltu_1 bltu_0
-            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
-          ((fullDivN3R0V4 bltu_1 bltu_0
-            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
-          ((fullDivN3R0V4 bltu_1 bltu_0
-            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
-          ((fullDivN3R0V4 bltu_1 bltu_0
-            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
-    (hge :
-      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
-        ((fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
-            2^64 +
-          ((fullDivN3R0V4 bltu_1 bltu_0
-            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    (hmulsub : fullDivN3MulSubEqV4 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3)
+    (hge : fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
     fullDivN3QuotientWordV4 bltu_1 bltu_0
       a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.div a b := by
   subst a0
