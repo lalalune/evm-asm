@@ -1,4 +1,5 @@
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.V4Code
 
 namespace EvmAsm.Evm64
@@ -123,5 +124,16 @@ theorem divK_loop_body_n3_call_addback_jgt0_beq_norm_v4 (j sp base : Word)
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld
       retMem dMem dloMem scratchUn0 scratchMem
       halign hbltu hborrow hcarry2_nz)
+
+/-- Lift the n=3 exact-x1/scratch v4 preloop+loop path from the no-NOP body
+    to the full `divCode_v4` dispatcher bundle. -/
+theorem fullDivN3_preloop_loop_unified_exact_x1_scratch_v4
+    {P Q : Assertion} (base : Word)
+    (h :
+      cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 448)
+        base (base + denormOff) (divCode_noNop_v4 base) P Q) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 448)
+      base (base + denormOff) (divCode_v4 base) P Q := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4 h
 
 end EvmAsm.Evm64
