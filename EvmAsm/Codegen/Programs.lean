@@ -13429,12 +13429,51 @@ def ziskMptExtensionExtractProbeUnit : BuildUnit := {
         2 : mid-list nth_item failure -/
 def mptBranchUsedCountFunction : String :=
   "mpt_branch_used_count:\n" ++
-      a2 (input)  : u64 out ptr (first_index in [0..16])
-      ra (input)  : return
-      a0 (output) :
-        0 : success — index written (16 = no non-empty children)
-        1 : not a 17-item list
-        2 : mid-list nth_item failure -/
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # branch ptr\n" ++
+  "  mv s1, a1                   # branch len\n" ++
+  "  mv s2, a2                   # used_count out\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  # Verify 17-item list.\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, mbuc_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lmbuc_not_branch\n" ++
+  "  la t0, mbuc_count; ld t1, 0(t0)\n" ++
+  "  li t2, 17\n" ++
+  "  bne t1, t2, .Lmbuc_not_branch\n" ++
+  "  li s3, 0                    # i = 0\n" ++
+  "  li s4, 0                    # used = 0\n" ++
+  ".Lmbuc_loop:\n" ++
+  "  li t0, 16\n" ++
+  "  beq s3, t0, .Lmbuc_done\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  mv a2, s3\n" ++
+  "  la a3, mbuc_off; la a4, mbuc_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmbuc_nth_fail\n" ++
+  "  la t0, mbuc_len; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lmbuc_step\n" ++
+  "  addi s4, s4, 1\n" ++
+  ".Lmbuc_step:\n" ++
+  "  addi s3, s3, 1\n" ++
+  "  j .Lmbuc_loop\n" ++
+  ".Lmbuc_done:\n" ++
+  "  sd s4, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmbuc_ret\n" ++
+  ".Lmbuc_not_branch:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lmbuc_ret\n" ++
+  ".Lmbuc_nth_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lmbuc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
 def mptBranchFirstUsedIndexFunction : String :=
   "mpt_branch_first_used_index:\n" ++
   "  addi sp, sp, -48\n" ++
