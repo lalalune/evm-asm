@@ -509,6 +509,48 @@ theorem fullDivN3NormV_val256_eq_scaled_of_b3_zero
   rw [fullDivN3Shift_toNat_mod_eq, hanti]
   exact EvmWord.val256_normalize hs0 hs b0 b1 b2 b3 hb3_bound
 
+theorem iterN3V4CallQHat_val256_conservation_of_carry2
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
+    (hc3_call :
+      BitVec.ult uTop
+          (mulsubN4 (divKTrialCallV4QHat u3 u2 v2)
+            v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 →
+        (mulsubN4 (divKTrialCallV4QHat u3 u2 v2)
+          v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1)
+    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
+    let out := iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2 ^ 256 =
+      out.1.toNat * EvmWord.val256 v0 v1 v2 v3 +
+        EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+        out.2.2.2.2.2.toNat * 2 ^ 256 := by
+  exact iterWithDoubleAddback_val256_conservation_of_carry2
+    (divKTrialCallV4QHat u3 u2 v2) v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    hbnz hc3_call
+    (hcarry2 (divKTrialCallV4QHat u3 u2 v2) u0 u1 u2 u3 uTop)
+
+theorem iterN3V4MaxQHat_val256_conservation_of_carry2
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
+    (hc3_max :
+      BitVec.ult uTop
+          (mulsubN4 (signExtend12 4095 : Word)
+            v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 →
+        (mulsubN4 (signExtend12 4095 : Word)
+          v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1)
+    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
+    let out := iterWithDoubleAddback (signExtend12 4095 : Word)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2 ^ 256 =
+      out.1.toNat * EvmWord.val256 v0 v1 v2 v3 +
+        EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+        out.2.2.2.2.2.toNat * 2 ^ 256 := by
+  exact iterWithDoubleAddback_val256_conservation_of_carry2
+    (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    hbnz hc3_max
+    (hcarry2 (signExtend12 4095 : Word) u0 u1 u2 u3 uTop)
+
 theorem fullDivN3NormalizedConservationV4_of_scaled_iter_conservation
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hshift_nz : fullDivN3Shift (b.getLimbN 2) ≠ 0)
