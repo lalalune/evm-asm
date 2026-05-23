@@ -10581,6 +10581,147 @@ def ziskSingleLeafTrieRootProbeUnit : BuildUnit := {
   dataAsm     := ziskSingleLeafTrieRootDataSection
 }
 
+/-! ## block_logs_bloom_from_receipts_list -- PR-K158
+
+    Given an RLP-encoded list of receipts, compute the block-level
+    `logs_bloom` by OR-accumulating each receipt's `logs_bloom`
+    field. End-to-end composite tying together the four atomic
+    bloom helpers shipped in PR-K151..K154:
+
+      bzero(block_bloom)
+      for receipt in receipts:
+        receipt_extract_logs_bloom(receipt, scratch)   # K152
+        bloom_or_into(block_bloom, scratch)            # K151
+
+    Used by `block_validate_logs_bloom` (combined with K153 to
+    extract the header's claimed bloom and K154 to compare).
+
+    Empty receipts list (`0xc0`) is valid and leaves the output
+    bloom untouched. Per-receipt parse failures propagate via the
+    return code.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item`       -- walk each receipt
+      - PR-K47 `rlp_list_count_items`    -- list cardinality
+      - PR-K152 `receipt_extract_logs_bloom`
+      - PR-K151 `bloom_or_into`
+
+    Calling convention:
+      a0 (input)  : receipts_rlp_list ptr (RLP list of receipts)
+      a1 (input)  : receipts_rlp_list byte length
+      a2 (input)  : 256-byte output bloom ptr
+                    (mutable, caller zero-inits)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure (outer list malformed or a
+            receipt isn't a proper RLP list)
+        2 : a receipt's `logs_bloom` field length != 256 -/
+def blockLogsBloomFromReceiptsListFunction : String :=
+  "block_logs_bloom_from_receipts_list:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # receipts list ptr\n" ++
+  "  mv s1, a1                   # receipts list len\n" ++
+  "  mv s2, a2                   # output bloom ptr\n" ++
+  "  # ---- Count receipts ----\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, blbr_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lblbr_parse_fail\n" ++
+  "  la t0, blbr_count; ld s3, 0(t0)              # n_receipts\n" ++
+  "  li s4, 0                                     # i\n" ++
+  ".Lblbr_loop:\n" ++
+  "  bge s4, s3, .Lblbr_done\n" ++
+  "  # Extract receipt_i bounds (full encoded item).\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s4\n" ++
+  "  la a3, blbr_offset; la a4, blbr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lblbr_parse_fail\n" ++
+  "  la t0, blbr_offset; ld t1, 0(t0)\n" ++
+  "  la t0, blbr_length; ld t2, 0(t0)\n" ++
+  "  add a0, s0, t1                                # receipt_i ptr\n" ++
+  "  mv a1, t2                                    # receipt_i len\n" ++
+  "  la a2, blbr_scratch_bloom\n" ++
+  "  jal ra, receipt_extract_logs_bloom\n" ++
+  "  bnez a0, .Lblbr_child_err                    # 1 or 2 -> propagate\n" ++
+  "  # OR scratch_bloom into output bloom.\n" ++
+  "  mv a0, s2\n" ++
+  "  la a1, blbr_scratch_bloom\n" ++
+  "  jal ra, bloom_or_into\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lblbr_loop\n" ++
+  ".Lblbr_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lblbr_ret\n" ++
+  ".Lblbr_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lblbr_ret\n" ++
+  ".Lblbr_child_err:\n" ++
+  "  # a0 carries the child's status (1 = parse fail, 2 = size fail).\n" ++
+  ".Lblbr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_block_logs_bloom_from_receipts_list`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : receipts_list_rlp_len
+      bytes  8..   : receipts_list_rlp
+    Output layout (256 B, ziskemu cap):
+      bytes  0..256 : accumulated logs_bloom (zero-initialised
+                       by the probe before invoking the helper). -/
+def ziskBlockLogsBloomFromReceiptsListPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # receipts_list_rlp_len\n" ++
+  "  addi a0, a3, 16             # receipts_list_rlp ptr\n" ++
+  "  li a2, 0xa0010000           # output bloom ptr (256 B)\n" ++
+  "  # Zero output bloom (32 × sd zero).\n" ++
+  "  mv t0, a2\n" ++
+  "  li t1, 32\n" ++
+  ".Lblbr_zero_loop:\n" ++
+  "  beqz t1, .Lblbr_zero_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lblbr_zero_loop\n" ++
+  ".Lblbr_zero_done:\n" ++
+  "  jal ra, block_logs_bloom_from_receipts_list\n" ++
+  "  j .Lblbr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  receiptExtractLogsBloomFunction ++ "\n" ++
+  bloomOrIntoFunction ++ "\n" ++
+  blockLogsBloomFromReceiptsListFunction ++ "\n" ++
+  ".Lblbr_pdone:"
+
+def ziskBlockLogsBloomFromReceiptsListDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "relb_offset:\n" ++
+  "  .zero 8\n" ++
+  "relb_length:\n" ++
+  "  .zero 8\n" ++
+  "blbr_count:\n" ++
+  "  .zero 8\n" ++
+  "blbr_offset:\n" ++
+  "  .zero 8\n" ++
+  "blbr_length:\n" ++
+  "  .zero 8\n" ++
+  "blbr_scratch_bloom:\n" ++
+  "  .zero 256"
+
+def ziskBlockLogsBloomFromReceiptsListProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockLogsBloomFromReceiptsListPrologue
+  dataAsm     := ziskBlockLogsBloomFromReceiptsListDataSection
+}
+
 /-! ## calldata_byte_counts -- PR-K105
 
     Count zero and non-zero bytes in an arbitrary byte buffer.
@@ -11355,6 +11496,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
+  | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
@@ -11526,6 +11668,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_encode_u64",
    "zisk_receipt_encode",
    "zisk_single_leaf_trie_root",
+   "zisk_block_logs_bloom_from_receipts_list",
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost",
