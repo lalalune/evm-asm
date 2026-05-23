@@ -105,6 +105,18 @@ run_case "auth_6to3" \
   '[1, "hex:dededededededededededededededededededede", 0, 1, "hex:1111111111111111111111111111111111111111111111111111111111111111", "hex:2222222222222222222222222222222222222222222222222222222222222222"]' \
   3 || FAILED=1
 
+# Regression: field 0 is empty bytes (RLP-canonical 0 → 0x80).
+# This trips the "K20 offset is content-not-item" trap if `payload_start`
+# is taken from `rlp_list_nth_item(0).offset` rather than parsed from the
+# outer list prefix. Pre-fix output was off-by-one for the body slice.
+run_case "field0_zero_short_str" \
+  '[0, 1000000000, 21000, "hex:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 1000000000000000000, "", 27, "hex:1111111111111111111111111111111111111111111111111111111111111111", "hex:2222222222222222222222222222222222222222222222222222222222222222"]' \
+  6 || FAILED=1
+
+# Regression: field 0 with multi-byte short-string prefix.
+run_case "field0_short_str_5b" \
+  '["hex:cafebabe00", 2, 3]' 2 || FAILED=1
+
 # n > number of fields → status 2
 in_too_few="$REPO_ROOT/gen-out/zisk_rlp_list_truncate_to_n_fields_too_few.input"
 out_too_few="$REPO_ROOT/gen-out/zisk_rlp_list_truncate_to_n_fields_too_few.output"
