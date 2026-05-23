@@ -40,6 +40,14 @@ theorem evm_mod_callable_code_v4_sub_smodCodeV4 {base : Word} :
     (by
       simpa [modCallableCodeV4] using hOfProg)
 
+/-- The v4 MOD no-NOP body code is a sub-region of `smodCodeV4`. -/
+theorem modCode_noNop_v4_sub_smodCodeV4 {base : Word} :
+    ∀ a i,
+      (EvmAsm.Evm64.modCode_noNop_v4 (base + wrapperEndOff)) a = some i →
+      (smodCodeV4 base) a = some i := fun a i h =>
+  evm_mod_callable_code_v4_sub_smodCodeV4
+    a i (EvmAsm.Evm64.modCode_noNop_v4_sub_mod_callable_code_v4 a i h)
+
 /-- The appended v4 unsigned MOD callable is a sub-region of the canonical
     production SMOD code handle. -/
 theorem evm_mod_callable_code_v4_sub_smodCodeCanonical {base : Word} :

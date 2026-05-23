@@ -24,7 +24,7 @@ theorem saveRaAbsThenModCall_then_return_from_noNop_spec_in_smodCodeV4
     (h_stack :
       EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
         (base + wrapperEndOff) ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
-        (EvmAsm.Evm64.sharedDivModCodeNoNop_v4 (base + wrapperEndOff))
+        (EvmAsm.Evm64.modCode_noNop_v4 (base + wrapperEndOff))
         (EvmAsm.Evm64.divModStackDispatchPreCallable sp
           (smodAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
           (smodAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)

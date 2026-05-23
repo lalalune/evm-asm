@@ -47,21 +47,23 @@ theorem evm_smod_canonical_bzero_mod_call_return_stack_spec_within
     dividendMaskOld dividendValueOld dividendCarryOld dividend divisor
     v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     shiftMem nMem jMem retMem dMem dloMem scratchUn0 base h_base ?_
-  exact evm_mod_bzero_stack_spec_within_dispatch_noNop_v4_callable_x1_uni
-    sp (base + wrapperEndOff)
-    (smodAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
-      (dividend.getLimbN 2) (dividend.getLimbN 3))
-    (smodAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
-      (divisor.getLimbN 2) (divisor.getLimbN 3))
-    ((base + modCallOff) + 4)
-    v2 v5 v6
-    (smodAbsSum3 (divisor.getLimbN 0) (divisor.getLimbN 1)
-      (divisor.getLimbN 2) (divisor.getLimbN 3))
-    (smodAbsMask (divisor.getLimbN 3))
-    (smodAbsCarry3 (divisor.getLimbN 0) (divisor.getLimbN 1)
-      (divisor.getLimbN 2) (divisor.getLimbN 3))
-    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratchUn0
-    ((smodAbsDivisorWord_eq_zero_iff divisor).mpr h_divisor_zero)
+  exact cpsTripleWithin_extend_code
+    (hmono := EvmAsm.Evm64.sharedDivModCodeNoNop_v4_sub_modCode_noNop_v4)
+    (evm_mod_bzero_stack_spec_within_dispatch_noNop_v4_callable_x1_uni
+      sp (base + wrapperEndOff)
+      (smodAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
+        (dividend.getLimbN 2) (dividend.getLimbN 3))
+      (smodAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
+        (divisor.getLimbN 2) (divisor.getLimbN 3))
+      ((base + modCallOff) + 4)
+      v2 v5 v6
+      (smodAbsSum3 (divisor.getLimbN 0) (divisor.getLimbN 1)
+        (divisor.getLimbN 2) (divisor.getLimbN 3))
+      (smodAbsMask (divisor.getLimbN 3))
+      (smodAbsCarry3 (divisor.getLimbN 0) (divisor.getLimbN 1)
+        (divisor.getLimbN 2) (divisor.getLimbN 3))
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0
+      ((smodAbsDivisorWord_eq_zero_iff divisor).mpr h_divisor_zero))
 
 end EvmAsm.Evm64
