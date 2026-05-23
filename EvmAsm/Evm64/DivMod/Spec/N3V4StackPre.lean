@@ -7,6 +7,7 @@
 import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
 import EvmAsm.Evm64.DivMod.Spec.N3QuotientWord
+import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
 
 namespace EvmAsm.Evm64
@@ -656,5 +657,146 @@ theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_word (sp base : Word)
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
     hbnz hb3z hb2nz hshift_nz halign hbltu_1 hbltu_0 hcarry2
     hdiv0 hdiv1 hdiv2 hdiv3
+
+/-- Arithmetic-assumption version of
+    `evm_div_n3_stack_pre_to_callable_post_v4_scratch_word`. -/
+theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_of_mulsub_overestimate
+    (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (raVal : Word)
+    (hbnz : b ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu_1 : bltu_1 =
+      BitVec.ult (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.2
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.1)
+    (hbltu_0 : bltu_0 =
+      match bltu_1, hbltu_1 with
+      | false, _ =>
+        BitVec.ult
+          (iterN3Max
+            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).1
+            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).2.1
+            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.1
+            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.1
+            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.1
+            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.2
+            (0 : Word)).2.2.2.1
+          (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+            (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      | true, _ =>
+        BitVec.ult
+          (iterWithDoubleAddback
+            (divKTrialCallV4QHat
+              (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+                (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.2
+              (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+                (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.1
+              (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+                (b.getLimbN 2) (b.getLimbN 3)).2.2.1)
+            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).1
+            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).2.1
+            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+            (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.1
+            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.1
+            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.1
+            (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.2
+            (0 : Word)).2.2.2.1
+          (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+            (b.getLimbN 2) (b.getLimbN 3)).2.2.1)
+    (hcarry2 : Carry2NzAll
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2)
+    (hmulsub :
+      EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) =
+        (((fullDivN3R1V4 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat *
+            2^64 +
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat) *
+          EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) +
+        EvmWord.val256
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1)
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1)
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1)
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+          EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ≤
+        ((fullDivN3R1V4 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat *
+            2^64 +
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat) :
+    cpsTripleWithin ((8 + 21 + 24 + 4 + 21 + 21 + 4 + 448) + (2 + 23 + 10))
+      base (base + nopOff) (divCode_v4 base)
+      (divModStackDispatchPreNoX1 sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
+        ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       ((sp + signExtend12 3936) ↦ₘ
+        fullDivN3ScratchMemV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          scratchMem)) := by
+  have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  have hdivWord :=
+    fullDivN3QuotientWordV4_eq_div_of_limbs_mulsub_overestimate
+      bltu_1 bltu_0 (a := a) (b := b)
+      (a0 := a.getLimbN 0) (a1 := a.getLimbN 1)
+      (a2 := a.getLimbN 2) (a3 := a.getLimbN 3)
+      (b0 := b.getLimbN 0) (b1 := b.getLimbN 1)
+      (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
+      rfl rfl rfl rfl rfl rfl rfl rfl hbnz' hmulsub hge
+  exact evm_div_n3_stack_pre_to_callable_post_v4_scratch_word
+    sp base a b v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+    hbnz hb3z hb2nz hshift_nz halign hbltu_1 hbltu_0 hcarry2 hdivWord
 
 end EvmAsm.Evm64
