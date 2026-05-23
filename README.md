@@ -203,6 +203,13 @@ EvmAsm/
     Shift/                    --   SHR/SHL/SAR (Program + LimbSpec + ShlSpec + SarSpec + Compose + ShlCompose + SarCompose + Semantic + ShlSemantic + SarSemantic)
     Byte/                     --   BYTE (Program + LimbSpec + Spec)
     zkvm-standards/           --   Submodule: zkVM RISC-V target standards
+  Codegen/                    -- RV64 assembly emitter + program registry
+    Programs.lean             --   Registry hub for `BuildUnit` probes
+    Programs/                 --   Submodules: Evm.lean, HashBridge.lean,
+                              --     Ssz.lean, RlpRead.lean, Mpt.lean —
+                              --     RV64 macro-asm helpers implementing
+                              --     pieces of run_stateless_guest
+                              --     (UNPROVED scaffolding; see below)
 EvmAsm.lean                  -- Top-level module hub
 EvmAsm/Rv64.lean             -- Rv64 module hub
 EvmAsm/Evm64.lean            -- Evm64 module hub
@@ -239,6 +246,60 @@ and `ziskemu`. The Zisk emulator can be installed with
 followed by `~/.zisk/bin/ziskup --nokey -y` to skip the proving-key
 download (we only need the emulator). Codegen also has an `--asm-only`
 mode for CI hosts without the cross toolchain.
+
+### Stateless-guest scaffold (currently **unproved**)
+
+`EvmAsm/Codegen/Programs.lean` (and the submodules under
+`EvmAsm/Codegen/Programs/`) host a growing set of RV64IM macro-assembly
+helpers that implement pieces of the Ethereum `run_stateless_guest`
+entry point — RLP primitives (`rlp_list_nth_item`,
+`rlp_encode_bytes`, `rlp_encode_list_prefix`, …), transaction
+field accessors (legacy / EIP-1559 / EIP-2930 / EIP-4844 / EIP-7702
+decoders, intrinsic-gas helpers, signature extraction, …), account
+and MPT primitives (`account_decode`, `account_at_address`,
+`account_extract_*`, `mpt_walk`, `mpt_branch_*`, `mpt_compact_*`,
+…), block-body helpers (`block_body_decode`,
+`block_count_transactions`, withdrawal RLP/hash, …), and address
+derivation (`address_compute_create`, `address_compute_create2`,
+`address_from_pubkey`). The catalogue is tracked under the
+`PR-K*` series in [`PLAN.md`](PLAN.md).
+
+**These programs carry no Lean Hoare-triple / CPS-spec proofs
+yet.** The "0 `sorry`, 0 `axiom`" invariant in the Status section
+below applies to the verified RV64 core, the per-opcode handlers
+under `EvmAsm/Evm64/<Op>/`, and the tactic / separation-logic
+infrastructure. The stateless-guest helpers are scaffolding: they
+ship as `def *Function : String` raw-asm bodies emitted by
+`lake exe codegen`, registered through `BuildUnit` probes, and
+exercised end-to-end on ziskemu against the
+[`execution-specs`](execution-specs/) Python reference via the
+`scripts/codegen-zisk-*-check.sh` fixtures (one script per PR).
+What that gives us today:
+
+- Each helper is built and executed on ziskemu against a Python
+  reference fixture; CI re-runs the same fixtures on every PR.
+- Function signatures, memory layouts, and side-effect contracts
+  are documented in the doc-comment above each `*Function` def
+  (`Calling convention`, `Composes`, `Status`) and serve as the
+  prose precondition for the future CPS triple.
+- Each `Spec.lean` slot in the eventual proof tree is reserved by
+  a one-line stub placeholder so the import graph is stable from
+  day one.
+
+What it does **not** give us — and the gap to close before any of
+these helpers is on the same footing as the opcode handlers:
+
+- No `cpsTripleWithin N` Hoare triple — neither a step-bound `N`
+  nor a verified pre/postcondition.
+- No machine-checked link between the doc-comment contract and
+  the assembled bytes; only the test fixtures pin behaviour.
+- The RLP, MPT, signature, and address-derivation helpers
+  currently have **no `@[spec_gen_rv64]` placeholders** wired in,
+  so they aren't visible to the existing automation.
+
+In short: today they are tested code with prose specs, not
+proved code. Future PRs will add per-helper `Spec.lean` triples
+and progressively reduce the unproved surface.
 
 ## Building
 
@@ -334,6 +395,13 @@ Top-line invariants:
   `EvmAsm.Evm64.EvmOpcode`.
 - **Codegen**: M0–M4 of [`CODEGEN.md`](CODEGEN.md) shipped; M5 (tiny EVM
   interpreter) is next.
+- **Stateless-guest scaffold** (`PR-K*` series): unproved RV64
+  macro-asm helpers for RLP, MPT, transaction decoding,
+  account / block-body accessors, and address derivation. Each
+  helper has end-to-end ziskemu fixtures against the Python
+  reference but **no Hoare-triple specs yet**; see the
+  ["Stateless-guest scaffold" subsection](#stateless-guest-scaffold-currently-unproved)
+  above for the verification status and proof gap.
 - **Roadmap**: the long-form opcode-by-opcode plan lives in
   [`PLAN.md`](PLAN.md); the L1-zkEVM context lives in
   [`PROGRESS.md`](PROGRESS.md)'s "Role in the L1-zkEVM stack" section.
