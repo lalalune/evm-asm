@@ -595,6 +595,47 @@ theorem evm_mod_callable_v4_n3_stack_pre_to_callable_post_scratch_of_val256_path
     hbnz hb3z hb2nz hshift_nz halign
     (fullModN3PathConditionsWordV4_of_val256 bltu_1 bltu_0 a b hbnz' hpath)
 
+/-- Callable-program N3 v4 MOD surface from the normalized scaled-remainder
+path predicate. This is the closest caller-facing wrapper to the remaining
+loop arithmetic obligation. -/
+theorem evm_mod_callable_v4_n3_stack_pre_to_callable_post_scratch_of_scaled_path_conditions
+    (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (raVal : Word)
+    (hbnz : b ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hpath : fullModN3PathConditionsScaledV4 bltu_1 bltu_0 a b) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_mod_callable_code_v4 base)
+      (divModStackDispatchPreNoX1 sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
+        ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (modStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       ((sp + signExtend12 3936) ↦ₘ
+        fullDivN3ScratchMemV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          scratchMem)) := by
+  have hshift_nz' : fullDivN3Shift (b.getLimbN 2) ≠ 0 := by
+    rw [fullDivN3Shift]
+    exact hshift_nz
+  exact evm_mod_callable_v4_n3_stack_pre_to_callable_post_scratch_of_val256_path_conditions
+    sp base a b v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+    hbnz hb3z hb2nz hshift_nz halign
+    (fullModN3PathConditionsVal256V4_of_scaled bltu_1 bltu_0 a b hshift_nz' hpath)
+
 theorem evm_mod_callable_v4_spec_from_noNop (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7

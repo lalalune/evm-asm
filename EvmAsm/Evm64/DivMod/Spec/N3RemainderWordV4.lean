@@ -170,6 +170,31 @@ abbrev fullModN3PathConditionsVal256V4 (bltu_1 bltu_0 : Bool)
       EvmWord.val256
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
+/-- MOD-specific N3 v4 path predicate at the normalized-remainder level.
+This is the shape expected from the remaining loop arithmetic proof: the
+normalized final remainder is the true EVM remainder scaled by `2^shift`. -/
+abbrev fullModN3PathConditionsScaledV4 (bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) : Prop :=
+  fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b ∧
+  EvmWord.val256
+    (fullDivN3R0V4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+    (fullDivN3R0V4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+    (fullDivN3R0V4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+    (fullDivN3R0V4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 =
+    EvmWord.val256
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) %
+      EvmWord.val256
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+      2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat
+
 theorem fullModN3PathConditionsWordV4_of_val256
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
@@ -300,6 +325,16 @@ theorem fullModN3RemainderVal256V4_eq_mod_of_scaled_remainder_shift_ne
     (fullDivN3Shift_toNat_mod_eq (b.getLimbN 2))
     (fullDivN3AntiShift_toNat_mod_eq_of_shift_ne hshift_nz)
     hscaled
+
+theorem fullModN3PathConditionsVal256V4_of_scaled
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hshift_nz : fullDivN3Shift (b.getLimbN 2) ≠ 0)
+    (hpath : fullModN3PathConditionsScaledV4 bltu_1 bltu_0 a b) :
+    fullModN3PathConditionsVal256V4 bltu_1 bltu_0 a b := by
+  obtain ⟨hdivPath, hscaled⟩ := hpath
+  exact ⟨hdivPath,
+    fullModN3RemainderVal256V4_eq_mod_of_scaled_remainder_shift_ne
+      bltu_1 bltu_0 a b hshift_nz hscaled⟩
 
 theorem fullModN3RemainderWordV4_eq_mod_of_mod_path_conditions
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
