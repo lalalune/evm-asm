@@ -1587,6 +1587,179 @@ def ziskTxEip7702ExtractSignatureProbeUnit : BuildUnit := {
   dataAsm     := ziskTxEip7702ExtractSignatureDataSection
 }
 
+/-! ## eip7702_authorization_extract_signature -- PR-K143
+
+    Extract `(y_parity, r, s)` from a single EIP-7702
+    *authorization tuple*. Each entry inside an EIP-7702
+    transaction's `authorization_list` is a 6-field RLP list:
+
+      authorization = rlp([chain_id, address, nonce,
+                           y_parity, r, s])
+
+    so the signature triple sits at fields 3/4/5 of a 6-field
+    list — one field earlier on each axis than the legacy tx
+    layout because there is no `data`, `to`, or `access_list`
+    field in an authorization tuple.
+
+    Companion to PR-K142 `tx_eip7702_extract_signature`, which
+    extracts the *outer* transaction signature. EIP-7702 carries
+    two layers of signatures:
+
+      * Outer transaction sig (K142): authorises the whole tx.
+      * Per-authorization sig (K143): authorises a single
+        `(chain_id, address, nonce)` delegation to be applied
+        before the tx body runs.
+
+    The full sender-recovery pipeline for an EIP-7702 delegation:
+      1. K143 extracts (y_parity, r, s) from the authorization
+         tuple.
+      2. tx_eip7702_authorization_signing_hash (future) =
+         keccak256(MAGIC || rlp([chain_id, address, nonce]))
+         where `MAGIC = 0x05` per the EIP.
+      3. `zkvm_secp256k1_ecrecover` → 64-byte pubkey of the
+         **delegator** (not the tx sender).
+      4. K99 `address_from_pubkey` → 20-byte delegator address.
+
+    The caller is responsible for first using K20
+    `rlp_list_nth_item` to extract the i-th authorization tuple
+    from `authorization_list`; K143 operates on the already-
+    extracted tuple bytes.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` on fields 3, 4, 5
+
+    Calling convention:
+      a0 (input)  : authorization_tuple_rlp ptr
+      a1 (input)  : authorization_tuple_rlp byte length
+      a2 (input)  : y_parity u64 out ptr
+      a3 (input)  : r 32-byte BE out ptr
+      a4 (input)  : s 32-byte BE out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / fields 3/4/5 missing
+        2 : y_parity > 8 bytes or r/s > 32 bytes -/
+def eip7702AuthorizationExtractSignatureFunction : String :=
+  "eip7702_authorization_extract_signature:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # tuple_rlp ptr\n" ++
+  "  mv s1, a1                   # tuple_rlp len\n" ++
+  "  mv s2, a2                   # y_parity out\n" ++
+  "  mv s3, a3                   # r out (32 B)\n" ++
+  "  mv s4, a4                   # s out (32 B)\n" ++
+  "  # ---- Field 3: y_parity (uint <= 8 bytes) → u64 ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
+  "  la a3, ta77es_offset; la a4, ta77es_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lta77es_fail\n" ++
+  "  la t0, ta77es_length; ld t1, 0(t0)\n" ++
+  "  li t2, 8\n" ++
+  "  bgtu t1, t2, .Lta77es_size\n" ++
+  "  la t0, ta77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  li t2, 0\n" ++
+  ".Lta77es_yloop:\n" ++
+  "  beqz t1, .Lta77es_ydone\n" ++
+  "  slli t2, t2, 8\n" ++
+  "  lbu t4, 0(t3)\n" ++
+  "  or t2, t2, t4\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lta77es_yloop\n" ++
+  ".Lta77es_ydone:\n" ++
+  "  sd t2, 0(s2)\n" ++
+  "  # ---- Field 4: r (u256 BE <= 32 bytes) ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
+  "  la a3, ta77es_offset; la a4, ta77es_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lta77es_fail\n" ++
+  "  la t0, ta77es_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Lta77es_size\n" ++
+  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
+  "  sub t2, t2, t1\n" ++
+  "  add t4, s3, t2\n" ++
+  "  la t0, ta77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  ".Lta77es_rloop:\n" ++
+  "  beqz t1, .Lta77es_rdone\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb  t5, 0(t4)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lta77es_rloop\n" ++
+  ".Lta77es_rdone:\n" ++
+  "  # ---- Field 5: s (u256 BE <= 32 bytes) ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
+  "  la a3, ta77es_offset; la a4, ta77es_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lta77es_fail\n" ++
+  "  la t0, ta77es_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Lta77es_size\n" ++
+  "  sd zero,  0(s4); sd zero,  8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
+  "  sub t2, t2, t1\n" ++
+  "  add t4, s4, t2\n" ++
+  "  la t0, ta77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  ".Lta77es_sloop:\n" ++
+  "  beqz t1, .Lta77es_sdone\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb  t5, 0(t4)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lta77es_sloop\n" ++
+  ".Lta77es_sdone:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lta77es_ret\n" ++
+  ".Lta77es_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lta77es_ret\n" ++
+  ".Lta77es_size:\n" ++
+  "  li a0, 2\n" ++
+  ".Lta77es_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_eip7702_authorization_extract_signature`: probe BuildUnit.
+    Input layout (after the host header):
+      bytes  0.. 8 : tuple_rlp_len
+      bytes  8..   : tuple_rlp -/
+def ziskEip7702AuthorizationExtractSignaturePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # tuple_rlp_len\n" ++
+  "  addi a0, a5, 16             # tuple_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # y_parity out\n" ++
+  "  li a3, 0xa0010010           # r out (32 B)\n" ++
+  "  li a4, 0xa0010030           # s out (32 B)\n" ++
+  "  jal ra, eip7702_authorization_extract_signature\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lta77es_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  eip7702AuthorizationExtractSignatureFunction ++ "\n" ++
+  ".Lta77es_pdone:"
+
+def ziskEip7702AuthorizationExtractSignatureDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "ta77es_offset:\n" ++
+  "  .zero 8\n" ++
+  "ta77es_length:\n" ++
+  "  .zero 8"
+
+def ziskEip7702AuthorizationExtractSignatureProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskEip7702AuthorizationExtractSignaturePrologue
+  dataAsm     := ziskEip7702AuthorizationExtractSignatureDataSection
+}
+
 /-! ## blob_gas_used_from_versioned_hashes -- PR-K64
 
     Compute the EIP-4844 `blob_gas_used` field as:
