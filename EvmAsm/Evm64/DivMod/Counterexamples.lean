@@ -149,7 +149,7 @@ theorem div128Quot_v4_counterexampleA_within_two_addbacks :
 theorem n4CallAddbackBeqSemanticHolds_counterexampleA_v4 :
     n4CallAddbackBeqSemanticHolds ceA_a ceA_b := by
   rw [n4CallAddbackBeqSemantic_unfold]
-  native_decide
+  decide
 
 /-- Per-counterexample regression pin: the executable DIV body is on the v4
     path, and the normalized trial quotient for counterexample A has the v4
