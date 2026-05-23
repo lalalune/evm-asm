@@ -142,4 +142,67 @@ theorem loopN2CallCallCallSourceSpec_unfold (sp base : Word)
   delta loopN2CallCallCallSourceSpec
   rfl
 
+/-- Inputs for the n=2 call×call×call v4/no-NOP source path, bundled so the
+    eventual source theorem does not expose a large telescoped parameter list. -/
+structure LoopN2CallCallCallSourceInput where
+  sp : Word
+  base : Word
+  jOld : Word
+  v5Old : Word
+  v6Old : Word
+  v7Old : Word
+  v10Old : Word
+  v11Old : Word
+  v2Old : Word
+  v0 : Word
+  v1 : Word
+  v2 : Word
+  v3 : Word
+  u0 : Word
+  u1 : Word
+  u2 : Word
+  u3 : Word
+  uTop : Word
+  u0Orig1 : Word
+  u0Orig0 : Word
+  q2Old : Word
+  q1Old : Word
+  q0Old : Word
+  raVal : Word
+  retMem : Word
+  dMem : Word
+  dloMem : Word
+  scratchUn0 : Word
+  scratchMem : Word
+
+@[irreducible]
+def LoopN2CallCallCallSourceInput.Conds (I : LoopN2CallCallCallSourceInput) : Prop :=
+  loopN2CallCallCallSourceConds I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+    I.u0Orig1 I.u0Orig0
+
+@[irreducible]
+def LoopN2CallCallCallSourceInput.Spec (I : LoopN2CallCallCallSourceInput) : Prop :=
+  loopN2CallCallCallSourceSpec I.sp I.base I.jOld I.v5Old I.v6Old I.v7Old I.v10Old
+    I.v11Old I.v2Old I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+    I.u0Orig1 I.u0Orig0 I.q2Old I.q1Old I.q0Old I.raVal I.retMem I.dMem I.dloMem
+    I.scratchUn0 I.scratchMem
+
+theorem LoopN2CallCallCallSourceInput.Conds_unfold
+    (I : LoopN2CallCallCallSourceInput) :
+    I.Conds =
+      loopN2CallCallCallSourceConds I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig1 I.u0Orig0 := by
+  delta LoopN2CallCallCallSourceInput.Conds
+  rfl
+
+theorem LoopN2CallCallCallSourceInput.Spec_unfold
+    (I : LoopN2CallCallCallSourceInput) :
+    I.Spec =
+      loopN2CallCallCallSourceSpec I.sp I.base I.jOld I.v5Old I.v6Old I.v7Old I.v10Old
+        I.v11Old I.v2Old I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig1 I.u0Orig0 I.q2Old I.q1Old I.q0Old I.raVal I.retMem I.dMem I.dloMem
+        I.scratchUn0 I.scratchMem := by
+  delta LoopN2CallCallCallSourceInput.Spec
+  rfl
+
 end EvmAsm.Evm64
