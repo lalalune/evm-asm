@@ -13380,6 +13380,8 @@ def ziskMptExtensionExtractProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskMptExtensionExtractPrologue
   dataAsm     := ziskMptExtensionExtractDataSection
+}
+
 /-! ## mpt_branch_used_count -- PR-K117
 
     Count the number of non-empty child slots in an MPT branch
