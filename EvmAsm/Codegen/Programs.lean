@@ -2517,10 +2517,115 @@ def ziskAccountHasEmptyCodeProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountHasEmptyCodeDataSection
 }
 
+/-! ## account_storage_root_is_empty -- PR-K133
+
+    Predicate: does this account's `storage_root` field equal
+    `EMPTY_TRIE_ROOT = keccak256(rlp.encode(b''))`?
+
+      EMPTY_TRIE_ROOT =
+        0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421
+
+    A `true` result means the account has no storage entries
+    (its storage trie is empty). EOAs and untouched contracts
+    carry this canonical empty value.
+
+    Companion to PR-K131 `account_has_empty_code` (the code-side
+    EOA predicate) and PR-K123 `account_is_empty` (the EIP-161
+    nonce+balance+code variant — but explicitly *not* requiring
+    empty storage).
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — field 2 bounds
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : u64 out ptr (1 if storage_root == EMPTY_TRIE_ROOT,
+                                 0 otherwise)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse failure / field 2 missing
+        2 : field 2 length != 32 -/
+def accountStorageRootIsEmptyFunction : String :=
+  "account_storage_root_is_empty:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # account_ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # u64 out ptr\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  la a3, asrie_offset; la a4, asrie_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lasrie_parse_fail\n" ++
+  "  la t0, asrie_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lasrie_size_fail\n" ++
+  "  la t0, asrie_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  la t4, asrie_empty_trie_root\n" ++
+  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lasrie_neq\n" ++
+  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lasrie_neq\n" ++
+  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lasrie_neq\n" ++
+  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lasrie_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lasrie_ret\n" ++
+  ".Lasrie_neq:\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lasrie_ret\n" ++
+  ".Lasrie_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lasrie_ret\n" ++
+  ".Lasrie_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lasrie_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_account_storage_root_is_empty`: probe BuildUnit. -/
+def ziskAccountStorageRootIsEmptyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # account_rlp_len\n" ++
+  "  addi a0, a3, 16             # account_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # is_empty out\n" ++
+  "  jal ra, account_storage_root_is_empty\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lasrie_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountStorageRootIsEmptyFunction ++ "\n" ++
+  ".Lasrie_pdone:"
+
+def ziskAccountStorageRootIsEmptyDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "asrie_offset:\n" ++
+  "  .zero 8\n" ++
+  "asrie_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "asrie_empty_trie_root:\n" ++
+  "  .byte 0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6\n" ++
+  "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
+  "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
+  "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21"
+
+def ziskAccountStorageRootIsEmptyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountStorageRootIsEmptyPrologue
+  dataAsm     := ziskAccountStorageRootIsEmptyDataSection
+}
+
 /-! ## rlp_list_count_items -- PR-K47
     The function body now lives in `EvmAsm/Codegen/Programs/RlpRead.lean`
-    (see PR #5900). Only the zisk probe BuildUnit remains here. -/
-/-- `zisk_rlp_list_count_items`: probe BuildUnit. Reads
+    (see PR #5900). Only the zisk probe BuildUnit remains here. -//-- `zisk_rlp_list_count_items`: probe BuildUnit. Reads
     (list_len, list_bytes) from host input, writes
     (status, count) to OUTPUT. -/
 def ziskRlpListCountItemsPrologue : String :=
@@ -14370,6 +14475,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_extract_code_hash" => some ziskAccountExtractCodeHashProbeUnit
   | "zisk_account_is_empty"     => some ziskAccountIsEmptyProbeUnit
   | "zisk_account_has_empty_code" => some ziskAccountHasEmptyCodeProbeUnit
+  | "zisk_account_storage_root_is_empty" => some ziskAccountStorageRootIsEmptyProbeUnit
   | "zisk_address_from_pubkey"  => some ziskAddressFromPubkeyProbeUnit
   | "zisk_address_compute_create2" => some ziskAddressComputeCreate2ProbeUnit
   | "zisk_address_compute_create" => some ziskAddressComputeCreateProbeUnit
@@ -14517,6 +14623,7 @@ def knownProgramNames : List String :=
    "zisk_account_extract_code_hash",
    "zisk_account_is_empty",
    "zisk_account_has_empty_code",
+   "zisk_account_storage_root_is_empty",
    "zisk_address_from_pubkey",
    "zisk_address_compute_create2",
    "zisk_address_compute_create",
