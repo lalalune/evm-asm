@@ -1702,6 +1702,119 @@ def ziskAccountValidateCodeHashProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountValidateCodeHashDataSection
 }
 
+/-! ## account_nonce_eq -- PR-K136
+
+    Narrow equality predicate on an account's `nonce` field:
+    does `RLP-decoded(account.nonce) == expected_nonce` ?
+
+    Field 0 of `[nonce, balance, storage_root, code_hash]` is the
+    RLP-canonical big-endian encoding of the account nonce. EOA
+    nonces fit comfortably in u64 — the RLP-canonical encoding
+    omits leading zeros, so the encoded length is in `0..8` for any
+    realistic account. K27 `account_decode` already big-endian-
+    decodes this field to a u64 as part of full-record extraction;
+    K136 is the narrower accessor for callers that only need the
+    equality check and don't want to allocate the 96-byte struct.
+
+    Used by:
+      * sender-validation in `check_transaction` (asserts
+        `tx.nonce == account.nonce` before charging gas)
+      * EIP-7702 authorization-list checks
+        (`authorization.nonce == account.nonce`)
+      * post-tx state validation (asserts the post-state account
+        has the bumped nonce)
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — field 0 bounds
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : expected_nonce (u64, native)
+      a3 (input)  : u64 out ptr (1 if equal, 0 if not)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse failure / field 0 missing / nonce > 8 bytes -/
+def accountNonceEqFunction : String :=
+  "account_nonce_eq:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # account_ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # expected_nonce\n" ++
+  "  mv s3, a3                   # is_equal out\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
+  "  la a3, ane_offset; la a4, ane_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lane_fail\n" ++
+  "  la t0, ane_length; ld t1, 0(t0)\n" ++
+  "  li t2, 8\n" ++
+  "  bgtu t1, t2, .Lane_fail      # nonce > 8 bytes\n" ++
+  "  la t0, ane_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  li t2, 0                    # u64 accumulator\n" ++
+  ".Lane_loop:\n" ++
+  "  beqz t1, .Lane_done\n" ++
+  "  slli t2, t2, 8\n" ++
+  "  lbu t4, 0(t3)\n" ++
+  "  or t2, t2, t4\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lane_loop\n" ++
+  ".Lane_done:\n" ++
+  "  bne t2, s2, .Lane_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lane_ret\n" ++
+  ".Lane_neq:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lane_ret\n" ++
+  ".Lane_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lane_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_account_nonce_eq`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : account_rlp_len
+      bytes  8..16 : expected_nonce (u64 LE)
+      bytes 16..   : account_rlp -/
+def ziskAccountNonceEqPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # account_rlp_len\n" ++
+  "  ld a2, 16(a4)               # expected_nonce\n" ++
+  "  addi a0, a4, 24             # account_rlp ptr\n" ++
+  "  li a3, 0xa0010008           # is_equal out\n" ++
+  "  jal ra, account_nonce_eq\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lane_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountNonceEqFunction ++ "\n" ++
+  ".Lane_pdone:"
+
+def ziskAccountNonceEqDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "ane_offset:\n" ++
+  "  .zero 8\n" ++
+  "ane_length:\n" ++
+  "  .zero 8"
+
+def ziskAccountNonceEqProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountNonceEqPrologue
+  dataAsm     := ziskAccountNonceEqDataSection
+}
+
 /-! ## account_extract_storage_root -- PR-K119
 
     Extract the 32-byte `storage_root` field (RLP field 2) from a
@@ -1805,124 +1918,9 @@ def ziskAccountExtractStorageRootProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountExtractStorageRootDataSection
 }
 
-/-! ## rlp_list_count_items -- PR-K47 top-level item counter
-
-    Walk an RLP-encoded list once and return the number of
-    top-level items it contains. Building block for callers
-    that need cardinality but not the items themselves:
-    `access_list_count`, `authorization_list_count`,
-    `blob_versioned_hashes_count`, `tx_count_per_block`.
-
-    Mirrors the item-skip logic in PR-K20 `rlp_list_nth_item`
-    but doesn't track a target index; counts every item it
-    can walk past until the list payload ends.
-
-    Calling convention:
-      a0 (input)  : list bytes ptr (start of outer RLP list
-                    prefix, byte 0xc0..0xff)
-      a1 (input)  : total list byte length (full encoded item
-                    incl. prefix)
-      a2 (input)  : u64 out ptr (receives count on success)
-      ra (input)  : return
-      a0 (output) : 0 on success, 1 on parse error
-                    (not a list, truncated, item runs past end)
-
-    Pure register arithmetic except for the count store; no
-    scratch memory; leaf-callable. -/
-def rlpListCountItemsFunction : String :=
-  "rlp_list_count_items:\n" ++
-  "  beqz a1, .Lrlc_fail        # empty input cannot encode a list\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lrlc_fail    # not an RLP list\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lrlc_short_outer\n" ++
-  "  # Long outer list: prefix bytes = 1 + (t0 - 0xf7)\n" ++
-  "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  addi t2, t2, 1             # total prefix bytes\n" ++
-  "  add t3, a0, t2             # cursor at first item\n" ++
-  "  j .Lrlc_walk\n" ++
-  ".Lrlc_short_outer:\n" ++
-  "  addi t3, a0, 1\n" ++
-  ".Lrlc_walk:\n" ++
-  "  add t4, a0, a1             # end-of-list cursor (exclusive)\n" ++
-  "  li t5, 0                   # count\n" ++
-  ".Lrlc_loop:\n" ++
-  "  beq t3, t4, .Lrlc_done\n" ++
-  "  bgtu t3, t4, .Lrlc_fail    # cursor walked past end → malformed\n" ++
-  "  lbu t0, 0(t3)\n" ++
-  "  li t1, 0x80\n" ++
-  "  bltu t0, t1, .Lrlc_skip_single\n" ++
-  "  li t1, 0xb8\n" ++
-  "  bltu t0, t1, .Lrlc_skip_short_str\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lrlc_skip_long_str\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lrlc_skip_short_list\n" ++
-  "  # Long list at t3: lol = t0 - 0xf7\n" ++
-  "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  li a3, 0                   # decoded length accumulator\n" ++
-  "  mv a4, t2                  # remaining length bytes\n" ++
-  "  addi a5, t3, 1\n" ++
-  ".Lrlc_skll_be:\n" ++
-  "  beqz a4, .Lrlc_skll_done\n" ++
-  "  slli a3, a3, 8\n" ++
-  "  lbu a6, 0(a5)\n" ++
-  "  or  a3, a3, a6\n" ++
-  "  addi a5, a5, 1\n" ++
-  "  addi a4, a4, -1\n" ++
-  "  j .Lrlc_skll_be\n" ++
-  ".Lrlc_skll_done:\n" ++
-  "  addi a6, t2, 1\n" ++
-  "  add  a6, a6, a3            # 1 + lol + decoded\n" ++
-  "  add  t3, t3, a6\n" ++
-  "  j .Lrlc_step\n" ++
-  ".Lrlc_skip_short_list:\n" ++
-  "  li t1, 0xc0\n" ++
-  "  sub a6, t0, t1\n" ++
-  "  addi a6, a6, 1             # 1 + (t0 - 0xc0)\n" ++
-  "  add  t3, t3, a6\n" ++
-  "  j .Lrlc_step\n" ++
-  ".Lrlc_skip_long_str:\n" ++
-  "  li t1, 0xb7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  li a3, 0\n" ++
-  "  mv a4, t2\n" ++
-  "  addi a5, t3, 1\n" ++
-  ".Lrlc_skls_be:\n" ++
-  "  beqz a4, .Lrlc_skls_done\n" ++
-  "  slli a3, a3, 8\n" ++
-  "  lbu a6, 0(a5)\n" ++
-  "  or  a3, a3, a6\n" ++
-  "  addi a5, a5, 1\n" ++
-  "  addi a4, a4, -1\n" ++
-  "  j .Lrlc_skls_be\n" ++
-  ".Lrlc_skls_done:\n" ++
-  "  addi a6, t2, 1\n" ++
-  "  add  a6, a6, a3\n" ++
-  "  add  t3, t3, a6\n" ++
-  "  j .Lrlc_step\n" ++
-  ".Lrlc_skip_short_str:\n" ++
-  "  li t1, 0x80\n" ++
-  "  sub a6, t0, t1\n" ++
-  "  addi a6, a6, 1\n" ++
-  "  add  t3, t3, a6\n" ++
-  "  j .Lrlc_step\n" ++
-  ".Lrlc_skip_single:\n" ++
-  "  addi t3, t3, 1\n" ++
-  ".Lrlc_step:\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  j .Lrlc_loop\n" ++
-  ".Lrlc_done:\n" ++
-  "  sd t5, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lrlc_fail:\n" ++
-  "  sd zero, 0(a2)\n" ++
-  "  li a0, 1\n" ++
-  "  ret"
+/-! ## rlp_list_count_items -- PR-K47
+    The function body now lives in `EvmAsm/Codegen/Programs/RlpRead.lean`
+    (see PR #5900). Only the zisk probe BuildUnit remains here. -/
 
 /-- `zisk_rlp_list_count_items`: probe BuildUnit. Reads
     (list_len, list_bytes) from host input, writes
@@ -12514,6 +12512,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_validate_parent_hash" => some ziskHeaderValidateParentHashProbeUnit
   | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
   | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
+  | "zisk_account_nonce_eq" => some ziskAccountNonceEqProbeUnit
   | "zisk_account_extract_storage_root" => some ziskAccountExtractStorageRootProbeUnit
   | "zisk_address_from_pubkey"  => some ziskAddressFromPubkeyProbeUnit
   | "zisk_mpt_account_path_nibbles" => some ziskMptAccountPathNibblesProbeUnit
@@ -12646,6 +12645,7 @@ def knownProgramNames : List String :=
    "zisk_header_validate_parent_hash",
    "zisk_header_chain_walk_step",
    "zisk_account_validate_code_hash",
+   "zisk_account_nonce_eq",
    "zisk_account_extract_storage_root",
    "zisk_address_from_pubkey",
    "zisk_mpt_account_path_nibbles",
