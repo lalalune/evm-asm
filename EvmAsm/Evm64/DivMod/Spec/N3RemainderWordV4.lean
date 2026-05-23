@@ -228,6 +228,59 @@ abbrev fullDivN3NormalizedMulSubEqV4 (bltu_1 bltu_0 : Bool)
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1
 
+/-- Raw normalized conservation equation for the N3 v4 final state, before
+separately proving that the final overflow carry is zero. This matches the
+shape produced by `iterWithDoubleAddback` conservation. -/
+abbrev fullDivN3NormalizedConservationV4 (bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) : Prop :=
+  EvmWord.val256
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) *
+      2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat =
+    (((fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat *
+        2 ^ 64 +
+      ((fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1).toNat) *
+      (EvmWord.val256
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
+        2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat) +
+    EvmWord.val256
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 +
+    ((fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.2).toNat *
+      2 ^ 256
+
+abbrev fullDivN3FinalCarryZeroV4 (bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) : Prop :=
+  (fullDivN3R0V4 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.2 = 0
+
+theorem fullDivN3NormalizedMulSubEqV4_of_conservation
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hcons : fullDivN3NormalizedConservationV4 bltu_1 bltu_0 a b)
+    (hcarry_zero : fullDivN3FinalCarryZeroV4 bltu_1 bltu_0 a b) :
+    fullDivN3NormalizedMulSubEqV4 bltu_1 bltu_0 a b := by
+  unfold fullDivN3NormalizedConservationV4 at hcons
+  unfold fullDivN3FinalCarryZeroV4 at hcarry_zero
+  unfold fullDivN3NormalizedMulSubEqV4
+  rw [hcarry_zero] at hcons
+  simpa using hcons
+
 /-- Normalized remainder bound paired with
 `fullDivN3NormalizedMulSubEqV4`. Together these are the standard Euclidean
 facts needed to recover the EVM MOD remainder. -/
