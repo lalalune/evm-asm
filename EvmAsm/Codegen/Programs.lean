@@ -10408,6 +10408,179 @@ def ziskReceiptEncodeProbeUnit : BuildUnit := {
   dataAsm     := ziskReceiptEncodeDataSection
 }
 
+/-! ## single_leaf_trie_root -- PR-K157
+
+    Compute the Merkle-Patricia-Trie root for a trie containing
+    *exactly one* (key, value) entry:
+
+      path_nibbles = bytes_to_nibbles(key)
+      hp_path      = hp_encode_nibbles(path_nibbles, is_leaf=true)
+      leaf_node    = rlp([hp_path, value])
+      trie_root    = keccak256(leaf_node)
+
+    Direct counterpart of PR-K33 `state_root_single_account`,
+    generalised for arbitrary `(key, value)` pairs.
+
+    Use cases:
+      * `transactions_root` for a single-tx block: key = rlp(0),
+        value = tx_rlp (typed envelope or legacy RLP).
+      * `withdrawals_root` for a single-withdrawal block: key =
+        rlp(0), value = withdrawal_rlp.
+      * `receipts_root` for a single-receipt block: key = rlp(0),
+        value = receipt_rlp.
+
+    For multi-entry tries this helper does not apply -- those
+    require branch / extension nodes and the full MPT construction
+    machinery (separate PR series).
+
+    Composes:
+      - PR-K25 `bytes_to_nibbles`        -- expand key bytes
+      - PR-K32 `hp_encode_nibbles`       -- HP-encode the path
+      - PR-K128 `rlp_encode_bytes`       -- encode hp_path
+                                            and value as RLP strings
+      - PR-K129 `rlp_encode_list_prefix` -- outer list prefix
+      - `zkvm_keccak256` (HashBridge)    -- root hash
+
+    Calling convention:
+      a0 (input)  : key ptr (raw key bytes)
+      a1 (input)  : key byte length
+      a2 (input)  : value ptr (raw value bytes)
+      a3 (input)  : value byte length
+      a4 (input)  : 32-byte output root ptr
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def singleLeafTrieRootFunction : String :=
+  "single_leaf_trie_root:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # key ptr\n" ++
+  "  mv s1, a1                   # key len\n" ++
+  "  mv s2, a2                   # value ptr\n" ++
+  "  mv s3, a3                   # value len\n" ++
+  "  mv s4, a4                   # output root ptr\n" ++
+  "  # ---- Step 1: expand key bytes to nibbles ----\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, sltr_nibbles\n" ++
+  "  jal ra, bytes_to_nibbles\n" ++
+  "  # a0 = 2 * key_len nibbles emitted -- store for HP step\n" ++
+  "  la t0, sltr_nibble_count; sd a0, 0(t0)\n" ++
+  "  # ---- Step 2: HP-encode the nibbles (leaf=true) ----\n" ++
+  "  la a0, sltr_nibbles\n" ++
+  "  la t0, sltr_nibble_count; ld a1, 0(t0)\n" ++
+  "  li a2, 1                                    # is_leaf = 1\n" ++
+  "  la a3, sltr_hp_buf\n" ++
+  "  jal ra, hp_encode_nibbles\n" ++
+  "  la t0, sltr_hp_len; sd a0, 0(t0)\n" ++
+  "  # ---- Step 3: RLP-encode hp_path into the payload buffer ----\n" ++
+  "  la a0, sltr_hp_buf\n" ++
+  "  la t0, sltr_hp_len; ld a1, 0(t0)\n" ++
+  "  la a2, sltr_payload_buf\n" ++
+  "  la a3, sltr_field_len\n" ++
+  "  jal ra, rlp_encode_bytes\n" ++
+  "  la t0, sltr_field_len; ld t1, 0(t0)         # hp_rlp_len\n" ++
+  "  la t0, sltr_cursor; sd t1, 0(t0)            # cursor = hp_rlp_len\n" ++
+  "  # ---- Step 4: RLP-encode value at payload[cursor..] ----\n" ++
+  "  la t0, sltr_cursor; ld t1, 0(t0)\n" ++
+  "  mv a0, s2; mv a1, s3\n" ++
+  "  la a2, sltr_payload_buf; add a2, a2, t1\n" ++
+  "  la a3, sltr_field_len\n" ++
+  "  jal ra, rlp_encode_bytes\n" ++
+  "  la t0, sltr_field_len; ld t1, 0(t0)         # value_rlp_len\n" ++
+  "  la t0, sltr_cursor; ld t2, 0(t0)\n" ++
+  "  add t2, t2, t1                              # total inner payload len\n" ++
+  "  la t0, sltr_total_payload; sd t2, 0(t0)\n" ++
+  "  # ---- Step 5: write outer list prefix at node_buf[0..] ----\n" ++
+  "  mv a0, t2\n" ++
+  "  la a1, sltr_node_buf\n" ++
+  "  la a2, sltr_field_len\n" ++
+  "  jal ra, rlp_encode_list_prefix\n" ++
+  "  la t0, sltr_field_len; ld t1, 0(t0)         # outer_prefix_len\n" ++
+  "  la t0, sltr_total_payload; ld t2, 0(t0)\n" ++
+  "  # ---- Step 6: copy payload after prefix in node_buf ----\n" ++
+  "  la t3, sltr_node_buf; add t3, t3, t1        # dst\n" ++
+  "  la t4, sltr_payload_buf                     # src\n" ++
+  "  mv t5, t2                                   # remaining\n" ++
+  ".Lsltr_cp:\n" ++
+  "  beqz t5, .Lsltr_cp_done\n" ++
+  "  lbu t6, 0(t4)\n" ++
+  "  sb t6, 0(t3)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  j .Lsltr_cp\n" ++
+  ".Lsltr_cp_done:\n" ++
+  "  add t1, t1, t2                              # full leaf-node RLP length\n" ++
+  "  # ---- Step 7: keccak256(node_buf, full_len) → root ----\n" ++
+  "  la a0, sltr_node_buf\n" ++
+  "  mv a1, t1\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_single_leaf_trie_root`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : key_len
+      bytes  8..16 : value_len
+      bytes 16..16+key_len: key
+      bytes 16+key_len..   : value (8-byte aligned padding)
+    Output layout (256 B):
+      bytes  0..32 : 32-byte trie root -/
+def ziskSingleLeafTrieRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # key_len\n" ++
+  "  ld a3, 16(a5)               # value_len\n" ++
+  "  addi a0, a5, 24             # key ptr\n" ++
+  "  # value ptr = key_ptr + key_len (rounded up to 8B alignment? No, raw).\n" ++
+  "  add a2, a0, a1\n" ++
+  "  li a4, 0xa0010000           # output root ptr (32 B)\n" ++
+  "  jal ra, single_leaf_trie_root\n" ++
+  "  j .Lsltr_pdone\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  singleLeafTrieRootFunction ++ "\n" ++
+  ".Lsltr_pdone:"
+
+def ziskSingleLeafTrieRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "sltr_field_len:\n" ++
+  "  .zero 8\n" ++
+  "sltr_nibble_count:\n" ++
+  "  .zero 8\n" ++
+  "sltr_hp_len:\n" ++
+  "  .zero 8\n" ++
+  "sltr_cursor:\n" ++
+  "  .zero 8\n" ++
+  "sltr_total_payload:\n" ++
+  "  .zero 8\n" ++
+  "sltr_nibbles:\n" ++
+  "  .zero 2048\n" ++
+  "sltr_hp_buf:\n" ++
+  "  .zero 1024\n" ++
+  "sltr_payload_buf:\n" ++
+  "  .zero 16384\n" ++
+  "sltr_node_buf:\n" ++
+  "  .zero 16384"
+
+def ziskSingleLeafTrieRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskSingleLeafTrieRootPrologue
+  dataAsm     := ziskSingleLeafTrieRootDataSection
+}
+
 /-! ## calldata_byte_counts -- PR-K105
 
     Count zero and non-zero bytes in an arbitrary byte buffer.
@@ -11181,6 +11354,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bloom_eq" => some ziskBloomEqProbeUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
+  | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
@@ -11351,6 +11525,7 @@ def knownProgramNames : List String :=
    "zisk_bloom_eq",
    "zisk_rlp_encode_u64",
    "zisk_receipt_encode",
+   "zisk_single_leaf_trie_root",
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost",
