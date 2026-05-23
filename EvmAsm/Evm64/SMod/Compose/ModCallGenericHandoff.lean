@@ -23,7 +23,7 @@ theorem saveRaAbsThenModCallDispatchReadyPost_callable_from_noNop_spec_in_smodCo
     (h_stack :
       cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
         (base + wrapperEndOff) ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
-        (EvmAsm.Evm64.sharedDivModCodeNoNop_v4 (base + wrapperEndOff))
+        (EvmAsm.Evm64.modCode_noNop_v4 (base + wrapperEndOff))
         (EvmAsm.Evm64.divModStackDispatchPreCallable sp
           (smodAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
           (smodAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
@@ -64,7 +64,7 @@ theorem saveRaAbsThenModCallDispatchReadyPost_callable_from_noNop_spec_in_smodCo
   have h_stack' :
       cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
         (base + wrapperEndOff) ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
-        (EvmAsm.Evm64.sharedDivModCodeNoNop_v4 (base + wrapperEndOff))
+        (EvmAsm.Evm64.modCode_noNop_v4 (base + wrapperEndOff))
         (EvmAsm.Evm64.divModStackDispatchPreCallable sp dividendAbsWord divisorAbsWord
           retAddr v2 v5 v6 divisorSum3 divisorMask divisorCarry3
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
@@ -84,7 +84,7 @@ theorem saveRaAbsThenModCallDispatchReadyPost_callable_from_noNop_spec_in_smodCo
         (EvmAsm.Evm64.modStackDispatchPostCallable sp dividendAbsWord divisorAbsWord **
           (.x1 ↦ᵣ retAddr)) := by
     exact
-      EvmAsm.Evm64.evm_mod_callable_v4_spec_from_noNop_preserving_x1_noX9
+      EvmAsm.Evm64.evm_mod_callable_v4_spec_from_modCode_noNop_noX9
         sp (base + wrapperEndOff) retAddr dividendAbsWord divisorAbsWord
         v2 v5 v6 divisorSum3 divisorMask divisorCarry3
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
