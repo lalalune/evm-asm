@@ -1420,24 +1420,6 @@ def addressComputeCreateFunction : String :=
       bytes  0.. 8 : status
       bytes  8..28 : 20-byte address
       bytes 28..32 : padding -/
-def ziskAddressComputeCreate2Prologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a5, 0x40000000\n" ++
-  "  ld a3, 8(a5)                # init_code length\n" ++
-  "  addi a0, a5, 16             # sender ptr\n" ++
-  "  addi a1, a5, 36             # salt ptr\n" ++
-  "  addi a2, a5, 68             # init_code ptr\n" ++
-  "  li a4, 0xa0010008           # 20B address output\n" ++
-  "  sd zero, 0(a4); sd zero, 8(a4); sw zero, 16(a4)\n" ++
-  "  jal ra, address_compute_create2\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lac2_pdone\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  addressComputeCreate2Function ++ "\n" ++
-  ".Lac2_pdone:"
-
-def ziskAddressComputeCreate2DataSection : String :=
 def ziskAddressComputeCreatePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a3, 0x40000000\n" ++
@@ -1458,19 +1440,6 @@ def ziskAddressComputeCreateDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200\n" ++
   ".balign 8\n" ++
-  "ac2_inner_digest:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "ac2_outer_digest:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "ac2_preimage:\n" ++
-  "  .zero 88"  -- 85 + 3 padding for 8-byte alignment of next
-
-def ziskAddressComputeCreate2ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAddressComputeCreate2Prologue
-  dataAsm     := ziskAddressComputeCreate2DataSection
   "ac_buffer:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
