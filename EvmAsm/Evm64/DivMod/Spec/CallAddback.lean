@@ -40,9 +40,12 @@ open EvmAsm.Rv64.Tactics
     `div128Quot`; that version was false on runtime-reachable inputs because
     the one-correction quotient could overshoot by a 2^32-scale amount. The
     executable DIV/MOD paths now use `div128Quot_v4`, which performs the
-    repaired two-correction trial quotient. The remaining closure theorem for
-    this predicate is expected to combine the v4 Knuth-B overestimate
-    (`qHat ≤ q_true + 2`) with the double-addback loop semantics. -/
+    repaired two-correction trial quotient. The runtime-condition closure is
+    `n4CallAddbackBeqSemanticHolds_of_runtime_conditions` in
+    `CallAddbackRuntime.lean`: it routes through the v4 predicate, combines
+    the v4 quotient-overestimate bound with the addback-borrow/carry facts and
+    the normalized remainder bound, then transports the result back to this
+    historical predicate spelling via `n4CallAddbackBeqSemanticHolds_eq_v4`. -/
 def n4CallAddbackBeqSemanticHolds (a b : EvmWord) : Prop :=
   let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
   let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
