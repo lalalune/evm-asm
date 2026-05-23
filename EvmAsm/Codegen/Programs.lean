@@ -4925,84 +4925,8 @@ def ziskRlpEncodeBytesProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpEncodeBytesDataSection
 }
 
-/-! ## rlp_encode_list_prefix -- PR-K129
+/-! ## rlp_encode_list_prefix -- PR-K129 — def moved to `Programs/RlpRead.lean`. -/
 
-    Write the RLP list-header prefix bytes for a list whose total
-    pre-encoded payload size is `payload_length`. Matches the yellow
-    paper §B "list" rule:
-
-      payload_length < 56  → 0xc0 + payload_length   (1 byte)
-      else                 → 0xf7 + bc, then `bc`-byte BE length
-                             (`bc` = effective byte count of
-                             `payload_length`, 1..8)
-
-    Companion to PR-K128 `rlp_encode_bytes` (the string version)
-    and PR-K30 `rlp_encode_uint_be` (the uint version). Together
-    these three primitives cover the encoder side of the trie /
-    node / header / tx serialisation pipeline.
-
-    Calling convention:
-      a0 (input)  : payload_length (u64)
-      a1 (input)  : output bytes ptr (caller supplies ≥ 9 bytes)
-      a2 (input)  : u64 out ptr (prefix byte length)
-      ra (input)  : return
-      a0 (output) : 0 (always succeeds — total function).
-
-    Pure-leaf semantics: no scratch memory, no transitive calls. -/
-def rlpEncodeListPrefixFunction : String :=
-  "rlp_encode_list_prefix:\n" ++
-  "  li t0, 56\n" ++
-  "  bgeu a0, t0, .Lrelp_long\n" ++
-  "  # Short list: prefix = 0xc0 + payload_length (1 byte).\n" ++
-  "  addi t1, a0, 0xc0\n" ++
-  "  sb t1, 0(a1)\n" ++
-  "  li t2, 1\n" ++
-  "  sd t2, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lrelp_long:\n" ++
-  "  # Long list: prefix = 0xf7 + bc, then bc-byte BE length.\n" ++
-  "  li t3, 1\n" ++
-  "  li t4, 0x100\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 2\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 3\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 4\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 5\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 6\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 7\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 8\n" ++
-  ".Lrelp_have_bc:\n" ++
-  "  addi t4, t3, 0xf7\n" ++
-  "  sb t4, 0(a1)\n" ++
-  "  mv t5, a1\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t4, t3, -1\n" ++
-  ".Lrelp_emit_be:\n" ++
-  "  bltz t4, .Lrelp_be_done\n" ++
-  "  slli t6, t4, 3\n" ++
-  "  srl t0, a0, t6\n" ++
-  "  sb t0, 0(t5)\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lrelp_emit_be\n" ++
-  ".Lrelp_be_done:\n" ++
-  "  addi t5, t3, 1\n" ++
-  "  sd t5, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
 
 /-- `zisk_rlp_encode_list_prefix`: probe BuildUnit. Reads
     (payload_length,) from host input, writes (status, out_len,
@@ -10122,6 +10046,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip4844_extract_signature" => some ziskTxEip4844ExtractSignatureProbeUnit
   | "zisk_tx_eip7702_extract_signature" => some ziskTxEip7702ExtractSignatureProbeUnit
   | "zisk_eip7702_authorization_extract_signature" => some ziskEip7702AuthorizationExtractSignatureProbeUnit
+  | "zisk_rlp_list_truncate_to_n_fields" => some ziskRlpListTruncateToNFieldsProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
@@ -10279,6 +10204,7 @@ def knownProgramNames : List String :=
    "zisk_tx_eip4844_extract_signature",
    "zisk_tx_eip7702_extract_signature",
    "zisk_eip7702_authorization_extract_signature",
+   "zisk_rlp_list_truncate_to_n_fields",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
