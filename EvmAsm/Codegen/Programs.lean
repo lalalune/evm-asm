@@ -1914,6 +1914,112 @@ def ziskAccountValidateCodeHashProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountValidateCodeHashDataSection
 }
 
+/-! ## account_extract_code_hash -- PR-K122
+
+    Extract the 32-byte `code_hash` field (RLP field 3) from a
+    fully RLP-encoded Ethereum account:
+
+      account = [nonce, balance, storage_root, code_hash]
+
+    The code_hash is the keccak256 of this account's bytecode.
+    For EOAs and accounts that have never been touched as
+    contracts, code_hash equals the canonical empty-code hash:
+
+      EMPTY_CODE_HASH =
+        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+
+    Direct input to:
+    - EOA detection (compare against EMPTY_CODE_HASH)
+    - EXTCODEHASH opcode evaluation
+    - Per-account contract-code lookup (use code_hash as DB key)
+
+    K98 `account_validate_code_hash` *verifies* this field against
+    a claimed bytecode buffer (computing the keccak256 inline);
+    K122 simply *returns* it. Use K98 when the bytecode is known
+    and we want a yes/no integrity check; use K122 when we want to
+    keep the hash for later use (e.g. as a code-DB index key).
+
+    Completes the per-field accessor set for accounts (alongside
+    PR-K119 storage_root, K120 balance, K121 nonce).
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` — field 3 bounds
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : 32-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 3 missing
+        2 : field 3 length != 32 -/
+def accountExtractCodeHashFunction : String :=
+  "account_extract_code_hash:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # account_rlp ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # 32B output ptr\n" ++
+  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
+  "  # Extract field 3 (code_hash).\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
+  "  la a3, aech_offset; la a4, aech_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Laech_parse_fail\n" ++
+  "  la t0, aech_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Laech_size_fail\n" ++
+  "  la t0, aech_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Laech_ret\n" ++
+  ".Laech_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Laech_ret\n" ++
+  ".Laech_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Laech_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_account_extract_code_hash`: probe BuildUnit. Reads
+    (account_len, account_bytes), writes (status, 32-byte
+    code_hash) to OUTPUT (40 bytes). -/
+def ziskAccountExtractCodeHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # account_rlp_len\n" ++
+  "  addi a0, a3, 16             # account_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # 32B output\n" ++
+  "  jal ra, account_extract_code_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Laech_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountExtractCodeHashFunction ++ "\n" ++
+  ".Laech_pdone:"
+
+def ziskAccountExtractCodeHashDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "aech_offset:\n" ++
+  "  .zero 8\n" ++
+  "aech_length:\n" ++
+  "  .zero 8"
+
+def ziskAccountExtractCodeHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountExtractCodeHashPrologue
+  dataAsm     := ziskAccountExtractCodeHashDataSection
+}
+
 /-! ## rlp_list_count_items -- PR-K47 top-level item counter
 
     Walk an RLP-encoded list once and return the number of
@@ -13547,6 +13653,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_validate_parent_hash" => some ziskHeaderValidateParentHashProbeUnit
   | "zisk_header_chain_walk_step" => some ziskHeaderChainWalkStepProbeUnit
   | "zisk_account_validate_code_hash" => some ziskAccountValidateCodeHashProbeUnit
+  | "zisk_account_extract_code_hash" => some ziskAccountExtractCodeHashProbeUnit
   | "zisk_address_from_pubkey"  => some ziskAddressFromPubkeyProbeUnit
   | "zisk_mpt_account_path_nibbles" => some ziskMptAccountPathNibblesProbeUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
@@ -13677,6 +13784,7 @@ def knownProgramNames : List String :=
    "zisk_header_validate_parent_hash",
    "zisk_header_chain_walk_step",
    "zisk_account_validate_code_hash",
+   "zisk_account_extract_code_hash",
    "zisk_address_from_pubkey",
    "zisk_mpt_account_path_nibbles",
    "zisk_headers_validate_chain",
