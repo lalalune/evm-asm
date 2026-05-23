@@ -11586,6 +11586,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_validate_post_merge" => some ziskHeaderValidatePostMergeProbeUnit
   | "zisk_header_validate_extra_data_length" => some ziskHeaderValidateExtraDataLengthProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
+  | "zisk_u256_lt_be"           => some ziskU256LtBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
   | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit
@@ -11759,6 +11760,7 @@ def knownProgramNames : List String :=
    "zisk_header_validate_post_merge",
    "zisk_header_validate_extra_data_length",
    "zisk_u256_add_be",
+   "zisk_u256_lt_be",
    "zisk_u256_sub_be",
    "zisk_u256_eq",
    "zisk_u256_mul_u64_be",
