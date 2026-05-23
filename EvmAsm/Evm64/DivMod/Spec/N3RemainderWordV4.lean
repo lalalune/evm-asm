@@ -250,6 +250,15 @@ abbrev fullDivN3NormalizedRemainderLtV4 (bltu_1 bltu_0 : Bool)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) *
       2 ^ (fullDivN3Shift (b.getLimbN 2)).toNat
 
+/-- MOD-specific N3 v4 path predicate at the normalized Euclidean boundary.
+This is the next closure target for the loop proof: the shared DIV path facts,
+the normalized mulsub equation, and the normalized remainder bound. -/
+abbrev fullModN3PathConditionsNormalizedV4 (bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) : Prop :=
+  fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b ∧
+  fullDivN3NormalizedMulSubEqV4 bltu_1 bltu_0 a b ∧
+  fullDivN3NormalizedRemainderLtV4 bltu_1 bltu_0 a b
+
 theorem fullModN3PathConditionsScaledV4_of_normalized_euclidean
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hdivPath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b)
@@ -259,6 +268,14 @@ theorem fullModN3PathConditionsScaledV4_of_normalized_euclidean
   refine ⟨hdivPath, ?_⟩
   exact EvmWord.normalized_remainder_eq_mod_mul_pow
     ((fullDivN3Shift (b.getLimbN 2)).toNat) hmulsub hrlt
+
+theorem fullModN3PathConditionsScaledV4_of_normalized
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullModN3PathConditionsNormalizedV4 bltu_1 bltu_0 a b) :
+    fullModN3PathConditionsScaledV4 bltu_1 bltu_0 a b := by
+  obtain ⟨hdivPath, hmulsub, hrlt⟩ := hpath
+  exact fullModN3PathConditionsScaledV4_of_normalized_euclidean
+    bltu_1 bltu_0 a b hdivPath hmulsub hrlt
 
 theorem fullModN3PathConditionsWordV4_of_val256
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
