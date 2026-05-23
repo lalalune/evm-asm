@@ -81,6 +81,40 @@ def loopN3PreWithScratchNoX1
   (sp + signExtend12 3952 ↦ₘ dloMem) **
   (sp + signExtend12 3944 ↦ₘ scratch_un0)
 
+/-- Callable-ready n=3 v4 loop precondition with scratch cells and no `x1`.
+    The v4 call-body path also preserves the scratch cell at `sp+3936`. -/
+@[irreducible]
+def loopN3PreWithScratchV4NoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 scratchMem : Word) : Assertion :=
+  loopN3PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+    v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+    retMem dMem dloMem scratch_un0 **
+  (sp + signExtend12 3936 ↦ₘ scratchMem)
+
+theorem loopN3PreWithScratchV4NoX1_pcFree
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 scratchMem : Word) :
+    (loopN3PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 scratchMem).pcFree := by
+  delta loopN3PreWithScratchV4NoX1 loopN3PreWithScratchNoX1 loopN3Pre
+  pcFree
+
+instance pcFreeInst_loopN3PreWithScratchV4NoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+      retMem dMem dloMem scratch_un0 scratchMem : Word) :
+    Assertion.PCFree
+      (loopN3PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0 scratchMem) :=
+  ⟨loopN3PreWithScratchV4NoX1_pcFree sp jOld v5Old v6Old v7Old v10Old
+    v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+    retMem dMem dloMem scratch_un0 scratchMem⟩
+
 theorem loopN3PreWithScratchNoX1_unfold
     {sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
