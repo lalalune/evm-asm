@@ -1422,6 +1422,171 @@ def ziskTxEip4844ExtractSignatureProbeUnit : BuildUnit := {
   dataAsm     := ziskTxEip4844ExtractSignatureDataSection
 }
 
+/-! ## tx_eip7702_extract_signature -- PR-K142
+
+    Extract `(y_parity, r, s)` from the inner RLP body of an
+    EIP-7702 (type-4) set-code transaction:
+
+      inner = rlp([chain_id, nonce,
+                   max_priority_fee_per_gas, max_fee_per_gas,
+                   gas_limit, to, value, data,
+                   access_list, authorization_list,
+                   y_parity, r, s])
+
+    Compared to EIP-1559 (12 fields), EIP-7702 inserts a single
+    `authorization_list` field between `access_list` and
+    `y_parity`, so the outer-transaction signature triple sits at
+    fields 10/11/12 of a 13-field list.
+
+    Note: EIP-7702 carries TWO layers of signatures — the outer
+    transaction signature (this PR's target) AND a per-entry
+    `(y_parity, r, s)` inside each authorization tuple in
+    `authorization_list`. K142 only handles the outer triple.
+    Sub-extracting per-authorization signatures lands in a
+    follow-up PR (one per authorization).
+
+    Caller is expected to have stripped the leading 0x04 type byte
+    (matching PR-K44 `tx_eip7702_decode`'s convention).
+
+    Completes the four-EIP sig-extractor family:
+      * PR-K138 legacy
+      * PR-K139 EIP-1559
+      * PR-K140 EIP-2930
+      * PR-K141 EIP-4844
+      * PR-K142 EIP-7702
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` on fields 10, 11, 12
+
+    Calling convention:
+      a0 (input)  : inner_rlp ptr
+      a1 (input)  : inner_rlp byte length
+      a2 (input)  : y_parity u64 out ptr
+      a3 (input)  : r 32-byte BE out ptr
+      a4 (input)  : s 32-byte BE out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / fields 10/11/12 missing
+        2 : y_parity > 8 bytes or r/s > 32 bytes -/
+def txEip7702ExtractSignatureFunction : String :=
+  "tx_eip7702_extract_signature:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # inner_rlp ptr\n" ++
+  "  mv s1, a1                   # inner_rlp len\n" ++
+  "  mv s2, a2                   # y_parity out\n" ++
+  "  mv s3, a3                   # r out (32 B)\n" ++
+  "  mv s4, a4                   # s out (32 B)\n" ++
+  "  # ---- Field 10: y_parity (uint <= 8 bytes) → u64 ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
+  "  la a3, t77es_offset; la a4, t77es_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lt77es_fail\n" ++
+  "  la t0, t77es_length; ld t1, 0(t0)\n" ++
+  "  li t2, 8\n" ++
+  "  bgtu t1, t2, .Lt77es_size\n" ++
+  "  la t0, t77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  li t2, 0\n" ++
+  ".Lt77es_yloop:\n" ++
+  "  beqz t1, .Lt77es_ydone\n" ++
+  "  slli t2, t2, 8\n" ++
+  "  lbu t4, 0(t3)\n" ++
+  "  or t2, t2, t4\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lt77es_yloop\n" ++
+  ".Lt77es_ydone:\n" ++
+  "  sd t2, 0(s2)\n" ++
+  "  # ---- Field 11: r (u256 BE <= 32 bytes) ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
+  "  la a3, t77es_offset; la a4, t77es_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lt77es_fail\n" ++
+  "  la t0, t77es_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Lt77es_size\n" ++
+  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
+  "  sub t2, t2, t1\n" ++
+  "  add t4, s3, t2\n" ++
+  "  la t0, t77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  ".Lt77es_rloop:\n" ++
+  "  beqz t1, .Lt77es_rdone\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb  t5, 0(t4)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lt77es_rloop\n" ++
+  ".Lt77es_rdone:\n" ++
+  "  # ---- Field 12: s (u256 BE <= 32 bytes) ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 12\n" ++
+  "  la a3, t77es_offset; la a4, t77es_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lt77es_fail\n" ++
+  "  la t0, t77es_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Lt77es_size\n" ++
+  "  sd zero,  0(s4); sd zero,  8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
+  "  sub t2, t2, t1\n" ++
+  "  add t4, s4, t2\n" ++
+  "  la t0, t77es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  ".Lt77es_sloop:\n" ++
+  "  beqz t1, .Lt77es_sdone\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb  t5, 0(t4)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lt77es_sloop\n" ++
+  ".Lt77es_sdone:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lt77es_ret\n" ++
+  ".Lt77es_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lt77es_ret\n" ++
+  ".Lt77es_size:\n" ++
+  "  li a0, 2\n" ++
+  ".Lt77es_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_tx_eip7702_extract_signature`: probe BuildUnit. -/
+def ziskTxEip7702ExtractSignaturePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # inner_rlp_len\n" ++
+  "  addi a0, a5, 16             # inner_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # y_parity out\n" ++
+  "  li a3, 0xa0010010           # r out (32 B)\n" ++
+  "  li a4, 0xa0010030           # s out (32 B)\n" ++
+  "  jal ra, tx_eip7702_extract_signature\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lt77es_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  txEip7702ExtractSignatureFunction ++ "\n" ++
+  ".Lt77es_pdone:"
+
+def ziskTxEip7702ExtractSignatureDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "t77es_offset:\n" ++
+  "  .zero 8\n" ++
+  "t77es_length:\n" ++
+  "  .zero 8"
+
+def ziskTxEip7702ExtractSignatureProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxEip7702ExtractSignaturePrologue
+  dataAsm     := ziskTxEip7702ExtractSignatureDataSection
+}
+
 /-! ## blob_gas_used_from_versioned_hashes -- PR-K64
 
     Compute the EIP-4844 `blob_gas_used` field as:
