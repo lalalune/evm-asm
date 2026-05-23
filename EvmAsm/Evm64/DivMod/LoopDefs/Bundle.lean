@@ -284,6 +284,47 @@ instance pcFreeInst_loopN2PreWithScratchNoX1
     v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0
     q2Old q1Old q0Old retMem dMem dloMem scratch_un0⟩
 
+@[irreducible]
+def loopN2PreWithScratchV4NoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratchUn0 scratchMem : Word) : Assertion :=
+  loopN2PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old
+    v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+    retMem dMem dloMem scratchUn0 **
+  (sp + signExtend12 3936 ↦ₘ scratchMem)
+
+theorem loopN2PreWithScratchV4NoX1_pcFree
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratchUn0 scratchMem : Word) :
+    (loopN2PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+      retMem dMem dloMem scratchUn0 scratchMem).pcFree := by
+  delta loopN2PreWithScratchV4NoX1
+  pcFree
+
+instance pcFreeInst_loopN2PreWithScratchV4NoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0_orig_1 u0_orig_0
+      q2Old q1Old q0Old
+      retMem dMem dloMem scratchUn0 scratchMem : Word) :
+    Assertion.PCFree
+      (loopN2PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old
+        v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        u0_orig_1 u0_orig_0 q2Old q1Old q0Old
+        retMem dMem dloMem scratchUn0 scratchMem) :=
+  ⟨loopN2PreWithScratchV4NoX1_pcFree sp jOld v5Old v6Old v7Old v10Old
+    v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_1 u0_orig_0
+    q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem⟩
+
 theorem loopN2PreWithScratchNoX1_to_loopN2PreWithScratch
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop

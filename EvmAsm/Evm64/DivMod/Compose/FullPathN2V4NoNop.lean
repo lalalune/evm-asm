@@ -107,6 +107,63 @@ def loopBodyN2CallAddbackJgt0NormPreV4 (j : Word)
   loopBodyN2CallAddbackJgt0PreV4 j sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem
 
+/-- The callable-ready v4 n=2 loop source specializes to the j=2 max-body
+    precondition, with j=1/j=0 source atoms retained as a frame. -/
+theorem loopN2PreWithScratchV4NoX1_to_max_j2_pre
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 q2Old q1Old q0Old raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word) :
+    ∀ h,
+      (loopN2PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 q2Old q1Old q0Old
+        retMem dMem dloMem scratchUn0 scratchMem ** (.x1 ↦ᵣ raVal)) h →
+      ((loopBodyN2MaxSkipJgt0NormPreV4 (2 : Word) sp
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop q2Old **
+        (sp + signExtend12 3968 ↦ₘ retMem) **
+        (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) **
+        (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        (.x1 ↦ᵣ raVal)) **
+        (((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig1) **
+         ((sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q1Old) **
+         (((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig0) **
+         ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old)))) h := by
+  intro h hp
+  delta loopN2PreWithScratchV4NoX1 loopN2PreWithScratchNoX1 loopN2Pre at hp
+  delta loopBodyN2MaxSkipJgt0NormPreV4
+  rw [loopBodyN2MaxJgt0Pre_unfold]
+  xperm_hyp hp
+
+/-- The callable-ready v4 n=2 loop source specializes to the j=2 call-body
+    precondition, with j=1/j=0 source atoms retained as a frame. -/
+theorem loopN2PreWithScratchV4NoX1_to_call_j2_pre
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 q2Old q1Old q0Old raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word) :
+    ∀ h,
+      (loopN2PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 q2Old q1Old q0Old
+        retMem dMem dloMem scratchUn0 scratchMem ** (.x1 ↦ᵣ raVal)) h →
+      ((loopBodyN2CallSkipJgt0NormPreV4NoX1 (2 : Word) sp
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop q2Old
+        retMem dMem dloMem scratchUn0 scratchMem ** (.x1 ↦ᵣ raVal)) **
+        (((sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig1) **
+         ((sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q1Old) **
+         (((sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat) +
+          signExtend12 0 ↦ₘ u0Orig0) **
+         ((sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat) ↦ₘ q0Old)))) h := by
+  intro h hp
+  delta loopN2PreWithScratchV4NoX1 loopN2PreWithScratchNoX1 loopN2Pre at hp
+  delta loopBodyN2CallSkipJgt0NormPreV4NoX1 loopBodyN2MaxSkipJgt0NormPreV4 at ⊢
+  rw [loopBodyN2MaxJgt0Pre_unfold]
+  xperm_hyp hp
+
 /-- Loop body n=2, max+skip, j=0 over `divCode_noNop_v4`, with
     sp-relative addresses hidden behind a named precondition. -/
 theorem divK_loop_body_n2_max_skip_j0_norm_v4_noNop (sp base : Word)
