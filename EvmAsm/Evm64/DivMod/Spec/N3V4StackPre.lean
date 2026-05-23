@@ -775,18 +775,18 @@ theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_word (sp base : Word)
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
           scratchMem)) := by
-  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
-    fullDivN3V4_hdivs_of_word_eq bltu_1 bltu_0 a b
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-      hdivWord
   exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4 <|
-    evm_div_n3_stack_pre_to_callable_post_v4_scratch_noNop
-      sp base a b v5 v6 v7 v10 v11Old
-      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-      nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
-      hbnz hb3z hb2nz hshift_nz halign hbltu_1 hbltu_0 hcarry2
-      hdiv0 hdiv1 hdiv2 hdiv3
+    cpsTripleWithin_weaken
+      (fun _ hp => hp)
+      (fun h hq =>
+        fullDivN3UnifiedPostNoX1V4_frame_to_divStackDispatchPostCallableExactFrame_scratch_word
+          bltu_1 bltu_0 sp base a b
+          retMem dMem dloMem scratchUn0 scratchMem raVal hdivWord h hq)
+      (evm_div_n3_stack_pre_to_unified_post_v4_noNop
+        sp base a b v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+        hbnz hb3z hb2nz hshift_nz halign hbltu_1 hbltu_0 hcarry2)
 
 /-- Arithmetic-assumption version of
     `evm_div_n3_stack_pre_to_callable_post_v4_scratch_word`. -/
