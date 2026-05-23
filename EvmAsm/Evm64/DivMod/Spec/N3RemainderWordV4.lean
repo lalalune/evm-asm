@@ -509,6 +509,46 @@ theorem fullDivN3NormV_val256_eq_scaled_of_b3_zero
   rw [fullDivN3Shift_toNat_mod_eq, hanti]
   exact EvmWord.val256_normalize hs0 hs b0 b1 b2 b3 hb3_bound
 
+private theorem limbs_or_ne_zero_of_val256_pos
+    {b0 b1 b2 b3 : Word}
+    (h_pos : 0 < EvmWord.val256 b0 b1 b2 b3) :
+    b0 ||| b1 ||| b2 ||| b3 ≠ 0 := by
+  intro h_or
+  have h3 := EvmWord.or_eq_zero_imp_right h_or
+  have h012 := EvmWord.or_eq_zero_imp_left h_or
+  have h2 := EvmWord.or_eq_zero_imp_right h012
+  have h01 := EvmWord.or_eq_zero_imp_left h012
+  have h1 := EvmWord.or_eq_zero_imp_right h01
+  have h0 := EvmWord.or_eq_zero_imp_left h01
+  unfold EvmWord.val256 at h_pos
+  rw [h0, h1, h2, h3] at h_pos
+  have hzero : (0 : Word).toNat = 0 := by rfl
+  rw [hzero] at h_pos
+  omega
+
+theorem fullDivN3NormV_or_ne_zero_of_b_ne_zero_b3_zero
+    (b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hshift_nz : fullDivN3Shift b2 ≠ 0)
+    (hb3z : b3 = 0) :
+    (fullDivN3NormV b0 b1 b2 b3).1 |||
+      (fullDivN3NormV b0 b1 b2 b3).2.1 |||
+      (fullDivN3NormV b0 b1 b2 b3).2.2.1 |||
+      (fullDivN3NormV b0 b1 b2 b3).2.2.2 ≠ 0 := by
+  have h_scaled := fullDivN3NormV_val256_eq_scaled_of_b3_zero
+    b0 b1 b2 b3 hshift_nz hb3z
+  have hb_pos : 0 < EvmWord.val256 b0 b1 b2 b3 :=
+    EvmWord.val256_pos_of_or_ne_zero hbnz
+  have hnorm_pos :
+      0 < EvmWord.val256
+        (fullDivN3NormV b0 b1 b2 b3).1
+        (fullDivN3NormV b0 b1 b2 b3).2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.2 := by
+    rw [h_scaled]
+    positivity
+  exact limbs_or_ne_zero_of_val256_pos hnorm_pos
+
 theorem iterN3V4CallQHat_val256_conservation_of_carry2
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
     (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
