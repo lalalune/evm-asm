@@ -987,9 +987,7 @@ theorem evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_of_mulsub_over
     (hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff)
-    (hpath : fullDivN3PathConditionsV4 bltu_1 bltu_0
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
     cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
       (evm_div_callable_code_v4 base)
       (divModStackDispatchPreNoX1 sp a b
@@ -1011,13 +1009,8 @@ theorem evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_of_mulsub_over
   have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   have hdivWord :=
-    fullDivN3QuotientWordV4_eq_div_of_path_conditions
-      bltu_1 bltu_0 (a := a) (b := b)
-      (a0 := a.getLimbN 0) (a1 := a.getLimbN 1)
-      (a2 := a.getLimbN 2) (a3 := a.getLimbN 3)
-      (b0 := b.getLimbN 0) (b1 := b.getLimbN 1)
-      (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
-      rfl rfl rfl rfl rfl rfl rfl rfl hbnz' hpath
+    fullDivN3QuotientWordV4_eq_div_of_word_path_conditions
+      bltu_1 bltu_0 a b hbnz' hpath
   exact evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_word
     sp base a b v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7

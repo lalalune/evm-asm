@@ -90,6 +90,12 @@ abbrev fullDivN3PathConditionsV4 (bltu_1 bltu_0 : Bool)
   fullDivN3MulSubEqV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
   fullDivN3QuotientOverestimateV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
 
+abbrev fullDivN3PathConditionsWordV4 (bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) : Prop :=
+  fullDivN3PathConditionsV4 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
 /-- n=3 quotient bridge specialized to the explicit limb variables used by the
     unified-bound wrappers. -/
 theorem fullDivN3QuotientWord_eq_div_of_limbs_mulsub_overestimate
@@ -221,5 +227,22 @@ theorem fullDivN3QuotientWordV4_eq_div_of_path_conditions
   obtain ⟨_, _, _, hmulsub, hge⟩ := hpath
   exact fullDivN3QuotientWordV4_eq_div_of_limbs_mulsub_overestimate
     bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hmulsub hge
+
+/-- EvmWord-level v4 quotient bridge from the bundled N3 path predicate. -/
+theorem fullDivN3QuotientWordV4_eq_div_of_word_path_conditions
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3QuotientWordV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b := by
+  exact fullDivN3QuotientWordV4_eq_div_of_path_conditions
+    bltu_1 bltu_0 (a := a) (b := b)
+    (a0 := a.getLimbN 0) (a1 := a.getLimbN 1)
+    (a2 := a.getLimbN 2) (a3 := a.getLimbN 3)
+    (b0 := b.getLimbN 0) (b1 := b.getLimbN 1)
+    (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
+    rfl rfl rfl rfl rfl rfl rfl rfl hbnz hpath
 
 end EvmAsm.Evm64
