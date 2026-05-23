@@ -10722,6 +10722,153 @@ def ziskBlockLogsBloomFromReceiptsListProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockLogsBloomFromReceiptsListDataSection
 }
 
+/-! ## block_validate_logs_bloom -- PR-K159
+
+    End-to-end block-level `logs_bloom` validation: given the
+    header RLP and the RLP list of receipts, recompute the
+    block's bloom from receipts and check it byte-equals the
+    header's claimed bloom.
+
+      header_bloom = header_extract_logs_bloom(header_rlp)
+      computed_bloom = block_logs_bloom_from_receipts_list(receipts)
+      is_valid = bloom_eq(header_bloom, computed_bloom)
+
+    Single-call entry point for callers that want the verdict
+    without managing the scratch buffers themselves. The verdict
+    is returned via an out pointer (1 if valid, 0 if not).
+
+    Composes:
+      - PR-K153 `header_extract_logs_bloom`        -- read header
+      - PR-K158 `block_logs_bloom_from_receipts_list` -- recompute
+      - PR-K154 `bloom_eq`                          -- compare
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : receipts_rlp_list ptr
+      a3 (input)  : receipts_rlp_list byte length
+      a4 (input)  : u64 out ptr (is_valid: 1 if matches, 0 if not)
+      ra (input)  : return
+      a0 (output) :
+        0 : helpers succeeded -- predicate written
+        1 : header parse failure / bloom field width != 256
+        2 : receipts-list parse failure or receipt size failure
+            (child status from PR-K158 propagated unchanged) -/
+def blockValidateLogsBloomFunction : String :=
+  "block_validate_logs_bloom:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # header_rlp ptr\n" ++
+  "  mv s1, a1                   # header_rlp len\n" ++
+  "  mv s2, a2                   # receipts list ptr\n" ++
+  "  mv s3, a3                   # receipts list len\n" ++
+  "  mv s4, a4                   # is_valid out\n" ++
+  "  # ---- Extract header.logs_bloom into bvlb_header_bloom ----\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, bvlb_header_bloom\n" ++
+  "  jal ra, header_extract_logs_bloom\n" ++
+  "  bnez a0, .Lbvlb_header_fail\n" ++
+  "  # ---- Zero bvlb_computed_bloom (256 B) ----\n" ++
+  "  la t0, bvlb_computed_bloom\n" ++
+  "  li t1, 32\n" ++
+  ".Lbvlb_zero:\n" ++
+  "  beqz t1, .Lbvlb_zero_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lbvlb_zero\n" ++
+  ".Lbvlb_zero_done:\n" ++
+  "  # ---- Compute block bloom from receipts list ----\n" ++
+  "  mv a0, s2; mv a1, s3\n" ++
+  "  la a2, bvlb_computed_bloom\n" ++
+  "  jal ra, block_logs_bloom_from_receipts_list\n" ++
+  "  bnez a0, .Lbvlb_receipts_fail\n" ++
+  "  # ---- Compare the two blooms ----\n" ++
+  "  la a0, bvlb_header_bloom\n" ++
+  "  la a1, bvlb_computed_bloom\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, bloom_eq\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvlb_ret\n" ++
+  ".Lbvlb_header_fail:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvlb_ret\n" ++
+  ".Lbvlb_receipts_fail:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  li a0, 2\n" ++
+  ".Lbvlb_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_logs_bloom`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : header_rlp_len
+      bytes  8..16 : receipts_list_rlp_len
+      bytes 16..   : header_rlp || receipts_list_rlp
+        (the script appends them with no padding between; the
+         prologue computes the second pointer from the first
+         length).
+    Output layout:
+      bytes  0.. 8 : status (0=ok, 1=header fail, 2=receipts fail)
+      bytes  8..16 : is_valid (1 if bloom matches, 0 otherwise) -/
+def ziskBlockValidateLogsBloomPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # header_rlp_len\n" ++
+  "  ld a3, 16(a5)               # receipts_list_rlp_len\n" ++
+  "  addi a0, a5, 24             # header_rlp ptr\n" ++
+  "  add a2, a0, a1              # receipts_list_rlp ptr\n" ++
+  "  li a4, 0xa0010008           # is_valid out\n" ++
+  "  jal ra, block_validate_logs_bloom\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbvlb_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  headerExtractLogsBloomFunction ++ "\n" ++
+  receiptExtractLogsBloomFunction ++ "\n" ++
+  bloomOrIntoFunction ++ "\n" ++
+  bloomEqFunction ++ "\n" ++
+  blockLogsBloomFromReceiptsListFunction ++ "\n" ++
+  blockValidateLogsBloomFunction ++ "\n" ++
+  ".Lbvlb_pdone:"
+
+def ziskBlockValidateLogsBloomDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "helb_offset:\n" ++
+  "  .zero 8\n" ++
+  "helb_length:\n" ++
+  "  .zero 8\n" ++
+  "relb_offset:\n" ++
+  "  .zero 8\n" ++
+  "relb_length:\n" ++
+  "  .zero 8\n" ++
+  "blbr_count:\n" ++
+  "  .zero 8\n" ++
+  "blbr_offset:\n" ++
+  "  .zero 8\n" ++
+  "blbr_length:\n" ++
+  "  .zero 8\n" ++
+  "blbr_scratch_bloom:\n" ++
+  "  .zero 256\n" ++
+  "bvlb_header_bloom:\n" ++
+  "  .zero 256\n" ++
+  "bvlb_computed_bloom:\n" ++
+  "  .zero 256"
+
+def ziskBlockValidateLogsBloomProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateLogsBloomPrologue
+  dataAsm     := ziskBlockValidateLogsBloomDataSection
+}
+
 /-! ## calldata_byte_counts -- PR-K105
 
     Count zero and non-zero bytes in an arbitrary byte buffer.
@@ -11497,6 +11644,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
+  | "zisk_block_validate_logs_bloom" => some ziskBlockValidateLogsBloomProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
@@ -11669,6 +11817,7 @@ def knownProgramNames : List String :=
    "zisk_receipt_encode",
    "zisk_single_leaf_trie_root",
    "zisk_block_logs_bloom_from_receipts_list",
+   "zisk_block_validate_logs_bloom",
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost",
