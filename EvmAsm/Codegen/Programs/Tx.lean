@@ -1814,21 +1814,34 @@ def rlpListTruncateToNFieldsFunction : String :=
   "  mv s3, a3                   # output buffer ptr\n" ++
   "  mv s4, a4                   # out_length ptr\n" ++
   "  beqz s2, .Lrltn_empty       # n == 0 → emit `0xc0`\n" ++
-  "  # ---- Locate field 0 to get payload_start ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
-  "  la a3, rltn_offset_lo; la a4, rltn_length_lo\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lrltn_parse_fail\n" ++
+  "  # ---- Parse the outer list prefix to get payload_start ----\n" ++
+  "  # NOTE: we cannot use `rlp_list_nth_item(input, 0)` for this:\n" ++
+  "  # K20 returns the *content* offset for byte-string items, which\n" ++
+  "  # drops the field's RLP prefix byte. The truncation needs the\n" ++
+  "  # *item* offset = start of the outer payload = byte after the\n" ++
+  "  # outer list prefix.\n" ++
+  "  beqz s1, .Lrltn_parse_fail\n" ++
+  "  lbu t0, 0(s0)\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lrltn_parse_fail   # not an RLP list\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lrltn_short_list\n" ++
+  "  # Long list: payload_start = 1 + (t0 - 0xf7)\n" ++
+  "  addi s5, t0, -0xf7\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lrltn_have_start\n" ++
+  ".Lrltn_short_list:\n" ++
+  "  li s5, 1                          # payload_start = 1\n" ++
+  ".Lrltn_have_start:\n" ++
   "  # ---- Locate field (n-1) to get end-of-payload ----\n" ++
   "  addi t0, s2, -1\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, t0\n" ++
   "  la a3, rltn_offset_hi; la a4, rltn_length_hi\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lrltn_too_few\n" ++
-  "  la t0, rltn_offset_lo; ld s5, 0(t0)        # payload_start\n" ++
   "  la t0, rltn_offset_hi; ld t1, 0(t0)\n" ++
   "  la t0, rltn_length_hi; ld t2, 0(t0)\n" ++
-  "  add t1, t1, t2                              # end-of-payload\n" ++
+  "  add t1, t1, t2                              # end-of-payload (after item n-1)\n" ++
   "  sub s6, t1, s5                              # new_payload_len\n" ++
   "  # ---- Write new outer list prefix ----\n" ++
   "  mv a0, s6; mv a1, s3\n" ++
@@ -2076,6 +2089,211 @@ def ziskTxSigningHashProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskTxSigningHashPrologue
   dataAsm     := ziskTxSigningHashDataSection
+}
+
+/-! ## tx_signing_hash_legacy_eip155 -- PR-K146
+
+    Legacy EIP-155 signing hash. Different from the typed-tx and
+    pre-EIP-155 cases (PR-K145 `tx_signing_hash`) because the
+    EIP-155 spec appends `(chain_id, 0, 0)` after the first six
+    fields rather than just truncating:
+
+      signing_hash = keccak256(rlp([nonce, gas_price, gas_limit,
+                                    to, value, data,
+                                    chain_id, 0, 0]))
+
+    So we splice rather than truncate:
+
+      new_payload = [old payload bytes of fields 0..5]
+                 || [RLP-canonical-encoded chain_id]
+                 || 0x80
+                 || 0x80
+
+      signing_hash = keccak256(new_outer_prefix || new_payload)
+
+    Used by every post-Spurious-Dragon mainnet legacy tx; the
+    pre-EIP-155 variant (`v ∈ {27, 28}`) is rare on modern
+    chains. PR-K37 `derive_chain_id_from_v` distinguishes the
+    two — caller routes here when `is_eip155 == 1`.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item`     -- locate fields 0 / 5
+      - PR-K30 `rlp_encode_uint_be`    -- chain_id encoding
+      - PR-K129 `rlp_encode_list_prefix` -- new outer prefix
+      - `zkvm_keccak256` (HashBridge)  -- hashing
+
+    Calling convention:
+      a0 (input)  : legacy_tx_rlp ptr (9-field RLP with v,r,s)
+      a1 (input)  : legacy_tx_rlp byte length
+      a2 (input)  : chain_id (u64)
+      a3 (input)  : 32-byte output hash ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / fewer than 6 fields -/
+def txSigningHashLegacyEip155Function : String :=
+  "tx_signing_hash_legacy_eip155:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # tx_rlp ptr\n" ++
+  "  mv s1, a1                   # tx_rlp len\n" ++
+  "  mv s2, a2                   # chain_id\n" ++
+  "  mv s3, a3                   # output hash ptr\n" ++
+  "  # ---- Parse outer list prefix to get payload_start ----\n" ++
+  "  # NOTE: K20 returns content offsets, not item-start offsets.\n" ++
+  "  # We need the byte right after the outer list prefix.\n" ++
+  "  beqz s1, .Lt155_fail\n" ++
+  "  lbu t0, 0(s0)\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lt155_fail\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lt155_short_list\n" ++
+  "  addi s4, t0, -0xf7\n" ++
+  "  addi s4, s4, 1                              # payload_start\n" ++
+  "  j .Lt155_have_start\n" ++
+  ".Lt155_short_list:\n" ++
+  "  li s4, 1\n" ++
+  ".Lt155_have_start:\n" ++
+  "  # ---- Locate field 5 to get end-of-body ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
+  "  la a3, t155_offset_hi; la a4, t155_length_hi\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lt155_fail\n" ++
+  "  la t0, t155_offset_hi; ld t1, 0(t0)\n" ++
+  "  la t0, t155_length_hi; ld t2, 0(t0)\n" ++
+  "  add t1, t1, t2                              # end-of-body\n" ++
+  "  sub s5, t1, s4                              # body_len\n" ++
+  "  # ---- Encode chain_id as canonical RLP into t155_chain_be ----\n" ++
+  "  # Write chain_id as 8 BE bytes to t155_chain_be\n" ++
+  "  la t0, t155_chain_be\n" ++
+  "  li t1, 7\n" ++
+  ".Lt155_chain_be_loop:\n" ++
+  "  bltz t1, .Lt155_chain_be_done\n" ++
+  "  slli t2, t1, 3\n" ++
+  "  srl t3, s2, t2\n" ++
+  "  andi t3, t3, 0xff\n" ++
+  "  sb t3, 0(t0)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lt155_chain_be_loop\n" ++
+  ".Lt155_chain_be_done:\n" ++
+  "  la a0, t155_chain_be; li a1, 8\n" ++
+  "  la a2, t155_chain_enc\n" ++
+  "  jal ra, rlp_encode_uint_be\n" ++
+  "  mv t3, a0                                   # chain_id_enc_len\n" ++
+  "  # tail_len = chain_id_enc_len + 2  (two 0x80 bytes for 0, 0)\n" ++
+  "  addi t3, t3, 2\n" ++
+  "  # new_payload_len = body_len + tail_len\n" ++
+  "  add t4, s5, t3                              # new_payload_len\n" ++
+  "  # ---- Write new outer list prefix into t155_buf ----\n" ++
+  "  mv a0, t4; la a1, t155_buf\n" ++
+  "  la a2, t155_prefix_len\n" ++
+  "  jal ra, rlp_encode_list_prefix\n" ++
+  "  la t0, t155_prefix_len; ld t5, 0(t0)        # prefix_len\n" ++
+  "  # ---- Copy body bytes after the prefix ----\n" ++
+  "  la t0, t155_buf; add t0, t0, t5             # dst\n" ++
+  "  add t1, s0, s4                              # src = input + payload_start\n" ++
+  "  mv t2, s5                                   # body bytes remaining\n" ++
+  ".Lt155_body_cp:\n" ++
+  "  beqz t2, .Lt155_body_done\n" ++
+  "  lbu t6, 0(t1)\n" ++
+  "  sb t6, 0(t0)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lt155_body_cp\n" ++
+  ".Lt155_body_done:\n" ++
+  "  # ---- Append encoded chain_id ----\n" ++
+  "  la t1, t155_chain_enc\n" ++
+  "  la t6, t155_prefix_len; ld t6, 0(t6)        # reload prefix_len\n" ++
+  "  # Reload chain_id_enc_len: re-derive from tail_len-2 ... easier to recompute\n" ++
+  "  # Actually we lost t3 above; recompute by saving differently. Use t4 - s5 - 2.\n" ++
+  "  sub t2, t4, s5\n" ++
+  "  addi t2, t2, -2                             # chain_id_enc_len\n" ++
+  ".Lt155_chain_cp:\n" ++
+  "  beqz t2, .Lt155_chain_done\n" ++
+  "  lbu t6, 0(t1)\n" ++
+  "  sb t6, 0(t0)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lt155_chain_cp\n" ++
+  ".Lt155_chain_done:\n" ++
+  "  # ---- Append two 0x80 bytes for (0, 0) tail ----\n" ++
+  "  li t6, 0x80\n" ++
+  "  sb t6, 0(t0)\n" ++
+  "  sb t6, 1(t0)\n" ++
+  "  # ---- Total hash input length = prefix_len + new_payload_len ----\n" ++
+  "  la t0, t155_prefix_len; ld t6, 0(t0)\n" ++
+  "  add a1, t6, t4                              # total length\n" ++
+  "  la a0, t155_buf                             # data ptr\n" ++
+  "  mv a2, s3                                   # output hash ptr\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lt155_ret\n" ++
+  ".Lt155_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lt155_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_tx_signing_hash_legacy_eip155`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : tx_rlp_len
+      bytes  8..16 : chain_id (u64 LE)
+      bytes 16..   : tx_rlp (full 9-field)
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..40 : 32-byte signing hash -/
+def ziskTxSigningHashLegacyEip155Prologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # tx_rlp_len\n" ++
+  "  ld a2, 16(a5)               # chain_id\n" ++
+  "  addi a0, a5, 24             # tx_rlp ptr\n" ++
+  "  li a3, 0xa0010008           # output hash ptr (32 B)\n" ++
+  "  jal ra, tx_signing_hash_legacy_eip155\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lt155_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  txSigningHashLegacyEip155Function ++ "\n" ++
+  ".Lt155_pdone:"
+
+def ziskTxSigningHashLegacyEip155DataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "t155_buf:\n" ++
+  "  .zero 8192\n" ++
+  "t155_offset_lo:\n" ++
+  "  .zero 8\n" ++
+  "t155_length_lo:\n" ++
+  "  .zero 8\n" ++
+  "t155_offset_hi:\n" ++
+  "  .zero 8\n" ++
+  "t155_length_hi:\n" ++
+  "  .zero 8\n" ++
+  "t155_chain_be:\n" ++
+  "  .zero 8\n" ++
+  "t155_chain_enc:\n" ++
+  "  .zero 9\n" ++
+  "t155_prefix_len:\n" ++
+  "  .zero 8"
+
+def ziskTxSigningHashLegacyEip155ProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxSigningHashLegacyEip155Prologue
+  dataAsm     := ziskTxSigningHashLegacyEip155DataSection
 }
 
 /-! ## blob_gas_used_from_versioned_hashes -- PR-K64

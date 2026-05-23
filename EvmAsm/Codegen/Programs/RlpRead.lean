@@ -428,4 +428,75 @@ def rlpEncodeListPrefixFunction : String :=
   "  li a0, 0\n" ++
   "  ret"
 
+
+/-! ## rlp_encode_uint_be -- PR-K30 RLP canonical-form encoder
+
+    Strip leading zeros from a big-endian byte array and emit
+    the canonical RLP encoding:
+
+      value == 0       → 0x80 (1 byte; RLP empty bytes)
+      value < 0x80     → single byte = value
+      else (1..32 B)   → 0x80 + len  +  stripped BE bytes
+
+    Building block for `account_encode` (PR-K31+), which calls
+    this for the nonce / balance fields, and for state-root
+    recompute after MPT mutation.
+
+    Calling convention:
+      a0 (input)  : src bytes ptr (BE, possibly with leading zeros)
+      a1 (input)  : src byte length (any; typical: 8 for u64,
+                    32 for u256)
+      a2 (input)  : output buffer ptr (≥ a1 + 1 bytes capacity)
+      ra (input)  : return
+      a0 (output) : number of bytes written
+
+    Pure register arithmetic, no scratch, leaf-callable. -/
+def rlpEncodeUintBeFunction : String :=
+  "rlp_encode_uint_be:\n" ++
+  "  # Find first non-zero byte; stripped_len = src_len - leading_zeros.\n" ++
+  "  mv t0, a0\n" ++
+  "  mv t1, a1\n" ++
+  ".Lreu_skip_zero:\n" ++
+  "  beqz t1, .Lreu_all_zero\n" ++
+  "  lbu t3, 0(t0)\n" ++
+  "  bnez t3, .Lreu_have\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lreu_skip_zero\n" ++
+  ".Lreu_all_zero:\n" ++
+  "  li t3, 0x80\n" ++
+  "  sb t3, 0(a2)\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Lreu_have:\n" ++
+  "  # t0 = ptr to first non-zero byte; t1 = stripped_len.\n" ++
+  "  mv t6, t1\n" ++
+  "  li t3, 1\n" ++
+  "  bne t1, t3, .Lreu_multi\n" ++
+  "  lbu t4, 0(t0)\n" ++
+  "  li t5, 0x80\n" ++
+  "  bgeu t4, t5, .Lreu_multi\n" ++
+  "  # Single-byte form.\n" ++
+  "  sb t4, 0(a2)\n" ++
+  "  li a0, 1\n" ++
+  "  ret\n" ++
+  ".Lreu_multi:\n" ++
+  "  # Short-string form: 0x80 + stripped_len, then stripped bytes.\n" ++
+  "  li t3, 0x80\n" ++
+  "  add t3, t3, t6\n" ++
+  "  sb t3, 0(a2)\n" ++
+  "  addi t4, a2, 1\n" ++
+  "  mv t1, t6\n" ++
+  ".Lreu_copy:\n" ++
+  "  beqz t1, .Lreu_done\n" ++
+  "  lbu t5, 0(t0)\n" ++
+  "  sb  t5, 0(t4)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lreu_copy\n" ++
+  ".Lreu_done:\n" ++
+  "  addi a0, t6, 1               # 1 + stripped_len\n" ++
+  "  ret"
+
 end EvmAsm.Codegen
