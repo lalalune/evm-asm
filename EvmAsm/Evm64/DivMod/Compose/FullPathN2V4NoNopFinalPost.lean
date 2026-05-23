@@ -6,6 +6,36 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- Opaque alias for the j=2 `iterWithDoubleAddback` result in the n=2
+    call-call-call path. Hides the heavy nested expression from `whnf` so
+    downstream proofs can permute assertions without exhausting heartbeats. -/
+@[irreducible]
+def r2CCCN2V4 (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+theorem r2CCCN2V4_eq (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    r2CCCN2V4 v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  delta r2CCCN2V4; rfl
+
+/-- Opaque alias for the j=1 `iterWithDoubleAddback` result in the n=2
+    call-call-call path, parameterized on `r2 := r2CCCN2V4 ...`. -/
+@[irreducible]
+def r1CCCN2V4 (v0 v1 v2 v3 u0Orig1 u0 u1 u2 u3 uTop : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  let r2 := r2CCCN2V4 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  iterWithDoubleAddback (divKTrialCallV4QHat r2.2.2.1 r2.2.1 v1)
+    v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+
+theorem r1CCCN2V4_eq (v0 v1 v2 v3 u0Orig1 u0 u1 u2 u3 uTop : Word) :
+    r1CCCN2V4 v0 v1 v2 v3 u0Orig1 u0 u1 u2 u3 uTop =
+      (let r2 := r2CCCN2V4 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+       iterWithDoubleAddback (divKTrialCallV4QHat r2.2.2.1 r2.2.1 v1)
+         v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1) := by
+  delta r1CCCN2V4; rfl
+
 /-- Compact postcondition for the n=2 v4/no-NOP source path whose three loop
     iterations all take the callable trial-division path.  The definition keeps
     the final source-to-j0 theorem statement small enough for Lean to elaborate:
@@ -15,11 +45,8 @@ open EvmAsm.Rv64
 def loopN2CallCallCallSourceFinalPostNoX1 (sp base : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 raVal scratchMem : Word) :
     Assertion :=
-  let r2 := iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop
-  let r1 := iterWithDoubleAddback (divKTrialCallV4QHat r2.2.2.1 r2.2.1 v1)
-    v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1
-    r2.2.2.2.2.1
+  let r2 := r2CCCN2V4 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r1 := r1CCCN2V4 v0 v1 v2 v3 u0Orig1 u0 u1 u2 u3 uTop
   let qHat0 := divKTrialCallV4QHat r1.2.2.1 r1.2.1 v1
   let dLo0 := divKTrialCallV4DLo v1
   let divUn00 := divKTrialCallV4Un0 r1.2.1
@@ -43,11 +70,8 @@ theorem loopN2CallCallCallSourceFinalPostNoX1_unfold (sp base : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 raVal scratchMem : Word) :
     loopN2CallCallCallSourceFinalPostNoX1 sp base
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 raVal scratchMem =
-    let r2 := iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    let r1 := iterWithDoubleAddback (divKTrialCallV4QHat r2.2.2.1 r2.2.1 v1)
-      v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1
-      r2.2.2.2.2.1
+    let r2 := r2CCCN2V4 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    let r1 := r1CCCN2V4 v0 v1 v2 v3 u0Orig1 u0 u1 u2 u3 uTop
     let qHat0 := divKTrialCallV4QHat r1.2.2.1 r1.2.1 v1
     let dLo0 := divKTrialCallV4DLo v1
     let divUn00 := divKTrialCallV4Un0 r1.2.1
@@ -75,11 +99,8 @@ theorem loopN2CallCallCallSourceFinalPostNoX1_unfold (sp base : Word)
 @[irreducible]
 def loopN2CallCallCallSourceConds
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word) : Prop :=
-  let r2 := iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
-    v0 v1 v2 v3 u0 u1 u2 u3 uTop
-  let qHat1 := divKTrialCallV4QHat r2.2.2.1 r2.2.1 v1
-  let r1 := iterWithDoubleAddback qHat1
-    v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  let r2 := r2CCCN2V4 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r1 := r1CCCN2V4 v0 v1 v2 v3 u0Orig1 u0 u1 u2 u3 uTop
   BitVec.ult u2 v1 ∧
   loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop ∧
   BitVec.ult r2.2.2.1 v1 ∧
@@ -93,11 +114,8 @@ theorem loopN2CallCallCallSourceConds_unfold
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word) :
     loopN2CallCallCallSourceConds
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 =
-    let r2 := iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    let qHat1 := divKTrialCallV4QHat r2.2.2.1 r2.2.1 v1
-    let r1 := iterWithDoubleAddback qHat1
-      v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+    let r2 := r2CCCN2V4 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    let r1 := r1CCCN2V4 v0 v1 v2 v3 u0Orig1 u0 u1 u2 u3 uTop
     BitVec.ult u2 v1 ∧
     loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop ∧
     BitVec.ult r2.2.2.1 v1 ∧
