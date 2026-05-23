@@ -765,18 +765,7 @@ theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_of_mulsub_overestimate
     (hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff)
-    (hbltu_1 : isTrialN3V4_j1 bltu_1
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
-    (hbltu_0 : isTrialN3V4_j0 bltu_1 bltu_0
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
-    (hcarry2 : fullDivN3Carry2NzV4
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
-    (hmulsub : fullDivN3MulSubEqV4 bltu_1 bltu_0
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
-    (hge : fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+    (hpath : fullDivN3PathConditionsV4 bltu_1 bltu_0
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
     cpsTripleWithin ((8 + 21 + 24 + 4 + 21 + 21 + 4 + 448) + (2 + 23 + 10))
@@ -795,6 +784,7 @@ theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_of_mulsub_overestimate
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
           scratchMem)) := by
+  obtain ⟨hbltu_1, hbltu_0, hcarry2, hmulsub, hge⟩ := hpath
   have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   have hdivWord :=

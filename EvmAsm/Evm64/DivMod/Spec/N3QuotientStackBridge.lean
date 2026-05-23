@@ -82,6 +82,14 @@ abbrev fullDivN3Carry2NzV4 (b0 b1 b2 b3 : Word) : Prop :=
     (fullDivN3NormV b0 b1 b2 b3).2.2.1
     (fullDivN3NormV b0 b1 b2 b3).2.2.2
 
+abbrev fullDivN3PathConditionsV4 (bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  isTrialN3V4_j1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+  isTrialN3V4_j0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+  fullDivN3Carry2NzV4 b0 b1 b2 b3 ∧
+  fullDivN3MulSubEqV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+  fullDivN3QuotientOverestimateV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+
 /-- n=3 quotient bridge specialized to the explicit limb variables used by the
     unified-bound wrappers. -/
 theorem fullDivN3QuotientWord_eq_div_of_limbs_mulsub_overestimate
