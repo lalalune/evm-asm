@@ -2296,6 +2296,113 @@ def ziskTxSigningHashLegacyEip155ProbeUnit : BuildUnit := {
   dataAsm     := ziskTxSigningHashLegacyEip155DataSection
 }
 
+/-! ## eip7702_authorization_signing_hash -- PR-K147
+
+    EIP-7702 per-authorization signing hash:
+
+      signing_hash =
+        keccak256(MAGIC || rlp([chain_id, address, nonce]))
+
+    where `MAGIC = 0x05`. This is the digest a delegator signs to
+    authorise their account to delegate execution to a target
+    address at a specific nonce.
+
+    Companion to PR-K143
+    `eip7702_authorization_extract_signature` (which extracts the
+    `(y_parity, r, s)` triple). Together, K143 + K147 + the
+    upcoming `zkvm_secp256k1_ecrecover` wiring + K99
+    `address_from_pubkey` recover the **delegator** address from
+    an authorization tuple.
+
+    The body operation is structurally identical to K145
+    `tx_signing_hash` with `n = 3` and `type_prefix = 0x05`:
+    truncate the 6-field authorization tuple to its first 3
+    fields and keccak the prefix-extended result. K147 is a
+    typed convenience wrapper -- callers don't need to remember
+    the MAGIC byte or the field count -- and delegates to
+    `tx_signing_hash` for the body.
+
+    Composes:
+      - PR-K145 `tx_signing_hash` (truncate + keccak)
+        which in turn composes K144 + K129 + K20 + Keccak.
+
+    Calling convention:
+      a0 (input)  : authorization_tuple_rlp ptr
+      a1 (input)  : authorization_tuple_rlp byte length
+      a2 (input)  : 32-byte output hash ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / fewer than 3 fields -/
+def eip7702AuthorizationSigningHashFunction : String :=
+  "eip7702_authorization_signing_hash:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  # Forward to tx_signing_hash with n=3, type_prefix=0x05.\n" ++
+  "  # a0 = inner_rlp ptr      (unchanged)\n" ++
+  "  # a1 = inner_rlp byte len (unchanged)\n" ++
+  "  # a2 = 32-byte output ptr (move to a4 per K145 ABI)\n" ++
+  "  mv a4, a2\n" ++
+  "  li a2, 3                  # n_fields\n" ++
+  "  li a3, 0x05               # MAGIC type prefix\n" ++
+  "  jal ra, tx_signing_hash\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_eip7702_authorization_signing_hash`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : tuple_rlp_len
+      bytes  8..   : tuple_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..40 : 32-byte signing hash -/
+def ziskEip7702AuthorizationSigningHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # tuple_rlp_len\n" ++
+  "  addi a0, a4, 16             # tuple_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # output hash ptr (32 B)\n" ++
+  "  jal ra, eip7702_authorization_signing_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Ltash_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpListTruncateToNFieldsFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  txSigningHashFunction ++ "\n" ++
+  eip7702AuthorizationSigningHashFunction ++ "\n" ++
+  ".Ltash_pdone:"
+
+/-- Reuse the same scratch labels as `ziskTxSigningHashDataSection`
+    (`tsh_buf`, `tsh_trunc_len`, `rltn_*`, `zk3_state`). -/
+def ziskEip7702AuthorizationSigningHashDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "tsh_buf:\n" ++
+  "  .zero 8192\n" ++
+  "tsh_trunc_len:\n" ++
+  "  .zero 8\n" ++
+  "rltn_offset_lo:\n" ++
+  "  .zero 8\n" ++
+  "rltn_length_lo:\n" ++
+  "  .zero 8\n" ++
+  "rltn_offset_hi:\n" ++
+  "  .zero 8\n" ++
+  "rltn_length_hi:\n" ++
+  "  .zero 8\n" ++
+  "rltn_prefix_len:\n" ++
+  "  .zero 8"
+
+def ziskEip7702AuthorizationSigningHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskEip7702AuthorizationSigningHashPrologue
+  dataAsm     := ziskEip7702AuthorizationSigningHashDataSection
+}
+
 /-! ## blob_gas_used_from_versioned_hashes -- PR-K64
 
     Compute the EIP-4844 `blob_gas_used` field as:
