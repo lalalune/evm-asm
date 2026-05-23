@@ -477,6 +477,140 @@ theorem loopN3UnifiedPostV4NoX1_to_fullDivN3DenormPreV4_frame_FT
   subst qHat
   xperm_hyp hp
 
+theorem loopN3UnifiedPostV4NoX1_to_fullDivN3DenormPreV4_frame_TF
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0
+      scratchMem raVal : Word)
+    (h : PartialState)
+    (hp :
+      ((loopN3UnifiedPostV4NoX1 true false sp base
+        (fullDivN3NormV b0 b1 b2 b3).1
+        (fullDivN3NormV b0 b1 b2 b3).2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.2
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+        (0 : Word)
+        (fullDivN3NormU a0 a1 a2 a3 b2).1
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal)) **
+       (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 3992) ↦ₘ (clzResult b2).1))) h) :
+    (fullDivN3DenormPreV4 true false sp a0 a1 a2 a3 b0 b1 b2 b3 **
+     fullDivN3FrameNoX1V4 true false sp base a0 a1 a2 a3 b0 b1 b2 b3
+       retMem dMem dloMem scratchUn0 **
+     ((sp + signExtend12 3936) ↦ₘ
+       fullDivN3ScratchMemV4 true false a0 a1 a2 a3 b0 b1 b2 b3 scratchMem) **
+     (.x1 ↦ᵣ raVal)) h := by
+  delta loopN3UnifiedPostV4NoX1 loopIterPostN3Max at hp
+  simp (config := { decide := true }) only [] at hp
+  simp (config := { decide := true }) only
+    [loopExitPostN3_j0_eq, n3_ub1_off4064, n3_qa1,
+      se12_32, se12_40, se12_48, se12_56] at hp
+  delta fullDivN3Shift fullDivN3AntiShift fullDivN3NormV fullDivN3NormU at hp
+  simp (config := { decide := true }) only [] at hp
+  delta fullDivN3DenormPreV4 fullDivN3FrameNoX1V4 fullDivN3ScratchNoX1V4
+    fullDivN3ScratchMemV4 fullDivN3Shift fullDivN3AntiShift fullDivN3NormV
+    fullDivN3NormU fullDivN3R1V4 fullDivN3R0V4 fullDivN3C3V4 iterN3V4
+  simp (config := { decide := true }) only
+    [ite_false, ite_true, se12_32, se12_40, se12_48, se12_56]
+  set shift := (clzResult b2).1 with hshift
+  set antiShift := (signExtend12 (0 : BitVec 12) - shift) with hantiShift
+  set v0 := b0 <<< (shift.toNat % 64) with hv0
+  set v1 := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64)) with hv1
+  set v2 := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64)) with hv2
+  set v3 := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64)) with hv3
+  set u0 := a0 <<< (shift.toNat % 64) with hu0
+  set u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64)) with hu1
+  set u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64)) with hu2
+  set u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64)) with hu3
+  set u4 := a3 >>> (antiShift.toNat % 64) with hu4
+  set qHat1 := divKTrialCallV4QHat u4 u3 v2 with hqHat1
+  set r1 := iterWithDoubleAddback qHat1 v0 v1 v2 v3 u1 u2 u3 u4 (0 : Word) with hr1
+  set r0 := iterN3Max v0 v1 v2 v3 u0 r1.2.1 r1.2.2.1 r1.2.2.2.1
+    r1.2.2.2.2.1 with hr0
+  set c3 := (mulsubN4 (signExtend12 4095 : Word) v0 v1 v2 v3 u0
+    r1.2.1 r1.2.2.1 r1.2.2.2.1).2.2.2.2 with hc3
+  subst c3
+  subst r0
+  subst r1
+  subst qHat1
+  xperm_hyp hp
+
+theorem loopN3UnifiedPostV4NoX1_to_fullDivN3DenormPreV4_frame_TT
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0
+      scratchMem raVal : Word)
+    (h : PartialState)
+    (hp :
+      ((loopN3UnifiedPostV4NoX1 true true sp base
+        (fullDivN3NormV b0 b1 b2 b3).1
+        (fullDivN3NormV b0 b1 b2 b3).2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.2
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+        (0 : Word)
+        (fullDivN3NormU a0 a1 a2 a3 b2).1
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal)) **
+       (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 3992) ↦ₘ (clzResult b2).1))) h) :
+    (fullDivN3DenormPreV4 true true sp a0 a1 a2 a3 b0 b1 b2 b3 **
+     fullDivN3FrameNoX1V4 true true sp base a0 a1 a2 a3 b0 b1 b2 b3
+       retMem dMem dloMem scratchUn0 **
+     ((sp + signExtend12 3936) ↦ₘ
+       fullDivN3ScratchMemV4 true true a0 a1 a2 a3 b0 b1 b2 b3 scratchMem) **
+     (.x1 ↦ᵣ raVal)) h := by
+  delta loopN3UnifiedPostV4NoX1 loopIterPostN3CallScratchNoX1 at hp
+  simp (config := { decide := true }) only [] at hp
+  simp (config := { decide := true }) only
+    [loopExitPostN3_j0_eq, n3_ub1_off4064, n3_qa1,
+      se12_32, se12_40, se12_48, se12_56] at hp
+  delta fullDivN3Shift fullDivN3AntiShift fullDivN3NormV fullDivN3NormU at hp
+  simp (config := { decide := true }) only [] at hp
+  delta fullDivN3DenormPreV4 fullDivN3FrameNoX1V4 fullDivN3ScratchNoX1V4
+    fullDivN3ScratchMemV4 fullDivN3Shift fullDivN3AntiShift fullDivN3NormV
+    fullDivN3NormU fullDivN3R1V4 fullDivN3R0V4 fullDivN3C3V4 iterN3V4
+  simp (config := { decide := true }) only
+    [ite_true, se12_32, se12_40, se12_48, se12_56]
+  set shift := (clzResult b2).1 with hshift
+  set antiShift := (signExtend12 (0 : BitVec 12) - shift) with hantiShift
+  set v0 := b0 <<< (shift.toNat % 64) with hv0
+  set v1 := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64)) with hv1
+  set v2 := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64)) with hv2
+  set v3 := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64)) with hv3
+  set u0 := a0 <<< (shift.toNat % 64) with hu0
+  set u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64)) with hu1
+  set u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64)) with hu2
+  set u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64)) with hu3
+  set u4 := a3 >>> (antiShift.toNat % 64) with hu4
+  set qHat1 := divKTrialCallV4QHat u4 u3 v2 with hqHat1
+  set r1 := iterWithDoubleAddback qHat1 v0 v1 v2 v3 u1 u2 u3 u4 (0 : Word) with hr1
+  set qHat0 := divKTrialCallV4QHat r1.2.2.2.1 r1.2.2.1 v2 with hqHat0
+  set r0 := iterWithDoubleAddback qHat0 v0 v1 v2 v3 u0 r1.2.1 r1.2.2.1
+    r1.2.2.2.1 r1.2.2.2.2.1 with hr0
+  set c3 := (mulsubN4 qHat0 v0 v1 v2 v3 u0 r1.2.1 r1.2.2.1
+    r1.2.2.2.1).2.2.2.2 with hc3
+  subst c3
+  subst r0
+  subst qHat0
+  subst r1
+  subst qHat1
+  xperm_hyp hp
+
 /-- N3 denormalization and DIV epilogue over v4/no-NOP, preserving exact caller
     `x1` and carrying the v4 div128 scratch cell as frame. -/
 theorem evm_div_n3_denorm_epilogue_bundled_spec_v4_noNop_exact_x1_scratch_frame
