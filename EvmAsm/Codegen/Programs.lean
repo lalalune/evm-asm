@@ -4756,7 +4756,6 @@ def ziskRlpEncodeListPrefixProbeUnit : BuildUnit := {
   prologueAsm := ziskRlpEncodeListPrefixPrologue
   dataAsm     := ziskRlpEncodeListPrefixDataSection
 }
-}
 
 /-! ## account_encode -- PR-K31 mutating side of account_decode
 
