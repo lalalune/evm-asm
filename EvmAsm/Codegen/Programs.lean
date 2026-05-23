@@ -9555,6 +9555,143 @@ def ziskLogBloomAddProbeUnit : BuildUnit := {
   dataAsm     := ziskLogBloomAddDataSection
 }
 
+/-! ## logs_list_bloom_add -- PR-K150
+
+    OR every log's bloom contribution from an RLP-encoded `logs`
+    list into a 256-byte bloom buffer. This is what
+    `apply_body` calls on each receipt's logs to compute the
+    receipt's `logs_bloom` field, and what
+    `block_compute_logs_bloom` (future) calls to assemble the
+    block-level bloom from receipts (via repeated OR).
+
+    Input list shape:
+
+      logs = rlp([log_0, log_1, ..., log_{n-1}])
+      log_i = rlp([address, topics, data])
+
+    For each log_i, `logs_list_bloom_add` invokes K149
+    `log_bloom_add` (which itself loops K148 `bloom_add_value`).
+    Empty `logs` list (`0xc0`) is a valid input → bloom unchanged.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item`    -- walk each log_i
+      - PR-K47 `rlp_list_count_items` -- list cardinality
+      - PR-K149 `log_bloom_add`       -- per-log accumulation
+      - PR-K148 `bloom_add_value`     -- (via K149)
+      - `zkvm_keccak256`              -- (via K148)
+
+    Calling convention:
+      a0 (input)  : bloom ptr (256 bytes, mutable, in-place OR;
+                    caller zero-inits before first call)
+      a1 (input)  : logs_rlp ptr (RLP list of log entries)
+      a2 (input)  : logs_rlp byte length
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure (logs_rlp not a list)
+        2 : a log address field length != 20 (per K149)
+        3 : a log topic field length != 32 (per K149) -/
+def logsListBloomAddFunction : String :=
+  "logs_list_bloom_add:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # bloom ptr\n" ++
+  "  mv s1, a1                   # logs_rlp ptr\n" ++
+  "  mv s2, a2                   # logs_rlp len\n" ++
+  "  # ---- Count logs ----\n" ++
+  "  mv a0, s1; mv a1, s2\n" ++
+  "  la a2, llba_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lllba_parse_fail\n" ++
+  "  la t0, llba_count; ld s3, 0(t0)              # n_logs\n" ++
+  "  li s4, 0                                     # i\n" ++
+  ".Lllba_loop:\n" ++
+  "  bge s4, s3, .Lllba_done\n" ++
+  "  # Extract log_i bounds (full encoded item).\n" ++
+  "  mv a0, s1; mv a1, s2; mv a2, s4\n" ++
+  "  la a3, llba_offset; la a4, llba_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lllba_parse_fail\n" ++
+  "  la t0, llba_offset; ld t1, 0(t0)\n" ++
+  "  la t0, llba_length; ld t2, 0(t0)\n" ++
+  "  add a1, s1, t1                                # &log_i bytes\n" ++
+  "  mv a2, t2                                     # log_i len\n" ++
+  "  mv a0, s0                                     # bloom\n" ++
+  "  jal ra, log_bloom_add\n" ++
+  "  bnez a0, .Lllba_log_err                       # propagate child status\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lllba_loop\n" ++
+  ".Lllba_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lllba_ret\n" ++
+  ".Lllba_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lllba_ret\n" ++
+  ".Lllba_log_err:\n" ++
+  "  # a0 already carries the child status (2 = address size, 3 = topic size,\n" ++
+  "  # 1 = parse fail). Pass through unchanged.\n" ++
+  ".Lllba_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_logs_list_bloom_add`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : logs_rlp_len
+      bytes  8..   : logs_rlp
+    Output layout:
+      bytes  0..256 : zero-initialised bloom, then
+                      logs_list_bloom_add applied once. -/
+def ziskLogsListBloomAddPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a2, 8(a3)                # logs_rlp_len\n" ++
+  "  addi a1, a3, 16             # logs_rlp ptr\n" ++
+  "  li a0, 0xa0010000           # output bloom ptr\n" ++
+  "  jal ra, logs_list_bloom_add\n" ++
+  "  j .Lllba_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  bloomAddValueFunction ++ "\n" ++
+  logBloomAddFunction ++ "\n" ++
+  logsListBloomAddFunction ++ "\n" ++
+  ".Lllba_pdone:"
+
+def ziskLogsListBloomAddDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "bav_hash:\n" ++
+  "  .zero 32\n" ++
+  "lba_offset:\n" ++
+  "  .zero 8\n" ++
+  "lba_length:\n" ++
+  "  .zero 8\n" ++
+  "lba_topics_offset:\n" ++
+  "  .zero 8\n" ++
+  "lba_topics_length:\n" ++
+  "  .zero 8\n" ++
+  "lba_topic_count:\n" ++
+  "  .zero 8\n" ++
+  "llba_offset:\n" ++
+  "  .zero 8\n" ++
+  "llba_length:\n" ++
+  "  .zero 8\n" ++
+  "llba_count:\n" ++
+  "  .zero 8"
+
+def ziskLogsListBloomAddProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskLogsListBloomAddPrologue
+  dataAsm     := ziskLogsListBloomAddDataSection
+}
+
 /-! ## calldata_byte_counts -- PR-K105
 
     Count zero and non-zero bytes in an arbitrary byte buffer.
@@ -10321,6 +10458,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_block_compute_tx_hashes" => some ziskBlockComputeTxHashesProbeUnit
   | "zisk_bloom_add_value" => some ziskBloomAddValueProbeUnit
   | "zisk_log_bloom_add" => some ziskLogBloomAddProbeUnit
+  | "zisk_logs_list_bloom_add" => some ziskLogsListBloomAddProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
@@ -10484,6 +10622,7 @@ def knownProgramNames : List String :=
    "zisk_block_compute_tx_hashes",
    "zisk_bloom_add_value",
    "zisk_log_bloom_add",
+   "zisk_logs_list_bloom_add",
    "zisk_calldata_byte_counts",
    "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost",
