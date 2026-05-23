@@ -77,6 +77,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMaxMaxMax
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallCallMax
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopTMT
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopTMM
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMTT
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMTM
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
