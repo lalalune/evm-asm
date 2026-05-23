@@ -205,4 +205,21 @@ theorem fullDivN3QuotientWordV4_eq_div_of_limbs_mulsub_overestimate
     · exact EvmWord.fromLimbs_match_getLimbN_id a
     · exact EvmWord.fromLimbs_match_getLimbN_id b)
 
+/-- Explicit-limb v4 quotient bridge from the bundled N3 path predicate. -/
+theorem fullDivN3QuotientWordV4_eq_div_of_path_conditions
+    (bltu_1 bltu_0 : Bool) {a b : EvmWord}
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hpath : fullDivN3PathConditionsV4 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN3QuotientWordV4 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.div a b := by
+  obtain ⟨_, _, _, hmulsub, hge⟩ := hpath
+  exact fullDivN3QuotientWordV4_eq_div_of_limbs_mulsub_overestimate
+    bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hmulsub hge
+
 end EvmAsm.Evm64

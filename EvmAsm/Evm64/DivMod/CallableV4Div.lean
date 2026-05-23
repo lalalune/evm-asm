@@ -1006,17 +1006,18 @@ theorem evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_of_mulsub_over
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
           scratchMem)) := by
-  obtain ⟨hbltu_1, hbltu_0, hcarry2, hmulsub, hge⟩ := hpath
+  have hpath' := hpath
+  obtain ⟨hbltu_1, hbltu_0, hcarry2, _, _⟩ := hpath'
   have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   have hdivWord :=
-    fullDivN3QuotientWordV4_eq_div_of_limbs_mulsub_overestimate
+    fullDivN3QuotientWordV4_eq_div_of_path_conditions
       bltu_1 bltu_0 (a := a) (b := b)
       (a0 := a.getLimbN 0) (a1 := a.getLimbN 1)
       (a2 := a.getLimbN 2) (a3 := a.getLimbN 3)
       (b0 := b.getLimbN 0) (b1 := b.getLimbN 1)
       (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
-      rfl rfl rfl rfl rfl rfl rfl rfl hbnz' hmulsub hge
+      rfl rfl rfl rfl rfl rfl rfl rfl hbnz' hpath
   exact evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_word
     sp base a b v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
