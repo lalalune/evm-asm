@@ -528,6 +528,42 @@ theorem fullDivN3UnifiedPostNoX1V4_frame_to_divStackDispatchPostCallableExactFra
     (fun h hp => divConcretePostNoX1ExactRegs_weaken_callable_frame sp a b h hp)
     h hExact
 
+/-- Word-quotient form of
+    `fullDivN3UnifiedPostNoX1V4_frame_to_divStackDispatchPostCallableExactFrame_scratch`. -/
+theorem fullDivN3UnifiedPostNoX1V4_frame_to_divStackDispatchPostCallableExactFrame_scratch_word
+    (bltu_1 bltu_0 : Bool)
+    (sp base : Word) (a b : EvmWord)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (raVal : Word)
+    (hdivWord : fullDivN3QuotientWordV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b) :
+    ∀ h,
+      (fullDivN3UnifiedPostNoX1V4 bltu_1 bltu_0 sp base
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal)) h →
+      (divStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       ((sp + signExtend12 3936) ↦ₘ
+        fullDivN3ScratchMemV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          scratchMem)) h := by
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
+    fullDivN3V4_hdivs_of_word_eq bltu_1 bltu_0 a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hdivWord
+  exact fullDivN3UnifiedPostNoX1V4_frame_to_divStackDispatchPostCallableExactFrame_scratch
+    bltu_1 bltu_0 sp base a b
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    retMem dMem dloMem scratchUn0 scratchMem raVal
+    rfl rfl rfl rfl hdiv0 hdiv1 hdiv2 hdiv3
+
 /-- Compose the n=3 v4 stack precondition through the v4 no-NOP path to the
     public callable DIV post, keeping the v4 trial-call scratch cell framed. -/
 theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_noNop (sp base : Word)
