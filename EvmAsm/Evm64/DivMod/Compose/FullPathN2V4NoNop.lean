@@ -48,6 +48,19 @@ def loopBodyN2CallSkipJ0NormPreV4
   (sp + signExtend12 3944 ↦ₘ scratchUn0) **
   regOwn .x1 ** (sp + signExtend12 3936 ↦ₘ scratchMem)
 
+@[irreducible]
+def loopBodyN2CallSkipJ0NormPreV4NoX1
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word) : Assertion :=
+  loopBodyN2MaxSkipJ0NormPreV4 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld **
+  (sp + signExtend12 3968 ↦ₘ retMem) **
+  (sp + signExtend12 3960 ↦ₘ dMem) **
+  (sp + signExtend12 3952 ↦ₘ dloMem) **
+  (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+  (sp + signExtend12 3936 ↦ₘ scratchMem)
+
 /-- n=2 max-skip j>0 precondition over `divCode_noNop_v4`.
     The j-dependent address lets stay behind this irreducible boundary. -/
 @[irreducible]
@@ -193,6 +206,41 @@ theorem divK_loop_body_n2_call_skip_j0_norm_v4_noNop (sp base : Word)
   exact cpsTripleWithin_weaken
     (fun h hp => by
       delta loopBodyN2CallSkipJ0NormPreV4 loopBodyN2MaxSkipJ0NormPreV4 at hp
+      xperm_hyp hp)
+    (fun h hp => hp)
+    raw
+
+/-- Loop body n=2, call+skip, j=0 over `divCode_noNop_v4`, preserving the
+    concrete caller `x1` outside the normalized call precondition. -/
+theorem divK_loop_body_n2_call_skip_j0_norm_v4_noNop_exact_x1 (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hborrow : loopBodyN2CallSkipJ0BorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 148 (base + loopBodyOff) (base + denormOff) (divCode_noNop_v4 base)
+      (loopBodyN2CallSkipJ0NormPreV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopBodyN2CallSkipJ0PostV4NoX1 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem **
+        (.x1 ↦ᵣ raVal)) := by
+  have raw :=
+    cpsTripleWithin_extend_code
+      (hmono := sharedDivModCodeNoNop_v4_sub_divCode_noNop_v4)
+      (divK_loop_body_n2_call_skip_j0_v4_spec_within_noNop_exact_x1
+        sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld raVal
+        retMem dMem dloMem scratchUn0 scratchMem base
+        halign hbltu hborrow)
+  unfold loopBodyN2CallSkipJ0PreV4NoX1 at raw
+  simp only [se12_32, se12_40, se12_48, se12_56,
+             u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
+             u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at raw
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      delta loopBodyN2CallSkipJ0NormPreV4NoX1 loopBodyN2MaxSkipJ0NormPreV4 at hp
       xperm_hyp hp)
     (fun h hp => hp)
     raw
