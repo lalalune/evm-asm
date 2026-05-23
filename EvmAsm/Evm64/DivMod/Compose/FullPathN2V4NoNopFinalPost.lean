@@ -15,8 +15,10 @@ open EvmAsm.Rv64
 def loopN2CallCallCallSourceFinalPostNoX1 (sp base : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 raVal scratchMem : Word) :
     Assertion :=
-  let r2 := iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop
-  let r1 := iterN2Call v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1
+  let r2 := iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r1 := iterWithDoubleAddback (divKTrialCallV4QHat r2.2.2.1 r2.2.1 v1)
+    v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1
     r2.2.2.2.2.1
   let qHat0 := divKTrialCallV4QHat r1.2.2.1 r1.2.1 v1
   let dLo0 := divKTrialCallV4DLo v1
@@ -41,8 +43,10 @@ theorem loopN2CallCallCallSourceFinalPostNoX1_unfold (sp base : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 raVal scratchMem : Word) :
     loopN2CallCallCallSourceFinalPostNoX1 sp base
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 raVal scratchMem =
-    let r2 := iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop
-    let r1 := iterN2Call v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1
+    let r2 := iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    let r1 := iterWithDoubleAddback (divKTrialCallV4QHat r2.2.2.1 r2.2.1 v1)
+      v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1
       r2.2.2.2.2.1
     let qHat0 := divKTrialCallV4QHat r1.2.2.1 r1.2.1 v1
     let dLo0 := divKTrialCallV4DLo v1
