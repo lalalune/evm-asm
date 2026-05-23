@@ -299,6 +299,23 @@ private theorem finalCarryZero_of_conservation_bound
     nlinarith
   omega
 
+private theorem val256_with_overflow_eq_low_add_tail
+    (u0 u1 u2 u3 u4 : Word) :
+    EvmWord.val256 u0 u1 u2 u3 + u4.toNat * 2 ^ 256 =
+      u0.toNat + 2 ^ 64 * EvmWord.val256 u1 u2 u3 u4 := by
+  unfold EvmWord.val256
+  ring
+
+private theorem n3_two_step_conservation_nat
+    {a b q1 q0 uhi r0 r1 c0 : Nat}
+    (u0 : Nat)
+    (hfirst : a = u0 + 2 ^ 64 * uhi)
+    (hiter1 : uhi = q1 * b + r1)
+    (hiter0 : u0 + 2 ^ 64 * r1 = q0 * b + r0 + c0 * 2 ^ 256) :
+    a = (q1 * 2 ^ 64 + q0) * b + r0 + c0 * 2 ^ 256 := by
+  rw [hfirst, hiter1]
+  nlinarith
+
 /-- Normalized remainder bound paired with
 `fullDivN3NormalizedMulSubEqV4`. Together these are the standard Euclidean
 facts needed to recover the EVM MOD remainder. -/
