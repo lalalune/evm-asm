@@ -1107,6 +1107,165 @@ def ziskTxEip1559ExtractSignatureProbeUnit : BuildUnit := {
   prologueAsm := ziskTxEip1559ExtractSignaturePrologue
   dataAsm     := ziskTxEip1559ExtractSignatureDataSection
 }
+
+/-! ## tx_eip2930_extract_signature -- PR-K140
+
+    Extract `(y_parity, r, s)` from the inner RLP body of an
+    EIP-2930 (type-1) access-list transaction:
+
+      inner = rlp([chain_id, nonce, gas_price, gas_limit,
+                   to, value, data, access_list,
+                   y_parity, r, s])
+
+    EIP-2930 is structurally simpler than EIP-1559 (a single
+    `gas_price` field instead of the
+    `(max_priority_fee_per_gas, max_fee_per_gas)` pair), so the
+    signature triple sits at fields 8/9/10 of an 11-field list.
+
+    Caller is expected to have stripped the leading `0x01` type
+    byte (matching PR-K42 `tx_eip2930_decode`'s convention), so
+    `a0` points at the inner list's RLP prefix.
+
+    Companion in the sender-recovery pipeline to PR-K138
+    (legacy) and PR-K139 (EIP-1559); EIP-4844 / EIP-7702 variants
+    land in follow-up PRs.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` on fields 8, 9, 10
+
+    Calling convention:
+      a0 (input)  : inner_rlp ptr
+      a1 (input)  : inner_rlp byte length
+      a2 (input)  : y_parity u64 out ptr
+      a3 (input)  : r 32-byte BE out ptr
+      a4 (input)  : s 32-byte BE out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / fields 8/9/10 missing
+        2 : y_parity > 8 bytes or r/s > 32 bytes -/
+def txEip2930ExtractSignatureFunction : String :=
+  "tx_eip2930_extract_signature:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # inner_rlp ptr\n" ++
+  "  mv s1, a1                   # inner_rlp len\n" ++
+  "  mv s2, a2                   # y_parity out\n" ++
+  "  mv s3, a3                   # r out (32 B)\n" ++
+  "  mv s4, a4                   # s out (32 B)\n" ++
+  "  # ---- Field 8: y_parity (uint <= 8 bytes) → u64 ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
+  "  la a3, t29es_offset; la a4, t29es_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lt29es_fail\n" ++
+  "  la t0, t29es_length; ld t1, 0(t0)\n" ++
+  "  li t2, 8\n" ++
+  "  bgtu t1, t2, .Lt29es_size\n" ++
+  "  la t0, t29es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  li t2, 0\n" ++
+  ".Lt29es_yloop:\n" ++
+  "  beqz t1, .Lt29es_ydone\n" ++
+  "  slli t2, t2, 8\n" ++
+  "  lbu t4, 0(t3)\n" ++
+  "  or t2, t2, t4\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lt29es_yloop\n" ++
+  ".Lt29es_ydone:\n" ++
+  "  sd t2, 0(s2)\n" ++
+  "  # ---- Field 9: r (u256 BE <= 32 bytes) ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 9\n" ++
+  "  la a3, t29es_offset; la a4, t29es_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lt29es_fail\n" ++
+  "  la t0, t29es_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Lt29es_size\n" ++
+  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
+  "  sub t2, t2, t1\n" ++
+  "  add t4, s3, t2\n" ++
+  "  la t0, t29es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  ".Lt29es_rloop:\n" ++
+  "  beqz t1, .Lt29es_rdone\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb  t5, 0(t4)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lt29es_rloop\n" ++
+  ".Lt29es_rdone:\n" ++
+  "  # ---- Field 10: s (u256 BE <= 32 bytes) ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
+  "  la a3, t29es_offset; la a4, t29es_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lt29es_fail\n" ++
+  "  la t0, t29es_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Lt29es_size\n" ++
+  "  sd zero,  0(s4); sd zero,  8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
+  "  sub t2, t2, t1\n" ++
+  "  add t4, s4, t2\n" ++
+  "  la t0, t29es_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  ".Lt29es_sloop:\n" ++
+  "  beqz t1, .Lt29es_sdone\n" ++
+  "  lbu t5, 0(t3)\n" ++
+  "  sb  t5, 0(t4)\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lt29es_sloop\n" ++
+  ".Lt29es_sdone:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lt29es_ret\n" ++
+  ".Lt29es_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lt29es_ret\n" ++
+  ".Lt29es_size:\n" ++
+  "  li a0, 2\n" ++
+  ".Lt29es_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+/-- `zisk_tx_eip2930_extract_signature`: probe BuildUnit.
+    Input layout (after the host header):
+      bytes  0.. 8 : inner_rlp_len
+      bytes  8..   : inner_rlp (no leading 0x01 type byte)
+    Output layout (80 bytes): status, y_parity, r (32 B), s (32 B). -/
+def ziskTxEip2930ExtractSignaturePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # inner_rlp_len\n" ++
+  "  addi a0, a5, 16             # inner_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # y_parity out\n" ++
+  "  li a3, 0xa0010010           # r out (32 B)\n" ++
+  "  li a4, 0xa0010030           # s out (32 B)\n" ++
+  "  jal ra, tx_eip2930_extract_signature\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lt29es_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  txEip2930ExtractSignatureFunction ++ "\n" ++
+  ".Lt29es_pdone:"
+
+def ziskTxEip2930ExtractSignatureDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "t29es_offset:\n" ++
+  "  .zero 8\n" ++
+  "t29es_length:\n" ++
+  "  .zero 8"
+
+def ziskTxEip2930ExtractSignatureProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxEip2930ExtractSignaturePrologue
+  dataAsm     := ziskTxEip2930ExtractSignatureDataSection
+}
+
 /-! ## blob_gas_used_from_versioned_hashes -- PR-K64
 
     Compute the EIP-4844 `blob_gas_used` field as:

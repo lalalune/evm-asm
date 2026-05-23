@@ -10118,6 +10118,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_derive_chain_id_from_v" => some ziskDeriveChainIdFromVProbeUnit
   | "zisk_tx_legacy_extract_signature" => some ziskTxLegacyExtractSignatureProbeUnit
   | "zisk_tx_eip1559_extract_signature" => some ziskTxEip1559ExtractSignatureProbeUnit
+  | "zisk_tx_eip2930_extract_signature" => some ziskTxEip2930ExtractSignatureProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
@@ -10271,6 +10272,7 @@ def knownProgramNames : List String :=
    "zisk_derive_chain_id_from_v",
    "zisk_tx_legacy_extract_signature",
    "zisk_tx_eip1559_extract_signature",
+   "zisk_tx_eip2930_extract_signature",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
