@@ -3064,4 +3064,189 @@ def ziskValidateEmptyBlockWithParentProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateEmptyBlockWithParentDataSection
 }
 
+/-! ## validate_empty_block_chain -- PR-K184
+
+    Iterate `validate_empty_block_with_parent` (K183) over an
+    N-element chain of (header, body) pairs and verify every
+    link in the chain is a valid empty-block step. This is the
+    direct analogue of K175 `validate_header_chain` extended to
+    cover both header AND body sides; it is the natural
+    endpoint of stateless validation for the all-empty fast path.
+
+    Input layout (length-prefix tables + flat byte blob):
+
+      headers[0..N) -- N header RLPs concatenated
+      bodies[0..N)  -- N body  RLPs concatenated
+
+    The first header is the *parent* of headers[1]; we verify
+    `validate_empty_block_with_parent(headers[i], headers[i+1],
+                                       bodies[i+1])`
+    for i in 0..N-1, i.e. N-1 link checks. The first body is
+    not used (the parent's body is upstream); we only validate
+    the empty-block predicate against bodies[1..N).
+
+    Vacuous-true on N == 0 and N == 1 (no link to verify).
+
+    Calling convention:
+      a0 (input)  : N (block count)
+      a1 (input)  : header_lengths ptr (u64[N])
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : body_lengths ptr   (u64[N])
+      a4 (input)  : bodies ptr  (concatenated)
+      a5 (input)  : u64 out (is_valid)
+      a6 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        nonzero : propagated status from
+                  `validate_empty_block_with_parent` for the
+                  first failing pair -/
+def validateEmptyBlockChainFunction : String :=
+  "validate_empty_block_chain:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # header_lengths ptr\n" ++
+  "  mv s2, a2                   # headers ptr\n" ++
+  "  mv s3, a3                   # body_lengths ptr\n" ++
+  "  mv s4, a4                   # bodies ptr\n" ++
+  "  mv s5, a5                   # is_valid out\n" ++
+  "  mv s6, a6                   # first_bad_index out\n" ++
+  "  sd zero, 0(s5)\n" ++
+  "  sd zero, 0(s6)\n" ++
+  "  # Vacuous-true for N == 0 or N == 1.\n" ++
+  "  li t0, 2\n" ++
+  "  bltu s0, t0, .Lvebc_vacuous\n" ++
+  "  # Walking pointers (all callee-saved across inner calls):\n" ++
+  "  #   s7 = parent header ptr\n" ++
+  "  #   s8 = child header ptr (computed each iter)\n" ++
+  "  #   s9 = i (current index)\n" ++
+  "  #   s10 = bodies running ptr (for body[i+1])\n" ++
+  "  mv s7, s2                   # parent header ptr = headers[0]\n" ++
+  "  mv s10, s4                  # bodies ptr starts at bodies[0]\n" ++
+  "  # Skip body[0] (parent's body, not used in this chain shape)\n" ++
+  "  ld t0, 0(s3)\n" ++
+  "  add s10, s10, t0\n" ++
+  "  li s9, 0                    # i = 0\n" ++
+  ".Lvebc_loop:\n" ++
+  "  addi t0, s9, 1\n" ++
+  "  beq t0, s0, .Lvebc_done\n" ++
+  "  # parent_len = header_lengths[i]; child_len = header_lengths[i+1]\n" ++
+  "  slli t1, s9, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld a1, 0(t1)                # parent_len (callee passes through args)\n" ++
+  "  ld a3, 8(t1)                # child_len\n" ++
+  "  add s8, s7, a1              # child ptr = parent ptr + parent_len\n" ++
+  "  # body_len = body_lengths[i+1]\n" ++
+  "  slli t4, t0, 3\n" ++
+  "  add t4, s3, t4\n" ++
+  "  ld a5, 0(t4)                # body_len\n" ++
+  "  # Stash advance deltas in callee-saved s11 (parent_len already\n" ++
+  "  # consumed via a1) and reuse a1/a5 across the call -- they're\n" ++
+  "  # caller-saved but we re-derive them after the call below.\n" ++
+  "  mv a0, s7\n" ++
+  "  mv a2, s8\n" ++
+  "  mv a4, s10\n" ++
+  "  la a6, vebc_pair_valid\n" ++
+  "  jal ra, validate_empty_block_with_parent\n" ++
+  "  bnez a0, .Lvebc_status_fail\n" ++
+  "  la t0, vebc_pair_valid; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lvebc_pred_false\n" ++
+  "  # Advance to next pair -- re-derive parent_len and body_len\n" ++
+  "  # since t-regs and a-regs were clobbered by the call.\n" ++
+  "  slli t1, s9, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld t2, 0(t1)                # parent_len[i]\n" ++
+  "  add s7, s7, t2              # parent ptr += parent_len\n" ++
+  "  addi t3, s9, 1\n" ++
+  "  slli t3, t3, 3\n" ++
+  "  add t3, s3, t3\n" ++
+  "  ld t4, 0(t3)                # body_len[i+1]\n" ++
+  "  add s10, s10, t4            # bodies ptr += body_len\n" ++
+  "  addi s9, s9, 1\n" ++
+  "  j .Lvebc_loop\n" ++
+  ".Lvebc_done:\n" ++
+  ".Lvebc_vacuous:\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s5)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvebc_ret\n" ++
+  ".Lvebc_pred_false:\n" ++
+  "  sd zero, 0(s5)\n" ++
+  "  sd s9, 0(s6)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvebc_ret\n" ++
+  ".Lvebc_status_fail:\n" ++
+  "  sd s9, 0(s6)\n" ++
+  ".Lvebc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
+  "  ret"
+
+/-- `zisk_validate_empty_block_chain`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : N
+      bytes  8..8+8N : header_lengths (u64[N])
+      bytes  8+8N..8+16N : body_lengths (u64[N])
+      bytes  8+16N.. : concatenated headers || concatenated bodies
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : is_valid
+      bytes 16..24 : first_bad_index -/
+def ziskValidateEmptyBlockChainPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # N\n" ++
+  "  addi a1, a7, 16             # header_lengths ptr\n" ++
+  "  slli t0, a0, 3              # 8*N\n" ++
+  "  add a3, a1, t0              # body_lengths ptr\n" ++
+  "  add a2, a3, t0              # headers ptr = body_lengths + 8N\n" ++
+  "  # bodies ptr = headers + sum(header_lengths)\n" ++
+  "  mv a4, a2\n" ++
+  "  mv t1, a1                   # header_lengths cursor\n" ++
+  "  mv t2, a0                   # remaining\n" ++
+  ".Lvebc_sum:\n" ++
+  "  beqz t2, .Lvebc_sum_done\n" ++
+  "  ld t3, 0(t1)\n" ++
+  "  add a4, a4, t3\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lvebc_sum\n" ++
+  ".Lvebc_sum_done:\n" ++
+  "  li a5, 0xa0010008           # is_valid out\n" ++
+  "  li a6, 0xa0010010           # first_bad_index out\n" ++
+  "  jal ra, validate_empty_block_chain\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lvebc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  validateHeaderPairFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockValidateEmptyBlockFunction ++ "\n" ++
+  validateEmptyBlockWithParentFunction ++ "\n" ++
+  validateEmptyBlockChainFunction ++ "\n" ++
+  ".Lvebc_pdone:"
+
+def ziskValidateEmptyBlockChainDataSection : String :=
+  ziskValidateEmptyBlockWithParentDataSection ++ "\n" ++
+  "vebc_pair_valid:\n" ++
+  "  .zero 8"
+
+def ziskValidateEmptyBlockChainProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateEmptyBlockChainPrologue
+  dataAsm     := ziskValidateEmptyBlockChainDataSection
+}
+
 end EvmAsm.Codegen
