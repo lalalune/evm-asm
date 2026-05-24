@@ -9,6 +9,7 @@
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
 import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
 
 namespace EvmAsm.Evm64
 
@@ -327,5 +328,32 @@ theorem divKTrialCallV4Q0d_prod_gt_of_ult
         (divKTrialCallV4Rhat2d uHi uLo vTop)
         (divKTrialCallV4Un0 uLo) hRhat2d_lt hUn0_lt] at hUlt_nat
   exact hUlt_nat
+
+/-- The V4 Phase-2 product `Q0d * DLo` does not wrap when `un21 < vTop`.
+
+    This packages the standard `Q0d < 2^32` and `DLo < 2^32` bounds into the
+    no-wrap equality consumed by `divKTrialCallV4Q0d_prod_gt_of_ult`. -/
+theorem divKTrialCallV4Q0d_mul_DLo_no_wrap
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) :
+    (divKTrialCallV4Q0d uHi uLo vTop *
+        divKTrialCallV4DLo vTop).toNat =
+      (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+        (divKTrialCallV4DLo vTop).toNat := by
+  have hQ0d_lt : (divKTrialCallV4Q0d uHi uLo vTop).toNat < 2^32 :=
+    divKTrialCallV4Q0d_lt_pow32 uHi uLo vTop
+      hdHi_ge hdHi_lt hdLo_lt hUn21_lt_vTop
+  have h_mul_lt :
+      (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat < 2^64 := by
+    nlinarith
+  rw [BitVec.toNat_mul]
+  exact Nat.mod_eq_of_lt h_mul_lt
 
 end EvmAsm.Evm64
