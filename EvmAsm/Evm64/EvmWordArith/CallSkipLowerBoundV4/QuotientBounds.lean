@@ -1072,4 +1072,35 @@ theorem divKTrialCallV4Q0dd_ge_q_true_0_of_tail
   · exact divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_ge_of_rhat2d_hi_ne
       uHi uLo vTop hQ0d_ge hRhat2d_hi_zero
 
+/-- V4 second-correction lower bound under the single `un21 < vTop` guard.
+
+    The proof splits on whether `un21` is below `DHi * 2^32`. The low range
+    uses the existing easy wrapper; the complementary range is the tail
+    wrapper. -/
+theorem divKTrialCallV4Q0dd_ge_q_true_0_of_un21_lt_vTop
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) :
+    ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat) /
+      ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat) ≤
+    (divKTrialCallV4Q0dd uHi uLo vTop).toNat := by
+  by_cases hUn21_lt_dHi_pow32 :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32
+  · exact divKTrialCallV4Q0dd_ge_q_true_0_of_un21_lt_dHi_mul_pow32
+      uHi uLo vTop hdHi_ge hdHi_lt hdLo_lt hUn21_lt_dHi_pow32 hUn21_lt_vTop
+  · have hUn21_ge_dHi_pow32 :
+        (divKTrialCallV4DHi vTop).toNat * 2^32 ≤
+          (divKTrialCallV4Un21 uHi uLo vTop).toNat := by
+      omega
+    exact divKTrialCallV4Q0dd_ge_q_true_0_of_tail
+      uHi uLo vTop hdHi_ge hdHi_lt hdLo_lt hUn21_ge_dHi_pow32 hUn21_lt_vTop
+
 end EvmAsm.Evm64
