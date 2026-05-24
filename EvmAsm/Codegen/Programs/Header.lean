@@ -3827,4 +3827,142 @@ def ziskHeaderExtractWithdrawalsRootProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractWithdrawalsRootDataSection
 }
 
+/-! ## header_extract_ommers_hash -- PR-K206
+
+    Extract `ommers_hash` (field 1, 32 bytes) -- post-merge
+    always equal to `keccak256(rlp([])) = 0x1dcc4de8...`. Tight
+    standalone analogue of K201..K205. -/
+def headerExtractOmmersHashFunction : String :=
+  "header_extract_ommers_hash:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
+  "  la a3, heoh_offset; la a4, heoh_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lheoh_parse_fail\n" ++
+  "  la t0, heoh_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lheoh_size_fail\n" ++
+  "  la t0, heoh_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lheoh_ret\n" ++
+  ".Lheoh_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lheoh_ret\n" ++
+  ".Lheoh_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lheoh_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+def ziskHeaderExtractOmmersHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_ommers_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lheoh_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractOmmersHashFunction ++ "\n" ++
+  ".Lheoh_pdone:"
+
+def ziskHeaderExtractOmmersHashDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "heoh_offset:\n" ++
+  "  .zero 8\n" ++
+  "heoh_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractOmmersHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractOmmersHashPrologue
+  dataAsm     := ziskHeaderExtractOmmersHashDataSection
+}
+
+/-! ## header_extract_prev_randao -- PR-K207
+
+    Extract `prev_randao` (field 13, 32 bytes; was `mix_hash`
+    pre-merge). Source of post-merge randomness. Tight
+    standalone analogue of the field-1/3/5 extractors. -/
+def headerExtractPrevRandaoFunction : String :=
+  "header_extract_prev_randao:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 13\n" ++
+  "  la a3, hepr_offset; la a4, hepr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhepr_parse_fail\n" ++
+  "  la t0, hepr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhepr_size_fail\n" ++
+  "  la t0, hepr_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhepr_ret\n" ++
+  ".Lhepr_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhepr_ret\n" ++
+  ".Lhepr_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhepr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+def ziskHeaderExtractPrevRandaoPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_prev_randao\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhepr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractPrevRandaoFunction ++ "\n" ++
+  ".Lhepr_pdone:"
+
+def ziskHeaderExtractPrevRandaoDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hepr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hepr_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractPrevRandaoProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractPrevRandaoPrologue
+  dataAsm     := ziskHeaderExtractPrevRandaoDataSection
+}
+
 end EvmAsm.Codegen
