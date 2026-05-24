@@ -8,6 +8,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase1bBound
 import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
 import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
@@ -15,6 +16,50 @@ import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+
+/-- Pure Nat bridge from a lower bound on the second half quotient digit to a
+    lower bound on the full two-half quotient. -/
+theorem div128_two_step_lower_of_q0_lower_nat
+    (aHi a1 a0 v q1 q0 r1 : Nat)
+    (hv_pos : 0 < v)
+    (hq1 : q1 = (aHi * 2^32 + a1) / v)
+    (hr1 : r1 = (aHi * 2^32 + a1) % v)
+    (hq0_ge : ((r1 * 2^32 + a0) / v) ≤ q0) :
+    (aHi * 2^64 + a1 * 2^32 + a0) / v ≤ q1 * 2^32 + q0 := by
+  have h_two_step :
+      (aHi * 2^64 + a1 * 2^32 + a0) / v =
+        ((aHi * 2^32 + a1) / v) * 2^32 +
+          ((((aHi * 2^32 + a1) % v) * 2^32 + a0) / v) := by
+    set q1t := (aHi * 2^32 + a1) / v with hq1t_def
+    set r1t := (aHi * 2^32 + a1) % v with hr1t_def
+    set q0t := (r1t * 2^32 + a0) / v with hq0t_def
+    set r0t := (r1t * 2^32 + a0) % v with hr0t_def
+    have h_decomp_1 : aHi * 2^32 + a1 = v * q1t + r1t := by
+      rw [hq1t_def, hr1t_def]
+      exact (Nat.div_add_mod _ v).symm
+    have h_decomp_0 : r1t * 2^32 + a0 = v * q0t + r0t := by
+      rw [hq0t_def, hr0t_def]
+      exact (Nat.div_add_mod _ v).symm
+    have h_r0_lt : r0t < v := by
+      rw [hr0t_def]
+      exact Nat.mod_lt _ hv_pos
+    have h_full :
+        aHi * 2^64 + a1 * 2^32 + a0 = r0t + (q1t * 2^32 + q0t) * v := by
+      calc
+        aHi * 2^64 + a1 * 2^32 + a0
+            = (aHi * 2^32 + a1) * 2^32 + a0 := by ring
+        _ = (v * q1t + r1t) * 2^32 + a0 := by rw [h_decomp_1]
+        _ = v * q1t * 2^32 + (r1t * 2^32 + a0) := by ring
+        _ = v * q1t * 2^32 + (v * q0t + r0t) := by rw [h_decomp_0]
+        _ = r0t + (q1t * 2^32 + q0t) * v := by ring
+    rw [h_full]
+    have h_div :
+        (r0t + (q1t * 2^32 + q0t) * v) / v = q1t * 2^32 + q0t := by
+      rw [Nat.add_mul_div_right _ _ hv_pos, Nat.div_eq_of_lt h_r0_lt]
+      omega
+    rw [h_div, hq1t_def, hq0t_def, hr1t_def]
+  rw [h_two_step, ← hq1, ← hr1]
+  omega
 
 /-- The v4 trial-call low half-word `un0` is always below `2^32`. -/
 theorem divKTrialCallV4Un0_lt_pow32 (uLo : Word) :
@@ -1102,5 +1147,84 @@ theorem divKTrialCallV4Q0dd_ge_q_true_0_of_un21_lt_vTop
       omega
     exact divKTrialCallV4Q0dd_ge_q_true_0_of_tail
       uHi uLo vTop hdHi_ge hdHi_lt hdLo_lt hUn21_ge_dHi_pow32 hUn21_lt_vTop
+
+/-- Full v4 128/64 lower bound from exact Phase 1 and the Phase-2 lower
+    bound, with the `un21`-as-remainder fact supplied explicitly.
+
+    The remaining exact-quotient work is to discharge `hUn21_eq_r1` from the
+    machine subtraction path under the final runtime conditions. -/
+theorem div128Quot_v4_ge_q_true_of_un21_eq_r1
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat < vTop.toNat)
+    (hUn21_eq_r1 :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat =
+        (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) % vTop.toNat) :
+    (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat ≤
+      (div128Quot_v4 uHi uLo vTop).toNat := by
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
+  let un0 := divKTrialCallV4Un0 uLo
+  let q1 := divKTrialCallV4Q1dd uHi uLo vTop
+  let q0 := divKTrialCallV4Q0dd uHi uLo vTop
+  have hvTop_pos : 0 < vTop.toNat := by omega
+  have h_vTop_decomp : vTop.toNat = dHi.toNat * 2^32 + dLo.toNat := by
+    unfold dHi dLo divKTrialCallV4DHi divKTrialCallV4DLo
+    exact div128Quot_vTop_decomp vTop
+  have hdHi_ge : dHi.toNat ≥ 2^31 := by
+    unfold dHi divKTrialCallV4DHi
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    omega
+  have hdHi_lt : dHi.toNat < 2^32 := by
+    unfold dHi divKTrialCallV4DHi
+    exact Word_ushiftRight_32_lt_pow32
+  have hdLo_lt : dLo.toNat < 2^32 := by
+    simpa [dLo] using divKTrialCallV4DLo_lt_pow32 vTop
+  have huHi_lt_vTop_decomp : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_vTop_decomp]
+    exact huHi_lt_vTop
+  have hUn21_lt_vTop_decomp :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_vTop_decomp]
+    exact hUn21_lt_vTop
+  have hq1_eq :
+      q1.toNat = (uHi.toNat * 2^32 + un1.toNat) / vTop.toNat := by
+    simpa [q1, un1] using
+      divKTrialCallV4Q1dd_eq_q_true_1_of_uHi_lt_pow63
+        uHi uLo vTop hvTop_ge huHi_lt_vTop huHi_lt_pow63
+  have hq0_ge :
+      ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 + un0.toNat) /
+          vTop.toNat ≤ q0.toNat := by
+    have h := divKTrialCallV4Q0dd_ge_q_true_0_of_un21_lt_vTop
+      uHi uLo vTop hdHi_ge hdHi_lt hdLo_lt hUn21_lt_vTop_decomp
+    rw [← h_vTop_decomp] at h
+    simpa [q0, un0] using h
+  have h_qhat :
+      (div128Quot_v4 uHi uLo vTop).toNat = q1.toNat * 2^32 + q0.toNat := by
+    have h := div128Quot_v4_toNat_eq_trialCall_halves_of_un21_lt
+      uHi uLo vTop hdHi_ge hdHi_lt hdLo_lt huHi_lt_vTop_decomp hUn21_lt_vTop_decomp
+    simpa [q1, q0] using h
+  have h_uLo_decomp : uLo.toNat = un1.toNat * 2^32 + un0.toNat := by
+    unfold un1 un0 divKTrialCallV4Un1 divKTrialCallV4Un0
+    exact div128Quot_vTop_decomp uLo
+  have h_core :
+      (uHi.toNat * 2^64 + un1.toNat * 2^32 + un0.toNat) / vTop.toNat ≤
+        q1.toNat * 2^32 + q0.toNat := by
+    exact div128_two_step_lower_of_q0_lower_nat
+      uHi.toNat un1.toNat un0.toNat vTop.toNat q1.toNat q0.toNat
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat
+      hvTop_pos hq1_eq hUn21_eq_r1 hq0_ge
+  have h_left :
+      uHi.toNat * 2^64 + uLo.toNat =
+        uHi.toNat * 2^64 + un1.toNat * 2^32 + un0.toNat := by
+    rw [h_uLo_decomp]
+    ring
+  rw [h_qhat]
+  rw [h_left]
+  exact h_core
 
 end EvmAsm.Evm64
