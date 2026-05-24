@@ -4518,6 +4518,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_block_hash_and_extract_number" => some ziskBlockHashAndExtractNumberProbeUnit
   | "zisk_header_compute_summary_struct" => some ziskHeaderComputeSummaryStructProbeUnit
   | "zisk_header_extract_difficulty" => some ziskHeaderExtractDifficultyProbeUnit
+  | "zisk_header_extract_extra_data" => some ziskHeaderExtractExtraDataProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -4747,6 +4748,7 @@ def knownProgramNames : List String :=
    "zisk_block_hash_and_extract_number",
    "zisk_header_compute_summary_struct",
    "zisk_header_extract_difficulty",
+   "zisk_header_extract_extra_data",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
