@@ -359,6 +359,17 @@ abbrev fullDivN1NormalizedConservation (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2.toNat *
       2 ^ 256
 
+/-- Normalized final-remainder bound paired with
+    `fullDivN1NormalizedMulSubEq`. -/
+abbrev fullDivN1NormalizedRemainderLt (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  EvmWord.val256
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+    EvmWord.val256 b0 b1 b2 b3 * 2 ^ (fullDivN1Shift b0).toNat
+
 abbrev fullDivN1FinalCarryZero (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
   (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2 = 0
@@ -547,6 +558,53 @@ theorem fullDivN1NormalizedMulSubEq_of_step_conservation
       bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
       hbnz hb1z hb2z hb3z hshift_nz hcarry2 hr3_zero hr2_zero hr1_zero)
     hfinal_zero
+
+/-- n=1 quotient bridge from the normalized Euclidean equation and normalized
+    final-remainder bound. -/
+theorem fullDivN1QuotientWord_eq_div_of_normalized_mulsub_remainder_lt
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hmulsub : fullDivN1NormalizedMulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3)
+    (hrem_lt : fullDivN1NormalizedRemainderLt bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 =
+      EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3) := by
+  let q0 := (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+    a0 a1 a2 a3 b0 b1 b2 b3).1
+  let q1 := (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1
+  let q2 := (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1
+  let q3 := (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1
+  have hq_norm :
+      q3.toNat * 2 ^ 192 + q2.toNat * 2 ^ 128 + q1.toNat * 2 ^ 64 + q0.toNat =
+        EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 :=
+    EvmWord.div_quotient_of_normalized
+      (s := (fullDivN1Shift b0).toNat) hmulsub hrem_lt
+  have hq_val :
+      EvmWord.val256 q0 q1 q2 q3 =
+        EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 := by
+    exact EvmWord.accumulated_eq_val256_n1.symm.trans hq_norm
+  have hdiv := EvmWord.div_of_val256_eq_div
+    (a0 := a0) (a1 := a1) (a2 := a2) (a3 := a3)
+    (b0 := b0) (b1 := b1) (b2 := b2) (b3 := b3)
+    (q0 := q0) (q1 := q1) (q2 := q2) (q3 := q3) hbnz hq_val
+  delta fullDivN1QuotientWord
+  change
+    EvmWord.fromLimbs (fun i : Fin 4 =>
+      match i with
+      | 0 => q0 | 1 => q1 | 2 => q2 | 3 => q3) =
+      EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)
+  exact hdiv
 
 /-- n=1 quotient bridge specialized to branch constructors that store
     `a`/`b` as `EvmWord`s and refer to their limbs directly. -/
