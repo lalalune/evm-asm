@@ -162,6 +162,81 @@ theorem divKTrialCallV4Q0c_ge_pow32_sub_one_of_dHi_mul_pow32_le_un21
   rw [h_dec]
   omega
 
+/-- In the Phase-2 tail range, the Phase-2a corrected digit `Q0c` is at
+    most one half-word. -/
+theorem divKTrialCallV4Q0c_le_pow32_of_tail
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (hUn21_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) :
+    (divKTrialCallV4Q0c uHi uLo vTop).toNat ≤ 2^32 := by
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un21 := divKTrialCallV4Un21 uHi uLo vTop
+  let q0 := rv64_divu un21 dHi
+  have hdHi_ne : dHi ≠ 0 := by
+    intro h_eq
+    have h_zero : dHi.toNat = 0 := by rw [h_eq]; rfl
+    have h_ge : dHi.toNat ≥ 2^31 := by
+      simpa [dHi] using hdHi_ge
+    omega
+  have hq0_ge : 2^32 ≤ q0.toNat := by
+    change 2^32 ≤ (rv64_divu un21 dHi).toNat
+    rw [rv64_divu_toNat un21 dHi hdHi_ne]
+    apply (Nat.le_div_iff_mul_le ?_).mpr
+    · have h_ge : dHi.toNat * 2^32 ≤ un21.toNat := by
+        simpa [dHi, un21] using hUn21_ge_dHi_pow32
+      nlinarith
+    · have : 0 < dHi.toNat := by
+        have h_ne : dHi.toNat ≠ 0 := by
+          intro h_zero
+          exact hdHi_ne (BitVec.eq_of_toNat_eq h_zero)
+        omega
+      exact this
+  have hq0_le : q0.toNat ≤ 2^32 + 1 := by
+    change (rv64_divu un21 dHi).toNat ≤ 2^32 + 1
+    rw [rv64_divu_toNat un21 dHi hdHi_ne]
+    apply (Nat.div_le_iff_le_mul_add_pred ?_).mpr
+    have h_un21_lt : un21.toNat <
+        dHi.toNat * 2^32 + dLo.toNat := by
+      simpa [dHi, dLo, un21] using hUn21_lt_vTop
+    have hdHi_pos : 0 < dHi.toNat := by
+      have h_ne : dHi.toNat ≠ 0 := by
+        intro h_zero
+        exact hdHi_ne (BitVec.eq_of_toNat_eq h_zero)
+      omega
+    have hdHi_big : 2^32 ≤ 2 * dHi.toNat := by
+      nlinarith
+    have hdLo_lt_local : dLo.toNat < 2^32 := by
+      simpa [dLo] using hdLo_lt
+    omega
+    · exact Nat.pos_of_ne_zero (by
+        intro h_zero
+        exact hdHi_ne (BitVec.eq_of_toNat_eq h_zero))
+  have hq0_hi_ne : q0 >>> (32 : BitVec 6).toNat ≠ (0 : Word) := by
+    intro h_zero
+    have hq0_lt : q0.toNat < 2^32 := by
+      have h := (ushiftRight_eq_zero_iff (val := q0) ((32 : BitVec 6).toNat)).mp h_zero
+      simpa using h
+    omega
+  unfold divKTrialCallV4Q0c
+  change (if q0 >>> (32 : BitVec 6).toNat = 0 then q0 else q0 + signExtend12 4095).toNat ≤
+    2^32
+  rw [if_neg hq0_hi_ne]
+  have h_se_toNat : (signExtend12 4095 : Word).toNat = 2^64 - 1 := by decide
+  have h_dec : (q0 + signExtend12 4095).toNat = q0.toNat - 1 := by
+    rw [BitVec.toNat_add, h_se_toNat]
+    have hq0_lt : q0.toNat < 2^64 := q0.isLt
+    omega
+  rw [h_dec]
+  omega
+
 /-- In the Phase-2 tail range, `Q0c` is a lower bound for the true second
     quotient digit. -/
 theorem divKTrialCallV4Q0c_ge_q_true_0_of_dHi_mul_pow32_le_un21
