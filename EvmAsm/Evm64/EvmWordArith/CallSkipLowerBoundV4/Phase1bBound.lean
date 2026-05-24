@@ -6,6 +6,7 @@
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.QuotientBounds
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Un21Bridge
 
 namespace EvmAsm.Evm64
 
@@ -51,6 +52,17 @@ theorem algorithmRhatdV4_unfold (uHi uLo vTop : Word) :
        if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc) := by
   delta algorithmRhatdV4
   rfl
+
+/-- Phase-1b Euclidean identity for the v4 pre-second-correction pair. -/
+theorem algorithmQ1dV4_rhatd_post
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63) :
+    (algorithmQ1dV4 uHi uLo vTop).toNat * (divKTrialCallV4DHi vTop).toNat +
+      (algorithmRhatdV4 uHi uLo vTop).toNat = uHi.toNat := by
+  have h := algorithmUn21_L2a_wrapped uHi uLo vTop hvTop_ge
+  rw [algorithmQ1dV4_unfold, algorithmRhatdV4_unfold]
+  unfold divKTrialCallV4DHi divKTrialCallV4DLo divKTrialCallV4Un1
+  simpa using h
 
 /-- Narrow-call Phase-1b overshoot bound for the pre-second-correction pair.
 
@@ -107,5 +119,22 @@ theorem algorithmQ1dV4_dLo_overshoot_le_vTop_of_uHi_lt_dHi_pow32
     rw [h_vTop_decomp]
     ring
   nlinarith
+
+/-- Narrow-call Phase-1b overshoot bound, with the Phase-1b Euclidean identity
+    discharged internally. -/
+theorem algorithmQ1dV4_dLo_overshoot_le_vTop_of_uHi_lt_dHi_pow32_closed
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_dHi_pow32 :
+      uHi.toNat < (divKTrialCallV4DHi vTop).toNat * 2^32) :
+    (algorithmQ1dV4 uHi uLo vTop).toNat * (divKTrialCallV4DLo vTop).toNat ≤
+      (algorithmRhatdV4 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un1 uLo).toNat +
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat := by
+  exact algorithmQ1dV4_dLo_overshoot_le_vTop_of_uHi_lt_dHi_pow32
+    uHi uLo vTop hvTop_ge huHi_lt_vTop huHi_lt_dHi_pow32
+    (algorithmQ1dV4_rhatd_post uHi uLo vTop hvTop_ge)
 
 end EvmAsm.Evm64
