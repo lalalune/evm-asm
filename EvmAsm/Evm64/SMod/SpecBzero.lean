@@ -77,14 +77,6 @@ theorem evm_smod_canonical_bzero_mod_call_return_stack_spec_within
       -- PreNoX1 → (PreCallable ** (.x9 ↦ divisorSign)): same atoms, just AC
       rw [EvmAsm.Evm64.divModStackDispatchPreNoX1_unfold] at hp
       rw [EvmAsm.Evm64.divModStackDispatchPreCallable_unfold]
-      change
-        (((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ retAddr) ** (.x2 ↦ᵣ v2) **
-          (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-          (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
-          evmWordIs sp a ** evmWordIs (sp + (32 : Word)) b **
-          EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-            shiftMem nMem jMem retMem dMem dloMem scratchUn0) **
-          (.x9 ↦ᵣ divisorSign)) h
       xperm_hyp hp)
     (fun h hp => by
       -- (PostCallable ** .x1 ** .x9) → (PostCallable ** .x1 ** regOwn .x9)

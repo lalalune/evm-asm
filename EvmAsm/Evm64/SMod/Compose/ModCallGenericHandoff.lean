@@ -148,16 +148,6 @@ theorem saveRaAbsThenModCallDispatchReadyPost_callable_from_noNop_spec_in_smodCo
         rw [smodModCallPrivateFrame_unfold]
         dsimp only
         rw [EvmAsm.Evm64.divModStackDispatchPreNoX1_unfold] at hp
-        change
-          (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ divisorSign) ** (.x1 ↦ᵣ retAddr) ** (.x2 ↦ᵣ v2) **
-            (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ divisorSum3) **
-            (.x10 ↦ᵣ divisorMask) ** (.x11 ↦ᵣ divisorCarry3) **
-            (.x0 ↦ᵣ (0 : Word)) ** evmWordIs sp dividendAbsWord **
-            evmWordIs (sp + (32 : Word)) divisorAbsWord **
-            EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-              shiftMem nMem jMem retMem dMem dloMem scratchUn0) **
-            (.x8 ↦ᵣ smodAbsSign dividendTop) ** (.x13 ↦ᵣ smodAbsSign dividendTop) **
-            (.x18 ↦ᵣ (vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)))) h
         xperm_hyp hp)
       (fun h hp => by
         -- Post-weakener: (PostCallable ** .x1 ** regOwn .x9) ** privateFrame
