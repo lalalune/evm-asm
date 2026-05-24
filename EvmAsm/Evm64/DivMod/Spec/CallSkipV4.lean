@@ -92,6 +92,33 @@ theorem div128Quot_v4_call_skip_ge_val256_div_of_rhatdd_hi_zero
     u4 u3 b3' h_b3'_ge h_u4_lt_b3' h_u4_lt_pow63 hUn21_lt_vTop h_rhat_hi_zero
   exact Nat.le_trans h_bridge h_core
 
+/-- V4 call-skip semantic lower bound in the final Phase-1b high-half-zero branch. -/
+theorem n4CallSkipSemanticHoldsV4_of_rhatdd_hi_zero (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    (divKTrialCallV4Un21 u4 u3 b3').toNat < b3'.toNat →
+    divKTrialCallV4Rhatdd u4 u3 b3' >>> (32 : BitVec 6).toNat = (0 : Word) →
+    n4CallSkipSemanticHoldsV4 a b := by
+  intro shift antiShift b3' u4 u3 hUn21_lt_vTop h_rhat_hi_zero
+  unfold n4CallSkipSemanticHoldsV4
+  change
+    val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ≤
+      (div128Quot_v4 u4 u3 b3').toNat
+  have hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3) :=
+    isCallTrialN4_of_shift_nz (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
+      hb3nz hshift_nz
+  exact div128Quot_v4_call_skip_ge_val256_div_of_rhatdd_hi_zero
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hb3nz hshift_nz hcall hUn21_lt_vTop h_rhat_hi_zero
+
 theorem n4CallSkipSemanticHoldsV4_def {a b : EvmWord} :
     n4CallSkipSemanticHoldsV4 a b =
     (let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
