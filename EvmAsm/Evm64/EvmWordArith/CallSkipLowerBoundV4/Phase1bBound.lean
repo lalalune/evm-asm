@@ -390,13 +390,13 @@ theorem divKTrialCallV4Rhatdd_eq_phase2b_algorithm
 
     This discharges the `h_overshoot_le_vTop` argument of
     `div128Quot_phase2b_q0'_dLo_bound_fire_case` in the
-    `uHi < dHi * 2^32` sub-regime. -/
-theorem algorithmQ1dV4_dLo_overshoot_le_vTop_of_uHi_lt_dHi_pow32
+    `div128Quot_phase2b_q0'_dLo_bound_fire_case` once the Knuth-A style
+    `q1' ≤ qTrue + 1` bound is available. -/
+theorem algorithmQ1dV4_dLo_overshoot_le_vTop_of_q_le_qtrue_plus_one
     (uHi uLo vTop : Word)
-    (hvTop_ge : vTop.toNat ≥ 2^63)
-    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
-    (huHi_lt_dHi_pow32 :
-      uHi.toNat < (divKTrialCallV4DHi vTop).toNat * 2^32)
+    (h_q_le :
+      (algorithmQ1dV4 uHi uLo vTop).toNat ≤
+        (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) / vTop.toNat + 1)
     (h_phase1b_post :
       (algorithmQ1dV4 uHi uLo vTop).toNat * (divKTrialCallV4DHi vTop).toNat +
         (algorithmRhatdV4 uHi uLo vTop).toNat = uHi.toNat) :
@@ -410,15 +410,6 @@ theorem algorithmQ1dV4_dLo_overshoot_le_vTop_of_uHi_lt_dHi_pow32
         (divKTrialCallV4DLo vTop).toNat := by
     unfold divKTrialCallV4DHi divKTrialCallV4DLo
     exact div128Quot_vTop_decomp vTop
-  have h_q_le0 := algorithmQ1Prime_le_q_true_1_plus_one uHi uLo vTop
-    hvTop_ge huHi_lt_vTop (by simpa [divKTrialCallV4DHi] using huHi_lt_dHi_pow32)
-  have h_q_le :
-      (algorithmQ1dV4 uHi uLo vTop).toNat ≤
-        (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) / vTop.toNat + 1 := by
-    rw [algorithmQ1dV4_unfold]
-    unfold divKTrialCallV4Un1
-    simpa using h_q_le0
-  have h_vTop_pos : 0 < vTop.toNat := by omega
   have h_qV_le :
       (algorithmQ1dV4 uHi uLo vTop).toNat * vTop.toNat ≤
         (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) + vTop.toNat := by
@@ -441,6 +432,36 @@ theorem algorithmQ1dV4_dLo_overshoot_le_vTop_of_uHi_lt_dHi_pow32
     rw [h_vTop_decomp]
     ring
   nlinarith
+
+/-- Narrow-call Phase-1b overshoot bound for the pre-second-correction pair.
+
+    This discharges the `h_overshoot_le_vTop` argument of
+    `div128Quot_phase2b_q0'_dLo_bound_fire_case` in the
+    `uHi < dHi * 2^32` sub-regime. -/
+theorem algorithmQ1dV4_dLo_overshoot_le_vTop_of_uHi_lt_dHi_pow32
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_dHi_pow32 :
+      uHi.toNat < (divKTrialCallV4DHi vTop).toNat * 2^32)
+    (h_phase1b_post :
+      (algorithmQ1dV4 uHi uLo vTop).toNat * (divKTrialCallV4DHi vTop).toNat +
+        (algorithmRhatdV4 uHi uLo vTop).toNat = uHi.toNat) :
+    (algorithmQ1dV4 uHi uLo vTop).toNat * (divKTrialCallV4DLo vTop).toNat ≤
+      (algorithmRhatdV4 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un1 uLo).toNat +
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat := by
+  have h_q_le0 := algorithmQ1Prime_le_q_true_1_plus_one uHi uLo vTop
+    hvTop_ge huHi_lt_vTop (by simpa [divKTrialCallV4DHi] using huHi_lt_dHi_pow32)
+  have h_q_le :
+      (algorithmQ1dV4 uHi uLo vTop).toNat ≤
+        (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) / vTop.toNat + 1 := by
+    rw [algorithmQ1dV4_unfold]
+    unfold divKTrialCallV4Un1
+    simpa using h_q_le0
+  exact algorithmQ1dV4_dLo_overshoot_le_vTop_of_q_le_qtrue_plus_one
+    uHi uLo vTop h_q_le h_phase1b_post
 
 /-- Narrow-call Phase-1b overshoot bound, with the Phase-1b Euclidean identity
     discharged internally. -/
