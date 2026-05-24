@@ -323,6 +323,63 @@ theorem fullDivN1NormU_val256_eq_scaled
   rw [hsmod, antiShift_toNat_mod_eq h_shift_pos (clzResult_fst_toNat_le b0)]
   exact EvmWord.val256_normalize_general h_shift_pos (by omega) a0 a1 a2 a3
 
+/-- Normalized Euclidean equation target for the n=1 schoolbook loop. The final
+    normalized remainder `fullDivN1R0` is paired with all four quotient limbs. -/
+abbrev fullDivN1NormalizedMulSubEq (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  EvmWord.val256 a0 a1 a2 a3 * 2 ^ (fullDivN1Shift b0).toNat =
+    (((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 192 +
+      ((fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 128 +
+      ((fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+        2 ^ 64 +
+      ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+      (EvmWord.val256 b0 b1 b2 b3 * 2 ^ (fullDivN1Shift b0).toNat) +
+    EvmWord.val256
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+
+/-- Raw normalized conservation equation for the n=1 final state, before
+    separately proving that the final overflow carry is zero. -/
+abbrev fullDivN1NormalizedConservation (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  EvmWord.val256 a0 a1 a2 a3 * 2 ^ (fullDivN1Shift b0).toNat =
+    (((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 192 +
+      ((fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 128 +
+      ((fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+        2 ^ 64 +
+      ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+      (EvmWord.val256 b0 b1 b2 b3 * 2 ^ (fullDivN1Shift b0).toNat) +
+    EvmWord.val256
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 +
+    (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2.toNat *
+      2 ^ 256
+
+abbrev fullDivN1FinalCarryZero (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2 = 0
+
+/-- Drop the final overflow term from normalized n=1 conservation once its
+    carry is known to be zero. -/
+theorem fullDivN1NormalizedMulSubEq_of_conservation
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hcons : fullDivN1NormalizedConservation bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry_zero : fullDivN1FinalCarryZero bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN1NormalizedMulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 := by
+  unfold fullDivN1NormalizedConservation at hcons
+  unfold fullDivN1FinalCarryZero at hcarry_zero
+  unfold fullDivN1NormalizedMulSubEq
+  rw [hcarry_zero] at hcons
+  simpa using hcons
+
 /-- n=1 quotient bridge specialized to branch constructors that store
     `a`/`b` as `EvmWord`s and refer to their limbs directly. -/
 theorem fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_overestimate
