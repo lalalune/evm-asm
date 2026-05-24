@@ -4050,4 +4050,86 @@ def ziskHeaderExtractBeneficiaryProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractBeneficiaryDataSection
 }
 
+/-! ## block_hash_matches -- PR-K209
+
+    Given a header RLP and a caller-supplied claimed 32-byte
+    `block_hash`, verify that
+    `keccak256(header_rlp) == claimed_block_hash`. Returns the
+    predicate via the `is_valid` output.
+
+    Useful for light-client / bridge proofs where the caller
+    has a trusted block_hash from elsewhere and wants to confirm
+    the locally-held header RLP matches.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : claimed_block_hash ptr (32 bytes)
+      a3 (input)  : u64 out (is_valid: 1 if matches, else 0)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds; predicate is in is_valid) -/
+def blockHashMatchesFunction : String :=
+  "block_hash_matches:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a2                   # claimed_hash ptr\n" ++
+  "  mv s1, a3                   # is_valid out\n" ++
+  "  sd zero, 0(s1)\n" ++
+  "  # Compute keccak256(header_rlp) into bhm_computed\n" ++
+  "  la a2, bhm_computed\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  # Compare 32 bytes (4 × 8B)\n" ++
+  "  la t0, bhm_computed\n" ++
+  "  ld t2,  0(t0); ld t3,  0(s0); bne t2, t3, .Lbhm_neq\n" ++
+  "  ld t2,  8(t0); ld t3,  8(s0); bne t2, t3, .Lbhm_neq\n" ++
+  "  ld t2, 16(t0); ld t3, 16(s0); bne t2, t3, .Lbhm_neq\n" ++
+  "  ld t2, 24(t0); ld t3, 24(s0); bne t2, t3, .Lbhm_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s1)\n" ++
+  ".Lbhm_neq:\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_block_hash_matches`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : header_rlp_len
+      bytes  8..40 : claimed_block_hash (32 B)
+      bytes 40..   : header_rlp
+    Output layout:
+      bytes  0.. 8 : status (always 0)
+      bytes  8..16 : is_valid -/
+def ziskBlockHashMatchesPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_rlp_len\n" ++
+  "  addi a2, a7, 16             # claimed_hash ptr\n" ++
+  "  addi a0, a7, 48             # header_rlp ptr\n" ++
+  "  li a3, 0xa0010008           # is_valid out\n" ++
+  "  jal ra, block_hash_matches\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbhm_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  blockHashMatchesFunction ++ "\n" ++
+  ".Lbhm_pdone:"
+
+def ziskBlockHashMatchesDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "bhm_computed:\n" ++
+  "  .zero 32"
+
+def ziskBlockHashMatchesProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockHashMatchesPrologue
+  dataAsm     := ziskBlockHashMatchesDataSection
+}
+
 end EvmAsm.Codegen
