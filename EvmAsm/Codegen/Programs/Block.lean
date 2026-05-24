@@ -3849,4 +3849,94 @@ def ziskBlockBodyExtractWithdrawalCountProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockBodyExtractWithdrawalCountDataSection
 }
 
+/-! ## block_body_summary -- PR-K225
+
+    Decode a 3-field block body and return a (tx_count,
+    ommers_count, withdrawal_count) tuple as a 24-byte struct
+    (three u64s). One-shot body summary primitive useful for
+    dispatch / monitoring.
+
+    Calling convention:
+      a0 (input)  : body_rlp ptr
+      a1 (input)  : body_rlp byte length
+      a2 (input)  : 24-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : body RLP parse failure
+        2 : a sub-list count walk failed -/
+def blockBodySummaryFunction : String :=
+  "block_body_summary:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # body ptr\n" ++
+  "  mv s1, a1                   # body len\n" ++
+  "  mv s2, a2                   # out 24B struct\n" ++
+  "  sd zero, 0(s2); sd zero, 8(s2); sd zero, 16(s2)\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, bbs_body_struct\n" ++
+  "  jal ra, block_body_decode\n" ++
+  "  bnez a0, .Lbbs_parse_fail\n" ++
+  "  la t0, bbs_body_struct\n" ++
+  "  # tx count\n" ++
+  "  ld t1, 0(t0); ld t2, 8(t0)\n" ++
+  "  add a0, s0, t1; mv a1, t2; mv a2, s2\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbbs_count_fail\n" ++
+  "  la t0, bbs_body_struct\n" ++
+  "  # ommers count\n" ++
+  "  ld t1, 16(t0); ld t2, 24(t0)\n" ++
+  "  add a0, s0, t1; mv a1, t2; addi a2, s2, 8\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbbs_count_fail\n" ++
+  "  la t0, bbs_body_struct\n" ++
+  "  # withdrawal count\n" ++
+  "  ld t1, 32(t0); ld t2, 40(t0)\n" ++
+  "  add a0, s0, t1; mv a1, t2; addi a2, s2, 16\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbbs_count_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbbs_ret\n" ++
+  ".Lbbs_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbbs_ret\n" ++
+  ".Lbbs_count_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lbbs_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+def ziskBlockBodySummaryPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, block_body_summary\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbbs_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodySummaryFunction ++ "\n" ++
+  ".Lbbs_pdone:"
+
+def ziskBlockBodySummaryDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "bbs_body_struct:\n" ++
+  "  .zero 48"
+
+def ziskBlockBodySummaryProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockBodySummaryPrologue
+  dataAsm     := ziskBlockBodySummaryDataSection
+}
+
 end EvmAsm.Codegen
