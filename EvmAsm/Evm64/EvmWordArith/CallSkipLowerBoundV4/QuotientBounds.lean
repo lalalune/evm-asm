@@ -130,4 +130,29 @@ theorem divKTrialCallV4Q0d_le_q_true_0_plus_one_of_un21_lt_pow63
         (divKTrialCallV4DHi vTop)
         hdHi_ne hUn21_lt_pow63 hdHi_ge hdHi_lt
 
+/-- V4 second-correction outer-guard no-fire preservation.
+
+    If the high half of `Rhat2d` is nonzero, the second correction in
+    `Q0dd` does not run and `Q0dd = Q0d`. Any lower bound already proved
+    for `Q0d` therefore transfers unchanged to `Q0dd`. -/
+theorem divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_ge_of_rhat2d_hi_ne
+    (uHi uLo vTop : Word)
+    (hQ0d_ge :
+      ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un0 uLo).toNat) /
+        ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) ≤
+      (divKTrialCallV4Q0d uHi uLo vTop).toNat)
+    (hRhat2d_hi_ne :
+      divKTrialCallV4Rhat2d uHi uLo vTop >>> (32 : BitVec 6).toNat ≠ 0) :
+    ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat) /
+      ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat) ≤
+    (divKTrialCallV4Q0dd uHi uLo vTop).toNat := by
+  rw [divKTrialCallV4Q0dd_unfold]
+  unfold div128Quot_phase2b_q0'
+  rw [if_neg hRhat2d_hi_ne]
+  exact hQ0d_ge
+
 end EvmAsm.Evm64
