@@ -258,7 +258,8 @@ field accessors (legacy / EIP-1559 / EIP-2930 / EIP-4844 / EIP-7702
 decoders, intrinsic-gas helpers, signature extraction, …), account
 and MPT primitives (`account_decode`, `account_at_address`,
 `account_extract_*`, `mpt_walk`, `mpt_branch_*`, `mpt_compact_*`,
-`mpt_two_leaf_root_indexed`, …), block-body helpers
+`mpt_two_leaf_root_indexed`, `mpt_one_leaf_root_indexed`, …),
+block-body helpers
 (`block_body_decode`, `block_count_transactions`,
 `block_validate_transactions_root_two_tx`,
 `block_hash_from_header`, `validate_parent_hash_link`,
