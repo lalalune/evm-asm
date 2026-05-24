@@ -135,11 +135,12 @@ theorem evm_smod_mod_call_return_stack_spec_within
       EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
         (base + wrapperEndOff) ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.modCode_noNop_v4 (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPreCallable sp
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp
           (smodAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
             (dividend.getLimbN 2) (dividend.getLimbN 3))
           (smodAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
             (divisor.getLimbN 2) (divisor.getLimbN 3))
+          (smodAbsSign (divisor.getLimbN 3))
           ((base + modCallOff) + 4)
           v2 v5 v6
           (smodAbsSum3 (divisor.getLimbN 0) (divisor.getLimbN 1)
@@ -154,7 +155,8 @@ theorem evm_smod_mod_call_return_stack_spec_within
             (dividend.getLimbN 2) (dividend.getLimbN 3))
           (smodAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
             (divisor.getLimbN 2) (divisor.getLimbN 3)) **
-          (.x1 ↦ᵣ ((base + modCallOff) + 4)))) :
+          (.x1 ↦ᵣ ((base + modCallOff) + 4)) **
+          EvmAsm.Rv64.regOwn .x9)) :
     EvmAsm.Rv64.cpsTripleWithin
       (49 + (((EvmAsm.Evm64.unifiedDivBound + 1) + 21) + 1))
       base (vRa &&& ~~~(1 : Word)) (smodCodeV4 base)
@@ -202,11 +204,12 @@ theorem evm_smod_canonical_mod_call_return_stack_spec_within
       EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
         (base + wrapperEndOff) ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.modCode_noNop_v4 (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPreCallable sp
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp
           (smodAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
             (dividend.getLimbN 2) (dividend.getLimbN 3))
           (smodAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
             (divisor.getLimbN 2) (divisor.getLimbN 3))
+          (smodAbsSign (divisor.getLimbN 3))
           ((base + modCallOff) + 4)
           v2 v5 v6
           (smodAbsSum3 (divisor.getLimbN 0) (divisor.getLimbN 1)
@@ -221,7 +224,8 @@ theorem evm_smod_canonical_mod_call_return_stack_spec_within
             (dividend.getLimbN 2) (dividend.getLimbN 3))
           (smodAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
             (divisor.getLimbN 2) (divisor.getLimbN 3)) **
-          (.x1 ↦ᵣ ((base + modCallOff) + 4)))) :
+          (.x1 ↦ᵣ ((base + modCallOff) + 4)) **
+          EvmAsm.Rv64.regOwn .x9)) :
     EvmAsm.Rv64.cpsTripleWithin
       (49 + (((EvmAsm.Evm64.unifiedDivBound + 1) + 21) + 1))
       base (vRa &&& ~~~(1 : Word)) (smodCodeCanonical base)
