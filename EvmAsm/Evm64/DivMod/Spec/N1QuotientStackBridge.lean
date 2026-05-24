@@ -45,6 +45,29 @@ theorem fullDivN1NormV_low3_or_zero_ne_zero_of_b0_ne_zero
   apply h_limb0_ne
   bv_decide
 
+/-- The n=1 runtime divisor-shape hypotheses imply the low divisor limb is nonzero. -/
+theorem fullDivN1_b0_ne_zero_of_shape
+    (b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    b0 ≠ 0 := by
+  subst b1
+  subst b2
+  subst b3
+  simpa using hbnz
+
+/-- Runtime n=1 divisor-shape form of the nonzero hypothesis needed by the
+    `v3 = 0` conservation lemma. -/
+theorem fullDivN1NormV_low3_or_zero_ne_zero_of_shape
+    (b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    (fullDivN1NormV b0 b1 b2 b3).1 |||
+        (fullDivN1NormV b0 b1 b2 b3).2.1 |||
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1 ||| (0 : Word) ≠ 0 := by
+  exact fullDivN1NormV_low3_or_zero_ne_zero_of_b0_ne_zero b0 b1 b2 b3
+    (fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
+
 /-- Under the n=1 divisor shape, normalized limb 1 is the low limb's
     anti-shift spill. -/
 theorem fullDivN1NormV_limb1_eq_of_shape
