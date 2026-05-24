@@ -405,4 +405,20 @@ theorem divKTrialCallV4Q0d_Rhat2d_post
       h_post
       h_rhat2c_lt
 
+/-- Consequences of `divKTrialCallV4Q0d_Rhat2d_post` in the shape consumed
+    by the product-check bridge. -/
+theorem divKTrialCallV4Q0d_Rhat2d_bridge
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32) :
+    (divKTrialCallV4Rhat2d uHi uLo vTop).toNat =
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat -
+          (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+            (divKTrialCallV4DHi vTop).toNat ∧
+      (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+          (divKTrialCallV4DHi vTop).toNat ≤
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat := by
+  have h_post := divKTrialCallV4Q0d_Rhat2d_post uHi uLo vTop hdHi_ge hdHi_lt
+  constructor <;> omega
+
 end EvmAsm.Evm64
