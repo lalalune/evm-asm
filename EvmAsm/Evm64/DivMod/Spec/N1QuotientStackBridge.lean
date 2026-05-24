@@ -141,6 +141,34 @@ theorem iterN1_fullDivN1NormV_val256_conservation_of_shape
     (fullDivN1NormV_low3_or_zero_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
     (fullDivN1NormV_carry2_zeroTop_of_shape b0 b1 b2 b3 hb2z hb3z hcarry2)
 
+/-- Val256 conservation specialized to the first n=1 schoolbook iteration. -/
+theorem fullDivN1R3_val256_conservation_of_shape
+    (bltu_3 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    let v := fullDivN1NormV b0 b1 b2 b3
+    let u := fullDivN1NormU a0 a1 a2 a3 b0
+    let r3 := fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+    EvmWord.val256 u.2.2.2.1 u.2.2.2.2 0 0 =
+      r3.1.toNat * EvmWord.val256 v.1 v.2.1 v.2.2.1 v.2.2.2 +
+        EvmWord.val256 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1 +
+        r3.2.2.2.2.2.toNat * 2^256 := by
+  dsimp only
+  unfold fullDivN1R3
+  dsimp only
+  have h := iterN1_fullDivN1NormV_val256_conservation_of_shape bltu_3
+    b0 b1 b2 b3
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    0 0 0 hbnz hb1z hb2z hb3z hcarry2
+  dsimp only at h
+  simpa using h
+
 /-- n=1 quotient bridge specialized to branch constructors that store
     `a`/`b` as `EvmWord`s and refer to their limbs directly. -/
 theorem fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_overestimate
