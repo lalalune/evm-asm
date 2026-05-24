@@ -1972,4 +1972,137 @@ def ziskBlockHashFromHeaderProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockHashFromHeaderDataSection
 }
 
+/-! ## validate_parent_hash_link -- PR-K173
+
+    Given a parent header (parent_rlp) and a child header
+    (child_rlp), verify that
+    `child.parent_hash == keccak256(parent_rlp)`.
+
+    This is the per-step check inside `validate_headers`: each
+    pair of consecutive headers in the chain must satisfy this
+    invariant; the full chain follows by induction.
+
+    Algorithm:
+      1. K20 extract field 0 (parent_hash) from child_rlp.
+         Verify field length == 32.
+      2. K172 `block_hash_from_header(parent_rlp)` ->
+         computed_hash.
+      3. 32-byte memcmp(claimed, computed).
+      4. Write verdict (1 = matches, 0 = mismatch); status
+         disambiguates parse vs. size vs. predicate failure.
+
+    Calling convention:
+      a0 (input)  : parent_rlp ptr
+      a1 (input)  : parent_rlp byte length
+      a2 (input)  : child_rlp ptr
+      a3 (input)  : child_rlp byte length
+      a4 (input)  : u64 out (is_valid: 1 if links, else 0)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        1 : child RLP parse failure / field 0 missing
+        2 : child.parent_hash length != 32 -/
+def validateParentHashLinkFunction : String :=
+  "validate_parent_hash_link:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # parent_rlp ptr\n" ++
+  "  mv s1, a1                   # parent_rlp len\n" ++
+  "  mv s2, a2                   # child_rlp ptr\n" ++
+  "  mv s3, a3                   # child_rlp len\n" ++
+  "  mv s4, a4                   # is_valid out\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  # ---- Extract child.parent_hash (field 0) ----\n" ++
+  "  mv a0, s2; mv a1, s3; li a2, 0\n" ++
+  "  la a3, vphl_offset; la a4, vphl_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lvphl_parse_fail\n" ++
+  "  la t0, vphl_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lvphl_size_fail\n" ++
+  "  # Copy claimed parent_hash into vphl_claimed\n" ++
+  "  la t0, vphl_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s2, t1                              # &child[off]\n" ++
+  "  la t4, vphl_claimed\n" ++
+  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
+  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
+  "  ld t5, 16(t3); sd t5, 16(t4)\n" ++
+  "  ld t5, 24(t3); sd t5, 24(t4)\n" ++
+  "  # ---- Compute keccak256(parent_rlp) ----\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, vphl_computed\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  # ---- 32-byte compare ----\n" ++
+  "  la t0, vphl_claimed\n" ++
+  "  la t1, vphl_computed\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lvphl_neq\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lvphl_neq\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lvphl_neq\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lvphl_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvphl_ret\n" ++
+  ".Lvphl_neq:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvphl_ret\n" ++
+  ".Lvphl_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lvphl_ret\n" ++
+  ".Lvphl_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lvphl_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_validate_parent_hash_link`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : parent_rlp_len
+      bytes  8..16 : child_rlp_len
+      bytes 16..   : parent_rlp || child_rlp
+    Output layout:
+      bytes  0.. 8 : status (0=ok, 1=child parse, 2=size fail)
+      bytes  8..16 : is_valid (1 if links, else 0) -/
+def ziskValidateParentHashLinkPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # parent_rlp_len\n" ++
+  "  ld a3, 16(a7)               # child_rlp_len\n" ++
+  "  addi a0, a7, 24             # parent_rlp ptr\n" ++
+  "  add a2, a0, a1              # child_rlp ptr = parent_rlp + parent_len\n" ++
+  "  li a4, 0xa0010008           # is_valid out\n" ++
+  "  jal ra, validate_parent_hash_link\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lvphl_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
+  ".Lvphl_pdone:"
+
+def ziskValidateParentHashLinkDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "vphl_offset:\n" ++
+  "  .zero 8\n" ++
+  "vphl_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_claimed:\n" ++
+  "  .zero 32\n" ++
+  "vphl_computed:\n" ++
+  "  .zero 32"
+
+def ziskValidateParentHashLinkProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateParentHashLinkPrologue
+  dataAsm     := ziskValidateParentHashLinkDataSection
+}
+
 end EvmAsm.Codegen
