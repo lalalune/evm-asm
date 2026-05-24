@@ -4028,5 +4028,204 @@ def ziskMptTwoLeafRootIndexedProbeUnit : BuildUnit := {
   dataAsm     := ziskMptTwoLeafRootIndexedDataSection
 }
 
+/-! ## block_validate_transactions_root_two_tx -- PR-K171
+
+    End-to-end validation: given a block header RLP and the two
+    transactions of a 2-tx block, recompute the expected
+    `transactions_root` and check it byte-equals the header's
+    claimed value.
+
+      claimed_root = header.field[4]              -- via K20
+      computed_root = mpt_two_leaf_root_indexed(  -- K170
+                          tx0, tx1)
+      is_valid = (claimed_root == computed_root)
+
+    Single-call entry point. The verdict lands in the
+    caller-supplied u64 (1 if matches, 0 if not); `a0` returns
+    the error code (header-parse failure / size mismatch
+    distinct from "predicate is false").
+
+    Composes:
+      - PR-K20  `rlp_list_nth_item` on header field 4
+      - PR-K170 `mpt_two_leaf_root_indexed`
+        (which in turn composes K168 / K163 / K167 / K169)
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : tx0 ptr  (wire-format -- typed envelope or
+                              legacy RLP -- used as the value
+                              for key rlp(0) in the trie)
+      a3 (input)  : tx0 byte length
+      a4 (input)  : tx1 ptr  (value for key rlp(1))
+      a5 (input)  : tx1 byte length
+      a6 (input)  : u64 out (is_valid: 1 if root matches, else 0)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        1 : header RLP parse failure / field 4 missing
+        2 : header.transactions_root length != 32 -/
+def blockValidateTransactionsRootTwoTxFunction : String :=
+  "block_validate_transactions_root_two_tx:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # header_rlp ptr\n" ++
+  "  mv s1, a1                   # header_rlp len\n" ++
+  "  mv s2, a2                   # tx0 ptr\n" ++
+  "  mv s3, a3                   # tx0 len\n" ++
+  "  mv s4, a4                   # tx1 ptr\n" ++
+  "  mv s5, a5                   # tx1 len\n" ++
+  "  mv s6, a6                   # is_valid out\n" ++
+  "  sd zero, 0(s6)\n" ++
+  "  # ---- Extract header.transactions_root (field 4) ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
+  "  la a3, bvtr_offset; la a4, bvtr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbvtr_parse_fail\n" ++
+  "  la t0, bvtr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lbvtr_size_fail\n" ++
+  "  # Copy claimed root into bvtr_claimed_root\n" ++
+  "  la t0, bvtr_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1                              # &header[off]\n" ++
+  "  la t4, bvtr_claimed_root\n" ++
+  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
+  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
+  "  ld t5, 16(t3); sd t5, 16(t4)\n" ++
+  "  ld t5, 24(t3); sd t5, 24(t4)\n" ++
+  "  # ---- Compute the 2-leaf trie root from (tx0, tx1) ----\n" ++
+  "  mv a0, s2; mv a1, s3\n" ++
+  "  mv a2, s4; mv a3, s5\n" ++
+  "  la a4, bvtr_computed_root\n" ++
+  "  jal ra, mpt_two_leaf_root_indexed\n" ++
+  "  # ---- 32-byte compare (claimed vs computed) ----\n" ++
+  "  la t0, bvtr_claimed_root\n" ++
+  "  la t1, bvtr_computed_root\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lbvtr_neq\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lbvtr_neq\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lbvtr_neq\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lbvtr_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s6)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvtr_ret\n" ++
+  ".Lbvtr_neq:\n" ++
+  "  sd zero, 0(s6)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvtr_ret\n" ++
+  ".Lbvtr_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvtr_ret\n" ++
+  ".Lbvtr_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lbvtr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_transactions_root_two_tx`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : header_rlp_len
+      bytes  8..16 : tx0_len
+      bytes 16..24 : tx1_len
+      bytes 24..   : header_rlp || tx0 || tx1
+    Output layout:
+      bytes  0.. 8 : status (0=ok, 1=header parse, 2=size fail)
+      bytes  8..16 : is_valid (1 if root matches, else 0) -/
+def ziskBlockValidateTransactionsRootTwoTxPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_rlp_len\n" ++
+  "  ld a3, 16(a7)               # tx0_len\n" ++
+  "  ld a5, 24(a7)               # tx1_len\n" ++
+  "  addi a0, a7, 32             # header_rlp ptr\n" ++
+  "  add a2, a0, a1              # tx0 ptr = header_rlp + header_len\n" ++
+  "  add a4, a2, a3              # tx1 ptr = tx0 + tx0_len\n" ++
+  "  li a6, 0xa0010008           # is_valid out\n" ++
+  "  jal ra, block_validate_transactions_root_two_tx\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbvtr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  mptBranchPayloadTwoSlotsFunction ++ "\n" ++
+  mptBranchNodeEncodeFunction ++ "\n" ++
+  mptBranchNodeKeccakFunction ++ "\n" ++
+  mptTwoLeafRootIndexedFunction ++ "\n" ++
+  blockValidateTransactionsRootTwoTxFunction ++ "\n" ++
+  ".Lbvtr_pdone:"
+
+def ziskBlockValidateTransactionsRootTwoTxDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "mlnen_field_len:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_hp_len:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_cursor:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_total_payload:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_hp_buf:\n" ++
+  "  .zero 1024\n" ++
+  "mlnen_payload_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mbne_field_len:\n" ++
+  "  .zero 8\n" ++
+  "mbnk_node_len:\n" ++
+  "  .zero 8\n" ++
+  "mbnk_node_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtlri_nib0:\n" ++
+  "  .zero 1\n" ++
+  "mtlri_nib1:\n" ++
+  "  .zero 1\n" ++
+  ".balign 8\n" ++
+  "mtlri_leaf_0_len:\n" ++
+  "  .zero 8\n" ++
+  "mtlri_leaf_0_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtlri_leaf_1_len:\n" ++
+  "  .zero 8\n" ++
+  "mtlri_leaf_1_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtlri_slot_0_len:\n" ++
+  "  .zero 8\n" ++
+  "mtlri_slot_0_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtlri_slot_1_len:\n" ++
+  "  .zero 8\n" ++
+  "mtlri_slot_1_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtlri_branch_payload_len:\n" ++
+  "  .zero 8\n" ++
+  "mtlri_branch_payload:\n" ++
+  "  .zero 16384\n" ++
+  "bvtr_offset:\n" ++
+  "  .zero 8\n" ++
+  "bvtr_length:\n" ++
+  "  .zero 8\n" ++
+  "bvtr_claimed_root:\n" ++
+  "  .zero 32\n" ++
+  "bvtr_computed_root:\n" ++
+  "  .zero 32"
+
+def ziskBlockValidateTransactionsRootTwoTxProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateTransactionsRootTwoTxPrologue
+  dataAsm     := ziskBlockValidateTransactionsRootTwoTxDataSection
+}
+
 
 end EvmAsm.Codegen
