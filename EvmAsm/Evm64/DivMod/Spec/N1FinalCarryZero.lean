@@ -261,9 +261,45 @@ theorem fullDivN1NormalizedMulSubEq_of_raw_step_conservation_overestimate_final
     hbnz hb1z hb2z hb3z hshift_nz hcarry2
     hr3_zero hr2_zero hr1_zero hfinal_zero
 
-/-- Raw step-conservation bridge to the normalized n=1 final-remainder bound,
+/-- Step-conservation bridge to the normalized n=1 final-remainder bound,
     deriving the final carry-zero and normalized mulsub facts internally from
     the legacy quotient overestimate. -/
+theorem fullDivN1NormalizedRemainderLt_of_step_conservation_overestimate_final
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2)
+    (hr3_zero : fullDivN1R3CarryZero bltu_3 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hr2_zero : fullDivN1R2CarryZero bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hr1_zero : fullDivN1R1CarryZero bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    fullDivN1NormalizedRemainderLt bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 := by
+  have hmulsub : fullDivN1NormalizedMulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 :=
+    fullDivN1NormalizedMulSubEq_of_step_conservation_overestimate_final
+      bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz hcarry2
+      hr3_zero hr2_zero hr1_zero hge
+  exact fullDivN1NormalizedRemainderLt_of_mulsub_overestimate
+    bltu_3 bltu_2 bltu_1 bltu_0 hbnz hmulsub hge
+
+/-- Raw dispatcher-surface carry form of
+    `fullDivN1NormalizedRemainderLt_of_step_conservation_overestimate_final`. -/
 theorem fullDivN1NormalizedRemainderLt_of_raw_step_conservation_overestimate_final
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
@@ -294,14 +330,18 @@ theorem fullDivN1NormalizedRemainderLt_of_raw_step_conservation_overestimate_fin
               a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
     fullDivN1NormalizedRemainderLt bltu_3 bltu_2 bltu_1 bltu_0
       a0 a1 a2 a3 b0 b1 b2 b3 := by
-  have hmulsub : fullDivN1NormalizedMulSubEq bltu_3 bltu_2 bltu_1 bltu_0
-      a0 a1 a2 a3 b0 b1 b2 b3 :=
-    fullDivN1NormalizedMulSubEq_of_raw_step_conservation_overestimate_final
-      bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
-      hbnz hb1z hb2z hb3z hshift_nz hcarry2
-      hr3_zero hr2_zero hr1_zero hge
-  exact fullDivN1NormalizedRemainderLt_of_mulsub_overestimate
-    bltu_3 bltu_2 bltu_1 bltu_0 hbnz hmulsub hge
+  have hcarry2Norm : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2 := by
+    unfold fullDivN1NormV fullDivN1Shift fullDivN1AntiShift
+    rw [fullDivN1Shift_unfold]
+    exact hcarry2
+  exact fullDivN1NormalizedRemainderLt_of_step_conservation_overestimate_final
+    bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    hbnz hb1z hb2z hb3z hshift_nz hcarry2Norm
+    hr3_zero hr2_zero hr1_zero hge
 
 /-- GetLimb-level n=1 hdiv witness from raw step conservation plus the
     legacy quotient overestimate, deriving the final carry-zero fact
