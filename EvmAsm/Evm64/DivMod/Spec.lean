@@ -24,6 +24,7 @@ import EvmAsm.Evm64.DivMod.Spec.N3RemainderWordV4
 import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 import EvmAsm.Evm64.DivMod.Spec.DispatcherPcFree
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
+import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N2DivStackSpec
