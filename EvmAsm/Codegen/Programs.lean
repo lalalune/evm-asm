@@ -5471,6 +5471,92 @@ def ziskMptBranchNodeEncodeProbeUnit : BuildUnit := {
   dataAsm     := ziskMptBranchNodeEncodeDataSection
 }
 
+/-! ## nibbles_common_prefix_len -- PR-K166
+
+    Walk two nibble arrays (one byte per nibble, low 4 bits) from
+    the start and return the length of their shared prefix. Stops
+    at the first differing nibble or at the end of the shorter
+    array, whichever comes first.
+
+    Direct building block for multi-leaf MPT root computation:
+    given two leaf paths in nibble form, the depth at which they
+    diverge tells the constructor whether to emit an extension
+    node (for the shared prefix) followed by a branch (at the
+    divergence point), or just a branch directly (if cpl == 0).
+
+    Example: for sequential indices 0 and 1 in an indexed trie,
+    `rlp(0) = 0x80` and `rlp(1) = 0x01` expand to nibbles
+    `[0x8, 0x0]` and `[0x0, 0x1]`; their common prefix is empty
+    (cpl == 0), so the root is a branch.
+
+    Pure register arithmetic, leaf-callable, no scratch.
+
+    Calling convention:
+      a0 (input)  : nibbles_a ptr (1 byte per nibble)
+      a1 (input)  : nibbles_a count
+      a2 (input)  : nibbles_b ptr
+      a3 (input)  : nibbles_b count
+      a4 (input)  : u64 out ptr (common prefix length, in nibbles)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def nibblesCommonPrefixLenFunction : String :=
+  "nibbles_common_prefix_len:\n" ++
+  "  # min(a_count, b_count)\n" ++
+  "  bltu a1, a3, .Lncpl_min_ok\n" ++
+  "  mv a1, a3\n" ++
+  ".Lncpl_min_ok:\n" ++
+  "  li t0, 0                   # cpl accumulator\n" ++
+  "  mv t1, a0                  # a cursor\n" ++
+  "  mv t2, a2                  # b cursor\n" ++
+  ".Lncpl_loop:\n" ++
+  "  bge t0, a1, .Lncpl_done\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bne t3, t4, .Lncpl_done\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lncpl_loop\n" ++
+  ".Lncpl_done:\n" ++
+  "  sd t0, 0(a4)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_nibbles_common_prefix_len`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : a_count
+      bytes  8..16 : b_count
+      bytes 16..16+a_count: nibbles_a
+      bytes (16+a_count)..: nibbles_b
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : common prefix length -/
+def ziskNibblesCommonPrefixLenPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # a_count\n" ++
+  "  ld a3, 16(a5)               # b_count\n" ++
+  "  addi a0, a5, 24             # nibbles_a ptr\n" ++
+  "  add a2, a0, a1              # nibbles_b ptr\n" ++
+  "  li a4, 0xa0010008           # cpl out\n" ++
+  "  jal ra, nibbles_common_prefix_len\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lncpl_pdone\n" ++
+  nibblesCommonPrefixLenFunction ++ "\n" ++
+  ".Lncpl_pdone:"
+
+def ziskNibblesCommonPrefixLenDataSection : String :=
+  ".section .data\n" ++
+  "ncpl_pad:\n" ++
+  "  .zero 8"
+
+def ziskNibblesCommonPrefixLenProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskNibblesCommonPrefixLenPrologue
+  dataAsm     := ziskNibblesCommonPrefixLenDataSection
+}
+
 /-! ## block-level bloom composites K158-K159 — moved to `Programs/Bloom.lean` (file-size hard cap). -/
 
 /-! ## header_root_is_empty_trie -- PR-K161
@@ -6136,6 +6222,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_node_slot_encode" => some ziskMptNodeSlotEncodeProbeUnit
   | "zisk_mpt_extension_node_encode" => some ziskMptExtensionNodeEncodeProbeUnit
   | "zisk_mpt_branch_node_encode" => some ziskMptBranchNodeEncodeProbeUnit
+  | "zisk_nibbles_common_prefix_len" => some ziskNibblesCommonPrefixLenProbeUnit
   | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
   | "zisk_block_validate_logs_bloom" => some ziskBlockValidateLogsBloomProbeUnit
   | "zisk_header_root_is_empty_trie" => some ziskHeaderRootIsEmptyTrieProbeUnit
@@ -6315,6 +6402,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_node_slot_encode",
    "zisk_mpt_extension_node_encode",
    "zisk_mpt_branch_node_encode",
+   "zisk_nibbles_common_prefix_len",
    "zisk_block_logs_bloom_from_receipts_list",
    "zisk_block_validate_logs_bloom",
    "zisk_header_root_is_empty_trie",
