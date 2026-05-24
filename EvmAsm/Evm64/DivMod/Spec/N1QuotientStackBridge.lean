@@ -19,6 +19,32 @@ theorem fullDivN1NormV_limb0_eq
   unfold fullDivN1NormV
   simp
 
+/-- A nonzero n=1 divisor has a nonzero low normalized divisor limb. -/
+theorem fullDivN1NormV_limb0_ne_zero_of_b0_ne_zero
+    (b0 b1 b2 b3 : Word) (hb0nz : b0 ≠ 0) :
+    (fullDivN1NormV b0 b1 b2 b3).1 ≠ 0 := by
+  intro h_zero
+  have h_ge : (b0 <<< ((clzResult b0).1.toNat % 64)).toNat ≥ 2^63 :=
+    b3_shifted_ge_pow63 hb0nz
+  have h_limb0 := fullDivN1NormV_limb0_eq b0 b1 b2 b3
+  unfold fullDivN1Shift at h_limb0
+  have h_nat : (b0 <<< ((clzResult b0).1.toNat % 64)).toNat = 0 := by
+    rw [← h_limb0, h_zero]
+    rfl
+  omega
+
+/-- Nonzero shape needed by the `v3 = 0` n=1 conservation lemma. -/
+theorem fullDivN1NormV_low3_or_zero_ne_zero_of_b0_ne_zero
+    (b0 b1 b2 b3 : Word) (hb0nz : b0 ≠ 0) :
+    (fullDivN1NormV b0 b1 b2 b3).1 |||
+        (fullDivN1NormV b0 b1 b2 b3).2.1 |||
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1 ||| (0 : Word) ≠ 0 := by
+  intro h_zero
+  have h_limb0_ne :=
+    fullDivN1NormV_limb0_ne_zero_of_b0_ne_zero b0 b1 b2 b3 hb0nz
+  apply h_limb0_ne
+  bv_decide
+
 /-- Under the n=1 divisor shape, normalized limb 1 is the low limb's
     anti-shift spill. -/
 theorem fullDivN1NormV_limb1_eq_of_shape
