@@ -11,6 +11,42 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- The low normalized n=1 divisor limb is the shifted original low limb. -/
+theorem fullDivN1NormV_limb0_eq
+    (b0 b1 b2 b3 : Word) :
+    (fullDivN1NormV b0 b1 b2 b3).1 =
+      b0 <<< ((fullDivN1Shift b0).toNat % 64) := by
+  unfold fullDivN1NormV
+  simp
+
+/-- Under the n=1 divisor shape, normalized limb 1 is the low limb's
+    anti-shift spill. -/
+theorem fullDivN1NormV_limb1_eq_of_shape
+    (b0 b1 b2 b3 : Word) (hb1z : b1 = 0) :
+    (fullDivN1NormV b0 b1 b2 b3).2.1 =
+      b0 >>> ((fullDivN1AntiShift b0).toNat % 64) := by
+  subst b1
+  unfold fullDivN1NormV
+  simp
+
+/-- Under the n=1 divisor shape, the second high normalized divisor limb is zero. -/
+theorem fullDivN1NormV_limb2_eq_zero_of_shape
+    (b0 b1 b2 b3 : Word) (hb1z : b1 = 0) (hb2z : b2 = 0) :
+    (fullDivN1NormV b0 b1 b2 b3).2.2.1 = 0 := by
+  subst b1
+  subst b2
+  unfold fullDivN1NormV
+  simp
+
+/-- Under the n=1 divisor shape, the high normalized divisor limb is zero. -/
+theorem fullDivN1NormV_limb3_eq_zero_of_shape
+    (b0 b1 b2 b3 : Word) (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    (fullDivN1NormV b0 b1 b2 b3).2.2.2 = 0 := by
+  subst b2
+  subst b3
+  unfold fullDivN1NormV
+  simp
+
 /-- n=1 quotient bridge specialized to branch constructors that store
     `a`/`b` as `EvmWord`s and refer to their limbs directly. -/
 theorem fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_overestimate
