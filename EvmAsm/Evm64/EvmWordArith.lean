@@ -50,3 +50,4 @@ import EvmAsm.Evm64.EvmWordArith.SkipBorrowExtract
 import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddback
 import EvmAsm.Evm64.EvmWordArith.AddbackBorrowExtract
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
+import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
