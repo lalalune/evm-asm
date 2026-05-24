@@ -3415,4 +3415,94 @@ def ziskChainBlockHashesCommitmentProbeUnit : BuildUnit := {
   dataAsm     := ziskChainBlockHashesCommitmentDataSection
 }
 
+/-! ## header_extract_state_root -- PR-K201
+
+    Extract `state_root` (field 3, 32 bytes) from a header RLP
+    and copy it to a caller-supplied 32-byte output buffer.
+
+    `header_minimal_decode` already extracts state_root as part
+    of a 4-field bundle (parent_hash + state_root + number +
+    timestamp); this primitive is the tight standalone variant
+    for callers that only need the state_root.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 32-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 3 missing
+        2 : field 3 length != 32 -/
+def headerExtractStateRootFunction : String :=
+  "header_extract_state_root:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
+  "  la a3, hesr_offset; la a4, hesr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhesr_parse_fail\n" ++
+  "  la t0, hesr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhesr_size_fail\n" ++
+  "  la t0, hesr_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhesr_ret\n" ++
+  ".Lhesr_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhesr_ret\n" ++
+  ".Lhesr_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhesr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_state_root`: probe BuildUnit.
+    Input layout:
+      bytes 0..8 : header_rlp_len
+      bytes 8..  : header_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..40 : 32-byte state_root -/
+def ziskHeaderExtractStateRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_rlp_len\n" ++
+  "  addi a0, a7, 16             # header_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # 32 B output\n" ++
+  "  jal ra, header_extract_state_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhesr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  ".Lhesr_pdone:"
+
+def ziskHeaderExtractStateRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hesr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hesr_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractStateRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractStateRootPrologue
+  dataAsm     := ziskHeaderExtractStateRootDataSection
+}
+
 end EvmAsm.Codegen
