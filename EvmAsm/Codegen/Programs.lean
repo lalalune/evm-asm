@@ -5186,6 +5186,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_nibbles_common_prefix_len" => some ziskNibblesCommonPrefixLenProbeUnit
   | "zisk_mpt_branch_payload_two_slots" => some ziskMptBranchPayloadTwoSlotsProbeUnit
   | "zisk_mpt_leaf_node_encode_from_nibbles" => some ziskMptLeafNodeEncodeFromNibblesProbeUnit
+  | "zisk_mpt_branch_node_keccak" => some ziskMptBranchNodeKeccakProbeUnit
   | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
   | "zisk_block_validate_logs_bloom" => some ziskBlockValidateLogsBloomProbeUnit
   | "zisk_header_root_is_empty_trie" => some ziskHeaderRootIsEmptyTrieProbeUnit
@@ -5368,6 +5369,7 @@ def knownProgramNames : List String :=
    "zisk_nibbles_common_prefix_len",
    "zisk_mpt_branch_payload_two_slots",
    "zisk_mpt_leaf_node_encode_from_nibbles",
+   "zisk_mpt_branch_node_keccak",
    "zisk_block_logs_bloom_from_receipts_list",
    "zisk_block_validate_logs_bloom",
    "zisk_header_root_is_empty_trie",
