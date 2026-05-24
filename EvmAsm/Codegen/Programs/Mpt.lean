@@ -3744,5 +3744,102 @@ def ziskMptLeafNodeEncodeFromNibblesProbeUnit : BuildUnit := {
   dataAsm     := ziskMptLeafNodeEncodeFromNibblesDataSection
 }
 
+/-! ## mpt_branch_node_keccak -- PR-K169
+
+    Compose PR-K165 `mpt_branch_node_encode` with
+    `zkvm_keccak256`: given a pre-concatenated 17-slot payload,
+    produce the 32-byte keccak256 of the branch-node RLP.
+
+    Direct primitive for the trie root when the trie's root *is*
+    a branch node. This is the common case for 2-entry indexed
+    tries (transactions / receipts / withdrawals) when the two
+    keys diverge at the first nibble:
+
+      * `rlp(0) = 0x80` (nibbles `[8, 0]`)
+      * `rlp(1) = 0x01` (nibbles `[0, 1]`)
+
+    The shared prefix is empty (cpl = 0; cf. PR-K166), so the
+    root is directly `keccak256(branch_node_rlp)` with the two
+    leaves' parent-slot encodings sitting at slots 0 and 8 (and
+    the rest empty, per K167's payload-assembler).
+
+    Composes:
+      - PR-K165 `mpt_branch_node_encode`  for the outer wrap
+      - `zkvm_keccak256` (HashBridge)     for the root hash
+
+    Calling convention:
+      a0 (input)  : slot_payload ptr (pre-concatenated 17-slot
+                    bytes; caller's responsibility to put the
+                    slots in nibble order and end with the value
+                    slot)
+      a1 (input)  : slot_payload byte length
+      a2 (input)  : 32-byte output root ptr
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds).
+
+    Uses a 16 KiB `.data` scratch buffer for the branch-node RLP
+    bytes between the K165 emit step and the keccak step. -/
+def mptBranchNodeKeccakFunction : String :=
+  "mpt_branch_node_keccak:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # slot_payload ptr\n" ++
+  "  mv s1, a1                   # slot_payload len\n" ++
+  "  mv s2, a2                   # output root ptr\n" ++
+  "  # ---- Step 1: emit branch-node RLP to mbnk_node_buf ----\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, mbnk_node_buf\n" ++
+  "  la a3, mbnk_node_len\n" ++
+  "  jal ra, mpt_branch_node_encode\n" ++
+  "  # ---- Step 2: keccak256(mbnk_node_buf, mbnk_node_len) ----\n" ++
+  "  la a0, mbnk_node_buf\n" ++
+  "  la t0, mbnk_node_len; ld a1, 0(t0)\n" ++
+  "  mv a2, s2\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_mpt_branch_node_keccak`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : slot_payload_len
+      bytes  8..   : slot_payload bytes
+    Output layout:
+      bytes  0..32 : 32-byte branch-node keccak256 root -/
+def ziskMptBranchNodeKeccakPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)                # slot_payload_len\n" ++
+  "  addi a0, a3, 16             # slot_payload ptr\n" ++
+  "  li a2, 0xa0010000           # output root ptr (32 B)\n" ++
+  "  jal ra, mpt_branch_node_keccak\n" ++
+  "  j .Lmbnk_pdone\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  mptBranchNodeEncodeFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptBranchNodeKeccakFunction ++ "\n" ++
+  ".Lmbnk_pdone:"
+
+def ziskMptBranchNodeKeccakDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "mbne_field_len:\n" ++
+  "  .zero 8\n" ++
+  "mbnk_node_len:\n" ++
+  "  .zero 8\n" ++
+  "mbnk_node_buf:\n" ++
+  "  .zero 16384"
+
+def ziskMptBranchNodeKeccakProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptBranchNodeKeccakPrologue
+  dataAsm     := ziskMptBranchNodeKeccakDataSection
+}
+
 
 end EvmAsm.Codegen
