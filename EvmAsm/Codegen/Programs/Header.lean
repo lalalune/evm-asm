@@ -2838,4 +2838,126 @@ def ziskValidateBlockHashChainMatchProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateBlockHashChainMatchDataSection
 }
 
+/-! ## chain_compute_total_gas_used -- PR-K196
+
+    Aggregate `gas_used` (header field 10) across an N-element
+    header chain into a single u64 sum. Useful for chain-state
+    commitments and protocol-level invariants such as
+    \"this chain segment burned at most G gas total\".
+
+    No chain validation is performed here -- the caller is
+    responsible for combining this with K175 (or K195) for
+    chain integrity. K196 is purely an aggregator over the
+    headers; the inputs and accumulator math are kept in plain
+    u64, so the sum saturates / wraps modulo 2^64 like any
+    RISC-V add.
+
+    For real mainnet blocks, gas_used <= ~30M and N <= ~256 in
+    a single witness; the sum stays well below 2^64.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr (u64[N])
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (total_gas_used; running sum)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse error on some header (sum is partial,
+            up to the failing header)
+        2 : a header's gas_used field exceeds 8 bytes BE -/
+def chainComputeTotalGasUsedFunction : String :=
+  "chain_compute_total_gas_used:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # header_lengths ptr\n" ++
+  "  mv s2, a2                   # headers ptr\n" ++
+  "  mv s3, a3                   # out ptr\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li s4, 0                    # i = 0\n" ++
+  "  beqz s0, .Lccgu_done\n" ++
+  ".Lccgu_loop:\n" ++
+  "  beq s4, s0, .Lccgu_done\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)                # header_len\n" ++
+  "  mv a0, s2                   # header_ptr\n" ++
+  "  li a2, 10                   # field 10 = gas_used\n" ++
+  "  la a3, ccgu_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lccgu_parse_fail\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lccgu_size_fail\n" ++
+  "  # Accumulate\n" ++
+  "  la t0, ccgu_field; ld t1, 0(t0)\n" ++
+  "  ld t2, 0(s3)\n" ++
+  "  add t2, t2, t1\n" ++
+  "  sd t2, 0(s3)\n" ++
+  "  # Advance to next header\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lccgu_loop\n" ++
+  ".Lccgu_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lccgu_ret\n" ++
+  ".Lccgu_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lccgu_ret\n" ++
+  ".Lccgu_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lccgu_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_chain_compute_total_gas_used`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : N
+      bytes  8..8+8N : header_lengths
+      bytes  8+8N.. : concatenated header RLPs
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : total_gas_used -/
+def ziskChainComputeTotalGasUsedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # N\n" ++
+  "  addi a1, a7, 16             # header_lengths ptr\n" ++
+  "  slli t0, a0, 3              # 8*N\n" ++
+  "  add a2, a1, t0              # headers ptr\n" ++
+  "  li a3, 0xa0010008           # total_gas_used out\n" ++
+  "  jal ra, chain_compute_total_gas_used\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lccgu_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainComputeTotalGasUsedFunction ++ "\n" ++
+  ".Lccgu_pdone:"
+
+def ziskChainComputeTotalGasUsedDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "ccgu_field:\n" ++
+  "  .zero 8"
+
+def ziskChainComputeTotalGasUsedProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainComputeTotalGasUsedPrologue
+  dataAsm     := ziskChainComputeTotalGasUsedDataSection
+}
+
 end EvmAsm.Codegen
