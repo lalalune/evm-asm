@@ -231,4 +231,45 @@ theorem divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_gt_of_fire
   rw [h_dec]
   omega
 
+/-- Nat-level product-check bridge for the v4 Phase-2 second digit.
+
+    This specializes the generic product-check implication to the v4 names:
+    once `Q0d` and `Rhat2d` satisfy the Euclidean relation against `un21`,
+    a strict product-check failure means `Q0d` is strictly above the true
+    second Knuth digit. The remaining Word-level fire case only has to
+    convert `BLTU ((Rhat2d << 32) | un0) (Q0d*dLo)` into `hProd_gt`. -/
+theorem divKTrialCallV4Q0d_gt_q_true_0_of_prod_gt
+    (uHi uLo vTop : Word)
+    (hDen_pos :
+      0 < (divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat)
+    (hRhat_eq :
+      (divKTrialCallV4Rhat2d uHi uLo vTop).toNat =
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat -
+          (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+            (divKTrialCallV4DHi vTop).toNat)
+    (hQ0d_mul :
+      (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+          (divKTrialCallV4DHi vTop).toNat ≤
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat)
+    (hProd_gt :
+      (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat >
+        (divKTrialCallV4Rhat2d uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un0 uLo).toNat) :
+    ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat) /
+      ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat) <
+    (divKTrialCallV4Q0d uHi uLo vTop).toNat := by
+  exact EvmWord.product_check_gt_imp_overestimate
+    (divKTrialCallV4Un21 uHi uLo vTop).toNat
+    (divKTrialCallV4Un0 uLo).toNat
+    (divKTrialCallV4DHi vTop).toNat
+    (divKTrialCallV4DLo vTop).toNat
+    (divKTrialCallV4Q0d uHi uLo vTop).toNat
+    (divKTrialCallV4Rhat2d uHi uLo vTop).toNat
+    (2^32)
+    hDen_pos hRhat_eq hQ0d_mul hProd_gt
+
 end EvmAsm.Evm64
