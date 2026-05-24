@@ -4893,4 +4893,79 @@ def ziskHeaderValidateNonceZeroProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderValidateNonceZeroDataSection
 }
 
+/-! ## header_validate_difficulty_zero -- PR-K219
+
+    Post-merge predicate: verify the `difficulty` (field 7)
+    is zero, as required by EIP-3675. Counterpart to K218
+    nonce-zero check; together with K179 ommers_hash check
+    they cover the three post-merge "must be the zero value"
+    invariants the EELS validator enforces.
+
+    For RLP-canonical encoding of integers, zero is the empty
+    string, so this is the predicate `length(field 7) == 0`.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out (is_valid: 1 if difficulty == 0)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        1 : RLP parse failure / field 7 missing -/
+def headerValidateDifficultyZeroFunction : String :=
+  "header_validate_difficulty_zero:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp)\n" ++
+  "  mv s0, a2                            # is_valid out\n" ++
+  "  sd zero, 0(s0)\n" ++
+  "  li a2, 7                            # field 7 = difficulty\n" ++
+  "  la a3, hvdz_offset; la a4, hvdz_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhvdz_parse_fail\n" ++
+  "  la t0, hvdz_length; ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lhvdz_nonzero\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s0)\n" ++
+  ".Lhvdz_nonzero:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhvdz_ret\n" ++
+  ".Lhvdz_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lhvdz_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+def ziskHeaderValidateDifficultyZeroPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_validate_difficulty_zero\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhvdz_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerValidateDifficultyZeroFunction ++ "\n" ++
+  ".Lhvdz_pdone:"
+
+def ziskHeaderValidateDifficultyZeroDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hvdz_offset:\n" ++
+  "  .zero 8\n" ++
+  "hvdz_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderValidateDifficultyZeroProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderValidateDifficultyZeroPrologue
+  dataAsm     := ziskHeaderValidateDifficultyZeroDataSection
+}
+
 end EvmAsm.Codegen
