@@ -1148,6 +1148,98 @@ theorem divKTrialCallV4Q0dd_ge_q_true_0_of_un21_lt_vTop
     exact divKTrialCallV4Q0dd_ge_q_true_0_of_tail
       uHi uLo vTop hdHi_ge hdHi_lt hdLo_lt hUn21_ge_dHi_pow32 hUn21_lt_vTop
 
+/-- V4 `un21` is the first-step mathematical remainder when the low-half
+    Phase-1 subtraction does not wrap.
+
+    The additive identity contributes a possible high-half carry
+    `(Rhatdd / 2^32) * 2^64`; the hypotheses `Q1dd = q_true_1` and
+    `un21 < vTop ≤ 2^64` force that carry to be zero, leaving the ordinary
+    remainder. -/
+theorem divKTrialCallV4Un21_eq_r1_of_no_wrap
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63)
+    (h_no_wrap :
+      (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat ≤
+        ((divKTrialCallV4Rhatdd uHi uLo vTop).toNat % 2^32) * 2^32 +
+          (divKTrialCallV4Un1 uLo).toNat) :
+    (divKTrialCallV4Un21 uHi uLo vTop).toNat =
+      (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) % vTop.toNat := by
+  let q := divKTrialCallV4Q1dd uHi uLo vTop
+  let rhat := divKTrialCallV4Rhatdd uHi uLo vTop
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
+  let un21 := divKTrialCallV4Un21 uHi uLo vTop
+  let n := uHi.toNat * 2^32 + un1.toNat
+  have hvTop_pos : 0 < vTop.toNat := by omega
+  have h_vTop_decomp : vTop.toNat = dHi.toNat * 2^32 + dLo.toNat := by
+    unfold dHi dLo divKTrialCallV4DHi divKTrialCallV4DLo
+    exact div128Quot_vTop_decomp vTop
+  have h_post : q.toNat * dHi.toNat + rhat.toNat = uHi.toNat := by
+    simpa [q, rhat, dHi] using divKTrialCallV4Q1dd_rhatdd_post uHi uLo vTop hvTop_ge
+  have h_q_eq : q.toNat = n / vTop.toNat := by
+    simpa [q, n, un1] using
+      divKTrialCallV4Q1dd_eq_q_true_1_of_uHi_lt_pow63
+        uHi uLo vTop hvTop_ge huHi_lt_vTop huHi_lt_pow63
+  have h_add := divKTrialCallV4Un21_additive_identity_of_no_wrap
+    uHi uLo vTop hvTop_ge huHi_lt_vTop h_no_wrap
+  have h_n_eq :
+      n = q.toNat * vTop.toNat + un21.toNat + (rhat.toNat / 2^32) * 2^64 := by
+    have h_qv :
+        q.toNat * vTop.toNat =
+          q.toNat * dHi.toNat * 2^32 + q.toNat * dLo.toNat := by
+      rw [h_vTop_decomp]
+      ring
+    have h_n :
+        n = (q.toNat * dHi.toNat + rhat.toNat) * 2^32 + un1.toNat := by
+      unfold n
+      rw [h_post]
+    change un21.toNat + (rhat.toNat / 2^32) * 2^64 + q.toNat * dLo.toNat =
+      rhat.toNat * 2^32 + un1.toNat at h_add
+    rw [h_n, h_qv]
+    nlinarith [h_add]
+  have h_rem_eq : n - q.toNat * vTop.toNat = un21.toNat + (rhat.toNat / 2^32) * 2^64 := by
+    omega
+  have h_rem_lt : n - q.toNat * vTop.toNat < vTop.toNat := by
+    rw [h_q_eq]
+    have h_mul_comm : n / vTop.toNat * vTop.toNat =
+        vTop.toNat * (n / vTop.toNat) := by ring
+    rw [h_mul_comm]
+    have h_div_mod : vTop.toNat * (n / vTop.toNat) + n % vTop.toNat = n :=
+      Nat.div_add_mod n vTop.toNat
+    have h_mod_lt : n % vTop.toNat < vTop.toNat := Nat.mod_lt n hvTop_pos
+    omega
+  have h_carry_zero : (rhat.toNat / 2^32) * 2^64 = 0 := by
+    have hvTop_le : vTop.toNat ≤ 2^64 := Nat.le_of_lt vTop.isLt
+    by_contra h_ne
+    have h_pos : 0 < (rhat.toNat / 2^32) * 2^64 := Nat.pos_of_ne_zero h_ne
+    have h_big : 2^64 ≤ (rhat.toNat / 2^32) * 2^64 := by
+      have h_factor_pos : rhat.toNat / 2^32 ≠ 0 := by
+        intro h_zero
+        rw [h_zero] at h_pos
+        simp at h_pos
+      have h_factor : 1 ≤ rhat.toNat / 2^32 :=
+        Nat.succ_le_of_lt (Nat.pos_of_ne_zero h_factor_pos)
+      calc
+        2^64 = 1 * 2^64 := by ring
+        _ ≤ (rhat.toNat / 2^32) * 2^64 :=
+          Nat.mul_le_mul_right (2^64) h_factor
+    omega
+  have h_un21_rem : un21.toNat = n - q.toNat * vTop.toNat := by
+    rw [h_rem_eq, h_carry_zero]
+    omega
+  have h_mod : n % vTop.toNat = n - q.toNat * vTop.toNat := by
+    rw [h_q_eq]
+    have h_div_mod : n / vTop.toNat * vTop.toNat + n % vTop.toNat = n := by
+      have h := Nat.div_add_mod n vTop.toNat
+      simpa [Nat.mul_comm] using h
+    omega
+  rw [h_mod]
+  exact h_un21_rem
+
 /-- Full v4 128/64 lower bound from exact Phase 1 and the Phase-2 lower
     bound, with the `un21`-as-remainder fact supplied explicitly.
 
@@ -1226,5 +1318,27 @@ theorem div128Quot_v4_ge_q_true_of_un21_eq_r1
   rw [h_qhat]
   rw [h_left]
   exact h_core
+
+/-- Full v4 128/64 lower bound from exact Phase 1, Phase-2 lower bound, and
+    the Phase-1 low-half no-wrap condition. -/
+theorem div128Quot_v4_ge_q_true_of_no_wrap
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat < vTop.toNat)
+    (h_no_wrap :
+      (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat ≤
+        ((divKTrialCallV4Rhatdd uHi uLo vTop).toNat % 2^32) * 2^32 +
+          (divKTrialCallV4Un1 uLo).toNat) :
+    (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat ≤
+      (div128Quot_v4 uHi uLo vTop).toNat := by
+  have hUn21_eq_r1 :=
+    divKTrialCallV4Un21_eq_r1_of_no_wrap uHi uLo vTop
+      hvTop_ge huHi_lt_vTop huHi_lt_pow63 h_no_wrap
+  exact div128Quot_v4_ge_q_true_of_un21_eq_r1 uHi uLo vTop
+    hvTop_ge huHi_lt_vTop huHi_lt_pow63 hUn21_lt_vTop hUn21_eq_r1
 
 end EvmAsm.Evm64
