@@ -27,6 +27,7 @@
 -/
 import EvmAsm.Evm64.DivMod.Spec.CallSkip
 import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4
 
 namespace EvmAsm.Evm64
@@ -54,6 +55,42 @@ def n4CallSkipSemanticHoldsV4 (a b : EvmWord) : Prop :=
   val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
       val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ≤
     (div128Quot_v4 u4 u3 b3').toNat
+
+/-- V4 call-skip lower bound in the final Phase-1b high-half-zero branch. -/
+theorem div128Quot_v4_call_skip_ge_val256_div_of_rhatdd_hi_zero
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let u4 := a3 >>> antiShift
+    let u3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    (divKTrialCallV4Un21 u4 u3 b3').toNat < b3'.toNat →
+    divKTrialCallV4Rhatdd u4 u3 b3' >>> (32 : BitVec 6).toNat = (0 : Word) →
+    val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
+      (div128Quot_v4 u4 u3 b3').toNat := by
+  intro shift antiShift b3' u4 u3 hUn21_lt_vTop h_rhat_hi_zero
+  have h_bridge := q_true_triple_bridge_to_val256_norm a0 a1 a2 a3 b0 b1 b2 b3
+    hshift_nz hb3nz
+  simp only [] at h_bridge
+  have h_b3'_ge : b3'.toNat ≥ 2^63 :=
+    b3_prime_ge_pow63 b3 b2 hb3nz _
+  have h_u4_lt_b3' : u4.toNat < b3'.toNat :=
+    isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have h_shift_pos : 1 ≤ (clzResult b3).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b3).1.toNat with h | h
+    · exfalso
+      apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have h_u4_lt_pow63 : u4.toNat < 2^63 :=
+    u_top_lt_pow63_of_shift_nz a3 (clzResult b3).1 h_shift_pos
+      (clzResult_fst_toNat_le b3)
+  have h_core := div128Quot_v4_ge_q_true_of_rhatdd_hi_zero
+    u4 u3 b3' h_b3'_ge h_u4_lt_b3' h_u4_lt_pow63 hUn21_lt_vTop h_rhat_hi_zero
+  exact Nat.le_trans h_bridge h_core
 
 theorem n4CallSkipSemanticHoldsV4_def {a b : EvmWord} :
     n4CallSkipSemanticHoldsV4 a b =
