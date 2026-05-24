@@ -521,4 +521,56 @@ theorem divKTrialCallV4Q0dd_ge_q_true_0_of_un21_lt_pow63
   · exact divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_ge_of_rhat2d_hi_ne
       uHi uLo vTop hQ0d_ge hRhat2d_hi_zero
 
+/-- V4 second-correction lower bound in the `un21 < DHi * 2^32` range.
+
+    This is the wider easy Phase-2 range where the first-correction lower
+    bound is available directly from the high divisor digit. The second
+    correction branch split is identical to the `un21 < 2^63` wrapper. -/
+theorem divKTrialCallV4Q0dd_ge_q_true_0_of_un21_lt_dHi_mul_pow32
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (hUn21_lt_dHi_pow32 :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) :
+    ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat) /
+      ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat) ≤
+    (divKTrialCallV4Q0dd uHi uLo vTop).toNat := by
+  have hQ0d_ge :
+      ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un0 uLo).toNat) /
+        ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) ≤
+      (divKTrialCallV4Q0d uHi uLo vTop).toNat :=
+    divKTrialCallV4Q0d_ge_q_true_0_of_un21_lt_dHi_mul_pow32 uHi uLo vTop
+      hdHi_ge hdHi_lt hdLo_lt hUn21_lt_dHi_pow32 hUn21_lt_vTop
+  by_cases hRhat2d_hi_zero :
+      divKTrialCallV4Rhat2d uHi uLo vTop >>> (32 : BitVec 6).toNat = 0
+  · by_cases hUlt :
+        BitVec.ult
+          ((divKTrialCallV4Rhat2d uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+            divKTrialCallV4Un0 uLo)
+          (divKTrialCallV4Q0d uHi uLo vTop * divKTrialCallV4DLo vTop)
+    · have hQ0d_gt :
+          ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+              (divKTrialCallV4Un0 uLo).toNat) /
+            ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+              (divKTrialCallV4DLo vTop).toNat) <
+          (divKTrialCallV4Q0d uHi uLo vTop).toNat :=
+        divKTrialCallV4Q0d_gt_q_true_0_of_ult uHi uLo vTop
+          hdHi_ge hdHi_lt hdLo_lt hUn21_lt_vTop hRhat2d_hi_zero hUlt
+      exact divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_gt_of_fire uHi uLo vTop
+        hQ0d_gt hRhat2d_hi_zero hUlt
+    · exact divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_ge_of_rhat2d_hi_eq_zero_of_no_ult
+        uHi uLo vTop hQ0d_ge hRhat2d_hi_zero hUlt
+  · exact divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_ge_of_rhat2d_hi_ne
+      uHi uLo vTop hQ0d_ge hRhat2d_hi_zero
+
 end EvmAsm.Evm64
