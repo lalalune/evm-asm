@@ -4524,6 +4524,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_validate_nonce_zero" => some ziskHeaderValidateNonceZeroProbeUnit
   | "zisk_header_validate_difficulty_zero" => some ziskHeaderValidateDifficultyZeroProbeUnit
   | "zisk_validate_header_post_merge_zeros" => some ziskValidateHeaderPostMergeZerosProbeUnit
+  | "zisk_chain_validate_post_merge_zeros" => some ziskChainValidatePostMergeZerosProbeUnit
+  | "zisk_chain_validate_full" => some ziskChainValidateFullProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -4536,6 +4538,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_block_validate_empty_block" => some ziskBlockValidateEmptyBlockProbeUnit
   | "zisk_validate_empty_block_with_parent" => some ziskValidateEmptyBlockWithParentProbeUnit
   | "zisk_validate_empty_block_chain" => some ziskValidateEmptyBlockChainProbeUnit
+  | "zisk_block_body_extract_tx_count" => some ziskBlockBodyExtractTxCountProbeUnit
+  | "zisk_block_body_extract_withdrawal_count" => some ziskBlockBodyExtractWithdrawalCountProbeUnit
   | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
   | "zisk_block_validate_logs_bloom" => some ziskBlockValidateLogsBloomProbeUnit
   | "zisk_header_root_is_empty_trie" => some ziskHeaderRootIsEmptyTrieProbeUnit
@@ -4758,6 +4762,8 @@ def knownProgramNames : List String :=
    "zisk_header_validate_nonce_zero",
    "zisk_header_validate_difficulty_zero",
    "zisk_validate_header_post_merge_zeros",
+   "zisk_chain_validate_post_merge_zeros",
+   "zisk_chain_validate_full",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
@@ -4770,6 +4776,8 @@ def knownProgramNames : List String :=
    "zisk_block_validate_empty_block",
    "zisk_validate_empty_block_with_parent",
    "zisk_validate_empty_block_chain",
+   "zisk_block_body_extract_tx_count",
+   "zisk_block_body_extract_withdrawal_count",
    "zisk_block_logs_bloom_from_receipts_list",
    "zisk_block_validate_logs_bloom",
    "zisk_header_root_is_empty_trie",
