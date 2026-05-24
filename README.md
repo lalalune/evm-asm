@@ -285,6 +285,7 @@ block-body helpers
 `chain_extract_number_range`,
 `header_extract_basefee`,
 `chain_extract_basefee_range`,
+`chain_block_hashes_commitment`,
 withdrawal RLP/hash, …), and address
 derivation (`address_compute_create`, `address_compute_create2`,
 `address_from_pubkey`). The catalogue is tracked under the

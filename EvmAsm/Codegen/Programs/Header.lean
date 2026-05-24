@@ -3295,4 +3295,124 @@ def ziskChainExtractBasefeeRangeProbeUnit : BuildUnit := {
   dataAsm     := ziskChainExtractBasefeeRangeDataSection
 }
 
+/-! ## chain_block_hashes_commitment -- PR-K200
+
+    Compute a 32-byte commitment over the block_hashes of an
+    N-element header chain:
+
+      commitment = keccak256( H[0] || H[1] || ... || H[N-1] )
+
+    where `H[i] = keccak256(headers[i])`. This is the natural
+    succinct commitment to a chain of block hashes, useful for
+    bridges, light clients, and inter-prover commitments.
+
+    For N == 0 the commitment is `keccak256("")` (the empty-
+    string hash), which equals
+    `0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470`.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : 32-byte output ptr (commitment)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+
+    Uses a scratch buffer (`cbhc_concat_buf`) of size 32*MAX_N
+    bytes for the intermediate concatenation. MAX_N is fixed
+    at 64 in this implementation (sufficient for typical
+    stateless witnesses of ~32 headers). -/
+def chainBlockHashesCommitmentFunction : String :=
+  "chain_block_hashes_commitment:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # header_lengths\n" ++
+  "  mv s2, a2                   # headers\n" ++
+  "  mv s3, a3                   # output ptr\n" ++
+  "  la s4, cbhc_concat_buf      # concat buffer start\n" ++
+  "  # Walk and hash each header into the concat buffer.\n" ++
+  "  li t6, 0                    # i = 0\n" ++
+  "  mv t5, s2                   # current header ptr\n" ++
+  "  la t4, cbhc_concat_buf\n" ++
+  ".Lcbhc_loop:\n" ++
+  "  beq t6, s0, .Lcbhc_done\n" ++
+  "  # Stash iteration state into .data\n" ++
+  "  la t0, cbhc_i; sd t6, 0(t0)\n" ++
+  "  la t0, cbhc_hdr_ptr; sd t5, 0(t0)\n" ++
+  "  la t0, cbhc_concat_cursor; sd t4, 0(t0)\n" ++
+  "  slli t0, t6, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)                # header_len\n" ++
+  "  mv a0, t5\n" ++
+  "  mv a2, t4                   # write into concat buf\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  # Reload iteration state\n" ++
+  "  la t0, cbhc_i; ld t6, 0(t0)\n" ++
+  "  la t0, cbhc_hdr_ptr; ld t5, 0(t0)\n" ++
+  "  la t0, cbhc_concat_cursor; ld t4, 0(t0)\n" ++
+  "  # Advance: concat += 32; header += header_len; i += 1\n" ++
+  "  slli t0, t6, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add t5, t5, t1\n" ++
+  "  addi t4, t4, 32\n" ++
+  "  addi t6, t6, 1\n" ++
+  "  j .Lcbhc_loop\n" ++
+  ".Lcbhc_done:\n" ++
+  "  # commit = keccak256(concat buf, 32*N) -> output\n" ++
+  "  la a0, cbhc_concat_buf\n" ++
+  "  slli a1, s0, 5              # 32*N\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_chain_block_hashes_commitment`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : N
+      bytes  8..8+8N : header_lengths
+      bytes  8+8N.. : concatenated headers
+    Output layout:
+      bytes 0..32 : 32-byte commitment -/
+def ziskChainBlockHashesCommitmentPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # N\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010000           # 32 B commitment out\n" ++
+  "  jal ra, chain_block_hashes_commitment\n" ++
+  "  j .Lcbhc_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  chainBlockHashesCommitmentFunction ++ "\n" ++
+  ".Lcbhc_pdone:"
+
+def ziskChainBlockHashesCommitmentDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "cbhc_concat_buf:\n" ++
+  "  .zero 2048                  # 32 * 64 = 2048\n" ++
+  "cbhc_i:\n" ++
+  "  .zero 8\n" ++
+  "cbhc_hdr_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cbhc_concat_cursor:\n" ++
+  "  .zero 8"
+
+def ziskChainBlockHashesCommitmentProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainBlockHashesCommitmentPrologue
+  dataAsm     := ziskChainBlockHashesCommitmentDataSection
+}
+
 end EvmAsm.Codegen
