@@ -5187,6 +5187,28 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_branch_payload_two_slots" => some ziskMptBranchPayloadTwoSlotsProbeUnit
   | "zisk_mpt_leaf_node_encode_from_nibbles" => some ziskMptLeafNodeEncodeFromNibblesProbeUnit
   | "zisk_mpt_branch_node_keccak" => some ziskMptBranchNodeKeccakProbeUnit
+  | "zisk_mpt_two_leaf_root_indexed" => some ziskMptTwoLeafRootIndexedProbeUnit
+  | "zisk_mpt_one_leaf_root_indexed" => some ziskMptOneLeafRootIndexedProbeUnit
+  | "zisk_block_validate_transactions_root_one_tx" => some ziskBlockValidateTransactionsRootOneTxProbeUnit
+  | "zisk_block_validate_withdrawals_root_one_w" => some ziskBlockValidateWithdrawalsRootOneWProbeUnit
+  | "zisk_block_validate_transactions_root_two_tx" => some ziskBlockValidateTransactionsRootTwoTxProbeUnit
+  | "zisk_block_hash_from_header" => some ziskBlockHashFromHeaderProbeUnit
+  | "zisk_validate_parent_hash_link" => some ziskValidateParentHashLinkProbeUnit
+  | "zisk_validate_header_pair" => some ziskValidateHeaderPairProbeUnit
+  | "zisk_validate_header_chain" => some ziskValidateHeaderChainProbeUnit
+  | "zisk_block_hash_array_from_chain" => some ziskBlockHashArrayFromChainProbeUnit
+  | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
+  | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
+  | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
+  | "zisk_block_validate_empty_ommers_hash" => some ziskBlockValidateEmptyOmmersHashProbeUnit
+  | "zisk_block_validate_no_withdrawals_pair" => some ziskBlockValidateNoWithdrawalsPairProbeUnit
+  | "zisk_block_body_extract_1tx" => some ziskBlockBodyExtract1txProbeUnit
+  | "zisk_block_validate_1tx_full" => some ziskBlockValidate1txFullProbeUnit
+  | "zisk_block_validate_1tx_full_with_body" => some ziskBlockValidate1txFullWithBodyProbeUnit
+  | "zisk_block_validate_empty_receipts_root" => some ziskBlockValidateEmptyReceiptsRootProbeUnit
+  | "zisk_block_validate_empty_block" => some ziskBlockValidateEmptyBlockProbeUnit
+  | "zisk_validate_empty_block_with_parent" => some ziskValidateEmptyBlockWithParentProbeUnit
+  | "zisk_validate_empty_block_chain" => some ziskValidateEmptyBlockChainProbeUnit
   | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
   | "zisk_block_validate_logs_bloom" => some ziskBlockValidateLogsBloomProbeUnit
   | "zisk_header_root_is_empty_trie" => some ziskHeaderRootIsEmptyTrieProbeUnit
@@ -5370,6 +5392,28 @@ def knownProgramNames : List String :=
    "zisk_mpt_branch_payload_two_slots",
    "zisk_mpt_leaf_node_encode_from_nibbles",
    "zisk_mpt_branch_node_keccak",
+   "zisk_mpt_two_leaf_root_indexed",
+   "zisk_mpt_one_leaf_root_indexed",
+   "zisk_block_validate_transactions_root_one_tx",
+   "zisk_block_validate_withdrawals_root_one_w",
+   "zisk_block_validate_transactions_root_two_tx",
+   "zisk_block_hash_from_header",
+   "zisk_validate_parent_hash_link",
+   "zisk_validate_header_pair",
+   "zisk_validate_header_chain",
+   "zisk_block_hash_array_from_chain",
+   "zisk_block_validate_2tx_full",
+   "zisk_block_body_extract_2tx",
+   "zisk_block_validate_2tx_full_with_body",
+   "zisk_block_validate_empty_ommers_hash",
+   "zisk_block_validate_no_withdrawals_pair",
+   "zisk_block_body_extract_1tx",
+   "zisk_block_validate_1tx_full",
+   "zisk_block_validate_1tx_full_with_body",
+   "zisk_block_validate_empty_receipts_root",
+   "zisk_block_validate_empty_block",
+   "zisk_validate_empty_block_with_parent",
+   "zisk_validate_empty_block_chain",
    "zisk_block_logs_bloom_from_receipts_list",
    "zisk_block_validate_logs_bloom",
    "zisk_header_root_is_empty_trie",
