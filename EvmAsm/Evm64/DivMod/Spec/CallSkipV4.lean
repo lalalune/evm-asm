@@ -378,4 +378,44 @@ theorem evm_div_n4_call_skip_stack_pre_spec_v4_of_runtime_rhatdd_hi_zero
   rw [word_add_zero] at hq
   xperm_hyp hq
 
+/-- Bundled variant of
+    `evm_div_n4_call_skip_stack_pre_spec_v4_of_runtime_rhatdd_hi_zero`. -/
+theorem evm_div_n4_call_skip_stack_pre_spec_bundled_v4_of_runtime_rhatdd_hi_zero
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallV4Evm a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let u4Top := (a.getLimbN 3) >>> antiShift
+    let u3Top := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    divKTrialCallV4Rhatdd u4Top u3Top b3' >>> (32 : BitVec 6).toNat = (0 : Word) →
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 148 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) := by
+  intro shift antiShift b3' u4Top u3Top h_rhat_hi_zero
+  have h := evm_div_n4_call_skip_stack_pre_spec_v4_of_runtime_rhatdd_hi_zero
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hbnz hb3nz hshift_nz halign hbltu hborrow h_rhat_hi_zero
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [divN4StackPreCall_unfold] at hp
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    h
+
 end EvmAsm.Evm64
