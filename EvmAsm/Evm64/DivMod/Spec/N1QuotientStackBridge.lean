@@ -606,6 +606,75 @@ theorem fullDivN1QuotientWord_eq_div_of_normalized_mulsub_remainder_lt
           match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)
   exact hdiv
 
+/-- The normalized n=1 Euclidean equation plus the legacy quotient
+    overestimate gives the normalized final-remainder bound. -/
+theorem fullDivN1NormalizedRemainderLt_of_mulsub_overestimate
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hmulsub : fullDivN1NormalizedMulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3)
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    fullDivN1NormalizedRemainderLt bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 := by
+  have hbpos : 0 < EvmWord.val256 b0 b1 b2 b3 :=
+    EvmWord.val256_pos_of_or_ne_zero hbnz
+  have hpow : 0 < 2 ^ (fullDivN1Shift b0).toNat := by
+    positivity
+  have hbScaled : 0 <
+      EvmWord.val256 b0 b1 b2 b3 * 2 ^ (fullDivN1Shift b0).toNat := by
+    positivity
+  have hgeScaled :
+      (EvmWord.val256 a0 a1 a2 a3 * 2 ^ (fullDivN1Shift b0).toNat) /
+        (EvmWord.val256 b0 b1 b2 b3 * 2 ^ (fullDivN1Shift b0).toNat) ≤
+        ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat := by
+    rw [Nat.mul_div_mul_right _ _ hpow]
+    exact hge
+  exact (EvmWord.remainder_lt_of_ge_floor hbScaled hmulsub hgeScaled).2
+
+/-- n=1 quotient bridge from normalized mulsub plus the legacy quotient
+    overestimate. -/
+theorem fullDivN1QuotientWord_eq_div_of_normalized_mulsub_overestimate
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hmulsub : fullDivN1NormalizedMulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3)
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 =
+      EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3) := by
+  exact fullDivN1QuotientWord_eq_div_of_normalized_mulsub_remainder_lt
+    bltu_3 bltu_2 bltu_1 bltu_0 hbnz hmulsub
+    (fullDivN1NormalizedRemainderLt_of_mulsub_overestimate
+      bltu_3 bltu_2 bltu_1 bltu_0 hbnz hmulsub hge)
+
 /-- n=1 quotient bridge specialized to branch constructors that store
     `a`/`b` as `EvmWord`s and refer to their limbs directly. -/
 theorem fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_overestimate
