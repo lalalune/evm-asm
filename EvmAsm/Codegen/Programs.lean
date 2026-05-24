@@ -4512,6 +4512,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extract_prev_randao" => some ziskHeaderExtractPrevRandaoProbeUnit
   | "zisk_header_extract_beneficiary" => some ziskHeaderExtractBeneficiaryProbeUnit
   | "zisk_block_hash_matches" => some ziskBlockHashMatchesProbeUnit
+  | "zisk_header_extract_gas_used" => some ziskHeaderExtractGasUsedProbeUnit
+  | "zisk_header_extract_gas_limit" => some ziskHeaderExtractGasLimitProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -4735,6 +4737,8 @@ def knownProgramNames : List String :=
    "zisk_header_extract_prev_randao",
    "zisk_header_extract_beneficiary",
    "zisk_block_hash_matches",
+   "zisk_header_extract_gas_used",
+   "zisk_header_extract_gas_limit",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
