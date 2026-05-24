@@ -5194,6 +5194,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_validate_header_pair" => some ziskValidateHeaderPairProbeUnit
   | "zisk_validate_header_chain" => some ziskValidateHeaderChainProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
+  | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
   | "zisk_block_validate_logs_bloom" => some ziskBlockValidateLogsBloomProbeUnit
   | "zisk_header_root_is_empty_trie" => some ziskHeaderRootIsEmptyTrieProbeUnit
@@ -5384,6 +5385,7 @@ def knownProgramNames : List String :=
    "zisk_validate_header_pair",
    "zisk_validate_header_chain",
    "zisk_block_validate_2tx_full",
+   "zisk_block_body_extract_2tx",
    "zisk_block_logs_bloom_from_receipts_list",
    "zisk_block_validate_logs_bloom",
    "zisk_header_root_is_empty_trie",

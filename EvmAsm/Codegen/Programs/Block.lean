@@ -2023,4 +2023,159 @@ def ziskBlockValidate2txFullProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockValidate2txFullDataSection
 }
 
+/-! ## block_body_extract_2tx -- PR-K177
+
+    Extract the two transactions from a block body whose
+    transactions list contains exactly two items, while also
+    asserting that the ommers list is the empty list (`0xc0`)
+    -- the post-merge invariant.
+
+    Body RLP layout (post-Shanghai):
+      `rlp([transactions, ommers, withdrawals])`
+
+    This helper:
+      1. Decodes the body with K83 `block_body_decode`.
+      2. Verifies `ommers_length == 1` and the single byte is
+         `0xc0` (== `rlp([])`, the empty list).
+      3. Counts the transactions list with K47
+         `rlp_list_count_items`; requires count == 2.
+      4. Extracts tx0 and tx1 with K20 `rlp_list_nth_item` on
+         the inner transactions list, returning (offset, len)
+         in the OUTER body's address space (offset relative to
+         body_rlp, ready to feed into K171 etc.).
+
+    Output struct (32 bytes):
+       0..  8  tx0_offset (in body_rlp)
+       8.. 16  tx0_length
+      16.. 24  tx1_offset
+      24.. 32  tx1_length
+
+    Calling convention:
+      a0 (input)  : body_rlp ptr
+      a1 (input)  : body_rlp byte length
+      a2 (input)  : 32-byte output struct ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : body RLP parse failure (not a 3-item list)
+        2 : ommers not the empty list
+        3 : transactions list count != 2
+        4 : transactions list item extraction failure -/
+def blockBodyExtract2txFunction : String :=
+  "block_body_extract_2tx:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # body_rlp ptr\n" ++
+  "  mv s1, a1                   # body_rlp len\n" ++
+  "  mv s2, a2                   # output struct\n" ++
+  "  # (1) Decode body into bbe_body_struct (48 B)\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, bbe_body_struct\n" ++
+  "  jal ra, block_body_decode\n" ++
+  "  bnez a0, .Lbbe_parse_fail\n" ++
+  "  # (2) Verify ommers == 0xc0\n" ++
+  "  la t0, bbe_body_struct; ld t1, 16(t0)        # ommers_offset\n" ++
+  "  ld t2, 24(t0)                                # ommers_length\n" ++
+  "  li t3, 1\n" ++
+  "  bne t2, t3, .Lbbe_ommers_fail\n" ++
+  "  add t1, s0, t1                               # &body[off]\n" ++
+  "  lbu t4, 0(t1)\n" ++
+  "  li t5, 0xc0\n" ++
+  "  bne t4, t5, .Lbbe_ommers_fail\n" ++
+  "  # (3) Count transactions list\n" ++
+  "  la t0, bbe_body_struct; ld s3, 0(t0)         # txs_offset (in body)\n" ++
+  "  ld s4, 8(t0)                                 # txs_length\n" ++
+  "  add a0, s0, s3                               # txs_list ptr\n" ++
+  "  mv a1, s4\n" ++
+  "  la a2, bbe_tx_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbbe_txs_fail\n" ++
+  "  la t0, bbe_tx_count; ld t1, 0(t0)\n" ++
+  "  li t2, 2\n" ++
+  "  bne t1, t2, .Lbbe_count_fail\n" ++
+  "  # (4) Extract tx0\n" ++
+  "  add a0, s0, s3; mv a1, s4; li a2, 0\n" ++
+  "  la a3, bbe_item_off; la a4, bbe_item_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbbe_txs_fail\n" ++
+  "  la t0, bbe_item_off; ld t1, 0(t0)\n" ++
+  "  add t1, t1, s3                               # offset relative to body\n" ++
+  "  sd t1, 0(s2)\n" ++
+  "  la t0, bbe_item_len; ld t1, 0(t0)\n" ++
+  "  sd t1, 8(s2)\n" ++
+  "  # Extract tx1\n" ++
+  "  add a0, s0, s3; mv a1, s4; li a2, 1\n" ++
+  "  la a3, bbe_item_off; la a4, bbe_item_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbbe_txs_fail\n" ++
+  "  la t0, bbe_item_off; ld t1, 0(t0)\n" ++
+  "  add t1, t1, s3\n" ++
+  "  sd t1, 16(s2)\n" ++
+  "  la t0, bbe_item_len; ld t1, 0(t0)\n" ++
+  "  sd t1, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbbe_ret\n" ++
+  ".Lbbe_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbbe_ret\n" ++
+  ".Lbbe_ommers_fail:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbbe_ret\n" ++
+  ".Lbbe_count_fail:\n" ++
+  "  li a0, 3\n" ++
+  "  j .Lbbe_ret\n" ++
+  ".Lbbe_txs_fail:\n" ++
+  "  li a0, 4\n" ++
+  ".Lbbe_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_block_body_extract_2tx`: probe BuildUnit.
+    Input layout:
+      bytes 0.. 8 : body_rlp_len
+      bytes 8..   : body_rlp
+    Output layout:
+      bytes  0.. 8 : status (0..4)
+      bytes  8..40 : 32-byte struct (tx0 off+len, tx1 off+len) -/
+def ziskBlockBodyExtract2txPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # body_rlp_len\n" ++
+  "  addi a0, a7, 16             # body_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # output struct ptr\n" ++
+  "  jal ra, block_body_extract_2tx\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbbe_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodyExtract2txFunction ++ "\n" ++
+  ".Lbbe_pdone:"
+
+def ziskBlockBodyExtract2txDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "bbe_body_struct:\n" ++
+  "  .zero 48\n" ++
+  "bbe_tx_count:\n" ++
+  "  .zero 8\n" ++
+  "bbe_item_off:\n" ++
+  "  .zero 8\n" ++
+  "bbe_item_len:\n" ++
+  "  .zero 8"
+
+def ziskBlockBodyExtract2txProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockBodyExtract2txPrologue
+  dataAsm     := ziskBlockBodyExtract2txDataSection
+}
+
 end EvmAsm.Codegen
