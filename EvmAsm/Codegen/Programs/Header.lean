@@ -4559,4 +4559,64 @@ def ziskHeaderComputeSummaryStructProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderComputeSummaryStructDataSection
 }
 
+/-! ## header_extract_difficulty -- PR-K215
+
+    Extract `difficulty` (field 7, u64) from a header RLP. In
+    practice difficulty is post-merge always `0` and pre-merge
+    a uint256 (so callers needing the full uint256 form should
+    use `rlp_field_to_u256` once that exists). This thin wrapper
+    suffices for the common post-merge `== 0` check and for the
+    fits-in-u64 pre-merge cases.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure
+        2 : field 7 exceeds 8 bytes BE -/
+def headerExtractDifficultyFunction : String :=
+  "header_extract_difficulty:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  mv a3, a2\n" ++
+  "  li a2, 7\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+def ziskHeaderExtractDifficultyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_difficulty\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhed_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractDifficultyFunction ++ "\n" ++
+  ".Lhed_pdone:"
+
+def ziskHeaderExtractDifficultyDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractDifficultyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractDifficultyPrologue
+  dataAsm     := ziskHeaderExtractDifficultyDataSection
+}
+
 end EvmAsm.Codegen
