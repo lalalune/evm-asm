@@ -220,4 +220,49 @@ theorem fullDivN3QuotientWordV4_eq_div_of_mulsub_overestimate
           match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)
   exact h_correct.1
 
+/-- Four-limb n=3 v4 division witness from the accumulated mulsub equation and
+    quotient-overestimate hypothesis. -/
+theorem fullDivN3V4_getLimbN_of_mulsub_overestimate
+    (bltu_1 bltu_0 : Bool)
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hmulsub :
+      val256 a0 a1 a2 a3 =
+        (((fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^64 +
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          val256 b0 b1 b2 b3 +
+        val256
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
+        ((fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^64 +
+          ((fullDivN3R0V4 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    let a := EvmWord.fromLimbs fun i : Fin 4 =>
+      match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3
+    let b := EvmWord.fromLimbs fun i : Fin 4 =>
+      match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 2 = (0 : Word) ∧
+    (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
+  intro a b
+  have hdiv :=
+    fullDivN3QuotientWordV4_eq_div_of_mulsub_overestimate
+      bltu_1 bltu_0 hbnz hmulsub hge
+  exact fullDivN3V4_hdivs_of_word_eq bltu_1 bltu_0
+    a b a0 a1 a2 a3 b0 b1 b2 b3 hdiv
+
 end EvmAsm.Evm64
