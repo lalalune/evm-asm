@@ -4721,4 +4721,94 @@ def ziskHeaderExtractExtraDataProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractExtraDataDataSection
 }
 
+/-! ## header_extract_nonce -- PR-K217
+
+    Extract `nonce` (field 14, exactly 8 bytes BE in legacy
+    headers; post-merge always all-zero per EIP-3675).
+
+    Unlike `rlp_field_to_u64`-based extractors (K198 / K210 /
+    K211 / K215), the nonce field is *always* exactly 8 bytes
+    -- never a variable-width canonical integer -- so we copy
+    the raw bytes and interpret them as a BE u64 directly.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out ptr (BE-decoded nonce)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 14 missing
+        2 : field 14 length != 8 -/
+def headerExtractNonceFunction : String :=
+  "header_extract_nonce:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0; mv s1, a1                # header\n" ++
+  "  mv s2, a2                            # out u64 ptr\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 14\n" ++
+  "  la a3, hen_offset; la a4, hen_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhen_parse_fail\n" ++
+  "  la t0, hen_length; ld t1, 0(t0)\n" ++
+  "  li t2, 8\n" ++
+  "  bne t1, t2, .Lhen_size_fail\n" ++
+  "  la t0, hen_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1                       # &header[off]\n" ++
+  "  # Decode 8 BE bytes -> u64 LE\n" ++
+  "  li t4, 0\n" ++
+  "  lbu t5, 0(t3); slli t4, t4, 8; or t4, t4, t5\n" ++
+  "  lbu t5, 1(t3); slli t4, t4, 8; or t4, t4, t5\n" ++
+  "  lbu t5, 2(t3); slli t4, t4, 8; or t4, t4, t5\n" ++
+  "  lbu t5, 3(t3); slli t4, t4, 8; or t4, t4, t5\n" ++
+  "  lbu t5, 4(t3); slli t4, t4, 8; or t4, t4, t5\n" ++
+  "  lbu t5, 5(t3); slli t4, t4, 8; or t4, t4, t5\n" ++
+  "  lbu t5, 6(t3); slli t4, t4, 8; or t4, t4, t5\n" ++
+  "  lbu t5, 7(t3); slli t4, t4, 8; or t4, t4, t5\n" ++
+  "  sd t4, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhen_ret\n" ++
+  ".Lhen_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhen_ret\n" ++
+  ".Lhen_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhen_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+def ziskHeaderExtractNoncePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_nonce\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhen_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractNonceFunction ++ "\n" ++
+  ".Lhen_pdone:"
+
+def ziskHeaderExtractNonceDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hen_offset:\n" ++
+  "  .zero 8\n" ++
+  "hen_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractNonceProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractNoncePrologue
+  dataAsm     := ziskHeaderExtractNonceDataSection
+}
+
 end EvmAsm.Codegen
