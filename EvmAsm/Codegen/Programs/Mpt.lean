@@ -4925,5 +4925,137 @@ def ziskBlockValidateReceiptsRootOneReceiptProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockValidateReceiptsRootOneReceiptDataSection
 }
 
+/-! ## block_validate_receipts_root_two_receipts -- PR-K194
+
+    N=2 variant for `receipts_root`: validates `header.field[5]`
+    matches the 2-leaf MPT root of two pre-encoded receipts.
+    Field 5 variant of K171 / K192 -- completes the
+    `{tx, receipt, withdrawal}` root-validator trinity for N=2.
+
+    Both receipts are supplied pre-encoded (the output of K156
+    `receipt_encode` upstream).
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : r0_rlp ptr
+      a3 (input)  : r0_rlp byte length
+      a4 (input)  : r1_rlp ptr
+      a5 (input)  : r1_rlp byte length
+      a6 (input)  : u64 out (is_valid)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : header parse failure / field 5 missing
+        2 : header.receipts_root length != 32 -/
+def blockValidateReceiptsRootTwoReceiptsFunction : String :=
+  "block_validate_receipts_root_two_receipts:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0; mv s1, a1                # header\n" ++
+  "  mv s2, a2; mv s3, a3                # r0\n" ++
+  "  mv s4, a4; mv s5, a5                # r1\n" ++
+  "  mv s6, a6                            # is_valid out\n" ++
+  "  sd zero, 0(s6)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
+  "  la a3, bvrr2_offset; la a4, bvrr2_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbvrr2_parse_fail\n" ++
+  "  la t0, bvrr2_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lbvrr2_size_fail\n" ++
+  "  la t0, bvrr2_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  la t4, bvrr2_claimed_root\n" ++
+  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
+  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
+  "  ld t5, 16(t3); sd t5, 16(t4)\n" ++
+  "  ld t5, 24(t3); sd t5, 24(t4)\n" ++
+  "  mv a0, s2; mv a1, s3\n" ++
+  "  mv a2, s4; mv a3, s5\n" ++
+  "  la a4, bvrr2_computed_root\n" ++
+  "  jal ra, mpt_two_leaf_root_indexed\n" ++
+  "  la t0, bvrr2_claimed_root\n" ++
+  "  la t1, bvrr2_computed_root\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lbvrr2_neq\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lbvrr2_neq\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lbvrr2_neq\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lbvrr2_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s6)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvrr2_ret\n" ++
+  ".Lbvrr2_neq:\n" ++
+  "  sd zero, 0(s6)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvrr2_ret\n" ++
+  ".Lbvrr2_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvrr2_ret\n" ++
+  ".Lbvrr2_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lbvrr2_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_receipts_root_two_receipts`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : header_rlp_len
+      bytes  8..16 : r0_rlp_len
+      bytes 16..24 : r1_rlp_len
+      bytes 24..   : header_rlp || r0_rlp || r1_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : is_valid -/
+def ziskBlockValidateReceiptsRootTwoReceiptsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_rlp_len\n" ++
+  "  ld a3, 16(a7)               # r0_rlp_len\n" ++
+  "  ld a5, 24(a7)               # r1_rlp_len\n" ++
+  "  addi a0, a7, 32             # header_rlp ptr\n" ++
+  "  add a2, a0, a1              # r0_rlp ptr\n" ++
+  "  add a4, a2, a3              # r1_rlp ptr\n" ++
+  "  li a6, 0xa0010008           # is_valid out\n" ++
+  "  jal ra, block_validate_receipts_root_two_receipts\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbvrr2_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  mptBranchPayloadTwoSlotsFunction ++ "\n" ++
+  mptBranchNodeEncodeFunction ++ "\n" ++
+  mptBranchNodeKeccakFunction ++ "\n" ++
+  mptTwoLeafRootIndexedFunction ++ "\n" ++
+  blockValidateReceiptsRootTwoReceiptsFunction ++ "\n" ++
+  ".Lbvrr2_pdone:"
+
+def ziskBlockValidateReceiptsRootTwoReceiptsDataSection : String :=
+  ziskBlockValidateTransactionsRootTwoTxDataSection ++ "\n" ++
+  "bvrr2_offset:\n" ++
+  "  .zero 8\n" ++
+  "bvrr2_length:\n" ++
+  "  .zero 8\n" ++
+  "bvrr2_claimed_root:\n" ++
+  "  .zero 32\n" ++
+  "bvrr2_computed_root:\n" ++
+  "  .zero 32"
+
+def ziskBlockValidateReceiptsRootTwoReceiptsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateReceiptsRootTwoReceiptsPrologue
+  dataAsm     := ziskBlockValidateReceiptsRootTwoReceiptsDataSection
+}
+
 
 end EvmAsm.Codegen

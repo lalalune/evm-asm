@@ -4865,12 +4865,14 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_block_validate_withdrawals_root_one_w" => some ziskBlockValidateWithdrawalsRootOneWProbeUnit
   | "zisk_block_validate_withdrawals_root_two_w" => some ziskBlockValidateWithdrawalsRootTwoWProbeUnit
   | "zisk_block_validate_receipts_root_one_receipt" => some ziskBlockValidateReceiptsRootOneReceiptProbeUnit
+  | "zisk_block_validate_receipts_root_two_receipts" => some ziskBlockValidateReceiptsRootTwoReceiptsProbeUnit
   | "zisk_block_validate_transactions_root_two_tx" => some ziskBlockValidateTransactionsRootTwoTxProbeUnit
   | "zisk_block_hash_from_header" => some ziskBlockHashFromHeaderProbeUnit
   | "zisk_validate_parent_hash_link" => some ziskValidateParentHashLinkProbeUnit
   | "zisk_validate_header_pair" => some ziskValidateHeaderPairProbeUnit
   | "zisk_validate_header_chain" => some ziskValidateHeaderChainProbeUnit
   | "zisk_block_hash_array_from_chain" => some ziskBlockHashArrayFromChainProbeUnit
+  | "zisk_validate_block_hash_chain_match" => some ziskValidateBlockHashChainMatchProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -5072,12 +5074,14 @@ def knownProgramNames : List String :=
    "zisk_block_validate_withdrawals_root_one_w",
    "zisk_block_validate_withdrawals_root_two_w",
    "zisk_block_validate_receipts_root_one_receipt",
+   "zisk_block_validate_receipts_root_two_receipts",
    "zisk_block_validate_transactions_root_two_tx",
    "zisk_block_hash_from_header",
    "zisk_validate_parent_hash_link",
    "zisk_validate_header_pair",
    "zisk_validate_header_chain",
    "zisk_block_hash_array_from_chain",
+   "zisk_validate_block_hash_chain_match",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
