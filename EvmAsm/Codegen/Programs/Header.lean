@@ -4559,4 +4559,166 @@ def ziskHeaderComputeSummaryStructProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderComputeSummaryStructDataSection
 }
 
+/-! ## header_extract_difficulty -- PR-K215
+
+    Extract `difficulty` (field 7, u64) from a header RLP. In
+    practice difficulty is post-merge always `0` and pre-merge
+    a uint256 (so callers needing the full uint256 form should
+    use `rlp_field_to_u256` once that exists). This thin wrapper
+    suffices for the common post-merge `== 0` check and for the
+    fits-in-u64 pre-merge cases.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure
+        2 : field 7 exceeds 8 bytes BE -/
+def headerExtractDifficultyFunction : String :=
+  "header_extract_difficulty:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  mv a3, a2\n" ++
+  "  li a2, 7\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+def ziskHeaderExtractDifficultyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_difficulty\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhed_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractDifficultyFunction ++ "\n" ++
+  ".Lhed_pdone:"
+
+def ziskHeaderExtractDifficultyDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractDifficultyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractDifficultyPrologue
+  dataAsm     := ziskHeaderExtractDifficultyDataSection
+}
+
+/-! ## header_extract_extra_data -- PR-K216
+
+    Extract `extra_data` (field 12, variable length up to 32
+    bytes post-merge) from a header RLP. Caller supplies an
+    output buffer + u64 length out. Useful for proposer-tag
+    analysis and protocol monitoring.
+
+    Note: K68 `header_validate_extra_data_length` already
+    checks the size invariant; K216 is the canonical byte-copy
+    extractor for the same field.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : output bytes ptr (caller-supplied ≥ 32 B)
+      a3 (input)  : u64 out (extra_data length written)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 12 missing
+        2 : extra_data length > 32 (EIP-3675 / pre-merge
+            constraint violation) -/
+def headerExtractExtraDataFunction : String :=
+  "header_extract_extra_data:\n" ++
+  "  addi sp, sp, -40\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # header ptr\n" ++
+  "  mv s3, a1                   # header len (stash)\n" ++
+  "  mv s1, a2                   # out bytes ptr\n" ++
+  "  mv s2, a3                   # out length ptr\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  mv a0, s0; mv a1, s3; li a2, 12\n" ++
+  "  la a3, heed_offset; la a4, heed_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lheed_parse_fail\n" ++
+  "  la t0, heed_length; ld t1, 0(t0)\n" ++
+  "  li t2, 33\n" ++
+  "  bgeu t1, t2, .Lheed_size_fail\n" ++
+  "  # Byte-copy field 12 content (t1 = length) to s1\n" ++
+  "  la t0, heed_offset; ld t3, 0(t0)\n" ++
+  "  add t3, s0, t3              # source ptr\n" ++
+  "  sd t1, 0(s2)                # save length\n" ++
+  "  beqz t1, .Lheed_done\n" ++
+  ".Lheed_copy:\n" ++
+  "  lbu t4, 0(t3); sb t4, 0(s1)\n" ++
+  "  addi t3, t3, 1; addi s1, s1, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  bnez t1, .Lheed_copy\n" ++
+  ".Lheed_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lheed_ret\n" ++
+  ".Lheed_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lheed_ret\n" ++
+  ".Lheed_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lheed_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 40\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_extra_data`: probe BuildUnit.
+    Input layout:
+      bytes 0..8 : header_rlp_len
+      bytes 8..  : header_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : extra_data length
+      bytes 16..48 : extra_data bytes (up to 32) -/
+def ziskHeaderExtractExtraDataPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010010           # bytes out\n" ++
+  "  li a3, 0xa0010008           # length out\n" ++
+  "  jal ra, header_extract_extra_data\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lheed_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractExtraDataFunction ++ "\n" ++
+  ".Lheed_pdone:"
+
+def ziskHeaderExtractExtraDataDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "heed_offset:\n" ++
+  "  .zero 8\n" ++
+  "heed_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractExtraDataProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractExtraDataPrologue
+  dataAsm     := ziskHeaderExtractExtraDataDataSection
+}
+
 end EvmAsm.Codegen
