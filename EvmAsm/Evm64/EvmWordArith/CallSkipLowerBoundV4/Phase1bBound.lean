@@ -522,6 +522,50 @@ theorem algorithmQ1dV4_dLo_overshoot_le_vTop_of_phase1b_fire
     (h_q_le h_fire)
     (algorithmQ1dV4_rhatd_post uHi uLo vTop hvTop_ge)
 
+/-- If the first Phase-1b correction does not fire because `rhatc` already
+    has a nonzero high half, the dLo multiplication check is automatically
+    bounded at the Nat level. -/
+theorem phase1b_no_fire_dLo_bound_of_rhat_hi_nonzero
+    (q1c rhatc dLo un1 : Word)
+    (h_q1c_le : q1c.toNat ≤ 2^32)
+    (h_dLo_lt : dLo.toNat < 2^32)
+    (h_rhat_hi_ne : rhatc >>> (32 : BitVec 6).toNat ≠ (0 : Word)) :
+    q1c.toNat * dLo.toNat ≤ rhatc.toNat * 2^32 + un1.toNat := by
+  have h_rhat_ge : rhatc.toNat ≥ 2^32 := by
+    have h := (ushiftRight_ne_zero_iff (val := rhatc) ((32 : BitVec 6).toNat)).mp
+      h_rhat_hi_ne
+    simpa using h
+  have h_dLo_le : dLo.toNat ≤ 2^32 - 1 := by omega
+  have h_prod_le : q1c.toNat * dLo.toNat ≤ 2^32 * (2^32 - 1) :=
+    Nat.mul_le_mul h_q1c_le h_dLo_le
+  nlinarith
+
+/-- If the first Phase-1b correction does not fire while `rhatc` has zero
+    high half, the failed unsigned comparison is exactly the Nat-level dLo
+    bound. -/
+theorem phase1b_no_fire_dLo_bound_of_rhat_hi_zero
+    (q1c rhatc dLo un1 : Word)
+    (h_rhat_hi_zero : rhatc >>> (32 : BitVec 6).toNat = (0 : Word))
+    (h_un_lt : un1.toNat < 2^32)
+    (h_qdlo_no_wrap : (q1c * dLo).toNat = q1c.toNat * dLo.toNat)
+    (h_no_fire :
+      ¬ BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un1) (q1c * dLo)) :
+    q1c.toNat * dLo.toNat ≤ rhatc.toNat * 2^32 + un1.toNat := by
+  have h_rhat_lt : rhatc.toNat < 2^32 := by
+    have h := (ushiftRight_eq_zero_iff (val := rhatc) ((32 : BitVec 6).toNat)).mp
+      h_rhat_hi_zero
+    simpa using h
+  have h_le :
+      (q1c * dLo).toNat ≤ ((rhatc <<< (32 : BitVec 6).toNat) ||| un1).toNat := by
+    have h_not_lt := mt (EvmWord.ult_iff).mpr h_no_fire
+    omega
+  have h_combine :
+      ((rhatc <<< (32 : BitVec 6).toNat) ||| un1).toNat =
+        rhatc.toNat * 2^32 + un1.toNat := by
+    rw [show ((32 : BitVec 6).toNat : Nat) = 32 from by rfl]
+    exact halfword_combine rhatc un1 h_rhat_lt h_un_lt
+  omega
+
 /-- Narrow-call Phase-1b overshoot bound for the pre-second-correction pair.
 
     This discharges the `h_overshoot_le_vTop` argument of
