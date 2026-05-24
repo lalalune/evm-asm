@@ -14,6 +14,15 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- The v4 trial-call low half-word `un0` is always below `2^32`. -/
+theorem divKTrialCallV4Un0_lt_pow32 (uLo : Word) :
+    (divKTrialCallV4Un0 uLo).toNat < 2^32 := by
+  rw [divKTrialCallV4Un0_eq]
+  rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+  have h_shl : (uLo <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+    (uLo <<< (32 : BitVec 6).toNat : Word).isLt
+  exact Nat.div_lt_of_lt_mul (by omega)
+
 /-- Phase 2 first-correction lower bound, wrapped for the v4 trial-call
     definitions.
 
