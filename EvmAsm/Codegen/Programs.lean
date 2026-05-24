@@ -4527,6 +4527,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_chain_validate_post_merge_zeros" => some ziskChainValidatePostMergeZerosProbeUnit
   | "zisk_chain_validate_full" => some ziskChainValidateFullProbeUnit
   | "zisk_chain_validate_increasing_timestamps" => some ziskChainValidateIncreasingTimestampsProbeUnit
+  | "zisk_chain_validate_consecutive_numbers" => some ziskChainValidateConsecutiveNumbersProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -4770,6 +4771,7 @@ def knownProgramNames : List String :=
    "zisk_chain_validate_post_merge_zeros",
    "zisk_chain_validate_full",
    "zisk_chain_validate_increasing_timestamps",
+   "zisk_chain_validate_consecutive_numbers",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",

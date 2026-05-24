@@ -4799,4 +4799,132 @@ def ziskChainValidateIncreasingTimestampsProbeUnit : BuildUnit := {
   dataAsm     := ziskChainValidateIncreasingTimestampsDataSection
 }
 
+/-! ## chain_validate_consecutive_numbers -- PR-K230
+
+    Verify the chain has strictly consecutive block numbers:
+    `headers[i+1].number == headers[i].number + 1`. Pure
+    number-only check; analogue of K229 for the `number` field
+    (field 8) instead of `timestamp` (field 11), and with `==
+    prev + 1` instead of `> prev`.
+
+    Vacuous-true on N <= 1.
+
+    Calling convention:
+      a0 (input)  : N
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure
+        2 : number field > 8 bytes BE -/
+def chainValidateConsecutiveNumbersFunction : String :=
+  "chain_validate_consecutive_numbers:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
+  "  li t0, 2\n" ++
+  "  bltu s0, t0, .Lcvcn_done\n" ++
+  "  # headers[0].number -> s5 (prev_num)\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2; li a2, 8\n" ++
+  "  la a3, cvcn_num\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcvcn_propagate\n" ++
+  "  la t0, cvcn_num; ld s5, 0(t0)\n" ++
+  "  ld t0, 0(s1)\n" ++
+  "  add t1, s2, t0              # child_ptr\n" ++
+  "  li t2, 1\n" ++
+  ".Lcvcn_loop:\n" ++
+  "  beq t2, s0, .Lcvcn_done\n" ++
+  "  la t0, cvcn_iter_child; sd t1, 0(t0)\n" ++
+  "  la t0, cvcn_iter_i;     sd t2, 0(t0)\n" ++
+  "  la t0, cvcn_iter_prev;  sd s5, 0(t0)\n" ++
+  "  slli t3, t2, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, t1; li a2, 8\n" ++
+  "  la a3, cvcn_num\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcvcn_propagate\n" ++
+  "  la t0, cvcn_num;        ld t3, 0(t0)\n" ++
+  "  la t0, cvcn_iter_prev;  ld t4, 0(t0)\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  bne t4, t3, .Lcvcn_pred_false\n" ++
+  "  la t0, cvcn_iter_child; ld t1, 0(t0)\n" ++
+  "  la t0, cvcn_iter_i;     ld t2, 0(t0)\n" ++
+  "  mv s5, t3\n" ++
+  "  slli t5, t2, 3\n" ++
+  "  add t5, s1, t5\n" ++
+  "  ld t6, 0(t5)\n" ++
+  "  add t1, t1, t6\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  j .Lcvcn_loop\n" ++
+  ".Lcvcn_pred_false:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  la t0, cvcn_iter_i; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvcn_ret\n" ++
+  ".Lcvcn_propagate:\n" ++
+  "  la t0, cvcn_iter_i; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  j .Lcvcn_ret\n" ++
+  ".Lcvcn_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcvcn_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+def ziskChainValidateConsecutiveNumbersPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_consecutive_numbers\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvcn_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainValidateConsecutiveNumbersFunction ++ "\n" ++
+  ".Lcvcn_pdone:"
+
+def ziskChainValidateConsecutiveNumbersDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cvcn_num:\n" ++
+  "  .zero 8\n" ++
+  "cvcn_iter_child:\n" ++
+  "  .zero 8\n" ++
+  "cvcn_iter_i:\n" ++
+  "  .zero 8\n" ++
+  "cvcn_iter_prev:\n" ++
+  "  .zero 8"
+
+def ziskChainValidateConsecutiveNumbersProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainValidateConsecutiveNumbersPrologue
+  dataAsm     := ziskChainValidateConsecutiveNumbersDataSection
+}
+
 end EvmAsm.Codegen
