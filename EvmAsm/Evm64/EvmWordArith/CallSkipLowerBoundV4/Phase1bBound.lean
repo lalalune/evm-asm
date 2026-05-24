@@ -5,6 +5,8 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bFireBound
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bNoFireBound
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.QuotientBounds
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Un21Bridge
 
@@ -76,6 +78,60 @@ theorem algorithmQ1dV4_dLo_no_wrap
   rw [algorithmQ1dV4_unfold]
   unfold algorithmQ1Prime divKTrialCallV4DLo
   simpa using h
+
+/-- The normalized low divisor half extracted by the V4 call wrapper is a
+    32-bit value. -/
+theorem divKTrialCallV4DLo_lt_pow32 (vTop : Word) :
+    (divKTrialCallV4DLo vTop).toNat < 2^32 := by
+  unfold divKTrialCallV4DLo
+  exact Word_ushiftRight_32_lt_pow32
+
+/-- The high half of the low dividend word extracted by the V4 call wrapper is
+    a 32-bit value. -/
+theorem divKTrialCallV4Un1_lt_pow32 (uLo : Word) :
+    (divKTrialCallV4Un1 uLo).toNat < 2^32 := by
+  unfold divKTrialCallV4Un1
+  exact Word_ushiftRight_32_lt_pow32
+
+/-- V4 spelling of the generic Phase-1b upper bound `q1' ≤ 2^32 + 1`. -/
+theorem algorithmQ1dV4_le_pow32_plus_one
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (algorithmQ1dV4 uHi uLo vTop).toNat ≤ 2^32 + 1 := by
+  have hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31 := by
+    unfold divKTrialCallV4DHi
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have h2 : (2^63 : Nat) = 2^31 * 2^32 := by decide
+    omega
+  have hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32 :=
+    divKTrialCallV4DLo_lt_pow32 vTop
+  have h_vTop_decomp : vTop.toNat =
+      (divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat := by
+    unfold divKTrialCallV4DHi divKTrialCallV4DLo
+    exact div128Quot_vTop_decomp vTop
+  have huHi_lt_vTop_decomp : uHi.toNat <
+      (divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat := by
+    rw [← h_vTop_decomp]
+    exact huHi_lt_vTop
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
+  let q1 := rv64_divu uHi dHi
+  let rhat := uHi - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+  let rhatc := if hi1 = 0 then rhat else rhat + dHi
+  let qDlo := q1c * dLo
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+  have h := div128Quot_q1_prime_le_pow32_plus_one uHi dHi dLo rhatUn1
+    hdHi_ge hdLo_lt huHi_lt_vTop_decomp
+  rw [algorithmQ1dV4_unfold]
+  unfold algorithmQ1Prime
+  simpa [dHi, dLo, un1, q1, rhat, hi1, q1c, rhatc, qDlo, rhatUn1,
+    divKTrialCallV4DHi, divKTrialCallV4DLo, divKTrialCallV4Un1] using h
 
 /-- The V4 final Phase-1b quotient wrapper is the generic second-correction
     quotient instantiated with the v4 pre-second-correction pair. -/
