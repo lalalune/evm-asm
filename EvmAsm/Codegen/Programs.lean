@@ -4542,6 +4542,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_block_body_extract_withdrawal_count" => some ziskBlockBodyExtractWithdrawalCountProbeUnit
   | "zisk_block_body_summary" => some ziskBlockBodySummaryProbeUnit
   | "zisk_block_body_validate_empty" => some ziskBlockBodyValidateEmptyProbeUnit
+  | "zisk_chain_body_total_tx_count" => some ziskChainBodyTotalTxCountProbeUnit
   | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
   | "zisk_block_validate_logs_bloom" => some ziskBlockValidateLogsBloomProbeUnit
   | "zisk_header_root_is_empty_trie" => some ziskHeaderRootIsEmptyTrieProbeUnit
@@ -4782,6 +4783,7 @@ def knownProgramNames : List String :=
    "zisk_block_body_extract_withdrawal_count",
    "zisk_block_body_summary",
    "zisk_block_body_validate_empty",
+   "zisk_chain_body_total_tx_count",
    "zisk_block_logs_bloom_from_receipts_list",
    "zisk_block_validate_logs_bloom",
    "zisk_header_root_is_empty_trie",
