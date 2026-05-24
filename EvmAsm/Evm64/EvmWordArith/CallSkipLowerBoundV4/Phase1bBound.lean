@@ -257,6 +257,63 @@ theorem divKTrialCallV4Un21_toNat_of_no_wrap
   rw [show A + 2^64 - B = (A - B) + 2^64 from by omega,
       Nat.add_mod_right, Nat.mod_eq_of_lt (by omega : A - B < 2^64)]
 
+/-- Pure Nat recomposition for the low-half `un21` no-wrap identity. -/
+theorem un21_no_wrap_additive_identity_nat
+    (rhat q dLo un1 : Nat)
+    (h_no_wrap : q * dLo ≤ (rhat % 2^32) * 2^32 + un1) :
+    ((rhat % 2^32) * 2^32 + un1 - q * dLo) +
+        (rhat / 2^32) * 2^64 + q * dLo =
+      rhat * 2^32 + un1 := by
+  have h_div_mod : (rhat / 2^32) * 2^32 + rhat % 2^32 = rhat := by
+    have := Nat.div_add_mod rhat (2^32)
+    linarith
+  have h_recompose : rhat * 2^32 =
+      (rhat / 2^32) * 2^64 + (rhat % 2^32) * 2^32 := by
+    calc rhat * 2^32
+        = ((rhat / 2^32) * 2^32 + rhat % 2^32) * 2^32 := by rw [h_div_mod]
+      _ = (rhat / 2^32) * 2^64 + (rhat % 2^32) * 2^32 := by ring
+  rw [h_recompose]
+  omega
+
+/-- Additive V4 `un21` identity in the low-half no-wrap case.
+
+    The high half of `rhat''` is carried explicitly because the machine
+    computes `((rhat'' <<< 32) ||| un1)` using only the low 32 bits of
+    `rhat''`. -/
+theorem divKTrialCallV4Un21_additive_identity_of_no_wrap
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (h_no_wrap :
+      (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat ≤
+        ((divKTrialCallV4Rhatdd uHi uLo vTop).toNat % 2^32) * 2^32 +
+          (divKTrialCallV4Un1 uLo).toNat) :
+    (divKTrialCallV4Un21 uHi uLo vTop).toNat +
+        ((divKTrialCallV4Rhatdd uHi uLo vTop).toNat / 2^32) * 2^64 +
+        (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat =
+      (divKTrialCallV4Rhatdd uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un1 uLo).toNat := by
+  let q := divKTrialCallV4Q1dd uHi uLo vTop
+  let rhat := divKTrialCallV4Rhatdd uHi uLo vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
+  change (divKTrialCallV4Un21 uHi uLo vTop).toNat +
+        (rhat.toNat / 2^32) * 2^64 + q.toNat * dLo.toNat =
+      rhat.toNat * 2^32 + un1.toNat
+  have h_un21_local : (divKTrialCallV4Un21 uHi uLo vTop).toNat =
+      (rhat.toNat % 2^32) * 2^32 + un1.toNat - q.toNat * dLo.toNat := by
+    have h_un21 := divKTrialCallV4Un21_toNat_of_no_wrap
+      uHi uLo vTop hvTop_ge huHi_lt_vTop h_no_wrap
+    simpa [q, rhat, dLo, un1] using h_un21
+  have h_no_wrap_local : q.toNat * dLo.toNat ≤
+      (rhat.toNat % 2^32) * 2^32 + un1.toNat := by
+    simpa [q, rhat, dLo, un1] using h_no_wrap
+  rw [h_un21_local]
+  exact un21_no_wrap_additive_identity_nat rhat.toNat q.toNat dLo.toNat un1.toNat
+    h_no_wrap_local
+
 /-- Under normalization, the high divisor half extracted by the V4 call wrapper
     is nonzero. -/
 theorem divKTrialCallV4DHi_ne_of_ge
