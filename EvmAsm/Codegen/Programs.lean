@@ -4878,6 +4878,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extract_basefee" => some ziskHeaderExtractBasefeeProbeUnit
   | "zisk_chain_extract_basefee_range" => some ziskChainExtractBasefeeRangeProbeUnit
   | "zisk_chain_block_hashes_commitment" => some ziskChainBlockHashesCommitmentProbeUnit
+  | "zisk_header_extract_state_root" => some ziskHeaderExtractStateRootProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -5092,6 +5093,7 @@ def knownProgramNames : List String :=
    "zisk_header_extract_basefee",
    "zisk_chain_extract_basefee_range",
    "zisk_chain_block_hashes_commitment",
+   "zisk_header_extract_state_root",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
