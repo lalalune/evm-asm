@@ -1208,6 +1208,102 @@ theorem algorithmQ1dV4_q_true_1_lt_of_phase2b_fire
   rw [← h_vTop_decomp] at h_core
   simpa [q, dHi, dLo, un1] using h_core
 
+/-- Under the call-reachable `uHi < 2^63` condition, the final V4
+    Phase-1b digit does not undershoot the abstract first quotient digit. -/
+theorem divKTrialCallV4Q1dd_ge_q_true_1_of_uHi_lt_pow63
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63) :
+    (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) / vTop.toNat ≤
+      (divKTrialCallV4Q1dd uHi uLo vTop).toNat := by
+  let q := algorithmQ1dV4 uHi uLo vTop
+  let rhat := algorithmRhatdV4 uHi uLo vTop
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
+  let qTrue := (uHi.toNat * 2^32 + un1.toNat) / vTop.toNat
+  have h_vTop_decomp : vTop.toNat = dHi.toNat * 2^32 + dLo.toNat := by
+    unfold dHi dLo divKTrialCallV4DHi divKTrialCallV4DLo
+    exact div128Quot_vTop_decomp vTop
+  have h_dHi_ge : dHi.toNat ≥ 2^31 := by
+    unfold dHi divKTrialCallV4DHi
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    have h2 : (2^63 : Nat) = 2^31 * 2^32 := by decide
+    omega
+  have h_dHi_lt : dHi.toNat < 2^32 := by
+    unfold dHi divKTrialCallV4DHi
+    exact Word_ushiftRight_32_lt_pow32
+  have h_dLo_lt : dLo.toNat < 2^32 := by
+    simpa [dLo] using divKTrialCallV4DLo_lt_pow32 vTop
+  have huHi_lt_dHi_pow32 : uHi.toNat < dHi.toNat * 2^32 := by
+    have h_ge : dHi.toNat * 2^32 ≥ 2^63 := by
+      have hmul := Nat.mul_le_mul_right (2^32) h_dHi_ge
+      have hpow : (2^31 : Nat) * 2^32 = 2^63 := by decide
+      omega
+    omega
+  have h_uHi_lt_vTop_decomp : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_vTop_decomp]
+    exact huHi_lt_vTop
+  have h_dHi_ge_raw :
+      (vTop >>> (32 : BitVec 6).toNat).toNat ≥ 2^31 := by
+    simpa [dHi, divKTrialCallV4DHi] using h_dHi_ge
+  have h_dHi_lt_raw :
+      (vTop >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    simpa [dHi, divKTrialCallV4DHi] using h_dHi_lt
+  have h_dLo_lt_raw :
+      ((vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat < 2^32 := by
+    simpa [dLo, divKTrialCallV4DLo] using h_dLo_lt
+  have huHi_lt_dHi_pow32_raw :
+      uHi.toNat < (vTop >>> (32 : BitVec 6).toNat).toNat * 2^32 := by
+    simpa [dHi, divKTrialCallV4DHi] using huHi_lt_dHi_pow32
+  have h_uHi_lt_vTop_decomp_raw :
+      uHi.toNat < (vTop >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+        ((vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat := by
+    simpa [dHi, dLo, divKTrialCallV4DHi, divKTrialCallV4DLo] using
+      h_uHi_lt_vTop_decomp
+  have h_q_ge : qTrue ≤ q.toNat := by
+    have h := algorithmQ1Prime_ge_q_true_1 uHi uLo vTop
+      h_dHi_ge_raw h_dHi_lt_raw h_dLo_lt_raw
+      huHi_lt_dHi_pow32_raw h_uHi_lt_vTop_decomp_raw
+    have h_den :
+        (vTop >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+          ((vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat).toNat =
+            vTop.toNat := by
+      simpa [dHi, dLo, divKTrialCallV4DHi, divKTrialCallV4DLo] using h_vTop_decomp.symm
+    rw [h_den] at h
+    rw [← algorithmQ1dV4_unfold uHi uLo vTop] at h
+    simpa [q, qTrue, un1, divKTrialCallV4Un1] using h
+  let guard : Prop := rhat >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+    BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un1) (q * dLo) = true
+  by_cases h_guard : guard
+  · have h_guard_pos : guard := h_guard
+    obtain ⟨h_rhat_hi_zero, h_ult_bool⟩ := h_guard
+    have h_ult : BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un1) (q * dLo) := by
+      simpa using h_ult_bool
+    have h_q_gt : qTrue < q.toNat := by
+      have h := algorithmQ1dV4_q_true_1_lt_of_phase2b_fire
+        uHi uLo vTop hvTop_ge huHi_lt_vTop
+        (by simpa [rhat] using h_rhat_hi_zero)
+        (by simpa [q, rhat, dLo, un1] using h_ult)
+      simpa [qTrue, q, un1] using h
+    have h_q_pos : q.toNat ≥ 1 := by
+      have h_pos : 0 < q.toNat := Nat.lt_of_le_of_lt (Nat.zero_le _) h_q_gt
+      exact Nat.succ_le_of_lt h_pos
+    have h_q_dec : (q + signExtend12 4095).toNat = q.toNat - 1 := by
+      rw [BitVec.toNat_add, signExtend12_4095_toNat]
+      omega
+    rw [divKTrialCallV4Q1dd_eq_phase2b_algorithm]
+    rw [← div128Quot_phase2b_q0'_and_form]
+    change qTrue ≤ (if guard then q + signExtend12 4095 else q).toNat
+    rw [if_pos h_guard_pos, h_q_dec]
+    omega
+  · rw [divKTrialCallV4Q1dd_eq_phase2b_algorithm]
+    rw [← div128Quot_phase2b_q0'_and_form]
+    change qTrue ≤ (if guard then q + signExtend12 4095 else q).toNat
+    rw [if_neg h_guard]
+    exact h_q_ge
+
 /-- If the final V4 Phase-1b remainder has zero high half, the final
     dLo-bound is exactly the low-half no-wrap condition for computing
     `un21`. -/
