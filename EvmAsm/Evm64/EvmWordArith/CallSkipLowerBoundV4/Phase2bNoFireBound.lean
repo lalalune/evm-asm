@@ -67,4 +67,51 @@ theorem div128Quot_phase2b_q0'_dLo_bound_no_fire_case_b
     rw [halfword_combine rhat un h_rhat_lt h_un_lt] at h_le
     exact h_le
 
+/-- **Phase-2b no-fire case-a bound.** When `rhat ≥ 2^32`, the
+    `phase2b_q0'` correction trivially does not fire (the outer
+    `rhat >>> 32 = 0` guard fails), so the output is `q` unchanged.
+
+    Under the standard size bounds `q.toNat ≤ 2^32 + 1` (Knuth's
+    `+1` overshoot for 1-correction Phase-1b, supplied by
+    `div128Quot_q1_prime_le_pow32_plus_one`) and `dLo.toNat < 2^32`
+    (lower half-word), we have `q * dLo < 2^64 ≤ rhat * 2^32 ≤
+    rhat * 2^32 + un`. So the Knuth-D3 invariant holds. -/
+theorem div128Quot_phase2b_q0'_dLo_bound_no_fire_case_a
+    (q rhat dLo un : Word)
+    (h_q_le : q.toNat ≤ 2^32 + 1)
+    (h_dLo_lt : dLo.toNat < 2^32)
+    (h_rhat_ge : rhat.toNat ≥ 2^32)
+    (h_no_wrap : (q * dLo).toNat = q.toNat * dLo.toNat) :
+    div128Quot_phase2b_q0' q rhat dLo un = q ∧
+    q.toNat * dLo.toNat ≤ rhat.toNat * 2^32 + un.toNat := by
+  -- Outer guard `rhat >>> 32 = 0` fails since rhat ≥ 2^32.
+  have h_hi_ne : rhat >>> (32 : BitVec 6).toNat ≠ (0 : Word) := by
+    rw [show ((32 : BitVec 6).toNat) = (32 : Nat) from rfl]
+    intro h_eq
+    have h_toNat : (rhat >>> 32).toNat = 0 := by
+      rw [h_eq]; rfl
+    rw [BitVec.toNat_ushiftRight] at h_toNat
+    -- (rhat.toNat >>> 32) = 0 ↔ rhat.toNat < 2^32, contradicting h_rhat_ge.
+    have h_div : rhat.toNat / 2^32 = 0 := by
+      rwa [Nat.shiftRight_eq_div_pow] at h_toNat
+    have h_lt : rhat.toNat < 2^32 := Nat.div_eq_zero_iff.mp h_div |>.elim
+      (fun h => absurd h (by decide)) id
+    omega
+  refine ⟨?_, ?_⟩
+  · -- Correction doesn't fire — outer if hits the else branch.
+    unfold div128Quot_phase2b_q0'
+    rw [if_neg h_hi_ne]
+  · -- Bound: q * dLo < 2^64 ≤ rhat * 2^32 ≤ rhat * 2^32 + un.
+    have h_q_dLo_lt : q.toNat * dLo.toNat < 2^64 := by
+      have hbd : q.toNat * dLo.toNat ≤ (2^32 + 1) * (2^32 - 1) := by
+        have hdLo_le : dLo.toNat ≤ 2^32 - 1 := by omega
+        exact Nat.mul_le_mul h_q_le hdLo_le
+      have : (2^32 + 1) * (2^32 - 1) = 2^64 - 1 := by decide
+      omega
+    have h_rhat_pow : rhat.toNat * 2^32 ≥ 2^64 := by
+      have : rhat.toNat * 2^32 ≥ 2^32 * 2^32 := Nat.mul_le_mul_right _ h_rhat_ge
+      have h_64 : (2^32 : Nat) * 2^32 = 2^64 := by decide
+      omega
+    omega
+
 end EvmAsm.Evm64
