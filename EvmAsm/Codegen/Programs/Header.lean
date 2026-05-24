@@ -2960,4 +2960,118 @@ def ziskChainComputeTotalGasUsedProbeUnit : BuildUnit := {
   dataAsm     := ziskChainComputeTotalGasUsedDataSection
 }
 
+/-! ## chain_extract_number_range -- PR-K197
+
+    Extract `(min_number, max_number)` from an N-element header
+    chain. With K175 validated parent-hash invariants, the chain
+    has strictly increasing numbers, so this is simply
+    `(headers[0].number, headers[N-1].number)`. We return both
+    edges so callers can verify `max - min + 1 == N` (the chain
+    is dense) or directly use the range as a chain-segment
+    identifier.
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : u64 out (min_number)
+      a4 (input)  : u64 out (max_number)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse failure on some header
+        3 : a header's number field exceeds 8 bytes BE -/
+def chainExtractNumberRangeFunction : String :=
+  "chain_extract_number_range:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # header_lengths\n" ++
+  "  mv s2, a2                   # headers\n" ++
+  "  mv s3, a3                   # min out\n" ++
+  "  mv s4, a4                   # max out\n" ++
+  "  beqz s0, .Lcenr_empty\n" ++
+  "  # min = headers[0].number\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  li a2, 8                    # field 8 = number\n" ++
+  "  mv a3, s3\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcenr_propagate\n" ++
+  "  # Advance to last header: skip the first (N-1) headers\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1             # iterations = N-1\n" ++
+  ".Lcenr_skip:\n" ++
+  "  beqz t3, .Lcenr_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lcenr_skip\n" ++
+  ".Lcenr_at_last:\n" ++
+  "  ld a1, 0(t2)                # length of last header\n" ++
+  "  mv a0, t1\n" ++
+  "  li a2, 8\n" ++
+  "  mv a3, s4\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcenr_propagate\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcenr_ret\n" ++
+  ".Lcenr_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcenr_ret\n" ++
+  ".Lcenr_propagate:\n" ++
+  "  addi a0, a0, 1              # remap rlp_field_to_u64 1/2 -> 2/3\n" ++
+  ".Lcenr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_chain_extract_number_range`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : N
+      bytes  8..8+8N : header_lengths
+      bytes  8+8N.. : concatenated headers
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : min_number
+      bytes 16..24 : max_number -/
+def ziskChainExtractNumberRangePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # N\n" ++
+  "  addi a1, a7, 16             # header_lengths\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0              # headers\n" ++
+  "  li a3, 0xa0010008           # min out\n" ++
+  "  li a4, 0xa0010010           # max out\n" ++
+  "  jal ra, chain_extract_number_range\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcenr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainExtractNumberRangeFunction ++ "\n" ++
+  ".Lcenr_pdone:"
+
+def ziskChainExtractNumberRangeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractNumberRangeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractNumberRangePrologue
+  dataAsm     := ziskChainExtractNumberRangeDataSection
+}
+
 end EvmAsm.Codegen
