@@ -4554,4 +4554,117 @@ def ziskChainValidatePostMergeZerosProbeUnit : BuildUnit := {
   dataAsm     := ziskChainValidatePostMergeZerosDataSection
 }
 
+/-! ## chain_validate_full -- PR-K222
+
+    Composite chain-level validator combining:
+
+      1. K221 `chain_validate_post_merge_zeros` -- verify each
+         header in the chain has the three EIP-3675 zero
+         invariants (ommers_hash, difficulty, nonce).
+      2. K175 `validate_header_chain` -- verify each consecutive
+         pair has matching parent_hash + number+1 + timestamp +
+         gas_limit ratio.
+
+    Returns `is_valid = 1` iff both pass. On any failure,
+    `first_bad_index` reports the first failing index from
+    EITHER stage. Stage 1 runs first (per-header), then stage 2
+    (pairs), so a header failure shadows a chain-link failure
+    at the same position.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0   : success
+        nz  : propagated K220/K174 status (1=parse, 2..4=size/
+              field-fail variants from the inner predicates) -/
+def chainValidateFullFunction : String :=
+  "chain_validate_full:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  sd zero, 0(s3); sd zero, 0(s4)\n" ++
+  "  # Stage 1: per-header post-merge-zeros\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4\n" ++
+  "  jal ra, chain_validate_post_merge_zeros\n" ++
+  "  bnez a0, .Lcvf_ret             # propagate hard fail\n" ++
+  "  ld t0, 0(s3); beqz t0, .Lcvf_ret  # zeros stage rejected\n" ++
+  "  # Stage 2: chain pair invariants\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4\n" ++
+  "  jal ra, validate_header_chain\n" ++
+  ".Lcvf_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainValidateFullPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_full\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvf_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  validateHeaderPairFunction ++ "\n" ++
+  validateHeaderChainFunction ++ "\n" ++
+  validateHeaderPostMergeZerosFunction ++ "\n" ++
+  chainValidatePostMergeZerosFunction ++ "\n" ++
+  chainValidateFullFunction ++ "\n" ++
+  ".Lcvf_pdone:"
+
+def ziskChainValidateFullDataSection : String :=
+  ziskChainValidatePostMergeZerosDataSection ++ "\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_offset:\n" ++
+  "  .zero 8\n" ++
+  "vphl_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_claimed:\n" ++
+  "  .zero 32\n" ++
+  "vphl_computed:\n" ++
+  "  .zero 32\n" ++
+  "vhp_link_valid:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vhc_pair_valid:\n" ++
+  "  .zero 8"
+
+def ziskChainValidateFullProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainValidateFullPrologue
+  dataAsm     := ziskChainValidateFullDataSection
+}
+
 end EvmAsm.Codegen
