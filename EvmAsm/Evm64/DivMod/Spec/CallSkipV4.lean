@@ -27,10 +27,12 @@
 -/
 import EvmAsm.Evm64.DivMod.Spec.CallSkip
 import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64 EvmWord
+open EvmAsm.Rv64.AddrNorm (word_add_zero)
 
 /-- **v4 algorithmic lower bound for `div128Quot_v4` at val256 level.**
 
@@ -141,5 +143,63 @@ theorem n4_call_skip_div_mod_getLimbN_v4 (a b : EvmWord)
   · rw [← hq_eq_div]; exact EvmWord.getLimbN_fromLimbs_1
   · rw [← hq_eq_div]; exact EvmWord.getLimbN_fromLimbs_2
   · rw [← hq_eq_div]; exact EvmWord.getLimbN_fromLimbs_3
+
+/-- **EvmWord-form wrapper of `evm_div_n4_full_call_skip_spec_v4`.**
+    Mirror of `evm_div_n4_full_call_skip_stack_pre_spec` (the v1 wrapper
+    at `Spec/CallSkip.lean:323`), adapted for the v4 surface:
+
+    * code: `divCode_v4 base` (instead of `divCode base`).
+    * borrow predicate: `isSkipBorrowN4CallV4Evm` (instead of v1).
+    * pre includes the v4 trial-call scratch cell `(sp + 3936) ↦ₘ scratchMem`.
+    * post is `fullDivN4CallSkipPostV4` (v4 post — exposes `div128Quot_v4`).
+
+    Translates Word-form limbs (a0..a3, b0..b3) to EvmWord (a, b) via
+    `getLimbN`. -/
+theorem evm_div_n4_full_call_skip_stack_pre_spec_v4 (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallV4Evm a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 148 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x11 ↦ᵣ v11Old) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
+         u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (fullDivN4CallSkipPostV4 sp base
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        scratchMem) := by
+  have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  rw [isCallTrialN4Evm_def] at hbltu
+  rw [isSkipBorrowN4CallV4Evm_def] at hborrow
+  have hraw := evm_div_n4_full_call_skip_spec_v4 sp base
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hbnz' hb3nz hshift_nz halign hbltu hborrow
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
+          evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
+          divScratchValuesCall_unfold, divScratchValues_unfold] at hp
+      rw [word_add_zero]
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    hraw
 
 end EvmAsm.Evm64
