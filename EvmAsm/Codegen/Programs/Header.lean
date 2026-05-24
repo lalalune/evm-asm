@@ -2646,4 +2646,196 @@ def ziskBlockHashArrayFromChainProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockHashArrayFromChainDataSection
 }
 
+/-! ## validate_block_hash_chain_match -- PR-K195
+
+    Validate an N-element header chain (K175 invariants) AND
+    check that the block_hash of each header (K172) matches a
+    caller-supplied claim array. This is the natural primitive
+    for chain-anchor proofs: \"the prover claims these are
+    block_hashes B[0..N) for blocks H[0..N); verify both that
+    the chain is well-formed and that the claimed hashes are
+    correct\".
+
+    The two checks (chain validity + hash match) are returned
+    via a single is_valid u64; a status code distinguishes
+    structural-fail (chain links broken) from hash-mismatch.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr (u64[N])
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : claimed_hashes ptr (32*N bytes)
+      a4 (input)  : u64 out (is_valid)
+      a5 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        nonzero : propagated status from validate_header_pair
+                  for the first failing link -/
+def validateBlockHashChainMatchFunction : String :=
+  "validate_block_hash_chain_match:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # header_lengths ptr\n" ++
+  "  mv s2, a2                   # headers ptr\n" ++
+  "  mv s3, a3                   # claimed_hashes ptr (32*N)\n" ++
+  "  mv s4, a4                   # is_valid out\n" ++
+  "  mv s5, a5                   # first_bad_index out\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s4)\n" ++
+  "  sd zero, 0(s5)\n" ++
+  "  beqz s0, .Lvbhcm_done       # N==0: vacuous true\n" ++
+  "  # ---- Verify block_hash[0] matches ----\n" ++
+  "  ld a1, 0(s1)                # header_lengths[0]\n" ++
+  "  mv a0, s2                   # header_rlp[0]\n" ++
+  "  la a2, vbhcm_hash_buf\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  la t0, vbhcm_hash_buf; mv t1, s3\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  li t0, 1\n" ++
+  "  beq s0, t0, .Lvbhcm_done    # N==1: just hash check, no chain\n" ++
+  "  # ---- Walk chain ----\n" ++
+  "  mv s6, s2                   # parent_ptr = headers[0]\n" ++
+  "  li s7, 0                    # i = 0\n" ++
+  "  addi s8, s3, 32             # next claimed_hash slot\n" ++
+  ".Lvbhcm_loop:\n" ++
+  "  addi t0, s7, 1\n" ++
+  "  beq t0, s0, .Lvbhcm_done\n" ++
+  "  slli t1, s7, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld a1, 0(t1)                # parent_len\n" ++
+  "  ld a3, 8(t1)                # child_len\n" ++
+  "  add t2, s6, a1              # child_ptr\n" ++
+  "  mv a0, s6\n" ++
+  "  mv a2, t2\n" ++
+  "  la a4, vbhcm_pair_valid\n" ++
+  "  jal ra, validate_header_pair\n" ++
+  "  bnez a0, .Lvbhcm_status_fail\n" ++
+  "  la t0, vbhcm_pair_valid; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lvbhcm_pred_false\n" ++
+  "  # Hash child and compare to claimed\n" ++
+  "  slli t1, s7, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld t2, 0(t1)                # parent_len\n" ++
+  "  ld t3, 8(t1)                # child_len\n" ++
+  "  add t4, s6, t2              # child_ptr\n" ++
+  "  mv a0, t4; mv a1, t3\n" ++
+  "  la a2, vbhcm_hash_buf\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  la t0, vbhcm_hash_buf; mv t1, s8\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  # Advance\n" ++
+  "  slli t1, s7, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld t2, 0(t1)\n" ++
+  "  add s6, s6, t2\n" ++
+  "  addi s8, s8, 32\n" ++
+  "  addi s7, s7, 1\n" ++
+  "  j .Lvbhcm_loop\n" ++
+  ".Lvbhcm_pred_false:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  sd s7, 0(s5)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvbhcm_ret\n" ++
+  ".Lvbhcm_status_fail:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  sd s7, 0(s5)\n" ++
+  "  j .Lvbhcm_ret\n" ++
+  ".Lvbhcm_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lvbhcm_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
+  "  ret"
+
+/-- `zisk_validate_block_hash_chain_match`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : N
+      bytes  8..8+8N        : header_lengths
+      bytes  8+8N..8+8N+32N : claimed_hashes (32 B each)
+      bytes  8+40N..        : concatenated header RLPs
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : is_valid
+      bytes 16..24 : first_bad_index -/
+def ziskValidateBlockHashChainMatchPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # N\n" ++
+  "  addi a1, a7, 16             # header_lengths ptr\n" ++
+  "  slli t0, a0, 3              # 8*N\n" ++
+  "  add a3, a1, t0              # claimed_hashes ptr\n" ++
+  "  slli t1, a0, 5              # 32*N\n" ++
+  "  add a2, a3, t1              # headers ptr\n" ++
+  "  li a4, 0xa0010008           # is_valid out\n" ++
+  "  li a5, 0xa0010010           # first_bad_index out\n" ++
+  "  jal ra, validate_block_hash_chain_match\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lvbhcm_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  validateHeaderPairFunction ++ "\n" ++
+  validateBlockHashChainMatchFunction ++ "\n" ++
+  ".Lvbhcm_pdone:"
+
+def ziskValidateBlockHashChainMatchDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_offset:\n" ++
+  "  .zero 8\n" ++
+  "vphl_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_claimed:\n" ++
+  "  .zero 32\n" ++
+  "vphl_computed:\n" ++
+  "  .zero 32\n" ++
+  "vhp_link_valid:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vbhcm_pair_valid:\n" ++
+  "  .zero 8\n" ++
+  "vbhcm_hash_buf:\n" ++
+  "  .zero 32"
+
+def ziskValidateBlockHashChainMatchProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateBlockHashChainMatchPrologue
+  dataAsm     := ziskValidateBlockHashChainMatchDataSection
+}
+
 end EvmAsm.Codegen
