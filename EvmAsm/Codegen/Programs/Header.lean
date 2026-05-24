@@ -2461,4 +2461,189 @@ def ziskValidateHeaderChainProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderChainDataSection
 }
 
+/-! ## block_hash_array_from_chain -- PR-K187
+
+    Validate an N-element header chain (K175) and, for each
+    header, output its block_hash (K172) into a 32*N-byte
+    output buffer. Combined output the caller can use to feed
+    downstream chain-state machinery (block_hash precompile
+    inputs, witness mapping, etc.).
+
+    Iterates over the chain twice in spirit but only once in
+    practice: walks `parent <- child` pairs, and for each
+    header writes `keccak256(header_rlp)` to the corresponding
+    32-byte slot.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr (u64[N])
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : block_hash_out ptr (32*N bytes)
+      a4 (input)  : u64 out (is_valid: 1 if chain accepts)
+      a5 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate + block_hashes written
+        nonzero : propagated status from validate_header_pair
+                  for the first failing link (block_hashes for
+                  headers up to and including the failure point
+                  are still written)
+
+    Special: for N == 0, write nothing and report is_valid=1.
+    For N == 1, validate trivially and write only block_hash[0]. -/
+def blockHashArrayFromChainFunction : String :=
+  "block_hash_array_from_chain:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # header_lengths ptr\n" ++
+  "  mv s2, a2                   # headers ptr\n" ++
+  "  mv s3, a3                   # block_hash_out ptr\n" ++
+  "  mv s4, a4                   # is_valid out\n" ++
+  "  mv s5, a5                   # first_bad_index out\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s4)                # default is_valid = 1\n" ++
+  "  sd zero, 0(s5)\n" ++
+  "  beqz s0, .Lbhac_done\n" ++
+  "  # Write block_hash[0]\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2; mv a2, s3\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  li t0, 1\n" ++
+  "  beq s0, t0, .Lbhac_done     # N == 1 -> trivially valid\n" ++
+  "  # Walk the chain, validating each link and writing block_hashes.\n" ++
+  "  mv s6, s2                   # parent ptr = headers[0]\n" ++
+  "  li s7, 0                    # i = 0\n" ++
+  "  addi s8, s3, 32             # next block_hash slot = block_hash_out + 32\n" ++
+  ".Lbhac_loop:\n" ++
+  "  addi t0, s7, 1\n" ++
+  "  beq t0, s0, .Lbhac_done\n" ++
+  "  # parent_len = header_lengths[i]; child_len = header_lengths[i+1]\n" ++
+  "  slli t1, s7, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld a1, 0(t1)                # parent_len\n" ++
+  "  ld a3, 8(t1)                # child_len\n" ++
+  "  add t2, s6, a1              # child ptr\n" ++
+  "  mv a0, s6\n" ++
+  "  mv a2, t2\n" ++
+  "  la a4, bhac_pair_valid\n" ++
+  "  jal ra, validate_header_pair\n" ++
+  "  bnez a0, .Lbhac_status_fail\n" ++
+  "  la t0, bhac_pair_valid; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lbhac_pred_false\n" ++
+  "  # Write block_hash[i+1]\n" ++
+  "  slli t1, s7, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld t2, 0(t1)                # parent_len[i]\n" ++
+  "  ld t3, 8(t1)                # child_len[i+1] (= header[i+1] len)\n" ++
+  "  add t4, s6, t2              # child ptr\n" ++
+  "  mv a0, t4; mv a1, t3; mv a2, s8\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  # Advance\n" ++
+  "  slli t1, s7, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld t2, 0(t1)\n" ++
+  "  add s6, s6, t2              # parent ptr += parent_len\n" ++
+  "  addi s8, s8, 32             # next block_hash slot\n" ++
+  "  addi s7, s7, 1\n" ++
+  "  j .Lbhac_loop\n" ++
+  ".Lbhac_pred_false:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  sd s7, 0(s5)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbhac_ret\n" ++
+  ".Lbhac_status_fail:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  sd s7, 0(s5)\n" ++
+  "  j .Lbhac_ret\n" ++
+  ".Lbhac_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbhac_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
+/-- `zisk_block_hash_array_from_chain`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : N
+      bytes  8..8+8N : header_lengths (u64[N])
+      bytes  8+8N.. : concatenated header RLPs
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : is_valid
+      bytes 16..24 : first_bad_index
+      bytes 24..   : block_hash[0], block_hash[1], ... (32*N B)
+    Caveat: ziskemu output is capped at 256 B, so this probe
+    test is meaningful only for N <= 7 (status+valid+bad = 24,
+    remaining 232 B fits 7 hashes). -/
+def ziskBlockHashArrayFromChainPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # N\n" ++
+  "  addi a1, a7, 16             # header_lengths ptr\n" ++
+  "  slli t0, a0, 3              # 8*N\n" ++
+  "  add a2, a1, t0              # headers ptr\n" ++
+  "  li a3, 0xa0010018           # block_hash_out at OUTPUT + 24\n" ++
+  "  li a4, 0xa0010008           # is_valid\n" ++
+  "  li a5, 0xa0010010           # first_bad_index\n" ++
+  "  jal ra, block_hash_array_from_chain\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbhac_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  validateHeaderPairFunction ++ "\n" ++
+  blockHashArrayFromChainFunction ++ "\n" ++
+  ".Lbhac_pdone:"
+
+def ziskBlockHashArrayFromChainDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_offset:\n" ++
+  "  .zero 8\n" ++
+  "vphl_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_claimed:\n" ++
+  "  .zero 32\n" ++
+  "vphl_computed:\n" ++
+  "  .zero 32\n" ++
+  "vhp_link_valid:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "bhac_pair_valid:\n" ++
+  "  .zero 8"
+
+def ziskBlockHashArrayFromChainProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockHashArrayFromChainPrologue
+  dataAsm     := ziskBlockHashArrayFromChainDataSection
+}
+
 end EvmAsm.Codegen
