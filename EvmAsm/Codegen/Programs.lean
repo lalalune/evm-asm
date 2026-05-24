@@ -5203,6 +5203,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_block_validate_no_withdrawals_pair" => some ziskBlockValidateNoWithdrawalsPairProbeUnit
   | "zisk_block_body_extract_1tx" => some ziskBlockBodyExtract1txProbeUnit
   | "zisk_block_validate_1tx_full" => some ziskBlockValidate1txFullProbeUnit
+  | "zisk_block_validate_1tx_full_with_body" => some ziskBlockValidate1txFullWithBodyProbeUnit
   | "zisk_block_validate_empty_receipts_root" => some ziskBlockValidateEmptyReceiptsRootProbeUnit
   | "zisk_block_validate_empty_block" => some ziskBlockValidateEmptyBlockProbeUnit
   | "zisk_validate_empty_block_with_parent" => some ziskValidateEmptyBlockWithParentProbeUnit
@@ -5406,6 +5407,7 @@ def knownProgramNames : List String :=
    "zisk_block_validate_no_withdrawals_pair",
    "zisk_block_body_extract_1tx",
    "zisk_block_validate_1tx_full",
+   "zisk_block_validate_1tx_full_with_body",
    "zisk_block_validate_empty_receipts_root",
    "zisk_block_validate_empty_block",
    "zisk_validate_empty_block_with_parent",
