@@ -695,6 +695,74 @@ theorem evm_div_n4_call_skip_stack_pre_spec_v4_of_runtime_rhatdd_hi_zero
   rw [word_add_zero] at hq
   xperm_hyp hq
 
+/-- EVM-stack-level DIV spec on the v4 n=4 call+skip sub-path from runtime
+    call conditions, normalized no-wrap evidence, and a supplied 128/64 upper
+    bound. -/
+theorem evm_div_n4_call_skip_stack_pre_spec_v4_of_runtime_no_wrap_of_le_hb3nz
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isSkipBorrowN4CallV4Evm a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    (divKTrialCallV4Q1dd u4 u3 b3').toNat *
+        (divKTrialCallV4DLo b3').toNat ≤
+      ((divKTrialCallV4Rhatdd u4 u3 b3').toNat % 2^32) * 2^32 +
+        (divKTrialCallV4Un1 u3).toNat →
+    (div128Quot_v4 u4 u3 b3').toNat ≤
+      (u4.toNat * 2^64 + u3.toNat) / b3'.toNat →
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 148 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x2 ↦ᵣ (clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x11 ↦ᵣ v11Old) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       divScratchValuesCall sp q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
+         u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) := by
+  intro shift antiShift b3' u4 u3 h_no_wrap h_le
+  let qHat := div128Quot_v4 u4 u3 b3'
+  have hbnz : b ≠ 0 := evmWord_ne_zero_of_getLimbN_3_ne_zero hb3nz
+  have h_pre := evm_div_n4_full_call_skip_stack_pre_spec_v4 sp base a b
+    v5 v6 v7 v10 v11Old q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old
+    u5 u6 u7 nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hbnz hb3nz hshift_nz halign hbltu hborrow
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
+    n4_call_skip_div_mod_getLimbN_v4_of_runtime_no_wrap_of_le_hb3nz a b
+      hb3nz hshift_nz hborrow h_no_wrap h_le
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
+  intro h hq
+  simp only [fullDivN4CallSkipPostV4_div128Quot_unfold, denormDivPost_unfold] at hq
+  apply sepConj_mono_right memIs_implies_memOwn h
+  apply sepConj_mono_left (div_n4_call_skip_stack_weaken sp a b) h
+  rw [show evmWordIs sp a =
+      ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3))
+      from evmWordIs_sp_unfold]
+  rw [show evmWordIs (sp + 32) (EvmWord.div a b) =
+      (((sp + 32) ↦ₘ qHat) **
+       ((sp + 40) ↦ₘ (0 : Word)) **
+       ((sp + 48) ↦ₘ (0 : Word)) **
+       ((sp + 56) ↦ₘ (0 : Word)))
+      from by rw [evmWordIs_sp32_limbs_eq sp (EvmWord.div a b) _ _ _ _
+                  hdiv0 hdiv1 hdiv2 hdiv3]]
+  rw [divScratchValuesCall_unfold, divScratchValues_unfold]
+  rw [word_add_zero] at hq
+  xperm_hyp hq
+
 /-- No-NOP variant of
     `evm_div_n4_call_skip_stack_pre_spec_v4_of_runtime_rhatdd_hi_zero`. -/
 theorem evm_div_n4_call_skip_stack_pre_spec_v4_noNop_of_runtime_rhatdd_hi_zero
