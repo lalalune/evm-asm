@@ -4357,4 +4357,81 @@ def ziskBlockValidateBlockHashPairProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockValidateBlockHashPairDataSection
 }
 
+/-! ## block_hash_and_extract_number -- PR-K213
+
+    From a single header RLP, return both the block_hash (K172)
+    and the block number (field 8 as u64). Useful as the
+    "labelled block hash" primitive -- callers commonly want
+    both together for chain indexing / commitment.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 32-byte output ptr (block_hash)
+      a3 (input)  : u64 out (block number)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 8 missing
+        2 : number field exceeds 8 bytes BE -/
+def blockHashAndExtractNumberFunction : String :=
+  "block_hash_and_extract_number:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0; mv s1, a1                # header\n" ++
+  "  mv s2, a3                            # number out ptr (stash)\n" ++
+  "  # 1. block_hash -> a2 (already set by caller)\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  # 2. number -> via rlp_field_to_u64(header, len, 8, &out)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
+  "  mv a3, s2\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_block_hash_and_extract_number`: probe BuildUnit.
+    Input layout:
+      bytes 0..8 : header_rlp_len
+      bytes 8..  : header_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : number
+      bytes 16..48 : block_hash -/
+def ziskBlockHashAndExtractNumberPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_len\n" ++
+  "  addi a0, a7, 16             # header ptr\n" ++
+  "  li a2, 0xa0010010           # 32B block_hash out\n" ++
+  "  li a3, 0xa0010008           # u64 number out\n" ++
+  "  jal ra, block_hash_and_extract_number\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbhen_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  blockHashAndExtractNumberFunction ++ "\n" ++
+  ".Lbhen_pdone:"
+
+def ziskBlockHashAndExtractNumberDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskBlockHashAndExtractNumberProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockHashAndExtractNumberPrologue
+  dataAsm     := ziskBlockHashAndExtractNumberDataSection
+}
+
 end EvmAsm.Codegen
