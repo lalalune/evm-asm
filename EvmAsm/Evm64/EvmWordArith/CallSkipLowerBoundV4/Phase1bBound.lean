@@ -139,6 +139,61 @@ theorem divKTrialCallV4Q1_hi_ne_zero_of_dHi_pow32_le_uHi
     simpa using h
   omega
 
+/-- Nat form of subtracting one from a Phase-1a quotient whose high half is
+    nonzero. -/
+theorem phase1a_q1_dec_toNat_of_hi_ne_zero
+    (q1 : Word)
+    (hhi : q1 >>> (32 : BitVec 6).toNat ≠ (0 : Word)) :
+    (q1 + signExtend12 4095).toNat = q1.toNat - 1 := by
+  have hq_ge := (ushiftRight_ne_zero_iff (val := q1) ((32 : BitVec 6).toNat)).mp hhi
+  have hq_pos : q1.toNat ≥ 1 := by
+    rw [show ((32 : BitVec 6).toNat : Nat) = 32 from by rfl] at hq_ge
+    omega
+  have h_se_toNat : (signExtend12 4095 : Word).toNat = 2^64 - 1 := by decide
+  rw [BitVec.toNat_add, h_se_toNat]
+  omega
+
+/-- In the wide-`uHi` regime, the Phase-1a corrected quotient is `q1 - 1`. -/
+theorem divKTrialCallV4Q1c_toNat_of_dHi_pow32_le_uHi
+    (uHi vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤ uHi.toNat) :
+    let dHi := divKTrialCallV4DHi vTop
+    let q1 := rv64_divu uHi dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    q1c.toNat = q1.toNat - 1 := by
+  intro dHi q1 hi1 q1c
+  have hhi : q1 >>> (32 : BitVec 6).toNat ≠ (0 : Word) := by
+    simpa [dHi, q1] using
+      divKTrialCallV4Q1_hi_ne_zero_of_dHi_pow32_le_uHi
+        uHi vTop hvTop_ge huHi_ge_dHi_pow32
+  show (if hi1 = 0 then q1 else q1 + signExtend12 4095).toNat = q1.toNat - 1
+  rw [if_neg hhi]
+  exact phase1a_q1_dec_toNat_of_hi_ne_zero q1 hhi
+
+/-- In the wide-`uHi` regime, the Phase-1a corrected remainder is
+    `rhat + dHi`. -/
+theorem divKTrialCallV4Rhatc_eq_of_dHi_pow32_le_uHi
+    (uHi vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤ uHi.toNat) :
+    let dHi := divKTrialCallV4DHi vTop
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    rhatc = rhat + dHi := by
+  intro dHi q1 rhat hi1 rhatc
+  have hhi : q1 >>> (32 : BitVec 6).toNat ≠ (0 : Word) := by
+    simpa [dHi, q1] using
+      divKTrialCallV4Q1_hi_ne_zero_of_dHi_pow32_le_uHi
+        uHi vTop hvTop_ge huHi_ge_dHi_pow32
+  show (if hi1 = 0 then rhat else rhat + dHi) = rhat + dHi
+  rw [if_neg hhi]
+
 /-- V4 spelling of the generic Phase-1b upper bound `q1' ≤ 2^32 + 1`. -/
 theorem algorithmQ1dV4_le_pow32_plus_one
     (uHi uLo vTop : Word)
