@@ -87,4 +87,94 @@ theorem fullDivN1QuotientWord_eq_div_of_mulsub_overestimate
           match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)
   exact h_correct.1
 
+/-- Semantic bridge for the n=1 quotient word from the accumulated mulsub
+    equation plus the final remainder bound.
+
+    This is a more direct schoolbook-division obligation than the older
+    quotient-overestimate form: once `a = q * b + r` and `r < b`, the packed
+    quotient is exactly `a / b`. -/
+theorem fullDivN1QuotientWord_eq_div_of_mulsub_remainder_lt
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hmulsub :
+      val256 a0 a1 a2 a3 =
+        (((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          val256 b0 b1 b2 b3 +
+        val256
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hrem_lt :
+      val256
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1) <
+        val256 b0 b1 b2 b3) :
+    fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 =
+      EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3) := by
+  let qVal :=
+    ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^192 +
+      ((fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+        2^128 +
+      ((fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+        2^64 +
+      ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).1).toNat
+  let rVal :=
+    val256
+      ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+      ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+      ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+      ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1)
+  have hb_pos : 0 < val256 b0 b1 b2 b3 :=
+    val256_pos_of_or_ne_zero hbnz
+  have h_eq : val256 a0 a1 a2 a3 = qVal * val256 b0 b1 b2 b3 + rVal := by
+    simpa [qVal, rVal] using hmulsub
+  have hq_eq : qVal = val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 := by
+    rw [h_eq]
+    rw [Nat.add_comm]
+    rw [Nat.add_mul_div_right _ _ hb_pos]
+    rw [Nat.div_eq_of_lt (by simpa [rVal] using hrem_lt)]
+    rw [Nat.zero_add]
+  have hge :
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
+        ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat := by
+    rw [← hq_eq]
+  exact fullDivN1QuotientWord_eq_div_of_mulsub_overestimate
+    bltu_3 bltu_2 bltu_1 bltu_0 hbnz hmulsub hge
+
 end EvmAsm.Evm64
