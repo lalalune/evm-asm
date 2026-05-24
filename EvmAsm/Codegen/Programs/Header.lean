@@ -4450,4 +4450,108 @@ def ziskValidateHeaderPostMergeZerosProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderPostMergeZerosDataSection
 }
 
+/-! ## chain_validate_post_merge_zeros -- PR-K221
+
+    Iterate `validate_header_post_merge_zeros` (K220) over an
+    N-element header chain and verify each header carries the
+    three EIP-3675 zero invariants (`ommers_hash`,
+    `difficulty`, `nonce`). Reports the first failing index.
+
+    No parent-hash link is checked here -- this is a pure
+    per-header iteration. Combine with K175 / K184 for full
+    chain validation.
+
+    Vacuous-true on N == 0.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr (u64[N])
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        nonzero : propagated status from K220 for the failing
+                  header (1 parse / 2 size mismatch) -/
+def chainValidatePostMergeZerosFunction : String :=
+  "chain_validate_post_merge_zeros:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # header_lengths\n" ++
+  "  mv s2, a2                   # headers ptr\n" ++
+  "  mv s3, a3                   # is_valid out\n" ++
+  "  mv s4, a4                   # first_bad_index out\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3)\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  beqz s0, .Lcvpmz_done\n" ++
+  "  mv s5, s2                   # current header ptr\n" ++
+  "  li s6, 0                    # i\n" ++
+  ".Lcvpmz_loop:\n" ++
+  "  beq s6, s0, .Lcvpmz_done\n" ++
+  "  slli t0, s6, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  mv a0, s5\n" ++
+  "  la a2, cvpmz_per_valid\n" ++
+  "  jal ra, validate_header_post_merge_zeros\n" ++
+  "  bnez a0, .Lcvpmz_status_fail\n" ++
+  "  la t0, cvpmz_per_valid; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lcvpmz_pred_false\n" ++
+  "  slli t0, s6, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s5, s5, t1\n" ++
+  "  addi s6, s6, 1\n" ++
+  "  j .Lcvpmz_loop\n" ++
+  ".Lcvpmz_pred_false:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  sd s6, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvpmz_ret\n" ++
+  ".Lcvpmz_status_fail:\n" ++
+  "  sd s6, 0(s4)\n" ++
+  "  j .Lcvpmz_ret\n" ++
+  ".Lcvpmz_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcvpmz_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+def ziskChainValidatePostMergeZerosPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_post_merge_zeros\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvpmz_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  validateHeaderPostMergeZerosFunction ++ "\n" ++
+  chainValidatePostMergeZerosFunction ++ "\n" ++
+  ".Lcvpmz_pdone:"
+
+def ziskChainValidatePostMergeZerosDataSection : String :=
+  ziskValidateHeaderPostMergeZerosDataSection ++ "\n" ++
+  "cvpmz_per_valid:\n" ++
+  "  .zero 8"
+
+def ziskChainValidatePostMergeZerosProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainValidatePostMergeZerosPrologue
+  dataAsm     := ziskChainValidatePostMergeZerosDataSection
+}
+
 end EvmAsm.Codegen
