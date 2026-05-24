@@ -5191,6 +5191,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_one_leaf_root_indexed" => some ziskMptOneLeafRootIndexedProbeUnit
   | "zisk_block_validate_transactions_root_one_tx" => some ziskBlockValidateTransactionsRootOneTxProbeUnit
   | "zisk_block_validate_withdrawals_root_one_w" => some ziskBlockValidateWithdrawalsRootOneWProbeUnit
+  | "zisk_block_validate_withdrawals_root_two_w" => some ziskBlockValidateWithdrawalsRootTwoWProbeUnit
   | "zisk_block_validate_transactions_root_two_tx" => some ziskBlockValidateTransactionsRootTwoTxProbeUnit
   | "zisk_block_hash_from_header" => some ziskBlockHashFromHeaderProbeUnit
   | "zisk_validate_parent_hash_link" => some ziskValidateParentHashLinkProbeUnit
@@ -5396,6 +5397,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_one_leaf_root_indexed",
    "zisk_block_validate_transactions_root_one_tx",
    "zisk_block_validate_withdrawals_root_one_w",
+   "zisk_block_validate_withdrawals_root_two_w",
    "zisk_block_validate_transactions_root_two_tx",
    "zisk_block_hash_from_header",
    "zisk_validate_parent_hash_link",
