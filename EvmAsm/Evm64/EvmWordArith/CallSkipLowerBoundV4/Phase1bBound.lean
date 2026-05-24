@@ -1043,6 +1043,63 @@ theorem divKTrialCallV4_phase1b_dLo_bound
     rw [h_qeq, if_neg h_guard]
     exact h_bound
 
+/-- Final V4 Phase-1b Euclidean identity after the second correction. -/
+theorem divKTrialCallV4Q1dd_rhatdd_post
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63) :
+    (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+        (divKTrialCallV4DHi vTop).toNat +
+      (divKTrialCallV4Rhatdd uHi uLo vTop).toNat =
+      uHi.toNat := by
+  let q := algorithmQ1dV4 uHi uLo vTop
+  let rhat := algorithmRhatdV4 uHi uLo vTop
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un := divKTrialCallV4Un1 uLo
+  have h_pre : q.toNat * dHi.toNat + rhat.toNat = uHi.toNat := by
+    simpa [q, rhat, dHi] using algorithmQ1dV4_rhatd_post uHi uLo vTop hvTop_ge
+  let guard : Prop := rhat >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+    BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo) = true
+  by_cases h_guard : guard
+  · have h_guard_pos : guard := h_guard
+    obtain ⟨h_rhat_hi_zero, h_ult_bool⟩ := h_guard
+    have h_ult : BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo) := by
+      simpa using h_ult_bool
+    have h_dHi_lt : dHi.toNat < 2^32 := by
+      unfold dHi divKTrialCallV4DHi
+      exact Word_ushiftRight_32_lt_pow32
+    have h_no_wrap_rhat : (rhat + dHi).toNat = rhat.toNat + dHi.toNat :=
+      phase2b_rhat_add_dHi_no_wrap_of_hi_zero rhat dHi h_rhat_hi_zero h_dHi_lt
+    have h_q_pos : q.toNat ≥ 1 :=
+      phase2b_q_pos_of_fire_ult q dLo ((rhat <<< (32 : BitVec 6).toNat) ||| un) h_ult
+    have h_q_dec : (q + signExtend12 4095).toNat = q.toNat - 1 := by
+      rw [BitVec.toNat_add, signExtend12_4095_toNat]
+      omega
+    rw [divKTrialCallV4Q1dd_eq_phase2b_algorithm,
+      divKTrialCallV4Rhatdd_eq_phase2b_algorithm]
+    rw [← div128Quot_phase2b_q0'_and_form]
+    change (if guard then q + signExtend12 4095 else q).toNat * dHi.toNat +
+        (if guard then rhat + dHi else rhat).toNat = uHi.toNat
+    rw [if_pos h_guard_pos, if_pos h_guard_pos, h_q_dec, h_no_wrap_rhat]
+    have h_rearrange :
+        (q.toNat - 1) * dHi.toNat + (rhat.toNat + dHi.toNat) =
+          q.toNat * dHi.toNat + rhat.toNat := by
+      have hq_eq : q.toNat = (q.toNat - 1) + 1 := by omega
+      calc
+        (q.toNat - 1) * dHi.toNat + (rhat.toNat + dHi.toNat)
+            = ((q.toNat - 1) * dHi.toNat + dHi.toNat) + rhat.toNat := by omega
+        _ = ((q.toNat - 1) + 1) * dHi.toNat + rhat.toNat := by ring
+        _ = q.toNat * dHi.toNat + rhat.toNat := by rw [← hq_eq]
+    rw [h_rearrange]
+    exact h_pre
+  · rw [divKTrialCallV4Q1dd_eq_phase2b_algorithm,
+      divKTrialCallV4Rhatdd_eq_phase2b_algorithm]
+    rw [← div128Quot_phase2b_q0'_and_form]
+    change (if guard then q + signExtend12 4095 else q).toNat * dHi.toNat +
+        (if guard then rhat + dHi else rhat).toNat = uHi.toNat
+    rw [if_neg h_guard, if_neg h_guard]
+    exact h_pre
+
 /-- If the final V4 Phase-1b remainder has zero high half, the final
     dLo-bound is exactly the low-half no-wrap condition for computing
     `un21`. -/
