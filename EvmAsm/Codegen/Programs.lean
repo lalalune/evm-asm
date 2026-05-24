@@ -4521,6 +4521,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extract_extra_data" => some ziskHeaderExtractExtraDataProbeUnit
   | "zisk_header_extract_nonce" => some ziskHeaderExtractNonceProbeUnit
   | "zisk_header_validate_nonce_zero" => some ziskHeaderValidateNonceZeroProbeUnit
+  | "zisk_header_validate_difficulty_zero" => some ziskHeaderValidateDifficultyZeroProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -4753,6 +4754,7 @@ def knownProgramNames : List String :=
    "zisk_header_extract_extra_data",
    "zisk_header_extract_nonce",
    "zisk_header_validate_nonce_zero",
+   "zisk_header_validate_difficulty_zero",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
