@@ -1361,4 +1361,26 @@ theorem div128Quot_v4_ge_q_true_of_rhatdd_hi_zero
   exact div128Quot_v4_ge_q_true_of_no_wrap uHi uLo vTop
     hvTop_ge huHi_lt_vTop huHi_lt_pow63 hUn21_lt_vTop h_no_wrap
 
+/-- Exact v4 128/64 quotient in the final Phase-1b high-half-zero branch,
+    assuming the matching normalized upper bound has been supplied. -/
+theorem div128Quot_v4_eq_q_true_of_rhatdd_hi_zero_of_le
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat < vTop.toNat)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd uHi uLo vTop >>> (32 : BitVec 6).toNat = (0 : Word))
+    (h_le :
+      (div128Quot_v4 uHi uLo vTop).toNat ≤
+        (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat) :
+    (div128Quot_v4 uHi uLo vTop).toNat =
+      (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat := by
+  apply le_antisymm
+  · exact h_le
+  · exact div128Quot_v4_ge_q_true_of_rhatdd_hi_zero
+      uHi uLo vTop hvTop_ge huHi_lt_vTop huHi_lt_pow63
+      hUn21_lt_vTop h_rhat_hi_zero
+
 end EvmAsm.Evm64
