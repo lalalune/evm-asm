@@ -44,7 +44,7 @@ theorem saveRaAbsThenModCall_then_resultSignFix_of_callable_post_spec_in_smodCod
        smodResultSignFixPost (sp + 32) resultSign
          (modWord.getLimbN 0) (modWord.getLimbN 1)
          (modWord.getLimbN 2) (modWord.getLimbN 3) **
-       smodModCallResultSignFixFrame vRa sp base dividendTop divisorTop
+       smodModCallResultSignFixFrame vRa sp base dividendTop
          dividendAbsWord) := by
   let dividendAbsWord : EvmWord :=
     smodAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
@@ -52,7 +52,7 @@ theorem saveRaAbsThenModCall_then_resultSignFix_of_callable_post_spec_in_smodCod
     smodAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
   let modWord := EvmWord.mod dividendAbsWord divisorAbsWord
   let resultSign := smodAbsSign dividendTop
-  let frame := smodModCallResultSignFixFrame vRa sp base dividendTop divisorTop
+  let frame := smodModCallResultSignFixFrame vRa sp base dividendTop
     dividendAbsWord
   have hFramePc : frame.pcFree := by
     dsimp [frame]

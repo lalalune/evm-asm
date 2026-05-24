@@ -25,9 +25,10 @@ theorem saveRaAbsThenModCall_then_return_from_noNop_spec_in_smodCodeV4
       EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
         (base + wrapperEndOff) ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.modCode_noNop_v4 (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPreCallable sp
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp
           (smodAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
           (smodAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+          (smodAbsSign divisorTop)
           ((base + modCallOff) + 4)
           v2 v5 v6
           (smodAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
@@ -38,7 +39,8 @@ theorem saveRaAbsThenModCall_then_return_from_noNop_spec_in_smodCodeV4
         (EvmAsm.Evm64.modStackDispatchPostCallable sp
           (smodAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
           (smodAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop) **
-          (.x1 ↦ᵣ ((base + modCallOff) + 4)))) :
+          (.x1 ↦ᵣ ((base + modCallOff) + 4)) **
+          EvmAsm.Rv64.regOwn .x9)) :
     EvmAsm.Rv64.cpsTripleWithin (((EvmAsm.Evm64.unifiedDivBound + 1) + 21) + 1)
       (base + wrapperEndOff)
       (((vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) +
@@ -59,7 +61,7 @@ theorem saveRaAbsThenModCall_then_return_from_noNop_spec_in_smodCodeV4
        (smodResultSignFixPost (sp + 32) resultSign
          (modWord.getLimbN 0) (modWord.getLimbN 1)
          (modWord.getLimbN 2) (modWord.getLimbN 3) **
-        smodSavedRaRetFrame sp base dividendTop divisorTop dividendAbsWord)) := by
+        smodSavedRaRetFrame sp base dividendTop dividendAbsWord)) := by
   let dividendAbsWord : EvmWord :=
     smodAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
   let divisorAbsWord : EvmWord :=
@@ -78,14 +80,14 @@ theorem saveRaAbsThenModCall_then_return_from_noNop_spec_in_smodCodeV4
       (smodResultSignFixPost (sp + 32) resultSign
         (modWord.getLimbN 0) (modWord.getLimbN 1)
         (modWord.getLimbN 2) (modWord.getLimbN 3) **
-       smodSavedRaRetFrame sp base dividendTop divisorTop dividendAbsWord).pcFree := by
+       smodSavedRaRetFrame sp base dividendTop dividendAbsWord).pcFree := by
     pcFree
   have hRetFramed :=
     EvmAsm.Rv64.cpsTripleWithin_frameR
       (smodResultSignFixPost (sp + 32) resultSign
         (modWord.getLimbN 0) (modWord.getLimbN 1)
         (modWord.getLimbN 2) (modWord.getLimbN 3) **
-       smodSavedRaRetFrame sp base dividendTop divisorTop dividendAbsWord)
+       smodSavedRaRetFrame sp base dividendTop dividendAbsWord)
       hRetFramePc
       (savedRaRet_spec_in_smodCodeV4
         (vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) base)
@@ -102,12 +104,12 @@ theorem saveRaAbsThenModCall_then_return_from_noNop_spec_in_smodCodeV4
          (smodResultSignFixPost (sp + 32) resultSign
           (modWord.getLimbN 0) (modWord.getLimbN 1)
           (modWord.getLimbN 2) (modWord.getLimbN 3) **
-          smodSavedRaRetFrame sp base dividendTop divisorTop dividendAbsWord))
+          smodSavedRaRetFrame sp base dividendTop dividendAbsWord))
         ((.x18 ↦ᵣ (vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12))) **
          (smodResultSignFixPost (sp + 32) resultSign
           (modWord.getLimbN 0) (modWord.getLimbN 1)
           (modWord.getLimbN 2) (modWord.getLimbN 3) **
-          smodSavedRaRetFrame sp base dividendTop divisorTop dividendAbsWord)) := by
+          smodSavedRaRetFrame sp base dividendTop dividendAbsWord)) := by
     rw [hFall]
     exact hRetFramed
   exact EvmAsm.Rv64.cpsTripleWithin_seq_perm_same_cr
