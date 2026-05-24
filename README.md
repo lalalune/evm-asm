@@ -289,6 +289,8 @@ block-body helpers
 `header_extract_state_root`,
 `header_extract_parent_hash`,
 `header_extract_receipts_root`,
+`header_extract_transactions_root`,
+`header_extract_withdrawals_root`,
 withdrawal RLP/hash, …), and address
 derivation (`address_compute_create`, `address_compute_create2`,
 `address_from_pubkey`). The catalogue is tracked under the
