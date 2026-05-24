@@ -2900,4 +2900,168 @@ def ziskBlockValidateEmptyBlockProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockValidateEmptyBlockDataSection
 }
 
+/-! ## validate_empty_block_with_parent -- PR-K183
+
+    Full validator for an empty post-merge block linked to a
+    parent: composes K174 `validate_header_pair` (4 pair
+    invariants between parent and child header) with K182
+    `block_validate_empty_block` (4 header empty-root checks +
+    4 body emptiness checks).
+
+    Per-block predicate (all 12 must hold):
+
+      A. validate_header_pair(parent, child) accepts:
+         child.parent_hash == keccak256(parent_rlp)
+         child.number == parent.number + 1
+         child.timestamp > parent.timestamp
+         check_gas_limit(child, parent) == 0
+      B. block_validate_empty_block(child, body) accepts:
+         child.transactions_root  == EMPTY_TRIE_ROOT
+         child.ommers_hash        == EMPTY_OMMERS_HASH
+         child.receipts_root      == EMPTY_TRIE_ROOT
+         child.withdrawals_root   == EMPTY_TRIE_ROOT
+         body.txs                 == 0xc0
+         body.ommers              == 0xc0
+         body.withdrawals         == 0xc0
+
+    The is_valid u64 is 1 iff all 12 predicates hold.
+
+    Calling convention:
+      a0 (input)  : parent_rlp ptr
+      a1 (input)  : parent_rlp byte length
+      a2 (input)  : child_rlp ptr
+      a3 (input)  : child_rlp byte length
+      a4 (input)  : body_rlp ptr
+      a5 (input)  : body_rlp byte length
+      a6 (input)  : u64 out (is_valid)
+      ra (input)  : return
+      a0 (output) :
+        0       : success -- predicate written
+        1..4    : propagated from validate_header_pair
+                  (1 child parse, 2 phash size, 3 parent field,
+                   4 child field)
+        11..13  : propagated from block_validate_empty_block
+                  (11 body parse, 12 header parse, 13 header size) -/
+def validateEmptyBlockWithParentFunction : String :=
+  "validate_empty_block_with_parent:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0; mv s1, a1                # parent\n" ++
+  "  mv s2, a2; mv s3, a3                # child header\n" ++
+  "  mv s4, a4; mv s5, a5                # body\n" ++
+  "  mv s6, a6                            # is_valid out\n" ++
+  "  sd zero, 0(s6)\n" ++
+  "  # ---- (A) Pair check ----\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  mv a2, s2; mv a3, s3\n" ++
+  "  la a4, vebwp_pair_valid\n" ++
+  "  jal ra, validate_header_pair\n" ++
+  "  beqz a0, .Lvebwp_pair_status_ok\n" ++
+  "  # Propagate K174 status (1..4) unchanged.\n" ++
+  "  j .Lvebwp_ret\n" ++
+  ".Lvebwp_pair_status_ok:\n" ++
+  "  la t0, vebwp_pair_valid; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lvebwp_pred_false\n" ++
+  "  # ---- (B) Empty-block check ----\n" ++
+  "  mv a0, s2; mv a1, s3\n" ++
+  "  mv a2, s4; mv a3, s5\n" ++
+  "  la a4, vebwp_empty_valid\n" ++
+  "  jal ra, block_validate_empty_block\n" ++
+  "  beqz a0, .Lvebwp_empty_status_ok\n" ++
+  "  # K182 returns 1..3 -- shift to 11..13.\n" ++
+  "  addi a0, a0, 10\n" ++
+  "  j .Lvebwp_ret\n" ++
+  ".Lvebwp_empty_status_ok:\n" ++
+  "  la t0, vebwp_empty_valid; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lvebwp_pred_false\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s6)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvebwp_ret\n" ++
+  ".Lvebwp_pred_false:\n" ++
+  "  sd zero, 0(s6)\n" ++
+  "  li a0, 0\n" ++
+  ".Lvebwp_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_validate_empty_block_with_parent`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : parent_rlp_len
+      bytes  8..16 : child_rlp_len
+      bytes 16..24 : body_rlp_len
+      bytes 24..   : parent_rlp || child_rlp || body_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : is_valid -/
+def ziskValidateEmptyBlockWithParentPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1,  8(a7)                # parent_rlp_len\n" ++
+  "  ld a3, 16(a7)                # child_rlp_len\n" ++
+  "  ld a5, 24(a7)                # body_rlp_len\n" ++
+  "  addi a0, a7, 32              # parent_rlp ptr\n" ++
+  "  add a2, a0, a1               # child_rlp ptr\n" ++
+  "  add a4, a2, a3               # body_rlp ptr\n" ++
+  "  li a6, 0xa0010008            # is_valid out\n" ++
+  "  jal ra, validate_empty_block_with_parent\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lvebwp_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  validateHeaderPairFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockValidateEmptyBlockFunction ++ "\n" ++
+  validateEmptyBlockWithParentFunction ++ "\n" ++
+  ".Lvebwp_pdone:"
+
+def ziskValidateEmptyBlockWithParentDataSection : String :=
+  ziskBlockValidateEmptyBlockDataSection ++ "\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_offset:\n" ++
+  "  .zero 8\n" ++
+  "vphl_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_claimed:\n" ++
+  "  .zero 32\n" ++
+  "vphl_computed:\n" ++
+  "  .zero 32\n" ++
+  "vhp_link_valid:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vebwp_pair_valid:\n" ++
+  "  .zero 8\n" ++
+  "vebwp_empty_valid:\n" ++
+  "  .zero 8"
+
+def ziskValidateEmptyBlockWithParentProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateEmptyBlockWithParentPrologue
+  dataAsm     := ziskValidateEmptyBlockWithParentDataSection
+}
+
 end EvmAsm.Codegen
