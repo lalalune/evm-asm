@@ -2893,6 +2893,136 @@ def ziskBlockValidate1txFullProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockValidate1txFullDataSection
 }
 
+/-! ## block_validate_1tx_full_with_body -- PR-K190
+
+    Body-aware single-call validator for a 1-tx block: takes
+    `(parent_rlp, header_rlp, body_rlp)`, returns `is_valid`.
+    Composes K188 (body extract) + K189 (header pair + tx_root).
+
+    Algorithm:
+      1. K188 `block_body_extract_1tx(body)` -- assert body shape
+         (3 fields, empty ommers, exactly 1 tx); return tx0 ptr+len.
+      2. K189 `block_validate_1tx_full(parent, header, tx0)` --
+         verify pair invariants + tx_root match.
+
+    Calling convention:
+      a0 (input)  : parent_rlp ptr
+      a1 (input)  : parent_rlp byte length
+      a2 (input)  : header_rlp ptr
+      a3 (input)  : header_rlp byte length
+      a4 (input)  : body_rlp ptr
+      a5 (input)  : body_rlp byte length
+      a6 (input)  : u64 out (is_valid)
+      ra (input)  : return
+      a0 (output) :
+        0        success
+        1..4     body-extract status (K188)
+        11..14   pair status (K174 / K189 codes 1..4 + 10)
+        21..22   tx-root status (K186 / K189 codes 11..12 + 10) -/
+def blockValidate1txFullWithBodyFunction : String :=
+  "block_validate_1tx_full_with_body:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0; mv s1, a1                # parent\n" ++
+  "  mv s2, a2; mv s3, a3                # header\n" ++
+  "  mv s4, a4; mv s5, a5                # body\n" ++
+  "  mv s6, a6                            # is_valid out\n" ++
+  "  sd zero, 0(s6)\n" ++
+  "  # (A) Extract tx0 from body\n" ++
+  "  mv a0, s4; mv a1, s5\n" ++
+  "  la a2, bv1fb_struct\n" ++
+  "  jal ra, block_body_extract_1tx\n" ++
+  "  beqz a0, .Lbv1fb_body_ok\n" ++
+  "  j .Lbv1fb_ret               # propagate body status 1..4\n" ++
+  ".Lbv1fb_body_ok:\n" ++
+  "  la t0, bv1fb_struct; ld t1, 0(t0); ld t2, 8(t0)\n" ++
+  "  add t1, s4, t1              # tx0 ptr = body + off\n" ++
+  "  # (B) K189 1-tx full validator\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  mv a2, s2; mv a3, s3\n" ++
+  "  mv a4, t1; mv a5, t2\n" ++
+  "  mv a6, s6\n" ++
+  "  jal ra, block_validate_1tx_full\n" ++
+  "  beqz a0, .Lbv1fb_ret\n" ++
+  "  # K189 status 1..4 (pair) -> remap to 11..14\n" ++
+  "  # K189 status 11..12 (tx_root) -> remap to 21..22\n" ++
+  "  li t0, 5\n" ++
+  "  bltu a0, t0, .Lbv1fb_remap_pair\n" ++
+  "  addi a0, a0, 10\n" ++
+  "  j .Lbv1fb_ret\n" ++
+  ".Lbv1fb_remap_pair:\n" ++
+  "  addi a0, a0, 10\n" ++
+  ".Lbv1fb_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_1tx_full_with_body`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : parent_rlp_len
+      bytes  8..16 : header_rlp_len
+      bytes 16..24 : body_rlp_len
+      bytes 24..   : parent_rlp || header_rlp || body_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : is_valid -/
+def ziskBlockValidate1txFullWithBodyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1,  8(a7)                # parent_rlp_len\n" ++
+  "  ld a3, 16(a7)                # header_rlp_len\n" ++
+  "  ld a5, 24(a7)                # body_rlp_len\n" ++
+  "  addi a0, a7, 32              # parent_rlp ptr\n" ++
+  "  add a2, a0, a1               # header_rlp ptr\n" ++
+  "  add a4, a2, a3               # body_rlp ptr\n" ++
+  "  li a6, 0xa0010008            # is_valid out\n" ++
+  "  jal ra, block_validate_1tx_full_with_body\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbv1fb_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptOneLeafRootIndexedFunction ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  validateHeaderPairFunction ++ "\n" ++
+  blockValidateTransactionsRootOneTxFunction ++ "\n" ++
+  blockValidate1txFullFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodyExtract1txFunction ++ "\n" ++
+  blockValidate1txFullWithBodyFunction ++ "\n" ++
+  ".Lbv1fb_pdone:"
+
+def ziskBlockValidate1txFullWithBodyDataSection : String :=
+  ziskBlockValidate1txFullDataSection ++ "\n" ++
+  "bv1fb_struct:\n" ++
+  "  .zero 16\n" ++
+  "bbe1_body_struct:\n" ++
+  "  .zero 48\n" ++
+  "bbe1_tx_count:\n" ++
+  "  .zero 8\n" ++
+  "bbe1_item_off:\n" ++
+  "  .zero 8\n" ++
+  "bbe1_item_len:\n" ++
+  "  .zero 8"
+
+def ziskBlockValidate1txFullWithBodyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidate1txFullWithBodyPrologue
+  dataAsm     := ziskBlockValidate1txFullWithBodyDataSection
+}
+
 /-! ## block_validate_empty_receipts_root -- PR-K181
 
     Header field 5 (`receipts_root`) equals `EMPTY_TRIE_ROOT`
