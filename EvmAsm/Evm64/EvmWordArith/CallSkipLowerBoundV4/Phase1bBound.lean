@@ -34,6 +34,34 @@ def algorithmRhatdV4 (uHi uLo vTop : Word) : Word :=
   let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
   if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
 
+/-- The Phase-1a corrected quotient before the first Phase-1b dLo check. -/
+@[irreducible]
+def algorithmQ1cV4 (uHi vTop : Word) : Word :=
+  let dHi := divKTrialCallV4DHi vTop
+  let q1 := rv64_divu uHi dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  if hi1 = 0 then q1 else q1 + signExtend12 4095
+
+/-- The Phase-1a corrected remainder before the first Phase-1b dLo check. -/
+@[irreducible]
+def algorithmRhatcV4 (uHi vTop : Word) : Word :=
+  let dHi := divKTrialCallV4DHi vTop
+  let q1 := rv64_divu uHi dHi
+  let rhat := uHi - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  if hi1 = 0 then rhat else rhat + dHi
+
+/-- The low 64-bit comparison word for the first Phase-1b dLo check. -/
+@[irreducible]
+def algorithmRhatUn1cV4 (uHi uLo vTop : Word) : Word :=
+  (algorithmRhatcV4 uHi vTop <<< (32 : BitVec 6).toNat) ||| divKTrialCallV4Un1 uLo
+
+/-- The first Phase-1b dLo correction guard. -/
+@[irreducible]
+def algorithmPhase1bFireV4 (uHi uLo vTop : Word) : Prop :=
+  BitVec.ult (algorithmRhatUn1cV4 uHi uLo vTop)
+    (algorithmQ1cV4 uHi vTop * divKTrialCallV4DLo vTop)
+
 theorem algorithmQ1dV4_unfold (uHi uLo vTop : Word) :
     algorithmQ1dV4 uHi uLo vTop = algorithmQ1Prime uHi uLo vTop := by
   delta algorithmQ1dV4
@@ -54,6 +82,31 @@ theorem algorithmRhatdV4_unfold (uHi uLo vTop : Word) :
        if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc) := by
   delta algorithmRhatdV4
   rfl
+
+/-- If the first Phase-1b dLo check does not fire, the pre-second-correction
+    quotient is just the Phase-1a corrected quotient. -/
+theorem algorithmQ1dV4_eq_q1c_of_phase1b_no_fire
+    (uHi uLo vTop : Word)
+    (h_no_fire : ¬ algorithmPhase1bFireV4 uHi uLo vTop) :
+    algorithmQ1dV4 uHi uLo vTop = algorithmQ1cV4 uHi vTop := by
+  delta algorithmPhase1bFireV4 algorithmRhatUn1cV4 algorithmQ1cV4 algorithmRhatcV4 at h_no_fire
+  simp [divKTrialCallV4DHi, divKTrialCallV4DLo, divKTrialCallV4Un1] at h_no_fire
+  rw [algorithmQ1dV4_unfold]
+  unfold algorithmQ1Prime
+  delta algorithmQ1cV4
+  simp [divKTrialCallV4DHi, h_no_fire]
+
+/-- If the first Phase-1b dLo check does not fire, the pre-second-correction
+    remainder is just the Phase-1a corrected remainder. -/
+theorem algorithmRhatdV4_eq_rhatc_of_phase1b_no_fire
+    (uHi uLo vTop : Word)
+    (h_no_fire : ¬ algorithmPhase1bFireV4 uHi uLo vTop) :
+    algorithmRhatdV4 uHi uLo vTop = algorithmRhatcV4 uHi vTop := by
+  delta algorithmPhase1bFireV4 algorithmRhatUn1cV4 algorithmQ1cV4 algorithmRhatcV4 at h_no_fire
+  simp [divKTrialCallV4DHi, divKTrialCallV4DLo, divKTrialCallV4Un1] at h_no_fire
+  rw [algorithmRhatdV4_unfold]
+  delta algorithmRhatcV4
+  simp [divKTrialCallV4DHi, divKTrialCallV4DLo, divKTrialCallV4Un1, h_no_fire]
 
 /-- Phase-1b Euclidean identity for the v4 pre-second-correction pair. -/
 theorem algorithmQ1dV4_rhatd_post
@@ -566,6 +619,99 @@ theorem phase1b_no_fire_dLo_bound_of_rhat_hi_zero
     exact halfword_combine rhatc un1 h_rhat_lt h_un_lt
   omega
 
+/-- Alias-level no-fire dLo bound for the first Phase-1b correction. -/
+theorem algorithmQ1cV4_dLo_bound_of_phase1b_no_fire
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (h_no_fire : ¬ algorithmPhase1bFireV4 uHi uLo vTop) :
+    (algorithmQ1cV4 uHi vTop).toNat * (divKTrialCallV4DLo vTop).toNat ≤
+      (algorithmRhatcV4 uHi vTop).toNat * 2^32 +
+        (divKTrialCallV4Un1 uLo).toNat := by
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
+  let q1c := algorithmQ1cV4 uHi vTop
+  let rhatc := algorithmRhatcV4 uHi vTop
+  have h_dHi_ge : dHi.toNat ≥ 2^31 := by
+    unfold dHi divKTrialCallV4DHi
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    omega
+  have h_dLo_lt : dLo.toNat < 2^32 := by
+    simpa [dLo] using divKTrialCallV4DLo_lt_pow32 vTop
+  have h_un_lt : un1.toNat < 2^32 := by
+    simpa [un1] using divKTrialCallV4Un1_lt_pow32 uLo
+  have h_vTop_decomp : vTop.toNat = dHi.toNat * 2^32 + dLo.toNat := by
+    unfold dHi dLo divKTrialCallV4DHi divKTrialCallV4DLo
+    exact div128Quot_vTop_decomp vTop
+  have h_uHi_lt_vTop_decomp : uHi.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+    rw [← h_vTop_decomp]
+    exact huHi_lt_vTop
+  have h_q1c_le : q1c.toNat ≤ 2^32 := by
+    have h := div128Quot_q1c_le_pow32 uHi dHi dLo
+      h_dHi_ge h_dLo_lt h_uHi_lt_vTop_decomp
+    change (algorithmQ1cV4 uHi vTop).toNat ≤ 2^32
+    delta algorithmQ1cV4
+    simpa [dHi, divKTrialCallV4DHi] using h
+  have h_qdlo_no_wrap : (q1c * dLo).toNat = q1c.toNat * dLo.toNat := by
+    rw [BitVec.toNat_mul]
+    apply Nat.mod_eq_of_lt
+    have h_dLo_le : dLo.toNat ≤ 2^32 - 1 := by omega
+    have h_prod_le : q1c.toNat * dLo.toNat ≤ 2^32 * (2^32 - 1) :=
+      Nat.mul_le_mul h_q1c_le h_dLo_le
+    omega
+  have h_no_fire' :
+      ¬ BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un1) (q1c * dLo) := by
+    delta algorithmPhase1bFireV4 algorithmRhatUn1cV4 at h_no_fire
+    simpa [q1c, rhatc, dLo, un1] using h_no_fire
+  have h_bound : q1c.toNat * dLo.toNat ≤ rhatc.toNat * 2^32 + un1.toNat := by
+    by_cases h_rhat_hi_zero : rhatc >>> (32 : BitVec 6).toNat = (0 : Word)
+    · exact phase1b_no_fire_dLo_bound_of_rhat_hi_zero q1c rhatc dLo un1
+        h_rhat_hi_zero h_un_lt h_qdlo_no_wrap h_no_fire'
+    · exact phase1b_no_fire_dLo_bound_of_rhat_hi_nonzero q1c rhatc dLo un1
+        h_q1c_le h_dLo_lt h_rhat_hi_zero
+  simpa [q1c, rhatc, dLo, un1] using h_bound
+
+/-- First-Phase-1b-no-fire overshoot discharge for the V4
+    pre-second-correction pair. -/
+theorem algorithmQ1dV4_dLo_overshoot_le_vTop_of_phase1b_no_fire
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (h_no_fire : ¬ algorithmPhase1bFireV4 uHi uLo vTop) :
+    (algorithmQ1dV4 uHi uLo vTop).toNat * (divKTrialCallV4DLo vTop).toNat ≤
+      (algorithmRhatdV4 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un1 uLo).toNat +
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat := by
+  have h_bound := algorithmQ1cV4_dLo_bound_of_phase1b_no_fire
+    uHi uLo vTop hvTop_ge huHi_lt_vTop h_no_fire
+  rw [algorithmQ1dV4_eq_q1c_of_phase1b_no_fire uHi uLo vTop h_no_fire,
+    algorithmRhatdV4_eq_rhatc_of_phase1b_no_fire uHi uLo vTop h_no_fire]
+  exact le_trans h_bound (by omega)
+
+/-- Unconditional overshoot discharge for the V4 pre-second-correction
+    Phase-1b pair, by splitting on the first Phase-1b dLo guard. -/
+theorem algorithmQ1dV4_dLo_overshoot_le_vTop_closed
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (algorithmQ1dV4 uHi uLo vTop).toNat * (divKTrialCallV4DLo vTop).toNat ≤
+      (algorithmRhatdV4 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un1 uLo).toNat +
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat := by
+  by_cases h_fire : algorithmPhase1bFireV4 uHi uLo vTop
+  · have h := algorithmQ1dV4_dLo_overshoot_le_vTop_of_phase1b_fire
+      uHi uLo vTop hvTop_ge huHi_lt_vTop
+    simpa [divKTrialCallV4DHi, divKTrialCallV4DLo, divKTrialCallV4Un1] using
+      h (by
+        simpa [algorithmPhase1bFireV4, algorithmRhatUn1cV4, algorithmQ1cV4,
+          algorithmRhatcV4, divKTrialCallV4DHi, divKTrialCallV4DLo,
+          divKTrialCallV4Un1] using h_fire)
+  · exact algorithmQ1dV4_dLo_overshoot_le_vTop_of_phase1b_no_fire
+      uHi uLo vTop hvTop_ge huHi_lt_vTop h_fire
+
 /-- Narrow-call Phase-1b overshoot bound for the pre-second-correction pair.
 
     This discharges the `h_overshoot_le_vTop` argument of
@@ -645,6 +791,65 @@ theorem divKTrialCallV4_phase1b_dLo_bound_of_uHi_lt_dHi_pow32
     simpa [q, rhat, dHi, dLo, un] using
       algorithmQ1dV4_dLo_overshoot_le_vTop_of_uHi_lt_dHi_pow32_closed
         uHi uLo vTop hvTop_ge huHi_lt_vTop huHi_lt_dHi_pow32
+  by_cases h_guard : rhat >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+    BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+  · have h_guard_full := h_guard
+    obtain ⟨h_rhat_hi_zero, h_ult⟩ := h_guard
+    have h_dHi_lt : dHi.toNat < 2^32 := by
+      unfold dHi divKTrialCallV4DHi
+      exact Word_ushiftRight_32_lt_pow32
+    have h_no_wrap_rhat : (rhat + dHi).toNat = rhat.toNat + dHi.toNat :=
+      phase2b_rhat_add_dHi_no_wrap_of_hi_zero rhat dHi h_rhat_hi_zero h_dHi_lt
+    have h_q_pos : q.toNat ≥ 1 :=
+      phase2b_q_pos_of_fire_ult q dLo ((rhat <<< (32 : BitVec 6).toNat) ||| un) h_ult
+    obtain ⟨h_qeq, h_bound⟩ := div128Quot_phase2b_q0'_dLo_bound_fire_case
+      q rhat dLo dHi un h_no_wrap_rhat h_q_pos h_rhat_hi_zero h_ult h_overshoot
+    rw [divKTrialCallV4Q1dd_eq_phase2b_algorithm,
+      divKTrialCallV4Rhatdd_eq_phase2b_algorithm]
+    change (div128Quot_phase2b_q0' q rhat dLo un).toNat * dLo.toNat ≤
+      (if rhat >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+        BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo) then
+        rhat + dHi else rhat).toNat * 2^32 + un.toNat
+    rw [h_qeq, if_pos h_guard_full]
+    exact h_bound
+  · obtain ⟨h_qeq, h_bound⟩ := div128Quot_phase2b_q0'_dLo_bound_no_fire
+      q rhat dLo un h_q_le h_dLo_lt h_un_lt h_no_wrap_q h_guard
+    rw [divKTrialCallV4Q1dd_eq_phase2b_algorithm,
+      divKTrialCallV4Rhatdd_eq_phase2b_algorithm]
+    change (div128Quot_phase2b_q0' q rhat dLo un).toNat * dLo.toNat ≤
+      (if rhat >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+        BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo) then
+        rhat + dHi else rhat).toNat * 2^32 + un.toNat
+    rw [h_qeq, if_neg h_guard]
+    exact h_bound
+
+/-- V4 Phase-1b post-condition after the second correction. -/
+theorem divKTrialCallV4_phase1b_dLo_bound
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+        (divKTrialCallV4DLo vTop).toNat ≤
+      (divKTrialCallV4Rhatdd uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un1 uLo).toNat := by
+  let q := algorithmQ1dV4 uHi uLo vTop
+  let rhat := algorithmRhatdV4 uHi uLo vTop
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un := divKTrialCallV4Un1 uLo
+  have h_q_le : q.toNat ≤ 2^32 + 1 := by
+    simpa [q] using algorithmQ1dV4_le_pow32_plus_one uHi uLo vTop hvTop_ge huHi_lt_vTop
+  have h_dLo_lt : dLo.toNat < 2^32 := by
+    simpa [dLo] using divKTrialCallV4DLo_lt_pow32 vTop
+  have h_un_lt : un.toNat < 2^32 := by
+    simpa [un] using divKTrialCallV4Un1_lt_pow32 uLo
+  have h_no_wrap_q : (q * dLo).toNat = q.toNat * dLo.toNat := by
+    simpa [q, dLo] using algorithmQ1dV4_dLo_no_wrap uHi uLo vTop hvTop_ge huHi_lt_vTop
+  have h_overshoot : q.toNat * dLo.toNat ≤
+      rhat.toNat * 2^32 + un.toNat + dHi.toNat * 2^32 + dLo.toNat := by
+    simpa [q, rhat, dHi, dLo, un] using
+      algorithmQ1dV4_dLo_overshoot_le_vTop_closed
+        uHi uLo vTop hvTop_ge huHi_lt_vTop
   by_cases h_guard : rhat >>> (32 : BitVec 6).toNat = (0 : Word) ∧
     BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
   · have h_guard_full := h_guard
