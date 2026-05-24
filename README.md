@@ -258,8 +258,10 @@ field accessors (legacy / EIP-1559 / EIP-2930 / EIP-4844 / EIP-7702
 decoders, intrinsic-gas helpers, signature extraction, …), account
 and MPT primitives (`account_decode`, `account_at_address`,
 `account_extract_*`, `mpt_walk`, `mpt_branch_*`, `mpt_compact_*`,
-…), block-body helpers (`block_body_decode`,
-`block_count_transactions`, withdrawal RLP/hash, …), and address
+`mpt_two_leaf_root_indexed`, …), block-body helpers
+(`block_body_decode`, `block_count_transactions`,
+`block_validate_transactions_root_two_tx`, withdrawal RLP/hash, …),
+and address
 derivation (`address_compute_create`, `address_compute_create2`,
 `address_from_pubkey`). The catalogue is tracked under the
 `PR-K*` series in [`PLAN.md`](PLAN.md).
