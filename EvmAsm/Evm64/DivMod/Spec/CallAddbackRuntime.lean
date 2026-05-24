@@ -667,6 +667,19 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
   n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions_compact
     hb3nz hshift_nz h_bounds.1 h_borrow h_carry2 h_bounds.2
 
+/-- Historical non-`V4` spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_runtime_bounds
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_bounds : n4CallAddbackBeqRuntimeBounds a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
+      hb3nz hshift_nz h_bounds h_borrow h_carry2
 
 /-- **n4 call+addback (shift≠0) getLimbN bridge.**
     Under `n4CallAddbackBeqSemanticHolds a b` (the algorithm's q_out equals the
