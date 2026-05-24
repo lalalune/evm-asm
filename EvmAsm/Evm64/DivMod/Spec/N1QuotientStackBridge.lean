@@ -6,6 +6,7 @@
 
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientWord
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
 
 namespace EvmAsm.Evm64
 
@@ -267,6 +268,60 @@ theorem fullDivN1R0_val256_conservation_of_shape
     hbnz hb1z hb2z hb3z hcarry2
   dsimp only at h
   simpa using h
+
+/-- The n=1-shaped normalized divisor equals the original divisor scaled by
+    the CLZ normalization factor. -/
+theorem fullDivN1NormV_val256_eq_scaled_of_shape
+    (b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    EvmWord.val256
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2 =
+    EvmWord.val256 b0 b1 b2 b3 * 2^(fullDivN1Shift b0).toNat := by
+  subst b1
+  subst b2
+  subst b3
+  unfold fullDivN1NormV fullDivN1AntiShift
+  dsimp only
+  unfold fullDivN1Shift
+  have h_shift_pos : 1 ≤ (clzResult b0).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b0).1.toNat with h | h
+    · exfalso
+      apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have hsmod : (clzResult b0).1.toNat % 64 = (clzResult b0).1.toNat :=
+    Nat.mod_eq_of_lt (by have := clzResult_fst_toNat_le b0; omega)
+  rw [hsmod, antiShift_toNat_mod_eq h_shift_pos (clzResult_fst_toNat_le b0)]
+  exact EvmWord.val256_normalize h_shift_pos (by omega) b0 0 0 0 (by simp)
+
+/-- The normalized dividend plus overflow limb equals the original dividend
+    scaled by the n=1 CLZ normalization factor. -/
+theorem fullDivN1NormU_val256_eq_scaled
+    (a0 a1 a2 a3 b0 : Word) (hshift_nz : (clzResult b0).1 ≠ 0) :
+    EvmWord.val256
+      (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1 +
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2^256 =
+    EvmWord.val256 a0 a1 a2 a3 * 2^(fullDivN1Shift b0).toNat := by
+  unfold fullDivN1NormU fullDivN1AntiShift
+  dsimp only
+  unfold fullDivN1Shift
+  have h_shift_pos : 1 ≤ (clzResult b0).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b0).1.toNat with h | h
+    · exfalso
+      apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have hsmod : (clzResult b0).1.toNat % 64 = (clzResult b0).1.toNat :=
+    Nat.mod_eq_of_lt (by have := clzResult_fst_toNat_le b0; omega)
+  rw [hsmod, antiShift_toNat_mod_eq h_shift_pos (clzResult_fst_toNat_le b0)]
+  exact EvmWord.val256_normalize_general h_shift_pos (by omega) a0 a1 a2 a3
 
 /-- n=1 quotient bridge specialized to branch constructors that store
     `a`/`b` as `EvmWord`s and refer to their limbs directly. -/
