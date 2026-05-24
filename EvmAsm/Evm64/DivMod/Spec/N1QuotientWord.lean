@@ -282,6 +282,61 @@ theorem fullDivN1_getLimbN_of_mulsub_remainder_lt
   exact fullDivN1_hdivs_of_word_eq bltu_3 bltu_2 bltu_1 bltu_0
     a b a0 a1 a2 a3 b0 b1 b2 b3 hdiv
 
+/-- Four-limb n=1 division witness from the accumulated mulsub equation and
+    legacy quotient-overestimate hypothesis. -/
+theorem fullDivN1_getLimbN_of_mulsub_overestimate
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hmulsub :
+      val256 a0 a1 a2 a3 =
+        (((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          val256 b0 b1 b2 b3 +
+        val256
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
+        ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    let a := EvmWord.fromLimbs fun i : Fin 4 =>
+      match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3
+    let b := EvmWord.fromLimbs fun i : Fin 4 =>
+      match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 2 =
+      (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 3 =
+      (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1 := by
+  intro a b
+  have hdiv :=
+    fullDivN1QuotientWord_eq_div_of_mulsub_overestimate
+      bltu_3 bltu_2 bltu_1 bltu_0 hbnz hmulsub hge
+  exact fullDivN1_hdivs_of_word_eq bltu_3 bltu_2 bltu_1 bltu_0
+    a b a0 a1 a2 a3 b0 b1 b2 b3 hdiv
+
 /-- Legacy overestimate witnesses imply the final n=1 remainder bound. -/
 theorem fullDivN1Remainder_lt_of_mulsub_overestimate
     (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
