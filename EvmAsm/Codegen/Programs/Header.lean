@@ -2290,4 +2290,175 @@ def ziskValidateHeaderPairProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderPairDataSection
 }
 
+/-! ## validate_header_chain -- PR-K175
+
+    Iterate `validate_header_pair` (K174) over N consecutive
+    headers (parent, child) and verify every link in the
+    chain. This is the EELS `validate_headers` function: walk
+    the witness list and assert each successive pair of
+    headers satisfies the four pair invariants:
+
+      1. child.parent_hash == keccak256(parent)
+      2. child.number == parent.number + 1
+      3. child.timestamp > parent.timestamp
+      4. check_gas_limit(child, parent) == 0
+
+    Stops on the first failing pair and reports the failing
+    index. Empty (N == 0) and singleton (N == 1) chains are
+    accepted vacuously -- there is no pair to check.
+
+    Header layout (one length-prefix table + flat byte blob):
+      headers[0] starts at headers_ptr + offsets[0]
+      headers[i] has length lengths[i]
+      offsets[i+1] = offsets[i] + lengths[i]
+    The caller supplies `lengths` (a `u64[N]`); offsets are
+    computed inline.
+
+    Calling convention:
+      a0 (input)  : header count N
+      a1 (input)  : lengths ptr (u64[N], byte lengths)
+      a2 (input)  : headers ptr (flat concatenated RLPs)
+      a3 (input)  : u64 out (is_valid: 1 if every link OK)
+      a4 (input)  : u64 out (first_bad_index: index of the
+                    failing pair; 0 if all pairs pass)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        nonzero : propagated status from validate_header_pair
+                  for the first failing pair (1..4) -/
+def validateHeaderChainFunction : String :=
+  "validate_header_chain:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # lengths ptr\n" ++
+  "  mv s2, a2                   # headers ptr\n" ++
+  "  mv s3, a3                   # is_valid out\n" ++
+  "  mv s4, a4                   # first_bad_index out\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  # Vacuous-true for N == 0 or N == 1.\n" ++
+  "  li t0, 2\n" ++
+  "  bltu s0, t0, .Lvhc_vacuous\n" ++
+  "  # parent ptr/len start (i = 0)\n" ++
+  "  mv s5, s2                   # current parent ptr\n" ++
+  "  li s6, 0                    # current index i\n" ++
+  ".Lvhc_loop:\n" ++
+  "  # Pre-compute child index = i + 1\n" ++
+  "  addi t0, s6, 1\n" ++
+  "  beq t0, s0, .Lvhc_done       # i+1 == N -> finished\n" ++
+  "  # parent_len = lengths[i], child_len = lengths[i+1]\n" ++
+  "  slli t1, s6, 3\n" ++
+  "  add t1, s1, t1                              # &lengths[i]\n" ++
+  "  ld t2, 0(t1)                                # parent_len\n" ++
+  "  ld t3, 8(t1)                                # child_len\n" ++
+  "  add t4, s5, t2                              # child_ptr = parent_ptr + parent_len\n" ++
+  "  mv a0, s5; mv a1, t2\n" ++
+  "  mv a2, t4; mv a3, t3\n" ++
+  "  la a4, vhc_pair_valid\n" ++
+  "  jal ra, validate_header_pair\n" ++
+  "  bnez a0, .Lvhc_pair_status_fail\n" ++
+  "  la t0, vhc_pair_valid; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lvhc_pred_false\n" ++
+  "  # Advance: parent <- child\n" ++
+  "  slli t1, s6, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld t2, 0(t1)                                # parent_len (just used)\n" ++
+  "  add s5, s5, t2                              # parent_ptr += parent_len\n" ++
+  "  addi s6, s6, 1\n" ++
+  "  j .Lvhc_loop\n" ++
+  ".Lvhc_done:\n" ++
+  ".Lvhc_vacuous:\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvhc_ret\n" ++
+  ".Lvhc_pred_false:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  sd s6, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvhc_ret\n" ++
+  ".Lvhc_pair_status_fail:\n" ++
+  "  sd s6, 0(s4)\n" ++
+  ".Lvhc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_validate_header_chain`: probe BuildUnit.
+    Input layout:
+      bytes  0..  8 : N (header count)
+      bytes  8..  8 + 8*N : lengths (u64[N])
+      bytes  8 + 8*N .. : concatenated header RLPs
+    Output layout:
+      bytes  0.. 8 : status code
+      bytes  8..16 : is_valid (1 if every link OK)
+      bytes 16..24 : first_bad_index -/
+def ziskValidateHeaderChainPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # N\n" ++
+  "  addi a1, a7, 16             # lengths ptr\n" ++
+  "  slli t0, a0, 3              # 8*N\n" ++
+  "  add a2, a1, t0              # headers ptr\n" ++
+  "  li a3, 0xa0010008           # is_valid out\n" ++
+  "  li a4, 0xa0010010           # first_bad_index out\n" ++
+  "  jal ra, validate_header_chain\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lvhc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  validateHeaderPairFunction ++ "\n" ++
+  validateHeaderChainFunction ++ "\n" ++
+  ".Lvhc_pdone:"
+
+def ziskValidateHeaderChainDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_offset:\n" ++
+  "  .zero 8\n" ++
+  "vphl_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_claimed:\n" ++
+  "  .zero 32\n" ++
+  "vphl_computed:\n" ++
+  "  .zero 32\n" ++
+  "vhp_link_valid:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vhc_pair_valid:\n" ++
+  "  .zero 8"
+
+def ziskValidateHeaderChainProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateHeaderChainPrologue
+  dataAsm     := ziskValidateHeaderChainDataSection
+}
+
 end EvmAsm.Codegen
