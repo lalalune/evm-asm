@@ -485,6 +485,93 @@ theorem divKTrialCallV4Q0d_gt_q_true_0_of_prod_gt
     (2^32)
     hDen_pos hRhat_eq hQ0d_mul hProd_gt
 
+/-- Nat-level product-check bridge for the initial v4 Phase-2 second digit.
+
+    This specializes the generic product-check implication to the v4 names:
+    once `Q0c` and `Rhat2c` satisfy the Euclidean relation against `un21`,
+    a strict product-check failure means `Q0c` is strictly above the true
+    second Knuth digit. -/
+theorem divKTrialCallV4Q0c_gt_q_true_0_of_prod_gt
+    (uHi uLo vTop : Word)
+    (hDen_pos :
+      0 < (divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat)
+    (hRhat_eq :
+      (divKTrialCallV4Rhat2c uHi uLo vTop).toNat =
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat -
+          (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+            (divKTrialCallV4DHi vTop).toNat)
+    (hQ0c_mul :
+      (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+          (divKTrialCallV4DHi vTop).toNat ≤
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat)
+    (hProd_gt :
+      (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat >
+        (divKTrialCallV4Rhat2c uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un0 uLo).toNat) :
+    ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat) /
+      ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat) <
+    (divKTrialCallV4Q0c uHi uLo vTop).toNat := by
+  exact EvmWord.product_check_gt_imp_overestimate
+    (divKTrialCallV4Un21 uHi uLo vTop).toNat
+    (divKTrialCallV4Un0 uLo).toNat
+    (divKTrialCallV4DHi vTop).toNat
+    (divKTrialCallV4DLo vTop).toNat
+    (divKTrialCallV4Q0c uHi uLo vTop).toNat
+    (divKTrialCallV4Rhat2c uHi uLo vTop).toNat
+    (2^32)
+    hDen_pos hRhat_eq hQ0c_mul hProd_gt
+
+/-- Word-to-Nat bridge for the initial v4 Phase-2 product-check fire guard.
+
+    When `Rhat2c` is a 32-bit value, the half-word combine
+    `(Rhat2c << 32) | un0` has Nat value `Rhat2c * 2^32 + un0`.
+    If the product `Q0c*dLo` is known not to wrap, the Word `BLTU` fire
+    guard is exactly the Nat strict product inequality needed for the
+    first Phase-2 correction. -/
+theorem divKTrialCallV4Q0c_prod_gt_of_ult
+    (uHi uLo vTop : Word)
+    (hRhat2c_hi_zero :
+      divKTrialCallV4Rhat2c uHi uLo vTop >>> (32 : BitVec 6).toNat = 0)
+    (hUn0_lt : (divKTrialCallV4Un0 uLo).toNat < 2^32)
+    (hProd_no_wrap :
+      (divKTrialCallV4Q0c uHi uLo vTop *
+          divKTrialCallV4DLo vTop).toNat =
+        (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat)
+    (hUlt :
+      BitVec.ult
+        ((divKTrialCallV4Rhat2c uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+          divKTrialCallV4Un0 uLo)
+        (divKTrialCallV4Q0c uHi uLo vTop * divKTrialCallV4DLo vTop)) :
+    (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+        (divKTrialCallV4DLo vTop).toNat >
+      (divKTrialCallV4Rhat2c uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat := by
+  have hRhat2c_lt : (divKTrialCallV4Rhat2c uHi uLo vTop).toNat < 2^32 := by
+    have h_div : (divKTrialCallV4Rhat2c uHi uLo vTop).toNat / 2^32 = 0 := by
+      have h_toNat :
+          (divKTrialCallV4Rhat2c uHi uLo vTop >>> (32 : BitVec 6).toNat).toNat = 0 := by
+        rw [hRhat2c_hi_zero]
+        rfl
+      rwa [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow] at h_toNat
+    exact (Nat.div_eq_zero_iff.mp h_div).resolve_left (by decide)
+  have hUlt_nat :
+      (((divKTrialCallV4Rhat2c uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+          divKTrialCallV4Un0 uLo).toNat) <
+        (divKTrialCallV4Q0c uHi uLo vTop *
+          divKTrialCallV4DLo vTop).toNat := by
+    rwa [EvmWord.ult_iff] at hUlt
+  rw [hProd_no_wrap] at hUlt_nat
+  rw [show ((32 : BitVec 6).toNat : Nat) = 32 from rfl] at hUlt_nat
+  rw [EvmWord.halfword_combine
+        (divKTrialCallV4Rhat2c uHi uLo vTop)
+        (divKTrialCallV4Un0 uLo) hRhat2c_lt hUn0_lt] at hUlt_nat
+  exact hUlt_nat
+
 /-- Word-to-Nat bridge for the v4 Phase-2 product-check fire guard.
 
     When `Rhat2d` is a 32-bit value, the half-word combine
@@ -596,6 +683,131 @@ theorem divKTrialCallV4Q0c_Rhat2c_bridge
         (divKTrialCallV4Un21 uHi uLo vTop).toNat := by
   have h_post := divKTrialCallV4Q0c_Rhat2c_post uHi uLo vTop hdHi_ge hdHi_lt
   constructor <;> omega
+
+/-- Full initial v4 Phase-2 low-limb product-check bridge.
+
+    Under the tail digit bounds, a fired `BLTU` guard for `Q0c * DLo`
+    proves that `Q0c` is strictly larger than the true second quotient digit. -/
+theorem divKTrialCallV4Q0c_gt_q_true_0_of_ult
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (hUn21_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat)
+    (hRhat2c_hi_zero :
+      divKTrialCallV4Rhat2c uHi uLo vTop >>> (32 : BitVec 6).toNat = 0)
+    (hUlt :
+      BitVec.ult
+        ((divKTrialCallV4Rhat2c uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+          divKTrialCallV4Un0 uLo)
+        (divKTrialCallV4Q0c uHi uLo vTop * divKTrialCallV4DLo vTop)) :
+    ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat) /
+      ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat) <
+    (divKTrialCallV4Q0c uHi uLo vTop).toNat := by
+  have hDen_pos :
+      0 < (divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat := by
+    nlinarith
+  have hUn0_lt : (divKTrialCallV4Un0 uLo).toNat < 2^32 :=
+    divKTrialCallV4Un0_lt_pow32 uLo
+  have hProd_no_wrap :
+      (divKTrialCallV4Q0c uHi uLo vTop *
+          divKTrialCallV4DLo vTop).toNat =
+        (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat :=
+    divKTrialCallV4Q0c_mul_DLo_no_wrap_of_tail uHi uLo vTop
+      hdHi_ge hdLo_lt hUn21_ge_dHi_pow32 hUn21_lt_vTop
+  have hProd_gt :
+      (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat >
+        (divKTrialCallV4Rhat2c uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un0 uLo).toNat :=
+    divKTrialCallV4Q0c_prod_gt_of_ult uHi uLo vTop
+      hRhat2c_hi_zero hUn0_lt hProd_no_wrap hUlt
+  have h_bridge := divKTrialCallV4Q0c_Rhat2c_bridge uHi uLo vTop hdHi_ge hdHi_lt
+  exact divKTrialCallV4Q0c_gt_q_true_0_of_prod_gt uHi uLo vTop
+    hDen_pos h_bridge.1 h_bridge.2 hProd_gt
+
+/-- V4 first-correction lower bound in the Phase-2 tail range.
+
+    In the tail range, `Q0c` is already a lower bound. If the first
+    product-check guard does not fire, then `Q0d = Q0c`. If it fires, the
+    product-check bridge proves `Q0c` was strictly high, so decrementing once
+    still preserves the lower bound. -/
+theorem divKTrialCallV4Q0d_ge_q_true_0_of_tail
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (hUn21_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) :
+    ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat) /
+      ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat) ≤
+    (divKTrialCallV4Q0d uHi uLo vTop).toNat := by
+  have hQ0c_ge :
+      ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un0 uLo).toNat) /
+        ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) ≤
+      (divKTrialCallV4Q0c uHi uLo vTop).toNat :=
+    divKTrialCallV4Q0c_ge_q_true_0_of_dHi_mul_pow32_le_un21
+      uHi uLo vTop hdHi_ge hUn21_ge_dHi_pow32 hUn21_lt_vTop
+  by_cases hRhat2c_hi_zero :
+      divKTrialCallV4Rhat2c uHi uLo vTop >>> (32 : BitVec 6).toNat = 0
+  · by_cases hUlt :
+      BitVec.ult
+        ((divKTrialCallV4Rhat2c uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+          divKTrialCallV4Un0 uLo)
+        (divKTrialCallV4Q0c uHi uLo vTop * divKTrialCallV4DLo vTop)
+    · have hQ0c_gt :
+        ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+            (divKTrialCallV4Un0 uLo).toNat) /
+          ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+            (divKTrialCallV4DLo vTop).toNat) <
+        (divKTrialCallV4Q0c uHi uLo vTop).toNat :=
+        divKTrialCallV4Q0c_gt_q_true_0_of_ult uHi uLo vTop
+          hdHi_ge hdHi_lt hdLo_lt hUn21_ge_dHi_pow32 hUn21_lt_vTop
+          hRhat2c_hi_zero hUlt
+      unfold divKTrialCallV4Q0d
+      unfold div128Quot_phase2b_q0'
+      rw [if_pos hRhat2c_hi_zero]
+      rw [if_pos hUlt]
+      have hQ0c_pos : 0 < (divKTrialCallV4Q0c uHi uLo vTop).toNat :=
+        Nat.lt_of_le_of_lt (Nat.zero_le _) hQ0c_gt
+      have h_se_toNat : (signExtend12 4095 : Word).toNat = 2^64 - 1 := by decide
+      have h_dec :
+          (divKTrialCallV4Q0c uHi uLo vTop + signExtend12 4095).toNat =
+            (divKTrialCallV4Q0c uHi uLo vTop).toNat - 1 := by
+        rw [BitVec.toNat_add, h_se_toNat]
+        have hQ0c_lt : (divKTrialCallV4Q0c uHi uLo vTop).toNat < 2^64 :=
+          (divKTrialCallV4Q0c uHi uLo vTop).isLt
+        omega
+      rw [h_dec]
+      omega
+    · unfold divKTrialCallV4Q0d
+      unfold div128Quot_phase2b_q0'
+      rw [if_pos hRhat2c_hi_zero]
+      rw [if_neg hUlt]
+      exact hQ0c_ge
+  · unfold divKTrialCallV4Q0d
+    unfold div128Quot_phase2b_q0'
+    rw [if_neg hRhat2c_hi_zero]
+    exact hQ0c_ge
 
 /-- V4 Phase-2 first-correction Euclidean postcondition.
 
@@ -787,6 +999,57 @@ theorem divKTrialCallV4Q0dd_ge_q_true_0_of_un21_lt_dHi_mul_pow32
       (divKTrialCallV4Q0d uHi uLo vTop).toNat :=
     divKTrialCallV4Q0d_ge_q_true_0_of_un21_lt_dHi_mul_pow32 uHi uLo vTop
       hdHi_ge hdHi_lt hdLo_lt hUn21_lt_dHi_pow32 hUn21_lt_vTop
+  by_cases hRhat2d_hi_zero :
+      divKTrialCallV4Rhat2d uHi uLo vTop >>> (32 : BitVec 6).toNat = 0
+  · by_cases hUlt :
+        BitVec.ult
+          ((divKTrialCallV4Rhat2d uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+            divKTrialCallV4Un0 uLo)
+          (divKTrialCallV4Q0d uHi uLo vTop * divKTrialCallV4DLo vTop)
+    · have hQ0d_gt :
+          ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+              (divKTrialCallV4Un0 uLo).toNat) /
+            ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+              (divKTrialCallV4DLo vTop).toNat) <
+          (divKTrialCallV4Q0d uHi uLo vTop).toNat :=
+        divKTrialCallV4Q0d_gt_q_true_0_of_ult uHi uLo vTop
+          hdHi_ge hdHi_lt hdLo_lt hUn21_lt_vTop hRhat2d_hi_zero hUlt
+      exact divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_gt_of_fire uHi uLo vTop
+        hQ0d_gt hRhat2d_hi_zero hUlt
+    · exact divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_ge_of_rhat2d_hi_eq_zero_of_no_ult
+        uHi uLo vTop hQ0d_ge hRhat2d_hi_zero hUlt
+  · exact divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_ge_of_rhat2d_hi_ne
+      uHi uLo vTop hQ0d_ge hRhat2d_hi_zero
+
+/-- V4 second-correction lower bound in the Phase-2 tail range.
+
+    This lifts `divKTrialCallV4Q0d_ge_q_true_0_of_tail` through the same
+    second-correction branch split used by the earlier range wrappers. -/
+theorem divKTrialCallV4Q0dd_ge_q_true_0_of_tail
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (hUn21_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) :
+    ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat) /
+      ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat) ≤
+    (divKTrialCallV4Q0dd uHi uLo vTop).toNat := by
+  have hQ0d_ge :
+      ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un0 uLo).toNat) /
+        ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) ≤
+      (divKTrialCallV4Q0d uHi uLo vTop).toNat :=
+    divKTrialCallV4Q0d_ge_q_true_0_of_tail uHi uLo vTop
+      hdHi_ge hdHi_lt hdLo_lt hUn21_ge_dHi_pow32 hUn21_lt_vTop
   by_cases hRhat2d_hi_zero :
       divKTrialCallV4Rhat2d uHi uLo vTop >>> (32 : BitVec 6).toNat = 0
   · by_cases hUlt :
