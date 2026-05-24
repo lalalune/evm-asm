@@ -1043,4 +1043,27 @@ theorem divKTrialCallV4_phase1b_dLo_bound
     rw [h_qeq, if_neg h_guard]
     exact h_bound
 
+/-- If the final V4 Phase-1b remainder has zero high half, the final
+    dLo-bound is exactly the low-half no-wrap condition for computing
+    `un21`. -/
+theorem divKTrialCallV4Un21_low_no_wrap_of_rhatdd_hi_zero
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd uHi uLo vTop >>> (32 : BitVec 6).toNat = (0 : Word)) :
+    (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+        (divKTrialCallV4DLo vTop).toNat ≤
+      ((divKTrialCallV4Rhatdd uHi uLo vTop).toNat % 2^32) * 2^32 +
+        (divKTrialCallV4Un1 uLo).toNat := by
+  have h_rhat_lt : (divKTrialCallV4Rhatdd uHi uLo vTop).toNat < 2^32 := by
+    have h := (ushiftRight_eq_zero_iff
+      (val := divKTrialCallV4Rhatdd uHi uLo vTop)
+      ((32 : BitVec 6).toNat)).mp h_rhat_hi_zero
+    simpa using h
+  have h_bound := divKTrialCallV4_phase1b_dLo_bound
+    uHi uLo vTop hvTop_ge huHi_lt_vTop
+  rw [Nat.mod_eq_of_lt h_rhat_lt]
+  exact h_bound
+
 end EvmAsm.Evm64
