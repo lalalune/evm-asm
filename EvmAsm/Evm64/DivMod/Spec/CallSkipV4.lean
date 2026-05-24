@@ -28,6 +28,7 @@
 import EvmAsm.Evm64.DivMod.Spec.CallSkip
 import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4
 
 namespace EvmAsm.Evm64
@@ -118,6 +119,31 @@ theorem n4CallSkipSemanticHoldsV4_of_rhatdd_hi_zero (a b : EvmWord)
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     hb3nz hshift_nz hcall hUn21_lt_vTop h_rhat_hi_zero
+
+/-- V4 call-skip semantic lower bound in the final Phase-1b high-half-zero branch,
+    with the `un21 < vTop` invariant discharged from the call path. -/
+theorem n4CallSkipSemanticHoldsV4_of_runtime_rhatdd_hi_zero (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    divKTrialCallV4Rhatdd u4 u3 b3' >>> (32 : BitVec 6).toNat = (0 : Word) →
+    n4CallSkipSemanticHoldsV4 a b := by
+  intro shift antiShift b3' u4 u3 h_rhat_hi_zero
+  have hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3) :=
+    isCallTrialN4_of_shift_nz (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
+      hb3nz hshift_nz
+  have hUn21_lt_vTop :
+      (divKTrialCallV4Un21 u4 u3 b3').toNat < b3'.toNat := by
+    have h := un21V4_lt_vTop_of_call (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 2) (b.getLimbN 3) hb3nz hshift_nz hcall
+    simpa [algorithmUn21V4, shift, antiShift, b3', u4, u3] using h
+  exact n4CallSkipSemanticHoldsV4_of_rhatdd_hi_zero a b hb3nz hshift_nz
+    hUn21_lt_vTop h_rhat_hi_zero
 
 theorem n4CallSkipSemanticHoldsV4_def {a b : EvmWord} :
     n4CallSkipSemanticHoldsV4 a b =
