@@ -277,6 +277,7 @@ block-body helpers
 `block_body_summary`,
 `block_body_validate_empty`,
 `chain_body_total_tx_count`,
+`chain_body_total_withdrawal_count`,
 `block_validate_2tx_full_with_body`,
 `block_validate_empty_ommers_hash`,
 `block_validate_no_withdrawals_pair`,
