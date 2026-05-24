@@ -274,6 +274,7 @@ block-body helpers
 `block_body_extract_2tx`, `block_body_extract_1tx`,
 `block_body_extract_tx_count`,
 `block_body_extract_withdrawal_count`,
+`block_body_summary`,
 `block_validate_2tx_full_with_body`,
 `block_validate_empty_ommers_hash`,
 `block_validate_no_withdrawals_pair`,
