@@ -2646,4 +2646,432 @@ def ziskBlockHashArrayFromChainProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockHashArrayFromChainDataSection
 }
 
+/-! ## validate_block_hash_chain_match -- PR-K195
+
+    Validate an N-element header chain (K175 invariants) AND
+    check that the block_hash of each header (K172) matches a
+    caller-supplied claim array. This is the natural primitive
+    for chain-anchor proofs: \"the prover claims these are
+    block_hashes B[0..N) for blocks H[0..N); verify both that
+    the chain is well-formed and that the claimed hashes are
+    correct\".
+
+    The two checks (chain validity + hash match) are returned
+    via a single is_valid u64; a status code distinguishes
+    structural-fail (chain links broken) from hash-mismatch.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr (u64[N])
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : claimed_hashes ptr (32*N bytes)
+      a4 (input)  : u64 out (is_valid)
+      a5 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        nonzero : propagated status from validate_header_pair
+                  for the first failing link -/
+def validateBlockHashChainMatchFunction : String :=
+  "validate_block_hash_chain_match:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # header_lengths ptr\n" ++
+  "  mv s2, a2                   # headers ptr\n" ++
+  "  mv s3, a3                   # claimed_hashes ptr (32*N)\n" ++
+  "  mv s4, a4                   # is_valid out\n" ++
+  "  mv s5, a5                   # first_bad_index out\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s4)\n" ++
+  "  sd zero, 0(s5)\n" ++
+  "  beqz s0, .Lvbhcm_done       # N==0: vacuous true\n" ++
+  "  # ---- Verify block_hash[0] matches ----\n" ++
+  "  ld a1, 0(s1)                # header_lengths[0]\n" ++
+  "  mv a0, s2                   # header_rlp[0]\n" ++
+  "  la a2, vbhcm_hash_buf\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  la t0, vbhcm_hash_buf; mv t1, s3\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  li t0, 1\n" ++
+  "  beq s0, t0, .Lvbhcm_done    # N==1: just hash check, no chain\n" ++
+  "  # ---- Walk chain ----\n" ++
+  "  mv s6, s2                   # parent_ptr = headers[0]\n" ++
+  "  li s7, 0                    # i = 0\n" ++
+  "  addi s8, s3, 32             # next claimed_hash slot\n" ++
+  ".Lvbhcm_loop:\n" ++
+  "  addi t0, s7, 1\n" ++
+  "  beq t0, s0, .Lvbhcm_done\n" ++
+  "  slli t1, s7, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld a1, 0(t1)                # parent_len\n" ++
+  "  ld a3, 8(t1)                # child_len\n" ++
+  "  add t2, s6, a1              # child_ptr\n" ++
+  "  mv a0, s6\n" ++
+  "  mv a2, t2\n" ++
+  "  la a4, vbhcm_pair_valid\n" ++
+  "  jal ra, validate_header_pair\n" ++
+  "  bnez a0, .Lvbhcm_status_fail\n" ++
+  "  la t0, vbhcm_pair_valid; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lvbhcm_pred_false\n" ++
+  "  # Hash child and compare to claimed\n" ++
+  "  slli t1, s7, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld t2, 0(t1)                # parent_len\n" ++
+  "  ld t3, 8(t1)                # child_len\n" ++
+  "  add t4, s6, t2              # child_ptr\n" ++
+  "  mv a0, t4; mv a1, t3\n" ++
+  "  la a2, vbhcm_hash_buf\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  la t0, vbhcm_hash_buf; mv t1, s8\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lvbhcm_pred_false\n" ++
+  "  # Advance\n" ++
+  "  slli t1, s7, 3\n" ++
+  "  add t1, s1, t1\n" ++
+  "  ld t2, 0(t1)\n" ++
+  "  add s6, s6, t2\n" ++
+  "  addi s8, s8, 32\n" ++
+  "  addi s7, s7, 1\n" ++
+  "  j .Lvbhcm_loop\n" ++
+  ".Lvbhcm_pred_false:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  sd s7, 0(s5)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvbhcm_ret\n" ++
+  ".Lvbhcm_status_fail:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  sd s7, 0(s5)\n" ++
+  "  j .Lvbhcm_ret\n" ++
+  ".Lvbhcm_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lvbhcm_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
+  "  ret"
+
+/-- `zisk_validate_block_hash_chain_match`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : N
+      bytes  8..8+8N        : header_lengths
+      bytes  8+8N..8+8N+32N : claimed_hashes (32 B each)
+      bytes  8+40N..        : concatenated header RLPs
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : is_valid
+      bytes 16..24 : first_bad_index -/
+def ziskValidateBlockHashChainMatchPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # N\n" ++
+  "  addi a1, a7, 16             # header_lengths ptr\n" ++
+  "  slli t0, a0, 3              # 8*N\n" ++
+  "  add a3, a1, t0              # claimed_hashes ptr\n" ++
+  "  slli t1, a0, 5              # 32*N\n" ++
+  "  add a2, a3, t1              # headers ptr\n" ++
+  "  li a4, 0xa0010008           # is_valid out\n" ++
+  "  li a5, 0xa0010010           # first_bad_index out\n" ++
+  "  jal ra, validate_block_hash_chain_match\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lvbhcm_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  validateHeaderPairFunction ++ "\n" ++
+  validateBlockHashChainMatchFunction ++ "\n" ++
+  ".Lvbhcm_pdone:"
+
+def ziskValidateBlockHashChainMatchDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_offset:\n" ++
+  "  .zero 8\n" ++
+  "vphl_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_claimed:\n" ++
+  "  .zero 32\n" ++
+  "vphl_computed:\n" ++
+  "  .zero 32\n" ++
+  "vhp_link_valid:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vbhcm_pair_valid:\n" ++
+  "  .zero 8\n" ++
+  "vbhcm_hash_buf:\n" ++
+  "  .zero 32"
+
+def ziskValidateBlockHashChainMatchProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateBlockHashChainMatchPrologue
+  dataAsm     := ziskValidateBlockHashChainMatchDataSection
+}
+
+/-! ## chain_compute_total_gas_used -- PR-K196
+
+    Aggregate `gas_used` (header field 10) across an N-element
+    header chain into a single u64 sum. Useful for chain-state
+    commitments and protocol-level invariants such as
+    \"this chain segment burned at most G gas total\".
+
+    No chain validation is performed here -- the caller is
+    responsible for combining this with K175 (or K195) for
+    chain integrity. K196 is purely an aggregator over the
+    headers; the inputs and accumulator math are kept in plain
+    u64, so the sum saturates / wraps modulo 2^64 like any
+    RISC-V add.
+
+    For real mainnet blocks, gas_used <= ~30M and N <= ~256 in
+    a single witness; the sum stays well below 2^64.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr (u64[N])
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (total_gas_used; running sum)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse error on some header (sum is partial,
+            up to the failing header)
+        2 : a header's gas_used field exceeds 8 bytes BE -/
+def chainComputeTotalGasUsedFunction : String :=
+  "chain_compute_total_gas_used:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # header_lengths ptr\n" ++
+  "  mv s2, a2                   # headers ptr\n" ++
+  "  mv s3, a3                   # out ptr\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li s4, 0                    # i = 0\n" ++
+  "  beqz s0, .Lccgu_done\n" ++
+  ".Lccgu_loop:\n" ++
+  "  beq s4, s0, .Lccgu_done\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)                # header_len\n" ++
+  "  mv a0, s2                   # header_ptr\n" ++
+  "  li a2, 10                   # field 10 = gas_used\n" ++
+  "  la a3, ccgu_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lccgu_parse_fail\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lccgu_size_fail\n" ++
+  "  # Accumulate\n" ++
+  "  la t0, ccgu_field; ld t1, 0(t0)\n" ++
+  "  ld t2, 0(s3)\n" ++
+  "  add t2, t2, t1\n" ++
+  "  sd t2, 0(s3)\n" ++
+  "  # Advance to next header\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lccgu_loop\n" ++
+  ".Lccgu_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lccgu_ret\n" ++
+  ".Lccgu_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lccgu_ret\n" ++
+  ".Lccgu_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lccgu_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_chain_compute_total_gas_used`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : N
+      bytes  8..8+8N : header_lengths
+      bytes  8+8N.. : concatenated header RLPs
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : total_gas_used -/
+def ziskChainComputeTotalGasUsedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # N\n" ++
+  "  addi a1, a7, 16             # header_lengths ptr\n" ++
+  "  slli t0, a0, 3              # 8*N\n" ++
+  "  add a2, a1, t0              # headers ptr\n" ++
+  "  li a3, 0xa0010008           # total_gas_used out\n" ++
+  "  jal ra, chain_compute_total_gas_used\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lccgu_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainComputeTotalGasUsedFunction ++ "\n" ++
+  ".Lccgu_pdone:"
+
+def ziskChainComputeTotalGasUsedDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "ccgu_field:\n" ++
+  "  .zero 8"
+
+def ziskChainComputeTotalGasUsedProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainComputeTotalGasUsedPrologue
+  dataAsm     := ziskChainComputeTotalGasUsedDataSection
+}
+
+/-! ## chain_extract_number_range -- PR-K197
+
+    Extract `(min_number, max_number)` from an N-element header
+    chain. With K175 validated parent-hash invariants, the chain
+    has strictly increasing numbers, so this is simply
+    `(headers[0].number, headers[N-1].number)`. We return both
+    edges so callers can verify `max - min + 1 == N` (the chain
+    is dense) or directly use the range as a chain-segment
+    identifier.
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : u64 out (min_number)
+      a4 (input)  : u64 out (max_number)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse failure on some header
+        3 : a header's number field exceeds 8 bytes BE -/
+def chainExtractNumberRangeFunction : String :=
+  "chain_extract_number_range:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # header_lengths\n" ++
+  "  mv s2, a2                   # headers\n" ++
+  "  mv s3, a3                   # min out\n" ++
+  "  mv s4, a4                   # max out\n" ++
+  "  beqz s0, .Lcenr_empty\n" ++
+  "  # min = headers[0].number\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  li a2, 8                    # field 8 = number\n" ++
+  "  mv a3, s3\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcenr_propagate\n" ++
+  "  # Advance to last header: skip the first (N-1) headers\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1             # iterations = N-1\n" ++
+  ".Lcenr_skip:\n" ++
+  "  beqz t3, .Lcenr_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lcenr_skip\n" ++
+  ".Lcenr_at_last:\n" ++
+  "  ld a1, 0(t2)                # length of last header\n" ++
+  "  mv a0, t1\n" ++
+  "  li a2, 8\n" ++
+  "  mv a3, s4\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcenr_propagate\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcenr_ret\n" ++
+  ".Lcenr_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcenr_ret\n" ++
+  ".Lcenr_propagate:\n" ++
+  "  addi a0, a0, 1              # remap rlp_field_to_u64 1/2 -> 2/3\n" ++
+  ".Lcenr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_chain_extract_number_range`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : N
+      bytes  8..8+8N : header_lengths
+      bytes  8+8N.. : concatenated headers
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : min_number
+      bytes 16..24 : max_number -/
+def ziskChainExtractNumberRangePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # N\n" ++
+  "  addi a1, a7, 16             # header_lengths\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0              # headers\n" ++
+  "  li a3, 0xa0010008           # min out\n" ++
+  "  li a4, 0xa0010010           # max out\n" ++
+  "  jal ra, chain_extract_number_range\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcenr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainExtractNumberRangeFunction ++ "\n" ++
+  ".Lcenr_pdone:"
+
+def ziskChainExtractNumberRangeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractNumberRangeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractNumberRangePrologue
+  dataAsm     := ziskChainExtractNumberRangeDataSection
+}
+
 end EvmAsm.Codegen
