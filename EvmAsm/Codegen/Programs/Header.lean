@@ -4667,4 +4667,136 @@ def ziskChainValidateFullProbeUnit : BuildUnit := {
   dataAsm     := ziskChainValidateFullDataSection
 }
 
+/-! ## chain_validate_increasing_timestamps -- PR-K229
+
+    Verify that an N-element header chain has strictly
+    increasing `timestamp` fields: `headers[i+1].timestamp >
+    headers[i].timestamp` for every adjacent pair. Pure
+    timestamp-only check; no parent_hash / number / gas_limit
+    invariants. The K174 pair check enforces this as part of
+    the four-invariant bundle -- K229 is the tight standalone.
+
+    Vacuous-true on N <= 1.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure on some header
+        2 : timestamp field > 8 bytes BE on some header -/
+def chainValidateIncreasingTimestampsFunction : String :=
+  "chain_validate_increasing_timestamps:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
+  "  li t0, 2\n" ++
+  "  bltu s0, t0, .Lcvit_done\n" ++
+  "  # Extract headers[0].timestamp into s5 (prev_ts)\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  li a2, 11\n" ++
+  "  la a3, cvit_ts\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcvit_propagate\n" ++
+  "  la t0, cvit_ts; ld s5, 0(t0)\n" ++
+  "  # Walk: parent_ptr = headers[0]; for i in [0, N-1): parent=headers[i], child=headers[i+1]\n" ++
+  "  ld t0, 0(s1)\n" ++
+  "  add t1, s2, t0              # child_ptr starts at headers[1]\n" ++
+  "  li t2, 1                    # i = 1\n" ++
+  ".Lcvit_loop:\n" ++
+  "  beq t2, s0, .Lcvit_done\n" ++
+  "  la t0, cvit_iter_child; sd t1, 0(t0)\n" ++
+  "  la t0, cvit_iter_i;     sd t2, 0(t0)\n" ++
+  "  la t0, cvit_iter_prev;  sd s5, 0(t0)\n" ++
+  "  slli t3, t2, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)                # header_len\n" ++
+  "  mv a0, t1\n" ++
+  "  li a2, 11\n" ++
+  "  la a3, cvit_ts\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcvit_propagate\n" ++
+  "  la t0, cvit_ts;          ld t3, 0(t0)\n" ++
+  "  la t0, cvit_iter_prev;   ld t4, 0(t0)\n" ++
+  "  bgeu t4, t3, .Lcvit_pred_false\n" ++
+  "  # advance\n" ++
+  "  la t0, cvit_iter_child;  ld t1, 0(t0)\n" ++
+  "  la t0, cvit_iter_i;      ld t2, 0(t0)\n" ++
+  "  mv s5, t3                   # prev_ts = current\n" ++
+  "  slli t5, t2, 3\n" ++
+  "  add t5, s1, t5\n" ++
+  "  ld t6, 0(t5)\n" ++
+  "  add t1, t1, t6\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  j .Lcvit_loop\n" ++
+  ".Lcvit_pred_false:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  la t0, cvit_iter_i; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvit_ret\n" ++
+  ".Lcvit_propagate:\n" ++
+  "  la t0, cvit_iter_i; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  j .Lcvit_ret\n" ++
+  ".Lcvit_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcvit_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+def ziskChainValidateIncreasingTimestampsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_increasing_timestamps\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvit_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainValidateIncreasingTimestampsFunction ++ "\n" ++
+  ".Lcvit_pdone:"
+
+def ziskChainValidateIncreasingTimestampsDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cvit_ts:\n" ++
+  "  .zero 8\n" ++
+  "cvit_iter_child:\n" ++
+  "  .zero 8\n" ++
+  "cvit_iter_i:\n" ++
+  "  .zero 8\n" ++
+  "cvit_iter_prev:\n" ++
+  "  .zero 8"
+
+def ziskChainValidateIncreasingTimestampsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainValidateIncreasingTimestampsPrologue
+  dataAsm     := ziskChainValidateIncreasingTimestampsDataSection
+}
+
 end EvmAsm.Codegen

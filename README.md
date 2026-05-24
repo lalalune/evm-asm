@@ -314,6 +314,7 @@ block-body helpers
 `validate_header_post_merge_zeros`,
 `chain_validate_post_merge_zeros`,
 `chain_validate_full`,
+`chain_validate_increasing_timestamps`,
 withdrawal RLP/hash, …), and address
 derivation (`address_compute_create`, `address_compute_create2`,
 `address_from_pubkey`). The catalogue is tracked under the
