@@ -3074,4 +3074,225 @@ def ziskChainExtractNumberRangeProbeUnit : BuildUnit := {
   dataAsm     := ziskChainExtractNumberRangeDataSection
 }
 
+/-! ## header_extract_basefee -- PR-K198
+
+    Extract `base_fee_per_gas` (field 15, present from London
+    onwards) from a header RLP. Returns the value as a u64; the
+    EIP-1559 base_fee is bounded by `2^256-1` in principle but
+    in practice never exceeds u64 in any chain we care about.
+    Callers that need the full uint256 form should use the more
+    general `rlp_field_to_u256` (not yet implemented) instead.
+
+    Field index 15 is the **first** post-London field; on
+    pre-London headers (`len(fields) <= 15`) the call yields
+    a parse-failure status.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out (base_fee_per_gas)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 15 missing (pre-London)
+        2 : base_fee field exceeds 8 bytes BE -/
+def headerExtractBasefeeFunction : String :=
+  "header_extract_basefee:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  # rlp_field_to_u64(a0=header_ptr, a1=len, a2=15, a3=output_ptr)\n" ++
+  "  mv a3, a2                   # output ptr (caller-supplied) -> a3\n" ++
+  "  li a2, 15                   # field index = 15 (base_fee)\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_basefee`: probe BuildUnit.
+    Input layout:
+      bytes 0..8  : header_rlp_len
+      bytes 8..   : header_rlp
+    Output layout:
+      bytes 0..8  : status
+      bytes 8..16 : base_fee_per_gas -/
+def ziskHeaderExtractBasefeePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_rlp_len\n" ++
+  "  addi a0, a7, 16             # header_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # base_fee out\n" ++
+  "  jal ra, header_extract_basefee\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lheb_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractBasefeeFunction ++ "\n" ++
+  ".Lheb_pdone:"
+
+def ziskHeaderExtractBasefeeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractBasefeeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractBasefeePrologue
+  dataAsm     := ziskHeaderExtractBasefeeDataSection
+}
+
+/-! ## chain_extract_basefee_range -- PR-K199
+
+    Walk an N-element header chain and compute `(min, max)` of
+    `base_fee_per_gas` (field 15). London+ only. Useful for
+    chain-level base_fee bounds analysis.
+
+    Returns vacuous `(0, 0)` on N == 0.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : u64 out (min)
+      a4 (input)  : u64 out (max)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : a header parse failure (e.g., pre-London header)
+        2 : a base_fee field exceeds 8 bytes BE -/
+def chainExtractBasefeeRangeFunction : String :=
+  "chain_extract_basefee_range:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # header_lengths\n" ++
+  "  mv s2, a2                   # headers\n" ++
+  "  mv s3, a3                   # min out\n" ++
+  "  mv s4, a4                   # max out\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  beqz s0, .Lcebr_done\n" ++
+  "  # Initialize min/max with headers[0].basefee\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, header_extract_basefee\n" ++
+  "  bnez a0, .Lcebr_ret\n" ++
+  "  ld t0, 0(s3)\n" ++
+  "  sd t0, 0(s4)                # max = min = first value\n" ++
+  "  # Walk remaining headers\n" ++
+  "  ld t1, 0(s1)\n" ++
+  "  add t2, s2, t1              # next header ptr\n" ++
+  "  addi t3, s1, 8              # next length ptr\n" ++
+  "  li t4, 1                    # i\n" ++
+  ".Lcebr_loop:\n" ++
+  "  beq t4, s0, .Lcebr_done\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, t2\n" ++
+  "  la a2, cebr_cur\n" ++
+  "  # Stash t2/t3/t4 in s-regs since rlp_field_to_u64 will\n" ++
+  "  # save/restore s0..s4 around it; pin them here.\n" ++
+  "  # Actually simpler: keep t2/t3/t4 across the call by\n" ++
+  "  # using callee-saved regs. We'll re-derive them after.\n" ++
+  "  jal ra, header_extract_basefee\n" ++
+  "  bnez a0, .Lcebr_ret\n" ++
+  "  # cur < min -> update min; cur > max -> update max\n" ++
+  "  la t0, cebr_cur; ld t1, 0(t0)\n" ++
+  "  ld t5, 0(s3)\n" ++
+  "  bgeu t1, t5, .Lcebr_skip_min\n" ++
+  "  sd t1, 0(s3)\n" ++
+  ".Lcebr_skip_min:\n" ++
+  "  ld t5, 0(s4)\n" ++
+  "  bleu t1, t5, .Lcebr_skip_max\n" ++
+  "  sd t1, 0(s4)\n" ++
+  ".Lcebr_skip_max:\n" ++
+  "  # Re-derive iteration state. Since we don't have callee-\n" ++
+  "  # saved scratch left (s0..s4 all used), maintain t-regs\n" ++
+  "  # before the call by stashing on .data.\n" ++
+  "  la t0, cebr_i; ld t4, 0(t0)\n" ++
+  "  la t0, cebr_hdr_ptr; ld t2, 0(t0)\n" ++
+  "  la t0, cebr_len_ptr; ld t3, 0(t0)\n" ++
+  "  ld t1, 0(t3)\n" ++
+  "  add t2, t2, t1\n" ++
+  "  addi t3, t3, 8\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  la t0, cebr_i;        sd t4, 0(t0)\n" ++
+  "  la t0, cebr_hdr_ptr;  sd t2, 0(t0)\n" ++
+  "  la t0, cebr_len_ptr;  sd t3, 0(t0)\n" ++
+  "  j .Lcebr_loop\n" ++
+  ".Lcebr_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcebr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_chain_extract_basefee_range`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : N
+      bytes  8..8+8N : header_lengths
+      bytes  8+8N.. : concatenated headers
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : min_basefee
+      bytes 16..24 : max_basefee -/
+def ziskChainExtractBasefeeRangePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)                # N\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  # Pre-init iteration scratch only when N > 0.\n" ++
+  "  beqz a0, .Lcebr_skip_init\n" ++
+  "  ld t1, 0(a1)                # first header_len\n" ++
+  "  add t2, a2, t1              # second header ptr\n" ++
+  "  addi t3, a1, 8\n" ++
+  "  la t0, cebr_hdr_ptr; sd t2, 0(t0)\n" ++
+  "  la t0, cebr_len_ptr; sd t3, 0(t0)\n" ++
+  "  la t0, cebr_i; li t4, 1; sd t4, 0(t0)\n" ++
+  ".Lcebr_skip_init:\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_extract_basefee_range\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcebr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractBasefeeFunction ++ "\n" ++
+  chainExtractBasefeeRangeFunction ++ "\n" ++
+  ".Lcebr_pdone:"
+
+def ziskChainExtractBasefeeRangeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cebr_cur:\n" ++
+  "  .zero 8\n" ++
+  "cebr_hdr_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cebr_len_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cebr_i:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractBasefeeRangeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractBasefeeRangePrologue
+  dataAsm     := ziskChainExtractBasefeeRangeDataSection
+}
+
 end EvmAsm.Codegen

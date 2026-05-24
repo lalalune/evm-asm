@@ -4875,6 +4875,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_validate_block_hash_chain_match" => some ziskValidateBlockHashChainMatchProbeUnit
   | "zisk_chain_compute_total_gas_used" => some ziskChainComputeTotalGasUsedProbeUnit
   | "zisk_chain_extract_number_range" => some ziskChainExtractNumberRangeProbeUnit
+  | "zisk_header_extract_basefee" => some ziskHeaderExtractBasefeeProbeUnit
+  | "zisk_chain_extract_basefee_range" => some ziskChainExtractBasefeeRangeProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -5086,6 +5088,8 @@ def knownProgramNames : List String :=
    "zisk_validate_block_hash_chain_match",
    "zisk_chain_compute_total_gas_used",
    "zisk_chain_extract_number_range",
+   "zisk_header_extract_basefee",
+   "zisk_chain_extract_basefee_range",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
