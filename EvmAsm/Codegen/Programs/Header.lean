@@ -1907,4 +1907,69 @@ def ziskValidateHeaderFullProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateHeaderFullDataSection
 }
 
+/-! ## block_hash_from_header -- PR-K172
+
+    Compute the block hash of an Ethereum block header:
+    `block_hash = keccak256(header_rlp_bytes)`.
+
+    The header RLP is the canonical wire encoding of the
+    15-or-16-field header list (parent_hash, ommers_hash,
+    beneficiary, state_root, transactions_root, receipts_root,
+    logs_bloom, difficulty, number, gas_limit, gas_used,
+    timestamp, extra_data, prev_randao, nonce, [base_fee, ...
+    withdrawals_root, blob_gas_used, excess_blob_gas,
+    parent_beacon_block_root]).
+
+    The block hash is identified by `parent_hash` in the next
+    header in the chain, so this primitive is the natural
+    building block for `validate_headers` (which walks the
+    chain and checks each `header[i].parent_hash ==
+    block_hash_from_header(header[i-1])`).
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 32-byte output ptr (block_hash lands here)
+      ra (input)  : return
+      (no output register; result is in memory at `a2`) -/
+def blockHashFromHeaderFunction : String :=
+  "block_hash_from_header:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  # zkvm_keccak256(a0=header, a1=len, a2=out)\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_block_hash_from_header`: probe BuildUnit.
+    Input layout:
+      bytes 0..8  : header_rlp byte length
+      bytes 8..   : header_rlp
+    Output layout:
+      bytes 0..32 : block_hash -/
+def ziskBlockHashFromHeaderPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_rlp_len\n" ++
+  "  addi a0, a7, 16             # header_rlp ptr\n" ++
+  "  li a2, 0xa0010000           # output block_hash ptr (32 B)\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  j .Lbhfh_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  ".Lbhfh_pdone:"
+
+def ziskBlockHashFromHeaderDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200"
+
+def ziskBlockHashFromHeaderProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockHashFromHeaderPrologue
+  dataAsm     := ziskBlockHashFromHeaderDataSection
+}
+
 end EvmAsm.Codegen
