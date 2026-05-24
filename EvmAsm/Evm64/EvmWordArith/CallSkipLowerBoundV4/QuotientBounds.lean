@@ -14,6 +14,15 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- The v4 trial-call low half-word `un0` is always below `2^32`. -/
+theorem divKTrialCallV4Un0_lt_pow32 (uLo : Word) :
+    (divKTrialCallV4Un0 uLo).toNat < 2^32 := by
+  rw [divKTrialCallV4Un0_eq]
+  rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+  have h_shl : (uLo <<< (32 : BitVec 6).toNat : Word).toNat < 2^64 :=
+    (uLo <<< (32 : BitVec 6).toNat : Word).isLt
+  exact Nat.div_lt_of_lt_mul (by omega)
+
 /-- Phase 2 first-correction lower bound, wrapped for the v4 trial-call
     definitions.
 
@@ -271,5 +280,52 @@ theorem divKTrialCallV4Q0d_gt_q_true_0_of_prod_gt
     (divKTrialCallV4Rhat2d uHi uLo vTop).toNat
     (2^32)
     hDen_pos hRhat_eq hQ0d_mul hProd_gt
+
+/-- Word-to-Nat bridge for the v4 Phase-2 product-check fire guard.
+
+    When `Rhat2d` is a 32-bit value, the half-word combine
+    `(Rhat2d << 32) | un0` has Nat value `Rhat2d * 2^32 + un0`.
+    If the product `Q0d*dLo` is known not to wrap, the Word `BLTU` fire
+    guard is exactly the Nat strict product inequality needed by
+    `divKTrialCallV4Q0d_gt_q_true_0_of_prod_gt`. -/
+theorem divKTrialCallV4Q0d_prod_gt_of_ult
+    (uHi uLo vTop : Word)
+    (hRhat2d_hi_zero :
+      divKTrialCallV4Rhat2d uHi uLo vTop >>> (32 : BitVec 6).toNat = 0)
+    (hUn0_lt : (divKTrialCallV4Un0 uLo).toNat < 2^32)
+    (hProd_no_wrap :
+      (divKTrialCallV4Q0d uHi uLo vTop *
+          divKTrialCallV4DLo vTop).toNat =
+        (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat)
+    (hUlt :
+      BitVec.ult
+        ((divKTrialCallV4Rhat2d uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+          divKTrialCallV4Un0 uLo)
+        (divKTrialCallV4Q0d uHi uLo vTop * divKTrialCallV4DLo vTop)) :
+    (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+        (divKTrialCallV4DLo vTop).toNat >
+      (divKTrialCallV4Rhat2d uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat := by
+  have hRhat2d_lt : (divKTrialCallV4Rhat2d uHi uLo vTop).toNat < 2^32 := by
+    have h_div : (divKTrialCallV4Rhat2d uHi uLo vTop).toNat / 2^32 = 0 := by
+      have h_toNat :
+          (divKTrialCallV4Rhat2d uHi uLo vTop >>> (32 : BitVec 6).toNat).toNat = 0 := by
+        rw [hRhat2d_hi_zero]
+        rfl
+      rwa [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow] at h_toNat
+    exact (Nat.div_eq_zero_iff.mp h_div).resolve_left (by decide)
+  have hUlt_nat :
+      (((divKTrialCallV4Rhat2d uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+          divKTrialCallV4Un0 uLo).toNat) <
+        (divKTrialCallV4Q0d uHi uLo vTop *
+          divKTrialCallV4DLo vTop).toNat := by
+    rwa [EvmWord.ult_iff] at hUlt
+  rw [hProd_no_wrap] at hUlt_nat
+  rw [show ((32 : BitVec 6).toNat : Nat) = 32 from rfl] at hUlt_nat
+  rw [EvmWord.halfword_combine
+        (divKTrialCallV4Rhat2d uHi uLo vTop)
+        (divKTrialCallV4Un0 uLo) hRhat2d_lt hUn0_lt] at hUlt_nat
+  exact hUlt_nat
 
 end EvmAsm.Evm64
