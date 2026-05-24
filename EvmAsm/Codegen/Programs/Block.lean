@@ -3684,4 +3684,89 @@ def ziskValidateEmptyBlockChainProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateEmptyBlockChainDataSection
 }
 
+/-! ## block_body_extract_tx_count -- PR-K223
+
+    Given a block body RLP, decode it (3-field shape:
+    `[txs, ommers, withdrawals]`) and return the number of
+    items in the transactions list. Useful for dispatching to
+    N-specific validators (K177 for N=2, K188 for N=1, etc.)
+    or for chain monitoring.
+
+    Composes K83 `block_body_decode` + K47 `rlp_list_count_items`.
+
+    Calling convention:
+      a0 (input)  : body_rlp ptr
+      a1 (input)  : body_rlp byte length
+      a2 (input)  : u64 out (tx count)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : body RLP parse failure
+        2 : transactions list count walk failed -/
+def blockBodyExtractTxCountFunction : String :=
+  "block_body_extract_tx_count:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # body ptr\n" ++
+  "  mv s1, a1                   # body len\n" ++
+  "  mv s2, a2                   # out u64\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  # 1. Decode body to get tx-list (offset, length)\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, bbetc_body_struct\n" ++
+  "  jal ra, block_body_decode\n" ++
+  "  bnez a0, .Lbbetc_parse_fail\n" ++
+  "  # 2. Count tx-list items\n" ++
+  "  la t0, bbetc_body_struct\n" ++
+  "  ld t1, 0(t0)                # txs_offset\n" ++
+  "  ld t2, 8(t0)                # txs_length\n" ++
+  "  add a0, s0, t1\n" ++
+  "  mv a1, t2\n" ++
+  "  mv a2, s2                   # write count to caller's u64\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbbetc_count_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbbetc_ret\n" ++
+  ".Lbbetc_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbbetc_ret\n" ++
+  ".Lbbetc_count_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lbbetc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+def ziskBlockBodyExtractTxCountPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, block_body_extract_tx_count\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbbetc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodyExtractTxCountFunction ++ "\n" ++
+  ".Lbbetc_pdone:"
+
+def ziskBlockBodyExtractTxCountDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "bbetc_body_struct:\n" ++
+  "  .zero 48"
+
+def ziskBlockBodyExtractTxCountProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockBodyExtractTxCountPrologue
+  dataAsm     := ziskBlockBodyExtractTxCountDataSection
+}
+
 end EvmAsm.Codegen
