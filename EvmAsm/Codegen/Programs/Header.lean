@@ -2105,4 +2105,189 @@ def ziskValidateParentHashLinkProbeUnit : BuildUnit := {
   dataAsm     := ziskValidateParentHashLinkDataSection
 }
 
+/-! ## validate_header_pair -- PR-K174
+
+    Per-step pair validator inside `validate_headers`: given a
+    parent header and a child header, verify the four
+    invariants the EELS `validate_header` function checks
+    between consecutive headers:
+
+      1. child.parent_hash == keccak256(parent_rlp)         (K173)
+      2. child.number == parent.number + 1
+      3. child.timestamp > parent.timestamp
+      4. check_gas_limit(child.gas_limit, parent.gas_limit) == 0
+         (gas_limit >= 5000 and |new - parent| < parent/1024)
+
+    Per-header field-shape checks (`validate_header_basic`,
+    `validate_header_post_merge`, etc.) live in their own
+    helpers; this primitive is the **pair** check only.
+
+    Calling convention:
+      a0 (input)  : parent_rlp ptr
+      a1 (input)  : parent_rlp byte length
+      a2 (input)  : child_rlp ptr
+      a3 (input)  : child_rlp byte length
+      a4 (input)  : u64 out (is_valid: 1 if all 4 invariants hold)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        1 : child RLP parse failure
+        2 : child.parent_hash length != 32
+        3 : parent number/timestamp/gas_limit field parse failure
+        4 : child number/timestamp/gas_limit field parse failure -/
+def validateHeaderPairFunction : String :=
+  "validate_header_pair:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # parent_rlp ptr\n" ++
+  "  mv s1, a1                   # parent_rlp len\n" ++
+  "  mv s2, a2                   # child_rlp ptr\n" ++
+  "  mv s3, a3                   # child_rlp len\n" ++
+  "  mv s4, a4                   # is_valid out\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  # ---- (1) Parent-hash link ----\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  mv a2, s2; mv a3, s3\n" ++
+  "  la a4, vhp_link_valid\n" ++
+  "  jal ra, validate_parent_hash_link\n" ++
+  "  beqz a0, .Lvhp_link_ok\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lvhp_child_parse_fail\n" ++
+  "  j .Lvhp_size_fail\n" ++
+  ".Lvhp_link_ok:\n" ++
+  "  la t0, vhp_link_valid; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lvhp_pred_false\n" ++
+  "  # ---- (2/3/4) Extract parent number/timestamp/gas_limit ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
+  "  la a3, vhp_parent_number\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lvhp_parent_field_fail\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
+  "  la a3, vhp_parent_timestamp\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lvhp_parent_field_fail\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 9\n" ++
+  "  la a3, vhp_parent_gas_limit\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lvhp_parent_field_fail\n" ++
+  "  # ---- Extract child number/timestamp/gas_limit ----\n" ++
+  "  mv a0, s2; mv a1, s3; li a2, 8\n" ++
+  "  la a3, vhp_child_number\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lvhp_child_field_fail\n" ++
+  "  mv a0, s2; mv a1, s3; li a2, 11\n" ++
+  "  la a3, vhp_child_timestamp\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lvhp_child_field_fail\n" ++
+  "  mv a0, s2; mv a1, s3; li a2, 9\n" ++
+  "  la a3, vhp_child_gas_limit\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lvhp_child_field_fail\n" ++
+  "  # (2) child.number == parent.number + 1\n" ++
+  "  la t0, vhp_parent_number; ld t1, 0(t0)\n" ++
+  "  la t0, vhp_child_number;  ld t2, 0(t0)\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  bne t1, t2, .Lvhp_pred_false\n" ++
+  "  # (3) child.timestamp > parent.timestamp\n" ++
+  "  la t0, vhp_parent_timestamp; ld t1, 0(t0)\n" ++
+  "  la t0, vhp_child_timestamp;  ld t2, 0(t0)\n" ++
+  "  bgeu t1, t2, .Lvhp_pred_false\n" ++
+  "  # (4) check_gas_limit(child, parent) == 0\n" ++
+  "  la t0, vhp_child_gas_limit;  ld a0, 0(t0)\n" ++
+  "  la t0, vhp_parent_gas_limit; ld a1, 0(t0)\n" ++
+  "  jal ra, check_gas_limit\n" ++
+  "  bnez a0, .Lvhp_pred_false\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvhp_ret\n" ++
+  ".Lvhp_pred_false:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvhp_ret\n" ++
+  ".Lvhp_child_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lvhp_ret\n" ++
+  ".Lvhp_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lvhp_ret\n" ++
+  ".Lvhp_parent_field_fail:\n" ++
+  "  li a0, 3\n" ++
+  "  j .Lvhp_ret\n" ++
+  ".Lvhp_child_field_fail:\n" ++
+  "  li a0, 4\n" ++
+  ".Lvhp_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_validate_header_pair`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : parent_rlp_len
+      bytes  8..16 : child_rlp_len
+      bytes 16..   : parent_rlp || child_rlp
+    Output layout:
+      bytes  0.. 8 : status code (0..4)
+      bytes  8..16 : is_valid (1 if all four invariants hold) -/
+def ziskValidateHeaderPairPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # parent_rlp_len\n" ++
+  "  ld a3, 16(a7)               # child_rlp_len\n" ++
+  "  addi a0, a7, 24             # parent_rlp ptr\n" ++
+  "  add a2, a0, a1              # child_rlp ptr\n" ++
+  "  li a4, 0xa0010008           # is_valid out\n" ++
+  "  jal ra, validate_header_pair\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lvhp_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  validateHeaderPairFunction ++ "\n" ++
+  ".Lvhp_pdone:"
+
+def ziskValidateHeaderPairDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_offset:\n" ++
+  "  .zero 8\n" ++
+  "vphl_length:\n" ++
+  "  .zero 8\n" ++
+  "vphl_claimed:\n" ++
+  "  .zero 32\n" ++
+  "vphl_computed:\n" ++
+  "  .zero 32\n" ++
+  "vhp_link_valid:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_parent_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_number:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_timestamp:\n" ++
+  "  .zero 8\n" ++
+  "vhp_child_gas_limit:\n" ++
+  "  .zero 8"
+
+def ziskValidateHeaderPairProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateHeaderPairPrologue
+  dataAsm     := ziskValidateHeaderPairDataSection
+}
+
 end EvmAsm.Codegen
