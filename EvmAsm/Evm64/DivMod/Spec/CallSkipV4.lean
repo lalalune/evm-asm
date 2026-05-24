@@ -203,6 +203,13 @@ theorem n4CallSkipSemanticHoldsV4_of_rhatdd_hi_zero_pred (a b : EvmWord)
   exact n4CallSkipSemanticHoldsV4_of_runtime_rhatdd_hi_zero a b
     hb3nz hshift_nz hrhat
 
+/-- A nonzero top limb witnesses that the full EVM word is nonzero. -/
+theorem evmWord_ne_zero_of_getLimbN_3_ne_zero {b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0) : b ≠ 0 := by
+  apply (EvmWord.ne_zero_iff_getLimbN_or).mpr
+  intro h_or_zero
+  exact hb3nz (EvmWord.or_eq_zero_imp_right h_or_zero)
+
 /-- Tight v4 call-skip equality in the final Phase-1b high-half-zero branch. -/
 theorem div128Quot_v4_call_skip_eq_val256_div_of_rhatdd_hi_zero
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
@@ -847,5 +854,54 @@ theorem evm_div_n4_call_skip_stack_pre_spec_bundled_v4_noNop_of_rhatdd_hi_zero_p
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hbnz hb3nz hshift_nz halign hborrow hrhat
+
+/-- Predicate-packaged variant with `b ≠ 0` discharged from the nonzero top limb. -/
+theorem evm_div_n4_call_skip_stack_pre_spec_bundled_v4_of_rhatdd_hi_zero_pred_hb3nz
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hborrow : isSkipBorrowN4CallV4Evm a b)
+    (hrhat : n4CallSkipRhatddHiZeroV4 a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 148 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) := by
+  exact evm_div_n4_call_skip_stack_pre_spec_bundled_v4_of_rhatdd_hi_zero_pred
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    (evmWord_ne_zero_of_getLimbN_3_ne_zero hb3nz) hb3nz hshift_nz halign hborrow hrhat
+
+/-- Predicate-packaged no-NOP variant with `b ≠ 0` discharged from the
+    nonzero top limb. -/
+theorem evm_div_n4_call_skip_stack_pre_spec_bundled_v4_noNop_of_rhatdd_hi_zero_pred_hb3nz
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hborrow : isSkipBorrowN4CallV4Evm a b)
+    (hrhat : n4CallSkipRhatddHiZeroV4 a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 148 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_noNop_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) := by
+  exact evm_div_n4_call_skip_stack_pre_spec_bundled_v4_noNop_of_rhatdd_hi_zero_pred
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    (evmWord_ne_zero_of_getLimbN_3_ne_zero hb3nz) hb3nz hshift_nz halign hborrow hrhat
 
 end EvmAsm.Evm64
