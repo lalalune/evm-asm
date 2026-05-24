@@ -301,6 +301,7 @@ block-body helpers
 `block_hash_and_extract_number`,
 `header_compute_summary_struct`,
 `header_extract_difficulty`,
+`header_extract_extra_data`,
 withdrawal RLP/hash, …), and address
 derivation (`address_compute_create`, `address_compute_create2`,
 `address_from_pubkey`). The catalogue is tracked under the
