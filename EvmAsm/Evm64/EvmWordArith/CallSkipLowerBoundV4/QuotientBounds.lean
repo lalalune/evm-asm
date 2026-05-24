@@ -187,4 +187,48 @@ theorem divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_ge_of_rhat2d_hi_eq_zero_of_no_ult
   rw [if_neg hNoUlt]
   exact hQ0d_ge
 
+/-- V4 second-correction fire preservation from a strict-overestimate witness.
+
+    In the correction-fire branch, `Q0dd = Q0d - 1`. If a separate product
+    check argument has already established that `Q0d` is strictly above the
+    true second digit, then the decrement still leaves `Q0dd` at least the
+    true digit. This isolates the small Word-decrement arithmetic from the
+    remaining product-check bridge. -/
+theorem divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_gt_of_fire
+    (uHi uLo vTop : Word)
+    (hQ0d_gt :
+      ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un0 uLo).toNat) /
+        ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) <
+      (divKTrialCallV4Q0d uHi uLo vTop).toNat)
+    (hRhat2d_hi_zero :
+      divKTrialCallV4Rhat2d uHi uLo vTop >>> (32 : BitVec 6).toNat = 0)
+    (hUlt :
+      BitVec.ult
+        ((divKTrialCallV4Rhat2d uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+          divKTrialCallV4Un0 uLo)
+        (divKTrialCallV4Q0d uHi uLo vTop * divKTrialCallV4DLo vTop)) :
+    ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat) /
+      ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat) ≤
+    (divKTrialCallV4Q0dd uHi uLo vTop).toNat := by
+  rw [divKTrialCallV4Q0dd_unfold]
+  unfold div128Quot_phase2b_q0'
+  rw [if_pos hRhat2d_hi_zero]
+  rw [if_pos hUlt]
+  have hQ0d_pos : 0 < (divKTrialCallV4Q0d uHi uLo vTop).toNat :=
+    Nat.lt_of_le_of_lt (Nat.zero_le _) hQ0d_gt
+  have h_se_toNat : (signExtend12 4095 : Word).toNat = 2^64 - 1 := by decide
+  have h_dec :
+      (divKTrialCallV4Q0d uHi uLo vTop + signExtend12 4095).toNat =
+        (divKTrialCallV4Q0d uHi uLo vTop).toNat - 1 := by
+    rw [BitVec.toNat_add, h_se_toNat]
+    have hQ0d_lt : (divKTrialCallV4Q0d uHi uLo vTop).toNat < 2^64 :=
+      (divKTrialCallV4Q0d uHi uLo vTop).isLt
+    omega
+  rw [h_dec]
+  omega
+
 end EvmAsm.Evm64
