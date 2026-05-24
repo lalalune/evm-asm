@@ -39,7 +39,7 @@ def saveRaAbsThenModCallReturnPost
         (smodResultSignFixedWord dividendTop
           (modWord.getLimbN 0) (modWord.getLimbN 1)
           (modWord.getLimbN 2) (modWord.getLimbN 3))) **
-      smodSavedRaRetFrame sp base dividendTop divisorTop dividendAbsWord)
+      smodSavedRaRetFrame sp base dividendTop dividendAbsWord)
 
 theorem saveRaAbsThenModCallReturnPost_unfold
     {vRa sp base : Word}
@@ -71,7 +71,7 @@ theorem saveRaAbsThenModCallReturnPost_unfold
              (smodResultSignFixedWord dividendTop
                (modWord.getLimbN 0) (modWord.getLimbN 1)
                (modWord.getLimbN 2) (modWord.getLimbN 3))) **
-           smodSavedRaRetFrame sp base dividendTop divisorTop dividendAbsWord)) := by
+           smodSavedRaRetFrame sp base dividendTop dividendAbsWord)) := by
   delta saveRaAbsThenModCallReturnPost
   rfl
 
@@ -87,9 +87,10 @@ theorem saveRaAbsThenModCall_then_return_named_post_from_noNop_spec_in_smodCodeV
       EvmAsm.Rv64.cpsTripleWithin EvmAsm.Evm64.unifiedDivBound
         (base + wrapperEndOff) ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.modCode_noNop_v4 (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPreCallable sp
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp
           (smodAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
           (smodAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
+          (smodAbsSign divisorTop)
           ((base + modCallOff) + 4)
           v2 v5 v6
           (smodAbsSum3 divisorLimb0 divisorLimb1 divisorLimb2 divisorTop)
@@ -100,7 +101,8 @@ theorem saveRaAbsThenModCall_then_return_named_post_from_noNop_spec_in_smodCodeV
         (EvmAsm.Evm64.modStackDispatchPostCallable sp
           (smodAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop)
           (smodAbsDivisorWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop) **
-          (.x1 ↦ᵣ ((base + modCallOff) + 4)))) :
+          (.x1 ↦ᵣ ((base + modCallOff) + 4)) **
+          EvmAsm.Rv64.regOwn .x9)) :
     EvmAsm.Rv64.cpsTripleWithin (((EvmAsm.Evm64.unifiedDivBound + 1) + 21) + 1)
       (base + wrapperEndOff)
       (((vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) +
