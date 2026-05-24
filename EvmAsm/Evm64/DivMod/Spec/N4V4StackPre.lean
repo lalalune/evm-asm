@@ -6,6 +6,8 @@
 
 import EvmAsm.Evm64.DivMod.Spec.Base
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4
+import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
+import EvmAsm.Evm64.DivMod.Spec.CallSkip
 
 namespace EvmAsm.Evm64
 
@@ -478,5 +480,60 @@ theorem evm_div_n4_full_call_addback_beq_stack_pre_spec_bundled_v4 (sp base : Wo
       xperm_hyp hp)
     (fun _ hq => hq)
     h
+
+/-- EVM-stack-level DIV spec on the n=4 call+addback (shift≠0) sub-path.
+
+    Takes the v4 runtime conditions and the semantic correctness predicate,
+    produces the clean `divN4StackPreCall ** scratchMem → divN4CallSkipStackPost ** memOwn scratchCell` shape.
+
+    Reduces to `evm_div_n4_full_call_addback_beq_stack_pre_spec_bundled_v4` +
+    postcondition reshape via `n4_call_addback_beq_div_getLimbN` (which gives
+    div limb equalities) + `div_n4_call_skip_stack_weaken`. -/
+theorem evm_div_n4_call_addback_beq_stack_spec (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : isCallTrialN4Evm a b)
+    (hborrow : isAddbackBorrowN4CallV4Evm a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (hsem : n4CallAddbackBeqSemanticHolds a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10) base (base + nopOff)
+      (divCode_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       (sp + signExtend12 3936 ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b **
+       memOwn (sp + signExtend12 3936)) := by
+  have h_pre := evm_div_n4_full_call_addback_beq_stack_pre_spec_bundled_v4
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hbnz hb3nz hshift_nz halign hbltu hcarry2 hborrow
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
+    EvmWord.n4_call_addback_beq_div_getLimbN a b hbnz hb3nz hsem
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h_pre
+  intro h hq
+  simp only [fullDivN4CallAddbackBeqPostV4_div128Quot_unfold, denormDivPost_unfold] at hq
+  apply sepConj_mono_right memIs_implies_memOwn h
+  apply sepConj_mono_left (div_n4_call_skip_stack_weaken sp a b) h
+  rw [show evmWordIs sp a =
+      ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3))
+      from evmWordIs_sp_unfold]
+  rw [show evmWordIs (sp + 32) (EvmWord.div a b) =
+      (((sp + 32) ↦ₘ n4CallAddbackBeqQOutV4 a b) **
+       ((sp + 40) ↦ₘ (0 : Word)) **
+       ((sp + 48) ↦ₘ (0 : Word)) **
+       ((sp + 56) ↦ₘ (0 : Word)))
+      from by rw [evmWordIs_sp32_limbs_eq sp (EvmWord.div a b) _ _ _ _
+                  hdiv0 hdiv1 hdiv2 hdiv3]]
+  simp only [n4CallAddbackBeqQOutV4_raw_unfold]
+  rw [divScratchValuesCall_unfold, divScratchValues_unfold]
+  rw [word_add_zero] at hq
+  xperm_hyp hq
 
 end EvmAsm.Evm64
