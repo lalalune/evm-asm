@@ -3841,5 +3841,192 @@ def ziskMptBranchNodeKeccakProbeUnit : BuildUnit := {
   dataAsm     := ziskMptBranchNodeKeccakDataSection
 }
 
+/-! ## mpt_two_leaf_root_indexed -- PR-K170
+
+    Compute the MPT root for an **indexed** trie containing
+    exactly two entries at keys `rlp(0) = 0x80` and
+    `rlp(1) = 0x01`. This is the common case for blocks with
+    exactly two transactions / receipts / withdrawals, where the
+    trie is `transactions_root` / `receipts_root` /
+    `withdrawals_root`.
+
+    Why a specialised helper: for the two indexed keys the
+    structure is fully determined and the same regardless of the
+    values:
+
+      * `rlp(0) = 0x80` nibbles `[8, 0]`
+      * `rlp(1) = 0x01` nibbles `[0, 1]`
+
+    The shared prefix is empty (PR-K166 would return cpl=0 here),
+    so the root is a branch whose only non-empty slots are:
+
+      * slot 0 : leaf with path `[1]` and value `value_1`
+      * slot 8 : leaf with path `[0]` and value `value_0`
+      * slot 16 (value) and all others : empty (`0x80`)
+
+      root = keccak256(rlp([slot_0, slot_1, ..., slot_15, value]))
+
+    Composes:
+      - PR-K168 `mpt_leaf_node_encode_from_nibbles`  × 2
+      - PR-K163 `mpt_node_slot_encode`               × 2
+      - PR-K167 `mpt_branch_payload_two_slots`
+      - PR-K169 `mpt_branch_node_keccak`
+
+    Callers that need the same for tries with > 2 entries, or
+    with arbitrary non-indexed keys, must use the lower-level
+    primitives directly.
+
+    Calling convention:
+      a0 (input)  : value_0 ptr (for key `rlp(0) = 0x80`)
+      a1 (input)  : value_0 byte length
+      a2 (input)  : value_1 ptr (for key `rlp(1) = 0x01`)
+      a3 (input)  : value_1 byte length
+      a4 (input)  : 32-byte output root ptr
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def mptTwoLeafRootIndexedFunction : String :=
+  "mpt_two_leaf_root_indexed:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # value_0 ptr\n" ++
+  "  mv s1, a1                   # value_0 len\n" ++
+  "  mv s2, a2                   # value_1 ptr\n" ++
+  "  mv s3, a3                   # value_1 len\n" ++
+  "  mv s4, a4                   # output root ptr\n" ++
+  "  # ---- Build leaf_0 RLP from nibbles=[0], value_0 ----\n" ++
+  "  la t0, mtlri_nib0; sb zero, 0(t0)\n" ++
+  "  mv a0, t0; li a1, 1\n" ++
+  "  mv a2, s0; mv a3, s1\n" ++
+  "  la a4, mtlri_leaf_0_buf\n" ++
+  "  la a5, mtlri_leaf_0_len\n" ++
+  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  # ---- Build leaf_1 RLP from nibbles=[1], value_1 ----\n" ++
+  "  la t0, mtlri_nib1; li t1, 1; sb t1, 0(t0)\n" ++
+  "  mv a0, t0; li a1, 1\n" ++
+  "  mv a2, s2; mv a3, s3\n" ++
+  "  la a4, mtlri_leaf_1_buf\n" ++
+  "  la a5, mtlri_leaf_1_len\n" ++
+  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  # ---- Wrap leaf_0 in parent-slot bytes (K163) ----\n" ++
+  "  la a0, mtlri_leaf_0_buf\n" ++
+  "  la t0, mtlri_leaf_0_len; ld a1, 0(t0)\n" ++
+  "  la a2, mtlri_slot_0_buf\n" ++
+  "  la a3, mtlri_slot_0_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  # ---- Wrap leaf_1 in parent-slot bytes ----\n" ++
+  "  la a0, mtlri_leaf_1_buf\n" ++
+  "  la t0, mtlri_leaf_1_len; ld a1, 0(t0)\n" ++
+  "  la a2, mtlri_slot_1_buf\n" ++
+  "  la a3, mtlri_slot_1_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  # ---- Assemble 17-slot payload (slot 8 = leaf_0, slot 0 = leaf_1) ----\n" ++
+  "  li a0, 8\n" ++
+  "  la a1, mtlri_slot_0_buf\n" ++
+  "  la t0, mtlri_slot_0_len; ld a2, 0(t0)\n" ++
+  "  li a3, 0\n" ++
+  "  la a4, mtlri_slot_1_buf\n" ++
+  "  la t0, mtlri_slot_1_len; ld a5, 0(t0)\n" ++
+  "  la a6, mtlri_branch_payload\n" ++
+  "  la a7, mtlri_branch_payload_len\n" ++
+  "  jal ra, mpt_branch_payload_two_slots\n" ++
+  "  # ---- keccak256(rlp(branch_payload)) -> root ----\n" ++
+  "  la a0, mtlri_branch_payload\n" ++
+  "  la t0, mtlri_branch_payload_len; ld a1, 0(t0)\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, mpt_branch_node_keccak\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_mpt_two_leaf_root_indexed`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : value_0_len
+      bytes  8..16 : value_1_len
+      bytes 16..16+value_0_len: value_0 bytes
+      bytes (16+value_0_len)..: value_1 bytes
+    Output layout:
+      bytes  0..32 : 32-byte trie root -/
+def ziskMptTwoLeafRootIndexedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # value_0_len\n" ++
+  "  ld a3, 16(a5)               # value_1_len\n" ++
+  "  addi a0, a5, 24             # value_0 ptr\n" ++
+  "  add a2, a0, a1              # value_1 ptr\n" ++
+  "  li a4, 0xa0010000           # output root ptr (32 B)\n" ++
+  "  jal ra, mpt_two_leaf_root_indexed\n" ++
+  "  j .Lmtlri_pdone\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  mptBranchPayloadTwoSlotsFunction ++ "\n" ++
+  mptBranchNodeEncodeFunction ++ "\n" ++
+  mptBranchNodeKeccakFunction ++ "\n" ++
+  mptTwoLeafRootIndexedFunction ++ "\n" ++
+  ".Lmtlri_pdone:"
+
+def ziskMptTwoLeafRootIndexedDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "mlnen_field_len:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_hp_len:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_cursor:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_total_payload:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_hp_buf:\n" ++
+  "  .zero 1024\n" ++
+  "mlnen_payload_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mbne_field_len:\n" ++
+  "  .zero 8\n" ++
+  "mbnk_node_len:\n" ++
+  "  .zero 8\n" ++
+  "mbnk_node_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtlri_nib0:\n" ++
+  "  .zero 1\n" ++
+  "mtlri_nib1:\n" ++
+  "  .zero 1\n" ++
+  ".balign 8\n" ++
+  "mtlri_leaf_0_len:\n" ++
+  "  .zero 8\n" ++
+  "mtlri_leaf_0_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtlri_leaf_1_len:\n" ++
+  "  .zero 8\n" ++
+  "mtlri_leaf_1_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtlri_slot_0_len:\n" ++
+  "  .zero 8\n" ++
+  "mtlri_slot_0_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtlri_slot_1_len:\n" ++
+  "  .zero 8\n" ++
+  "mtlri_slot_1_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtlri_branch_payload_len:\n" ++
+  "  .zero 8\n" ++
+  "mtlri_branch_payload:\n" ++
+  "  .zero 16384"
+
+def ziskMptTwoLeafRootIndexedProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptTwoLeafRootIndexedPrologue
+  dataAsm     := ziskMptTwoLeafRootIndexedDataSection
+}
+
 
 end EvmAsm.Codegen
