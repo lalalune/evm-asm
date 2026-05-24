@@ -144,4 +144,29 @@ theorem n1_trial_witnesses_call_first_of_shape_shift_nz
     (b0_ne_zero_of_n1_shape b0 b1 b2 b3 hbnz hb3z hb2z hb1z)
     hshift_nz
 
+/-- GetLimbN-level form of `n1_trial_witnesses_call_first_of_shape_shift_nz`,
+    matching the public dispatcher branch surface. -/
+theorem n1_trial_witnesses_call_first_of_getLimbN_shape_shift_nz
+    (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+    (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0) :
+    ∃ bltu_2 bltu_1 bltu_0,
+      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) ∧
+      isTrialN1_j2 true bltu_2
+        (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      isTrialN1_j1 true bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  exact n1_trial_witnesses_call_first_of_shape_shift_nz
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hbnz hb3z hb2z hb1z hshift_nz
+
 end EvmAsm.Evm64
