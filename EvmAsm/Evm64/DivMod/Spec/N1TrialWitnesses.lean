@@ -47,4 +47,35 @@ theorem n1_trial_witnesses (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
   · simp [isTrialN1_j0, bltu_0, bltu_1, bltu_2, bltu_3, r1, r2, r3, v0', v1',
       v2', v3', u1S, u2S, u3S, u4_s, shift, antiShift]
 
+/-- The first n=1 trial branch is forced true when the single divisor limb
+    normalizes with a positive shift.
+
+    This discharges the first branch certificate needed by unconditional n=1
+    stack wrappers: the normalized top dividend fragment is below `2^63`,
+    while the normalized divisor limb is at least `2^63`. -/
+theorem isTrialN1_j3_true_of_shift_nz (a3 b0 : Word)
+    (hb0nz : b0 ≠ 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    isTrialN1_j3 true a3 b0 := by
+  unfold isTrialN1_j3
+  have h_shift_pos : 1 ≤ (clzResult b0).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b0).1.toNat with h | h
+    · exfalso
+      apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have h_u4_lt_pow63 :
+      (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)).toNat <
+        2^63 :=
+    u_top_lt_pow63_of_shift_nz a3 (clzResult b0).1 h_shift_pos
+      (clzResult_fst_toNat_le b0)
+  have h_b0_ge_pow63 :
+      (b0 <<< ((clzResult b0).1.toNat % 64)).toNat ≥ 2^63 :=
+    b3_shifted_ge_pow63 hb0nz
+  have h_lt :
+      (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)).toNat <
+        (b0 <<< ((clzResult b0).1.toNat % 64)).toNat :=
+    Nat.lt_of_lt_of_le h_u4_lt_pow63 h_b0_ge_pow63
+  exact Eq.symm ((EvmWord.ult_iff).mpr h_lt)
+
 end EvmAsm.Evm64
