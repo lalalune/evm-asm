@@ -52,7 +52,7 @@ theorem saveRaAbsThenModCall_then_resultSignFix_from_noNop_spec_in_smodCodeV4
        smodResultSignFixPost (sp + 32) resultSign
          (modWord.getLimbN 0) (modWord.getLimbN 1)
          (modWord.getLimbN 2) (modWord.getLimbN 3) **
-       smodModCallResultSignFixFrame vRa sp base dividendTop divisorTop
+       smodModCallResultSignFixFrame vRa sp base dividendTop
          dividendAbsWord) := by
   have hCallable :=
     saveRaAbsThenModCallDispatchReadyPost_callable_from_noNop_spec_in_smodCodeV4
