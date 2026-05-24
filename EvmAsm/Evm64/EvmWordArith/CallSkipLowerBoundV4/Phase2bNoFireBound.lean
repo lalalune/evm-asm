@@ -114,4 +114,47 @@ theorem div128Quot_phase2b_q0'_dLo_bound_no_fire_case_a
       omega
     omega
 
+/-- **Phase-2b no-fire combined bound.** Unified wrapper over case-a
+    (`rhat ≥ 2^32`, outer guard fails) and case-b (`rhat < 2^32 ∧
+    ¬ult`, inner guard fails).
+
+    Takes the full set of size preconditions plus the algorithm-level
+    "no-fire" condition `h_no_fire : ¬ (rhat >>> 32 = 0 ∧ ult)` (the
+    negation of the `phase2b_q0'` correction guard). Dispatches via
+    case-split on `rhat.toNat < 2^32 ∨ ¬ult` and invokes the
+    appropriate sub-case helper.
+
+    This is the form callers of bead 7.1.3.1.1.2 use to discharge the
+    Phase-1b 2-correction post-condition's "no-fire" branch in one
+    shot. -/
+theorem div128Quot_phase2b_q0'_dLo_bound_no_fire
+    (q rhat dLo un : Word)
+    (h_q_le : q.toNat ≤ 2^32 + 1)
+    (h_dLo_lt : dLo.toNat < 2^32)
+    (h_un_lt : un.toNat < 2^32)
+    (h_no_wrap : (q * dLo).toNat = q.toNat * dLo.toNat)
+    (h_no_fire :
+      ¬ (rhat >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+        BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo))) :
+    div128Quot_phase2b_q0' q rhat dLo un = q ∧
+    q.toNat * dLo.toNat ≤ rhat.toNat * 2^32 + un.toNat := by
+  by_cases h_rhat_lt : rhat.toNat < 2^32
+  · -- Case-b: rhat < 2^32 ⇒ rhat >>> 32 = 0 ⇒ no-fire forces ¬ult.
+    have h_rhat_hi_zero : rhat >>> (32 : BitVec 6).toNat = (0 : Word) := by
+      apply BitVec.eq_of_toNat_eq
+      show (rhat >>> (32 : BitVec 6).toNat).toNat = (0 : Word).toNat
+      rw [BitVec.toNat_ushiftRight, EvmAsm.Rv64.AddrNorm.bv6_toNat_32,
+          Nat.shiftRight_eq_div_pow]
+      rw [Nat.div_eq_of_lt h_rhat_lt]
+      rfl
+    have h_no_ult :
+        ¬ BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo) := by
+      intro h_ult; exact h_no_fire ⟨h_rhat_hi_zero, h_ult⟩
+    exact div128Quot_phase2b_q0'_dLo_bound_no_fire_case_b
+      q rhat dLo un h_rhat_lt h_un_lt h_no_wrap h_no_ult
+  · -- Case-a: rhat ≥ 2^32.
+    have h_rhat_ge : rhat.toNat ≥ 2^32 := by omega
+    exact div128Quot_phase2b_q0'_dLo_bound_no_fire_case_a
+      q rhat dLo un h_q_le h_dLo_lt h_rhat_ge h_no_wrap
+
 end EvmAsm.Evm64
