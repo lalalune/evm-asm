@@ -343,6 +343,59 @@ theorem fullDivN1NormalizedRemainderLt_of_raw_step_conservation_overestimate_fin
     hbnz hb1z hb2z hb3z hshift_nz hcarry2Norm
     hr3_zero hr2_zero hr1_zero hge
 
+/-- n=1 quotient bridge from raw step-conservation witnesses plus the legacy
+    quotient overestimate, deriving the final carry-zero and normalized
+    remainder facts internally. -/
+theorem fullDivN1QuotientWord_eq_div_of_raw_step_conservation_overestimate_final
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b0).1).toNat % 64))
+      ((b1 <<< (((clzResult b0).1).toNat % 64)) |||
+        (b0 >>> ((signExtend12 (0 : BitVec 12) -
+          (clzResult b0).1).toNat % 64)))
+      ((b2 <<< (((clzResult b0).1).toNat % 64)) |||
+        (b1 >>> ((signExtend12 (0 : BitVec 12) -
+          (clzResult b0).1).toNat % 64)))
+      ((b3 <<< (((clzResult b0).1).toNat % 64)) |||
+        (b2 >>> ((signExtend12 (0 : BitVec 12) -
+          (clzResult b0).1).toNat % 64))))
+    (hr3_zero : fullDivN1R3CarryZero bltu_3 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hr2_zero : fullDivN1R2CarryZero bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hr1_zero : fullDivN1R1CarryZero bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hge :
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+              a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 =
+      EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3) := by
+  have hmulsub : fullDivN1NormalizedMulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 :=
+    fullDivN1NormalizedMulSubEq_of_raw_step_conservation_overestimate_final
+      bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz hcarry2
+      hr3_zero hr2_zero hr1_zero hge
+  have hrem_lt : fullDivN1NormalizedRemainderLt bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 :=
+    fullDivN1NormalizedRemainderLt_of_raw_step_conservation_overestimate_final
+      bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz hcarry2
+      hr3_zero hr2_zero hr1_zero hge
+  exact fullDivN1QuotientWord_eq_div_of_normalized_mulsub_remainder_lt
+    bltu_3 bltu_2 bltu_1 bltu_0 hbnz hmulsub hrem_lt
+
 /-- GetLimb-level n=1 hdiv witness from raw step conservation plus the
     legacy quotient overestimate, deriving the final carry-zero fact
     internally. -/
