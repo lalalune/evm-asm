@@ -3965,4 +3965,89 @@ def ziskHeaderExtractPrevRandaoProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractPrevRandaoDataSection
 }
 
+/-! ## header_extract_beneficiary -- PR-K208
+
+    Extract `beneficiary` / `coinbase` (field 2, 20 bytes) from
+    a header RLP. The 20-byte analogue of the K201..K207 family
+    of 32-byte single-field extractors.
+
+    Note: K68 `coinbase_extract_from_header` already exists and
+    handles the same field; this is the canonical
+    `header_extract_*` shape for consistency with the
+    K201..K207 naming convention.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 20-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 2 missing
+        2 : field 2 length != 20 -/
+def headerExtractBeneficiaryFunction : String :=
+  "header_extract_beneficiary:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
+  "  la a3, hebe_offset; la a4, hebe_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhebe_parse_fail\n" ++
+  "  la t0, hebe_length; ld t1, 0(t0)\n" ++
+  "  li t2, 20\n" ++
+  "  bne t1, t2, .Lhebe_size_fail\n" ++
+  "  la t0, hebe_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  # 20 bytes = 2 × ld + 1 × lwu / sw\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  lwu t4, 16(t3); sw t4, 16(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhebe_ret\n" ++
+  ".Lhebe_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhebe_ret\n" ++
+  ".Lhebe_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhebe_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_beneficiary`: probe BuildUnit. -/
+def ziskHeaderExtractBeneficiaryPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_beneficiary\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhebe_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractBeneficiaryFunction ++ "\n" ++
+  ".Lhebe_pdone:"
+
+def ziskHeaderExtractBeneficiaryDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hebe_offset:\n" ++
+  "  .zero 8\n" ++
+  "hebe_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractBeneficiaryProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractBeneficiaryPrologue
+  dataAsm     := ziskHeaderExtractBeneficiaryDataSection
+}
+
 end EvmAsm.Codegen
