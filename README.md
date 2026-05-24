@@ -297,6 +297,7 @@ block-body helpers
 `block_hash_matches`,
 `header_extract_gas_used`,
 `header_extract_gas_limit`,
+`block_validate_block_hash_pair`,
 withdrawal RLP/hash, …), and address
 derivation (`address_compute_create`, `address_compute_create2`,
 `address_from_pubkey`). The catalogue is tracked under the
