@@ -4968,4 +4968,119 @@ def ziskHeaderValidateDifficultyZeroProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderValidateDifficultyZeroDataSection
 }
 
+/-! ## validate_header_post_merge_zeros -- PR-K220
+
+    Composite post-merge predicate: verify all three EIP-3675
+    "must be the zero value" invariants in one call:
+
+      H1. ommers_hash    == EMPTY_OMMERS_HASH    (K179)
+      H2. difficulty     == 0                     (K219)
+      H3. nonce          == 8 zero bytes          (K218)
+
+    Returns `is_valid = 1` iff all three hold.
+
+    Per-check status codes let the caller distinguish *which*
+    invariant broke vs a hard parse failure.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out (is_valid)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        1 : RLP parse failure / required field missing
+        2 : size mismatch on ommers_hash (!= 32) or nonce (!= 8) -/
+def validateHeaderPostMergeZerosFunction : String :=
+  "validate_header_post_merge_zeros:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0; mv s1, a1                # header\n" ++
+  "  mv s2, a2                            # is_valid out\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  # 1. ommers_hash == EMPTY_OMMERS_HASH\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
+  "  la a3, vhpmz_offset; la a4, vhpmz_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lvhpmz_parse\n" ++
+  "  la t0, vhpmz_length; ld t1, 0(t0); li t2, 32\n" ++
+  "  bne t1, t2, .Lvhpmz_size\n" ++
+  "  la t0, vhpmz_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  la t4, vhpmz_empty_ommers\n" ++
+  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lvhpmz_pred_false\n" ++
+  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lvhpmz_pred_false\n" ++
+  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lvhpmz_pred_false\n" ++
+  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lvhpmz_pred_false\n" ++
+  "  # 2. difficulty == 0  (field 7 has length 0)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
+  "  la a3, vhpmz_offset; la a4, vhpmz_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lvhpmz_parse\n" ++
+  "  la t0, vhpmz_length; ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lvhpmz_pred_false\n" ++
+  "  # 3. nonce == 8 zero bytes (field 14, len == 8, all zero)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 14\n" ++
+  "  la a3, vhpmz_offset; la a4, vhpmz_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lvhpmz_parse\n" ++
+  "  la t0, vhpmz_length; ld t1, 0(t0); li t2, 8\n" ++
+  "  bne t1, t2, .Lvhpmz_size\n" ++
+  "  la t0, vhpmz_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  ld t4, 0(t3)\n" ++
+  "  bnez t4, .Lvhpmz_pred_false\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s2)\n" ++
+  ".Lvhpmz_pred_false:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvhpmz_ret\n" ++
+  ".Lvhpmz_parse:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lvhpmz_ret\n" ++
+  ".Lvhpmz_size:\n" ++
+  "  li a0, 2\n" ++
+  ".Lvhpmz_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+def ziskValidateHeaderPostMergeZerosPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, validate_header_post_merge_zeros\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lvhpmz_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  validateHeaderPostMergeZerosFunction ++ "\n" ++
+  ".Lvhpmz_pdone:"
+
+def ziskValidateHeaderPostMergeZerosDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "vhpmz_offset:\n" ++
+  "  .zero 8\n" ++
+  "vhpmz_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "vhpmz_empty_ommers:\n" ++
+  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
+  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
+  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
+  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47"
+
+def ziskValidateHeaderPostMergeZerosProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateHeaderPostMergeZerosPrologue
+  dataAsm     := ziskValidateHeaderPostMergeZerosDataSection
+}
+
 end EvmAsm.Codegen
