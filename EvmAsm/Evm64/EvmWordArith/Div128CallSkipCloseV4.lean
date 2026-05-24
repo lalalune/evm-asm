@@ -130,4 +130,32 @@ theorem div128Quot_v4_call_skip_mul_val256_b_le_val256_a
   rw [h_mul_rearr] at h_qHat_mul_v'
   exact Nat.le_of_mul_le_mul_right h_qHat_mul_v' hpow_pos
 
+/-- v4 analogue of `div128Quot_call_skip_le_val256_div`: under v4
+    skip-borrow + shift normalization, the v4 trial quotient is bounded
+    above by the true val256 quotient.
+
+    Direct corollary of the no-overflow bound
+    `div128Quot_v4_call_skip_mul_val256_b_le_val256_a` via `Nat.le_div_iff_mul_le`,
+    using `val256_pos_of_or_ne_zero` to obtain `0 < val256(b)` from `b3 ≠ 0`. -/
+theorem div128Quot_v4_call_skip_le_val256_div
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hskip : isSkipBorrowN4CallV4Ab a0 a1 a2 a3 b0 b1 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let u4 := a3 >>> antiShift
+    let u3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    (div128Quot_v4 u4 u3 b3').toNat ≤
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 := by
+  intro shift antiShift b3' u4 u3
+  have h_bnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0 := by
+    intro h; exact hb3nz (BitVec.or_eq_zero_iff.mp h).2
+  have hv_pos : 0 < val256 b0 b1 b2 b3 := val256_pos_of_or_ne_zero h_bnz
+  have h_mul := div128Quot_v4_call_skip_mul_val256_b_le_val256_a
+    a0 a1 a2 a3 b0 b1 b2 b3 hshift_nz hskip
+  simp only [] at h_mul
+  exact (Nat.le_div_iff_mul_le hv_pos).mpr h_mul
+
 end EvmAsm.Evm64
