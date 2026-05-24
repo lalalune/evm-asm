@@ -400,6 +400,110 @@ private theorem fullDivN1_four_step_conservation_nat
   subst c1
   nlinarith
 
+/-- Assemble the four per-iteration n=1 conservation equations into the raw
+    normalized conservation equation.  Intermediate carry-zero hypotheses
+    remove the overflow limb from the first three iterations; the final carry
+    remains in the conclusion for the later `fullDivN1NormalizedMulSubEq`
+    bridge. -/
+theorem fullDivN1NormalizedConservation_of_step_conservation
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2)
+    (hr3_zero : fullDivN1R3CarryZero bltu_3 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hr2_zero : fullDivN1R2CarryZero bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hr1_zero : fullDivN1R1CarryZero bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN1NormalizedConservation bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 := by
+  unfold fullDivN1NormalizedConservation
+  rw [← fullDivN1NormU_val256_eq_scaled a0 a1 a2 a3 b0 hshift_nz]
+  rw [← fullDivN1NormV_val256_eq_scaled_of_shape b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz]
+  refine @fullDivN1_four_step_conservation_nat
+    (EvmWord.val256
+      (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1 +
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2 ^ 256)
+    (EvmWord.val256
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2)
+    (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1.toNat
+    (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1.toNat
+    (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1.toNat
+    (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1.toNat
+    (fullDivN1NormU a0 a1 a2 a3 b0).1.toNat
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.1.toNat
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1.toNat
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat
+    (EvmWord.val256
+      (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+      (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1)
+    (EvmWord.val256
+      (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+      (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1)
+    (EvmWord.val256
+      (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+      (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1)
+    (EvmWord.val256
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1)
+    (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2.toNat
+    (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2.toNat
+    (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2.toNat
+    (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2.toNat
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+  · rw [fullDivN1_val256_with_overflow_eq_low_add_tail]
+    unfold EvmWord.val256
+    ring
+  · have h :=
+      fullDivN1R3_val256_conservation_of_shape bltu_3
+        a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hcarry2
+    dsimp only at h
+    unfold EvmWord.val256 at h
+    simpa [EvmWord.val256, Nat.mul_comm, Nat.mul_left_comm, Nat.mul_assoc] using h
+  · unfold fullDivN1R3CarryZero at hr3_zero
+    exact congrArg BitVec.toNat hr3_zero
+  · have h :=
+      fullDivN1R2_val256_conservation_of_shape bltu_3 bltu_2
+        a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hcarry2
+    dsimp only at h
+    rw [fullDivN1_val256_with_overflow_eq_low_add_tail] at h
+    simpa [EvmWord.val256, Nat.mul_comm, Nat.mul_left_comm, Nat.mul_assoc] using h
+  · unfold fullDivN1R2CarryZero at hr2_zero
+    exact congrArg BitVec.toNat hr2_zero
+  · have h :=
+      fullDivN1R1_val256_conservation_of_shape bltu_3 bltu_2 bltu_1
+        a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hcarry2
+    dsimp only at h
+    rw [fullDivN1_val256_with_overflow_eq_low_add_tail] at h
+    simpa [EvmWord.val256, Nat.mul_comm, Nat.mul_left_comm, Nat.mul_assoc] using h
+  · unfold fullDivN1R1CarryZero at hr1_zero
+    exact congrArg BitVec.toNat hr1_zero
+  · have h :=
+      fullDivN1R0_val256_conservation_of_shape bltu_3 bltu_2 bltu_1 bltu_0
+        a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hcarry2
+    dsimp only at h
+    rw [fullDivN1_val256_with_overflow_eq_low_add_tail] at h
+    simpa [EvmWord.val256, Nat.mul_comm, Nat.mul_left_comm, Nat.mul_assoc] using h
+
 /-- Drop the final overflow term from normalized n=1 conservation once its
     carry is known to be zero. -/
 theorem fullDivN1NormalizedMulSubEq_of_conservation
