@@ -363,6 +363,43 @@ abbrev fullDivN1FinalCarryZero (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
   (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2 = 0
 
+abbrev fullDivN1R3CarryZero (bltu_3 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2 = 0
+
+abbrev fullDivN1R2CarryZero (bltu_3 bltu_2 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2 = 0
+
+abbrev fullDivN1R1CarryZero (bltu_3 bltu_2 bltu_1 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2 = 0
+
+private theorem fullDivN1_val256_with_overflow_eq_low_add_tail
+    (u0 u1 u2 u3 u4 : Word) :
+    EvmWord.val256 u0 u1 u2 u3 + u4.toNat * 2 ^ 256 =
+      u0.toNat + 2 ^ 64 * EvmWord.val256 u1 u2 u3 u4 := by
+  unfold EvmWord.val256
+  ring
+
+private theorem fullDivN1_four_step_conservation_nat
+    {a b q3 q2 q1 q0 u0 u1 u2 u3 u4 r3 r2 r1 r0 c3 c2 c1 c0 : Nat}
+    (hfirst :
+      a = u0 + 2 ^ 64 * (u1 + 2 ^ 64 * (u2 + 2 ^ 64 * (u3 + 2 ^ 64 * u4))))
+    (hiter3 : u3 + 2 ^ 64 * u4 = q3 * b + r3 + c3 * 2 ^ 256)
+    (hc3 : c3 = 0)
+    (hiter2 : u2 + 2 ^ 64 * r3 = q2 * b + r2 + c2 * 2 ^ 256)
+    (hc2 : c2 = 0)
+    (hiter1 : u1 + 2 ^ 64 * r2 = q1 * b + r1 + c1 * 2 ^ 256)
+    (hc1 : c1 = 0)
+    (hiter0 : u0 + 2 ^ 64 * r1 = q0 * b + r0 + c0 * 2 ^ 256) :
+    a = (q3 * 2 ^ 192 + q2 * 2 ^ 128 + q1 * 2 ^ 64 + q0) * b + r0 +
+      c0 * 2 ^ 256 := by
+  subst c3
+  subst c2
+  subst c1
+  nlinarith
+
 /-- Drop the final overflow term from normalized n=1 conservation once its
     carry is known to be zero. -/
 theorem fullDivN1NormalizedMulSubEq_of_conservation
