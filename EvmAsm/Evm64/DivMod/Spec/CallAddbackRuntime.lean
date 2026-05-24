@@ -667,6 +667,70 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
   n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions_compact
     hb3nz hshift_nz h_bounds.1 h_borrow h_carry2 h_bounds.2
 
+/-- **n4 call+addback (shift≠0) getLimbN bridge.**
+    Under `n4CallAddbackBeqSemanticHolds a b` (the algorithm's q_out equals the
+    true quotient) and `b.getLimbN 3 ≠ 0` (n=4, so val256(b) ≥ 2^192 and the
+    quotient fits in one 64-bit limb), the DIV result has
+    `getLimbN 0 = n4CallAddbackBeqQOutV4 a b` and all upper limbs zero.
+
+    Used to bridge `evm_div_n4_full_call_addback_beq_spec_noNop`'s output
+    (which gives `fullDivN4CallAddbackBeqPost`) toward the public EVM-stack post
+    with `EvmWord.div a b` in the quotient slot. -/
+theorem n4_call_addback_beq_div_getLimbN (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hsem : n4CallAddbackBeqSemanticHolds a b) :
+    (EvmWord.div a b).getLimbN 0 = n4CallAddbackBeqQOutV4 a b ∧
+    (EvmWord.div a b).getLimbN 1 = 0 ∧
+    (EvmWord.div a b).getLimbN 2 = 0 ∧
+    (EvmWord.div a b).getLimbN 3 = 0 := by
+  -- Step 1: Convert SemanticHolds to V4 form: QOutV4.toNat = QTrue = val256(a)/val256(b)
+  have hsemV4 := n4CallAddbackBeqSemanticHolds_v4 hsem
+  unfold n4CallAddbackBeqSemanticHoldsV4 n4CallAddbackBeqQTrue at hsemV4
+  -- Step 2: Connect val256 to toNat
+  have ha_val : val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) = a.toNat := by
+    simp only [← getLimb_as_getLimbN_0, ← getLimb_as_getLimbN_1,
+               ← getLimb_as_getLimbN_2, ← getLimb_as_getLimbN_3]
+    exact val256_eq_toNat a
+  have hb_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = b.toNat := by
+    simp only [← getLimb_as_getLimbN_0, ← getLimb_as_getLimbN_1,
+               ← getLimb_as_getLimbN_2, ← getLimb_as_getLimbN_3]
+    exact val256_eq_toNat b
+  rw [ha_val, hb_val] at hsemV4
+  -- Step 3: EvmWord.div a b = a.toNat / b.toNat
+  have hdiv_toNat : (EvmWord.div a b).toNat = a.toNat / b.toNat := by
+    unfold EvmWord.div; rw [if_neg hbnz]; exact BitVec.toNat_udiv
+  -- Step 4: QOutV4.toNat = (EvmWord.div a b).toNat
+  have hq_toNat : (n4CallAddbackBeqQOutV4 a b).toNat = (EvmWord.div a b).toNat := by omega
+  -- Step 5: Quotient fits in one limb since b.getLimbN 3 ≠ 0 → b ≥ 2^192
+  have hb3_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ≥ 2^192 :=
+    val256_ge_pow192_of_limb3 _ _ _ _ hb3nz
+  rw [hb_val] at hb3_val
+  have hqlt : (n4CallAddbackBeqQOutV4 a b).toNat < 2^64 := by
+    rw [hq_toNat, hdiv_toNat]
+    have hbnd := val256_bound (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    rw [ha_val] at hbnd
+    calc a.toNat / b.toNat ≤ (2^256 - 1) / b.toNat := Nat.div_le_div_right (by omega)
+      _ ≤ (2^256 - 1) / 2^192 := Nat.div_le_div_left hb3_val (by omega)
+      _ = 2^64 - 1 := by norm_num
+      _ < 2^64 := by omega
+  -- Step 6: Build the target EvmWord (QOutV4 in limb 0, zeros elsewhere) = EvmWord.div a b
+  set q := n4CallAddbackBeqQOutV4 a b with hq_def
+  set target := EvmWord.fromLimbs (fun i : Fin 4 =>
+    match i with | 0 => q | 1 => 0 | 2 => 0 | 3 => 0) with htarget_def
+  have htarget_toNat : target.toNat = q.toNat := by
+    have : target.toNat = q.toNat + 0 * 2^64 + 0 * 2^128 + 0 * 2^192 := by
+      rw [htarget_def]
+      exact fromLimbs_toNat
+    omega
+  have htarget_eq_div : target = EvmWord.div a b :=
+    BitVec.eq_of_toNat_eq (by omega)
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [← htarget_eq_div]; exact getLimbN_fromLimbs_0
+  · rw [← htarget_eq_div]; exact getLimbN_fromLimbs_1
+  · rw [← htarget_eq_div]; exact getLimbN_fromLimbs_2
+  · rw [← htarget_eq_div]; exact getLimbN_fromLimbs_3
+
 end EvmWord
 
 end EvmAsm.Evm64
