@@ -3074,4 +3074,76 @@ def ziskChainExtractNumberRangeProbeUnit : BuildUnit := {
   dataAsm     := ziskChainExtractNumberRangeDataSection
 }
 
+/-! ## header_extract_basefee -- PR-K198
+
+    Extract `base_fee_per_gas` (field 15, present from London
+    onwards) from a header RLP. Returns the value as a u64; the
+    EIP-1559 base_fee is bounded by `2^256-1` in principle but
+    in practice never exceeds u64 in any chain we care about.
+    Callers that need the full uint256 form should use the more
+    general `rlp_field_to_u256` (not yet implemented) instead.
+
+    Field index 15 is the **first** post-London field; on
+    pre-London headers (`len(fields) <= 15`) the call yields
+    a parse-failure status.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out (base_fee_per_gas)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 15 missing (pre-London)
+        2 : base_fee field exceeds 8 bytes BE -/
+def headerExtractBasefeeFunction : String :=
+  "header_extract_basefee:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  # rlp_field_to_u64(a0=header_ptr, a1=len, a2=15, a3=output_ptr)\n" ++
+  "  mv a3, a2                   # output ptr (caller-supplied) -> a3\n" ++
+  "  li a2, 15                   # field index = 15 (base_fee)\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_basefee`: probe BuildUnit.
+    Input layout:
+      bytes 0..8  : header_rlp_len
+      bytes 8..   : header_rlp
+    Output layout:
+      bytes 0..8  : status
+      bytes 8..16 : base_fee_per_gas -/
+def ziskHeaderExtractBasefeePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_rlp_len\n" ++
+  "  addi a0, a7, 16             # header_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # base_fee out\n" ++
+  "  jal ra, header_extract_basefee\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lheb_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractBasefeeFunction ++ "\n" ++
+  ".Lheb_pdone:"
+
+def ziskHeaderExtractBasefeeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractBasefeeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractBasefeePrologue
+  dataAsm     := ziskHeaderExtractBasefeeDataSection
+}
+
 end EvmAsm.Codegen
