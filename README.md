@@ -266,6 +266,7 @@ block-body helpers
 `block_validate_withdrawals_root_one_w`,
 `block_validate_withdrawals_root_two_w`,
 `block_validate_receipts_root_one_receipt`,
+`block_validate_receipts_root_two_receipts`,
 `block_hash_from_header`, `validate_parent_hash_link`,
 `validate_header_pair`, `validate_header_chain`,
 `block_validate_2tx_full`, `block_validate_1tx_full`,
