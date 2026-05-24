@@ -667,6 +667,7 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
   n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions_compact
     hb3nz hshift_nz h_bounds.1 h_borrow h_carry2 h_bounds.2
 
+
 /-- **n4 call+addback (shift≠0) getLimbN bridge.**
     Under `n4CallAddbackBeqSemanticHolds a b` (the algorithm's q_out equals the
     true quotient) and `b.getLimbN 3 ≠ 0` (n=4, so val256(b) ≥ 2^192 and the
@@ -703,6 +704,10 @@ theorem n4_call_addback_beq_div_getLimbN (a b : EvmWord)
   -- Step 4: QOutV4.toNat = (EvmWord.div a b).toNat
   have hq_toNat : (n4CallAddbackBeqQOutV4 a b).toNat = (EvmWord.div a b).toNat := by omega
   -- Step 5: Quotient fits in one limb since b.getLimbN 3 ≠ 0 → b ≥ 2^192
+  have hb_gt : 0 < b.toNat := by
+    rcases Nat.eq_zero_or_pos b.toNat with h | h
+    · exact absurd (BitVec.eq_of_toNat_eq (by simp [h])) hbnz
+    · exact h
   have hb3_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ≥ 2^192 :=
     val256_ge_pow192_of_limb3 _ _ _ _ hb3nz
   rw [hb_val] at hb3_val
@@ -719,10 +724,7 @@ theorem n4_call_addback_beq_div_getLimbN (a b : EvmWord)
   set target := EvmWord.fromLimbs (fun i : Fin 4 =>
     match i with | 0 => q | 1 => 0 | 2 => 0 | 3 => 0) with htarget_def
   have htarget_toNat : target.toNat = q.toNat := by
-    have : target.toNat = q.toNat + 0 * 2^64 + 0 * 2^128 + 0 * 2^192 := by
-      rw [htarget_def]
-      exact fromLimbs_toNat
-    omega
+    simp [htarget_def, EvmWord.fromLimbs_toNat]
   have htarget_eq_div : target = EvmWord.div a b :=
     BitVec.eq_of_toNat_eq (by omega)
   refine ⟨?_, ?_, ?_, ?_⟩
