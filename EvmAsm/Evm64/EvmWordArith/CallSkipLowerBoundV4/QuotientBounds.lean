@@ -155,4 +155,36 @@ theorem divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_ge_of_rhat2d_hi_ne
   rw [if_neg hRhat2d_hi_ne]
   exact hQ0d_ge
 
+/-- V4 second-correction inner-guard no-fire preservation.
+
+    If `Rhat2d` has zero high half but the product check does not fire, the
+    second correction again leaves `Q0dd = Q0d`. This is the companion
+    no-fire case to
+    `divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_ge_of_rhat2d_hi_ne`. -/
+theorem divKTrialCallV4Q0dd_ge_q_true_0_of_q0d_ge_of_rhat2d_hi_eq_zero_of_no_ult
+    (uHi uLo vTop : Word)
+    (hQ0d_ge :
+      ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un0 uLo).toNat) /
+        ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) ≤
+      (divKTrialCallV4Q0d uHi uLo vTop).toNat)
+    (hRhat2d_hi_zero :
+      divKTrialCallV4Rhat2d uHi uLo vTop >>> (32 : BitVec 6).toNat = 0)
+    (hNoUlt :
+      ¬ BitVec.ult
+        ((divKTrialCallV4Rhat2d uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+          divKTrialCallV4Un0 uLo)
+        (divKTrialCallV4Q0d uHi uLo vTop * divKTrialCallV4DLo vTop)) :
+    ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat) /
+      ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat) ≤
+    (divKTrialCallV4Q0dd uHi uLo vTop).toNat := by
+  rw [divKTrialCallV4Q0dd_unfold]
+  unfold div128Quot_phase2b_q0'
+  rw [if_pos hRhat2d_hi_zero]
+  rw [if_neg hNoUlt]
+  exact hQ0d_ge
+
 end EvmAsm.Evm64
