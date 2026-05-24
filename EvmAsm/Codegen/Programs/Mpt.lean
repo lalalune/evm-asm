@@ -4486,5 +4486,157 @@ def ziskBlockValidateTransactionsRootOneTxProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockValidateTransactionsRootOneTxDataSection
 }
 
+/-! ## block_validate_withdrawals_root_one_w -- PR-K191
+
+    End-to-end `withdrawals_root` validation for blocks with
+    exactly one withdrawal. Field 16 variant of K186
+    `block_validate_transactions_root_one_tx`.
+
+      claimed_root = header.field[16]             -- via K20
+      computed_root = mpt_one_leaf_root_indexed(  -- K185
+                          withdrawal_rlp)
+      is_valid = (claimed_root == computed_root)
+
+    The withdrawal is supplied as its already-RLP-encoded
+    payload (`rlp([index, validator_index, address, amount])`,
+    typically built via K130 `withdrawal_rlp_encode`). The
+    MPT-leaf wrapping is then the same single-leaf shape as
+    transactions_root for N=1.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : withdrawal_rlp ptr (pre-encoded payload)
+      a3 (input)  : withdrawal_rlp byte length
+      a4 (input)  : u64 out (is_valid)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        1 : header RLP parse failure / field 16 missing
+        2 : header.withdrawals_root length != 32 -/
+def blockValidateWithdrawalsRootOneWFunction : String :=
+  "block_validate_withdrawals_root_one_w:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # header_rlp ptr\n" ++
+  "  mv s1, a1                   # header_rlp len\n" ++
+  "  mv s2, a2                   # withdrawal_rlp ptr\n" ++
+  "  mv s3, a3                   # withdrawal_rlp len\n" ++
+  "  mv s4, a4                   # is_valid out\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  # ---- Extract header.withdrawals_root (field 16) ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 16\n" ++
+  "  la a3, bvwr1_offset; la a4, bvwr1_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbvwr1_parse_fail\n" ++
+  "  la t0, bvwr1_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lbvwr1_size_fail\n" ++
+  "  la t0, bvwr1_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  la t4, bvwr1_claimed_root\n" ++
+  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
+  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
+  "  ld t5, 16(t3); sd t5, 16(t4)\n" ++
+  "  ld t5, 24(t3); sd t5, 24(t4)\n" ++
+  "  # ---- Compute MPT root for single withdrawal ----\n" ++
+  "  mv a0, s2; mv a1, s3\n" ++
+  "  la a2, bvwr1_computed_root\n" ++
+  "  jal ra, mpt_one_leaf_root_indexed\n" ++
+  "  la t0, bvwr1_claimed_root\n" ++
+  "  la t1, bvwr1_computed_root\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lbvwr1_neq\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lbvwr1_neq\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lbvwr1_neq\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lbvwr1_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvwr1_ret\n" ++
+  ".Lbvwr1_neq:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvwr1_ret\n" ++
+  ".Lbvwr1_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvwr1_ret\n" ++
+  ".Lbvwr1_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lbvwr1_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_withdrawals_root_one_w`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : header_rlp_len
+      bytes  8..16 : withdrawal_rlp_len
+      bytes 16..   : header_rlp || withdrawal_rlp
+    Output layout:
+      bytes  0.. 8 : status (0..2)
+      bytes  8..16 : is_valid -/
+def ziskBlockValidateWithdrawalsRootOneWPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_rlp_len\n" ++
+  "  ld a3, 16(a7)               # withdrawal_rlp_len\n" ++
+  "  addi a0, a7, 24             # header_rlp ptr\n" ++
+  "  add a2, a0, a1              # withdrawal_rlp ptr\n" ++
+  "  li a4, 0xa0010008           # is_valid out\n" ++
+  "  jal ra, block_validate_withdrawals_root_one_w\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbvwr1_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptOneLeafRootIndexedFunction ++ "\n" ++
+  blockValidateWithdrawalsRootOneWFunction ++ "\n" ++
+  ".Lbvwr1_pdone:"
+
+def ziskBlockValidateWithdrawalsRootOneWDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "mlnen_field_len:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_hp_len:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_cursor:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_total_payload:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_hp_buf:\n" ++
+  "  .zero 1024\n" ++
+  "mlnen_payload_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtoli_nibbles:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "mtoli_leaf_len:\n" ++
+  "  .zero 8\n" ++
+  "mtoli_leaf_buf:\n" ++
+  "  .zero 16384\n" ++
+  "bvwr1_offset:\n" ++
+  "  .zero 8\n" ++
+  "bvwr1_length:\n" ++
+  "  .zero 8\n" ++
+  "bvwr1_claimed_root:\n" ++
+  "  .zero 32\n" ++
+  "bvwr1_computed_root:\n" ++
+  "  .zero 32"
+
+def ziskBlockValidateWithdrawalsRootOneWProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateWithdrawalsRootOneWPrologue
+  dataAsm     := ziskBlockValidateWithdrawalsRootOneWDataSection
+}
+
 
 end EvmAsm.Codegen
