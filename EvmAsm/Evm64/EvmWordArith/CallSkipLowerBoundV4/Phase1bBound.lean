@@ -9,6 +9,7 @@ import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bFireBound
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bNoFireBound
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.QuotientBounds
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Un21Bridge
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
 
 namespace EvmAsm.Evm64
 
@@ -152,6 +153,75 @@ theorem divKTrialCallV4DHi_lt_pow32 (vTop : Word) :
     (divKTrialCallV4DHi vTop).toNat < 2^32 := by
   unfold divKTrialCallV4DHi
   exact Word_ushiftRight_32_lt_pow32
+
+/-- The final V4 Phase-1b quotient times the low divisor half does not wrap
+    as a 64-bit product under the normalized call preconditions. -/
+theorem divKTrialCallV4Q1dd_dLo_no_wrap
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    ((divKTrialCallV4Q1dd uHi uLo vTop) * divKTrialCallV4DLo vTop).toNat =
+      (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+        (divKTrialCallV4DLo vTop).toNat := by
+  have h_dHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31 := by
+    unfold divKTrialCallV4DHi
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    omega
+  have h_dHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32 :=
+    divKTrialCallV4DHi_lt_pow32 vTop
+  have h_dLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32 :=
+    divKTrialCallV4DLo_lt_pow32 vTop
+  have h_vTop_decomp : vTop.toNat =
+      (divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat := by
+    unfold divKTrialCallV4DHi divKTrialCallV4DLo
+    exact div128Quot_vTop_decomp vTop
+  have h_uHi_lt_vTop_decomp :
+      uHi.toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat := by
+    rw [← h_vTop_decomp]
+    exact huHi_lt_vTop
+  have h_q_lt : (divKTrialCallV4Q1dd uHi uLo vTop).toNat < 2^32 :=
+    divKTrialCallV4Q1dd_lt_pow32 uHi uLo vTop
+      h_dHi_ge h_dHi_lt h_dLo_lt h_uHi_lt_vTop_decomp
+  rw [BitVec.toNat_mul]
+  apply Nat.mod_eq_of_lt
+  nlinarith
+
+/-- Nat formula for the V4 `un21` subtraction over the final Phase-1b
+    `q1''`/`rhat''` pair. -/
+theorem divKTrialCallV4Un21_toNat
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (divKTrialCallV4Un21 uHi uLo vTop).toNat =
+      (((divKTrialCallV4Rhatdd uHi uLo vTop).toNat % 2^32) * 2^32 +
+          (divKTrialCallV4Un1 uLo).toNat + 2^64 -
+        (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat) % 2^64 := by
+  rw [divKTrialCallV4Un21_unfold]
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
+  let q1'' := divKTrialCallV4Q1dd uHi uLo vTop
+  let rhat'' := divKTrialCallV4Rhatdd uHi uLo vTop
+  let cu_rhat_un1 := (rhat'' <<< (32 : BitVec 6).toNat) ||| un1
+  let cu_q1_dlo := q1'' * dLo
+  have h_cu_rhat : cu_rhat_un1.toNat =
+      (rhat''.toNat % 2^32) * 2^32 + un1.toNat := by
+    unfold cu_rhat_un1 un1
+    simpa [divKTrialCallV4Un1] using div128Quot_cu_rhat_un1_toNat rhat'' uLo
+  have h_cu_q : cu_q1_dlo.toNat =
+      q1''.toNat * dLo.toNat := by
+    unfold cu_q1_dlo q1'' dLo
+    exact divKTrialCallV4Q1dd_dLo_no_wrap uHi uLo vTop hvTop_ge huHi_lt_vTop
+  have h_local : (cu_rhat_un1 - cu_q1_dlo).toNat =
+      ((rhat''.toNat % 2^32) * 2^32 + un1.toNat + 2^64 -
+        q1''.toNat * dLo.toNat) % 2^64 := by
+    rw [BitVec.toNat_sub, h_cu_rhat, h_cu_q]
+    congr 1
+    omega
+  simpa [dLo, un1, q1'', rhat''] using h_local
 
 /-- Under normalization, the high divisor half extracted by the V4 call wrapper
     is nonzero. -/
