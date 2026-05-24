@@ -2694,4 +2694,210 @@ def ziskBlockValidateEmptyReceiptsRootProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockValidateEmptyReceiptsRootDataSection
 }
 
+/-! ## block_validate_empty_block -- PR-K182
+
+    Validator for a *completely empty* post-merge block:
+    zero transactions, empty ommers, no withdrawals. Used as a
+    fast-path or smoke-test entry point for stateless inputs
+    that promise no body execution.
+
+    Predicates checked (all must hold):
+
+      Header side:
+        H1. transactions_root  == EMPTY_TRIE_ROOT     (K171-style constant)
+        H2. ommers_hash        == EMPTY_OMMERS_HASH   (K179)
+        H3. receipts_root      == EMPTY_TRIE_ROOT     (K181)
+        H4. withdrawals_root   == EMPTY_TRIE_ROOT     (K180 header side)
+      Body side:
+        B1. body has 3 fields  [txs, ommers, withdrawals]
+        B2. txs        == rlp([]) == 0xc0
+        B3. ommers     == rlp([]) == 0xc0
+        B4. withdrawals == rlp([]) == 0xc0
+
+    All eight checks compose into a single is_valid u64.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : body_rlp ptr
+      a3 (input)  : body_rlp byte length
+      a4 (input)  : u64 out (is_valid)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        1 : body parse failure
+        2 : header parse failure
+        3 : header field-size mismatch (some 32-byte root field
+            had length != 32) -/
+def blockValidateEmptyBlockFunction : String :=
+  "block_validate_empty_block:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1                # header\n" ++
+  "  mv s2, a2; mv s3, a3                # body\n" ++
+  "  mv s4, a4                            # is_valid out\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  # ---- Body side: 3 fields, all empty ----\n" ++
+  "  mv a0, s2; mv a1, s3\n" ++
+  "  la a2, beb_body_struct\n" ++
+  "  jal ra, block_body_decode\n" ++
+  "  bnez a0, .Lbeb_body_fail\n" ++
+  "  # B2..B4: each field length must be 1 and the byte 0xc0\n" ++
+  "  la t0, beb_body_struct\n" ++
+  "  li t6, 0xc0\n" ++
+  "  ld t1,  0(t0); ld t2,  8(t0)        # txs (off, len)\n" ++
+  "  li t3, 1; bne t2, t3, .Lbeb_pred_false\n" ++
+  "  add t1, s2, t1; lbu t4, 0(t1); bne t4, t6, .Lbeb_pred_false\n" ++
+  "  ld t1, 16(t0); ld t2, 24(t0)        # ommers (off, len)\n" ++
+  "  li t3, 1; bne t2, t3, .Lbeb_pred_false\n" ++
+  "  add t1, s2, t1; lbu t4, 0(t1); bne t4, t6, .Lbeb_pred_false\n" ++
+  "  ld t1, 32(t0); ld t2, 40(t0)        # withdrawals (off, len)\n" ++
+  "  li t3, 1; bne t2, t3, .Lbeb_pred_false\n" ++
+  "  add t1, s2, t1; lbu t4, 0(t1); bne t4, t6, .Lbeb_pred_false\n" ++
+  "  # ---- Header side: 4 root checks ----\n" ++
+  "  # H1: transactions_root (field 4) == EMPTY_TRIE_ROOT\n" ++
+  "  li a0, 4\n" ++
+  "  la a1, beb_empty_trie_root\n" ++
+  "  jal ra, beb_check_header_field_32B\n" ++
+  "  beqz a0, .Lbeb_pred_false\n" ++
+  "  bltz a0, .Lbeb_header_size_fail\n" ++
+  "  li t0, 2; beq a0, t0, .Lbeb_header_parse_fail\n" ++
+  "  # H2: ommers_hash (field 1) == EMPTY_OMMERS_HASH\n" ++
+  "  li a0, 1\n" ++
+  "  la a1, beb_empty_ommers_hash\n" ++
+  "  jal ra, beb_check_header_field_32B\n" ++
+  "  beqz a0, .Lbeb_pred_false\n" ++
+  "  li t0, 3; beq a0, t0, .Lbeb_header_size_fail\n" ++
+  "  li t0, 2; beq a0, t0, .Lbeb_header_parse_fail\n" ++
+  "  # H3: receipts_root (field 5) == EMPTY_TRIE_ROOT\n" ++
+  "  li a0, 5\n" ++
+  "  la a1, beb_empty_trie_root\n" ++
+  "  jal ra, beb_check_header_field_32B\n" ++
+  "  beqz a0, .Lbeb_pred_false\n" ++
+  "  li t0, 3; beq a0, t0, .Lbeb_header_size_fail\n" ++
+  "  li t0, 2; beq a0, t0, .Lbeb_header_parse_fail\n" ++
+  "  # H4: withdrawals_root (field 16) == EMPTY_TRIE_ROOT\n" ++
+  "  li a0, 16\n" ++
+  "  la a1, beb_empty_trie_root\n" ++
+  "  jal ra, beb_check_header_field_32B\n" ++
+  "  beqz a0, .Lbeb_pred_false\n" ++
+  "  li t0, 3; beq a0, t0, .Lbeb_header_size_fail\n" ++
+  "  li t0, 2; beq a0, t0, .Lbeb_header_parse_fail\n" ++
+  "  # All eight checks passed.\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbeb_ret\n" ++
+  ".Lbeb_pred_false:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbeb_ret\n" ++
+  ".Lbeb_body_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbeb_ret\n" ++
+  ".Lbeb_header_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbeb_ret\n" ++
+  ".Lbeb_header_size_fail:\n" ++
+  "  li a0, 3\n" ++
+  ".Lbeb_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Helper: check header[a0 = field_idx] is a 32B value equal to\n" ++
+  "# the constant at a1 (32B ptr). Reads s0/s1 = header_rlp ptr/len.\n" ++
+  "# Returns a0: 1 = match, 0 = predicate false, 2 = parse fail,\n" ++
+  "# 3 = size fail.\n" ++
+  "beb_check_header_field_32B:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd a1, 8(sp)                          # save constant ptr\n" ++
+  "  mv a2, a0\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a3, beb_off; la a4, beb_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbeb_chk_parse\n" ++
+  "  la t0, beb_len; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lbeb_chk_size\n" ++
+  "  la t0, beb_off; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  ld t4, 8(sp)                          # constant ptr\n" ++
+  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lbeb_chk_neq\n" ++
+  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lbeb_chk_neq\n" ++
+  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lbeb_chk_neq\n" ++
+  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lbeb_chk_neq\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbeb_chk_ret\n" ++
+  ".Lbeb_chk_neq:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbeb_chk_ret\n" ++
+  ".Lbeb_chk_parse:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbeb_chk_ret\n" ++
+  ".Lbeb_chk_size:\n" ++
+  "  li a0, 3\n" ++
+  ".Lbeb_chk_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_empty_block`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : header_rlp_len
+      bytes  8..16 : body_rlp_len
+      bytes 16..   : header_rlp || body_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : is_valid -/
+def ziskBlockValidateEmptyBlockPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1,  8(a7)                # header_rlp_len\n" ++
+  "  ld a3, 16(a7)                # body_rlp_len\n" ++
+  "  addi a0, a7, 24              # header_rlp ptr\n" ++
+  "  add a2, a0, a1               # body_rlp ptr\n" ++
+  "  li a4, 0xa0010008            # is_valid out\n" ++
+  "  jal ra, block_validate_empty_block\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbeb_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockValidateEmptyBlockFunction ++ "\n" ++
+  ".Lbeb_pdone:"
+
+def ziskBlockValidateEmptyBlockDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "beb_body_struct:\n" ++
+  "  .zero 48\n" ++
+  "beb_off:\n" ++
+  "  .zero 8\n" ++
+  "beb_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "beb_empty_trie_root:\n" ++
+  "  .byte 0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6\n" ++
+  "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
+  "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
+  "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21\n" ++
+  ".balign 8\n" ++
+  "beb_empty_ommers_hash:\n" ++
+  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
+  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
+  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
+  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47"
+
+def ziskBlockValidateEmptyBlockProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateEmptyBlockPrologue
+  dataAsm     := ziskBlockValidateEmptyBlockDataSection
+}
+
 end EvmAsm.Codegen
