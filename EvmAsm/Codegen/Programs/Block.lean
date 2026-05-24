@@ -2451,4 +2451,141 @@ def ziskBlockValidateEmptyOmmersHashProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockValidateEmptyOmmersHashDataSection
 }
 
+/-! ## block_validate_no_withdrawals_pair -- PR-K180
+
+    Pair check for blocks with no withdrawals: confirm both
+    sides claim it.
+
+      Header side: `header.withdrawals_root == EMPTY_TRIE_ROOT`
+                   (= keccak256(rlp(b''))
+                    = 0x56e81f17...3b421)
+        via K161 `header_root_is_empty_trie` with field index 16.
+
+      Body side: `block_body.field[2] (withdrawals) == rlp([])`
+                 == `0xc0` (the empty-list RLP encoding).
+        via K83 `block_body_decode` + 1-byte check.
+
+    Both must hold; mismatch on either side fails the pair.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : body_rlp ptr
+      a3 (input)  : body_rlp byte length
+      a4 (input)  : u64 out (is_valid: 1 iff both predicates hold)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        1 : body parse failure (not 3-item list)
+        2 : header parse failure / field 16 missing
+        3 : header field 16 length != 32 -/
+def blockValidateNoWithdrawalsPairFunction : String :=
+  "block_validate_no_withdrawals_pair:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1                # header\n" ++
+  "  mv s2, a2; mv s3, a3                # body\n" ++
+  "  mv s4, a4                            # is_valid out\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  # ---- Body side: withdrawals (field 2) == 0xc0 ----\n" ++
+  "  mv a0, s2; mv a1, s3\n" ++
+  "  la a2, bvnw_body_struct\n" ++
+  "  jal ra, block_body_decode\n" ++
+  "  bnez a0, .Lbvnw_body_fail\n" ++
+  "  la t0, bvnw_body_struct\n" ++
+  "  ld t1, 32(t0)                       # withdrawals_offset\n" ++
+  "  ld t2, 40(t0)                       # withdrawals_length\n" ++
+  "  li t3, 1\n" ++
+  "  bne t2, t3, .Lbvnw_pred_false\n" ++
+  "  add t1, s2, t1\n" ++
+  "  lbu t4, 0(t1)\n" ++
+  "  li t5, 0xc0\n" ++
+  "  bne t4, t5, .Lbvnw_pred_false\n" ++
+  "  # ---- Header side: withdrawals_root (field 16) == EMPTY_TRIE_ROOT ----\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 16\n" ++
+  "  la a3, bvnw_field_off; la a4, bvnw_field_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbvnw_header_parse_fail\n" ++
+  "  la t0, bvnw_field_len; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lbvnw_header_size_fail\n" ++
+  "  la t0, bvnw_field_off; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1                              # &header.withdrawals_root\n" ++
+  "  la t4, bvnw_empty_trie_root\n" ++
+  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lbvnw_pred_false\n" ++
+  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lbvnw_pred_false\n" ++
+  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lbvnw_pred_false\n" ++
+  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lbvnw_pred_false\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvnw_ret\n" ++
+  ".Lbvnw_pred_false:\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvnw_ret\n" ++
+  ".Lbvnw_body_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvnw_ret\n" ++
+  ".Lbvnw_header_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbvnw_ret\n" ++
+  ".Lbvnw_header_size_fail:\n" ++
+  "  li a0, 3\n" ++
+  ".Lbvnw_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_no_withdrawals_pair`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : header_rlp_len
+      bytes  8..16 : body_rlp_len
+      bytes 16..   : header_rlp || body_rlp
+    Output layout:
+      bytes  0.. 8 : status (0..3)
+      bytes  8..16 : is_valid -/
+def ziskBlockValidateNoWithdrawalsPairPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1,  8(a7)                # header_rlp_len\n" ++
+  "  ld a3, 16(a7)                # body_rlp_len\n" ++
+  "  addi a0, a7, 24              # header_rlp ptr\n" ++
+  "  add a2, a0, a1               # body_rlp ptr\n" ++
+  "  li a4, 0xa0010008            # is_valid out\n" ++
+  "  jal ra, block_validate_no_withdrawals_pair\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbvnw_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockValidateNoWithdrawalsPairFunction ++ "\n" ++
+  ".Lbvnw_pdone:"
+
+def ziskBlockValidateNoWithdrawalsPairDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "bvnw_body_struct:\n" ++
+  "  .zero 48\n" ++
+  "bvnw_field_off:\n" ++
+  "  .zero 8\n" ++
+  "bvnw_field_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bvnw_empty_trie_root:\n" ++
+  "  .byte 0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6\n" ++
+  "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
+  "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
+  "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21"
+
+def ziskBlockValidateNoWithdrawalsPairProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateNoWithdrawalsPairPrologue
+  dataAsm     := ziskBlockValidateNoWithdrawalsPairDataSection
+}
+
 end EvmAsm.Codegen
