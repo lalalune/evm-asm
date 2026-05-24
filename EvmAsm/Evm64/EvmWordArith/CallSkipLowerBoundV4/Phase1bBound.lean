@@ -194,6 +194,94 @@ theorem divKTrialCallV4Rhatc_eq_of_dHi_pow32_le_uHi
   show (if hi1 = 0 then rhat else rhat + dHi) = rhat + dHi
   rw [if_neg hhi]
 
+/-- In the wide-`uHi` regime, the Phase-1a corrected quotient is at most
+    `2^32`. -/
+theorem divKTrialCallV4Q1c_le_pow32_of_dHi_pow32_le_uHi
+    (uHi vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤ uHi.toNat) :
+    let dHi := divKTrialCallV4DHi vTop
+    let q1 := rv64_divu uHi dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    q1c.toNat ≤ 2^32 := by
+  intro dHi q1 hi1 q1c
+  have h_q1c_eq0 := divKTrialCallV4Q1c_toNat_of_dHi_pow32_le_uHi
+    uHi vTop hvTop_ge huHi_ge_dHi_pow32
+  have h_q1c_eq : q1c.toNat = q1.toNat - 1 := by
+    simpa [dHi, q1, hi1, q1c] using h_q1c_eq0
+  have hdHi_ne : dHi ≠ 0 := by
+    simpa [dHi] using divKTrialCallV4DHi_ne_of_ge vTop hvTop_ge
+  have hdHi_pos : 0 < dHi.toNat := by
+    have : dHi.toNat ≠ 0 := by
+      intro h0
+      exact hdHi_ne (BitVec.eq_of_toNat_eq h0)
+    omega
+  have hdHi_ge : dHi.toNat ≥ 2^31 := by
+    unfold dHi divKTrialCallV4DHi
+    rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow]
+    omega
+  have hq1_eq : q1.toNat = uHi.toNat / dHi.toNat := by
+    simpa [dHi, q1] using rv64_divu_toNat uHi dHi hdHi_ne
+  have h_vTop_decomp : vTop.toNat = dHi.toNat * 2^32 +
+      (divKTrialCallV4DLo vTop).toNat := by
+    unfold dHi divKTrialCallV4DHi divKTrialCallV4DLo
+    exact div128Quot_vTop_decomp vTop
+  have h_dLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32 :=
+    divKTrialCallV4DLo_lt_pow32 vTop
+  have h_dLo_le_two_dHi_pred : (divKTrialCallV4DLo vTop).toNat ≤
+      2 * dHi.toNat - 1 := by
+    have hpow : (2^32 : Nat) = 2 * 2^31 := by decide
+    omega
+  have h_uHi_le0 : uHi.toNat ≤ dHi.toNat * 2^32 + (2 * dHi.toNat - 1) := by
+    rw [h_vTop_decomp] at huHi_lt_vTop
+    omega
+  have h_rhs_le : dHi.toNat * 2^32 + (2 * dHi.toNat - 1) ≤
+      dHi.toNat * (2^32 + 1) + (dHi.toNat - 1) := by
+    have h_two : 2 * dHi.toNat - 1 = dHi.toNat + (dHi.toNat - 1) := by omega
+    rw [h_two]
+    ring_nf
+    rfl
+  have h_uHi_le : uHi.toNat ≤ dHi.toNat * (2^32 + 1) + (dHi.toNat - 1) :=
+    le_trans h_uHi_le0 h_rhs_le
+  have hq1_le : q1.toNat ≤ 2^32 + 1 := by
+    rw [hq1_eq]
+    exact (Nat.div_le_iff_le_mul_add_pred hdHi_pos).mpr h_uHi_le
+  rw [h_q1c_eq]
+  omega
+
+/-- In the wide-`uHi` regime, the V4 pre-second-correction quotient is at most
+    `2^32`. -/
+theorem algorithmQ1dV4_le_pow32_of_dHi_pow32_le_uHi
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤ uHi.toNat) :
+    (algorithmQ1dV4 uHi uLo vTop).toNat ≤ 2^32 := by
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
+  let q1 := rv64_divu uHi dHi
+  let rhat := uHi - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+  let rhatc := if hi1 = 0 then rhat else rhat + dHi
+  let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+  have h_q1c_le : q1c.toNat ≤ 2^32 := by
+    have h := divKTrialCallV4Q1c_le_pow32_of_dHi_pow32_le_uHi
+      uHi vTop hvTop_ge huHi_lt_vTop huHi_ge_dHi_pow32
+    simpa [dHi, q1, hi1, q1c] using h
+  have h_prime_le : (algorithmQ1dV4 uHi uLo vTop).toNat ≤ q1c.toNat := by
+    rw [algorithmQ1dV4_unfold]
+    unfold algorithmQ1Prime
+    have h := div128Quot_q1_prime_le_q1c q1c dLo rhatUn1
+    simpa [dHi, dLo, un1, q1, rhat, hi1, q1c, rhatc, rhatUn1,
+      divKTrialCallV4DHi, divKTrialCallV4DLo, divKTrialCallV4Un1] using h
+  exact le_trans h_prime_le h_q1c_le
+
 /-- V4 spelling of the generic Phase-1b upper bound `q1' ≤ 2^32 + 1`. -/
 theorem algorithmQ1dV4_le_pow32_plus_one
     (uHi uLo vTop : Word)
