@@ -237,6 +237,32 @@ theorem divKTrialCallV4Q0c_le_pow32_of_tail
   rw [h_dec]
   omega
 
+/-- In the Phase-2 tail range, the product `Q0c * DLo` does not wrap. -/
+theorem divKTrialCallV4Q0c_mul_DLo_no_wrap_of_tail
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (hUn21_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) :
+    (divKTrialCallV4Q0c uHi uLo vTop *
+        divKTrialCallV4DLo vTop).toNat =
+      (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+        (divKTrialCallV4DLo vTop).toNat := by
+  have hQ0c_le : (divKTrialCallV4Q0c uHi uLo vTop).toNat ≤ 2^32 :=
+    divKTrialCallV4Q0c_le_pow32_of_tail uHi uLo vTop
+      hdHi_ge hdLo_lt hUn21_ge_dHi_pow32 hUn21_lt_vTop
+  have h_mul_lt :
+      (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat < 2^64 := by
+    nlinarith
+  rw [BitVec.toNat_mul]
+  exact Nat.mod_eq_of_lt h_mul_lt
+
 /-- In the Phase-2 tail range, `Q0c` is a lower bound for the true second
     quotient digit. -/
 theorem divKTrialCallV4Q0c_ge_q_true_0_of_dHi_mul_pow32_le_un21
