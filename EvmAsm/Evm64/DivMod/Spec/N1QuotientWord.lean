@@ -282,4 +282,51 @@ theorem fullDivN1_getLimbN_of_mulsub_remainder_lt
   exact fullDivN1_hdivs_of_word_eq bltu_3 bltu_2 bltu_1 bltu_0
     a b a0 a1 a2 a3 b0 b1 b2 b3 hdiv
 
+/-- Legacy overestimate witnesses imply the final n=1 remainder bound. -/
+theorem fullDivN1Remainder_lt_of_mulsub_overestimate
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hmulsub :
+      val256 a0 a1 a2 a3 =
+        (((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          val256 b0 b1 b2 b3 +
+        val256
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
+        ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^192 +
+          ((fullDivN1R2 bltu_3 bltu_2
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^128 +
+          ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    val256
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+          a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+          a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+          a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+          a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1) <
+      val256 b0 b1 b2 b3 := by
+  exact (remainder_lt_of_ge_floor (val256_pos_of_or_ne_zero hbnz) hmulsub hge).2
+
 end EvmAsm.Evm64
