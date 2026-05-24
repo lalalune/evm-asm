@@ -4811,4 +4811,86 @@ def ziskHeaderExtractNonceProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractNonceDataSection
 }
 
+/-! ## header_validate_nonce_zero -- PR-K218
+
+    Post-merge predicate: verify the 8-byte `nonce` (field 14)
+    is all zero, as required by EIP-3675. The predicate
+    complement of K217 -- callers wanting just the post-merge
+    sanity check rather than the actual nonce u64 should use
+    this primitive.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out (is_valid: 1 if nonce == 0..0)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        1 : RLP parse failure / field 14 missing
+        2 : field 14 length != 8 -/
+def headerValidateNonceZeroFunction : String :=
+  "header_validate_nonce_zero:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0; mv s1, a1                # header\n" ++
+  "  mv s2, a2                            # is_valid out\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 14\n" ++
+  "  la a3, hvnz_offset; la a4, hvnz_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhvnz_parse_fail\n" ++
+  "  la t0, hvnz_length; ld t1, 0(t0)\n" ++
+  "  li t2, 8\n" ++
+  "  bne t1, t2, .Lhvnz_size_fail\n" ++
+  "  la t0, hvnz_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  ld t4, 0(t3)                        # load 8 bytes\n" ++
+  "  bnez t4, .Lhvnz_nonzero\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s2)\n" ++
+  ".Lhvnz_nonzero:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhvnz_ret\n" ++
+  ".Lhvnz_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhvnz_ret\n" ++
+  ".Lhvnz_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhvnz_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+def ziskHeaderValidateNonceZeroPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_validate_nonce_zero\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhvnz_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerValidateNonceZeroFunction ++ "\n" ++
+  ".Lhvnz_pdone:"
+
+def ziskHeaderValidateNonceZeroDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hvnz_offset:\n" ++
+  "  .zero 8\n" ++
+  "hvnz_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderValidateNonceZeroProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderValidateNonceZeroPrologue
+  dataAsm     := ziskHeaderValidateNonceZeroDataSection
+}
+
 end EvmAsm.Codegen
