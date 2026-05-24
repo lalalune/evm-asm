@@ -64,6 +64,53 @@ theorem algorithmQ1dV4_rhatd_post
   unfold divKTrialCallV4DHi divKTrialCallV4DLo divKTrialCallV4Un1
   simpa using h
 
+/-- V4 spelling of the Phase-1b no-wrap fact for the pre-second-correction
+    product `q1' * dLo`. -/
+theorem algorithmQ1dV4_dLo_no_wrap
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    ((algorithmQ1dV4 uHi uLo vTop) * divKTrialCallV4DLo vTop).toNat =
+      (algorithmQ1dV4 uHi uLo vTop).toNat * (divKTrialCallV4DLo vTop).toNat := by
+  have h := algorithmUn21_L1b_q1_prime_dLo_no_wrap uHi uLo vTop hvTop_ge huHi_lt_vTop
+  rw [algorithmQ1dV4_unfold]
+  unfold algorithmQ1Prime divKTrialCallV4DLo
+  simpa using h
+
+/-- The V4 final Phase-1b quotient wrapper is the generic second-correction
+    quotient instantiated with the v4 pre-second-correction pair. -/
+theorem divKTrialCallV4Q1dd_eq_phase2b_algorithm
+    (uHi uLo vTop : Word) :
+    divKTrialCallV4Q1dd uHi uLo vTop =
+      div128Quot_phase2b_q0'
+        (algorithmQ1dV4 uHi uLo vTop)
+        (algorithmRhatdV4 uHi uLo vTop)
+        (divKTrialCallV4DLo vTop)
+        (divKTrialCallV4Un1 uLo) := by
+  rw [← div128Quot_phase2b_q0'_and_form]
+  rw [algorithmQ1dV4_unfold, algorithmRhatdV4_unfold]
+  unfold algorithmQ1Prime divKTrialCallV4Q1dd
+  unfold divKTrialCallV4DHi divKTrialCallV4DLo divKTrialCallV4Un1
+  rfl
+
+/-- The V4 final Phase-1b remainder wrapper is the generic second-correction
+    remainder update instantiated with the v4 pre-second-correction pair. -/
+theorem divKTrialCallV4Rhatdd_eq_phase2b_algorithm
+    (uHi uLo vTop : Word) :
+    divKTrialCallV4Rhatdd uHi uLo vTop =
+      (if (algorithmRhatdV4 uHi uLo vTop) >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+          BitVec.ult
+            (((algorithmRhatdV4 uHi uLo vTop) <<< (32 : BitVec 6).toNat) |||
+              divKTrialCallV4Un1 uLo)
+            ((algorithmQ1dV4 uHi uLo vTop) * divKTrialCallV4DLo vTop) then
+        algorithmRhatdV4 uHi uLo vTop + divKTrialCallV4DHi vTop
+       else
+        algorithmRhatdV4 uHi uLo vTop) := by
+  rw [algorithmQ1dV4_unfold, algorithmRhatdV4_unfold]
+  unfold algorithmQ1Prime divKTrialCallV4Rhatdd
+  unfold divKTrialCallV4DHi divKTrialCallV4DLo divKTrialCallV4Un1
+  rfl
+
 /-- Narrow-call Phase-1b overshoot bound for the pre-second-correction pair.
 
     This discharges the `h_overshoot_le_vTop` argument of
