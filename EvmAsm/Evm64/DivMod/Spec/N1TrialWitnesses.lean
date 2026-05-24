@@ -117,4 +117,31 @@ theorem n1_trial_witnesses_call_first_of_shift_nz
   · simp [isTrialN1_j0, bltu_0, bltu_1, bltu_2, r1, r2, r3, v0', v1', v2',
       v3', u1S, u2S, u3S, u4_s, shift, antiShift]
 
+/-- In the n=1 divisor-shape branch, nonzero divisor means the low limb is
+    nonzero. -/
+theorem b0_ne_zero_of_n1_shape (b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0) :
+    b0 ≠ 0 := by
+  intro hb0z
+  apply hbnz
+  simp [hb0z, hb1z, hb2z, hb3z]
+
+/-- N=1 call-first branch witnesses directly from the dispatcher's n=1 shape
+    hypotheses. -/
+theorem n1_trial_witnesses_call_first_of_shape_shift_nz
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    ∃ bltu_2 bltu_1 bltu_0,
+      isTrialN1_j3 true a3 b0 ∧
+      isTrialN1_j2 true bltu_2 a2 a3 b0 b1 b2 b3 ∧
+      isTrialN1_j1 true bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3 ∧
+      isTrialN1_j0 true bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 := by
+  exact n1_trial_witnesses_call_first_of_shift_nz
+    a0 a1 a2 a3 b0 b1 b2 b3
+    (b0_ne_zero_of_n1_shape b0 b1 b2 b3 hbnz hb3z hb2z hb1z)
+    hshift_nz
+
 end EvmAsm.Evm64
