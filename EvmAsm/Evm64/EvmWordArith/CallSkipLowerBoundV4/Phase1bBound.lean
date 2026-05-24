@@ -166,6 +166,18 @@ theorem phase1b_q1_prime_toNat_of_fire
   rw [show q1c.toNat + (2^64 - 1) = (q1c.toNat - 1) + 2^64 from by omega,
       Nat.add_mod_right, Nat.mod_eq_of_lt h_q1c_lt_word]
 
+/-- If the first Phase-1b correction fires and the pre-correction quotient is
+    at most `qTrue + 2`, the corrected quotient is at most `qTrue + 1`. -/
+theorem phase1b_q1_prime_le_qtrue_plus_one_of_fire
+    (q1c dLo rhatUn1 : Word)
+    (qTrue : Nat)
+    (h_q1c_le : q1c.toNat ≤ qTrue + 2)
+    (h_fire : BitVec.ult rhatUn1 (q1c * dLo)) :
+    (if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095 else q1c).toNat ≤
+      qTrue + 1 := by
+  rw [phase1b_q1_prime_toNat_of_fire q1c dLo rhatUn1 h_fire]
+  omega
+
 /-- In the wide-`uHi` regime, the Phase-1a corrected quotient is `q1 - 1`. -/
 theorem divKTrialCallV4Q1c_toNat_of_dHi_pow32_le_uHi
     (uHi vTop : Word)
@@ -294,6 +306,40 @@ theorem algorithmQ1dV4_le_pow32_of_dHi_pow32_le_uHi
     simpa [dHi, dLo, un1, q1, rhat, hi1, q1c, rhatc, rhatUn1,
       divKTrialCallV4DHi, divKTrialCallV4DLo, divKTrialCallV4Un1] using h
   exact le_trans h_prime_le h_q1c_le
+
+/-- If the first Phase-1b correction fires, the V4 pre-second-correction
+    quotient satisfies the Knuth-style `qTrue + 1` upper bound. -/
+theorem algorithmQ1dV4_le_qtrue_plus_one_of_phase1b_fire
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    let dHi := divKTrialCallV4DHi vTop
+    let dLo := divKTrialCallV4DLo vTop
+    let un1 := divKTrialCallV4Un1 uLo
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+    BitVec.ult rhatUn1 (q1c * dLo) →
+      (algorithmQ1dV4 uHi uLo vTop).toNat ≤
+        (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) / vTop.toNat + 1 := by
+  intro dHi dLo un1 q1 rhat hi1 q1c rhatc rhatUn1 h_fire
+  have h_q1c_le0 := algorithmQ1Prime_step3_q1c_le_q_true_1_plus_two
+    uHi uLo vTop hvTop_ge huHi_lt_vTop
+  have h_q1c_le : q1c.toNat ≤
+      (uHi.toNat * 2^32 + un1.toNat) / vTop.toNat + 2 := by
+    simpa [dHi, dLo, un1, q1, hi1, q1c, divKTrialCallV4DHi,
+      divKTrialCallV4DLo, divKTrialCallV4Un1] using h_q1c_le0
+  have h_prime_le := phase1b_q1_prime_le_qtrue_plus_one_of_fire
+    q1c dLo rhatUn1
+    ((uHi.toNat * 2^32 + un1.toNat) / vTop.toNat)
+    h_q1c_le h_fire
+  rw [algorithmQ1dV4_unfold]
+  unfold algorithmQ1Prime
+  simpa [dHi, dLo, un1, q1, rhat, hi1, q1c, rhatc, rhatUn1,
+    divKTrialCallV4DHi, divKTrialCallV4DLo, divKTrialCallV4Un1] using h_prime_le
 
 /-- V4 spelling of the generic Phase-1b upper bound `q1' ≤ 2^32 + 1`. -/
 theorem algorithmQ1dV4_le_pow32_plus_one
@@ -445,6 +491,36 @@ theorem algorithmQ1dV4_dLo_overshoot_le_vTop_of_q_le_qtrue_plus_one
     rw [h_vTop_decomp]
     ring
   nlinarith
+
+/-- First-Phase-1b-fire overshoot discharge for the V4
+    pre-second-correction pair. -/
+theorem algorithmQ1dV4_dLo_overshoot_le_vTop_of_phase1b_fire
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    let dHi := divKTrialCallV4DHi vTop
+    let dLo := divKTrialCallV4DLo vTop
+    let un1 := divKTrialCallV4Un1 uLo
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| un1
+    BitVec.ult rhatUn1 (q1c * dLo) →
+      (algorithmQ1dV4 uHi uLo vTop).toNat * (divKTrialCallV4DLo vTop).toNat ≤
+        (algorithmRhatdV4 uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un1 uLo).toNat +
+          (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat := by
+  intro dHi dLo un1 q1 rhat hi1 q1c rhatc rhatUn1 h_fire
+  have h_q_le := algorithmQ1dV4_le_qtrue_plus_one_of_phase1b_fire
+    uHi uLo vTop hvTop_ge huHi_lt_vTop
+  simp only [] at h_q_le
+  exact algorithmQ1dV4_dLo_overshoot_le_vTop_of_q_le_qtrue_plus_one
+    uHi uLo vTop
+    (h_q_le h_fire)
+    (algorithmQ1dV4_rhatd_post uHi uLo vTop hvTop_ge)
 
 /-- Narrow-call Phase-1b overshoot bound for the pre-second-correction pair.
 
