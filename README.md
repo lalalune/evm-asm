@@ -272,6 +272,8 @@ block-body helpers
 `block_validate_2tx_full`, `block_validate_1tx_full`,
 `block_validate_1tx_full_with_body`,
 `block_body_extract_2tx`, `block_body_extract_1tx`,
+`block_body_extract_tx_count`,
+`block_body_extract_withdrawal_count`,
 `block_validate_2tx_full_with_body`,
 `block_validate_empty_ommers_hash`,
 `block_validate_no_withdrawals_pair`,
@@ -307,6 +309,7 @@ block-body helpers
 `header_validate_difficulty_zero`,
 `validate_header_post_merge_zeros`,
 `chain_validate_post_merge_zeros`,
+`chain_validate_full`,
 withdrawal RLP/hash, …), and address
 derivation (`address_compute_create`, `address_compute_create2`,
 `address_from_pubkey`). The catalogue is tracked under the
