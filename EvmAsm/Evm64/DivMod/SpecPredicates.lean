@@ -14,6 +14,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4CallV4NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4BeqV4NoNop
+import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
 namespace EvmAsm.Evm64
 
@@ -65,6 +66,24 @@ def isAddbackBorrowN4CallEvm (a b : EvmWord) : Prop :=
 theorem isCallTrialN4Evm_def {a b : EvmWord} :
     isCallTrialN4Evm a b =
     isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3) := rfl
+
+/-- **Call-trial holds automatically at n=4 under `hshift_nz`** — EvmWord form.
+
+    Direct corollary of the Word-level `isCallTrialN4_of_shift_nz`
+    (`EvmWordArith.MaxTrialVacuity`). Under shift-normalization (`shift ≠ 0`),
+    `u4 < b3'` always, so the BLTU runtime check picks the `div128` call path
+    rather than the max-trial path.
+
+    Dispatcher trivializer: `evm_div_n4_shift_nz_stack_spec` and
+    `evm_mod_n4_shift_nz_stack_spec` use this to discharge the max branch via
+    `exfalso`. See `memory/project_n4_shift_nz_dispatcher_plan.md`. -/
+theorem isCallTrialN4Evm_of_shift_nz (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    isCallTrialN4Evm a b := by
+  rw [isCallTrialN4Evm_def]
+  exact isCallTrialN4_of_shift_nz (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
+    hb3nz hshift_nz
 
 theorem isSkipBorrowN4CallEvm_def {a b : EvmWord} :
     isSkipBorrowN4CallEvm a b =
