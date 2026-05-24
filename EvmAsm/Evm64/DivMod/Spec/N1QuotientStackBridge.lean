@@ -96,6 +96,51 @@ theorem fullDivN1NormV_limb3_eq_zero_of_shape
   unfold fullDivN1NormV
   simp
 
+/-- Rewrite a normalized n=1 `Carry2NzAll` hypothesis to the zero-top form
+    consumed by `iterN1_val256_conservation_v3_zero_of_carry2`. -/
+theorem fullDivN1NormV_carry2_zeroTop_of_shape
+    (b0 b1 b2 b3 : Word)
+    (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      0 := by
+  rw [← fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z]
+  exact hcarry2
+
+/-- One n=1 iteration preserves the val256 Euclidean identity under the runtime
+    n=1 divisor-shape hypotheses. -/
+theorem iterN1_fullDivN1NormV_val256_conservation_of_shape
+    (bltu : Bool) (b0 b1 b2 b3 u0 u1 u2 u3 uTop : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    let v := fullDivN1NormV b0 b1 b2 b3
+    let out := iterN1 bltu v.1 v.2.1 v.2.2.1 v.2.2.2 u0 u1 u2 u3 uTop
+    EvmWord.val256 u0 u1 u2 u3 + uTop.toNat * 2^256 =
+      out.1.toNat * EvmWord.val256 v.1 v.2.1 v.2.2.1 v.2.2.2 +
+        EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+        out.2.2.2.2.2.toNat * 2^256 := by
+  dsimp only
+  rw [fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z]
+  exact iterN1_val256_conservation_v3_zero_of_carry2 bltu
+    (fullDivN1NormV b0 b1 b2 b3).1
+    (fullDivN1NormV b0 b1 b2 b3).2.1
+    (fullDivN1NormV b0 b1 b2 b3).2.2.1
+    u0 u1 u2 u3 uTop
+    (fullDivN1NormV_low3_or_zero_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
+    (fullDivN1NormV_carry2_zeroTop_of_shape b0 b1 b2 b3 hb2z hb3z hcarry2)
+
 /-- n=1 quotient bridge specialized to branch constructors that store
     `a`/`b` as `EvmWord`s and refer to their limbs directly. -/
 theorem fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_overestimate
