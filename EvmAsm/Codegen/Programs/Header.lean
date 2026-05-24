@@ -3586,4 +3586,86 @@ def ziskHeaderExtractParentHashProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractParentHashDataSection
 }
 
+/-! ## header_extract_receipts_root -- PR-K203
+
+    Extract `receipts_root` (field 5, 32 bytes) from a header
+    RLP and copy it to a caller-supplied 32-byte output buffer.
+
+    Tight standalone analogue of K201 (state_root, field 3)
+    and K202 (parent_hash, field 0).
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 32-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 5 missing
+        2 : field 5 length != 32 -/
+def headerExtractReceiptsRootFunction : String :=
+  "header_extract_receipts_root:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
+  "  la a3, herr_offset; la a4, herr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lherr_parse_fail\n" ++
+  "  la t0, herr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lherr_size_fail\n" ++
+  "  la t0, herr_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lherr_ret\n" ++
+  ".Lherr_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lherr_ret\n" ++
+  ".Lherr_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lherr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_receipts_root`: probe BuildUnit. -/
+def ziskHeaderExtractReceiptsRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_receipts_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lherr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractReceiptsRootFunction ++ "\n" ++
+  ".Lherr_pdone:"
+
+def ziskHeaderExtractReceiptsRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "herr_offset:\n" ++
+  "  .zero 8\n" ++
+  "herr_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractReceiptsRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractReceiptsRootPrologue
+  dataAsm     := ziskHeaderExtractReceiptsRootDataSection
+}
+
 end EvmAsm.Codegen
