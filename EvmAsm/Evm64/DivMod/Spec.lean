@@ -10,6 +10,7 @@ import EvmAsm.Evm64.DivMod.Spec.CallSkip
 import EvmAsm.Evm64.DivMod.Spec.CallSkipExactX1
 import EvmAsm.Evm64.DivMod.Spec.CallSkipUnconditional
 import EvmAsm.Evm64.DivMod.Spec.CallSkipNoNop
+import EvmAsm.Evm64.DivMod.Spec.CallSkipV4
 import EvmAsm.Evm64.DivMod.Spec.CallAddbackPureNat
 import EvmAsm.Evm64.DivMod.Spec.CallAddback
 import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
