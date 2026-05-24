@@ -1135,6 +1135,79 @@ theorem divKTrialCallV4Q1dd_le_q_true_1
   have hvTop_pos : 0 < vTop.toNat := by omega
   exact (Nat.le_div_iff_mul_le hvTop_pos).2 h_mul_le
 
+/-- Pure quotient fact for the second-correction fire branch: if the
+    high-half product check is strict, the abstract quotient digit is
+    strictly below the pre-correction digit. -/
+theorem phase1b_fire_q_true_1_lt_q_nat
+    (uHi un1 dHi dLo q rhat : Nat)
+    (h_vTop_pos : 0 < dHi * 2^32 + dLo)
+    (h_post : q * dHi + rhat = uHi)
+    (h_fire : rhat * 2^32 + un1 < q * dLo) :
+    (uHi * 2^32 + un1) / (dHi * 2^32 + dLo) < q := by
+  have h_num_lt :
+      uHi * 2^32 + un1 < q * (dHi * 2^32 + dLo) := by
+    calc
+      uHi * 2^32 + un1
+          = (q * dHi + rhat) * 2^32 + un1 := by rw [h_post]
+      _ = q * dHi * 2^32 + (rhat * 2^32 + un1) := by ring
+      _ < q * dHi * 2^32 + q * dLo := by
+        exact Nat.add_lt_add_left h_fire _
+      _ = q * (dHi * 2^32 + dLo) := by ring
+  exact (Nat.div_lt_iff_lt_mul h_vTop_pos).2 h_num_lt
+
+/-- V4 wrapper for `phase1b_fire_q_true_1_lt_q_nat`: when the second
+    correction guard fires, the pre-correction digit is strictly above the
+    abstract first quotient digit. -/
+theorem algorithmQ1dV4_q_true_1_lt_of_phase2b_fire
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (h_rhat_hi_zero :
+      algorithmRhatdV4 uHi uLo vTop >>> (32 : BitVec 6).toNat = (0 : Word))
+    (h_ult :
+      BitVec.ult (((algorithmRhatdV4 uHi uLo vTop) <<< (32 : BitVec 6).toNat) |||
+          divKTrialCallV4Un1 uLo)
+        (algorithmQ1dV4 uHi uLo vTop * divKTrialCallV4DLo vTop)) :
+    (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) / vTop.toNat <
+      (algorithmQ1dV4 uHi uLo vTop).toNat := by
+  let q := algorithmQ1dV4 uHi uLo vTop
+  let rhat := algorithmRhatdV4 uHi uLo vTop
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
+  have h_vTop_decomp : vTop.toNat = dHi.toNat * 2^32 + dLo.toNat := by
+    unfold dHi dLo divKTrialCallV4DHi divKTrialCallV4DLo
+    exact div128Quot_vTop_decomp vTop
+  have h_post : q.toNat * dHi.toNat + rhat.toNat = uHi.toNat := by
+    simpa [q, rhat, dHi] using algorithmQ1dV4_rhatd_post uHi uLo vTop hvTop_ge
+  have h_rhat_lt : rhat.toNat < 2^32 := by
+    have h := (ushiftRight_eq_zero_iff (val := rhat) ((32 : BitVec 6).toNat)).mp
+      (by simpa [rhat] using h_rhat_hi_zero)
+    simpa using h
+  have h_un1_lt : un1.toNat < 2^32 := by
+    simpa [un1] using divKTrialCallV4Un1_lt_pow32 uLo
+  have h_lhs_toNat :
+      (((rhat <<< (32 : BitVec 6).toNat) ||| un1).toNat) =
+        rhat.toNat * 2^32 + un1.toNat := by
+    exact EvmWord.halfword_combine rhat un1 h_rhat_lt h_un1_lt
+  have h_rhs_toNat :
+      (q * dLo).toNat = q.toNat * dLo.toNat := by
+    simpa [q, dLo] using algorithmQ1dV4_dLo_no_wrap
+      uHi uLo vTop hvTop_ge huHi_lt_vTop
+  have h_ult_nat :
+      rhat.toNat * 2^32 + un1.toNat < q.toNat * dLo.toNat := by
+    have h_word : ((rhat <<< (32 : BitVec 6).toNat) ||| un1).toNat <
+        (q * dLo).toNat := by
+      simpa [BitVec.ult, q, rhat, dLo, un1] using h_ult
+    rw [h_lhs_toNat, h_rhs_toNat] at h_word
+    exact h_word
+  have h_core := phase1b_fire_q_true_1_lt_q_nat
+    uHi.toNat un1.toNat dHi.toNat dLo.toNat q.toNat rhat.toNat
+    (by rw [← h_vTop_decomp]; omega)
+    h_post h_ult_nat
+  rw [← h_vTop_decomp] at h_core
+  simpa [q, dHi, dLo, un1] using h_core
+
 /-- If the final V4 Phase-1b remainder has zero high half, the final
     dLo-bound is exactly the low-half no-wrap condition for computing
     `un21`. -/
