@@ -724,7 +724,7 @@ theorem n4_call_addback_beq_div_getLimbN (a b : EvmWord)
   set target := EvmWord.fromLimbs (fun i : Fin 4 =>
     match i with | 0 => q | 1 => 0 | 2 => 0 | 3 => 0) with htarget_def
   have htarget_toNat : target.toNat = q.toNat := by
-    simp [target, htarget_def, EvmWord.fromLimbs_toNat]
+    simp [htarget_def, EvmWord.fromLimbs_toNat]
   have htarget_eq_div : target = EvmWord.div a b :=
     BitVec.eq_of_toNat_eq (by omega)
   refine ⟨?_, ?_, ?_, ?_⟩
