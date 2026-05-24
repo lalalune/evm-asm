@@ -421,4 +421,53 @@ theorem divKTrialCallV4Q0d_Rhat2d_bridge
   have h_post := divKTrialCallV4Q0d_Rhat2d_post uHi uLo vTop hdHi_ge hdHi_lt
   constructor <;> omega
 
+/-- Full v4 Phase-2 low-limb product-check bridge.
+
+    Under the standard digit bounds, a fired `BLTU` guard for `Q0d * DLo`
+    proves that `Q0d` is strictly larger than the true second quotient digit. -/
+theorem divKTrialCallV4Q0d_gt_q_true_0_of_ult
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat)
+    (hRhat2d_hi_zero :
+      divKTrialCallV4Rhat2d uHi uLo vTop >>> (32 : BitVec 6).toNat = 0)
+    (hUlt :
+      BitVec.ult
+        ((divKTrialCallV4Rhat2d uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+          divKTrialCallV4Un0 uLo)
+        (divKTrialCallV4Q0d uHi uLo vTop * divKTrialCallV4DLo vTop)) :
+    ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV4Un0 uLo).toNat) /
+      ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat) <
+    (divKTrialCallV4Q0d uHi uLo vTop).toNat := by
+  have hDen_pos :
+      0 < (divKTrialCallV4DHi vTop).toNat * 2^32 +
+        (divKTrialCallV4DLo vTop).toNat := by
+    nlinarith
+  have hUn0_lt : (divKTrialCallV4Un0 uLo).toNat < 2^32 :=
+    divKTrialCallV4Un0_lt_pow32 uLo
+  have hProd_no_wrap :
+      (divKTrialCallV4Q0d uHi uLo vTop *
+          divKTrialCallV4DLo vTop).toNat =
+        (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat :=
+    divKTrialCallV4Q0d_mul_DLo_no_wrap uHi uLo vTop
+      hdHi_ge hdHi_lt hdLo_lt hUn21_lt_vTop
+  have hProd_gt :
+      (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat >
+        (divKTrialCallV4Rhat2d uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un0 uLo).toNat :=
+    divKTrialCallV4Q0d_prod_gt_of_ult uHi uLo vTop
+      hRhat2d_hi_zero hUn0_lt hProd_no_wrap hUlt
+  have h_bridge := divKTrialCallV4Q0d_Rhat2d_bridge uHi uLo vTop hdHi_ge hdHi_lt
+  exact divKTrialCallV4Q0d_gt_q_true_0_of_prod_gt uHi uLo vTop
+    hDen_pos h_bridge.1 h_bridge.2 hProd_gt
+
 end EvmAsm.Evm64
