@@ -4227,5 +4227,117 @@ def ziskBlockValidateTransactionsRootTwoTxProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockValidateTransactionsRootTwoTxDataSection
 }
 
+/-! ## mpt_one_leaf_root_indexed -- PR-K185
+
+    MPT root for the N=1 case of `transactions_root` /
+    `receipts_root` / `withdrawals_root`: the trie has one
+    entry at key `rlp(0) = 0x80` (which encodes to nibbles
+    `[8, 0]`). With only one entry, the entire trie collapses
+    to a single leaf node:
+
+      leaf = rlp([hp([8, 0], leaf=true), value])
+      root = keccak256(leaf)               -- if len(leaf) >= 32
+      root = inline leaf                    -- if len(leaf) < 32
+                                              (but as a 32B root
+                                               it must be hashed
+                                               for header field)
+
+    For Ethereum header roots the result is ALWAYS a 32-byte
+    keccak256 hash, regardless of leaf size, because the spec
+    pre-pads short trie roots: `if len < 32: keccak256(leaf)
+    anyway`. So we unconditionally take the keccak.
+
+    Composes:
+      - PR-K168 `mpt_leaf_node_encode_from_nibbles`
+      - keccak256 sponge (zkvm_keccak256)
+
+    Calling convention:
+      a0 (input)  : value ptr (the single tx / receipt / withdrawal)
+      a1 (input)  : value byte length
+      a2 (input)  : 32-byte output root ptr
+      ra (input)  : return -/
+def mptOneLeafRootIndexedFunction : String :=
+  "mpt_one_leaf_root_indexed:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # value ptr\n" ++
+  "  mv s1, a1                   # value len\n" ++
+  "  mv s2, a2                   # output root ptr\n" ++
+  "  # Build path = [8, 0] (rlp(0)=0x80 -> nibbles [8,0])\n" ++
+  "  la t0, mtoli_nibbles\n" ++
+  "  li t1, 8; sb t1, 0(t0)\n" ++
+  "  li t1, 0; sb t1, 1(t0)\n" ++
+  "  # ---- Encode leaf node ----\n" ++
+  "  la a0, mtoli_nibbles\n" ++
+  "  li a1, 2\n" ++
+  "  mv a2, s0; mv a3, s1\n" ++
+  "  la a4, mtoli_leaf_buf\n" ++
+  "  la a5, mtoli_leaf_len\n" ++
+  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  # ---- keccak256 the leaf ----\n" ++
+  "  la a0, mtoli_leaf_buf\n" ++
+  "  la t0, mtoli_leaf_len; ld a1, 0(t0)\n" ++
+  "  mv a2, s2\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_mpt_one_leaf_root_indexed`: probe BuildUnit.
+    Input layout:
+      bytes 0..8 : value_len
+      bytes 8..  : value
+    Output layout:
+      bytes 0..32 : 32-byte trie root -/
+def ziskMptOneLeafRootIndexedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # value_len\n" ++
+  "  addi a0, a5, 16             # value ptr\n" ++
+  "  li a2, 0xa0010000           # output root ptr (32 B)\n" ++
+  "  jal ra, mpt_one_leaf_root_indexed\n" ++
+  "  j .Lmtoli_pdone\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptOneLeafRootIndexedFunction ++ "\n" ++
+  ".Lmtoli_pdone:"
+
+def ziskMptOneLeafRootIndexedDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "mlnen_field_len:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_hp_len:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_cursor:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_total_payload:\n" ++
+  "  .zero 8\n" ++
+  "mlnen_hp_buf:\n" ++
+  "  .zero 1024\n" ++
+  "mlnen_payload_buf:\n" ++
+  "  .zero 16384\n" ++
+  "mtoli_nibbles:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "mtoli_leaf_len:\n" ++
+  "  .zero 8\n" ++
+  "mtoli_leaf_buf:\n" ++
+  "  .zero 16384"
+
+def ziskMptOneLeafRootIndexedProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptOneLeafRootIndexedPrologue
+  dataAsm     := ziskMptOneLeafRootIndexedDataSection
+}
+
 
 end EvmAsm.Codegen
