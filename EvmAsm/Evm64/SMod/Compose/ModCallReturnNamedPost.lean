@@ -39,7 +39,7 @@ def saveRaAbsThenModCallReturnPost
         (smodResultSignFixedWord dividendTop
           (modWord.getLimbN 0) (modWord.getLimbN 1)
           (modWord.getLimbN 2) (modWord.getLimbN 3))) **
-      smodSavedRaRetFrame sp base dividendTop divisorTop dividendAbsWord)
+      smodSavedRaRetFrame sp base dividendTop dividendAbsWord)
 
 theorem saveRaAbsThenModCallReturnPost_unfold
     {vRa sp base : Word}
@@ -71,7 +71,7 @@ theorem saveRaAbsThenModCallReturnPost_unfold
              (smodResultSignFixedWord dividendTop
                (modWord.getLimbN 0) (modWord.getLimbN 1)
                (modWord.getLimbN 2) (modWord.getLimbN 3))) **
-           smodSavedRaRetFrame sp base dividendTop divisorTop dividendAbsWord)) := by
+           smodSavedRaRetFrame sp base dividendTop dividendAbsWord)) := by
   delta saveRaAbsThenModCallReturnPost
   rfl
 
