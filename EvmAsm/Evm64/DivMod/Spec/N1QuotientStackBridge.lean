@@ -645,6 +645,27 @@ theorem fullDivN1QuotientWord_eq_div_of_normalized_mulsub_remainder_lt
           match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)
   exact hdiv
 
+/-- Normalized n=1 Euclidean facts imply the legacy quotient-overestimate
+    shape expected by dispatcher wrappers. -/
+theorem fullDivN1QuotientOverestimate_of_normalized_mulsub_remainder_lt
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hmulsub : fullDivN1NormalizedMulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3)
+    (hrem_lt : fullDivN1NormalizedRemainderLt bltu_3 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+      ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 192 +
+        ((fullDivN1R2 bltu_3 bltu_2
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 128 +
+        ((fullDivN1R1 bltu_3 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 64 +
+        ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat := by
+  exact le_of_eq
+    (EvmWord.div_quotient_of_normalized
+      (s := (fullDivN1Shift b0).toNat) hmulsub hrem_lt).symm
+
 /-- The normalized n=1 Euclidean equation plus the legacy quotient
     overestimate gives the normalized final-remainder bound. -/
 theorem fullDivN1NormalizedRemainderLt_of_mulsub_overestimate
