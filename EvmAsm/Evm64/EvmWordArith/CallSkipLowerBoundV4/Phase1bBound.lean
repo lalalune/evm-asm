@@ -93,6 +93,52 @@ theorem divKTrialCallV4Un1_lt_pow32 (uLo : Word) :
   unfold divKTrialCallV4Un1
   exact Word_ushiftRight_32_lt_pow32
 
+/-- The normalized high divisor half extracted by the V4 call wrapper is a
+    32-bit value. -/
+theorem divKTrialCallV4DHi_lt_pow32 (vTop : Word) :
+    (divKTrialCallV4DHi vTop).toNat < 2^32 := by
+  unfold divKTrialCallV4DHi
+  exact Word_ushiftRight_32_lt_pow32
+
+/-- Under normalization, the high divisor half extracted by the V4 call wrapper
+    is nonzero. -/
+theorem divKTrialCallV4DHi_ne_of_ge
+    (vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63) :
+    divKTrialCallV4DHi vTop ≠ 0 := by
+  intro hzero
+  have hnat : (divKTrialCallV4DHi vTop).toNat = 0 := by rw [hzero]; rfl
+  unfold divKTrialCallV4DHi at hnat
+  rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow] at hnat
+  omega
+
+/-- In the complementary wide-`uHi` regime, Phase 1a's high-half correction
+    definitely fires. -/
+theorem divKTrialCallV4Q1_hi_ne_zero_of_dHi_pow32_le_uHi
+    (uHi vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤ uHi.toNat) :
+    (rv64_divu uHi (divKTrialCallV4DHi vTop)) >>>
+        (32 : BitVec 6).toNat ≠ (0 : Word) := by
+  let dHi := divKTrialCallV4DHi vTop
+  have hdHi_ne : dHi ≠ 0 := by
+    simpa [dHi] using divKTrialCallV4DHi_ne_of_ge vTop hvTop_ge
+  have hq_ge : (rv64_divu uHi dHi).toNat ≥ 2^32 := by
+    rw [rv64_divu_toNat uHi dHi hdHi_ne]
+    apply (Nat.le_div_iff_mul_le ?_).mpr
+    · nlinarith [huHi_ge_dHi_pow32]
+    · have : dHi.toNat ≠ 0 := by
+        intro h0
+        exact hdHi_ne (BitVec.eq_of_toNat_eq h0)
+      omega
+  intro hzero
+  have hlt : (rv64_divu uHi dHi).toNat < 2^32 := by
+    have h := (ushiftRight_eq_zero_iff (val := rv64_divu uHi dHi)
+      ((32 : BitVec 6).toNat)).mp hzero
+    simpa using h
+  omega
+
 /-- V4 spelling of the generic Phase-1b upper bound `q1' ≤ 2^32 + 1`. -/
 theorem algorithmQ1dV4_le_pow32_plus_one
     (uHi uLo vTop : Word)
