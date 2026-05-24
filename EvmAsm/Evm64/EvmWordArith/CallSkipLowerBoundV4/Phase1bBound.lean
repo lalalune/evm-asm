@@ -1304,6 +1304,20 @@ theorem divKTrialCallV4Q1dd_ge_q_true_1_of_uHi_lt_pow63
     rw [if_neg h_guard]
     exact h_q_ge
 
+/-- Under the call-reachable `uHi < 2^63` condition, the final V4
+    Phase-1b digit is exactly the abstract first quotient digit. -/
+theorem divKTrialCallV4Q1dd_eq_q_true_1_of_uHi_lt_pow63
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63) :
+    (divKTrialCallV4Q1dd uHi uLo vTop).toNat =
+      (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) / vTop.toNat := by
+  apply le_antisymm
+  · exact divKTrialCallV4Q1dd_le_q_true_1 uHi uLo vTop hvTop_ge huHi_lt_vTop
+  · exact divKTrialCallV4Q1dd_ge_q_true_1_of_uHi_lt_pow63
+      uHi uLo vTop hvTop_ge huHi_lt_vTop huHi_lt_pow63
+
 /-- If the final V4 Phase-1b remainder has zero high half, the final
     dLo-bound is exactly the low-half no-wrap condition for computing
     `un21`. -/
