@@ -2178,4 +2178,165 @@ def ziskBlockBodyExtract2txProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockBodyExtract2txDataSection
 }
 
+/-! ## block_validate_2tx_full_with_body -- PR-K178
+
+    Single-call end-to-end validator for a 2-tx Ethereum block,
+    taking `(parent_rlp, header_rlp, body_rlp)` and returning
+    one is_valid u64. Composes K177 + K176:
+
+      1. K177 `block_body_extract_2tx(body_rlp)` decodes the
+         body, verifies `[txs, ommers, withdrawals]` shape with
+         exactly two transactions and empty ommers, and returns
+         `(tx0_off, tx0_len, tx1_off, tx1_len)` in body-relative
+         coordinates.
+      2. K176 `block_validate_2tx_full(parent, header, tx0, tx1)`
+         verifies all four header-pair invariants plus the
+         transactions_root MPT match using the extracted tx
+         slices.
+
+    This is the body-aware shape of `validate_block` for 2-tx
+    blocks; it is the natural endpoint of the K-series chain
+    once both the header and body sides are covered.
+
+    Calling convention:
+      a0 (input)  : parent_rlp ptr
+      a1 (input)  : parent_rlp byte length
+      a2 (input)  : header_rlp ptr
+      a3 (input)  : header_rlp byte length
+      a4 (input)  : body_rlp ptr
+      a5 (input)  : body_rlp byte length
+      a6 (input)  : u64 out (is_valid)
+      ra (input)  : return
+      a0 (output) :
+        0  success -- predicate written
+        1..4   propagated from `block_body_extract_2tx`
+              (1 parse, 2 ommers, 3 count, 4 inner extract)
+        11..14 propagated from `block_validate_2tx_full`
+              (11..14 == pair codes 1..4)
+        21..22 propagated from K171 inside K176
+              (tx-root parse / size codes 11..12 + 10) -/
+def blockValidate2txFullWithBodyFunction : String :=
+  "block_validate_2tx_full_with_body:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0; mv s1, a1          # parent\n" ++
+  "  mv s2, a2; mv s3, a3          # header\n" ++
+  "  mv s4, a4; mv s5, a5          # body\n" ++
+  "  mv s6, a6                     # is_valid out\n" ++
+  "  sd zero, 0(s6)\n" ++
+  "  # ---- (A) Extract tx0 / tx1 from body ----\n" ++
+  "  mv a0, s4; mv a1, s5\n" ++
+  "  la a2, bv2fb_struct\n" ++
+  "  jal ra, block_body_extract_2tx\n" ++
+  "  beqz a0, .Lbv2fb_body_ok\n" ++
+  "  # Propagate body status (1..4) unchanged.\n" ++
+  "  j .Lbv2fb_ret\n" ++
+  ".Lbv2fb_body_ok:\n" ++
+  "  # Resolve tx0 / tx1 pointers in body address space.\n" ++
+  "  la t0, bv2fb_struct\n" ++
+  "  ld t1,  0(t0)                # tx0_off (in body)\n" ++
+  "  ld t2,  8(t0)                # tx0_len\n" ++
+  "  ld t3, 16(t0)                # tx1_off\n" ++
+  "  ld t4, 24(t0)                # tx1_len\n" ++
+  "  add t1, s4, t1               # tx0 ptr\n" ++
+  "  add t3, s4, t3               # tx1 ptr\n" ++
+  "  la t5, bv2f_out_ptr; sd s6, 0(t5)   # wire is_valid out through indirection\n" ++
+  "  # K176 takes 8 a-regs; the is_valid out is read from\n" ++
+  "  # bv2f_out_ptr (already set above).\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  mv a2, s2; mv a3, s3\n" ++
+  "  mv a4, t1; mv a5, t2\n" ++
+  "  mv a6, t3; mv a7, t4\n" ++
+  "  jal ra, block_validate_2tx_full\n" ++
+  "  beqz a0, .Lbv2fb_check_pred\n" ++
+  "  # K176 status: 1..4 pair, 11..12 tx-root. Remap to\n" ++
+  "  # 11..14 and 21..22 so callers can distinguish from\n" ++
+  "  # body-extract codes (1..4).\n" ++
+  "  li t0, 5\n" ++
+  "  bltu a0, t0, .Lbv2fb_remap_pair\n" ++
+  "  # K176 a0 in {11, 12} -> {21, 22}\n" ++
+  "  addi a0, a0, 10\n" ++
+  "  j .Lbv2fb_ret\n" ++
+  ".Lbv2fb_remap_pair:\n" ++
+  "  # K176 a0 in {1..4} -> {11..14}\n" ++
+  "  addi a0, a0, 10\n" ++
+  "  j .Lbv2fb_ret\n" ++
+  ".Lbv2fb_check_pred:\n" ++
+  "  # K176 already wrote is_valid via the indirection slot.\n" ++
+  "  li a0, 0\n" ++
+  ".Lbv2fb_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_2tx_full_with_body`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : parent_rlp_len
+      bytes  8..16 : header_rlp_len
+      bytes 16..24 : body_rlp_len
+      bytes 24..   : parent_rlp || header_rlp || body_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : is_valid -/
+def ziskBlockValidate2txFullWithBodyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1,  8(a7)                # parent_rlp_len\n" ++
+  "  ld a3, 16(a7)                # header_rlp_len\n" ++
+  "  ld a5, 24(a7)                # body_rlp_len\n" ++
+  "  addi a0, a7, 32              # parent_rlp ptr\n" ++
+  "  add a2, a0, a1               # header_rlp ptr\n" ++
+  "  add a4, a2, a3               # body_rlp ptr\n" ++
+  "  li a6, 0xa0010008            # is_valid out\n" ++
+  "  jal ra, block_validate_2tx_full_with_body\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbv2fb_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  mptBranchPayloadTwoSlotsFunction ++ "\n" ++
+  mptBranchNodeEncodeFunction ++ "\n" ++
+  mptBranchNodeKeccakFunction ++ "\n" ++
+  mptTwoLeafRootIndexedFunction ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  validateParentHashLinkFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  validateHeaderPairFunction ++ "\n" ++
+  blockValidateTransactionsRootTwoTxFunction ++ "\n" ++
+  blockValidate2txFullFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodyExtract2txFunction ++ "\n" ++
+  blockValidate2txFullWithBodyFunction ++ "\n" ++
+  ".Lbv2fb_pdone:"
+
+def ziskBlockValidate2txFullWithBodyDataSection : String :=
+  ziskBlockValidate2txFullDataSection ++ "\n" ++
+  "bv2fb_struct:\n" ++
+  "  .zero 32\n" ++
+  "bbe_body_struct:\n" ++
+  "  .zero 48\n" ++
+  "bbe_tx_count:\n" ++
+  "  .zero 8\n" ++
+  "bbe_item_off:\n" ++
+  "  .zero 8\n" ++
+  "bbe_item_len:\n" ++
+  "  .zero 8"
+
+def ziskBlockValidate2txFullWithBodyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidate2txFullWithBodyPrologue
+  dataAsm     := ziskBlockValidate2txFullWithBodyDataSection
+}
+
 end EvmAsm.Codegen

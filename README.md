@@ -264,7 +264,8 @@ and MPT primitives (`account_decode`, `account_at_address`,
 `block_hash_from_header`, `validate_parent_hash_link`,
 `validate_header_pair`, `validate_header_chain`,
 `block_validate_2tx_full`, `block_body_extract_2tx`,
-withdrawal RLP/hash, …), and address
+`block_validate_2tx_full_with_body`, withdrawal RLP/hash, …),
+and address
 derivation (`address_compute_create`, `address_compute_create2`,
 `address_from_pubkey`). The catalogue is tracked under the
 `PR-K*` series in [`PLAN.md`](PLAN.md).
