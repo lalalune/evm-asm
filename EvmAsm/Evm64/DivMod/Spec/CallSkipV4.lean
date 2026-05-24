@@ -475,6 +475,36 @@ theorem n4_call_skip_div_mod_getLimbN_v4_of_runtime_rhatdd_hi_zero_hb3nz
   exact n4_call_skip_div_mod_getLimbN_v4_of_runtime_rhatdd_hi_zero a b
     (evmWord_ne_zero_of_getLimbN_3_ne_zero hb3nz) hb3nz hshift_nz hborrow
 
+/-- Runtime no-wrap getLimbN bridge with `b ≠ 0` discharged from `hb3nz`. -/
+theorem n4_call_skip_div_mod_getLimbN_v4_of_runtime_no_wrap_of_le_hb3nz
+    (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hborrow : isSkipBorrowN4CallV4Evm a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let qHat := div128Quot_v4 u4 u3 b3'
+    (divKTrialCallV4Q1dd u4 u3 b3').toNat *
+        (divKTrialCallV4DLo b3').toNat ≤
+      ((divKTrialCallV4Rhatdd u4 u3 b3').toNat % 2^32) * 2^32 +
+        (divKTrialCallV4Un1 u3).toNat →
+    (div128Quot_v4 u4 u3 b3').toNat ≤
+      (u4.toNat * 2^64 + u3.toNat) / b3'.toNat →
+    (EvmWord.div a b).getLimbN 0 = qHat ∧
+    (EvmWord.div a b).getLimbN 1 = 0 ∧
+    (EvmWord.div a b).getLimbN 2 = 0 ∧
+    (EvmWord.div a b).getLimbN 3 = 0 := by
+  intro shift antiShift b3' u4 u3 qHat h_no_wrap h_le
+  exact n4_call_skip_div_mod_getLimbN_v4 a b
+    (evmWord_ne_zero_of_getLimbN_3_ne_zero hb3nz)
+    hshift_nz hborrow
+    (n4CallSkipSemanticHoldsV4_of_runtime_no_wrap_of_le a b
+      hb3nz hshift_nz h_no_wrap h_le)
+
 /-- Predicate-packaged rhat-zero getLimbN bridge with `b ≠ 0` discharged
     from `hb3nz`. -/
 theorem n4_call_skip_div_mod_getLimbN_v4_of_rhatdd_hi_zero_pred_hb3nz
