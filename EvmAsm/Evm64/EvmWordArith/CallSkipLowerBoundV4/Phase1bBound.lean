@@ -223,6 +223,40 @@ theorem divKTrialCallV4Un21_toNat
     omega
   simpa [dLo, un1, q1'', rhat''] using h_local
 
+/-- Resolve the V4 `un21` modular subtraction formula in the no-wrap case. -/
+theorem divKTrialCallV4Un21_toNat_of_no_wrap
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (h_no_wrap :
+      (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat ≤
+        ((divKTrialCallV4Rhatdd uHi uLo vTop).toNat % 2^32) * 2^32 +
+          (divKTrialCallV4Un1 uLo).toNat) :
+    (divKTrialCallV4Un21 uHi uLo vTop).toNat =
+      ((divKTrialCallV4Rhatdd uHi uLo vTop).toNat % 2^32) * 2^32 +
+        (divKTrialCallV4Un1 uLo).toNat -
+      (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+        (divKTrialCallV4DLo vTop).toNat := by
+  let A := ((divKTrialCallV4Rhatdd uHi uLo vTop).toNat % 2^32) * 2^32 +
+    (divKTrialCallV4Un1 uLo).toNat
+  let B := (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+    (divKTrialCallV4DLo vTop).toNat
+  have h_formula := divKTrialCallV4Un21_toNat uHi uLo vTop hvTop_ge huHi_lt_vTop
+  have hA_lt : A < 2^64 := by
+    unfold A
+    have h_mod : (divKTrialCallV4Rhatdd uHi uLo vTop).toNat % 2^32 < 2^32 :=
+      Nat.mod_lt _ (by decide)
+    have h_un : (divKTrialCallV4Un1 uLo).toNat < 2^32 :=
+      divKTrialCallV4Un1_lt_pow32 uLo
+    nlinarith
+  have hBA : B ≤ A := by
+    simpa [A, B] using h_no_wrap
+  rw [h_formula]
+  show (A + 2^64 - B) % 2^64 = A - B
+  rw [show A + 2^64 - B = (A - B) + 2^64 from by omega,
+      Nat.add_mod_right, Nat.mod_eq_of_lt (by omega : A - B < 2^64)]
+
 /-- Under normalization, the high divisor half extracted by the V4 call wrapper
     is nonzero. -/
 theorem divKTrialCallV4DHi_ne_of_ge
