@@ -93,6 +93,107 @@ theorem divKTrialCallV4Un1_lt_pow32 (uLo : Word) :
   unfold divKTrialCallV4Un1
   exact Word_ushiftRight_32_lt_pow32
 
+/-- The normalized high divisor half extracted by the V4 call wrapper is a
+    32-bit value. -/
+theorem divKTrialCallV4DHi_lt_pow32 (vTop : Word) :
+    (divKTrialCallV4DHi vTop).toNat < 2^32 := by
+  unfold divKTrialCallV4DHi
+  exact Word_ushiftRight_32_lt_pow32
+
+/-- Under normalization, the high divisor half extracted by the V4 call wrapper
+    is nonzero. -/
+theorem divKTrialCallV4DHi_ne_of_ge
+    (vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63) :
+    divKTrialCallV4DHi vTop ≠ 0 := by
+  intro hzero
+  have hnat : (divKTrialCallV4DHi vTop).toNat = 0 := by rw [hzero]; rfl
+  unfold divKTrialCallV4DHi at hnat
+  rw [BitVec.toNat_ushiftRight, AddrNorm.bv6_toNat_32, Nat.shiftRight_eq_div_pow] at hnat
+  omega
+
+/-- In the complementary wide-`uHi` regime, Phase 1a's high-half correction
+    definitely fires. -/
+theorem divKTrialCallV4Q1_hi_ne_zero_of_dHi_pow32_le_uHi
+    (uHi vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤ uHi.toNat) :
+    (rv64_divu uHi (divKTrialCallV4DHi vTop)) >>>
+        (32 : BitVec 6).toNat ≠ (0 : Word) := by
+  let dHi := divKTrialCallV4DHi vTop
+  have hdHi_ne : dHi ≠ 0 := by
+    simpa [dHi] using divKTrialCallV4DHi_ne_of_ge vTop hvTop_ge
+  have hq_ge : (rv64_divu uHi dHi).toNat ≥ 2^32 := by
+    rw [rv64_divu_toNat uHi dHi hdHi_ne]
+    apply (Nat.le_div_iff_mul_le ?_).mpr
+    · nlinarith [huHi_ge_dHi_pow32]
+    · have : dHi.toNat ≠ 0 := by
+        intro h0
+        exact hdHi_ne (BitVec.eq_of_toNat_eq h0)
+      omega
+  intro hzero
+  have hlt : (rv64_divu uHi dHi).toNat < 2^32 := by
+    have h := (ushiftRight_eq_zero_iff (val := rv64_divu uHi dHi)
+      ((32 : BitVec 6).toNat)).mp hzero
+    simpa using h
+  omega
+
+/-- Nat form of subtracting one from a Phase-1a quotient whose high half is
+    nonzero. -/
+theorem phase1a_q1_dec_toNat_of_hi_ne_zero
+    (q1 : Word)
+    (hhi : q1 >>> (32 : BitVec 6).toNat ≠ (0 : Word)) :
+    (q1 + signExtend12 4095).toNat = q1.toNat - 1 := by
+  have hq_ge := (ushiftRight_ne_zero_iff (val := q1) ((32 : BitVec 6).toNat)).mp hhi
+  have hq_pos : q1.toNat ≥ 1 := by
+    rw [show ((32 : BitVec 6).toNat : Nat) = 32 from by rfl] at hq_ge
+    omega
+  have h_se_toNat : (signExtend12 4095 : Word).toNat = 2^64 - 1 := by decide
+  rw [BitVec.toNat_add, h_se_toNat]
+  omega
+
+/-- In the wide-`uHi` regime, the Phase-1a corrected quotient is `q1 - 1`. -/
+theorem divKTrialCallV4Q1c_toNat_of_dHi_pow32_le_uHi
+    (uHi vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤ uHi.toNat) :
+    let dHi := divKTrialCallV4DHi vTop
+    let q1 := rv64_divu uHi dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    q1c.toNat = q1.toNat - 1 := by
+  intro dHi q1 hi1 q1c
+  have hhi : q1 >>> (32 : BitVec 6).toNat ≠ (0 : Word) := by
+    simpa [dHi, q1] using
+      divKTrialCallV4Q1_hi_ne_zero_of_dHi_pow32_le_uHi
+        uHi vTop hvTop_ge huHi_ge_dHi_pow32
+  show (if hi1 = 0 then q1 else q1 + signExtend12 4095).toNat = q1.toNat - 1
+  rw [if_neg hhi]
+  exact phase1a_q1_dec_toNat_of_hi_ne_zero q1 hhi
+
+/-- In the wide-`uHi` regime, the Phase-1a corrected remainder is
+    `rhat + dHi`. -/
+theorem divKTrialCallV4Rhatc_eq_of_dHi_pow32_le_uHi
+    (uHi vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_ge_dHi_pow32 :
+      (divKTrialCallV4DHi vTop).toNat * 2^32 ≤ uHi.toNat) :
+    let dHi := divKTrialCallV4DHi vTop
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    rhatc = rhat + dHi := by
+  intro dHi q1 rhat hi1 rhatc
+  have hhi : q1 >>> (32 : BitVec 6).toNat ≠ (0 : Word) := by
+    simpa [dHi, q1] using
+      divKTrialCallV4Q1_hi_ne_zero_of_dHi_pow32_le_uHi
+        uHi vTop hvTop_ge huHi_ge_dHi_pow32
+  show (if hi1 = 0 then rhat else rhat + dHi) = rhat + dHi
+  rw [if_neg hhi]
+
 /-- V4 spelling of the generic Phase-1b upper bound `q1' ≤ 2^32 + 1`. -/
 theorem algorithmQ1dV4_le_pow32_plus_one
     (uHi uLo vTop : Word)
