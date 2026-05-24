@@ -2588,6 +2588,128 @@ def ziskBlockValidateNoWithdrawalsPairProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockValidateNoWithdrawalsPairDataSection
 }
 
+/-! ## block_body_extract_1tx -- PR-K188
+
+    Body-side primitive for 1-tx blocks: decode a 3-field body
+    (`[transactions, ommers, withdrawals]`), assert exactly one
+    transaction and the empty ommers list (post-merge invariant),
+    and return `(tx0 off+len)` in body-relative coordinates.
+
+    Analogue of K177 `block_body_extract_2tx` for N=1.
+
+    Output struct (16 bytes):
+       0..  8  tx0_offset (in body_rlp)
+       8.. 16  tx0_length
+
+    Calling convention:
+      a0 (input)  : body_rlp ptr
+      a1 (input)  : body_rlp byte length
+      a2 (input)  : 16-byte output struct ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : body RLP parse failure
+        2 : ommers not the empty list
+        3 : transactions list count != 1
+        4 : transactions list item extraction failure -/
+def blockBodyExtract1txFunction : String :=
+  "block_body_extract_1tx:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # body_rlp ptr\n" ++
+  "  mv s1, a1                   # body_rlp len\n" ++
+  "  mv s2, a2                   # output struct\n" ++
+  "  # (1) Decode body\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  la a2, bbe1_body_struct\n" ++
+  "  jal ra, block_body_decode\n" ++
+  "  bnez a0, .Lbbe1_parse_fail\n" ++
+  "  # (2) Verify ommers == 0xc0\n" ++
+  "  la t0, bbe1_body_struct; ld t1, 16(t0)\n" ++
+  "  ld t2, 24(t0)\n" ++
+  "  li t3, 1\n" ++
+  "  bne t2, t3, .Lbbe1_ommers_fail\n" ++
+  "  add t1, s0, t1; lbu t4, 0(t1); li t5, 0xc0; bne t4, t5, .Lbbe1_ommers_fail\n" ++
+  "  # (3) Count tx list\n" ++
+  "  la t0, bbe1_body_struct; ld s3, 0(t0); ld s4, 8(t0)\n" ++
+  "  add a0, s0, s3; mv a1, s4\n" ++
+  "  la a2, bbe1_tx_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbbe1_txs_fail\n" ++
+  "  la t0, bbe1_tx_count; ld t1, 0(t0)\n" ++
+  "  li t2, 1\n" ++
+  "  bne t1, t2, .Lbbe1_count_fail\n" ++
+  "  # (4) Extract tx0\n" ++
+  "  add a0, s0, s3; mv a1, s4; li a2, 0\n" ++
+  "  la a3, bbe1_item_off; la a4, bbe1_item_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbbe1_txs_fail\n" ++
+  "  la t0, bbe1_item_off; ld t1, 0(t0)\n" ++
+  "  add t1, t1, s3; sd t1, 0(s2)\n" ++
+  "  la t0, bbe1_item_len; ld t1, 0(t0); sd t1, 8(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbbe1_ret\n" ++
+  ".Lbbe1_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbbe1_ret\n" ++
+  ".Lbbe1_ommers_fail:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbbe1_ret\n" ++
+  ".Lbbe1_count_fail:\n" ++
+  "  li a0, 3\n" ++
+  "  j .Lbbe1_ret\n" ++
+  ".Lbbe1_txs_fail:\n" ++
+  "  li a0, 4\n" ++
+  ".Lbbe1_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_block_body_extract_1tx`: probe BuildUnit.
+    Input layout:
+      bytes 0..8 : body_rlp_len
+      bytes 8..  : body_rlp
+    Output layout:
+      bytes  0.. 8 : status (0..4)
+      bytes  8..24 : 16-byte struct (tx0 off+len) -/
+def ziskBlockBodyExtract1txPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # body_rlp_len\n" ++
+  "  addi a0, a7, 16             # body_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # output struct\n" ++
+  "  jal ra, block_body_extract_1tx\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbbe1_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodyExtract1txFunction ++ "\n" ++
+  ".Lbbe1_pdone:"
+
+def ziskBlockBodyExtract1txDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "bbe1_body_struct:\n" ++
+  "  .zero 48\n" ++
+  "bbe1_tx_count:\n" ++
+  "  .zero 8\n" ++
+  "bbe1_item_off:\n" ++
+  "  .zero 8\n" ++
+  "bbe1_item_len:\n" ++
+  "  .zero 8"
+
+def ziskBlockBodyExtract1txProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockBodyExtract1txPrologue
+  dataAsm     := ziskBlockBodyExtract1txDataSection
+}
+
 /-! ## block_validate_empty_receipts_root -- PR-K181
 
     Header field 5 (`receipts_root`) equals `EMPTY_TRIE_ROOT`
