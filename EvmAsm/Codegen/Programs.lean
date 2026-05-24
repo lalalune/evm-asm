@@ -54,6 +54,7 @@ import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.Block
 import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.Address
 
@@ -4824,7 +4825,7 @@ end EvmAsm.Codegen
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 5150
+  let hardCap := 5125
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
     "EvmAsm/Codegen/Programs/Address.lean",
@@ -4833,6 +4834,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/Evm.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
+    "EvmAsm/Codegen/Programs/HeaderFields.lean",
     "EvmAsm/Codegen/Programs/Mpt.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
     "EvmAsm/Codegen/Programs/Ssz.lean",
