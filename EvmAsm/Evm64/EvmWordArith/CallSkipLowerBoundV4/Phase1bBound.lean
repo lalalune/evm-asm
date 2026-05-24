@@ -1100,6 +1100,41 @@ theorem divKTrialCallV4Q1dd_rhatdd_post
     rw [if_neg h_guard, if_neg h_guard]
     exact h_pre
 
+/-- The final V4 Phase-1b digit does not overshoot the abstract first
+    128/64 quotient digit. -/
+theorem divKTrialCallV4Q1dd_le_q_true_1
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (divKTrialCallV4Q1dd uHi uLo vTop).toNat ≤
+      (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) / vTop.toNat := by
+  let q := divKTrialCallV4Q1dd uHi uLo vTop
+  let rhat := divKTrialCallV4Rhatdd uHi uLo vTop
+  let dHi := divKTrialCallV4DHi vTop
+  let dLo := divKTrialCallV4DLo vTop
+  let un1 := divKTrialCallV4Un1 uLo
+  have h_vTop_decomp : vTop.toNat = dHi.toNat * 2^32 + dLo.toNat := by
+    unfold dHi dLo divKTrialCallV4DHi divKTrialCallV4DLo
+    exact div128Quot_vTop_decomp vTop
+  have h_post : q.toNat * dHi.toNat + rhat.toNat = uHi.toNat := by
+    simpa [q, rhat, dHi] using divKTrialCallV4Q1dd_rhatdd_post
+      uHi uLo vTop hvTop_ge
+  have h_dLo_bound : q.toNat * dLo.toNat ≤ rhat.toNat * 2^32 + un1.toNat := by
+    simpa [q, rhat, dLo, un1] using divKTrialCallV4_phase1b_dLo_bound
+      uHi uLo vTop hvTop_ge huHi_lt_vTop
+  have h_mul_le :
+      q.toNat * vTop.toNat ≤ uHi.toNat * 2^32 + un1.toNat := by
+    rw [h_vTop_decomp]
+    calc
+      q.toNat * (dHi.toNat * 2^32 + dLo.toNat)
+          = q.toNat * dHi.toNat * 2^32 + q.toNat * dLo.toNat := by ring
+      _ ≤ q.toNat * dHi.toNat * 2^32 + (rhat.toNat * 2^32 + un1.toNat) := by
+        omega
+      _ = (q.toNat * dHi.toNat + rhat.toNat) * 2^32 + un1.toNat := by ring
+      _ = uHi.toNat * 2^32 + un1.toNat := by rw [h_post]
+  have hvTop_pos : 0 < vTop.toNat := by omega
+  exact (Nat.le_div_iff_mul_le hvTop_pos).2 h_mul_le
+
 /-- If the final V4 Phase-1b remainder has zero high half, the final
     dLo-bound is exactly the low-half no-wrap condition for computing
     `un21`. -/
