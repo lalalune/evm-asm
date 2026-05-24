@@ -559,6 +559,44 @@ theorem divKTrialCallV4Q0d_mul_DLo_no_wrap
   rw [BitVec.toNat_mul]
   exact Nat.mod_eq_of_lt h_mul_lt
 
+/-- V4 Phase-2 initial Euclidean postcondition.
+
+    Before the first Phase-2 product check, `Q0c` and `Rhat2c` divide `un21`
+    by the high divisor digit `DHi`: `Q0c * DHi + Rhat2c = un21`. -/
+theorem divKTrialCallV4Q0c_Rhat2c_post
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32) :
+    (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+        (divKTrialCallV4DHi vTop).toNat +
+      (divKTrialCallV4Rhat2c uHi uLo vTop).toNat =
+    (divKTrialCallV4Un21 uHi uLo vTop).toNat := by
+  have hdHi_ne : divKTrialCallV4DHi vTop ≠ 0 := by
+    intro h_eq
+    rw [h_eq] at hdHi_ge
+    simp at hdHi_ge
+  unfold divKTrialCallV4Q0c divKTrialCallV4Rhat2c
+  exact div128Quot_first_round_post
+    (divKTrialCallV4Un21 uHi uLo vTop)
+    (divKTrialCallV4DHi vTop)
+    hdHi_ne hdHi_lt
+
+/-- Consequences of `divKTrialCallV4Q0c_Rhat2c_post` in the shape consumed
+    by the product-check bridge. -/
+theorem divKTrialCallV4Q0c_Rhat2c_bridge
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32) :
+    (divKTrialCallV4Rhat2c uHi uLo vTop).toNat =
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat -
+          (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+            (divKTrialCallV4DHi vTop).toNat ∧
+      (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+          (divKTrialCallV4DHi vTop).toNat ≤
+        (divKTrialCallV4Un21 uHi uLo vTop).toNat := by
+  have h_post := divKTrialCallV4Q0c_Rhat2c_post uHi uLo vTop hdHi_ge hdHi_lt
+  constructor <;> omega
+
 /-- V4 Phase-2 first-correction Euclidean postcondition.
 
     After the first Phase-2 product check, `Q0d` and `Rhat2d` still divide
@@ -580,12 +618,8 @@ theorem divKTrialCallV4Q0d_Rhat2d_post
       (divKTrialCallV4Q0c uHi uLo vTop).toNat *
           (divKTrialCallV4DHi vTop).toNat +
         (divKTrialCallV4Rhat2c uHi uLo vTop).toNat =
-      (divKTrialCallV4Un21 uHi uLo vTop).toNat := by
-    unfold divKTrialCallV4Q0c divKTrialCallV4Rhat2c
-    exact div128Quot_first_round_post
-      (divKTrialCallV4Un21 uHi uLo vTop)
-      (divKTrialCallV4DHi vTop)
-      hdHi_ne hdHi_lt
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat :=
+    divKTrialCallV4Q0c_Rhat2c_post uHi uLo vTop hdHi_ge hdHi_lt
   have h_rhat2c_lt :
       (divKTrialCallV4Rhat2c uHi uLo vTop).toNat <
         2 * (divKTrialCallV4DHi vTop).toNat := by
