@@ -67,6 +67,16 @@ def n4CallSkipRhatddHiZeroV4 (a b : EvmWord) : Prop :=
   let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
   divKTrialCallV4Rhatdd u4 u3 b3' >>> (32 : BitVec 6).toNat = (0 : Word)
 
+/-- EvmWord-level branch certificate for the complementary final Phase-1b
+    rhat high-half-nonzero case of the v4 n=4 call+skip path. -/
+def n4CallSkipRhatddHiNonzeroV4 (a b : EvmWord) : Prop :=
+  let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+  let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+  let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+  let u4 := (a.getLimbN 3) >>> antiShift
+  let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+  divKTrialCallV4Rhatdd u4 u3 b3' >>> (32 : BitVec 6).toNat ≠ (0 : Word)
+
 theorem n4CallSkipRhatddHiZeroV4_def {a b : EvmWord} :
     n4CallSkipRhatddHiZeroV4 a b =
     (let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
@@ -77,6 +87,22 @@ theorem n4CallSkipRhatddHiZeroV4_def {a b : EvmWord} :
      let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
      divKTrialCallV4Rhatdd u4 u3 b3' >>> (32 : BitVec 6).toNat = (0 : Word)) :=
   rfl
+
+theorem n4CallSkipRhatddHiNonzeroV4_def {a b : EvmWord} :
+    n4CallSkipRhatddHiNonzeroV4 a b =
+    (let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+     let antiShift :=
+       (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+     let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+     let u4 := (a.getLimbN 3) >>> antiShift
+     let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+     divKTrialCallV4Rhatdd u4 u3 b3' >>> (32 : BitVec 6).toNat ≠ (0 : Word)) :=
+  rfl
+
+theorem n4CallSkipRhatddHiZeroV4_or_nonzero (a b : EvmWord) :
+    n4CallSkipRhatddHiZeroV4 a b ∨ n4CallSkipRhatddHiNonzeroV4 a b := by
+  rw [n4CallSkipRhatddHiZeroV4_def, n4CallSkipRhatddHiNonzeroV4_def]
+  exact Decidable.em _
 
 /-- V4 call-skip lower bound in the final Phase-1b high-half-zero branch. -/
 theorem div128Quot_v4_call_skip_ge_val256_div_of_rhatdd_hi_zero
@@ -165,6 +191,17 @@ theorem n4CallSkipSemanticHoldsV4_of_runtime_rhatdd_hi_zero (a b : EvmWord)
     simpa [algorithmUn21V4, shift, antiShift, b3', u4, u3] using h
   exact n4CallSkipSemanticHoldsV4_of_rhatdd_hi_zero a b hb3nz hshift_nz
     hUn21_lt_vTop h_rhat_hi_zero
+
+/-- Predicate-packaged semantic lower bound in the final Phase-1b
+    high-half-zero branch. -/
+theorem n4CallSkipSemanticHoldsV4_of_rhatdd_hi_zero_pred (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hrhat : n4CallSkipRhatddHiZeroV4 a b) :
+    n4CallSkipSemanticHoldsV4 a b := by
+  rw [n4CallSkipRhatddHiZeroV4_def] at hrhat
+  exact n4CallSkipSemanticHoldsV4_of_runtime_rhatdd_hi_zero a b
+    hb3nz hshift_nz hrhat
 
 theorem n4CallSkipSemanticHoldsV4_def {a b : EvmWord} :
     n4CallSkipSemanticHoldsV4 a b =
@@ -278,6 +315,29 @@ theorem n4_call_skip_div_mod_getLimbN_v4_of_runtime_rhatdd_hi_zero (a b : EvmWor
   exact n4_call_skip_div_mod_getLimbN_v4 a b hbnz hshift_nz hborrow
     (n4CallSkipSemanticHoldsV4_of_runtime_rhatdd_hi_zero a b
       hb3nz hshift_nz h_rhat_hi_zero)
+
+/-- Predicate-packaged getLimbN bridge for the call+skip path in the final
+    Phase-1b high-half-zero branch. -/
+theorem n4_call_skip_div_mod_getLimbN_v4_of_rhatdd_hi_zero_pred (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hborrow : isSkipBorrowN4CallV4Evm a b)
+    (hrhat : n4CallSkipRhatddHiZeroV4 a b) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    let qHat := div128Quot_v4 u4 u3 b3'
+    (EvmWord.div a b).getLimbN 0 = qHat ∧
+    (EvmWord.div a b).getLimbN 1 = 0 ∧
+    (EvmWord.div a b).getLimbN 2 = 0 ∧
+    (EvmWord.div a b).getLimbN 3 = 0 := by
+  rw [n4CallSkipRhatddHiZeroV4_def] at hrhat
+  exact n4_call_skip_div_mod_getLimbN_v4_of_runtime_rhatdd_hi_zero a b
+    hbnz hb3nz hshift_nz hborrow hrhat
 
 /-- **EvmWord-form wrapper of `evm_div_n4_full_call_skip_spec_v4`.**
     Mirror of `evm_div_n4_full_call_skip_stack_pre_spec` (the v1 wrapper
