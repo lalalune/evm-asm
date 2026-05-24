@@ -9,6 +9,7 @@
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
 import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
+import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
 
 namespace EvmAsm.Evm64
@@ -355,5 +356,53 @@ theorem divKTrialCallV4Q0d_mul_DLo_no_wrap
     nlinarith
   rw [BitVec.toNat_mul]
   exact Nat.mod_eq_of_lt h_mul_lt
+
+/-- V4 Phase-2 first-correction Euclidean postcondition.
+
+    After the first Phase-2 product check, `Q0d` and `Rhat2d` still divide
+    `un21` by the high divisor digit `DHi`: `Q0d * DHi + Rhat2d = un21`.
+    This is the V4-name wrapper around the generic `div128Quot_phase2b_post`. -/
+theorem divKTrialCallV4Q0d_Rhat2d_post
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32) :
+    (divKTrialCallV4Q0d uHi uLo vTop).toNat *
+        (divKTrialCallV4DHi vTop).toNat +
+      (divKTrialCallV4Rhat2d uHi uLo vTop).toNat =
+    (divKTrialCallV4Un21 uHi uLo vTop).toNat := by
+  have hdHi_ne : divKTrialCallV4DHi vTop ≠ 0 := by
+    intro h_eq
+    rw [h_eq] at hdHi_ge
+    simp at hdHi_ge
+  have h_post :
+      (divKTrialCallV4Q0c uHi uLo vTop).toNat *
+          (divKTrialCallV4DHi vTop).toNat +
+        (divKTrialCallV4Rhat2c uHi uLo vTop).toNat =
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat := by
+    unfold divKTrialCallV4Q0c divKTrialCallV4Rhat2c
+    exact div128Quot_first_round_post
+      (divKTrialCallV4Un21 uHi uLo vTop)
+      (divKTrialCallV4DHi vTop)
+      hdHi_ne hdHi_lt
+  have h_rhat2c_lt :
+      (divKTrialCallV4Rhat2c uHi uLo vTop).toNat <
+        2 * (divKTrialCallV4DHi vTop).toNat := by
+    unfold divKTrialCallV4Rhat2c
+    exact div128Quot_rhatc_lt_2dHi
+      (divKTrialCallV4Un21 uHi uLo vTop)
+      (divKTrialCallV4DHi vTop)
+      hdHi_ne hdHi_lt
+  unfold divKTrialCallV4Q0d divKTrialCallV4Rhat2d
+  exact
+    @div128Quot_phase2b_post
+      (divKTrialCallV4Un0 uLo)
+      (divKTrialCallV4Un21 uHi uLo vTop)
+      (divKTrialCallV4DHi vTop)
+      hdHi_lt
+      (divKTrialCallV4Q0c uHi uLo vTop)
+      (divKTrialCallV4Rhat2c uHi uLo vTop)
+      (divKTrialCallV4DLo vTop)
+      h_post
+      h_rhat2c_lt
 
 end EvmAsm.Evm64
