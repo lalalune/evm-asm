@@ -191,4 +191,76 @@ theorem fullDivN2_getLimbN_of_limbs_mulsub_overestimate
   exact fullDivN2_hdivs_of_word_eq bltu_2 bltu_1 bltu_0
     a b a0 a1 a2 a3 b0 b1 b2 b3 hdivWord
 
+/-- n=2 four-limb division witness specialized to branch constructors that
+    store `a`/`b` as `EvmWord`s and refer to their limbs directly. -/
+theorem fullDivN2_getLimbN_of_getLimbN_mulsub_overestimate
+    (bltu_2 bltu_1 bltu_0 : Bool) {a b : EvmWord}
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hmulsub :
+      EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) =
+        (((fullDivN2R2 bltu_2
+              (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).1).toNat * 2^128 +
+          ((fullDivN2R1 bltu_2 bltu_1
+              (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).1).toNat * 2^64 +
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+              (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3)
+              (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).1).toNat) *
+          EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1)
+            (b.getLimbN 2) (b.getLimbN 3) +
+        EvmWord.val256
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1))
+    (hge :
+      EvmWord.val256 (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) /
+        EvmWord.val256 (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3) ≤
+        ((fullDivN2R2 bltu_2
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+          (b.getLimbN 3)).1).toNat * 2^128 +
+          ((fullDivN2R1 bltu_2 bltu_1
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+            (b.getLimbN 3)).1).toNat * 2^64 +
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+            (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
+            (b.getLimbN 3)).1).toNat) :
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN2R0 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN2R1 bltu_2 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+    (EvmWord.div a b).getLimbN 2 =
+      (fullDivN2R2 bltu_2
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+    (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
+  exact fullDivN2_getLimbN_of_limbs_mulsub_overestimate
+    bltu_2 bltu_1 bltu_0 rfl rfl rfl rfl rfl rfl rfl rfl
+    hbnz hmulsub hge
+
 end EvmAsm.Evm64
