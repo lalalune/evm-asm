@@ -169,6 +169,105 @@ theorem fullDivN1R3_val256_conservation_of_shape
   dsimp only at h
   simpa using h
 
+/-- Val256 conservation specialized to the second n=1 schoolbook iteration. -/
+theorem fullDivN1R2_val256_conservation_of_shape
+    (bltu_3 bltu_2 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    let v := fullDivN1NormV b0 b1 b2 b3
+    let u := fullDivN1NormU a0 a1 a2 a3 b0
+    let r3 := fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3
+    let r2 := fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+    EvmWord.val256 u.2.2.1 r3.2.1 r3.2.2.1 r3.2.2.2.1 +
+        r3.2.2.2.2.1.toNat * 2^256 =
+      r2.1.toNat * EvmWord.val256 v.1 v.2.1 v.2.2.1 v.2.2.2 +
+        EvmWord.val256 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 +
+        r2.2.2.2.2.2.toNat * 2^256 := by
+  dsimp only
+  unfold fullDivN1R2
+  dsimp only
+  have h := iterN1_fullDivN1NormV_val256_conservation_of_shape bltu_2
+    b0 b1 b2 b3
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+    (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+    (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+    (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+    (fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+    hbnz hb1z hb2z hb3z hcarry2
+  dsimp only at h
+  simpa using h
+
+/-- Val256 conservation specialized to the third n=1 schoolbook iteration. -/
+theorem fullDivN1R1_val256_conservation_of_shape
+    (bltu_3 bltu_2 bltu_1 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    let v := fullDivN1NormV b0 b1 b2 b3
+    let u := fullDivN1NormU a0 a1 a2 a3 b0
+    let r2 := fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+    let r1 := fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+    EvmWord.val256 u.2.1 r2.2.1 r2.2.2.1 r2.2.2.2.1 +
+        r2.2.2.2.2.1.toNat * 2^256 =
+      r1.1.toNat * EvmWord.val256 v.1 v.2.1 v.2.2.1 v.2.2.2 +
+        EvmWord.val256 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 +
+        r1.2.2.2.2.2.toNat * 2^256 := by
+  dsimp only
+  unfold fullDivN1R1
+  dsimp only
+  have h := iterN1_fullDivN1NormV_val256_conservation_of_shape bltu_1
+    b0 b1 b2 b3
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+    (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+    (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+    (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+    (fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+    hbnz hb1z hb2z hb3z hcarry2
+  dsimp only at h
+  simpa using h
+
+/-- Val256 conservation specialized to the final n=1 schoolbook iteration. -/
+theorem fullDivN1R0_val256_conservation_of_shape
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hcarry2 : Carry2NzAll
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2) :
+    let v := fullDivN1NormV b0 b1 b2 b3
+    let u := fullDivN1NormU a0 a1 a2 a3 b0
+    let r1 := fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+    let r0 := fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+    EvmWord.val256 u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 +
+        r1.2.2.2.2.1.toNat * 2^256 =
+      r0.1.toNat * EvmWord.val256 v.1 v.2.1 v.2.2.1 v.2.2.2 +
+        EvmWord.val256 r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1 +
+        r0.2.2.2.2.2.toNat * 2^256 := by
+  dsimp only
+  unfold fullDivN1R0
+  dsimp only
+  have h := iterN1_fullDivN1NormV_val256_conservation_of_shape bltu_0
+    b0 b1 b2 b3
+    (fullDivN1NormU a0 a1 a2 a3 b0).1
+    (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+    (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+    (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+    (fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+    hbnz hb1z hb2z hb3z hcarry2
+  dsimp only at h
+  simpa using h
+
 /-- n=1 quotient bridge specialized to branch constructors that store
     `a`/`b` as `EvmWord`s and refer to their limbs directly. -/
 theorem fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_overestimate
