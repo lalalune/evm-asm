@@ -153,6 +153,19 @@ theorem phase1a_q1_dec_toNat_of_hi_ne_zero
   rw [BitVec.toNat_add, h_se_toNat]
   omega
 
+/-- Nat form of the Phase-1b quotient correction when its BLTU guard fires. -/
+theorem phase1b_q1_prime_toNat_of_fire
+    (q1c dLo rhatUn1 : Word)
+    (h_fire : BitVec.ult rhatUn1 (q1c * dLo)) :
+    (if BitVec.ult rhatUn1 (q1c * dLo) then q1c + signExtend12 4095 else q1c).toNat =
+      q1c.toNat - 1 := by
+  have h_q1c_pos := div128Quot_phase1b_check_implies_q1c_pos q1c dLo rhatUn1 h_fire
+  rw [if_pos h_fire]
+  rw [BitVec.toNat_add, signExtend12_4095_toNat]
+  have h_q1c_lt_word : q1c.toNat - 1 < 2^64 := by have := q1c.isLt; omega
+  rw [show q1c.toNat + (2^64 - 1) = (q1c.toNat - 1) + 2^64 from by omega,
+      Nat.add_mod_right, Nat.mod_eq_of_lt h_q1c_lt_word]
+
 /-- In the wide-`uHi` regime, the Phase-1a corrected quotient is `q1 - 1`. -/
 theorem divKTrialCallV4Q1c_toNat_of_dHi_pow32_le_uHi
     (uHi vTop : Word)
