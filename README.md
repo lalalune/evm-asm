@@ -279,8 +279,9 @@ block-body helpers
 `block_validate_empty_block`,
 `validate_empty_block_with_parent`,
 `validate_empty_block_chain`,
-`block_hash_array_from_chain`, withdrawal RLP/hash, …),
-and address
+`block_hash_array_from_chain`,
+`validate_block_hash_chain_match`,
+withdrawal RLP/hash, …), and address
 derivation (`address_compute_create`, `address_compute_create2`,
 `address_from_pubkey`). The catalogue is tracked under the
 `PR-K*` series in [`PLAN.md`](PLAN.md).
