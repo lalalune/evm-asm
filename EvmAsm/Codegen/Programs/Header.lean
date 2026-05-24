@@ -3668,4 +3668,163 @@ def ziskHeaderExtractReceiptsRootProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractReceiptsRootDataSection
 }
 
+/-! ## header_extract_transactions_root -- PR-K204
+
+    Extract `transactions_root` (field 4, 32 bytes) from a
+    header RLP. Tight standalone analogue of K201 / K202 / K203.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 32-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 4 missing
+        2 : field 4 length != 32 -/
+def headerExtractTransactionsRootFunction : String :=
+  "header_extract_transactions_root:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
+  "  la a3, hetr_offset; la a4, hetr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhetr_parse_fail\n" ++
+  "  la t0, hetr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhetr_size_fail\n" ++
+  "  la t0, hetr_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhetr_ret\n" ++
+  ".Lhetr_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhetr_ret\n" ++
+  ".Lhetr_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhetr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_transactions_root`: probe BuildUnit. -/
+def ziskHeaderExtractTransactionsRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_transactions_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhetr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractTransactionsRootFunction ++ "\n" ++
+  ".Lhetr_pdone:"
+
+def ziskHeaderExtractTransactionsRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hetr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hetr_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractTransactionsRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractTransactionsRootPrologue
+  dataAsm     := ziskHeaderExtractTransactionsRootDataSection
+}
+
+/-! ## header_extract_withdrawals_root -- PR-K205
+
+    Extract `withdrawals_root` (field 16, 32 bytes) from a
+    Shanghai+ header RLP. Tight standalone analogue of K201..
+    K204 for the post-Shanghai field 16.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 32-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 16 missing (pre-Shanghai)
+        2 : field 16 length != 32 -/
+def headerExtractWithdrawalsRootFunction : String :=
+  "header_extract_withdrawals_root:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 16\n" ++
+  "  la a3, hewr_offset; la a4, hewr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhewr_parse_fail\n" ++
+  "  la t0, hewr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhewr_size_fail\n" ++
+  "  la t0, hewr_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhewr_ret\n" ++
+  ".Lhewr_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhewr_ret\n" ++
+  ".Lhewr_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhewr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_extract_withdrawals_root`: probe BuildUnit. -/
+def ziskHeaderExtractWithdrawalsRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_withdrawals_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhewr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractWithdrawalsRootFunction ++ "\n" ++
+  ".Lhewr_pdone:"
+
+def ziskHeaderExtractWithdrawalsRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hewr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hewr_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractWithdrawalsRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractWithdrawalsRootPrologue
+  dataAsm     := ziskHeaderExtractWithdrawalsRootDataSection
+}
+
 end EvmAsm.Codegen
