@@ -4132,4 +4132,229 @@ def ziskBlockHashMatchesProbeUnit : BuildUnit := {
   dataAsm     := ziskBlockHashMatchesDataSection
 }
 
+/-! ## header_extract_gas_used / header_extract_gas_limit -- PR-K210 / K211
+
+    Two more u64 header-field extractors, completing the
+    `header_extract_*` u64 family alongside K198
+    (base_fee_per_gas):
+
+      K210  header_extract_gas_used   (field 10)
+      K211  header_extract_gas_limit  (field 9)
+
+    Each thin-wraps `rlp_field_to_u64` for the specific field
+    index. Useful for chain monitoring / fee-market analysis.
+
+    Calling convention (both):
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field missing
+        2 : field exceeds 8 bytes BE -/
+def headerExtractGasUsedFunction : String :=
+  "header_extract_gas_used:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  mv a3, a2\n" ++
+  "  li a2, 10\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+def ziskHeaderExtractGasUsedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_gas_used\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhegu_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractGasUsedFunction ++ "\n" ++
+  ".Lhegu_pdone:"
+
+def ziskHeaderExtractGasUsedDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractGasUsedProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractGasUsedPrologue
+  dataAsm     := ziskHeaderExtractGasUsedDataSection
+}
+
+def headerExtractGasLimitFunction : String :=
+  "header_extract_gas_limit:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  mv a3, a2\n" ++
+  "  li a2, 9\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+def ziskHeaderExtractGasLimitPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_gas_limit\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhegl_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractGasLimitFunction ++ "\n" ++
+  ".Lhegl_pdone:"
+
+def ziskHeaderExtractGasLimitDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractGasLimitProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractGasLimitPrologue
+  dataAsm     := ziskHeaderExtractGasLimitDataSection
+}
+
+/-! ## block_validate_block_hash_pair -- PR-K212
+
+    Compute both `parent_block_hash` and `child_block_hash`
+    AND verify `child.parent_hash == parent_block_hash`. Useful
+    for chain-commitment proofs that need both hashes alongside
+    the validity bit.
+
+    Composes K172 `block_hash_from_header` (parent + child) +
+    K20 `rlp_list_nth_item` (extract child.parent_hash).
+
+    Calling convention:
+      a0 (input)  : parent_rlp ptr
+      a1 (input)  : parent_rlp byte length
+      a2 (input)  : child_rlp ptr
+      a3 (input)  : child_rlp byte length
+      a4 (input)  : 32-byte output ptr (parent_block_hash)
+      a5 (input)  : 32-byte output ptr (child_block_hash)
+      a6 (input)  : u64 out (is_valid: 1 if child.parent_hash
+                              == parent_block_hash, else 0)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- both hashes + predicate written
+        1 : child RLP parse failure / field 0 missing
+        2 : child.parent_hash length != 32 -/
+def blockValidateBlockHashPairFunction : String :=
+  "block_validate_block_hash_pair:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0; mv s1, a1                # parent\n" ++
+  "  mv s2, a2; mv s3, a3                # child\n" ++
+  "  mv s4, a4                            # parent_hash out\n" ++
+  "  mv s5, a5                            # child_hash out\n" ++
+  "  mv s6, a6                            # is_valid out\n" ++
+  "  sd zero, 0(s6)\n" ++
+  "  # 1. Compute parent block_hash -> s4\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s4\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  # 2. Compute child block_hash -> s5\n" ++
+  "  mv a0, s2; mv a1, s3; mv a2, s5\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  # 3. Extract child.field[0] (parent_hash)\n" ++
+  "  mv a0, s2; mv a1, s3; li a2, 0\n" ++
+  "  la a3, bvhp_offset; la a4, bvhp_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbvhp_parse_fail\n" ++
+  "  la t0, bvhp_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lbvhp_size_fail\n" ++
+  "  # 4. Compare child.parent_hash bytes against s4 (parent_hash)\n" ++
+  "  la t0, bvhp_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s2, t1\n" ++
+  "  ld t4,  0(t3); ld t5,  0(s4); bne t4, t5, .Lbvhp_neq\n" ++
+  "  ld t4,  8(t3); ld t5,  8(s4); bne t4, t5, .Lbvhp_neq\n" ++
+  "  ld t4, 16(t3); ld t5, 16(s4); bne t4, t5, .Lbvhp_neq\n" ++
+  "  ld t4, 24(t3); ld t5, 24(s4); bne t4, t5, .Lbvhp_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s6)\n" ++
+  ".Lbvhp_neq:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvhp_ret\n" ++
+  ".Lbvhp_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbvhp_ret\n" ++
+  ".Lbvhp_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lbvhp_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_block_validate_block_hash_pair`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : parent_rlp_len
+      bytes  8..16 : child_rlp_len
+      bytes 16..   : parent_rlp || child_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : is_valid
+      bytes 16..48 : parent_block_hash
+      bytes 48..80 : child_block_hash -/
+def ziskBlockValidateBlockHashPairPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # parent_len\n" ++
+  "  ld a3, 16(a7)               # child_len\n" ++
+  "  addi a0, a7, 24             # parent_rlp ptr\n" ++
+  "  add a2, a0, a1              # child_rlp ptr\n" ++
+  "  li a4, 0xa0010010           # parent_hash out\n" ++
+  "  li a5, 0xa0010030           # child_hash out\n" ++
+  "  li a6, 0xa0010008           # is_valid out\n" ++
+  "  jal ra, block_validate_block_hash_pair\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lbvhp_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  blockValidateBlockHashPairFunction ++ "\n" ++
+  ".Lbvhp_pdone:"
+
+def ziskBlockValidateBlockHashPairDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "bvhp_offset:\n" ++
+  "  .zero 8\n" ++
+  "bvhp_length:\n" ++
+  "  .zero 8"
+
+def ziskBlockValidateBlockHashPairProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockValidateBlockHashPairPrologue
+  dataAsm     := ziskBlockValidateBlockHashPairDataSection
+}
+
 end EvmAsm.Codegen
