@@ -4508,6 +4508,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_header_extract_receipts_root" => some ziskHeaderExtractReceiptsRootProbeUnit
   | "zisk_header_extract_transactions_root" => some ziskHeaderExtractTransactionsRootProbeUnit
   | "zisk_header_extract_withdrawals_root" => some ziskHeaderExtractWithdrawalsRootProbeUnit
+  | "zisk_header_extract_ommers_hash" => some ziskHeaderExtractOmmersHashProbeUnit
+  | "zisk_header_extract_prev_randao" => some ziskHeaderExtractPrevRandaoProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -4727,6 +4729,8 @@ def knownProgramNames : List String :=
    "zisk_header_extract_receipts_root",
    "zisk_header_extract_transactions_root",
    "zisk_header_extract_withdrawals_root",
+   "zisk_header_extract_ommers_hash",
+   "zisk_header_extract_prev_randao",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
