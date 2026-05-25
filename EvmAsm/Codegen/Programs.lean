@@ -594,31 +594,15 @@ def ziskKeccak256FromInputProbeUnit : BuildUnit := {
 }
 
 
-/-! ## K64 blob_gas_used_from_versioned_hashes — moved to `Programs/Tx.lean` (file-size hard cap). -/
-
-/-! ## MPT helpers K21-K26 — moved to `Programs/Mpt.lean` (file-size hard cap). -/
-
-/-! ## rlp-field shims + account extractors + legacy-tx decoders / sig extractors (PR-K34/K121/K35/K120/K123/K36/K37/K138/K139)
-    Function + probe defs moved to `Programs/Tx.lean` (see file-size hard cap at the bottom of this file). -/
-
-
-/-! ## Header decoders + validators + K81/K82 account-gas (K38/K39/K55/K90/K93/K95/K43/K72/K63/K67/K68/K81/K82/K73/K74/K75) — moved to `Programs/Header.lean` (file-size hard cap). -/
+/-! Misc programs moved to submodules:
+    - K21..K26 MPT helpers -> Programs/Mpt.lean
+    - K34/K35/K36/K37 + K121/K120/K123 rlp/account extractors + legacy decoders -> Programs/Tx.lean
+    - K64 blob_gas_used_from_versioned_hashes -> Programs/Tx.lean
+    - K138/K139 signature extractors -> Programs/TxSignature.lean -/
 
 
-/-! ## K71 tx_cost_compute + K79 validate_transaction_balance — moved to `Programs/Tx.lean` (file-size hard cap). -/
-
-/-! ## u256-BE truncation + tx type/extract/EIP-decode family + intrinsic-gas + validate-transaction (PR-K57/K40/K102/K101/K103/K104/K108/K41/K42/K44/K45/K87/K88/K92/K46/K66/K76/K80)
-    Function + probe defs moved to `Programs/Tx.lean` (see file-size hard cap at the bottom of this file). -/
-
-/-! ## withdrawal + block-body cluster (K49/K65/K77/K78/K83-K91/K97/K124/K125) — moved to `Programs/Block.lean` (file-size hard cap). -/
-
-
-/-! ## bloom atoms K148-K154 — moved to `Programs/Bloom.lean` (file-size hard cap). -/
-
-
-/-! ## MPT encoders K157/K162-K167 — moved to `Programs/Mpt.lean` (file-size hard cap). -/
-
-/-! ## block-level bloom composites K158-K159 — moved to `Programs/Bloom.lean` (file-size hard cap). -/
+/-! More misc programs moved to submodules — see commit history and
+    the per-PR header comments inside the destination files for details. -/
 
 /-! ## header_root_is_empty_trie -- PR-K161
 
@@ -961,6 +945,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
   | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
   | "zisk_chain_extract_first_last_transactions_root" => some ziskChainExtractFirstLastTransactionsRootProbeUnit
+  | "zisk_chain_extract_first_last_withdrawals_root" => some ziskChainExtractFirstLastWithdrawalsRootProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -1388,6 +1373,7 @@ def knownProgramNames : List String :=
    "zisk_chain_extract_first_last_block_hash",
    "zisk_chain_extract_first_last_receipts_root",
    "zisk_chain_extract_first_last_transactions_root",
+   "zisk_chain_extract_first_last_withdrawals_root",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
