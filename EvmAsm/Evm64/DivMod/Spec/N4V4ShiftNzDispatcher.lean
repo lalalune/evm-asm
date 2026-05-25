@@ -12,6 +12,22 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64 EvmWord
 
+/-- Remaining runtime evidence for the n=4, shift-nonzero DIV v4 dispatcher.
+
+    This packages the call+skip branch certificate, the addback carry2 runtime
+    condition, and the compact addback arithmetic bounds as one predicate. -/
+def n4ShiftNzDispatcherRuntimeV4 (a b : EvmWord) : Prop :=
+  n4CallSkipBranchV4 a b ∧
+  isAddbackCarry2NzN4CallV4Evm a b ∧
+  n4CallAddbackBeqRuntimeBounds a b
+
+theorem n4ShiftNzDispatcherRuntimeV4_def {a b : EvmWord} :
+    n4ShiftNzDispatcherRuntimeV4 a b =
+      (n4CallSkipBranchV4 a b ∧
+       isAddbackCarry2NzN4CallV4Evm a b ∧
+       n4CallAddbackBeqRuntimeBounds a b) :=
+  rfl
+
 /-- n=4, shift-nonzero DIV v4 dispatcher over the call branch.
 
     The call-trial predicate is discharged from the normalized top limb. The
@@ -97,5 +113,30 @@ theorem evm_div_n4_shift_nz_stack_spec_v4_of_runtime_bounds
         sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
         hbnz hb3nz hshift_nz halign hbltu hadd hcarry2 hsem
+
+/-- n=4, shift-nonzero DIV v4 dispatcher from the packaged runtime evidence
+    predicate. -/
+theorem evm_div_n4_shift_nz_stack_spec_v4_of_runtime_pred
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hruntime : n4ShiftNzDispatcherRuntimeV4 a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) := by
+  rw [n4ShiftNzDispatcherRuntimeV4_def] at hruntime
+  exact evm_div_n4_shift_nz_stack_spec_v4_of_runtime_bounds
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hb3nz hshift_nz halign hruntime.1 hruntime.2.1 hruntime.2.2
 
 end EvmAsm.Evm64
