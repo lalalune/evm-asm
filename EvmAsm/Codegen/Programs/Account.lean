@@ -441,4 +441,167 @@ def ziskAccountValidateCodeHashEmptyProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountValidateCodeHashEmptyDataSection
 }
 
+/-! ## account_validate_storage_root_empty -- PR-K235
+
+    Predicate: `account.storage_root == EMPTY_TRIE_ROOT` where
+    `EMPTY_TRIE_ROOT = keccak256(rlp(b'')) =
+        0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421`
+
+    The "account has no storage" check. Used as a constituent
+    of "fresh account / dust prune" decisions and as a quick
+    skip predicate when iterating accounts for state-root
+    recomputation.
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : u64 out (1 if storage_root == EMPTY_TRIE_ROOT)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse failure / field 2 missing
+        2 : field 2 length != 32 -/
+def accountValidateStorageRootEmptyFunction : String :=
+  "account_validate_storage_root_empty:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # account_ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # out u64 ptr\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  li a2, 2\n" ++
+  "  la a3, avsre_offset; la a4, avsre_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lavsre_parse_fail\n" ++
+  "  la t0, avsre_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lavsre_size_fail\n" ++
+  "  la t0, avsre_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  la t4, avsre_empty_trie_root\n" ++
+  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lavsre_not_empty\n" ++
+  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lavsre_not_empty\n" ++
+  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lavsre_not_empty\n" ++
+  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lavsre_not_empty\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s2)\n" ++
+  ".Lavsre_not_empty:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lavsre_ret\n" ++
+  ".Lavsre_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lavsre_ret\n" ++
+  ".Lavsre_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lavsre_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+def ziskAccountValidateStorageRootEmptyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)\n" ++
+  "  addi a0, a3, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, account_validate_storage_root_empty\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lavsre_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountValidateStorageRootEmptyFunction ++ "\n" ++
+  ".Lavsre_pdone:"
+
+def ziskAccountValidateStorageRootEmptyDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "avsre_offset:\n" ++
+  "  .zero 8\n" ++
+  "avsre_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "avsre_empty_trie_root:\n" ++
+  "  .byte 0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6\n" ++
+  "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
+  "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
+  "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21"
+
+def ziskAccountValidateStorageRootEmptyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountValidateStorageRootEmptyPrologue
+  dataAsm     := ziskAccountValidateStorageRootEmptyDataSection
+}
+
+/-! ## account_validate_nonce_zero -- PR-K242
+
+    Predicate: `account.nonce == 0`. RLP canonical zero is the
+    empty byte string, so this is the predicate
+    `length(field 0) == 0`. Useful for fresh-account / dust-prune
+    detection; complements K234 (code_hash empty) and K235
+    (storage_root empty).
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : u64 out (1 if nonce == 0)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse failure / field 0 missing -/
+def accountValidateNonceZeroFunction : String :=
+  "account_validate_nonce_zero:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp)\n" ++
+  "  mv s0, a2                      # is_valid out\n" ++
+  "  sd zero, 0(s0)\n" ++
+  "  li a2, 0                       # field 0 = nonce\n" ++
+  "  la a3, avnz_offset; la a4, avnz_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lavnz_parse_fail\n" ++
+  "  la t0, avnz_length; ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lavnz_nonzero\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s0)\n" ++
+  ".Lavnz_nonzero:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lavnz_ret\n" ++
+  ".Lavnz_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lavnz_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+def ziskAccountValidateNonceZeroPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)\n" ++
+  "  addi a0, a3, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, account_validate_nonce_zero\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lavnz_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountValidateNonceZeroFunction ++ "\n" ++
+  ".Lavnz_pdone:"
+
+def ziskAccountValidateNonceZeroDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "avnz_offset:\n" ++
+  "  .zero 8\n" ++
+  "avnz_length:\n" ++
+  "  .zero 8"
+
+def ziskAccountValidateNonceZeroProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountValidateNonceZeroPrologue
+  dataAsm     := ziskAccountValidateNonceZeroDataSection
+}
+
 end EvmAsm.Codegen
