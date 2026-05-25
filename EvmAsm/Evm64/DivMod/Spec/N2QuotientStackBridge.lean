@@ -266,6 +266,87 @@ theorem fullDivN2QuotientWordV4_eq_div_of_word_path_conditions
     (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
     rfl rfl rfl rfl rfl rfl rfl rfl hbnz hpath
 
+/-- If `fullDivN2QuotientWordV4 ... = EvmWord.div a b`, then each limb of
+    `EvmWord.div a b` matches the corresponding v4 `fullDivN2R{0,1,2}` result
+    and the top limb is zero. -/
+theorem fullDivN2V4_hdivs_of_word_eq
+    (bltu_2 bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hdiv : fullDivN2QuotientWordV4 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.div a b) :
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN2R0V4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN2R1V4 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 2 =
+      (fullDivN2R2V4 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [← hdiv]
+    delta fullDivN2QuotientWordV4
+    exact EvmWord.getLimbN_fromLimbs_0
+  · rw [← hdiv]
+    delta fullDivN2QuotientWordV4
+    exact EvmWord.getLimbN_fromLimbs_1
+  · rw [← hdiv]
+    delta fullDivN2QuotientWordV4
+    exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hdiv]
+    delta fullDivN2QuotientWordV4
+    exact EvmWord.getLimbN_fromLimbs_3
+
+/-- Explicit-limb v4 four-limb division witness from the bundled N2 path
+    predicate. -/
+theorem fullDivN2V4_getLimbN_of_path_conditions
+    (bltu_2 bltu_1 bltu_0 : Bool) {a b : EvmWord}
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hpath : fullDivN2PathConditionsV4 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN2R0V4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN2R1V4 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 2 =
+      (fullDivN2R2V4 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
+  have hdivWord :=
+    fullDivN2QuotientWordV4_eq_div_of_path_conditions
+      bltu_2 bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hpath
+  exact fullDivN2V4_hdivs_of_word_eq bltu_2 bltu_1 bltu_0
+    a b a0 a1 a2 a3 b0 b1 b2 b3 hdivWord
+
+/-- EvmWord-level v4 four-limb division witness from the bundled N2 path
+    predicate. -/
+theorem fullDivN2V4_getLimbN_of_word_path_conditions
+    (bltu_2 bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hpath : fullDivN2PathConditionsWordV4 bltu_2 bltu_1 bltu_0 a b) :
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN2R0V4 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN2R1V4 bltu_2 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+    (EvmWord.div a b).getLimbN 2 =
+      (fullDivN2R2V4 bltu_2
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+    (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
+  exact fullDivN2V4_getLimbN_of_path_conditions
+    bltu_2 bltu_1 bltu_0 (a := a) (b := b)
+    (a0 := a.getLimbN 0) (a1 := a.getLimbN 1)
+    (a2 := a.getLimbN 2) (a3 := a.getLimbN 3)
+    (b0 := b.getLimbN 0) (b1 := b.getLimbN 1)
+    (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
+    rfl rfl rfl rfl rfl rfl rfl rfl hbnz hpath
+
 /-- n=2 quotient bridge specialized to the explicit limb variables used by the
     unified-bound wrappers. -/
 theorem fullDivN2QuotientWord_eq_div_of_limbs_mulsub_overestimate
