@@ -655,4 +655,68 @@ def ziskHeaderExtractBlobGasUsedProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractBlobGasUsedDataSection
 }
 
+/-! ## header_extract_excess_blob_gas -- PR-K244
+
+    Standalone u64 extractor for `excess_blob_gas` (header field
+    18, EIP-4844 Cancun+). The single-field counterpart to K90
+    `header_extract_blob_gas_pair` and the second half of the
+    EIP-4844 pair (alongside K241 `header_extract_blob_gas_used`).
+
+    `excess_blob_gas` is a running counter used by the blob-fee
+    adjustment formula; consensus invariant K63
+    `calc_excess_blob_gas` defines how it evolves block-to-block.
+
+    Pre-Cancun headers (<19 fields) return parse-failure status.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure (pre-Cancun header)
+        2 : field 18 exceeds 8 bytes BE -/
+def headerExtractExcessBlobGasFunction : String :=
+  "header_extract_excess_blob_gas:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  mv a3, a2\n" ++
+  "  li a2, 18\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+def ziskHeaderExtractExcessBlobGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_excess_blob_gas\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhebg_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractExcessBlobGasFunction ++ "\n" ++
+  ".Lhebg_pdone:"
+
+def ziskHeaderExtractExcessBlobGasDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractExcessBlobGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractExcessBlobGasPrologue
+  dataAsm     := ziskHeaderExtractExcessBlobGasDataSection
+}
+
 end EvmAsm.Codegen
