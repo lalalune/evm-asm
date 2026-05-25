@@ -222,6 +222,54 @@ theorem evm_div_counterexampleB_v4_regression_pin :
   · exact evm_div_uses_div128_v4
   constructor <;> decide
 
+-- N1 universal-carry counterexample:
+--   b0 = 2^63 - 1, b1 = b2 = b3 = 0, shift = 1
+--   qHat = u0 = u1 = u2 = u3 = 2^64 - 1, uTop = 0
+--
+-- This does not exercise a reachable runtime state of the v4 program. It pins
+-- the proof-shape failure: `Carry2NzAll` is too strong when quantified over
+-- arbitrary qHat/u states, even for a normalized one-limb divisor.
+abbrev ceN1CarryB0 : Word := BitVec.ofNat 64 (2^63 - 1)
+abbrev ceN1CarryNormB0 : Word :=
+  ceN1CarryB0 <<< (((clzResult ceN1CarryB0).1).toNat % 64)
+abbrev ceN1CarryMaxWord : Word := BitVec.ofNat 64 (2^64 - 1)
+abbrev ceN1CarryMs :=
+  mulsubN4 ceN1CarryMaxWord ceN1CarryNormB0 0 0 0
+    ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord
+abbrev ceN1CarryAb :=
+  addbackN4 ceN1CarryMs.1 ceN1CarryMs.2.1 ceN1CarryMs.2.2.1
+    ceN1CarryMs.2.2.2.1 (0 - ceN1CarryMs.2.2.2.2)
+    ceN1CarryNormB0 0 0 0
+
+theorem ceN1Carry_norm_eq :
+    ceN1CarryNormB0 = BitVec.ofNat 64 (2^64 - 2) := by
+  native_decide
+
+theorem ceN1Carry_first_carry_zero :
+    addbackN4_carry ceN1CarryMs.1 ceN1CarryMs.2.1 ceN1CarryMs.2.2.1
+      ceN1CarryMs.2.2.2.1 ceN1CarryNormB0 0 0 0 = 0 := by
+  native_decide
+
+theorem ceN1Carry_second_carry_zero :
+    addbackN4_carry ceN1CarryAb.1 ceN1CarryAb.2.1 ceN1CarryAb.2.2.1
+      ceN1CarryAb.2.2.2.1 ceN1CarryNormB0 0 0 0 = 0 := by
+  native_decide
+
+theorem ceN1Carry_isAddbackCarry2Nz_false :
+    ¬ isAddbackCarry2Nz ceN1CarryMaxWord ceN1CarryNormB0 0 0 0
+      ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord 0 := by
+  intro h
+  rw [isAddbackCarry2Nz] at h
+  have h_second_ne := h ceN1Carry_first_carry_zero
+  exact h_second_ne ceN1Carry_second_carry_zero
+
+theorem ceN1Carry_Carry2NzAll_false :
+    ¬ Carry2NzAll ceN1CarryNormB0 0 0 0 := by
+  intro h
+  exact ceN1Carry_isAddbackCarry2Nz_false
+    (h ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord
+      ceN1CarryMaxWord 0)
+
 end DivModCounterexamples
 
 end EvmAsm.Evm64
