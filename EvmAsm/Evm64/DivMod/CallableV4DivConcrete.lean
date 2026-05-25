@@ -162,15 +162,13 @@ theorem evm_div_callable_v4_n2_stack_pre_to_callable_post_scratch_path_shape
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
           scratchMem)) := by
-  have hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
-      b.getLimbN 3 ≠ 0 :=
-    n2_limb_or_ne_zero_of_limb1_ne_zero hb1nz
   exact evm_div_callable_v4_n2_stack_pre_to_callable_post_scratch_path_limbNz
     bltu_2 bltu_1 bltu_0 sp base a b
     v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
-    hbnz hb3z hb2z hb1nz hshift_nz halign hpath
+    (n2_limb_or_ne_zero_of_limb1_ne_zero hb1nz) hb3z hb2z hb1nz
+    hshift_nz halign hpath
 
 /-- Trial-bundled N2 DIV v4 callable wrapper preserving the concrete v4
     trial-call scratch value.
@@ -362,14 +360,13 @@ theorem evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_path_shape
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
           scratchMem)) := by
-  have hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
-    n3_limb_or_ne_zero_of_limb2_ne_zero hb2nz
   exact evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_path_limbNz
     bltu_1 bltu_0 sp base a b
     v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
-    hbnz hb3z hb2nz hshift_nz halign hpath
+    (n3_limb_or_ne_zero_of_limb2_ne_zero hb2nz) hb3z hb2nz
+    hshift_nz halign hpath
 
 /-- Trial-bundled N3 DIV v4 callable wrapper preserving the concrete v4
     trial-call scratch value.
