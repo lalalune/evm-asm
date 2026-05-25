@@ -5024,4 +5024,60 @@ def ziskChainComputeTotalBlobGasProbeUnit : BuildUnit := {
   dataAsm     := ziskChainComputeTotalBlobGasDataSection
 }
 
+/-! ## header_extract_timestamp -- PR-K232
+
+    Extract `timestamp` (field 11, u64 BE) from a header RLP.
+    Cross-fork — every header has timestamp.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure
+        2 : field 11 exceeds 8 bytes BE -/
+def headerExtractTimestampFunction : String :=
+  "header_extract_timestamp:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  mv a3, a2\n" ++
+  "  li a2, 11\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+def ziskHeaderExtractTimestampPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_timestamp\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhets_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractTimestampFunction ++ "\n" ++
+  ".Lhets_pdone:"
+
+def ziskHeaderExtractTimestampDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractTimestampProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractTimestampPrologue
+  dataAsm     := ziskHeaderExtractTimestampDataSection
+}
+
 end EvmAsm.Codegen
