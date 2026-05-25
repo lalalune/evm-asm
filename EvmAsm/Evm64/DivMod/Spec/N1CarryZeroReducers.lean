@@ -145,4 +145,28 @@ theorem fullDivN1R3CarryZero_true_of_shape_qHat_v0_mul_le
     (fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z)
     h_qHat_mul_le
 
+/-- Exact-floor form of the first-step n=1 carry-zero reducer. Once the
+    selected `div128Quot` is identified with the usual 128/64 Nat quotient,
+    the product bound follows from `Nat.div_mul_le_self`. -/
+theorem fullDivN1R3CarryZero_true_of_shape_div128Quot_floor
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (h_qHat_eq :
+      (div128Quot
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+          (fullDivN1NormV b0 b1 b2 b3).1).toNat =
+        ((fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2^64 +
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat) /
+          (fullDivN1NormV b0 b1 b2 b3).1.toNat) :
+    fullDivN1R3CarryZero true a0 a1 a2 a3 b0 b1 b2 b3 := by
+  apply fullDivN1R3CarryZero_true_of_shape_qHat_v0_mul_le
+    a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz
+  rw [h_qHat_eq]
+  exact Nat.div_mul_le_self
+    ((fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2^64 +
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat)
+    (fullDivN1NormV b0 b1 b2 b3).1.toNat
+
 end EvmAsm.Evm64
