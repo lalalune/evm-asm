@@ -494,4 +494,105 @@ def ziskHeaderExtractNumberProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractNumberDataSection
 }
 
+/-! ## chain_compute_max_gas_used -- PR-K236
+
+    Find the maximum of `gas_used` (header field 10) across an
+    N-element header chain. Cross-fork — every header has
+    gas_used. Useful for peak-congestion monitoring across a
+    chain segment, complementing K196
+    `chain_compute_total_gas_used` (sum).
+
+    Vacuous on empty chain: max = 0.
+
+    Calling convention:
+      a0 (input)  : N
+      a1 (input)  : header_lengths ptr (N u64 LE)
+      a2 (input)  : flat headers ptr
+      a3 (input)  : u64 out (max)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse fail (in any header)
+        2 : gas_used field > 8 bytes BE -/
+def chainComputeMaxGasUsedFunction : String :=
+  "chain_compute_max_gas_used:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li s4, 0\n" ++
+  "  beqz s0, .Lccmgu_done\n" ++
+  ".Lccmgu_loop:\n" ++
+  "  beq s4, s0, .Lccmgu_done\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  mv a0, s2; li a2, 10\n" ++
+  "  la a3, ccmgu_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lccmgu_parse_fail\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lccmgu_size_fail\n" ++
+  "  la t0, ccmgu_field; ld t1, 0(t0)\n" ++
+  "  ld t2, 0(s3)\n" ++
+  "  bgeu t2, t1, .Lccmgu_no_update\n" ++
+  "  sd t1, 0(s3)\n" ++
+  ".Lccmgu_no_update:\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lccmgu_loop\n" ++
+  ".Lccmgu_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lccmgu_ret\n" ++
+  ".Lccmgu_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lccmgu_ret\n" ++
+  ".Lccmgu_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lccmgu_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainComputeMaxGasUsedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010010\n" ++
+  "  jal ra, chain_compute_max_gas_used\n" ++
+  "  li t0, 0xa0010008\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lccmgu_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainComputeMaxGasUsedFunction ++ "\n" ++
+  ".Lccmgu_pdone:"
+
+def ziskChainComputeMaxGasUsedDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "ccmgu_field:\n" ++
+  "  .zero 8"
+
+def ziskChainComputeMaxGasUsedProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainComputeMaxGasUsedPrologue
+  dataAsm     := ziskChainComputeMaxGasUsedDataSection
+}
+
 end EvmAsm.Codegen
