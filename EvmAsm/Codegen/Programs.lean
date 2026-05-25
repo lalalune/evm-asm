@@ -581,8 +581,6 @@ def ziskKeccak256FromInputProbeUnit : BuildUnit := {
   dataAsm     := ziskKeccak256FromInputDataSection
 }
 
-/-! ## K19 witness_lookup_by_hash — moved to `Programs/Mpt.lean` (file-size hard cap). -/
-
 /-! ## account_validate_code_hash -- PR-K98
 
     Verify that an account's `code_hash` field matches the
@@ -2424,6 +2422,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_extract_timestamp_range" => some ziskChainExtractTimestampRangeProbeUnit
   | "zisk_chain_validate_gas_used_under_limit" => some ziskChainValidateGasUsedUnderLimitProbeUnit
   | "zisk_header_extract_blob_gas_used" => some ziskHeaderExtractBlobGasUsedProbeUnit
+  | "zisk_account_validate_nonce_zero" => some ziskAccountValidateNonceZeroProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -2839,6 +2838,7 @@ def knownProgramNames : List String :=
    "zisk_chain_extract_timestamp_range",
    "zisk_chain_validate_gas_used_under_limit",
    "zisk_header_extract_blob_gas_used",
+   "zisk_account_validate_nonce_zero",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
