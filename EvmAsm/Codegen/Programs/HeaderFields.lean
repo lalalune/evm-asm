@@ -796,5 +796,102 @@ def ziskHeaderRootIsEmptyTrieProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderRootIsEmptyTrieDataSection
 }
 
+/-! ## chain_extract_first_last_beneficiary -- PR-K256
+
+    Extract `(headers[0].beneficiary, headers[N-1].beneficiary)`
+    from an N-element header chain. The 20-byte `beneficiary`
+    field (header field 2) is the validator/coinbase that earned
+    the block's fees. Useful for proposer-rotation analytics
+    across a chain segment. Companion to the K250..K255 endpoint
+    family.
+
+    Composes K208 `header_extract_beneficiary` at head and tail
+    headers (placed here for adjacency).
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : 20-byte out (first_beneficiary)
+      a4 (input)  : 20-byte out (last_beneficiary)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse fail at head or tail header -/
+def chainExtractFirstLastBeneficiaryFunction : String :=
+  "chain_extract_first_last_beneficiary:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  beqz s0, .Lceflb_empty\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, header_extract_beneficiary\n" ++
+  "  bnez a0, .Lceflb_parse_fail\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1\n" ++
+  ".Lceflb_skip:\n" ++
+  "  beqz t3, .Lceflb_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lceflb_skip\n" ++
+  ".Lceflb_at_last:\n" ++
+  "  ld a1, 0(t2)\n" ++
+  "  mv a0, t1\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, header_extract_beneficiary\n" ++
+  "  bnez a0, .Lceflb_parse_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lceflb_ret\n" ++
+  ".Lceflb_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lceflb_ret\n" ++
+  ".Lceflb_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lceflb_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainExtractFirstLastBeneficiaryPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010020\n" ++
+  "  jal ra, chain_extract_first_last_beneficiary\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lceflb_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractBeneficiaryFunction ++ "\n" ++
+  chainExtractFirstLastBeneficiaryFunction ++ "\n" ++
+  ".Lceflb_pdone:"
+
+def ziskChainExtractFirstLastBeneficiaryDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hebe_offset:\n" ++
+  "  .zero 8\n" ++
+  "hebe_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractFirstLastBeneficiaryProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractFirstLastBeneficiaryPrologue
+  dataAsm     := ziskChainExtractFirstLastBeneficiaryDataSection
+}
 
 end EvmAsm.Codegen
