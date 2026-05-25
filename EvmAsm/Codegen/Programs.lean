@@ -65,6 +65,7 @@ import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Chain
 import EvmAsm.Codegen.Programs.HeaderFields
+import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.Receipt
@@ -1821,7 +1822,7 @@ end EvmAsm.Codegen
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 2544
+  let hardCap := 2298
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
     "EvmAsm/Codegen/Programs/Account.lean",
@@ -1837,6 +1838,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderChain.lean",
     "EvmAsm/Codegen/Programs/HeaderFields.lean",
+    "EvmAsm/Codegen/Programs/BlockHashPredicates.lean",
     "EvmAsm/Codegen/Programs/HeadersKeccak.lean",
     "EvmAsm/Codegen/Programs/HeaderU64.lean",
     "EvmAsm/Codegen/Programs/Mpt.lean",
