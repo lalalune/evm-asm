@@ -926,6 +926,74 @@ theorem Div128AllPhasesNoWrapInv.ofPhaseNoWrapInv
   simp only [Div128AllPhasesNoWrapInv]
   exact ⟨h_phase.1, h_phase.2, h_phase2⟩
 
+/-- Build the all-phases invariant directly from its three conjuncts. -/
+theorem Div128AllPhasesNoWrapInv.ofConjuncts
+    {uHi uLo vTop : Word}
+    (h_un21_lt :
+      let dHi := vTop >>> (32 : BitVec 6).toNat
+      let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := uLo >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu uHi dHi
+      let rhat := uHi - q1 * dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      let rhatc := if hi1 = 0 then rhat else rhat + dHi
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+      let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+      let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+      let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+      let cu_q1_dlo := q1' * dLo
+      let un21 := cu_rhat_un1 - cu_q1_dlo
+      un21.toNat < dHi.toNat * 2^32 + dLo.toNat)
+    (h_phase1_no_wrap :
+      let dHi := vTop >>> (32 : BitVec 6).toNat
+      let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := uLo >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu uHi dHi
+      let rhat := uHi - q1 * dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      let rhatc := if hi1 = 0 then rhat else rhat + dHi
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+      let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+      let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+      q1'.toNat * dLo.toNat ≤ (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat)
+    (h_phase2_no_wrap :
+      let dHi := vTop >>> (32 : BitVec 6).toNat
+      let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := uLo >>> (32 : BitVec 6).toNat
+      let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu uHi dHi
+      let rhat := uHi - q1 * dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      let rhatc := if hi1 = 0 then rhat else rhat + dHi
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+      let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+      let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+      let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+      let cu_q1_dlo := q1' * dLo
+      let un21 := cu_rhat_un1 - cu_q1_dlo
+      let q0 := rv64_divu un21 dHi
+      let rhat2 := un21 - q0 * dHi
+      let hi2 := q0 >>> (32 : BitVec 6).toNat
+      let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+      let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+      let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+      let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+      let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
+      let rhat2' := if rhat2cHi = 0 then
+                      (if BitVec.ult rhat2Un0 (q0c * dLo) then rhat2c + dHi else rhat2c)
+                    else rhat2c
+      q0'.toNat * dLo.toNat ≤ rhat2'.toNat * 2^32 + div_un0.toNat) :
+    Div128AllPhasesNoWrapInv uHi uLo vTop := by
+  exact Div128AllPhasesNoWrapInv.ofPhaseNoWrapInv
+    (Div128PhaseNoWrapInv.ofConjuncts h_un21_lt h_phase1_no_wrap)
+    h_phase2_no_wrap
+
 /-- Projection for the Phase-2 no-wrap conjunct of
     `Div128AllPhasesNoWrapInv`. -/
 theorem Div128AllPhasesNoWrapInv.phase2NoWrap
