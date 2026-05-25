@@ -1,5 +1,5 @@
 import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
-import EvmAsm.Evm64.DivMod.Spec.N1FinalCarryZero
+import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
 
 namespace EvmAsm.Evm64
 
