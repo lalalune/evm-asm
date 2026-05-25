@@ -807,6 +807,46 @@ theorem fullDivN1R3_q0_prime_lt_pow32_of_shape_un21_lt
     (by simpa [vTop, dLo] using fullDivN1NormV_limb0_dLo_lt_pow32 b0 b1 b2 b3)
     hun21_lt
 
+/-- Instantiation of the R3 second-half quotient bound from the selected
+    `Div128PhaseNoWrapInv`. This is the phase-invariant entry point for the
+    `q0' < 2^32` subgoal used by the strict R3 quotient expansion. -/
+theorem fullDivN1R3_q0_prime_lt_pow32_of_shape_phase_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    let uHi := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    let uLo := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    let vTop := (fullDivN1NormV b0 b1 b2 b3).1
+    Div128PhaseNoWrapInv uHi uLo vTop →
+    let dHi := vTop >>> (32 : BitVec 6).toNat
+    let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
+    q0'.toNat < 2^32 := by
+  intro uHi uLo vTop h_inv dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo
+    rhatUn1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0'
+  exact fullDivN1R3_q0_prime_lt_pow32_of_shape_un21_lt
+    a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z
+    (Div128PhaseNoWrapInv.un21Lt h_inv)
+
 /-- Strict first n=1 R3 trial quotient expansion under the generic
     `Div128PhaseNoWrapInv` for the selected 128/64 call. This packages the
     local `un21 < vTop` extraction and the `q0' < 2^32` reducer into the
