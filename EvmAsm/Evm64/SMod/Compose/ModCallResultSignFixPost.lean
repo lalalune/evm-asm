@@ -15,25 +15,22 @@ open EvmAsm.Rv64.Tactics
 
 @[irreducible]
 def smodModCallResultSignFixFrame
-    (vRa sp base dividendTop divisorTop : Word) (dividendAbsWord : EvmWord) :
+    (vRa sp base dividendTop : Word) (dividendAbsWord : EvmWord) :
     EvmAsm.Rv64.Assertion :=
   let dividendSign := smodAbsSign dividendTop
-  let divisorSign := smodAbsSign divisorTop
   (.x1 ↦ᵣ ((base + modCallOff) + 4)) **
-    (.x9 ↦ᵣ divisorSign) ** (.x8 ↦ᵣ dividendSign) **
+    EvmAsm.Rv64.regOwn .x9 ** (.x8 ↦ᵣ dividendSign) **
     (.x18 ↦ᵣ (vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12))) **
     EvmAsm.Rv64.regOwn .x2 ** EvmAsm.Rv64.regOwn .x5 **
     EvmAsm.Rv64.regOwn .x6 ** evmWordIs sp dividendAbsWord **
     EvmAsm.Evm64.divScratchOwnCallNoX1 sp
 
 theorem smodModCallResultSignFixFrame_unfold
-    {vRa sp base dividendTop divisorTop : Word} {dividendAbsWord : EvmWord} :
-    smodModCallResultSignFixFrame vRa sp base dividendTop divisorTop
-        dividendAbsWord =
+    {vRa sp base dividendTop : Word} {dividendAbsWord : EvmWord} :
+    smodModCallResultSignFixFrame vRa sp base dividendTop dividendAbsWord =
       (let dividendSign := smodAbsSign dividendTop
-       let divisorSign := smodAbsSign divisorTop
        (.x1 ↦ᵣ ((base + modCallOff) + 4)) **
-         (.x9 ↦ᵣ divisorSign) ** (.x8 ↦ᵣ dividendSign) **
+         EvmAsm.Rv64.regOwn .x9 ** (.x8 ↦ᵣ dividendSign) **
          (.x18 ↦ᵣ (vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12))) **
          EvmAsm.Rv64.regOwn .x2 ** EvmAsm.Rv64.regOwn .x5 **
          EvmAsm.Rv64.regOwn .x6 ** evmWordIs sp dividendAbsWord **
@@ -42,9 +39,8 @@ theorem smodModCallResultSignFixFrame_unfold
   rfl
 
 theorem smodModCallResultSignFixFrame_pcFree
-    {vRa sp base dividendTop divisorTop : Word} {dividendAbsWord : EvmWord} :
-    (smodModCallResultSignFixFrame vRa sp base dividendTop divisorTop
-      dividendAbsWord).pcFree := by
+    {vRa sp base dividendTop : Word} {dividendAbsWord : EvmWord} :
+    (smodModCallResultSignFixFrame vRa sp base dividendTop dividendAbsWord).pcFree := by
   rw [smodModCallResultSignFixFrame_unfold,
     EvmAsm.Evm64.divScratchOwnCallNoX1_unfold,
     EvmAsm.Evm64.divScratchOwn_unfold]
@@ -52,10 +48,9 @@ theorem smodModCallResultSignFixFrame_pcFree
   pcFree
 
 instance pcFreeInst_smodModCallResultSignFixFrame
-    (vRa sp base dividendTop divisorTop : Word) (dividendAbsWord : EvmWord) :
+    (vRa sp base dividendTop : Word) (dividendAbsWord : EvmWord) :
     EvmAsm.Rv64.Assertion.PCFree
-      (smodModCallResultSignFixFrame vRa sp base dividendTop divisorTop
-        dividendAbsWord) :=
+      (smodModCallResultSignFixFrame vRa sp base dividendTop dividendAbsWord) :=
   ⟨smodModCallResultSignFixFrame_pcFree⟩
 
 theorem saveRaAbsThenModCallCallablePost_smodResultSignFixPreOwnScratch
@@ -74,8 +69,7 @@ theorem saveRaAbsThenModCallCallablePost_smodResultSignFixPreOwnScratch
        smodResultSignFixPreOwnScratch (sp + 32) resultSign
          (modWord.getLimbN 0) (modWord.getLimbN 1)
          (modWord.getLimbN 2) (modWord.getLimbN 3) **
-       smodModCallResultSignFixFrame vRa sp base dividendTop divisorTop
-         dividendAbsWord) := by
+       smodModCallResultSignFixFrame vRa sp base dividendTop dividendAbsWord) := by
   dsimp only
   rw [saveRaAbsThenModCallCallablePost_unfold]
   dsimp only
