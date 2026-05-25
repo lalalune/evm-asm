@@ -347,4 +347,98 @@ def ziskAccountIsEmptyProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountIsEmptyDataSection
 }
 
+/-! ## account_validate_code_hash_empty -- PR-K234
+
+    Predicate: `account.code_hash == EMPTY_CODE_HASH` where
+    `EMPTY_CODE_HASH = keccak256(b'') =
+        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470`
+
+    This is the "is EOA / contract has no code" check. Useful
+    as a standalone predicate without the balance/nonce
+    constraints of K123 `account_is_empty` — e.g., to decide
+    whether to skip the EVM call into a contract during static
+    analysis, or to test the EIP-7702 delegation-clear path.
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : u64 out (1 if code_hash == EMPTY_CODE_HASH)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse failure / field 3 missing
+        2 : field 3 length != 32 -/
+def accountValidateCodeHashEmptyFunction : String :=
+  "account_validate_code_hash_empty:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # account_ptr\n" ++
+  "  mv s1, a1                   # account_len\n" ++
+  "  mv s2, a2                   # out u64 ptr\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  li a2, 3\n" ++
+  "  la a3, avche_offset; la a4, avche_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lavche_parse_fail\n" ++
+  "  la t0, avche_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lavche_size_fail\n" ++
+  "  la t0, avche_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  la t4, avche_empty_code_hash\n" ++
+  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lavche_not_empty\n" ++
+  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lavche_not_empty\n" ++
+  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lavche_not_empty\n" ++
+  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lavche_not_empty\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s2)\n" ++
+  ".Lavche_not_empty:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lavche_ret\n" ++
+  ".Lavche_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lavche_ret\n" ++
+  ".Lavche_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lavche_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+def ziskAccountValidateCodeHashEmptyPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)\n" ++
+  "  addi a0, a3, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, account_validate_code_hash_empty\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lavche_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountValidateCodeHashEmptyFunction ++ "\n" ++
+  ".Lavche_pdone:"
+
+def ziskAccountValidateCodeHashEmptyDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "avche_offset:\n" ++
+  "  .zero 8\n" ++
+  "avche_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "avche_empty_code_hash:\n" ++
+  "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
+  "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
+  "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
+  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70"
+
+def ziskAccountValidateCodeHashEmptyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountValidateCodeHashEmptyPrologue
+  dataAsm     := ziskAccountValidateCodeHashEmptyDataSection
+}
+
 end EvmAsm.Codegen
