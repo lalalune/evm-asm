@@ -497,6 +497,45 @@ theorem n3V4_shape_quotient_word_of_path_conditions
           EvmWord.div a b :=
   n3V4_quotient_word_of_path_conditions hbnz hcarry2 harith
 
+/-- In the n=3 divisor shape, the nonzero second limb witnesses the full
+    limb-or nonzero condition. -/
+theorem n3_limb_or_ne_zero_of_limb2_ne_zero {b : EvmWord}
+    (hb2nz : b.getLimbN 2 ≠ 0) :
+    b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0 := by
+  intro h_or
+  exact hb2nz (EvmWord.or_eq_zero_imp_right (EvmWord.or_eq_zero_imp_left h_or))
+
+/-- Dispatcher-shape n=3 V4 quotient-word package deriving divisor nonzero
+    from the n=3 shape itself. -/
+theorem n3V4_shape_quotient_word_of_path_conditions_of_hb2nz
+    (a b : EvmWord)
+    (_hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
+    (hcarry2 : fullDivN3Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN3V4_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN3MulSubEqV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_1 bltu_0,
+      fullDivN3QuotientWordV4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.div a b :=
+  n3V4_shape_quotient_word_of_path_conditions
+    a b (n3_limb_or_ne_zero_of_limb2_ne_zero hb2nz)
+    _hb3z hb2nz _hshift_nz hcarry2 harith
+
 /-- Auto-trial form of `N3V4TrialWitnesses.exists_hdivs_of_path_conditions`.
 
     This is the pure witness package needed by n=3 unconditional wrappers once
@@ -658,5 +697,41 @@ theorem n3V4_shape_full_div_getLimbN_of_path_conditions
       (EvmWord.div a b).getLimbN 2 = (0 : Word) ∧
       (EvmWord.div a b).getLimbN 3 = (0 : Word) :=
   n3V4_full_div_getLimbN_of_path_conditions hbnz hcarry2 harith
+
+/-- Dispatcher-shape n=3 V4 quotient-limb package deriving divisor nonzero
+    from the n=3 shape itself. -/
+theorem n3V4_shape_full_div_getLimbN_of_path_conditions_of_hb2nz
+    (a b : EvmWord)
+    (_hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
+    (hcarry2 : fullDivN3Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN3V4_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN3MulSubEqV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_1 bltu_0,
+      (EvmWord.div a b).getLimbN 0 =
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 1 =
+        (fullDivN3R1V4 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 2 = (0 : Word) ∧
+      (EvmWord.div a b).getLimbN 3 = (0 : Word) :=
+  n3V4_shape_full_div_getLimbN_of_path_conditions
+    a b (n3_limb_or_ne_zero_of_limb2_ne_zero hb2nz)
+    _hb3z hb2nz _hshift_nz hcarry2 harith
 
 end EvmAsm.Evm64
