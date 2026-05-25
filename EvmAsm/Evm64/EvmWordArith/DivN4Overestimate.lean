@@ -291,6 +291,31 @@ theorem iterSingleAddbackBranch_val256_conservation
       simp only [] at hlow
       exact hlow)
 
+/-- In the single-addback iterator branch, the returned five-limb remainder is
+    strictly below the divisor. -/
+theorem iterSingleAddbackBranch_remainder_lt
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterSingleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) v0 v1 v2 v3
+    EvmWord.val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 +
+        ab.2.2.2.2.toNat * 2^256 <
+      EvmWord.val256 v0 v1 v2 v3 := by
+  intro ms ab
+  have htop := iterSingleAddbackBranch_ab_top_toNat_eq_zero
+    q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
+  simp only [] at htop
+  have hlow : EvmWord.val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 <
+      EvmWord.val256 v0 v1 v2 v3 := by
+    delta iterSingleAddbackBranch at hbranch
+    simp only [] at hbranch
+    rcases hbranch with ⟨_hb, _hc3_one, hcarry_one, _hq_pos⟩
+    exact addbackN4_low_val256_lt_of_carry_one
+      ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+      (uTop - ms.2.2.2.2) v0 v1 v2 v3 hcarry_one
+  rw [htop, Nat.zero_mul, Nat.add_zero]
+  exact hlow
+
 -- ============================================================================
 -- Addback path correctness for max trial at n=4
 -- ============================================================================
@@ -777,6 +802,40 @@ theorem iterDoubleAddbackBranch_val256_conservation
         q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
       simp only [] at hlow
       exact hlow)
+
+/-- In the double-addback iterator branch, the returned five-limb remainder is
+    strictly below the divisor. -/
+theorem iterDoubleAddbackBranch_remainder_lt
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterDoubleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) v0 v1 v2 v3
+    let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 v0 v1 v2 v3
+    EvmWord.val256 ab'.1 ab'.2.1 ab'.2.2.1 ab'.2.2.2.1 +
+        ab'.2.2.2.2.toNat * 2^256 <
+      EvmWord.val256 v0 v1 v2 v3 := by
+  intro ms ab ab'
+  have htop := iterDoubleAddbackBranch_ab'_top_toNat_eq_zero
+    q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
+  simp only [] at htop
+  have hlow : EvmWord.val256 ab'.1 ab'.2.1 ab'.2.2.1 ab'.2.2.2.1 <
+      EvmWord.val256 v0 v1 v2 v3 := by
+    delta iterDoubleAddbackBranch at hbranch
+    simp only [] at hbranch
+    rcases hbranch with ⟨_hb, hc3_one, hcarry_zero, hbnz, hq_over, _hq_ge_2⟩
+    have hcarry2 := addbackN4_second_carry_one
+      q v0 v1 v2 v3 u0 u1 u2 u3 hbnz hq_over hc3_one hcarry_zero
+    simp only [] at hcarry2
+    have hcarry2_actual :
+        (addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3).toNat = 1 := by
+      subst ab
+      simp only [addbackN4] at hcarry2 ⊢
+      exact hcarry2
+    exact addbackN4_low_val256_lt_of_carry_toNat_one
+      ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2
+      v0 v1 v2 v3 hcarry2_actual
+  rw [htop, Nat.zero_mul, Nat.add_zero]
+  exact hlow
 
 theorem q_pos_of_mulsub_borrow
     (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)

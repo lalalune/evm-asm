@@ -408,6 +408,76 @@ theorem n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime_top
     hq_over
     h_carry2
 
+/-- Runtime-condition normalized remainder bound for the n=4 call+addback-BEQ
+    path, stated over the normalized marker limbs. -/
+theorem n4CallAddbackBeqIterRNormVal_lt_BNormVal_of_runtime
+    {a b : EvmWord}
+    (hbnz :
+      n4CallAddbackBeqB0Prime b ||| n4CallAddbackBeqB1Prime b |||
+        n4CallAddbackBeqB2Prime b ||| n4CallAddbackBeqB3Prime b ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        EvmWord.val256
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b) /
+          EvmWord.val256
+            (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b)
+            (n4CallAddbackBeqB2Prime b)
+            (n4CallAddbackBeqB3Prime b) + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b := by
+  have hb := n4CallAddbackBeqBorrow_raw_of_runtime h_borrow
+  have hc3_one :=
+    n4CallAddbackBeqC3_eq_one_of_borrow_and_qhat_le_div_plus_one
+      hbnz hq_over hb
+  have h := iterWithDoubleAddback_borrow_remainder_lt_of_qhat_le_div_plus_one
+    (n4CallAddbackBeqQHatV4 a b)
+    (n4CallAddbackBeqB0Prime b)
+    (n4CallAddbackBeqB1Prime b)
+    (n4CallAddbackBeqB2Prime b)
+    (n4CallAddbackBeqB3Prime b)
+    (n4CallAddbackBeqU0 a b)
+    (n4CallAddbackBeqU1 a b)
+    (n4CallAddbackBeqU2 a b)
+    (n4CallAddbackBeqU3 a b)
+    (n4CallAddbackBeqU4 a b)
+    hbnz hb hc3_one hq_over
+  simpa [n4CallAddbackBeqIterRNormVal, n4CallAddbackBeqIterOut,
+    n4CallAddbackBeqBNormVal] using h
+
+/-- Runtime-condition normalized remainder bound with the original top-limb
+    nonzero condition discharging normalized divisor nonzero. -/
+theorem n4CallAddbackBeqIterRNormVal_lt_BNormVal_of_runtime_top_nonzero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b :=
+  n4CallAddbackBeqIterRNormVal_lt_BNormVal_of_runtime
+    (n4CallAddbackBeqNormalizedDivisor_ne_zero hb3nz)
+    (by
+      simpa [n4CallAddbackBeqULoNormVal, n4CallAddbackBeqBNormVal] using hq_over)
+    h_borrow
+
+/-- Package the compact n=4 call+addback-BEQ runtime bounds from the qhat
+    bound and the runtime borrow predicate. -/
+theorem n4CallAddbackBeqRuntimeBounds_of_qhat_bound_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqRuntimeBounds a b :=
+  ⟨hq_over,
+    n4CallAddbackBeqIterRNormVal_lt_BNormVal_of_runtime_top_nonzero
+      hb3nz hq_over h_borrow⟩
+
 /-- Runtime-condition value conservation with the iterator quotient rewritten
     to the named v4 call-addback quotient output. -/
 theorem n4CallAddbackBeqQOutV4_val256_conservation_of_runtime_top_nonzero
@@ -667,6 +737,24 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
   n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions_compact
     hb3nz hshift_nz h_bounds.1 h_borrow h_carry2 h_bounds.2
 
+/-- Runtime semantic bridge with the normalized remainder bound discharged from
+    the qhat bound and runtime borrow predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_qhat_bound_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
+    hb3nz hshift_nz
+    (n4CallAddbackBeqRuntimeBounds_of_qhat_bound_and_borrow
+      hb3nz hq_over h_borrow)
+    h_borrow h_carry2
+
 /-- Historical non-`V4` spelling of
     `n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds`. -/
 theorem n4CallAddbackBeqSemanticHolds_of_runtime_bounds
@@ -680,6 +768,22 @@ theorem n4CallAddbackBeqSemanticHolds_of_runtime_bounds
   simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
     n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
       hb3nz hshift_nz h_bounds h_borrow h_carry2
+
+/-- Historical non-`V4` spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_qhat_bound_and_borrow`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_qhat_bound_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_qhat_bound_and_borrow
+      hb3nz hshift_nz hq_over h_borrow h_carry2
 
 /-- **n4 call+addback (shift≠0) getLimbN bridge.**
     Under `n4CallAddbackBeqSemanticHolds a b` (the algorithm's q_out equals the
