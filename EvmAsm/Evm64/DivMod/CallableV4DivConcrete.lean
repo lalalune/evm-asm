@@ -43,16 +43,16 @@ theorem evm_div_callable_v4_n2_stack_pre_to_callable_post_scratch_path_word
     bltu_2 bltu_1 bltu_0 a b hpath
   have hcarry2 := fullDivN2PathConditionsWordV4_carry2
     bltu_2 bltu_1 bltu_0 a b hpath
-  have hdivWord :=
-    fullDivN2QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
-      bltu_2 bltu_1 bltu_0 a b hbnz hpath
   have hBody :=
     cpsTripleWithin_weaken
       (fun _ hp => hp)
       (fun h hq =>
         fullDivN2UnifiedPostNoX1V4_frame_to_divStackDispatchPostCallableExactFrame_scratch_word
           bltu_2 bltu_1 bltu_0 sp base a b
-          retMem dMem dloMem scratchUn0 scratchMem raVal hdivWord h hq)
+          retMem dMem dloMem scratchUn0 scratchMem raVal
+          (fullDivN2QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
+            bltu_2 bltu_1 bltu_0 a b hbnz hpath)
+          h hq)
       (evm_div_n2_stack_pre_to_unified_post_v4_noNop sp base a b
         v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7

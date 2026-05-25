@@ -1421,15 +1421,14 @@ theorem evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_of_mulsub_over
     bltu_1 bltu_0 a b hpath
   have hcarry2 := fullDivN3PathConditionsWordV4_carry2
     bltu_1 bltu_0 a b hpath
-  have hdivWord :=
-    fullDivN3QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
-      bltu_1 bltu_0 a b hbnz hpath
   exact evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_word
     sp base a b v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
     hbnz hb3z hb2nz hshift_nz halign hbltu_1
     (by cases bltu_1 <;> simpa [isTrialN3V4_j0] using hbltu_0)
-    hcarry2 hdivWord
+    hcarry2
+    (fullDivN3QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
+      bltu_1 bltu_0 a b hbnz hpath)
 
 end EvmAsm.Evm64
