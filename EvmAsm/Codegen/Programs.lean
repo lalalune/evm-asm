@@ -55,6 +55,7 @@ import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.Block
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderFields
+import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.Address
 
@@ -4376,6 +4377,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_validate_consecutive_numbers" => some ziskChainValidateConsecutiveNumbersProbeUnit
   | "zisk_chain_compute_total_blob_gas" => some ziskChainComputeTotalBlobGasProbeUnit
   | "zisk_header_extract_timestamp" => some ziskHeaderExtractTimestampProbeUnit
+  | "zisk_header_extract_number" => some ziskHeaderExtractNumberProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -4782,6 +4784,7 @@ def knownProgramNames : List String :=
    "zisk_chain_validate_consecutive_numbers",
    "zisk_chain_compute_total_blob_gas",
    "zisk_header_extract_timestamp",
+   "zisk_header_extract_number",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
@@ -4855,7 +4858,7 @@ end EvmAsm.Codegen
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 5125
+  let hardCap := 5124
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
     "EvmAsm/Codegen/Programs/Address.lean",
@@ -4865,6 +4868,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/HashBridge.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderFields.lean",
+    "EvmAsm/Codegen/Programs/HeaderU64.lean",
     "EvmAsm/Codegen/Programs/Mpt.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
     "EvmAsm/Codegen/Programs/Ssz.lean",
