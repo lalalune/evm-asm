@@ -68,4 +68,26 @@ theorem fullDivN1R3CarryZero_true_of_qHat_mul_le
       (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
       (fullDivN1NormV b0 b1 b2 b3).1) h_mul_le
 
+/-- 128/64-bound form of the first n=1 step carry-zero reducer. When the
+    normalized divisor is one-limb, the generic product bound for R3 is exactly
+    the usual `qHat * v0 ≤ uHi * 2^64 + uLo` obligation. -/
+theorem fullDivN1R3CarryZero_true_of_qHat_v0_mul_le
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hv1z : (fullDivN1NormV b0 b1 b2 b3).2.1 = 0)
+    (hv2z : (fullDivN1NormV b0 b1 b2 b3).2.2.1 = 0)
+    (hv3z : (fullDivN1NormV b0 b1 b2 b3).2.2.2 = 0)
+    (h_qHat_mul_le :
+      (div128Quot
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+          (fullDivN1NormV b0 b1 b2 b3).1).toNat *
+        (fullDivN1NormV b0 b1 b2 b3).1.toNat ≤
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2^64 +
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat) :
+    fullDivN1R3CarryZero true a0 a1 a2 a3 b0 b1 b2 b3 := by
+  apply fullDivN1R3CarryZero_true_of_qHat_mul_le
+  rw [hv1z, hv2z, hv3z]
+  simp [EvmWord.val256]
+  omega
+
 end EvmAsm.Evm64
