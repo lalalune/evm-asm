@@ -52,6 +52,7 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.MptInternal
+import EvmAsm.Codegen.Programs.MptNibbles
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Tx
@@ -820,7 +821,7 @@ end EvmAsm.Codegen
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 1368
+  let hardCap := 1328
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
     "EvmAsm/Codegen/Programs/Account.lean",
@@ -850,6 +851,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/Mpt.lean",
     "EvmAsm/Codegen/Programs/MptEncode.lean",
     "EvmAsm/Codegen/Programs/MptInternal.lean",
+    "EvmAsm/Codegen/Programs/MptNibbles.lean",
     "EvmAsm/Codegen/Programs/Receipt.lean",
     "EvmAsm/Codegen/Programs/State.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
