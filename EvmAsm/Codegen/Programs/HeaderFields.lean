@@ -666,4 +666,232 @@ def ziskHeaderExtractBeneficiaryProbeUnit : BuildUnit := {
 }
 
 
+/-! ## header_root_is_empty_trie -- PR-K161
+
+    Predicate: does `header.field[i]` equal `EMPTY_TRIE_ROOT`?
+
+      EMPTY_TRIE_ROOT = keccak256(rlp(b''))
+                      = 0x56e81f171bcc55a6ff8345e692c0f86e5b48e
+                          01b996cadc001622fb5e363b421
+
+    The header carries several 32-byte trie-root fields:
+
+      field 4  : transactions_root
+      field 5  : receipts_root
+      field 16 : withdrawals_root (post-Shanghai)
+
+    Each of these equals `EMPTY_TRIE_ROOT` exactly when the
+    corresponding logical list (transactions / receipts /
+    withdrawals) is empty. Common cases:
+
+      * Empty block (no txs): `transactions_root` ==
+        EMPTY_TRIE_ROOT.
+      * Withdrawal-free post-Shanghai block: `withdrawals_root`
+        == EMPTY_TRIE_ROOT.
+      * Receipt-free block (impossible for a non-empty block,
+        but the predicate is still defined): `receipts_root`
+        == EMPTY_TRIE_ROOT.
+
+    The verifier uses this to short-circuit MPT-root recomputation
+    for the common empty-list case rather than running the
+    full multi-leaf builder against an empty list.
+
+    Composes:
+      - PR-K20 `rlp_list_nth_item` on the supplied field index
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : field index (u64; typically 4 / 5 / 16)
+      a3 (input)  : u64 out ptr
+                    (1 if root == EMPTY_TRIE_ROOT, else 0)
+      ra (input)  : return
+      a0 (output) :
+        0 : success -- predicate written
+        1 : RLP parse failure / field missing
+        2 : field length != 32 -/
+def headerRootIsEmptyTrieFunction : String :=
+  "header_root_is_empty_trie:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0                   # header_rlp ptr\n" ++
+  "  mv s1, a1                   # header_rlp len\n" ++
+  "  mv s2, a3                   # is_equal out ptr\n" ++
+  "  # ---- Extract field i ----\n" ++
+  "  mv a0, s0; mv a1, s1\n" ++
+  "  # a2 is already the field index\n" ++
+  "  la a3, hriet_offset; la a4, hriet_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhriet_fail\n" ++
+  "  la t0, hriet_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhriet_size_fail\n" ++
+  "  la t0, hriet_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1                              # &root bytes\n" ++
+  "  # ---- Compare 4 × 8-byte words to EMPTY_TRIE_ROOT ----\n" ++
+  "  la t4, hriet_empty_trie_root\n" ++
+  "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Lhriet_neq\n" ++
+  "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Lhriet_neq\n" ++
+  "  ld t5, 16(t3); ld t6, 16(t4); bne t5, t6, .Lhriet_neq\n" ++
+  "  ld t5, 24(t3); ld t6, 24(t4); bne t5, t6, .Lhriet_neq\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhriet_ret\n" ++
+  ".Lhriet_neq:\n" ++
+  "  sd zero, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhriet_ret\n" ++
+  ".Lhriet_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhriet_ret\n" ++
+  ".Lhriet_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhriet_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+/-- `zisk_header_root_is_empty_trie`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : header_rlp_len
+      bytes  8..16 : field_index (u64 LE)
+      bytes 16..   : header_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : is_equal_to_empty_trie_root (1 or 0) -/
+def ziskHeaderRootIsEmptyTriePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a4, 0x40000000\n" ++
+  "  ld a1, 8(a4)                # header_rlp_len\n" ++
+  "  ld a2, 16(a4)               # field_index\n" ++
+  "  addi a0, a4, 24             # header_rlp ptr\n" ++
+  "  li a3, 0xa0010008           # is_equal out\n" ++
+  "  jal ra, header_root_is_empty_trie\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhriet_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerRootIsEmptyTrieFunction ++ "\n" ++
+  ".Lhriet_pdone:"
+
+def ziskHeaderRootIsEmptyTrieDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "hriet_offset:\n" ++
+  "  .zero 8\n" ++
+  "hriet_length:\n" ++
+  "  .zero 8\n" ++
+  "hriet_empty_trie_root:\n" ++
+  "  .byte 0x56,0xe8,0x1f,0x17,0x1b,0xcc,0x55,0xa6\n" ++
+  "  .byte 0xff,0x83,0x45,0xe6,0x92,0xc0,0xf8,0x6e\n" ++
+  "  .byte 0x5b,0x48,0xe0,0x1b,0x99,0x6c,0xad,0xc0\n" ++
+  "  .byte 0x01,0x62,0x2f,0xb5,0xe3,0x63,0xb4,0x21"
+
+def ziskHeaderRootIsEmptyTrieProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderRootIsEmptyTriePrologue
+  dataAsm     := ziskHeaderRootIsEmptyTrieDataSection
+}
+
+/-! ## chain_extract_first_last_beneficiary -- PR-K256
+
+    Extract `(headers[0].beneficiary, headers[N-1].beneficiary)`
+    from an N-element header chain. The 20-byte `beneficiary`
+    field (header field 2) is the validator/coinbase that earned
+    the block's fees. Useful for proposer-rotation analytics
+    across a chain segment. Companion to the K250..K255 endpoint
+    family.
+
+    Composes K208 `header_extract_beneficiary` at head and tail
+    headers (placed here for adjacency).
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : 20-byte out (first_beneficiary)
+      a4 (input)  : 20-byte out (last_beneficiary)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse fail at head or tail header -/
+def chainExtractFirstLastBeneficiaryFunction : String :=
+  "chain_extract_first_last_beneficiary:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  beqz s0, .Lceflb_empty\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, header_extract_beneficiary\n" ++
+  "  bnez a0, .Lceflb_parse_fail\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1\n" ++
+  ".Lceflb_skip:\n" ++
+  "  beqz t3, .Lceflb_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lceflb_skip\n" ++
+  ".Lceflb_at_last:\n" ++
+  "  ld a1, 0(t2)\n" ++
+  "  mv a0, t1\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, header_extract_beneficiary\n" ++
+  "  bnez a0, .Lceflb_parse_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lceflb_ret\n" ++
+  ".Lceflb_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lceflb_ret\n" ++
+  ".Lceflb_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lceflb_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainExtractFirstLastBeneficiaryPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010020\n" ++
+  "  jal ra, chain_extract_first_last_beneficiary\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lceflb_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractBeneficiaryFunction ++ "\n" ++
+  chainExtractFirstLastBeneficiaryFunction ++ "\n" ++
+  ".Lceflb_pdone:"
+
+def ziskChainExtractFirstLastBeneficiaryDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hebe_offset:\n" ++
+  "  .zero 8\n" ++
+  "hebe_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractFirstLastBeneficiaryProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractFirstLastBeneficiaryPrologue
+  dataAsm     := ziskChainExtractFirstLastBeneficiaryDataSection
+}
+
 end EvmAsm.Codegen
