@@ -483,13 +483,18 @@ theorem divK_loop_body_n1_max_j0_exact_loopIter_v4_noNop (sp base : Word)
 /-- Exact-`x1` N1 two-iteration max/max path over `divCode_noNop_v4`.
     This composes the j=1 and j=0 max loop-body wrappers while keeping
     the caller's concrete return address outside the loop post. -/
-theorem divK_loop_n1_iter10_maxmax_exact_x1_v4_noNop (sp base : Word)
+theorem divK_loop_n1_iter10_maxmax_exact_x1_v4_noNop_selected_carry (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
     (retMem dMem dloMem scratch_un0 raVal : Word)
     (hbltu_1 : ¬BitVec.ult u1 v0)
     (hbltu_0 : ¬BitVec.ult (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
-    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
+    (hcarry2_j1 : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hcarry2_j0 : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0Orig
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1) :
     cpsTripleWithin 404 (base + loopBodyOff) (base + denormOff) (divCode_noNop_v4 base)
       (loopN1Iter10PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
@@ -503,8 +508,7 @@ theorem divK_loop_n1_iter10_maxmax_exact_x1_v4_noNop (sp base : Word)
   have J1 := divK_loop_body_n1_max_j1_exact_loopIter_v4_noNop
     sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old raVal hbltu_1
-    (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop :
-      isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    hcarry2_j1
   have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -521,11 +525,7 @@ theorem divK_loop_n1_iter10_maxmax_exact_x1_v4_noNop (sp base : Word)
     (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
     (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
     q0Old raVal hbltu_0
-    (hcarry2 (signExtend12 4095) u0Orig
-      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
-      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
-      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
-      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
+    hcarry2_j0
   have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ
         (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
@@ -559,6 +559,37 @@ theorem divK_loop_n1_iter10_maxmax_exact_x1_v4_noNop (sp base : Word)
       rw [sepConj_assoc'] at hp
       xperm_hyp hp)
     full
+
+/-- Compatibility wrapper for the old universal-carry surface. -/
+theorem divK_loop_n1_iter10_maxmax_exact_x1_v4_noNop (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
+    (retMem dMem dloMem scratch_un0 raVal : Word)
+    (hbltu_1 : ¬BitVec.ult u1 v0)
+    (hbltu_0 : ¬BitVec.ult (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
+    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
+    cpsTripleWithin 404 (base + loopBodyOff) (base + denormOff) (divCode_noNop_v4 base)
+      (loopN1Iter10PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0 ** (.x1 ↦ᵣ raVal))
+      (loopN1Iter10PostNoX1 false false sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
+        retMem dMem dloMem scratch_un0 ** (.x1 ↦ᵣ raVal)) := by
+  exact divK_loop_n1_iter10_maxmax_exact_x1_v4_noNop_selected_carry
+    sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+    retMem dMem dloMem scratch_un0 raVal hbltu_1 hbltu_0
+    (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop :
+      isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hcarry2 (signExtend12 4095) u0Orig
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1 :
+      isAddbackCarry2NzN1Max v0 v1 v2 v3 u0Orig
+        (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
 
 /-- Exact-`x1` N1 three-iteration all-max path over `divCode_noNop_v4`.
     This composes the j=2 max loop body with the exact j=1/j=0 max/max
