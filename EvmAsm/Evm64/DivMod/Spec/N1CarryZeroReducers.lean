@@ -183,6 +183,41 @@ theorem fullDivN1R2CarryZero_true_true_of_shape_all_phases_no_wrap
     (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
     hv0_norm hcall h_inv hr3_top_zero
 
+/-- R1 call-branch n=1 carry-zero reducer from the generic all-phases
+    iteration lemma. This mirrors the R2 reducer one step later: the remaining
+    arithmetic side conditions are the R2 top-limb-zero fact, the 128/64
+    call-regime bound for the selected R1 partial dividend, and the all-phases
+    no-wrap invariant for that same call. -/
+theorem fullDivN1R1CarryZero_true_true_true_of_shape_all_phases_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (hr2_top_zero :
+      (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 = 0)
+    (hv0_norm : (fullDivN1NormV b0 b1 b2 b3).1.toNat ≥ 2^63)
+    (hcall :
+      (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat * 2^64 +
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1.toNat <
+          (fullDivN1NormV b0 b1 b2 b3).1.toNat * 2^64)
+    (h_inv : Div128AllPhasesNoWrapInv
+      (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1) :
+    fullDivN1R1CarryZero true true true a0 a1 a2 a3 b0 b1 b2 b3 := by
+  unfold fullDivN1R1CarryZero fullDivN1R1
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z]
+  exact iterN1_true_carry_zero_of_v0_all_phases_no_wrap
+    (fullDivN1NormV b0 b1 b2 b3).1
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+    (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+    (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+    (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+    (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+    hv0_norm hcall h_inv hr2_top_zero
+
 /-- Runtime n=1 divisor-shape form of the first-step carry-zero reducer. This
     leaves only the standard 128/64 product bound for the selected trial
     quotient. -/
