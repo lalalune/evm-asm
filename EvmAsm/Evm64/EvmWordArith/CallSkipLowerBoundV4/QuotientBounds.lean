@@ -388,6 +388,69 @@ theorem divKTrialCallV4Q0d_le_q_true_0_plus_one_of_un21_lt_pow63
         (divKTrialCallV4DHi vTop)
         hdHi_ne hUn21_lt_pow63 hdHi_ge hdHi_lt
 
+/-- Phase 2 second-correction upper bound, wrapped for the v4 trial-call
+    definitions.
+
+    The final second quotient digit `Q0dd` is either `Q0d` or `Q0d - 1`;
+    therefore the `Q0d ≤ q_true + 1` bound is preserved by the second
+    correction. -/
+theorem divKTrialCallV4Q0dd_le_q_true_0_plus_one_of_un21_lt_pow63
+    (uHi uLo vTop : Word)
+    (hdHi_ge : (divKTrialCallV4DHi vTop).toNat ≥ 2^31)
+    (hdHi_lt : (divKTrialCallV4DHi vTop).toNat < 2^32)
+    (hdLo_lt : (divKTrialCallV4DLo vTop).toNat < 2^32)
+    (hUn21_lt_pow63 : (divKTrialCallV4Un21 uHi uLo vTop).toNat < 2^63)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat <
+        (divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) :
+    (divKTrialCallV4Q0dd uHi uLo vTop).toNat ≤
+      ((divKTrialCallV4Un21 uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV4Un0 uLo).toNat) /
+        ((divKTrialCallV4DHi vTop).toNat * 2^32 +
+          (divKTrialCallV4DLo vTop).toNat) + 1 := by
+  have h_q0d_le :=
+    divKTrialCallV4Q0d_le_q_true_0_plus_one_of_un21_lt_pow63
+      uHi uLo vTop hdHi_ge hdHi_lt hdLo_lt hUn21_lt_pow63 hUn21_lt_vTop
+  rw [divKTrialCallV4Q0dd_unfold]
+  unfold div128Quot_phase2b_q0'
+  by_cases h_hi :
+      divKTrialCallV4Rhat2d uHi uLo vTop >>> (32 : BitVec 6).toNat = (0 : Word)
+  · rw [if_pos h_hi]
+    by_cases h_ult :
+        BitVec.ult
+          ((divKTrialCallV4Rhat2d uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+            divKTrialCallV4Un0 uLo)
+          (divKTrialCallV4Q0d uHi uLo vTop * divKTrialCallV4DLo vTop)
+    · rw [if_pos h_ult]
+      have hQ0d_ne : divKTrialCallV4Q0d uHi uLo vTop ≠ 0 := by
+        intro h_zero
+        have h_rhs_zero :
+            divKTrialCallV4Q0d uHi uLo vTop * divKTrialCallV4DLo vTop = (0 : Word) := by
+          rw [h_zero]
+          simp
+        rw [h_rhs_zero] at h_ult
+        simp [BitVec.ult] at h_ult
+      have hQ0d_pos : 0 < (divKTrialCallV4Q0d uHi uLo vTop).toNat := by
+        have h_ne_nat : (divKTrialCallV4Q0d uHi uLo vTop).toNat ≠ 0 := by
+          intro h_zero_nat
+          exact hQ0d_ne (BitVec.eq_of_toNat_eq h_zero_nat)
+        omega
+      have h_se_toNat : (signExtend12 4095 : Word).toNat = 2^64 - 1 := by decide
+      have h_dec :
+          (divKTrialCallV4Q0d uHi uLo vTop + signExtend12 4095).toNat =
+            (divKTrialCallV4Q0d uHi uLo vTop).toNat - 1 := by
+        rw [BitVec.toNat_add, h_se_toNat]
+        have hQ0d_lt : (divKTrialCallV4Q0d uHi uLo vTop).toNat < 2^64 :=
+          (divKTrialCallV4Q0d uHi uLo vTop).isLt
+        omega
+      rw [h_dec]
+      omega
+    · rw [if_neg h_ult]
+      exact h_q0d_le
+  · rw [if_neg h_hi]
+    exact h_q0d_le
+
 /-- V4 second-correction outer-guard no-fire preservation.
 
     If the high half of `Rhat2d` is nonzero, the second correction in
