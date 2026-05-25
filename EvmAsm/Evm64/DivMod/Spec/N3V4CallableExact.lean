@@ -166,9 +166,6 @@ theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_path_uni
     bltu_1 bltu_0 a b hpath
   have hcarry2 := fullDivN3PathConditionsWordV4_carry2
     bltu_1 bltu_0 a b hpath
-  have hdivWord :=
-    fullDivN3QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
-      bltu_1 bltu_0 a b hbnz hpath
   exact evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_uni
     bltu_1 bltu_0 sp base a b
     v5 v6 v7 v10 v11Old
@@ -176,7 +173,9 @@ theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_path_uni
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
     hbnz hb3z hb2nz hshift_nz halign hbltu_1
     (by cases bltu_1 <;> simpa [isTrialN3V4_j0] using hbltu_0)
-    hcarry2 hdivWord
+    hcarry2
+    (fullDivN3QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
+      bltu_1 bltu_0 a b hbnz hpath)
 
 /-- Full-code form of
     `evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_path_uni`. -/
