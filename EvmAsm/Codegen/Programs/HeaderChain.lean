@@ -1230,4 +1230,95 @@ def ziskChainValidateFullProbeUnit : BuildUnit := {
 }
 
 
+/-! ## chain_extract_first_last_block_hash -- PR-K251
+
+    Extract `(keccak256(headers[0]), keccak256(headers[N-1]))`
+    from an N-element header chain. Useful as a compact
+    chain-segment endpoint commitment (the consensus-visible
+    block hashes at the chain tip and the chain start).
+    Companion to K200 `chain_block_hashes_commitment` (which
+    keccak-folds ALL block hashes); this is the lighter
+    endpoints-only variant.
+
+    Composes K172 `block_hash_from_header` (Header.lean) on the
+    head and tail headers.
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : 32-byte out (first_block_hash)
+      a4 (input)  : 32-byte out (last_block_hash)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0) -/
+def chainExtractFirstLastBlockHashFunction : String :=
+  "chain_extract_first_last_block_hash:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  beqz s0, .Lceflbh_empty\n" ++
+  "  # first = keccak256(headers[0])\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  # Advance to last header\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1\n" ++
+  ".Lceflbh_skip:\n" ++
+  "  beqz t3, .Lceflbh_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lceflbh_skip\n" ++
+  ".Lceflbh_at_last:\n" ++
+  "  ld a1, 0(t2)\n" ++
+  "  mv a0, t1\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, block_hash_from_header\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lceflbh_ret\n" ++
+  ".Lceflbh_empty:\n" ++
+  "  li a0, 1\n" ++
+  ".Lceflbh_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainExtractFirstLastBlockHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010028\n" ++
+  "  jal ra, chain_extract_first_last_block_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lceflbh_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  blockHashFromHeaderFunction ++ "\n" ++
+  chainExtractFirstLastBlockHashFunction ++ "\n" ++
+  ".Lceflbh_pdone:"
+
+def ziskChainExtractFirstLastBlockHashDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200"
+
+def ziskChainExtractFirstLastBlockHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractFirstLastBlockHashPrologue
+  dataAsm     := ziskChainExtractFirstLastBlockHashDataSection
+}
+
 end EvmAsm.Codegen
