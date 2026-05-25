@@ -480,6 +480,39 @@ theorem n2V4_quotient_word_of_path_conditions
     n2V4_exists_quotient_word_of_path_conditions hbnz hcarry2 harith
   exact ⟨bltu_2, bltu_1, bltu_0, hdivWord⟩
 
+/-- Nonzero-surface n=2 V4 quotient-word package.
+
+    This is the same witness package as `n2V4_quotient_word_of_path_conditions`,
+    but accepts the stack-wrapper `b ≠ 0` premise directly. -/
+theorem n2V4_quotient_word_of_path_conditions_ne_zero
+    {a b : EvmWord}
+    (hbnz : b ≠ 0)
+    (hcarry2 : fullDivN2Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_2 bltu_1 bltu_0,
+      isTrialN2V4_j2 bltu_2
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN2V4_j1 bltu_2 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN2V4_j0 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN2MulSubEqV4 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN2QuotientOverestimateV4 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_2 bltu_1 bltu_0,
+      fullDivN2QuotientWordV4 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.div a b :=
+  n2V4_quotient_word_of_path_conditions
+    ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry2 harith
+
 /-- Dispatcher-shape n=2 V4 quotient-word package.
 
     The shape hypotheses match the n=2 stack wrapper surface; the remaining
@@ -663,6 +696,48 @@ theorem n2V4_full_div_getLimbN_of_path_conditions
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
       hdivWord
   exact ⟨bltu_2, bltu_1, bltu_0, hdivs⟩
+
+/-- Nonzero-surface n=2 V4 quotient-limb package.
+
+    This accepts the stack-wrapper `b ≠ 0` premise directly and otherwise
+    matches `n2V4_full_div_getLimbN_of_path_conditions`. -/
+theorem n2V4_full_div_getLimbN_of_path_conditions_ne_zero
+    {a b : EvmWord}
+    (hbnz : b ≠ 0)
+    (hcarry2 : fullDivN2Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_2 bltu_1 bltu_0,
+      isTrialN2V4_j2 bltu_2
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN2V4_j1 bltu_2 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN2V4_j0 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN2MulSubEqV4 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN2QuotientOverestimateV4 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_2 bltu_1 bltu_0,
+      (EvmWord.div a b).getLimbN 0 =
+        (fullDivN2R0V4 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 1 =
+        (fullDivN2R1V4 bltu_2 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 2 =
+        (fullDivN2R2V4 bltu_2
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 3 = (0 : Word) :=
+  n2V4_full_div_getLimbN_of_path_conditions
+    ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry2 harith
 
 /-- Dispatcher-shape n=2 V4 quotient-limb package.
 
