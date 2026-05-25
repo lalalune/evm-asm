@@ -556,6 +556,93 @@ theorem isTrialN1_j0_true_of_fullDivN1R1_remainder_lt
     rw [EvmWord.ult_iff]
     exact h_ult]
 
+/-- The n=1 shape and the three one-word remainder bounds force all trial
+    branches to take the call path. -/
+theorem n1_trial_witnesses_all_true_of_remainders_lt
+    (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+    (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+    (hr3_lt :
+      EvmWord.val256
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1.toNat)
+    (hr2_lt :
+      EvmWord.val256
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1.toNat)
+    (hr1_lt :
+      EvmWord.val256
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1.toNat) :
+    isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) ∧
+    isTrialN1_j2 true true
+      (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+    isTrialN1_j1 true true true
+      (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+    isTrialN1_j0 true true true true
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · exact isTrialN1_j3_true_of_shift_nz
+      (a.getLimbN 3) (b.getLimbN 0)
+      (b0_ne_zero_of_n1_shape
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        hbnz hb3z hb2z hb1z)
+      hshift_nz
+  · exact isTrialN1_j2_true_of_fullDivN1R3_remainder_lt
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hr3_lt
+  · exact isTrialN1_j1_true_of_fullDivN1R2_remainder_lt
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hr2_lt
+  · exact isTrialN1_j0_true_of_fullDivN1R1_remainder_lt
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hr1_lt
+
 /-- Bundled public-surface n=1 branch witnesses from the dispatcher shape
     hypotheses, with the forced first branch recorded as `true`. -/
 theorem n1TrialWitnesses_of_getLimbN_shape_shift_nz
