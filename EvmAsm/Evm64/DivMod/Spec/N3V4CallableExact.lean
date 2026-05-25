@@ -162,11 +162,9 @@ theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_path_uni
        memOwn (sp + signExtend12 3936)) := by
   have hpath' := hpath
   obtain ⟨hbltu_1, hbltu_0, hcarry2, _, _⟩ := hpath'
-  have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
-    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   have hdivWord :=
-    fullDivN3QuotientWordV4_eq_div_of_word_path_conditions
-      bltu_1 bltu_0 a b hbnz' hpath
+    fullDivN3QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
+      bltu_1 bltu_0 a b hbnz hpath
   exact evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_uni
     bltu_1 bltu_0 sp base a b
     v5 v6 v7 v10 v11Old

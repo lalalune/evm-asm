@@ -315,6 +315,19 @@ theorem fullDivN3QuotientWordV4_eq_div_of_word_path_conditions
     (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
     rfl rfl rfl rfl rfl rfl rfl rfl hbnz hpath
 
+/-- EvmWord-level v4 quotient bridge from the bundled N3 path predicate,
+    accepting the public `b ≠ 0` nonzero form. -/
+theorem fullDivN3QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3QuotientWordV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b := by
+  exact fullDivN3QuotientWordV4_eq_div_of_word_path_conditions
+    bltu_1 bltu_0 a b ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hpath
+
 /-- Explicit-limb v4 four-limb division witness from the bundled N3 path
     predicate. -/
 theorem fullDivN3V4_getLimbN_of_path_conditions
