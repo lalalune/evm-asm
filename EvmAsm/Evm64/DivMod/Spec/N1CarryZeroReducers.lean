@@ -1,8 +1,10 @@
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
+import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmWord (val256)
 
 /-- First n=1 step carry-zero reducer. For the call branch, the step starts
     with top limb zero, so proving the `mulsubN4` carry `c3` is zero is enough
@@ -36,5 +38,34 @@ theorem fullDivN1R3CarryZero_true_of_mulsub_c3_zero
     (0 : Word)
     (0 : Word)
     hc3 rfl
+
+/-- Product-bound form of the first n=1 step carry-zero reducer. This composes
+    the generic `mulsubN4_c3` inequality bridge with the R3 reducer above, so
+    later arithmetic only needs to prove that the selected trial quotient times
+    the normalized n=1 divisor is bounded by the first partial dividend. -/
+theorem fullDivN1R3CarryZero_true_of_qHat_mul_le
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (h_mul_le :
+      (div128Quot
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+          (fullDivN1NormV b0 b1 b2 b3).1).toNat *
+        val256
+          (fullDivN1NormV b0 b1 b2 b3).1
+          (fullDivN1NormV b0 b1 b2 b3).2.1
+          (fullDivN1NormV b0 b1 b2 b3).2.2.1
+          (fullDivN1NormV b0 b1 b2 b3).2.2.2 ≤
+        val256
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+          (0 : Word)
+          (0 : Word)) :
+    fullDivN1R3CarryZero true a0 a1 a2 a3 b0 b1 b2 b3 := by
+  apply fullDivN1R3CarryZero_true_of_mulsub_c3_zero
+  exact c3_un_zero_of_qHat_mul_le (qHat :=
+    div128Quot
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).1) h_mul_le
 
 end EvmAsm.Evm64
