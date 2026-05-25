@@ -1614,4 +1614,122 @@ def ziskChainExtractGasUsedRangeProbeUnit : BuildUnit := {
   dataAsm     := ziskChainExtractGasUsedRangeDataSection
 }
 
+/-! ## chain_extract_blob_gas_used_range -- PR-K246
+
+    Compute `(min_blob_gas_used, max_blob_gas_used)` over an
+    N-element header chain in a single pass. EIP-4844 Cancun+
+    sister of K245 `chain_extract_gas_used_range`; equivalent to
+    running K237/K243 separately, but reads each header's RLP
+    only once.
+
+    Pre-Cancun headers (≤17 fields) yield parse-failure status
+    and the (min, max) pair is the partial accumulator up to the
+    failure point.
+
+    Vacuous on empty chain: min=max=0.
+
+    Calling convention:
+      a0 (input)  : N
+      a1 (input)  : header_lengths ptr (N u64 LE)
+      a2 (input)  : flat headers ptr
+      a3 (input)  : u64 out (min blob_gas_used)
+      a4 (input)  : u64 out (max blob_gas_used)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse fail (pre-Cancun header in chain)
+        2 : blob_gas_used field > 8 bytes BE -/
+def chainExtractBlobGasUsedRangeFunction : String :=
+  "chain_extract_blob_gas_used_range:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  sd zero, 0(s3); sd zero, 0(s4)\n" ++
+  "  li s5, 0\n" ++
+  "  beqz s0, .Lcebgur_done\n" ++
+  ".Lcebgur_loop:\n" ++
+  "  beq s5, s0, .Lcebgur_done\n" ++
+  "  slli t0, s5, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  mv a0, s2; li a2, 17\n" ++
+  "  la a3, cebgur_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lcebgur_parse_fail\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lcebgur_size_fail\n" ++
+  "  la t0, cebgur_field; ld t1, 0(t0)\n" ++
+  "  beqz s5, .Lcebgur_first\n" ++
+  "  ld t2, 0(s3)\n" ++
+  "  bgeu t1, t2, .Lcebgur_max\n" ++
+  "  sd t1, 0(s3)\n" ++
+  ".Lcebgur_max:\n" ++
+  "  ld t2, 0(s4)\n" ++
+  "  bgeu t2, t1, .Lcebgur_advance\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  j .Lcebgur_advance\n" ++
+  ".Lcebgur_first:\n" ++
+  "  sd t1, 0(s3)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  ".Lcebgur_advance:\n" ++
+  "  slli t0, s5, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lcebgur_loop\n" ++
+  ".Lcebgur_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcebgur_ret\n" ++
+  ".Lcebgur_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcebgur_ret\n" ++
+  ".Lcebgur_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lcebgur_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+def ziskChainExtractBlobGasUsedRangePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_extract_blob_gas_used_range\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcebgur_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainExtractBlobGasUsedRangeFunction ++ "\n" ++
+  ".Lcebgur_pdone:"
+
+def ziskChainExtractBlobGasUsedRangeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cebgur_field:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractBlobGasUsedRangeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractBlobGasUsedRangePrologue
+  dataAsm     := ziskChainExtractBlobGasUsedRangeDataSection
+}
+
 end EvmAsm.Codegen
