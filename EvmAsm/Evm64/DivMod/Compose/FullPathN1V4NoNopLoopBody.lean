@@ -737,9 +737,6 @@ theorem divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop (sp base : Word)
         (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
         (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.2.2.1)
 
-/-- Exact-`x1` N1 four-iteration all-max path over `divCode_noNop_v4`.
-    This composes the j=3 max loop body with the exact j=2/j=1/j=0
-    iter210 wrapper while keeping the caller return address framed outside. -/
 theorem divK_loop_n1_maxmaxmaxmax_exact_x1_v4_noNop (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop
@@ -784,6 +781,8 @@ theorem divK_loop_n1_maxmaxmaxmax_exact_x1_v4_noNop (sp base : Word)
       (loopN1UnifiedPostNoX1 false false false false sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop
         u0Orig2 u0Orig1 u0Orig0 retMem dMem dloMem scratch_un0 ** (.x1 ↦ᵣ raVal)) := by
   let r3 := iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := iterN1Max v0 v1 v2 v3 u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+  let r1 := iterN1Max v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
   let u_base_3 := sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
   let u_base_2 := sp + signExtend12 4056 - (2 : Word) <<< (3 : BitVec 6).toNat
   let q_addr_3 := sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
@@ -795,8 +794,7 @@ theorem divK_loop_n1_maxmaxmaxmax_exact_x1_v4_noNop (sp base : Word)
   have J3 := divK_loop_body_n1_max_j3_exact_loopIter_v4_noNop
     sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q3Old raVal hbltu_3
-    (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop :
-      isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop)
   have J3f := cpsTripleWithin_frameR
     (((u_base_2 + signExtend12 0) ↦ₘ u0Orig2) ** (q_addr_2 ↦ₘ q2Old) **
      ((u_base_1 + signExtend12 0) ↦ₘ u0Orig1) ** (q_addr_1 ↦ₘ q1Old) **
@@ -804,14 +802,17 @@ theorem divK_loop_n1_maxmaxmaxmax_exact_x1_v4_noNop (sp base : Word)
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
      (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
     (by pcFree) J3
-  have H210 := divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop
+  have H210 := divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop_selected_carry
     sp base (3 : Word) ((3 : Word) <<< (3 : BitVec 6).toNat) u_base_3 q_addr_3
     ((mulsubN4 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2)
     r3.1 r3.2.2.2.2.1
     v0 v1 v2 v3
     u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
     u0Orig1 u0Orig0 q2Old q1Old q0Old
-    retMem dMem dloMem scratch_un0 raVal hbltu_2 hbltu_1 hbltu_0 hcarry2
+    retMem dMem dloMem scratch_un0 raVal hbltu_2 hbltu_1 hbltu_0
+    (hcarry2 (signExtend12 4095) u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1)
+    (hcarry2 (signExtend12 4095) u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1)
+    (hcarry2 (signExtend12 4095) u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1)
   have H210f := cpsTripleWithin_frameR
     (((u_base_3 + signExtend12 4064) ↦ₘ r3.2.2.2.2.2) ** (q_addr_3 ↦ₘ r3.1))
     (by pcFree) H210
