@@ -137,4 +137,55 @@ theorem div128Quot_v4_le_q_true_plus_one_of_un21_eq_r1
   rw [h_left] at h_upper
   exact h_upper
 
+/-- Full v4 128/64 `+1` upper bound from the Phase-1 low-half no-wrap
+    condition.
+
+    The no-wrap condition supplies the `un21 = r1` premise required by
+    `div128Quot_v4_le_q_true_plus_one_of_un21_eq_r1`; the remaining range
+    hypotheses are kept explicit for downstream runtime/call bridges. -/
+theorem div128Quot_v4_le_q_true_plus_one_of_no_wrap
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63)
+    (hUn21_lt_pow63 : (divKTrialCallV4Un21 uHi uLo vTop).toNat < 2^63)
+    (hUn21_lt_vTop : (divKTrialCallV4Un21 uHi uLo vTop).toNat < vTop.toNat)
+    (h_no_wrap :
+      (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat ≤
+        ((divKTrialCallV4Rhatdd uHi uLo vTop).toNat % 2^32) * 2^32 +
+          (divKTrialCallV4Un1 uLo).toNat) :
+    (div128Quot_v4 uHi uLo vTop).toNat ≤
+      (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 1 := by
+  have hUn21_eq_r1 :=
+    divKTrialCallV4Un21_eq_r1_of_no_wrap uHi uLo vTop
+      hvTop_ge huHi_lt_vTop huHi_lt_pow63 h_no_wrap
+  exact div128Quot_v4_le_q_true_plus_one_of_un21_eq_r1
+    uHi uLo vTop hvTop_ge huHi_lt_vTop
+    hUn21_lt_pow63 hUn21_lt_vTop hUn21_eq_r1
+
+/-- Full v4 128/64 `+1` upper bound in the final Phase-1b high-half-zero
+    branch.
+
+    This mirrors the lower-bound exactness surface: `rhatdd` high-half zero
+    gives the low-half no-wrap condition, which supplies the mathematical
+    first-remainder identity consumed by the upper-bound composition. -/
+theorem div128Quot_v4_le_q_true_plus_one_of_rhatdd_hi_zero
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63)
+    (hUn21_lt_pow63 : (divKTrialCallV4Un21 uHi uLo vTop).toNat < 2^63)
+    (hUn21_lt_vTop : (divKTrialCallV4Un21 uHi uLo vTop).toNat < vTop.toNat)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd uHi uLo vTop >>> (32 : BitVec 6).toNat = (0 : Word)) :
+    (div128Quot_v4 uHi uLo vTop).toNat ≤
+      (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 1 := by
+  have h_no_wrap :=
+    divKTrialCallV4Un21_low_no_wrap_of_rhatdd_hi_zero
+      uHi uLo vTop hvTop_ge huHi_lt_vTop h_rhat_hi_zero
+  exact div128Quot_v4_le_q_true_plus_one_of_no_wrap
+    uHi uLo vTop hvTop_ge huHi_lt_vTop huHi_lt_pow63
+    hUn21_lt_pow63 hUn21_lt_vTop h_no_wrap
+
 end EvmAsm.Evm64
