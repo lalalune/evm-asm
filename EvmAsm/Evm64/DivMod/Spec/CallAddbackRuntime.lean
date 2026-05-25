@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.CallAddback
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
 
 namespace EvmAsm.Evm64
 
@@ -196,6 +197,54 @@ def n4CallAddbackBeqRuntimeBounds (a b : EvmWord) : Prop :=
   (n4CallAddbackBeqQHatV4 a b).toNat ≤
       n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1 ∧
     n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b
+
+/-- Marker-name adapter for the v4 128/64 `+1` upper bound.
+
+    This is not yet the compact `n4CallAddbackBeqRuntimeBounds` qhat
+    obligation, whose denominator is the full normalized divisor. It exposes
+    the proven 128/64 bound with `n4CallAddbackBeq*` names so the remaining
+    runtime range and val256-denominator bridge can be attacked directly. -/
+theorem n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_rhatdd_hi_zero {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hu4_lt_pow63 : (n4CallAddbackBeqU4 a b).toNat < 2^63)
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (hUn21_lt_b3prime :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (n4CallAddbackBeqB3Prime b).toNat)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word)) :
+    (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat + 1 := by
+  rw [n4CallAddbackBeqQHatV4_eq_normalized]
+  have hu4_lt_b3prime :
+      (n4CallAddbackBeqU4 a b).toNat < (n4CallAddbackBeqB3Prime b).toNat := by
+    have h_decomp := n4CallAddbackBeqU4_lt_vTop_of_call hcall
+    rw [div128Quot_vTop_decomp (n4CallAddbackBeqB3Prime b)]
+    simpa [divKTrialCallV4DHi, divKTrialCallV4DLo] using h_decomp
+  exact div128Quot_v4_le_q_true_plus_one_of_rhatdd_hi_zero
+    (n4CallAddbackBeqU4 a b)
+    (n4CallAddbackBeqU3 a b)
+    (n4CallAddbackBeqB3Prime b)
+    (n4CallAddbackBeqB3Prime_ge_pow63 hb3nz)
+    hu4_lt_b3prime
+    hu4_lt_pow63
+    hUn21_lt_pow63
+    hUn21_lt_b3prime
+    h_rhat_hi_zero
 
 /-- Runtime-normalized c3 bridge: if the normalized trial quotient is within
     one of the normalized true quotient, the raw borrow condition pins the
