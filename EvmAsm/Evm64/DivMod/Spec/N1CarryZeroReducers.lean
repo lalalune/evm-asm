@@ -93,6 +93,31 @@ theorem fullDivN1R3CarryZero_true_of_qHat_v0_mul_le
   simp [EvmWord.val256]
   omega
 
+/-- Generic n=1 call-iteration carry-zero reducer for the one-limb divisor
+    shape. An all-phases no-wrap invariant for the selected 128/64 trial call
+    gives the tight `div128Quot` product bound; with a zero incoming top limb,
+    this is enough to discharge the iteration carry. -/
+theorem iterN1_true_carry_zero_of_v0_all_phases_no_wrap
+    (v0 u0 u1 u2 u3 uTop : Word)
+    (hv0_norm : v0.toNat ≥ 2^63)
+    (hcall : u1.toNat * 2^64 + u0.toNat < v0.toNat * 2^64)
+    (h_inv : Div128AllPhasesNoWrapInv u1 u0 v0)
+    (huTop : uTop = 0) :
+    (iterN1 true v0 0 0 0 u0 u1 u2 u3 uTop).2.2.2.2.2 = 0 := by
+  apply iterN1_true_carry_zero_of_mulsub_c3_zero
+  · apply c3_un_zero_of_qHat_mul_le
+    have hq_le := div128Quot_le_q_true u1 u0 v0 hv0_norm hcall h_inv
+    have h_product :
+        (div128Quot u1 u0 v0).toNat * v0.toNat ≤
+          u1.toNat * 2^64 + u0.toNat := by
+      exact le_trans (Nat.mul_le_mul_right v0.toNat hq_le)
+        (Nat.div_mul_le_self (u1.toNat * 2^64 + u0.toNat) v0.toNat)
+    simp [EvmWord.val256]
+    have hu2 := u2.isLt
+    have hu3 := u3.isLt
+    omega
+  · exact huTop
+
 /-- When the n=1 CLZ shift is nonzero, the anti-shift spill from the low
     divisor limb into normalized limb 1 is zero. -/
 theorem fullDivN1AntiShift_spill_zero_of_shift_nz
