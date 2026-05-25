@@ -888,46 +888,7 @@ theorem n1_shape_full_div_getLimbN_of_step_conservation_overestimate_r3_all_phas
     (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
     (hb1z : b.getLimbN 1 = 0)
     (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
-    (hpath : ∀ bltu_2 bltu_1 bltu_0,
-      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
-      isTrialN1_j2 true bltu_2
-        (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j1 true bltu_2 bltu_1
-        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      Carry2NzAll
-        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
-        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 0 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 1 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 2 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64))) ∧
-      Div128AllPhasesNoWrapInv
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.2
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.1
-        (fullDivN1NormV
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
-      fullDivN1R2CarryZero true bltu_2
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1R1CarryZero true bltu_2 bltu_1
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1QuotientOverestimate true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hpath : N1AllPhasesOverestimatePathCallback a b) :
     ∃ bltu_2 bltu_1 bltu_0,
       isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) ∧
       isTrialN1_j2 true bltu_2
@@ -976,46 +937,7 @@ theorem n1_quotient_word_of_step_conservation_path_r3_all_phases
     (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
     (hb1z : b.getLimbN 1 = 0)
     (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
-    (hpath : ∀ bltu_2 bltu_1 bltu_0,
-      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
-      isTrialN1_j2 true bltu_2
-        (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j1 true bltu_2 bltu_1
-        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      Carry2NzAll
-        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
-        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 0 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 1 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 2 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64))) ∧
-      Div128AllPhasesNoWrapInv
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.2
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.1
-        (fullDivN1NormV
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
-      fullDivN1R2CarryZero true bltu_2
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1R1CarryZero true bltu_2 bltu_1
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1QuotientOverestimate true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hpath : N1AllPhasesOverestimatePathCallback a b) :
     ∃ bltu_2 bltu_1 bltu_0,
       fullDivN1QuotientWord true bltu_2 bltu_1 bltu_0
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
@@ -1044,46 +966,7 @@ theorem n1_quotient_word_package_of_step_conservation_path_r3_all_phases
     (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
     (hb1z : b.getLimbN 1 = 0)
     (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
-    (hpath : ∀ bltu_2 bltu_1 bltu_0,
-      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
-      isTrialN1_j2 true bltu_2
-        (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j1 true bltu_2 bltu_1
-        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      Carry2NzAll
-        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
-        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 0 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 1 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 2 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64))) ∧
-      Div128AllPhasesNoWrapInv
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.2
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.1
-        (fullDivN1NormV
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
-      fullDivN1R2CarryZero true bltu_2
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1R1CarryZero true bltu_2 bltu_1
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1QuotientOverestimate true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hpath : N1AllPhasesOverestimatePathCallback a b) :
     ∃ bltu_2 bltu_1 bltu_0,
       isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) ∧
       isTrialN1_j2 true bltu_2
@@ -1135,46 +1018,7 @@ theorem n1_normalized_mulsub_overestimate_of_step_conservation_path_r3_all_phase
     (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
     (hb1z : b.getLimbN 1 = 0)
     (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
-    (hpath : ∀ bltu_2 bltu_1 bltu_0,
-      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
-      isTrialN1_j2 true bltu_2
-        (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j1 true bltu_2 bltu_1
-        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      Carry2NzAll
-        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
-        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 0 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 1 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 2 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64))) ∧
-      Div128AllPhasesNoWrapInv
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.2
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.1
-        (fullDivN1NormV
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
-      fullDivN1R2CarryZero true bltu_2
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1R1CarryZero true bltu_2 bltu_1
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1QuotientOverestimate true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hpath : N1AllPhasesOverestimatePathCallback a b) :
     ∃ bltu_2 bltu_1 bltu_0,
       isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) ∧
       isTrialN1_j2 true bltu_2
@@ -1230,46 +1074,7 @@ theorem n1_full_div_getLimbN_of_step_conservation_path_r3_all_phases
     (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
     (hb1z : b.getLimbN 1 = 0)
     (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
-    (hpath : ∀ bltu_2 bltu_1 bltu_0,
-      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
-      isTrialN1_j2 true bltu_2
-        (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j1 true bltu_2 bltu_1
-        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      Carry2NzAll
-        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
-        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 0 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 1 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 2 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64))) ∧
-      Div128AllPhasesNoWrapInv
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.2
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.1
-        (fullDivN1NormV
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
-      fullDivN1R2CarryZero true bltu_2
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1R1CarryZero true bltu_2 bltu_1
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1QuotientOverestimate true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hpath : N1AllPhasesOverestimatePathCallback a b) :
     ∃ bltu_2 bltu_1 bltu_0,
       (EvmWord.div a b).getLimbN 0 =
         (fullDivN1R0 true bltu_2 bltu_1 bltu_0
