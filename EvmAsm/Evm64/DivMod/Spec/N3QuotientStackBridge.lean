@@ -96,6 +96,50 @@ abbrev fullDivN3PathConditionsWordV4 (bltu_1 bltu_0 : Bool)
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
+/-- Project the first v4 N3 trial-branch witness from the bundled word path. -/
+theorem fullDivN3PathConditionsWordV4_trial_j1
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    isTrialN3V4_j1 bltu_1
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.1
+
+/-- Project the second v4 N3 trial-branch witness from the bundled word path. -/
+theorem fullDivN3PathConditionsWordV4_trial_j0
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    isTrialN3V4_j0 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.1
+
+/-- Project the v4 N3 carry2 obligation from the bundled word path. -/
+theorem fullDivN3PathConditionsWordV4_carry2
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.2.1
+
+/-- Project the v4 N3 normalized mulsub equation from the bundled word path. -/
+theorem fullDivN3PathConditionsWordV4_mulsub
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3MulSubEqV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.2.2.1
+
+/-- Project the v4 N3 quotient-overestimate fact from the bundled word path. -/
+theorem fullDivN3PathConditionsWordV4_overestimate
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.2.2.2
+
 /-- n=3 quotient bridge specialized to the explicit limb variables used by the
     unified-bound wrappers. -/
 theorem fullDivN3QuotientWord_eq_div_of_limbs_mulsub_overestimate
