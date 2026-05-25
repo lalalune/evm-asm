@@ -1081,12 +1081,11 @@ theorem n1_shape_full_div_getLimbN_of_step_conservation_overestimate_r3_all_phas
       a b hbnz hb3z hb2z hb1z hshift_nz
   obtain ⟨hcarry2, hr3_inv, hr2_zero, hr1_zero, hge⟩ :=
     hpath bltu_2 bltu_1 bltu_0 hbltu_3 hbltu_2 hbltu_1 hbltu_0
-  have hdivs :=
+  exact ⟨bltu_2, bltu_1, bltu_0,
+    hbltu_3, hbltu_2, hbltu_1, hbltu_0,
     n1_full_div_getLimbN_of_step_conservation_overestimate_r3_all_phases
       a b bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1z hshift_nz hcarry2
-      hr3_inv hr2_zero hr1_zero hge
-  exact ⟨bltu_2, bltu_1, bltu_0,
-    hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivs⟩
+      hr3_inv hr2_zero hr1_zero hge⟩
 
 /-- Quotient-word path wrapper whose callback provides the R3 all-phases
     invariant instead of the R3 carry-zero proof. -/
