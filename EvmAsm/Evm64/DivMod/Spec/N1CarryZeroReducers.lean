@@ -1,6 +1,7 @@
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
 import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
 import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+import EvmAsm.Evm64.EvmWordArith.Div128KB6Composition
 import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
 
 namespace EvmAsm.Evm64
@@ -430,5 +431,43 @@ theorem fullDivN1R3_div128Quot_toNat_eq_strict_of_shape_phase_no_wrap
         fullDivN1NormU_top_lt_normV_limb0_halves_of_shape_shift_nz
           a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)
     hq0
+
+/-- All-phases no-wrap form of the first-step n=1 carry-zero reducer. The
+    strict div128 KB-6 bound gives `qHat ≤ floor((uHi: uLo) / vTop)`, which is
+    enough to discharge the R3 product bound and hence the `mulsubN4` carry. -/
+theorem fullDivN1R3CarryZero_true_of_shape_all_phases_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    let uHi := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    let uLo := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    let vTop := (fullDivN1NormV b0 b1 b2 b3).1
+    Div128AllPhasesNoWrapInv uHi uLo vTop →
+    fullDivN1R3CarryZero true a0 a1 a2 a3 b0 b1 b2 b3 := by
+  intro uHi uLo vTop h_inv
+  apply fullDivN1R3CarryZero_true_of_shape_qHat_v0_mul_le
+    a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz
+  have hb0nz : b0 ≠ 0 :=
+    fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z
+  have hvTop_norm : vTop.toNat ≥ 2^63 := by
+    simpa [vTop, fullDivN1NormV, fullDivN1Shift, fullDivN1AntiShift] using
+      (b3_shifted_ge_pow63 hb0nz)
+  have h_uHi_lt :
+      uHi.toNat < vTop.toNat := by
+    simpa [uHi, vTop] using
+      fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz
+        a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz
+  have hcall : uHi.toNat * 2^64 + uLo.toNat < vTop.toNat * 2^64 := by
+    have huLo := uLo.isLt
+    omega
+  have hq_le :=
+    div128Quot_le_q_true uHi uLo vTop hvTop_norm hcall h_inv
+  have h_qHat_mul_le :
+      (div128Quot uHi uLo vTop).toNat * vTop.toNat ≤
+        uHi.toNat * 2^64 + uLo.toNat := by
+    exact le_trans (Nat.mul_le_mul_right vTop.toNat hq_le)
+      (Nat.div_mul_le_self (uHi.toNat * 2^64 + uLo.toNat) vTop.toNat)
+  simpa [uHi, uLo, vTop] using h_qHat_mul_le
 
 end EvmAsm.Evm64
