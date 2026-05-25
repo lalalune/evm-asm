@@ -220,13 +220,9 @@ theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_trialWitnesses
       (divStackDispatchPostCallableExactFrame sp a b raVal
         (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
-  have hbnzGet :
-      b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
-        b.getLimbN 3 ≠ 0 :=
-    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   obtain ⟨bltu_1, bltu_0, hbltu_1, hbltu_0, hdivWord⟩ :=
-    N3V4TrialWitnesses.exists_quotient_word_of_path_conditions
-      htrial hbnzGet hcarry2 harith
+    N3V4TrialWitnesses.exists_quotient_word_of_path_conditions_ne_zero
+      htrial hbnz hcarry2 harith
   exact evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_uni
     bltu_1 bltu_0 sp base a b
     v5 v6 v7 v10 v11Old
