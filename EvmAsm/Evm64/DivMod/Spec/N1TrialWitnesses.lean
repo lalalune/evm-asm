@@ -52,6 +52,27 @@ abbrev N1MulSubOverestimatePathCallback (a b : EvmWord) : Prop :=
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
+/-- Selected n=1 raw path callback for mulsub equality plus final-remainder
+    facts. -/
+abbrev N1MulSubRemainderLtPathCallback (a b : EvmWord) : Prop :=
+  ∀ bltu_2 bltu_1 bltu_0,
+    isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
+    isTrialN1_j2 true bltu_2
+      (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+    isTrialN1_j1 true bltu_2 bltu_1
+      (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+    isTrialN1_j0 true bltu_2 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+    fullDivN1MulSubEq true bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      fullDivN1RemainderLt true bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
 /-- The four n=1 trial-branch booleans always have canonical witnesses.
 
     This packages the mechanical branch-enumeration part needed by
@@ -1004,23 +1025,7 @@ theorem n1_shape_quotient_word_of_mulsub_remainder_lt
     (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
     (hb1z : b.getLimbN 1 = 0)
     (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
-    (hpath : ∀ bltu_2 bltu_1 bltu_0,
-      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
-      isTrialN1_j2 true bltu_2
-        (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j1 true bltu_2 bltu_1
-        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      fullDivN1MulSubEq true bltu_2 bltu_1 bltu_0
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-        fullDivN1RemainderLt true bltu_2 bltu_1 bltu_0
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hpath : N1MulSubRemainderLtPathCallback a b) :
     ∃ bltu_2 bltu_1 bltu_0,
       fullDivN1QuotientWord true bltu_2 bltu_1 bltu_0
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
@@ -1046,23 +1051,7 @@ theorem n1_shape_hdivs_of_mulsub_remainder_lt
     (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
     (hb1z : b.getLimbN 1 = 0)
     (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
-    (hpath : ∀ bltu_2 bltu_1 bltu_0,
-      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
-      isTrialN1_j2 true bltu_2
-        (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j1 true bltu_2 bltu_1
-        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      fullDivN1MulSubEq true bltu_2 bltu_1 bltu_0
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-        fullDivN1RemainderLt true bltu_2 bltu_1 bltu_0
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hpath : N1MulSubRemainderLtPathCallback a b) :
     ∃ bltu_2 bltu_1 bltu_0,
       isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) ∧
       isTrialN1_j2 true bltu_2
@@ -1210,23 +1199,7 @@ theorem n1_full_div_getLimbN_of_mulsub_remainder_lt
     (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
     (hb1z : b.getLimbN 1 = 0)
     (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
-    (hpath : ∀ bltu_2 bltu_1 bltu_0,
-      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
-      isTrialN1_j2 true bltu_2
-        (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j1 true bltu_2 bltu_1
-        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      fullDivN1MulSubEq true bltu_2 bltu_1 bltu_0
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-        fullDivN1RemainderLt true bltu_2 bltu_1 bltu_0
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hpath : N1MulSubRemainderLtPathCallback a b) :
     ∃ bltu_2 bltu_1 bltu_0,
       (EvmWord.div a b).getLimbN 0 =
         (fullDivN1R0 true bltu_2 bltu_1 bltu_0
