@@ -1211,4 +1211,35 @@ theorem n1_full_div_getLimbN_of_step_conservation_path_r3_all_phases
       hbnz hb1z hb2z hb3z hshift_nz hr3_inv
   exact ⟨hcarry2, hr3_zero, hr2_zero, hr1_zero, hge⟩
 
+/-- Acceptance-shaped hdiv wrapper whose callback provides the selected R3
+    all-phases invariant as its three local no-wrap conjuncts. -/
+theorem n1_full_div_getLimbN_of_step_conservation_path_r3_conjuncts
+    (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+    (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+    (hpath : N1AllPhasesConjunctOverestimatePathCallback a b) :
+    ∃ bltu_2 bltu_1 bltu_0,
+      (EvmWord.div a b).getLimbN 0 =
+        (fullDivN1R0 true bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 1 =
+        (fullDivN1R1 true bltu_2 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 2 =
+        (fullDivN1R2 true bltu_2
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 3 =
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 := by
+  exact n1_full_div_getLimbN_of_step_conservation_path_r3_all_phases
+    a b hbnz hb3z hb2z hb1z hshift_nz
+    (N1AllPhasesConjunctOverestimatePathCallback.toAllPhasesOverestimatePathCallback hpath)
+
 end EvmAsm.Evm64
