@@ -347,9 +347,17 @@ theorem N2V4TrialWitnesses.exists_quotient_word_of_path_conditions_ne_zero
       fullDivN2QuotientWordV4 bltu_2 bltu_1 bltu_0
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
-          EvmWord.div a b :=
-  N2V4TrialWitnesses.exists_quotient_word_of_path_conditions
-    htrial ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry2 harith
+          EvmWord.div a b := by
+  obtain ⟨bltu_2, bltu_1, bltu_0, hpath⟩ :=
+    N2V4TrialWitnesses.exists_path_conditions htrial hcarry2 harith
+  have hdivWord :=
+    fullDivN2QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
+      bltu_2 bltu_1 bltu_0 a b hbnz hpath
+  exact ⟨bltu_2, bltu_1, bltu_0,
+    fullDivN2PathConditionsWordV4_trial_j2 bltu_2 bltu_1 bltu_0 a b hpath,
+    fullDivN2PathConditionsWordV4_trial_j1 bltu_2 bltu_1 bltu_0 a b hpath,
+    fullDivN2PathConditionsWordV4_trial_j0 bltu_2 bltu_1 bltu_0 a b hpath,
+    hdivWord⟩
 
 /-- Nonzero-surface quotient-limb witnesses from an `N2V4TrialWitnesses`
     bundle. -/
@@ -398,8 +406,19 @@ theorem N2V4TrialWitnesses.exists_hdivs_of_path_conditions_ne_zero
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
       (EvmWord.div a b).getLimbN 3 = (0 : Word) :=
-  N2V4TrialWitnesses.exists_hdivs_of_path_conditions
-    htrial ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry2 harith
+  by
+    obtain ⟨bltu_2, bltu_1, bltu_0,
+        hbltu_2, hbltu_1, hbltu_0, hdivWord⟩ :=
+      N2V4TrialWitnesses.exists_quotient_word_of_path_conditions_ne_zero
+        htrial hbnz hcarry2 harith
+    have hdivs :=
+      fullDivN2V4_hdivs_of_word_eq bltu_2 bltu_1 bltu_0
+        a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        hdivWord
+    exact ⟨bltu_2, bltu_1, bltu_0,
+      hbltu_2, hbltu_1, hbltu_0, hdivs⟩
 
 /-- Auto-trial form of
     `N2V4TrialWitnesses.exists_quotient_word_of_path_conditions`.
@@ -509,9 +528,14 @@ theorem n2V4_quotient_word_of_path_conditions_ne_zero
       fullDivN2QuotientWordV4 bltu_2 bltu_1 bltu_0
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
-          EvmWord.div a b :=
-  n2V4_quotient_word_of_path_conditions
-    ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry2 harith
+          EvmWord.div a b := by
+  obtain ⟨bltu_2, bltu_1, bltu_0, hpath⟩ :=
+    N2V4TrialWitnesses.exists_path_conditions
+      (n2V4TrialWitnesses_of_getLimbN a b) hcarry2 harith
+  have hdivWord :=
+    fullDivN2QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
+      bltu_2 bltu_1 bltu_0 a b hbnz hpath
+  exact ⟨bltu_2, bltu_1, bltu_0, hdivWord⟩
 
 /-- Dispatcher-shape n=2 V4 quotient-word package.
 
