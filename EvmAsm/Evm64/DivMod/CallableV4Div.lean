@@ -1317,9 +1317,8 @@ theorem evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_shape
       (divStackDispatchPostCallableExactFrame sp a b raVal
         (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
-  have hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 := by
-    intro h_or
-    exact hb2nz (EvmWord.or_eq_zero_imp_right (EvmWord.or_eq_zero_imp_left h_or))
+  have hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    n3_limb_or_ne_zero_of_limb2_ne_zero hb2nz
   exact evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_limbNz
     sp base a b
     v5 v6 v7 v10 v11Old

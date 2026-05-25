@@ -501,9 +501,8 @@ theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_shape_uni
         (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
   have hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
-      b.getLimbN 3 ≠ 0 := by
-    intro h_or
-    exact hb2nz (EvmWord.or_eq_zero_imp_right (EvmWord.or_eq_zero_imp_left h_or))
+      b.getLimbN 3 ≠ 0 :=
+    n3_limb_or_ne_zero_of_limb2_ne_zero hb2nz
   exact evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_uni
     sp base a b
     v5 v6 v7 v10 v11Old
