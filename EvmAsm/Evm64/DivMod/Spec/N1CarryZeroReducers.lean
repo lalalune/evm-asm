@@ -169,4 +169,44 @@ theorem fullDivN1R3CarryZero_true_of_shape_div128Quot_floor
       (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat)
     (fullDivN1NormV b0 b1 b2 b3).1.toNat
 
+/-- The first n=1 128/64 trial call is in the strict call regime. A positive
+    normalization shift makes the overflow limb of the normalized dividend
+    below `2^63`, while the normalized divisor limb is at least `2^63`. -/
+theorem fullDivN1NormU_top_lt_normV_limb0_of_b0_ne_zero_shift_nz
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb0nz : b0 ≠ 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat := by
+  have h_shift_pos : 1 ≤ (clzResult b0).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b0).1.toNat with h | h
+    · exfalso
+      apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have h_u4_lt_pow63 :
+      (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)).toNat <
+        2^63 :=
+    u_top_lt_pow63_of_shift_nz a3 (clzResult b0).1 h_shift_pos
+      (clzResult_fst_toNat_le b0)
+  have h_b0_ge_pow63 :
+      (b0 <<< ((clzResult b0).1.toNat % 64)).toNat ≥ 2^63 :=
+    b3_shifted_ge_pow63 hb0nz
+  have h_lt := Nat.lt_of_lt_of_le h_u4_lt_pow63 h_b0_ge_pow63
+  simpa [fullDivN1NormU, fullDivN1NormV, fullDivN1Shift, fullDivN1AntiShift]
+    using h_lt
+
+/-- Runtime n=1 divisor-shape wrapper for the strict first-call regime. -/
+theorem fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat := by
+  exact fullDivN1NormU_top_lt_normV_limb0_of_b0_ne_zero_shift_nz
+    a0 a1 a2 a3 b0 b1 b2 b3
+    (fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
+    hshift_nz
+
 end EvmAsm.Evm64
