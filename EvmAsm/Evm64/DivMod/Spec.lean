@@ -42,6 +42,7 @@ import EvmAsm.Evm64.DivMod.Spec.N3QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N3DivStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.Spec.UnifiedN1Normalized
+import EvmAsm.Evm64.DivMod.Spec.UnifiedN1NormalizedRemainder
 import EvmAsm.Evm64.DivMod.Spec.UnifiedExactNoNop
 import EvmAsm.Evm64.DivMod.Spec.UnifiedExactNoNopCallableFrame
 import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExact
