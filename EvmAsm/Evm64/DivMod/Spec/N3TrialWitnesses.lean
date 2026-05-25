@@ -277,14 +277,17 @@ theorem N3V4TrialWitnesses.exists_hdivs_of_path_conditions
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
       (EvmWord.div a b).getLimbN 2 = (0 : Word) ∧
       (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
-  obtain ⟨bltu_1, bltu_0, hpath⟩ :=
-    N3V4TrialWitnesses.exists_path_conditions htrial hcarry2 harith
+  obtain ⟨bltu_1, bltu_0, hbltu_1, hbltu_0, hdivWord⟩ :=
+    N3V4TrialWitnesses.exists_quotient_word_of_path_conditions
+      htrial hbnz hcarry2 harith
   have hdivs :=
-    fullDivN3V4_getLimbN_of_word_path_conditions bltu_1 bltu_0 a b hbnz hpath
+    fullDivN3V4_hdivs_of_word_eq bltu_1 bltu_0
+      a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hdivWord
   exact ⟨bltu_1, bltu_0,
-    fullDivN3PathConditionsWordV4_trial_j1 bltu_1 bltu_0 a b hpath,
-    fullDivN3PathConditionsWordV4_trial_j0 bltu_1 bltu_0 a b hpath,
-    hdivs⟩
+    hbltu_1, hbltu_0, hdivs⟩
 
 /-- Auto-trial form of
     `N3V4TrialWitnesses.exists_quotient_word_of_path_conditions`.
