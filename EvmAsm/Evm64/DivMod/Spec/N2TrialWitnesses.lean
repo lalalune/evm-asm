@@ -297,16 +297,18 @@ theorem N2V4TrialWitnesses.exists_hdivs_of_path_conditions
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
       (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
-  obtain ⟨bltu_2, bltu_1, bltu_0, hpath⟩ :=
-    N2V4TrialWitnesses.exists_path_conditions htrial hcarry2 harith
+  obtain ⟨bltu_2, bltu_1, bltu_0,
+      hbltu_2, hbltu_1, hbltu_0, hdivWord⟩ :=
+    N2V4TrialWitnesses.exists_quotient_word_of_path_conditions
+      htrial hbnz hcarry2 harith
   have hdivs :=
-    fullDivN2V4_getLimbN_of_word_path_conditions
-      bltu_2 bltu_1 bltu_0 a b hbnz hpath
+    fullDivN2V4_hdivs_of_word_eq bltu_2 bltu_1 bltu_0
+      a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hdivWord
   exact ⟨bltu_2, bltu_1, bltu_0,
-    fullDivN2PathConditionsWordV4_trial_j2 bltu_2 bltu_1 bltu_0 a b hpath,
-    fullDivN2PathConditionsWordV4_trial_j1 bltu_2 bltu_1 bltu_0 a b hpath,
-    fullDivN2PathConditionsWordV4_trial_j0 bltu_2 bltu_1 bltu_0 a b hpath,
-    hdivs⟩
+    hbltu_2, hbltu_1, hbltu_0, hdivs⟩
 
 /-- Auto-trial form of
     `N2V4TrialWitnesses.exists_quotient_word_of_path_conditions`.
@@ -516,9 +518,15 @@ theorem n2V4_full_div_getLimbN_of_path_conditions
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
       (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
-  obtain ⟨bltu_2, bltu_1, bltu_0, _, _, _, hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
-    n2V4_exists_hdivs_of_path_conditions hbnz hcarry2 harith
-  exact ⟨bltu_2, bltu_1, bltu_0, hdiv0, hdiv1, hdiv2, hdiv3⟩
+  obtain ⟨bltu_2, bltu_1, bltu_0, hdivWord⟩ :=
+    n2V4_quotient_word_of_path_conditions hbnz hcarry2 harith
+  have hdivs :=
+    fullDivN2V4_hdivs_of_word_eq bltu_2 bltu_1 bltu_0
+      a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hdivWord
+  exact ⟨bltu_2, bltu_1, bltu_0, hdivs⟩
 
 /-- Dispatcher-shape n=2 V4 quotient-limb package.
 

@@ -191,14 +191,34 @@ theorem evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_trialWitnesses
       (divStackDispatchPostCallableExactFrame sp a b raVal
         (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
-  obtain ⟨bltu_2, bltu_1, bltu_0, hpath⟩ :=
-    N2V4TrialWitnesses.exists_path_conditions htrial hcarry2 harith
-  exact evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_path_uni
+  have hbnzGet :
+      b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+        b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  obtain ⟨bltu_2, bltu_1, bltu_0,
+      hbltu_2, hbltu_1, hbltu_0, hdivWord⟩ :=
+    N2V4TrialWitnesses.exists_quotient_word_of_path_conditions
+      htrial hbnzGet hcarry2 harith
+  have hbody :=
+    evm_div_n2_stack_pre_to_unified_post_v4_noNop sp base a b
+      v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+      hbnz hb3z hb2z hb1nz hshift_nz halign
+      (by simpa [isTrialN2V4_j2] using hbltu_2)
+      (by
+        cases bltu_2 <;>
+          simpa [isTrialN2V4_j1, fullDivN2R2V4, iterN2V4] using hbltu_1)
+      (by
+        cases bltu_2 <;> cases bltu_1 <;>
+          simpa [isTrialN2V4_j0, fullDivN2R1V4, fullDivN2R2V4, iterN2V4] using hbltu_0)
+      hcarry2
+  exact evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_uni
     bltu_2 bltu_1 bltu_0 sp base a b
     v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
-    hbnz hb3z hb2z hb1nz hshift_nz halign hpath
+    hdivWord hbody
 
 /-- N2 DIV v4 callable wrapper with the mechanical trial branch witnesses
     constructed internally. -/
