@@ -5,6 +5,8 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.CallAddback
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
 
 namespace EvmAsm.Evm64
 
@@ -196,6 +198,221 @@ def n4CallAddbackBeqRuntimeBounds (a b : EvmWord) : Prop :=
   (n4CallAddbackBeqQHatV4 a b).toNat ≤
       n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1 ∧
     n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b
+
+/-- The normalized overflow dividend limb in the n=4 call-addback marker is
+    strictly below `2^63` whenever normalization uses a nonzero shift. -/
+theorem n4CallAddbackBeqU4_lt_pow63_of_shift_nz {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    (n4CallAddbackBeqU4 a b).toNat < 2^63 := by
+  have h_shift_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h | h
+    · exfalso
+      apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have h :=
+    u_top_lt_pow63_of_shift_nz
+      (a.getLimbN 3) (clzResult (b.getLimbN 3)).1
+      h_shift_pos (clzResult_fst_toNat_le (b.getLimbN 3))
+  simpa [n4CallAddbackBeqU4, n4CallAddbackBeqAntiShift,
+    n4CallAddbackBeqShift] using h
+
+/-- The v4 Phase-1b `un21` intermediate is strictly below the normalized
+    top divisor limb on the n=4 call path. -/
+theorem n4CallAddbackBeqUn21_lt_b3prime_of_call {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)) :
+    (divKTrialCallV4Un21
+      (n4CallAddbackBeqU4 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqB3Prime b)).toNat <
+      (n4CallAddbackBeqB3Prime b).toNat := by
+  have h :=
+    un21V4_lt_vTop_of_call
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
+      hb3nz hshift_nz hcall
+  dsimp at h
+  simpa [algorithmUn21V4, n4CallAddbackBeqU4, n4CallAddbackBeqU3,
+    n4CallAddbackBeqB3Prime, n4CallAddbackBeqShift,
+    n4CallAddbackBeqAntiShift] using h
+
+/-- Decomposed-form `un21 < vTop` on the n=4 call path, with the raw
+    `un21 < B3Prime` premise supplied internally. -/
+theorem n4CallAddbackBeqUn21_lt_vTop_of_call {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)) :
+    (divKTrialCallV4Un21
+      (n4CallAddbackBeqU4 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqB3Prime b)).toNat <
+      (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat :=
+  n4CallAddbackBeqUn21_lt_vTop_of_lt_b3prime
+    (n4CallAddbackBeqUn21_lt_b3prime_of_call hb3nz hshift_nz hcall)
+
+/-- Trial-call half decomposition of the n=4 call-addback qhat on the call
+    path, with the `un21` range proof supplied internally. -/
+theorem n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_call_path
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)) :
+    (n4CallAddbackBeqQHatV4 a b).toNat =
+      (divKTrialCallV4Q1dd
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4Q0dd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b)).toNat :=
+  n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_call
+    hb3nz hcall (n4CallAddbackBeqUn21_lt_vTop_of_call hb3nz hshift_nz hcall)
+
+/-- Marker-name adapter for the v4 128/64 `+1` upper bound.
+
+    This is not yet the compact `n4CallAddbackBeqRuntimeBounds` qhat
+    obligation, whose denominator is the full normalized divisor. It exposes
+    the proven 128/64 bound with `n4CallAddbackBeq*` names so the remaining
+    runtime range and val256-denominator bridge can be attacked directly. -/
+theorem n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_rhatdd_hi_zero {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hu4_lt_pow63 : (n4CallAddbackBeqU4 a b).toNat < 2^63)
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (hUn21_lt_b3prime :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (n4CallAddbackBeqB3Prime b).toNat)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word)) :
+    (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat + 1 := by
+  rw [n4CallAddbackBeqQHatV4_eq_normalized]
+  have hu4_lt_b3prime :
+      (n4CallAddbackBeqU4 a b).toNat < (n4CallAddbackBeqB3Prime b).toNat := by
+    have h_decomp := n4CallAddbackBeqU4_lt_vTop_of_call hcall
+    rw [div128Quot_vTop_decomp (n4CallAddbackBeqB3Prime b)]
+    simpa [divKTrialCallV4DHi, divKTrialCallV4DLo] using h_decomp
+  exact div128Quot_v4_le_q_true_plus_one_of_rhatdd_hi_zero
+    (n4CallAddbackBeqU4 a b)
+    (n4CallAddbackBeqU3 a b)
+    (n4CallAddbackBeqB3Prime b)
+    (n4CallAddbackBeqB3Prime_ge_pow63 hb3nz)
+    hu4_lt_b3prime
+    hu4_lt_pow63
+    hUn21_lt_pow63
+    hUn21_lt_b3prime
+    h_rhat_hi_zero
+
+/-- Variant of `n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_rhatdd_hi_zero`
+    with the normalized `U4 < 2^63` premise discharged from the nonzero
+    normalization shift. -/
+theorem n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_shift_nz_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (hUn21_lt_b3prime :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (n4CallAddbackBeqB3Prime b).toNat)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word)) :
+    (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat + 1 :=
+  n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_rhatdd_hi_zero
+    hb3nz hcall (n4CallAddbackBeqU4_lt_pow63_of_shift_nz hshift_nz)
+    hUn21_lt_pow63 hUn21_lt_b3prime h_rhat_hi_zero
+
+/-- Variant of the marker qhat upper-bound adapter with the `U4 < 2^63`
+    and `Un21 < B3Prime` premises discharged from the call-path and nonzero
+    shift hypotheses. -/
+theorem n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_call_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word)) :
+    (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat + 1 :=
+  n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_shift_nz_rhatdd_hi_zero
+    hb3nz hshift_nz hcall hUn21_lt_pow63
+    (n4CallAddbackBeqUn21_lt_b3prime_of_call hb3nz hshift_nz hcall)
+    h_rhat_hi_zero
+
+/-- Reduce the compact runtime qhat bound to the remaining denominator bridge.
+
+    The v4 128/64 qhat bound is already discharged by the call path,
+    `hUn21_lt_pow63`, and the `rhatdd` high-half-zero branch. What remains
+    for `n4CallAddbackBeqRuntimeBounds` is the Knuth-A bridge from the high
+    128/64 quotient denominator to the full normalized 256-bit divisor. -/
+theorem n4CallAddbackBeqQHatV4_le_norm_div_plus_one_of_call_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_high_div_le_norm :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b) :
+    (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1 := by
+  have h_qhat_high :=
+    n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_call_rhatdd_hi_zero
+      hb3nz hshift_nz hcall hUn21_lt_pow63 h_rhat_hi_zero
+  omega
 
 /-- Runtime-normalized c3 bridge: if the normalized trial quotient is within
     one of the normalized true quotient, the raw borrow condition pins the
@@ -407,6 +624,76 @@ theorem n4CallAddbackBeqIterWithDoubleAddback_val256_conservation_of_runtime_top
     (n4CallAddbackBeqNormalizedDivisor_ne_zero hb3nz)
     hq_over
     h_carry2
+
+/-- Runtime-condition normalized remainder bound for the n=4 call+addback-BEQ
+    path, stated over the normalized marker limbs. -/
+theorem n4CallAddbackBeqIterRNormVal_lt_BNormVal_of_runtime
+    {a b : EvmWord}
+    (hbnz :
+      n4CallAddbackBeqB0Prime b ||| n4CallAddbackBeqB1Prime b |||
+        n4CallAddbackBeqB2Prime b ||| n4CallAddbackBeqB3Prime b ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        EvmWord.val256
+          (n4CallAddbackBeqU0 a b)
+          (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b)
+          (n4CallAddbackBeqU3 a b) /
+          EvmWord.val256
+            (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b)
+            (n4CallAddbackBeqB2Prime b)
+            (n4CallAddbackBeqB3Prime b) + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b := by
+  have hb := n4CallAddbackBeqBorrow_raw_of_runtime h_borrow
+  have hc3_one :=
+    n4CallAddbackBeqC3_eq_one_of_borrow_and_qhat_le_div_plus_one
+      hbnz hq_over hb
+  have h := iterWithDoubleAddback_borrow_remainder_lt_of_qhat_le_div_plus_one
+    (n4CallAddbackBeqQHatV4 a b)
+    (n4CallAddbackBeqB0Prime b)
+    (n4CallAddbackBeqB1Prime b)
+    (n4CallAddbackBeqB2Prime b)
+    (n4CallAddbackBeqB3Prime b)
+    (n4CallAddbackBeqU0 a b)
+    (n4CallAddbackBeqU1 a b)
+    (n4CallAddbackBeqU2 a b)
+    (n4CallAddbackBeqU3 a b)
+    (n4CallAddbackBeqU4 a b)
+    hbnz hb hc3_one hq_over
+  simpa [n4CallAddbackBeqIterRNormVal, n4CallAddbackBeqIterOut,
+    n4CallAddbackBeqBNormVal] using h
+
+/-- Runtime-condition normalized remainder bound with the original top-limb
+    nonzero condition discharging normalized divisor nonzero. -/
+theorem n4CallAddbackBeqIterRNormVal_lt_BNormVal_of_runtime_top_nonzero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b :=
+  n4CallAddbackBeqIterRNormVal_lt_BNormVal_of_runtime
+    (n4CallAddbackBeqNormalizedDivisor_ne_zero hb3nz)
+    (by
+      simpa [n4CallAddbackBeqULoNormVal, n4CallAddbackBeqBNormVal] using hq_over)
+    h_borrow
+
+/-- Package the compact n=4 call+addback-BEQ runtime bounds from the qhat
+    bound and the runtime borrow predicate. -/
+theorem n4CallAddbackBeqRuntimeBounds_of_qhat_bound_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqRuntimeBounds a b :=
+  ⟨hq_over,
+    n4CallAddbackBeqIterRNormVal_lt_BNormVal_of_runtime_top_nonzero
+      hb3nz hq_over h_borrow⟩
 
 /-- Runtime-condition value conservation with the iterator quotient rewritten
     to the named v4 call-addback quotient output. -/
@@ -666,6 +953,119 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
     n4CallAddbackBeqSemanticHoldsV4 a b :=
   n4CallAddbackBeqSemanticHoldsV4_of_runtime_conditions_compact
     hb3nz hshift_nz h_bounds.1 h_borrow h_carry2 h_bounds.2
+
+/-- Runtime semantic bridge with the normalized remainder bound discharged from
+    the qhat bound and runtime borrow predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_qhat_bound_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
+    hb3nz hshift_nz
+    (n4CallAddbackBeqRuntimeBounds_of_qhat_bound_and_borrow
+      hb3nz hq_over h_borrow)
+    h_borrow h_carry2
+
+/-- Historical non-`V4` spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_runtime_bounds
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_bounds : n4CallAddbackBeqRuntimeBounds a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
+      hb3nz hshift_nz h_bounds h_borrow h_carry2
+
+/-- Historical non-`V4` spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_qhat_bound_and_borrow`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_qhat_bound_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hq_over :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_qhat_bound_and_borrow
+      hb3nz hshift_nz hq_over h_borrow h_carry2
+
+/-- **n4 call+addback (shift≠0) getLimbN bridge.**
+    Under `n4CallAddbackBeqSemanticHolds a b` (the algorithm's q_out equals the
+    true quotient) and `b.getLimbN 3 ≠ 0` (n=4, so val256(b) ≥ 2^192 and the
+    quotient fits in one 64-bit limb), the DIV result has
+    `getLimbN 0 = n4CallAddbackBeqQOutV4 a b` and all upper limbs zero.
+
+    Used to bridge `evm_div_n4_full_call_addback_beq_spec_noNop`'s output
+    (which gives `fullDivN4CallAddbackBeqPost`) toward the public EVM-stack post
+    with `EvmWord.div a b` in the quotient slot. -/
+theorem n4_call_addback_beq_div_getLimbN (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hsem : n4CallAddbackBeqSemanticHolds a b) :
+    (EvmWord.div a b).getLimbN 0 = n4CallAddbackBeqQOutV4 a b ∧
+    (EvmWord.div a b).getLimbN 1 = 0 ∧
+    (EvmWord.div a b).getLimbN 2 = 0 ∧
+    (EvmWord.div a b).getLimbN 3 = 0 := by
+  -- Step 1: Convert SemanticHolds to V4 form: QOutV4.toNat = QTrue = val256(a)/val256(b)
+  have hsemV4 := n4CallAddbackBeqSemanticHolds_v4 hsem
+  unfold n4CallAddbackBeqSemanticHoldsV4 n4CallAddbackBeqQTrue at hsemV4
+  -- Step 2: Connect val256 to toNat
+  have ha_val : val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) = a.toNat := by
+    simp only [← getLimb_as_getLimbN_0, ← getLimb_as_getLimbN_1,
+               ← getLimb_as_getLimbN_2, ← getLimb_as_getLimbN_3]
+    exact val256_eq_toNat a
+  have hb_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = b.toNat := by
+    simp only [← getLimb_as_getLimbN_0, ← getLimb_as_getLimbN_1,
+               ← getLimb_as_getLimbN_2, ← getLimb_as_getLimbN_3]
+    exact val256_eq_toNat b
+  rw [ha_val, hb_val] at hsemV4
+  -- Step 3: EvmWord.div a b = a.toNat / b.toNat
+  have hdiv_toNat : (EvmWord.div a b).toNat = a.toNat / b.toNat := by
+    unfold EvmWord.div; rw [if_neg hbnz]; exact BitVec.toNat_udiv
+  -- Step 4: QOutV4.toNat = (EvmWord.div a b).toNat
+  have hq_toNat : (n4CallAddbackBeqQOutV4 a b).toNat = (EvmWord.div a b).toNat := by omega
+  -- Step 5: Quotient fits in one limb since b.getLimbN 3 ≠ 0 → b ≥ 2^192
+  have hb_gt : 0 < b.toNat := by
+    rcases Nat.eq_zero_or_pos b.toNat with h | h
+    · exact absurd (BitVec.eq_of_toNat_eq (by simp [h])) hbnz
+    · exact h
+  have hb3_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ≥ 2^192 :=
+    val256_ge_pow192_of_limb3 _ _ _ _ hb3nz
+  rw [hb_val] at hb3_val
+  have hqlt : (n4CallAddbackBeqQOutV4 a b).toNat < 2^64 := by
+    rw [hq_toNat, hdiv_toNat]
+    have hbnd := val256_bound (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    rw [ha_val] at hbnd
+    calc a.toNat / b.toNat ≤ (2^256 - 1) / b.toNat := Nat.div_le_div_right (by omega)
+      _ ≤ (2^256 - 1) / 2^192 := Nat.div_le_div_left hb3_val (by omega)
+      _ = 2^64 - 1 := by norm_num
+      _ < 2^64 := by omega
+  -- Step 6: Build the target EvmWord (QOutV4 in limb 0, zeros elsewhere) = EvmWord.div a b
+  set q := n4CallAddbackBeqQOutV4 a b with hq_def
+  set target := EvmWord.fromLimbs (fun i : Fin 4 =>
+    match i with | 0 => q | 1 => 0 | 2 => 0 | 3 => 0) with htarget_def
+  have htarget_toNat : target.toNat = q.toNat := by
+    simp [htarget_def, EvmWord.fromLimbs_toNat]
+  have htarget_eq_div : target = EvmWord.div a b :=
+    BitVec.eq_of_toNat_eq (by omega)
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [← htarget_eq_div]; exact getLimbN_fromLimbs_0
+  · rw [← htarget_eq_div]; exact getLimbN_fromLimbs_1
+  · rw [← htarget_eq_div]; exact getLimbN_fromLimbs_2
+  · rw [← htarget_eq_div]; exact getLimbN_fromLimbs_3
 
 end EvmWord
 
