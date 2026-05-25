@@ -3071,9 +3071,6 @@ def ziskSlotAtIndexProbeUnit : BuildUnit := {
   dataAsm     := ziskSlotAtIndexDataSection
 }
 
-/-! ## rlp_encode_uint_be -- PR-K30 — def moved to `Programs/RlpRead.lean`. -/
-
-
 /-- `zisk_rlp_encode_uint_be`: probe BuildUnit. Reads
     (src_len, src_bytes) from host input, writes
     (bytes_written, encoded_bytes) to OUTPUT. -/
@@ -4079,6 +4076,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_account_validate_code_hash_empty" => some ziskAccountValidateCodeHashEmptyProbeUnit
   | "zisk_account_validate_storage_root_empty" => some ziskAccountValidateStorageRootEmptyProbeUnit
   | "zisk_chain_compute_max_gas_used" => some ziskChainComputeMaxGasUsedProbeUnit
+  | "zisk_chain_compute_max_blob_gas_used" => some ziskChainComputeMaxBlobGasUsedProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -4489,6 +4487,7 @@ def knownProgramNames : List String :=
    "zisk_account_validate_code_hash_empty",
    "zisk_account_validate_storage_root_empty",
    "zisk_chain_compute_max_gas_used",
+   "zisk_chain_compute_max_blob_gas_used",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
