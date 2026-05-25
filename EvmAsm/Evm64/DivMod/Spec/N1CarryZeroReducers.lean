@@ -1039,6 +1039,72 @@ theorem fullDivN1NormalizedMulSubEq_true_true_true_true_of_shape_remainders_lt_a
     hbnz hb1z hb2z hb3z hshift_nz hcarry2
     hr3_zero hr2_zero hr1_zero hfinal_zero
 
+/-- All-call n=1 reducer for the legacy quotient-overestimate surface. The
+    normalized final-remainder bound supplies the usual quotient comparison
+    once the all-carry package has produced the normalized Euclidean equation. -/
+theorem fullDivN1QuotientOverestimate_true_true_true_true_of_shape_remainders_lt_all_phases_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b0).1).toNat % 64))
+      ((b1 <<< (((clzResult b0).1).toNat % 64)) |||
+        (b0 >>> ((signExtend12 (0 : BitVec 12) -
+          (clzResult b0).1).toNat % 64)))
+      ((b2 <<< (((clzResult b0).1).toNat % 64)) |||
+        (b1 >>> ((signExtend12 (0 : BitVec 12) -
+          (clzResult b0).1).toNat % 64)))
+      ((b3 <<< (((clzResult b0).1).toNat % 64)) |||
+        (b2 >>> ((signExtend12 (0 : BitVec 12) -
+          (clzResult b0).1).toNat % 64))))
+    (hr3_lt :
+      val256
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat)
+    (hr2_lt :
+      val256
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat)
+    (hr1_lt :
+      val256
+        (fullDivN1R1 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+        (fullDivN1R1 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+        (fullDivN1R1 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+        (fullDivN1R1 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat)
+    (h_inv_r3 : Div128AllPhasesNoWrapInv
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (h_inv_r2 : Div128AllPhasesNoWrapInv
+      (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (h_inv_r1 : Div128AllPhasesNoWrapInv
+      (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (h_inv_final : Div128AllPhasesNoWrapInv
+      (fullDivN1R1 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hrem_lt : fullDivN1NormalizedRemainderLt true true true true
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN1QuotientOverestimate true true true true
+      a0 a1 a2 a3 b0 b1 b2 b3 := by
+  have hmulsub :=
+    fullDivN1NormalizedMulSubEq_true_true_true_true_of_shape_remainders_lt_all_phases_no_wrap
+      a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz hcarry2
+      hr3_lt hr2_lt hr1_lt h_inv_r3 h_inv_r2 h_inv_r1 h_inv_final
+  exact fullDivN1QuotientOverestimate_of_normalized_mulsub_remainder_lt
+    true true true true hmulsub hrem_lt
+
 /-- All-phases no-wrap form of the first-step n=1 top-limb-zero reducer. -/
 theorem fullDivN1R3_top_limb_zero_true_of_shape_all_phases_no_wrap
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
