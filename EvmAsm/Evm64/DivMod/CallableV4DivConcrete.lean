@@ -37,13 +37,9 @@ theorem evm_div_callable_v4_n2_stack_pre_to_callable_post_scratch_path_word
           scratchMem)) := by
   have hpath' := hpath
   obtain ⟨hbltu_2, hbltu_1, hbltu_0, hcarry2, _, _⟩ := hpath'
-  have hbnzGet :
-      b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
-        b.getLimbN 3 ≠ 0 :=
-    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   have hdivWord :=
-    fullDivN2QuotientWordV4_eq_div_of_word_path_conditions
-      bltu_2 bltu_1 bltu_0 a b hbnzGet hpath
+    fullDivN2QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
+      bltu_2 bltu_1 bltu_0 a b hbnz hpath
   have hBody :=
     cpsTripleWithin_weaken
       (fun _ hp => hp)
