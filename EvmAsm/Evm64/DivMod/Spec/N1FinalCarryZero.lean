@@ -964,7 +964,7 @@ theorem n1_quotient_word_package_of_step_conservation_path
     This is the arithmetic package consumed by stack wrappers: it keeps the
     selected branch booleans and branch proofs, derives final carry-zero
     internally, and returns the normalized Euclidean equation together with the
-    quotient upper-bound surface. -/
+    quotient upper-bound surface and quotient-word equality. -/
 theorem n1_normalized_mulsub_overestimate_of_step_conservation_path
     (a b : EvmWord)
     (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
@@ -1033,7 +1033,11 @@ theorem n1_normalized_mulsub_overestimate_of_step_conservation_path
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
       fullDivN1QuotientOverestimate true bltu_2 bltu_1 bltu_0
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      fullDivN1QuotientWord true bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.div a b := by
   obtain ⟨bltu_2, bltu_1, bltu_0,
       hbltu_3, hbltu_2, hbltu_1, hbltu_0⟩ :=
     n1_trial_witnesses_call_first_of_getLimbN_shape_shift_nz
@@ -1058,8 +1062,12 @@ theorem n1_normalized_mulsub_overestimate_of_step_conservation_path
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
       hbnz hb1z hb2z hb3z hshift_nz hcarry2
       hr3_zero hr2_zero hr1_zero hfinal_zero
+  have hdivWord :=
+    fullDivN1QuotientWord_eq_div_of_getLimbN_step_conservation_overestimate_final
+      true bltu_2 bltu_1 bltu_0 hbnz hb1z hb2z hb3z hshift_nz hcarry2
+      hr3_zero hr2_zero hr1_zero hge
   exact ⟨bltu_2, bltu_1, bltu_0,
-    hbltu_3, hbltu_2, hbltu_1, hbltu_0, hcarry2, hmulsub, hge⟩
+    hbltu_3, hbltu_2, hbltu_1, hbltu_0, hcarry2, hmulsub, hge, hdivWord⟩
 
 /-- Acceptance-shaped n=1 full division limb theorem from the
     step-conservation path surface.
@@ -1126,9 +1134,23 @@ theorem n1_full_div_getLimbN_of_step_conservation_path
         (fullDivN1R3 true
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 := by
-  obtain ⟨bltu_2, bltu_1, bltu_0, _, _, _, _, hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
-    n1_shape_full_div_getLimbN_of_step_conservation_overestimate
+  obtain ⟨bltu_2, bltu_1, bltu_0,
+      _hbltu_3, _hbltu_2, _hbltu_1, _hbltu_0,
+      _hcarry2, _hmulsub, _hge, hdivWord⟩ :=
+    n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnz hb3z hb2z hb1z hshift_nz hpath
-  exact ⟨bltu_2, bltu_1, bltu_0, hdiv0, hdiv1, hdiv2, hdiv3⟩
+  refine ⟨bltu_2, bltu_1, bltu_0, ?_, ?_, ?_, ?_⟩
+  · rw [← hdivWord]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_0
+  · rw [← hdivWord]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_1
+  · rw [← hdivWord]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hdivWord]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_3
 
 end EvmAsm.Evm64
