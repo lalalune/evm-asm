@@ -176,4 +176,42 @@ theorem evm_div_callable_v4_n2_stack_pre_to_callable_post_scratch_path_shape
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
     hbnz hb3z hb2z hb1nz hshift_nz halign hpath
 
+/-- Path-bundled N3 DIV v4 callable wrapper preserving the concrete v4
+    trial-call scratch value, with dispatcher-style limb-or nonzero input. -/
+theorem evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_path_limbNz
+    (bltu_1 bltu_0 : Bool) (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (raVal : Word)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_div_callable_code_v4 base)
+      (divModStackDispatchPreNoX1 sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
+        ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       ((sp + signExtend12 3936) ↦ₘ
+        fullDivN3ScratchMemV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          scratchMem)) := by
+  exact evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_of_mulsub_overestimate
+    sp base a b
+    v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+    ((EvmWord.ne_zero_iff_getLimbN_or).mpr hbnz)
+    hb3z hb2nz hshift_nz halign hpath
+
 end EvmAsm.Evm64
