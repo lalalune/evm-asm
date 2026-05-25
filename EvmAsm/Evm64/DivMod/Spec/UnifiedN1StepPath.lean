@@ -619,8 +619,8 @@ theorem evm_div_n1_stack_spec_within_word_noNop_true_remainders_all_phases_uni
     n1_trial_witnesses_all_true_of_remainders_lt
       a b hbnzGet hb3z hb2z hb1z hshift_nz hr3_lt hr2_lt hr1_lt
   have hdivWord :=
-    n1_quotient_word_true_true_true_true_of_remainders_lt_all_phases_no_wrap
-      a b hbnzGet hb3z hb2z hb1z hshift_nz hcarry2
+    n1_quotient_word_true_true_true_true_of_remainders_lt_all_phases_no_wrap_ne_zero
+      a b hbnz hb3z hb2z hb1z hshift_nz hcarry2
       hr3_lt hr2_lt hr1_lt hr3_inv hr2_inv hr1_inv hfinal_inv hrem_lt
   exact cpsTripleWithin_mono_nSteps (by decide)
     (evm_div_n1_stack_spec_within_word_noNop
@@ -923,8 +923,8 @@ theorem evm_div_n1_stack_spec_within_word_exact_x1_noNop_true_remainders_all_pha
     n1_trial_witnesses_all_true_of_remainders_lt
       a b hbnzGet hb3z hb2z hb1z hshift_nz hr3_lt hr2_lt hr1_lt
   have hdivWord :=
-    n1_quotient_word_true_true_true_true_of_remainders_lt_all_phases_no_wrap
-      a b hbnzGet hb3z hb2z hb1z hshift_nz hcarry2
+    n1_quotient_word_true_true_true_true_of_remainders_lt_all_phases_no_wrap_ne_zero
+      a b hbnz hb3z hb2z hb1z hshift_nz hcarry2
       hr3_lt hr2_lt hr1_lt hr3_inv hr2_inv hr1_inv hfinal_inv hrem_lt
   exact cpsTripleWithin_mono_nSteps (by decide)
     (evm_div_n1_stack_spec_within_word_exact_x1_noNop
@@ -1066,8 +1066,8 @@ theorem evm_div_n1_stack_spec_within_word_exact_x1_true_remainders_all_phases_un
     n1_trial_witnesses_all_true_of_remainders_lt
       a b hbnzGet hb3z hb2z hb1z hshift_nz hr3_lt hr2_lt hr1_lt
   have hdivWord :=
-    n1_quotient_word_true_true_true_true_of_remainders_lt_all_phases_no_wrap
-      a b hbnzGet hb3z hb2z hb1z hshift_nz hcarry2
+    n1_quotient_word_true_true_true_true_of_remainders_lt_all_phases_no_wrap_ne_zero
+      a b hbnz hb3z hb2z hb1z hshift_nz hcarry2
       hr3_lt hr2_lt hr1_lt hr3_inv hr2_inv hr1_inv hfinal_inv hrem_lt
   exact cpsTripleWithin_mono_nSteps (by decide)
     (evm_div_n1_stack_spec_within_word_exact_x1
