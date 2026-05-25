@@ -873,6 +873,48 @@ theorem fullDivN1R3_phase1_no_wrap_of_phase_no_wrap
     rhatUn1 q1' rhat'
   exact Div128PhaseNoWrapInv.phase1NoWrap h_inv
 
+/-- N1 R3-specific Phase-2 product no-wrap projection from the selected
+    `Div128AllPhasesNoWrapInv`. This names the final all-phases conjunct in
+    the local R3 trial-call vocabulary. -/
+theorem fullDivN1R3_phase2_no_wrap_of_all_phases_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    let uHi := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    let uLo := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    let vTop := (fullDivN1NormV b0 b1 b2 b3).1
+    Div128AllPhasesNoWrapInv uHi uLo vTop →
+    let dHi := vTop >>> (32 : BitVec 6).toNat
+    let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| div_un0
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
+    let rhat2' := if rhat2cHi = 0 then
+                    (if BitVec.ult rhat2Un0 (q0c * dLo) then rhat2c + dHi else rhat2c)
+                  else rhat2c
+    q0'.toNat * dLo.toNat ≤ rhat2'.toNat * 2^32 + div_un0.toNat := by
+  intro uHi uLo vTop h_inv dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo
+    rhatUn1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c
+    rhat2cHi rhat2Un0 q0' rhat2'
+  exact Div128AllPhasesNoWrapInv.phase2NoWrap h_inv
+
 /-- Strict first n=1 R3 trial quotient expansion under the generic
     `Div128PhaseNoWrapInv` for the selected 128/64 call. This packages the
     local `un21 < vTop` extraction and the `q0' < 2^32` reducer into the
