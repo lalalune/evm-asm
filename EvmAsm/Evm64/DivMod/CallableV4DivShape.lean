@@ -46,15 +46,13 @@ theorem evm_div_callable_v4_n2_stack_pre_to_callable_post_scratch_shape
       (divStackDispatchPostCallableExactFrame sp a b raVal
         (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
-  have hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
-      b.getLimbN 3 ≠ 0 :=
-    n2_limb_or_ne_zero_of_limb1_ne_zero hb1nz
   exact evm_div_callable_v4_n2_stack_pre_to_callable_post_scratch_limbNz
     sp base a b
     v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
-    hbnz hb3z hb2z hb1nz hshift_nz halign hcarry2 harith
+    (n2_limb_or_ne_zero_of_limb1_ne_zero hb1nz)
+    hb3z hb2z hb1nz hshift_nz halign hcarry2 harith
 
 /-- N3 DIV v4 callable wrapper deriving divisor nonzero from the n=3 shape. -/
 theorem evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_shape
@@ -94,13 +92,12 @@ theorem evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_shape
       (divStackDispatchPostCallableExactFrame sp a b raVal
         (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
-  have hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
-    n3_limb_or_ne_zero_of_limb2_ne_zero hb2nz
   exact evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_limbNz
     sp base a b
     v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
-    hbnz hb3z hb2nz hshift_nz halign hcarry2 harith
+    (n3_limb_or_ne_zero_of_limb2_ne_zero hb2nz)
+    hb3z hb2nz hshift_nz halign hcarry2 harith
 
 end EvmAsm.Evm64
