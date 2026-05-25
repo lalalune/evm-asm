@@ -275,6 +275,41 @@ theorem N1TrialWitnesses.exists_quotient_word
       exact ⟨bltu_3, bltu_2, bltu_1, bltu_0,
         hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivWord⟩
 
+/-- Slim n=1 quotient-word package.
+
+    This keeps the selected branch booleans but drops their mechanical proof
+    witnesses from the conclusion. -/
+theorem N1TrialWitnesses.quotient_word
+    {a b : EvmWord}
+    (htrial : N1TrialWitnesses a b)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (harith : ∀ bltu_3 bltu_2 bltu_1 bltu_0,
+      isTrialN1_j3 bltu_3 (a.getLimbN 3) (b.getLimbN 0) →
+      isTrialN1_j2 bltu_3 bltu_2
+        (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN1_j1 bltu_3 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN1MulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN1QuotientOverestimate bltu_3 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_3 bltu_2 bltu_1 bltu_0,
+      fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.div a b := by
+  obtain ⟨bltu_3, bltu_2, bltu_1, bltu_0, _, _, _, _, hdivWord⟩ :=
+    N1TrialWitnesses.exists_quotient_word htrial hbnz harith
+  exact ⟨bltu_3, bltu_2, bltu_1, bltu_0, hdivWord⟩
+
 /-- Eliminate an `N1TrialWitnesses` bundle and derive all four quotient-limb
     witnesses from raw mulsub plus quotient-overestimate facts for the owned
     branch booleans. -/
