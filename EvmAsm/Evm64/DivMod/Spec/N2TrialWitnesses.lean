@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
+import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
 
 namespace EvmAsm.Evm64
 
@@ -87,6 +88,77 @@ theorem N2TrialWitnesses.exists {a b : EvmWord}
         (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
       isTrialN2_j0 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  cases h with
+  | mk bltu_2 bltu_1 bltu_0 hbltu_2 hbltu_1 hbltu_0 =>
+      exact ⟨bltu_2, bltu_1, bltu_0, hbltu_2, hbltu_1, hbltu_0⟩
+
+/-- First-class proof bundle for the mechanical n=2 V4 trial-branch
+    witnesses at the public dispatcher surface.
+
+    This carries only the V4 branch booleans and their defining proof
+    obligations; carry/addback and quotient correctness remain separate path
+    obligations. -/
+inductive N2V4TrialWitnesses (a b : EvmWord) : Prop where
+  | mk (bltu_2 bltu_1 bltu_0 : Bool)
+      (hbltu_2 : isTrialN2V4_j2 bltu_2
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_1 : isTrialN2V4_j1 bltu_2 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_0 : isTrialN2V4_j0 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+
+/-- The three n=2 V4 trial-branch booleans always have canonical witnesses. -/
+theorem n2_v4_trial_witnesses (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    ∃ bltu_2 bltu_1 bltu_0,
+      isTrialN2V4_j2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+      isTrialN2V4_j1 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+      isTrialN2V4_j0 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 := by
+  let bltu_2 :=
+    BitVec.ult (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2
+      (fullDivN2NormV b0 b1 b2 b3).2.1
+  let bltu_1 :=
+    BitVec.ult
+      (fullDivN2R2V4 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN2NormV b0 b1 b2 b3).2.1
+  let bltu_0 :=
+    BitVec.ult
+      (fullDivN2R1V4 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN2NormV b0 b1 b2 b3).2.1
+  refine ⟨bltu_2, bltu_1, bltu_0, ?_, ?_, ?_⟩
+  · unfold isTrialN2V4_j2
+    rfl
+  · unfold isTrialN2V4_j1
+    rfl
+  · unfold isTrialN2V4_j0
+    rfl
+
+/-- Bundled public-surface n=2 V4 branch witnesses. -/
+theorem n2V4TrialWitnesses_of_getLimbN
+    (a b : EvmWord) :
+    N2V4TrialWitnesses a b := by
+  obtain ⟨bltu_2, bltu_1, bltu_0, hbltu_2, hbltu_1, hbltu_0⟩ :=
+    n2_v4_trial_witnesses
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+  exact N2V4TrialWitnesses.mk bltu_2 bltu_1 bltu_0 hbltu_2 hbltu_1 hbltu_0
+
+/-- Eliminate an `N2V4TrialWitnesses` bundle into the explicit V4 branch
+    booleans and proof obligations expected by path-condition wrappers. -/
+theorem N2V4TrialWitnesses.exists {a b : EvmWord}
+    (h : N2V4TrialWitnesses a b) :
+    ∃ bltu_2 bltu_1 bltu_0,
+      isTrialN2V4_j2 bltu_2
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      isTrialN2V4_j1 bltu_2 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      isTrialN2V4_j0 bltu_2 bltu_1 bltu_0
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
   cases h with
