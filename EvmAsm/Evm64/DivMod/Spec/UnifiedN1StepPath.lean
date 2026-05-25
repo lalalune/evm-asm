@@ -5,7 +5,7 @@
   directly.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1AllPhasesGetLimb
+import EvmAsm.Evm64.DivMod.Spec.N1AllPhasesNonzero
 import EvmAsm.Evm64.DivMod.Spec.N1FinalCarryZero
 import EvmAsm.Evm64.DivMod.Spec.UnifiedN1Normalized
 
@@ -320,8 +320,8 @@ theorem evm_div_n1_stack_spec_within_word_noNop_preNoX1_callableOwnPost_true_pat
   obtain ⟨hcarry2, _hr3_inv, _hr2_inv, _hr1_inv, _hfinal_inv, _hrem_lt⟩ :=
     hpath hbltu_3 hbltu_2 hbltu_1 hbltu_0
   have hdivWord :=
-    n1_quotient_word_true_true_true_true_of_path_remainders_lt_all_phases_no_wrap
-      a b hbnzGet hb3z hb2z hb1z hshift_nz hr3_lt hr2_lt hr1_lt hpath
+    n1_quotient_word_true_true_true_true_of_path_remainders_lt_all_phases_no_wrap_ne_zero
+      a b hbnz hb3z hb2z hb1z hshift_nz hr3_lt hr2_lt hr1_lt hpath
   exact evm_div_n1_stack_spec_within_word_noNop_preNoX1_callableOwnPost_uni
     true true true true sp base a b
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
