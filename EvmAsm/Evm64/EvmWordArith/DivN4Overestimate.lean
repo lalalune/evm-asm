@@ -151,6 +151,32 @@ theorem mulsub_addback_val256_combined (q : Word) {v0 v1 v2 v3 u0 u1 u2 u3 : Wor
   have hq1 : q.toNat = q.toNat - 1 + 1 := by omega
   nlinarith
 
+/-- If an `addbackN4` step carries out, its low four output limbs are strictly
+    below the divisor. This is the local remainder-bound fact used by the
+    single- and double-addback branches. -/
+theorem addbackN4_low_val256_lt_of_carry_one
+    (x0 x1 x2 x3 uTop v0 v1 v2 v3 : Word)
+    (hcarry : addbackN4_carry x0 x1 x2 x3 v0 v1 v2 v3 = 1) :
+    let ab := addbackN4 x0 x1 x2 x3 uTop v0 v1 v2 v3
+    val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 < val256 v0 v1 v2 v3 := by
+  intro ab
+  subst ab
+  have h_eq := addbackN4_val256_eq x0 x1 x2 x3 uTop v0 v1 v2 v3
+  simp only [] at h_eq
+  rw [hcarry, word_toNat_1] at h_eq
+  have h_bound := val256_bound x0 x1 x2 x3
+  linarith
+
+/-- `toNat`-stated variant of `addbackN4_low_val256_lt_of_carry_one`,
+    matching runtime carry facts that have already pinned the carry word. -/
+theorem addbackN4_low_val256_lt_of_carry_toNat_one
+    (x0 x1 x2 x3 uTop v0 v1 v2 v3 : Word)
+    (hcarry : (addbackN4_carry x0 x1 x2 x3 v0 v1 v2 v3).toNat = 1) :
+    let ab := addbackN4 x0 x1 x2 x3 uTop v0 v1 v2 v3
+    val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 < val256 v0 v1 v2 v3 :=
+  addbackN4_low_val256_lt_of_carry_one
+    x0 x1 x2 x3 uTop v0 v1 v2 v3 (BitVec.eq_of_toNat_eq hcarry)
+
 @[irreducible]
 def iterSingleAddbackBranch (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
   let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3

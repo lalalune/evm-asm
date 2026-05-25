@@ -367,20 +367,13 @@ theorem n4_max_double_addback_correct {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
         (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.2.2.1
         0 b0 b1 b2 b3).2.2.2.1
       < val256 b0 b1 b2 b3 := by
-    have hab'_eq := addbackN4_val256_eq
+    exact addbackN4_low_val256_lt_of_carry_toNat_one
       (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).1
       (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.1
       (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.2.1
       (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.2.2.1
       0 b0 b1 b2 b3
-    simp only [] at hab'_eq
-    rw [hcarry2_lem] at hab'_eq
-    have := val256_bound
-      (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).1
-      (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.1
-      (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.2.1
-      (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.2.2.1
-    linarith
+      hcarry2_lem
   -- Transport the bound to algorithm's ab'.
   have hab'_bound : val256 ab'.1 ab'.2.1 ab'.2.2.1 ab'.2.2.2.1 < val256 b0 b1 b2 b3 := by
     rw [hab'_eq1, hab'_eq21, hab'_eq221, hab'_eq2221]; exact hab'_bound_lem
