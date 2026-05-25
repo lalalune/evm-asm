@@ -49,6 +49,7 @@ import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptEncode
+import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Tx
@@ -1324,6 +1325,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_validate_gas_used_under_limit" => some ziskChainValidateGasUsedUnderLimitProbeUnit
   | "zisk_header_extract_blob_gas_used" => some ziskHeaderExtractBlobGasUsedProbeUnit
   | "zisk_account_validate_nonce_zero" => some ziskAccountValidateNonceZeroProbeUnit
+  | "zisk_chain_compute_min_blob_gas_used" => some ziskChainComputeMinBlobGasUsedProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -1740,6 +1742,7 @@ def knownProgramNames : List String :=
    "zisk_chain_validate_gas_used_under_limit",
    "zisk_header_extract_blob_gas_used",
    "zisk_account_validate_nonce_zero",
+   "zisk_chain_compute_min_blob_gas_used",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
@@ -1813,7 +1816,7 @@ end EvmAsm.Codegen
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 2658
+  let hardCap := 2546
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
     "EvmAsm/Codegen/Programs/Account.lean",
@@ -1833,6 +1836,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/HeaderU64.lean",
     "EvmAsm/Codegen/Programs/Mpt.lean",
     "EvmAsm/Codegen/Programs/MptEncode.lean",
+    "EvmAsm/Codegen/Programs/MptInternal.lean",
     "EvmAsm/Codegen/Programs/Receipt.lean",
     "EvmAsm/Codegen/Programs/State.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
