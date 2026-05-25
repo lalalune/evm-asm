@@ -74,6 +74,44 @@ abbrev N1AllTruePathCallback (a b : EvmWord) : Prop :=
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
   N1AllTruePathEvidence a b
 
+/-- Variable-branch n=1 path evidence used by older step-conservation wrappers
+    that still target the quotient-overestimate surface. -/
+abbrev N1StepOverestimatePathCallback (a b : EvmWord) : Prop :=
+  ∀ bltu_2 bltu_1 bltu_0,
+  isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
+  isTrialN1_j2 true bltu_2
+    (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+  isTrialN1_j1 true bltu_2 bltu_1
+    (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+  isTrialN1_j0 true bltu_2 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+  Carry2NzAll
+    (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
+    ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+      (b.getLimbN 0 >>>
+        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+    ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+      (b.getLimbN 1 >>>
+        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+    ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+      (b.getLimbN 2 >>>
+        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64))) ∧
+  fullDivN1R3CarryZero true
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+  fullDivN1R2CarryZero true bltu_2
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+  fullDivN1R1CarryZero true bltu_2 bltu_1
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+  fullDivN1QuotientOverestimate true bltu_2 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
 /-- `b ≠ 0` and named-callback surface for the all-call n=1 path-level
     quotient-limb wrapper. -/
 theorem n1_full_div_getLimbN_true_true_true_true_of_path_remainders_lt_all_phases_no_wrap_ne_zero
