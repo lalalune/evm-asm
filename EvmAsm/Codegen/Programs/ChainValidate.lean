@@ -407,5 +407,122 @@ def ziskChainValidateGasUsedUnderLimitProbeUnit : BuildUnit := {
   dataAsm     := ziskChainValidateGasUsedUnderLimitDataSection
 }
 
+/-! ## chain_validate_no_blob_txs -- PR-K258
+
+    Per-header invariant: every header has `blob_gas_used == 0`
+    (field 17 either missing or RLP-empty). Useful for proving a
+    chain segment contains no blob-carrying transactions —
+    callers wanting to skip blob-fee market evolution use this
+    as a short-circuit.
+
+    Field 17 missing (pre-Cancun header) counts as
+    blob_gas_used == 0; mixed pre- and post-Cancun chains pass
+    as long as no Cancun header actually used blob gas.
+
+    Vacuous on empty chain: valid=1, bad_index=0.
+
+    Calling convention:
+      a0 (input)  : N
+      a1 (input)  : header_lengths ptr (N u64 LE)
+      a2 (input)  : flat headers ptr
+      a3 (input)  : u64 out (valid: 1 = all blob_gas_used==0)
+      a4 (input)  : u64 out (bad_index = first violator, else 0)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse fail on some header (post-Cancun shape error)
+        2 : field 17 > 8 bytes BE -/
+def chainValidateNoBlobTxsFunction : String :=
+  "chain_validate_no_blob_txs:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
+  "  li s5, 0\n" ++
+  ".Lcvnbt_loop:\n" ++
+  "  beq s5, s0, .Lcvnbt_done\n" ++
+  "  la t0, cvnbt_iter_ptr; sd s2, 0(t0)\n" ++
+  "  la t0, cvnbt_iter_i;   sd s5, 0(t0)\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, s2; li a2, 17\n" ++
+  "  la a3, cvnbt_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  la t0, cvnbt_iter_ptr; ld s2, 0(t0)\n" ++
+  "  la t0, cvnbt_iter_i;   ld s5, 0(t0)\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lcvnbt_no_field\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lcvnbt_size_fail\n" ++
+  "  la t0, cvnbt_field; ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lcvnbt_violation\n" ++
+  ".Lcvnbt_no_field:\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld t4, 0(t3)\n" ++
+  "  add s2, s2, t4\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lcvnbt_loop\n" ++
+  ".Lcvnbt_violation:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  sd s5, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvnbt_ret\n" ++
+  ".Lcvnbt_size_fail:\n" ++
+  "  sd s5, 0(s4)\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lcvnbt_ret\n" ++
+  ".Lcvnbt_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcvnbt_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+def ziskChainValidateNoBlobTxsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_no_blob_txs\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvnbt_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainValidateNoBlobTxsFunction ++ "\n" ++
+  ".Lcvnbt_pdone:"
+
+def ziskChainValidateNoBlobTxsDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cvnbt_field:\n" ++
+  "  .zero 8\n" ++
+  "cvnbt_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvnbt_iter_i:\n" ++
+  "  .zero 8"
+
+def ziskChainValidateNoBlobTxsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainValidateNoBlobTxsPrologue
+  dataAsm     := ziskChainValidateNoBlobTxsDataSection
+}
 
 end EvmAsm.Codegen
