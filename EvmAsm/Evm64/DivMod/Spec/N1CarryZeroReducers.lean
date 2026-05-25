@@ -9,6 +9,27 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmWord (val256)
 
+/-- A four-limb value below `2^192` has zero top limb. This packages the
+    arithmetic shape needed by later n=1 call-regime side conditions. -/
+theorem val256_top_limb_zero_of_lt_pow192
+    (x0 x1 x2 x3 : Word)
+    (h_lt : val256 x0 x1 x2 x3 < 2^192) :
+    x3 = 0 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [show (0 : Word).toNat = 0 from rfl]
+  unfold val256 at h_lt
+  have hx3 := x3.isLt
+  omega
+
+/-- A four-limb value below one machine word has zero top limb. -/
+theorem val256_top_limb_zero_of_lt_word
+    (x0 x1 x2 x3 bound : Word)
+    (h_lt : val256 x0 x1 x2 x3 < bound.toNat) :
+    x3 = 0 := by
+  exact val256_top_limb_zero_of_lt_pow192 x0 x1 x2 x3 (by
+    have h_bound := bound.isLt
+    omega)
+
 /-- First n=1 step carry-zero reducer. For the call branch, the step starts
     with top limb zero, so proving the `mulsubN4` carry `c3` is zero is enough
     to discharge `fullDivN1R3CarryZero`. -/
