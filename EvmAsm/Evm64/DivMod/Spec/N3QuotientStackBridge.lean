@@ -96,6 +96,50 @@ abbrev fullDivN3PathConditionsWordV4 (bltu_1 bltu_0 : Bool)
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
+/-- Project the first v4 N3 trial-branch witness from the bundled word path. -/
+theorem fullDivN3PathConditionsWordV4_trial_j1
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    isTrialN3V4_j1 bltu_1
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.1
+
+/-- Project the second v4 N3 trial-branch witness from the bundled word path. -/
+theorem fullDivN3PathConditionsWordV4_trial_j0
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    isTrialN3V4_j0 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.1
+
+/-- Project the v4 N3 carry2 obligation from the bundled word path. -/
+theorem fullDivN3PathConditionsWordV4_carry2
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.2.1
+
+/-- Project the v4 N3 normalized mulsub equation from the bundled word path. -/
+theorem fullDivN3PathConditionsWordV4_mulsub
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3MulSubEqV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.2.2.1
+
+/-- Project the v4 N3 quotient-overestimate fact from the bundled word path. -/
+theorem fullDivN3PathConditionsWordV4_overestimate
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.2.2.2
+
 /-- n=3 quotient bridge specialized to the explicit limb variables used by the
     unified-bound wrappers. -/
 theorem fullDivN3QuotientWord_eq_div_of_limbs_mulsub_overestimate
@@ -211,6 +255,32 @@ theorem fullDivN3QuotientWordV4_eq_div_of_limbs_mulsub_overestimate
     · exact EvmWord.fromLimbs_match_getLimbN_id a
     · exact EvmWord.fromLimbs_match_getLimbN_id b)
 
+/-- Explicit-limb n=3 v4 four-limb division witness using the legacy
+    quotient-overestimate hypothesis. -/
+theorem fullDivN3V4_getLimbN_of_limbs_mulsub_overestimate
+    (bltu_1 bltu_0 : Bool) {a b : EvmWord}
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hmulsub : fullDivN3MulSubEqV4 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3)
+    (hge : fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 2 = (0 : Word) ∧
+    (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
+  have hdivWord :=
+    fullDivN3QuotientWordV4_eq_div_of_limbs_mulsub_overestimate
+      bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hmulsub hge
+  exact fullDivN3V4_hdivs_of_word_eq bltu_1 bltu_0
+    a b a0 a1 a2 a3 b0 b1 b2 b3 hdivWord
+
 /-- Explicit-limb v4 quotient bridge from the bundled N3 path predicate. -/
 theorem fullDivN3QuotientWordV4_eq_div_of_path_conditions
     (bltu_1 bltu_0 : Bool) {a b : EvmWord}
@@ -238,6 +308,52 @@ theorem fullDivN3QuotientWordV4_eq_div_of_word_path_conditions
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
         EvmWord.div a b := by
   exact fullDivN3QuotientWordV4_eq_div_of_path_conditions
+    bltu_1 bltu_0 (a := a) (b := b)
+    (a0 := a.getLimbN 0) (a1 := a.getLimbN 1)
+    (a2 := a.getLimbN 2) (a3 := a.getLimbN 3)
+    (b0 := b.getLimbN 0) (b1 := b.getLimbN 1)
+    (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
+    rfl rfl rfl rfl rfl rfl rfl rfl hbnz hpath
+
+/-- Explicit-limb v4 four-limb division witness from the bundled N3 path
+    predicate. -/
+theorem fullDivN3V4_getLimbN_of_path_conditions
+    (bltu_1 bltu_0 : Bool) {a b : EvmWord}
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hpath : fullDivN3PathConditionsV4 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN3R0V4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 2 = (0 : Word) ∧
+    (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
+  obtain ⟨_, _, _, hmulsub, hge⟩ := hpath
+  exact fullDivN3V4_getLimbN_of_limbs_mulsub_overestimate
+    bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hmulsub hge
+
+/-- EvmWord-level v4 four-limb division witness from the bundled N3 path
+    predicate. -/
+theorem fullDivN3V4_getLimbN_of_word_path_conditions
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hpath : fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b) :
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN3R0V4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+    (EvmWord.div a b).getLimbN 2 = (0 : Word) ∧
+    (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
+  exact fullDivN3V4_getLimbN_of_path_conditions
     bltu_1 bltu_0 (a := a) (b := b)
     (a0 := a.getLimbN 0) (a1 := a.getLimbN 1)
     (a2 := a.getLimbN 2) (a3 := a.getLimbN 3)
