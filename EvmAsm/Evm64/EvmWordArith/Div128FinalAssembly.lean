@@ -789,6 +789,86 @@ def Div128AllPhasesNoWrapInv (uHi uLo vTop : Word) : Prop :=
   q1'.toNat * dLo.toNat ≤ (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat ∧
   q0'.toNat * dLo.toNat ≤ rhat2'.toNat * 2^32 + div_un0.toNat
 
+/-- Build the Phase-1 no-wrap invariant from its two conjuncts. -/
+theorem Div128PhaseNoWrapInv.ofConjuncts
+    {uHi uLo vTop : Word}
+    (h_un21_lt :
+      let dHi := vTop >>> (32 : BitVec 6).toNat
+      let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := uLo >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu uHi dHi
+      let rhat := uHi - q1 * dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      let rhatc := if hi1 = 0 then rhat else rhat + dHi
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+      let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+      let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+      let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+      let cu_q1_dlo := q1' * dLo
+      let un21 := cu_rhat_un1 - cu_q1_dlo
+      un21.toNat < dHi.toNat * 2^32 + dLo.toNat)
+    (h_phase1_no_wrap :
+      let dHi := vTop >>> (32 : BitVec 6).toNat
+      let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := uLo >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu uHi dHi
+      let rhat := uHi - q1 * dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      let rhatc := if hi1 = 0 then rhat else rhat + dHi
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+      let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+      let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+      q1'.toNat * dLo.toNat ≤ (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat) :
+    Div128PhaseNoWrapInv uHi uLo vTop := by
+  simp only [Div128PhaseNoWrapInv]
+  exact ⟨h_un21_lt, h_phase1_no_wrap⟩
+
+/-- Projection for the `un21 < vTop` conjunct of `Div128PhaseNoWrapInv`. -/
+theorem Div128PhaseNoWrapInv.un21Lt
+    {uHi uLo vTop : Word} (h : Div128PhaseNoWrapInv uHi uLo vTop) :
+      let dHi := vTop >>> (32 : BitVec 6).toNat
+      let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := uLo >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu uHi dHi
+      let rhat := uHi - q1 * dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      let rhatc := if hi1 = 0 then rhat else rhat + dHi
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+      let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+      let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+      let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+      let cu_q1_dlo := q1' * dLo
+      let un21 := cu_rhat_un1 - cu_q1_dlo
+      un21.toNat < dHi.toNat * 2^32 + dLo.toNat := by
+  simp only [Div128PhaseNoWrapInv] at h
+  exact h.1
+
+/-- Projection for the Phase-1 product no-wrap conjunct of
+    `Div128PhaseNoWrapInv`. -/
+theorem Div128PhaseNoWrapInv.phase1NoWrap
+    {uHi uLo vTop : Word} (h : Div128PhaseNoWrapInv uHi uLo vTop) :
+      let dHi := vTop >>> (32 : BitVec 6).toNat
+      let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+      let div_un1 := uLo >>> (32 : BitVec 6).toNat
+      let q1 := rv64_divu uHi dHi
+      let rhat := uHi - q1 * dHi
+      let hi1 := q1 >>> (32 : BitVec 6).toNat
+      let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+      let rhatc := if hi1 = 0 then rhat else rhat + dHi
+      let qDlo := q1c * dLo
+      let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+      let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+      let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+      q1'.toNat * dLo.toNat ≤ (rhat'.toNat % 2^32) * 2^32 + div_un1.toNat := by
+  simp only [Div128PhaseNoWrapInv] at h
+  exact h.2
+
 /-- **All-phases invariant implies the (weaker) Phase-1-only invariant** (CLOSED).
 
     `Div128AllPhasesNoWrapInv` is strictly stronger than
