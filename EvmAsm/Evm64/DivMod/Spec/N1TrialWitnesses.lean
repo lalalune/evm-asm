@@ -6,6 +6,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
+import EvmAsm.Evm64.DivMod.Spec.N1Harith
 
 namespace EvmAsm.Evm64
 
@@ -273,5 +274,52 @@ theorem N1TrialWitnesses.exists_quotient_word
           bltu_3 bltu_2 bltu_1 bltu_0 hbnz hmulsub hge
       exact ⟨bltu_3, bltu_2, bltu_1, bltu_0,
         hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivWord⟩
+
+/-- Eliminate an `N1TrialWitnesses` bundle and derive the quotient-word
+    equality from raw mulsub plus final-remainder obligations for the owned
+    branch booleans. -/
+theorem N1TrialWitnesses.exists_quotient_word_of_mulsub_remainder_lt
+    {a b : EvmWord}
+    (htrial : N1TrialWitnesses a b)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hpath : ∀ bltu_3 bltu_2 bltu_1 bltu_0,
+      isTrialN1_j3 bltu_3 (a.getLimbN 3) (b.getLimbN 0) →
+      isTrialN1_j2 bltu_3 bltu_2
+        (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN1_j1 bltu_3 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN1MulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN1RemainderLt bltu_3 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_3 bltu_2 bltu_1 bltu_0,
+      isTrialN1_j3 bltu_3 (a.getLimbN 3) (b.getLimbN 0) ∧
+      isTrialN1_j2 bltu_3 bltu_2
+        (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      isTrialN1_j1 bltu_3 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.div a b := by
+  exact N1TrialWitnesses.exists_quotient_word htrial hbnz
+    (fun bltu_3 bltu_2 bltu_1 bltu_0 hbltu_3 hbltu_2 hbltu_1 hbltu_0 =>
+      let hpair := hpath bltu_3 bltu_2 bltu_1 bltu_0
+        hbltu_3 hbltu_2 hbltu_1 hbltu_0
+      fullDivN1Harith_of_mulsub_remainder_lt
+        bltu_3 bltu_2 bltu_1 bltu_0 hbnz hpair.1 hpair.2)
 
 end EvmAsm.Evm64
