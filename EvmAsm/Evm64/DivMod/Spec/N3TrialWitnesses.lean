@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
 
 namespace EvmAsm.Evm64
 
@@ -74,6 +75,91 @@ theorem N3TrialWitnesses.exists {a b : EvmWord}
       isTrialN3_j1 bltu_1
         (a.getLimbN 3) (b.getLimbN 1) (b.getLimbN 2) ∧
       isTrialN3_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  cases h with
+  | mk bltu_1 bltu_0 hbltu_1 hbltu_0 =>
+      exact ⟨bltu_1, bltu_0, hbltu_1, hbltu_0⟩
+
+/-- First-class proof bundle for the mechanical n=3 V4 trial-branch
+    witnesses at the public dispatcher surface.
+
+    This carries only the V4 branch booleans and their defining proof
+    obligations; carry/addback and quotient correctness remain separate path
+    obligations. -/
+inductive N3V4TrialWitnesses (a b : EvmWord) : Prop where
+  | mk (bltu_1 bltu_0 : Bool)
+      (hbltu_1 : isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_0 : isTrialN3V4_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+
+/-- The two n=3 V4 trial-branch booleans always have canonical witnesses. -/
+theorem n3_v4_trial_witnesses (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    ∃ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+      isTrialN3V4_j0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 := by
+  let bltu_1 :=
+    BitVec.ult (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+      (fullDivN3NormV b0 b1 b2 b3).2.2.1
+  let bltu_0 :=
+    if bltu_1 then
+      BitVec.ult
+        (iterWithDoubleAddback
+          (divKTrialCallV4QHat
+            (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+            (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+            (fullDivN3NormV b0 b1 b2 b3).2.2.1)
+          (fullDivN3NormV b0 b1 b2 b3).1
+          (fullDivN3NormV b0 b1 b2 b3).2.1
+          (fullDivN3NormV b0 b1 b2 b3).2.2.1
+          (fullDivN3NormV b0 b1 b2 b3).2.2.2
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+          (0 : Word)).2.2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+    else
+      BitVec.ult
+        (iterN3Max
+          (fullDivN3NormV b0 b1 b2 b3).1
+          (fullDivN3NormV b0 b1 b2 b3).2.1
+          (fullDivN3NormV b0 b1 b2 b3).2.2.1
+          (fullDivN3NormV b0 b1 b2 b3).2.2.2
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+          (0 : Word)).2.2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+  refine ⟨bltu_1, bltu_0, ?_, ?_⟩
+  · unfold isTrialN3V4_j1
+    rfl
+  · unfold isTrialN3V4_j0
+    rfl
+
+/-- Bundled public-surface n=3 V4 branch witnesses. -/
+theorem n3V4TrialWitnesses_of_getLimbN
+    (a b : EvmWord) :
+    N3V4TrialWitnesses a b := by
+  obtain ⟨bltu_1, bltu_0, hbltu_1, hbltu_0⟩ :=
+    n3_v4_trial_witnesses
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+  exact N3V4TrialWitnesses.mk bltu_1 bltu_0 hbltu_1 hbltu_0
+
+/-- Eliminate an `N3V4TrialWitnesses` bundle into the explicit V4 branch
+    booleans and proof obligations expected by path-condition wrappers. -/
+theorem N3V4TrialWitnesses.exists {a b : EvmWord}
+    (h : N3V4TrialWitnesses a b) :
+    ∃ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      isTrialN3V4_j0 bltu_1 bltu_0
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
   cases h with
