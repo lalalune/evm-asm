@@ -240,14 +240,12 @@ theorem N2V4TrialWitnesses.exists_quotient_word_of_path_conditions
           EvmWord.div a b := by
   obtain ⟨bltu_2, bltu_1, bltu_0, hpath⟩ :=
     N2V4TrialWitnesses.exists_path_conditions htrial hcarry2 harith
-  have hdivWord :=
-    fullDivN2QuotientWordV4_eq_div_of_word_path_conditions
-      bltu_2 bltu_1 bltu_0 a b hbnz hpath
   exact ⟨bltu_2, bltu_1, bltu_0,
     fullDivN2PathConditionsWordV4_trial_j2 bltu_2 bltu_1 bltu_0 a b hpath,
     fullDivN2PathConditionsWordV4_trial_j1 bltu_2 bltu_1 bltu_0 a b hpath,
     fullDivN2PathConditionsWordV4_trial_j0 bltu_2 bltu_1 bltu_0 a b hpath,
-    hdivWord⟩
+    fullDivN2QuotientWordV4_eq_div_of_word_path_conditions
+      bltu_2 bltu_1 bltu_0 a b hbnz hpath⟩
 
 /-- Assemble concrete V4 quotient-limb witnesses from an `N2V4TrialWitnesses`
     bundle plus the remaining path-condition obligations. -/
@@ -350,14 +348,12 @@ theorem N2V4TrialWitnesses.exists_quotient_word_of_path_conditions_ne_zero
           EvmWord.div a b := by
   obtain ⟨bltu_2, bltu_1, bltu_0, hpath⟩ :=
     N2V4TrialWitnesses.exists_path_conditions htrial hcarry2 harith
-  have hdivWord :=
-    fullDivN2QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
-      bltu_2 bltu_1 bltu_0 a b hbnz hpath
   exact ⟨bltu_2, bltu_1, bltu_0,
     fullDivN2PathConditionsWordV4_trial_j2 bltu_2 bltu_1 bltu_0 a b hpath,
     fullDivN2PathConditionsWordV4_trial_j1 bltu_2 bltu_1 bltu_0 a b hpath,
     fullDivN2PathConditionsWordV4_trial_j0 bltu_2 bltu_1 bltu_0 a b hpath,
-    hdivWord⟩
+    fullDivN2QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
+      bltu_2 bltu_1 bltu_0 a b hbnz hpath⟩
 
 /-- Nonzero-surface quotient-limb witnesses from an `N2V4TrialWitnesses`
     bundle. -/
@@ -532,10 +528,9 @@ theorem n2V4_quotient_word_of_path_conditions_ne_zero
   obtain ⟨bltu_2, bltu_1, bltu_0, hpath⟩ :=
     N2V4TrialWitnesses.exists_path_conditions
       (n2V4TrialWitnesses_of_getLimbN a b) hcarry2 harith
-  have hdivWord :=
+  exact ⟨bltu_2, bltu_1, bltu_0,
     fullDivN2QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
-      bltu_2 bltu_1 bltu_0 a b hbnz hpath
-  exact ⟨bltu_2, bltu_1, bltu_0, hdivWord⟩
+      bltu_2 bltu_1 bltu_0 a b hbnz hpath⟩
 
 /-- Dispatcher-shape n=2 V4 quotient-word package.
 
