@@ -1,4 +1,5 @@
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridgeGetLimbStep
+import EvmAsm.Evm64.DivMod.Spec.N1CarryZeroReducers
 import EvmAsm.Evm64.DivMod.Spec.N1PathCallbacks
 import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
 
@@ -980,5 +981,116 @@ theorem n1_full_div_getLimbN_of_step_conservation_path
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
       hdivWord⟩
+
+/-- Package all-true n=1 path evidence from the all-phases overestimate path
+    surface. The path provides the selected carry facts, the first no-wrap
+    invariant, and quotient overestimate; the final normalized remainder bound
+    is derived internally from those step-conservation facts. -/
+theorem N1AllTruePathEvidence.ofAllPhasesOverestimatePath
+    (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+    (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+    (hr3_lt :
+      EvmWord.val256
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1.toNat)
+    (hr2_lt :
+      EvmWord.val256
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1.toNat)
+    (hr1_lt :
+      EvmWord.val256
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1.toNat)
+    (hr2_inv : Div128AllPhasesNoWrapInv
+      (fullDivN1R3 true
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN1NormU
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0)).2.2.1
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hr1_inv : Div128AllPhasesNoWrapInv
+      (fullDivN1R2 true true
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN1NormU
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0)).2.1
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hfinal_inv : Div128AllPhasesNoWrapInv
+      (fullDivN1R1 true true true
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN1NormU
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0)).1
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hpath : N1AllPhasesOverestimatePathCallback a b) :
+    N1AllTruePathEvidence a b := by
+  obtain ⟨hbltu_3, hbltu_2, hbltu_1, hbltu_0⟩ :=
+    n1_trial_witnesses_all_true_of_remainders_lt
+      a b hbnz hb3z hb2z hb1z hshift_nz hr3_lt hr2_lt hr1_lt
+  obtain ⟨hcarry2, hinit_inv, hr2_zero, hr1_zero, hge⟩ :=
+    hpath true true true hbltu_3 hbltu_2 hbltu_1 hbltu_0
+  have hr3_zero : fullDivN1R3CarryZero true
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+    fullDivN1R3CarryZero_true_of_shape_all_phases_no_wrap
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hbnz hb1z hb2z hb3z hshift_nz hinit_inv
+  have hrem_lt : fullDivN1NormalizedRemainderLt true true true true
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+    fullDivN1NormalizedRemainderLt_of_raw_step_conservation_overestimate_final
+      true true true true
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hbnz hb1z hb2z hb3z hshift_nz hcarry2
+      hr3_zero hr2_zero hr1_zero hge
+  exact ⟨hcarry2, hinit_inv, hr2_inv, hr1_inv, hfinal_inv, hrem_lt⟩
 
 end EvmAsm.Evm64
