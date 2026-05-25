@@ -404,4 +404,49 @@ theorem n2V4_exists_hdivs_of_path_conditions
   N2V4TrialWitnesses.exists_hdivs_of_path_conditions
     (n2V4TrialWitnesses_of_getLimbN a b) hbnz hcarry2 harith
 
+/-- Slim auto-trial n=2 V4 quotient-limb package.
+
+    This is the consumer-facing form of
+    `n2V4_exists_hdivs_of_path_conditions`: it keeps the selected branch
+    booleans but drops their mechanical proof witnesses from the conclusion. -/
+theorem n2V4_full_div_getLimbN_of_path_conditions
+    {a b : EvmWord}
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hcarry2 : fullDivN2Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_2 bltu_1 bltu_0,
+      isTrialN2V4_j2 bltu_2
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN2V4_j1 bltu_2 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN2V4_j0 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN2MulSubEqV4 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN2QuotientOverestimateV4 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_2 bltu_1 bltu_0,
+      (EvmWord.div a b).getLimbN 0 =
+        (fullDivN2R0V4 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 1 =
+        (fullDivN2R1V4 bltu_2 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 2 =
+        (fullDivN2R2V4 bltu_2
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
+  obtain ⟨bltu_2, bltu_1, bltu_0, _, _, _, hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
+    n2V4_exists_hdivs_of_path_conditions hbnz hcarry2 harith
+  exact ⟨bltu_2, bltu_1, bltu_0, hdiv0, hdiv1, hdiv2, hdiv3⟩
+
 end EvmAsm.Evm64
