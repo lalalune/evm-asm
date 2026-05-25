@@ -678,8 +678,11 @@ theorem n3V4_full_div_getLimbN_of_path_conditions_ne_zero
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
       (EvmWord.div a b).getLimbN 2 = (0 : Word) ∧
       (EvmWord.div a b).getLimbN 3 = (0 : Word) :=
-  n3V4_full_div_getLimbN_of_path_conditions
-    ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry2 harith
+  by
+    obtain ⟨bltu_1, bltu_0, _hbltu_1, _hbltu_0, hdivs⟩ :=
+      N3V4TrialWitnesses.exists_hdivs_of_path_conditions_ne_zero
+        (n3V4TrialWitnesses_of_getLimbN a b) hbnz hcarry2 harith
+    exact ⟨bltu_1, bltu_0, hdivs⟩
 
 /-- Dispatcher-shape n=3 V4 quotient-limb package.
 
