@@ -195,6 +195,67 @@ theorem iterWithDoubleAddback_val256_conservation_of_carry2
     exact iterWithDoubleAddback_no_borrow_val256_conservation
       q v0 v1 v2 v3 u0 u1 u2 u3 uTop hb
 
+theorem iterWithDoubleAddback_borrow_remainder_lt_of_qhat_le_div_plus_one
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
+    (hb : BitVec.ult uTop (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2)
+    (hc3_one : (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1)
+    (hq_over :
+      q.toNat ≤ EvmWord.val256 u0 u1 u2 u3 / EvmWord.val256 v0 v1 v2 v3 + 1) :
+    let out := iterWithDoubleAddback q v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    EvmWord.val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+        out.2.2.2.2.2.toNat * 2^256 <
+      EvmWord.val256 v0 v1 v2 v3 := by
+  intro out
+  subst out
+  have hout := iterWithDoubleAddback_borrow (qHat := q) (v0 := v0) (v1 := v1)
+    (v2 := v2) (v3 := v3) (u0 := u0) (u1 := u1) (u2 := u2) (u3 := u3)
+    (uTop := uTop) hb
+  simp only [] at hout
+  rw [hout]
+  let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+  let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 v0 v1 v2 v3
+  by_cases hcarry_zero : carry = 0
+  · rw [if_pos hcarry_zero]
+    have hq_over2 :
+        q.toNat ≤ EvmWord.val256 u0 u1 u2 u3 / EvmWord.val256 v0 v1 v2 v3 + 2 := by
+      omega
+    have hq_ge_2 :=
+      q_ge_two_of_mulsub_borrow_and_addback_carry_zero
+        q v0 v1 v2 v3 u0 u1 u2 u3 hc3_one (by
+          subst ms
+          subst carry
+          exact hcarry_zero)
+    have hbranch : iterDoubleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+      subst ms
+      subst carry
+      exact iterDoubleAddbackBranch_of q v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        hb hc3_one hcarry_zero hbnz hq_over2 hq_ge_2
+    have h := iterDoubleAddbackBranch_remainder_lt
+      q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
+    simp only [] at h
+    exact h
+  · rw [if_neg hcarry_zero]
+    have hcarry_one : carry = 1 := by
+      subst ms
+      subst carry
+      exact addbackN4_carry_eq_one_of_ne_zero
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+        v0 v1 v2 v3 hcarry_zero
+    have hq_pos := q_pos_of_mulsub_borrow q v0 v1 v2 v3 u0 u1 u2 u3 hc3_one
+    have hbranch : iterSingleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+      subst ms
+      subst carry
+      exact iterSingleAddbackBranch_of q v0 v1 v2 v3 u0 u1 u2 u3 uTop
+        hb hc3_one hcarry_one hq_pos
+    have h := iterSingleAddbackBranch_remainder_lt
+      q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
+    simp only [] at h
+    exact h
+
 theorem iterWithDoubleAddback_val256_conservation_v3_zero_of_carry2
     (q v0 v1 v2 u0 u1 u2 u3 uTop : Word)
     (hbnz : v0 ||| v1 ||| v2 ||| (0 : Word) ≠ 0)
@@ -367,20 +428,13 @@ theorem n4_max_double_addback_correct {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
         (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.2.2.1
         0 b0 b1 b2 b3).2.2.2.1
       < val256 b0 b1 b2 b3 := by
-    have hab'_eq := addbackN4_val256_eq
+    exact addbackN4_low_val256_lt_of_carry_toNat_one
       (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).1
       (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.1
       (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.2.1
       (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.2.2.1
       0 b0 b1 b2 b3
-    simp only [] at hab'_eq
-    rw [hcarry2_lem] at hab'_eq
-    have := val256_bound
-      (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).1
-      (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.1
-      (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.2.1
-      (addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 0 b0 b1 b2 b3).2.2.2.1
-    linarith
+      hcarry2_lem
   -- Transport the bound to algorithm's ab'.
   have hab'_bound : val256 ab'.1 ab'.2.1 ab'.2.2.1 ab'.2.2.2.1 < val256 b0 b1 b2 b3 := by
     rw [hab'_eq1, hab'_eq21, hab'_eq221, hab'_eq2221]; exact hab'_bound_lem
