@@ -811,4 +811,74 @@ theorem n1_shape_full_div_getLimbN_of_step_conservation_overestimate
   exact ⟨bltu_2, bltu_1, bltu_0,
     hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivs⟩
 
+/-- Acceptance-shaped n=1 full division limb theorem from the
+    step-conservation path surface.
+
+    This is the consumer-facing form of
+    `n1_shape_full_div_getLimbN_of_step_conservation_overestimate`: it keeps the
+    chosen branch booleans but drops the mechanical branch-proof witnesses from
+    the conclusion. -/
+theorem n1_full_div_getLimbN_of_step_conservation_path
+    (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+    (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+    (hpath : ∀ bltu_2 bltu_1 bltu_0,
+      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
+      isTrialN1_j2 true bltu_2
+        (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN1_j1 true bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      Carry2NzAll
+        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
+        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 0 >>>
+            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 1 >>>
+            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+          (b.getLimbN 2 >>>
+            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64))) ∧
+      fullDivN1R3CarryZero true
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      fullDivN1R2CarryZero true bltu_2
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      fullDivN1R1CarryZero true bltu_2 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      fullDivN1QuotientOverestimate true bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_2 bltu_1 bltu_0,
+      (EvmWord.div a b).getLimbN 0 =
+        (fullDivN1R0 true bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 1 =
+        (fullDivN1R1 true bltu_2 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 2 =
+        (fullDivN1R2 true bltu_2
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 3 =
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 := by
+  obtain ⟨bltu_2, bltu_1, bltu_0, _, _, _, _, hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
+    n1_shape_full_div_getLimbN_of_step_conservation_overestimate
+      a b hbnz hb3z hb2z hb1z hshift_nz hpath
+  exact ⟨bltu_2, bltu_1, bltu_0, hdiv0, hdiv1, hdiv2, hdiv3⟩
+
 end EvmAsm.Evm64
