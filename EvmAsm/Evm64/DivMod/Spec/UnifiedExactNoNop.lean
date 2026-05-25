@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.N1ExactNoNop
+import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
 import EvmAsm.Evm64.DivMod.Spec.Unified
 
 namespace EvmAsm.Evm64
@@ -175,6 +176,83 @@ theorem evm_div_n1_stack_spec_within_word_noNop_preNoX1_callableOwnPost_uni
       nMem shiftMem jMem retMem dMem dloMem scratch_un0 raVal
       ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1z
       hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
+
+/-- Trial-bundled wrapper for the n=1 no-NOP DIV callable surface whose
+    precondition keeps `x1` outside the scratch bundle.
+
+    The trial bundle owns the branch booleans.  Callers provide the remaining
+    raw arithmetic obligations for those booleans; this wrapper derives the
+    quotient-word equality and delegates to the existing preNoX1 callable
+    surface. -/
+theorem evm_div_n1_stack_spec_within_word_noNop_preNoX1_callableOwnPost_trial_uni
+    (sp base : Word) (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (raVal : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (htrial : N1TrialWitnesses a b)
+    (hcarry2 : Carry2NzAll (b0 <<< (((clzResult b0).1).toNat % 64))
+      ((b1 <<< (((clzResult b0).1).toNat % 64)) |||
+        (b0 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b2 <<< (((clzResult b0).1).toNat % 64)) |||
+        (b1 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)))
+      ((b3 <<< (((clzResult b0).1).toNat % 64)) |||
+        (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64))))
+    (harith : ∀ bltu_3 bltu_2 bltu_1 bltu_0,
+      isTrialN1_j3 bltu_3 (a.getLimbN 3) (b.getLimbN 0) →
+      isTrialN1_j2 bltu_3 bltu_2
+        (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN1_j1 bltu_3 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN1MulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN1QuotientOverestimate bltu_3 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+      (divModStackDispatchPreNoX1 sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
+        ((clzResult b0).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      ((divStackDispatchPostCallable sp a b ** regOwn .x1) **
+        (.x9 ↦ᵣ (signExtend12 4095 : Word))) := by
+  have hbnzGet :
+      b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+        b.getLimbN 3 ≠ 0 := by
+    simpa [hb0, hb1, hb2, hb3] using hbnz
+  obtain ⟨bltu_3, bltu_2, bltu_1, bltu_0,
+      hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivWord⟩ :=
+    N1TrialWitnesses.exists_quotient_word htrial hbnzGet harith
+  exact evm_div_n1_stack_spec_within_word_noNop_preNoX1_callableOwnPost_uni
+    bltu_3 bltu_2 bltu_1 bltu_0 sp base a b
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0 raVal
+    ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1z
+    hshift_nz halign
+    (by simpa [ha3, hb0] using hbltu_3)
+    (by simpa [ha2, ha3, hb0, hb1, hb2, hb3] using hbltu_2)
+    (by simpa [ha1, ha2, ha3, hb0, hb1, hb2, hb3] using hbltu_1)
+    (by simpa [ha0, ha1, ha2, ha3, hb0, hb1, hb2, hb3] using hbltu_0)
+    hcarry2
+    (by simpa [ha0, ha1, ha2, ha3, hb0, hb1, hb2, hb3] using hdivWord)
 
 /-- Unified-bound wrapper for
     `evm_div_n2_stack_spec_within_word_exact_x1_noNop`. -/
