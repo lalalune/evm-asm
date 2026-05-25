@@ -28,6 +28,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.HeaderFields
 
 namespace EvmAsm.Codegen
 
@@ -611,266 +612,6 @@ def ziskChainBlockHashesCommitmentProbeUnit : BuildUnit := {
   dataAsm     := ziskChainBlockHashesCommitmentDataSection
 }
 
-/-! ## chain_validate_increasing_timestamps -- PR-K229
-
-    Verify that an N-element header chain has strictly
-    increasing `timestamp` fields: `headers[i+1].timestamp >
-    headers[i].timestamp` for every adjacent pair. Pure
-    timestamp-only check; no parent_hash / number / gas_limit
-    invariants. The K174 pair check enforces this as part of
-    the four-invariant bundle -- K229 is the tight standalone.
-
-    Vacuous-true on N <= 1.
-
-    Calling convention:
-      a0 (input)  : N (header count)
-      a1 (input)  : header_lengths ptr
-      a2 (input)  : headers ptr (concatenated)
-      a3 (input)  : u64 out (is_valid)
-      a4 (input)  : u64 out (first_bad_index)
-      ra (input)  : return
-      a0 (output) :
-        0 : success
-        1 : RLP parse failure on some header
-        2 : timestamp field > 8 bytes BE on some header -/
-def chainValidateIncreasingTimestampsFunction : String :=
-  "chain_validate_increasing_timestamps:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
-  "  li t0, 2\n" ++
-  "  bltu s0, t0, .Lcvit_done\n" ++
-  "  # Extract headers[0].timestamp into s5 (prev_ts)\n" ++
-  "  ld a1, 0(s1)\n" ++
-  "  mv a0, s2\n" ++
-  "  li a2, 11\n" ++
-  "  la a3, cvit_ts\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvit_propagate\n" ++
-  "  la t0, cvit_ts; ld s5, 0(t0)\n" ++
-  "  # Walk: parent_ptr = headers[0]; for i in [0, N-1): parent=headers[i], child=headers[i+1]\n" ++
-  "  ld t0, 0(s1)\n" ++
-  "  add t1, s2, t0              # child_ptr starts at headers[1]\n" ++
-  "  li t2, 1                    # i = 1\n" ++
-  ".Lcvit_loop:\n" ++
-  "  beq t2, s0, .Lcvit_done\n" ++
-  "  la t0, cvit_iter_child; sd t1, 0(t0)\n" ++
-  "  la t0, cvit_iter_i;     sd t2, 0(t0)\n" ++
-  "  la t0, cvit_iter_prev;  sd s5, 0(t0)\n" ++
-  "  slli t3, t2, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)                # header_len\n" ++
-  "  mv a0, t1\n" ++
-  "  li a2, 11\n" ++
-  "  la a3, cvit_ts\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvit_propagate\n" ++
-  "  la t0, cvit_ts;          ld t3, 0(t0)\n" ++
-  "  la t0, cvit_iter_prev;   ld t4, 0(t0)\n" ++
-  "  bgeu t4, t3, .Lcvit_pred_false\n" ++
-  "  # advance\n" ++
-  "  la t0, cvit_iter_child;  ld t1, 0(t0)\n" ++
-  "  la t0, cvit_iter_i;      ld t2, 0(t0)\n" ++
-  "  mv s5, t3                   # prev_ts = current\n" ++
-  "  slli t5, t2, 3\n" ++
-  "  add t5, s1, t5\n" ++
-  "  ld t6, 0(t5)\n" ++
-  "  add t1, t1, t6\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  j .Lcvit_loop\n" ++
-  ".Lcvit_pred_false:\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  la t0, cvit_iter_i; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvit_ret\n" ++
-  ".Lcvit_propagate:\n" ++
-  "  la t0, cvit_iter_i; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  j .Lcvit_ret\n" ++
-  ".Lcvit_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcvit_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
-
-def ziskChainValidateIncreasingTimestampsPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010008\n" ++
-  "  li a4, 0xa0010010\n" ++
-  "  jal ra, chain_validate_increasing_timestamps\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcvit_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  chainValidateIncreasingTimestampsFunction ++ "\n" ++
-  ".Lcvit_pdone:"
-
-def ziskChainValidateIncreasingTimestampsDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "cvit_ts:\n" ++
-  "  .zero 8\n" ++
-  "cvit_iter_child:\n" ++
-  "  .zero 8\n" ++
-  "cvit_iter_i:\n" ++
-  "  .zero 8\n" ++
-  "cvit_iter_prev:\n" ++
-  "  .zero 8"
-
-def ziskChainValidateIncreasingTimestampsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateIncreasingTimestampsPrologue
-  dataAsm     := ziskChainValidateIncreasingTimestampsDataSection
-}
-
-/-! ## chain_validate_consecutive_numbers -- PR-K230
-
-    Verify the chain has strictly consecutive block numbers:
-    `headers[i+1].number == headers[i].number + 1`. Pure
-    number-only check; analogue of K229 for the `number` field
-    (field 8) instead of `timestamp` (field 11), and with `==
-    prev + 1` instead of `> prev`.
-
-    Vacuous-true on N <= 1.
-
-    Calling convention:
-      a0 (input)  : N
-      a1 (input)  : header_lengths ptr
-      a2 (input)  : headers ptr
-      a3 (input)  : u64 out (is_valid)
-      a4 (input)  : u64 out (first_bad_index)
-      ra (input)  : return
-      a0 (output) :
-        0 : success
-        1 : RLP parse failure
-        2 : number field > 8 bytes BE -/
-def chainValidateConsecutiveNumbersFunction : String :=
-  "chain_validate_consecutive_numbers:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
-  "  li t0, 2\n" ++
-  "  bltu s0, t0, .Lcvcn_done\n" ++
-  "  # headers[0].number -> s5 (prev_num)\n" ++
-  "  ld a1, 0(s1)\n" ++
-  "  mv a0, s2; li a2, 8\n" ++
-  "  la a3, cvcn_num\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvcn_propagate\n" ++
-  "  la t0, cvcn_num; ld s5, 0(t0)\n" ++
-  "  ld t0, 0(s1)\n" ++
-  "  add t1, s2, t0              # child_ptr\n" ++
-  "  li t2, 1\n" ++
-  ".Lcvcn_loop:\n" ++
-  "  beq t2, s0, .Lcvcn_done\n" ++
-  "  la t0, cvcn_iter_child; sd t1, 0(t0)\n" ++
-  "  la t0, cvcn_iter_i;     sd t2, 0(t0)\n" ++
-  "  la t0, cvcn_iter_prev;  sd s5, 0(t0)\n" ++
-  "  slli t3, t2, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, t1; li a2, 8\n" ++
-  "  la a3, cvcn_num\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvcn_propagate\n" ++
-  "  la t0, cvcn_num;        ld t3, 0(t0)\n" ++
-  "  la t0, cvcn_iter_prev;  ld t4, 0(t0)\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  bne t4, t3, .Lcvcn_pred_false\n" ++
-  "  la t0, cvcn_iter_child; ld t1, 0(t0)\n" ++
-  "  la t0, cvcn_iter_i;     ld t2, 0(t0)\n" ++
-  "  mv s5, t3\n" ++
-  "  slli t5, t2, 3\n" ++
-  "  add t5, s1, t5\n" ++
-  "  ld t6, 0(t5)\n" ++
-  "  add t1, t1, t6\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  j .Lcvcn_loop\n" ++
-  ".Lcvcn_pred_false:\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  la t0, cvcn_iter_i; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvcn_ret\n" ++
-  ".Lcvcn_propagate:\n" ++
-  "  la t0, cvcn_iter_i; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  j .Lcvcn_ret\n" ++
-  ".Lcvcn_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcvcn_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
-
-def ziskChainValidateConsecutiveNumbersPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010008\n" ++
-  "  li a4, 0xa0010010\n" ++
-  "  jal ra, chain_validate_consecutive_numbers\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcvcn_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  chainValidateConsecutiveNumbersFunction ++ "\n" ++
-  ".Lcvcn_pdone:"
-
-def ziskChainValidateConsecutiveNumbersDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "cvcn_num:\n" ++
-  "  .zero 8\n" ++
-  "cvcn_iter_child:\n" ++
-  "  .zero 8\n" ++
-  "cvcn_iter_i:\n" ++
-  "  .zero 8\n" ++
-  "cvcn_iter_prev:\n" ++
-  "  .zero 8"
-
-def ziskChainValidateConsecutiveNumbersProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateConsecutiveNumbersPrologue
-  dataAsm     := ziskChainValidateConsecutiveNumbersDataSection
-}
-
 /-! ## chain_compute_total_blob_gas -- PR-K231
 
     Aggregate `blob_gas_used` (header field 17, EIP-4844
@@ -1274,127 +1015,6 @@ def ziskChainExtractTimestampRangeProbeUnit : BuildUnit := {
   dataAsm     := ziskChainExtractTimestampRangeDataSection
 }
 
-/-! ## chain_validate_gas_used_under_limit -- PR-K240
-
-    Per-header invariant: `gas_used <= gas_limit` (header fields
-    10 and 9 respectively). The block validator already enforces
-    `gas_used <= gas_limit` in K72 `check_gas_limit` for adjacent
-    pairs; K240 lifts the standalone per-block constraint to an
-    N-element chain.
-
-    Vacuous on empty chain: valid=1, bad_index=0.
-
-    Calling convention:
-      a0 (input)  : N
-      a1 (input)  : header_lengths ptr (N u64 LE)
-      a2 (input)  : flat headers ptr
-      a3 (input)  : u64 out (valid: 1 = all OK)
-      a4 (input)  : u64 out (bad_index = first violator, else 0)
-      ra (input)  : return
-      a0 (output) :
-        0 : success — predicate written
-        1 : RLP parse fail on some header
-        2 : gas_used or gas_limit field > 8 bytes BE -/
-def chainValidateGasUsedUnderLimitFunction : String :=
-  "chain_validate_gas_used_under_limit:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
-  "  li s5, 0\n" ++
-  ".Lcvgul_loop:\n" ++
-  "  beq s5, s0, .Lcvgul_done\n" ++
-  "  la t0, cvgul_iter_ptr; sd s2, 0(t0)\n" ++
-  "  la t0, cvgul_iter_i;   sd s5, 0(t0)\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, s2; li a2, 10\n" ++
-  "  la a3, cvgul_gas_used\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvgul_propagate\n" ++
-  "  la t0, cvgul_iter_ptr; ld s2, 0(t0)\n" ++
-  "  la t0, cvgul_iter_i;   ld s5, 0(t0)\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, s2; li a2, 9\n" ++
-  "  la a3, cvgul_gas_limit\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvgul_propagate\n" ++
-  "  la t0, cvgul_iter_ptr; ld s2, 0(t0)\n" ++
-  "  la t0, cvgul_iter_i;   ld s5, 0(t0)\n" ++
-  "  la t0, cvgul_gas_used;  ld t1, 0(t0)\n" ++
-  "  la t0, cvgul_gas_limit; ld t2, 0(t0)\n" ++
-  "  bgtu t1, t2, .Lcvgul_violation\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld t4, 0(t3)\n" ++
-  "  add s2, s2, t4\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lcvgul_loop\n" ++
-  ".Lcvgul_violation:\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  sd s5, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvgul_ret\n" ++
-  ".Lcvgul_propagate:\n" ++
-  "  sd s5, 0(s4)\n" ++
-  "  j .Lcvgul_ret\n" ++
-  ".Lcvgul_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcvgul_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
-
-def ziskChainValidateGasUsedUnderLimitPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010008\n" ++
-  "  li a4, 0xa0010010\n" ++
-  "  jal ra, chain_validate_gas_used_under_limit\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcvgul_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  chainValidateGasUsedUnderLimitFunction ++ "\n" ++
-  ".Lcvgul_pdone:"
-
-def ziskChainValidateGasUsedUnderLimitDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "cvgul_gas_used:\n" ++
-  "  .zero 8\n" ++
-  "cvgul_gas_limit:\n" ++
-  "  .zero 8\n" ++
-  "cvgul_iter_ptr:\n" ++
-  "  .zero 8\n" ++
-  "cvgul_iter_i:\n" ++
-  "  .zero 8"
-
-def ziskChainValidateGasUsedUnderLimitProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateGasUsedUnderLimitPrologue
-  dataAsm     := ziskChainValidateGasUsedUnderLimitDataSection
-}
-
 /-! ## chain_compute_min_blob_gas_used -- PR-K243
 
     Find min(header.blob_gas_used) (EIP-4844 Cancun+ field 17)
@@ -1613,5 +1233,520 @@ def ziskChainExtractGasUsedRangeProbeUnit : BuildUnit := {
   prologueAsm := ziskChainExtractGasUsedRangePrologue
   dataAsm     := ziskChainExtractGasUsedRangeDataSection
 }
+
+/-! ## chain_extract_blob_gas_used_range -- PR-K246
+
+    Compute `(min_blob_gas_used, max_blob_gas_used)` over an
+    N-element header chain in a single pass. EIP-4844 Cancun+
+    sister of K245 `chain_extract_gas_used_range`; equivalent to
+    running K237/K243 separately, but reads each header's RLP
+    only once.
+
+    Pre-Cancun headers (≤17 fields) yield parse-failure status
+    and the (min, max) pair is the partial accumulator up to the
+    failure point.
+
+    Vacuous on empty chain: min=max=0.
+
+    Calling convention:
+      a0 (input)  : N
+      a1 (input)  : header_lengths ptr (N u64 LE)
+      a2 (input)  : flat headers ptr
+      a3 (input)  : u64 out (min blob_gas_used)
+      a4 (input)  : u64 out (max blob_gas_used)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse fail (pre-Cancun header in chain)
+        2 : blob_gas_used field > 8 bytes BE -/
+def chainExtractBlobGasUsedRangeFunction : String :=
+  "chain_extract_blob_gas_used_range:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  sd zero, 0(s3); sd zero, 0(s4)\n" ++
+  "  li s5, 0\n" ++
+  "  beqz s0, .Lcebgur_done\n" ++
+  ".Lcebgur_loop:\n" ++
+  "  beq s5, s0, .Lcebgur_done\n" ++
+  "  slli t0, s5, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  mv a0, s2; li a2, 17\n" ++
+  "  la a3, cebgur_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lcebgur_parse_fail\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lcebgur_size_fail\n" ++
+  "  la t0, cebgur_field; ld t1, 0(t0)\n" ++
+  "  beqz s5, .Lcebgur_first\n" ++
+  "  ld t2, 0(s3)\n" ++
+  "  bgeu t1, t2, .Lcebgur_max\n" ++
+  "  sd t1, 0(s3)\n" ++
+  ".Lcebgur_max:\n" ++
+  "  ld t2, 0(s4)\n" ++
+  "  bgeu t2, t1, .Lcebgur_advance\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  j .Lcebgur_advance\n" ++
+  ".Lcebgur_first:\n" ++
+  "  sd t1, 0(s3)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  ".Lcebgur_advance:\n" ++
+  "  slli t0, s5, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lcebgur_loop\n" ++
+  ".Lcebgur_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcebgur_ret\n" ++
+  ".Lcebgur_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcebgur_ret\n" ++
+  ".Lcebgur_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lcebgur_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+def ziskChainExtractBlobGasUsedRangePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_extract_blob_gas_used_range\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcebgur_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainExtractBlobGasUsedRangeFunction ++ "\n" ++
+  ".Lcebgur_pdone:"
+
+def ziskChainExtractBlobGasUsedRangeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cebgur_field:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractBlobGasUsedRangeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractBlobGasUsedRangePrologue
+  dataAsm     := ziskChainExtractBlobGasUsedRangeDataSection
+}
+
+/-! ## chain_extract_basefee_first_last -- PR-K247
+
+    Extract `(first_basefee, last_basefee)` from an N-element
+    header chain. Basefee counterpart to K197
+    `chain_extract_number_range` and K239
+    `chain_extract_timestamp_range`. Useful for measuring
+    basefee drift across a chain segment (e.g., EIP-1559
+    market-pressure analytics).
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : u64 out (first_basefee)
+      a4 (input)  : u64 out (last_basefee)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse failure on some header
+        3 : a header's basefee field exceeds 8 bytes BE -/
+def chainExtractBasefeeFirstLastFunction : String :=
+  "chain_extract_basefee_first_last:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  beqz s0, .Lcebfl_empty\n" ++
+  "  # first = headers[0].basefee (field 15)\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  li a2, 15\n" ++
+  "  mv a3, s3\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcebfl_propagate\n" ++
+  "  # Advance to last header\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1\n" ++
+  ".Lcebfl_skip:\n" ++
+  "  beqz t3, .Lcebfl_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lcebfl_skip\n" ++
+  ".Lcebfl_at_last:\n" ++
+  "  ld a1, 0(t2)\n" ++
+  "  mv a0, t1\n" ++
+  "  li a2, 15\n" ++
+  "  mv a3, s4\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcebfl_propagate\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcebfl_ret\n" ++
+  ".Lcebfl_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcebfl_ret\n" ++
+  ".Lcebfl_propagate:\n" ++
+  "  addi a0, a0, 1\n" ++
+  ".Lcebfl_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainExtractBasefeeFirstLastPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_extract_basefee_first_last\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcebfl_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainExtractBasefeeFirstLastFunction ++ "\n" ++
+  ".Lcebfl_pdone:"
+
+def ziskChainExtractBasefeeFirstLastDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractBasefeeFirstLastProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractBasefeeFirstLastPrologue
+  dataAsm     := ziskChainExtractBasefeeFirstLastDataSection
+}
+
+/-! ## chain_compute_total_blob_count -- PR-K248
+
+    Sum `blob_gas_used / GAS_PER_BLOB` across an N-element header
+    chain — i.e., the total number of blobs in the chain segment.
+    EIP-4844 fixes `GAS_PER_BLOB = 131072 = 2^17`, so the per-header
+    division is a logical right shift by 17.
+
+    Pre-Cancun headers (≤17 fields) yield parse-failure status and
+    the count is the partial accumulator. Vacuous on empty chain:
+    count=0.
+
+    Calling convention:
+      a0 (input)  : N
+      a1 (input)  : header_lengths ptr (N u64 LE)
+      a2 (input)  : flat headers ptr
+      a3 (input)  : u64 out (total blob count)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse fail (pre-Cancun header in chain)
+        2 : blob_gas_used field > 8 bytes BE -/
+def chainComputeTotalBlobCountFunction : String :=
+  "chain_compute_total_blob_count:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li s4, 0\n" ++
+  "  beqz s0, .Lcctbc_done\n" ++
+  ".Lcctbc_loop:\n" ++
+  "  beq s4, s0, .Lcctbc_done\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  mv a0, s2; li a2, 17\n" ++
+  "  la a3, cctbc_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lcctbc_parse_fail\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lcctbc_size_fail\n" ++
+  "  la t0, cctbc_field; ld t1, 0(t0)\n" ++
+  "  srli t1, t1, 17                # / GAS_PER_BLOB = 2^17\n" ++
+  "  ld t2, 0(s3); add t2, t2, t1; sd t2, 0(s3)\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lcctbc_loop\n" ++
+  ".Lcctbc_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcctbc_ret\n" ++
+  ".Lcctbc_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcctbc_ret\n" ++
+  ".Lcctbc_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lcctbc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainComputeTotalBlobCountPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010010\n" ++
+  "  jal ra, chain_compute_total_blob_count\n" ++
+  "  li t0, 0xa0010008\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcctbc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainComputeTotalBlobCountFunction ++ "\n" ++
+  ".Lcctbc_pdone:"
+
+def ziskChainComputeTotalBlobCountDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cctbc_field:\n" ++
+  "  .zero 8"
+
+def ziskChainComputeTotalBlobCountProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainComputeTotalBlobCountPrologue
+  dataAsm     := ziskChainComputeTotalBlobCountDataSection
+}
+
+/-! ## chain_compute_total_basefee -- PR-K249
+
+    Sum `base_fee_per_gas` (header field 15, London+) across an
+    N-element header chain. Useful for time-averaged fee
+    analytics; mirror of K196 chain_compute_total_gas_used and
+    K231 chain_compute_total_blob_gas.
+
+    Pre-London headers (≤15 fields) yield parse-failure status
+    and the sum is the partial accumulator. Vacuous on empty
+    chain: sum = 0.
+
+    Calling convention:
+      a0 (input)  : N
+      a1 (input)  : header_lengths ptr (N u64 LE)
+      a2 (input)  : flat headers ptr
+      a3 (input)  : u64 out (total basefee)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse fail (pre-London header in chain)
+        2 : basefee field > 8 bytes BE -/
+def chainComputeTotalBasefeeFunction : String :=
+  "chain_compute_total_basefee:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li s4, 0\n" ++
+  "  beqz s0, .Lcctbf_done\n" ++
+  ".Lcctbf_loop:\n" ++
+  "  beq s4, s0, .Lcctbf_done\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  mv a0, s2; li a2, 15\n" ++
+  "  la a3, cctbf_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lcctbf_parse_fail\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lcctbf_size_fail\n" ++
+  "  la t0, cctbf_field; ld t1, 0(t0)\n" ++
+  "  ld t2, 0(s3); add t2, t2, t1; sd t2, 0(s3)\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lcctbf_loop\n" ++
+  ".Lcctbf_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcctbf_ret\n" ++
+  ".Lcctbf_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcctbf_ret\n" ++
+  ".Lcctbf_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lcctbf_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainComputeTotalBasefeePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010010\n" ++
+  "  jal ra, chain_compute_total_basefee\n" ++
+  "  li t0, 0xa0010008\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcctbf_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainComputeTotalBasefeeFunction ++ "\n" ++
+  ".Lcctbf_pdone:"
+
+def ziskChainComputeTotalBasefeeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cctbf_field:\n" ++
+  "  .zero 8"
+
+def ziskChainComputeTotalBasefeeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainComputeTotalBasefeePrologue
+  dataAsm     := ziskChainComputeTotalBasefeeDataSection
+}
+
+/-! ## chain_extract_first_last_state_root -- PR-K250
+
+    Extract `(headers[0].state_root, headers[N-1].state_root)`
+    from an N-element header chain. Useful as a compact
+    chain-segment endpoint commitment for proving state
+    transition across a range. Composes K201
+    `header_extract_state_root` (HeaderFields.lean) at the head
+    and tail headers.
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : 32-byte out (first_state_root)
+      a4 (input)  : 32-byte out (last_state_root)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse fail at head or tail header -/
+def chainExtractFirstLastStateRootFunction : String :=
+  "chain_extract_first_last_state_root:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  beqz s0, .Lceflsr_empty\n" ++
+  "  # first = headers[0].state_root\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, header_extract_state_root\n" ++
+  "  bnez a0, .Lceflsr_parse_fail\n" ++
+  "  # Advance to last header\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1\n" ++
+  ".Lceflsr_skip:\n" ++
+  "  beqz t3, .Lceflsr_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lceflsr_skip\n" ++
+  ".Lceflsr_at_last:\n" ++
+  "  ld a1, 0(t2)\n" ++
+  "  mv a0, t1\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, header_extract_state_root\n" ++
+  "  bnez a0, .Lceflsr_parse_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lceflsr_ret\n" ++
+  ".Lceflsr_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lceflsr_ret\n" ++
+  ".Lceflsr_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lceflsr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainExtractFirstLastStateRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010028\n" ++
+  "  jal ra, chain_extract_first_last_state_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lceflsr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  chainExtractFirstLastStateRootFunction ++ "\n" ++
+  ".Lceflsr_pdone:"
+
+def ziskChainExtractFirstLastStateRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hesr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hesr_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractFirstLastStateRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractFirstLastStateRootPrologue
+  dataAsm     := ziskChainExtractFirstLastStateRootDataSection
+}
+
 
 end EvmAsm.Codegen
