@@ -25,6 +25,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.TxExtract
 
 namespace EvmAsm.Codegen
 
