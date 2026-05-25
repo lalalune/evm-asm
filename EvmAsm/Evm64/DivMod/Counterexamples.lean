@@ -270,6 +270,54 @@ theorem ceN1Carry_Carry2NzAll_false :
     (h ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord
       ceN1CarryMaxWord 0)
 
+-- Reachable N1-shaped semantic regression using the same divisor shape as the
+-- universal-carry counterexample above.
+abbrev ceN1ShapeA : EvmWord :=
+  EvmWord.fromLimbs fun i : Fin 4 =>
+    match i with | 0 => ceN1CarryB0 | 1 => 0 | 2 => 0 | 3 => 0
+abbrev ceN1ShapeB : EvmWord :=
+  EvmWord.fromLimbs fun i : Fin 4 =>
+    match i with | 0 => ceN1CarryB0 | 1 => 0 | 2 => 0 | 3 => 0
+abbrev ceN1ShapeQuot : EvmWord :=
+  EvmWord.fromLimbs fun i : Fin 4 =>
+    match i with | 0 => 1 | 1 => 0 | 2 => 0 | 3 => 0
+
+theorem ceN1Shape_semantic_div_eq_one :
+    EvmWord.div ceN1ShapeA ceN1ShapeB = ceN1ShapeQuot := by
+  native_decide
+
+theorem ceN1Shape_fullDivN1QuotientWord_eq_semantic_div :
+    fullDivN1QuotientWord true true true true
+      ceN1CarryB0 0 0 0 ceN1CarryB0 0 0 0 =
+    EvmWord.div ceN1ShapeA ceN1ShapeB := by
+  native_decide
+
+theorem evm_div_ceN1Shape_v4_semantic_regression_pin :
+    evm_div =
+      (divK_phaseA 1020 ;;
+      divK_phaseB ;;
+      divK_clz ;;
+      divK_phaseC2 172 ;;
+      divK_normB ;;
+      divK_normA 40 ;;
+      divK_copyAU ;;
+      divK_loopSetup 464 ;;
+      divK_loopBody 560 7736 ;;
+      divK_denorm ;;
+      divK_div_epilogue 24 ;;
+      divK_zeroPath ;;
+      single (.ADDI .x0 .x0 0) ;;
+      divK_div128_v4) ∧
+    EvmWord.div ceN1ShapeA ceN1ShapeB = ceN1ShapeQuot ∧
+    fullDivN1QuotientWord true true true true
+      ceN1CarryB0 0 0 0 ceN1CarryB0 0 0 0 =
+    EvmWord.div ceN1ShapeA ceN1ShapeB := by
+  constructor
+  · exact evm_div_uses_div128_v4
+  constructor
+  · exact ceN1Shape_semantic_div_eq_one
+  · exact ceN1Shape_fullDivN1QuotientWord_eq_semantic_div
+
 end DivModCounterexamples
 
 end EvmAsm.Evm64
