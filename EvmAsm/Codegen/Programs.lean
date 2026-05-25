@@ -78,6 +78,7 @@ import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
+import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.Address
 
@@ -1605,7 +1606,7 @@ end EvmAsm.Codegen
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 1716
+  let hardCap := 1662
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
     "EvmAsm/Codegen/Programs/Account.lean",
@@ -1642,6 +1643,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/TxExtract.lean",
     "EvmAsm/Codegen/Programs/TxRoot.lean",
     "EvmAsm/Codegen/Programs/TxSignature.lean",
+    "EvmAsm/Codegen/Programs/TxSigningHash.lean",
     "EvmAsm/Codegen/Programs/U256.lean",
     "EvmAsm/Codegen/Programs/Withdrawal.lean"
   ]
