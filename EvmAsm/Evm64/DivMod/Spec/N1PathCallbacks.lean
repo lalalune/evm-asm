@@ -75,6 +75,12 @@ abbrev N1AllTruePathCallback (a b : EvmWord) : Prop :=
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
   N1AllTruePathEvidence a b
 
+theorem N1AllTruePathEvidence.toCallback {a b : EvmWord}
+    (hpath : N1AllTruePathEvidence a b) :
+    N1AllTruePathCallback a b := by
+  intro _ _ _ _
+  exact hpath
+
 /-- Variable-branch n=1 path evidence used by older step-conservation wrappers
     that still target the quotient-overestimate surface. -/
 abbrev N1StepOverestimatePathCallback (a b : EvmWord) : Prop :=
