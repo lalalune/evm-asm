@@ -56,6 +56,7 @@ import EvmAsm.Codegen.Programs.Block
 import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.Chain
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.Receipt
@@ -4077,6 +4078,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_header_extract_number" => some ziskHeaderExtractNumberProbeUnit
   | "zisk_account_validate_code_hash_empty" => some ziskAccountValidateCodeHashEmptyProbeUnit
   | "zisk_account_validate_storage_root_empty" => some ziskAccountValidateStorageRootEmptyProbeUnit
+  | "zisk_chain_compute_max_gas_used" => some ziskChainComputeMaxGasUsedProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -4486,6 +4488,7 @@ def knownProgramNames : List String :=
    "zisk_header_extract_number",
    "zisk_account_validate_code_hash_empty",
    "zisk_account_validate_storage_root_empty",
+   "zisk_chain_compute_max_gas_used",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
@@ -4559,13 +4562,14 @@ end EvmAsm.Codegen
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 4676
+  let hardCap := 4601
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
     "EvmAsm/Codegen/Programs/Account.lean",
     "EvmAsm/Codegen/Programs/Address.lean",
     "EvmAsm/Codegen/Programs/Block.lean",
     "EvmAsm/Codegen/Programs/BlockRoots.lean",
+    "EvmAsm/Codegen/Programs/Chain.lean",
     "EvmAsm/Codegen/Programs/Bloom.lean",
     "EvmAsm/Codegen/Programs/Evm.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
