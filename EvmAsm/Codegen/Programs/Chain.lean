@@ -28,6 +28,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.HeaderFields
 
 namespace EvmAsm.Codegen
 
@@ -1648,6 +1649,103 @@ def ziskChainComputeTotalBasefeeProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskChainComputeTotalBasefeePrologue
   dataAsm     := ziskChainComputeTotalBasefeeDataSection
+}
+
+/-! ## chain_extract_first_last_state_root -- PR-K250
+
+    Extract `(headers[0].state_root, headers[N-1].state_root)`
+    from an N-element header chain. Useful as a compact
+    chain-segment endpoint commitment for proving state
+    transition across a range. Composes K201
+    `header_extract_state_root` (HeaderFields.lean) at the head
+    and tail headers.
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : 32-byte out (first_state_root)
+      a4 (input)  : 32-byte out (last_state_root)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse fail at head or tail header -/
+def chainExtractFirstLastStateRootFunction : String :=
+  "chain_extract_first_last_state_root:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  beqz s0, .Lceflsr_empty\n" ++
+  "  # first = headers[0].state_root\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, header_extract_state_root\n" ++
+  "  bnez a0, .Lceflsr_parse_fail\n" ++
+  "  # Advance to last header\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1\n" ++
+  ".Lceflsr_skip:\n" ++
+  "  beqz t3, .Lceflsr_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lceflsr_skip\n" ++
+  ".Lceflsr_at_last:\n" ++
+  "  ld a1, 0(t2)\n" ++
+  "  mv a0, t1\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, header_extract_state_root\n" ++
+  "  bnez a0, .Lceflsr_parse_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lceflsr_ret\n" ++
+  ".Lceflsr_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lceflsr_ret\n" ++
+  ".Lceflsr_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lceflsr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainExtractFirstLastStateRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010028\n" ++
+  "  jal ra, chain_extract_first_last_state_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lceflsr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  chainExtractFirstLastStateRootFunction ++ "\n" ++
+  ".Lceflsr_pdone:"
+
+def ziskChainExtractFirstLastStateRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hesr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hesr_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractFirstLastStateRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractFirstLastStateRootPrologue
+  dataAsm     := ziskChainExtractFirstLastStateRootDataSection
 }
 
 end EvmAsm.Codegen
