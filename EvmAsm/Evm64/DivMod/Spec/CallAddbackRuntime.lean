@@ -198,6 +198,24 @@ def n4CallAddbackBeqRuntimeBounds (a b : EvmWord) : Prop :=
       n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1 ∧
     n4CallAddbackBeqIterRNormVal a b < n4CallAddbackBeqBNormVal b
 
+/-- The normalized overflow dividend limb in the n=4 call-addback marker is
+    strictly below `2^63` whenever normalization uses a nonzero shift. -/
+theorem n4CallAddbackBeqU4_lt_pow63_of_shift_nz {a b : EvmWord}
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    (n4CallAddbackBeqU4 a b).toNat < 2^63 := by
+  have h_shift_pos : 1 ≤ (clzResult (b.getLimbN 3)).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult (b.getLimbN 3)).1.toNat with h | h
+    · exfalso
+      apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have h :=
+    u_top_lt_pow63_of_shift_nz
+      (a.getLimbN 3) (clzResult (b.getLimbN 3)).1
+      h_shift_pos (clzResult_fst_toNat_le (b.getLimbN 3))
+  simpa [n4CallAddbackBeqU4, n4CallAddbackBeqAntiShift,
+    n4CallAddbackBeqShift] using h
+
 /-- Marker-name adapter for the v4 128/64 `+1` upper bound.
 
     This is not yet the compact `n4CallAddbackBeqRuntimeBounds` qhat
@@ -245,6 +263,39 @@ theorem n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_rhatdd_hi_zero {a b : EvmW
     hUn21_lt_pow63
     hUn21_lt_b3prime
     h_rhat_hi_zero
+
+/-- Variant of `n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_rhatdd_hi_zero`
+    with the normalized `U4 < 2^63` premise discharged from the nonzero
+    normalization shift. -/
+theorem n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_shift_nz_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (hUn21_lt_b3prime :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat <
+        (n4CallAddbackBeqB3Prime b).toNat)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word)) :
+    (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat + 1 :=
+  n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_rhatdd_hi_zero
+    hb3nz hcall (n4CallAddbackBeqU4_lt_pow63_of_shift_nz hshift_nz)
+    hUn21_lt_pow63 hUn21_lt_b3prime h_rhat_hi_zero
 
 /-- Runtime-normalized c3 bridge: if the normalized trial quotient is within
     one of the normalized true quotient, the raw borrow condition pins the
