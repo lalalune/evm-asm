@@ -1,5 +1,6 @@
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
 import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
+import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
 
 namespace EvmAsm.Evm64
 
@@ -89,5 +90,59 @@ theorem fullDivN1R3CarryZero_true_of_qHat_v0_mul_le
   rw [hv1z, hv2z, hv3z]
   simp [EvmWord.val256]
   omega
+
+/-- When the n=1 CLZ shift is nonzero, the anti-shift spill from the low
+    divisor limb into normalized limb 1 is zero. -/
+theorem fullDivN1AntiShift_spill_zero_of_shift_nz
+    (b0 : Word)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    b0 >>> ((fullDivN1AntiShift b0).toNat % 64) = 0 := by
+  have h_shift_pos : 1 ≤ (clzResult b0).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b0).1.toNat with h | h
+    · exfalso
+      apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have hshift_le : (clzResult b0).1.toNat ≤ 63 := clzResult_fst_toNat_le b0
+  have hanti :
+      (fullDivN1AntiShift b0).toNat % 64 = 64 - (clzResult b0).1.toNat := by
+    unfold fullDivN1AntiShift fullDivN1Shift
+    exact antiShift_toNat_mod_eq h_shift_pos hshift_le
+  rw [hanti]
+  exact (ushiftRight_eq_zero_iff (64 - (clzResult b0).1.toNat)).mpr
+    (clzResult_fst_top_bound b0)
+
+/-- Under the runtime n=1 divisor shape and a nonzero normalization shift,
+    normalized divisor limb 1 is zero. -/
+theorem fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz
+    (b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1NormV b0 b1 b2 b3).2.1 = 0 := by
+  rw [fullDivN1NormV_limb1_eq_of_shape b0 b1 b2 b3 hb1z]
+  exact fullDivN1AntiShift_spill_zero_of_shift_nz b0 hshift_nz
+
+/-- Runtime n=1 divisor-shape form of the first-step carry-zero reducer. This
+    leaves only the standard 128/64 product bound for the selected trial
+    quotient. -/
+theorem fullDivN1R3CarryZero_true_of_shape_qHat_v0_mul_le
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (h_qHat_mul_le :
+      (div128Quot
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+          (fullDivN1NormV b0 b1 b2 b3).1).toNat *
+        (fullDivN1NormV b0 b1 b2 b3).1.toNat ≤
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2^64 +
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat) :
+    fullDivN1R3CarryZero true a0 a1 a2 a3 b0 b1 b2 b3 := by
+  exact fullDivN1R3CarryZero_true_of_qHat_v0_mul_le
+    a0 a1 a2 a3 b0 b1 b2 b3
+    (fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz)
+    (fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z)
+    (fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z)
+    h_qHat_mul_le
 
 end EvmAsm.Evm64
