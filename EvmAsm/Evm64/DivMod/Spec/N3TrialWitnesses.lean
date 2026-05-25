@@ -289,6 +289,82 @@ theorem N3V4TrialWitnesses.exists_hdivs_of_path_conditions
   exact ⟨bltu_1, bltu_0,
     hbltu_1, hbltu_0, hdivs⟩
 
+/-- Nonzero-surface quotient-word witnesses from an `N3V4TrialWitnesses`
+    bundle. -/
+theorem N3V4TrialWitnesses.exists_quotient_word_of_path_conditions_ne_zero
+    {a b : EvmWord}
+    (htrial : N3V4TrialWitnesses a b)
+    (hbnz : b ≠ 0)
+    (hcarry2 : fullDivN3Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN3V4_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN3MulSubEqV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      isTrialN3V4_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      fullDivN3QuotientWordV4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.div a b :=
+  N3V4TrialWitnesses.exists_quotient_word_of_path_conditions
+    htrial ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry2 harith
+
+/-- Nonzero-surface quotient-limb witnesses from an `N3V4TrialWitnesses`
+    bundle. -/
+theorem N3V4TrialWitnesses.exists_hdivs_of_path_conditions_ne_zero
+    {a b : EvmWord}
+    (htrial : N3V4TrialWitnesses a b)
+    (hbnz : b ≠ 0)
+    (hcarry2 : fullDivN3Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN3V4_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN3MulSubEqV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      isTrialN3V4_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+      (EvmWord.div a b).getLimbN 0 =
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 1 =
+        (fullDivN3R1V4 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 2 = (0 : Word) ∧
+      (EvmWord.div a b).getLimbN 3 = (0 : Word) :=
+  N3V4TrialWitnesses.exists_hdivs_of_path_conditions
+    htrial ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry2 harith
+
 /-- Auto-trial form of
     `N3V4TrialWitnesses.exists_quotient_word_of_path_conditions`.
 
@@ -358,6 +434,36 @@ theorem n3V4_quotient_word_of_path_conditions
   obtain ⟨bltu_1, bltu_0, _, _, hdivWord⟩ :=
     n3V4_exists_quotient_word_of_path_conditions hbnz hcarry2 harith
   exact ⟨bltu_1, bltu_0, hdivWord⟩
+
+/-- Nonzero-surface n=3 V4 quotient-word package.
+
+    This is the same witness package as `n3V4_quotient_word_of_path_conditions`,
+    but accepts the stack-wrapper `b ≠ 0` premise directly. -/
+theorem n3V4_quotient_word_of_path_conditions_ne_zero
+    {a b : EvmWord}
+    (hbnz : b ≠ 0)
+    (hcarry2 : fullDivN3Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN3V4_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN3MulSubEqV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_1 bltu_0,
+      fullDivN3QuotientWordV4 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.div a b :=
+  n3V4_quotient_word_of_path_conditions
+    ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry2 harith
 
 /-- Dispatcher-shape n=3 V4 quotient-word package.
 
@@ -478,6 +584,42 @@ theorem n3V4_full_div_getLimbN_of_path_conditions
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
       hdivWord
   exact ⟨bltu_1, bltu_0, hdivs⟩
+
+/-- Nonzero-surface n=3 V4 quotient-limb package.
+
+    This mirrors `n3V4_full_div_getLimbN_of_path_conditions` with the
+    stack-wrapper `b ≠ 0` premise. -/
+theorem n3V4_full_div_getLimbN_of_path_conditions_ne_zero
+    {a b : EvmWord}
+    (hbnz : b ≠ 0)
+    (hcarry2 : fullDivN3Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN3V4_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN3MulSubEqV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_1 bltu_0,
+      (EvmWord.div a b).getLimbN 0 =
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 1 =
+        (fullDivN3R1V4 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 2 = (0 : Word) ∧
+      (EvmWord.div a b).getLimbN 3 = (0 : Word) :=
+  n3V4_full_div_getLimbN_of_path_conditions
+    ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry2 harith
 
 /-- Dispatcher-shape n=3 V4 quotient-limb package.
 
