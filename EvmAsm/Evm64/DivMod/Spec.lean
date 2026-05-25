@@ -27,6 +27,7 @@ import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 import EvmAsm.Evm64.DivMod.Spec.DispatcherPcFree
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
 import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
+import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnessesNormalized
 import EvmAsm.Evm64.DivMod.Spec.N2TrialWitnesses
 import EvmAsm.Evm64.DivMod.Spec.N3TrialWitnesses
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientWord
