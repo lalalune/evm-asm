@@ -1069,4 +1069,106 @@ def ziskChainComputeMaxBlobGasUsedProbeUnit : BuildUnit := {
   dataAsm     := ziskChainComputeMaxBlobGasUsedDataSection
 }
 
+/-! ## chain_compute_min_gas_used -- PR-K238
+
+    Find min(header.gas_used) (field 10) across an N-element
+    header chain. Lowest-throughput / liveness monitor that
+    complements K236 chain_compute_max_gas_used (max) and K196
+    chain_compute_total_gas_used (sum).
+
+    Vacuous on empty chain: min = 0.
+
+    Calling convention:
+      a0 (input)  : N
+      a1 (input)  : header_lengths ptr (N u64 LE)
+      a2 (input)  : flat headers ptr
+      a3 (input)  : u64 out (min)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse fail (in any header)
+        2 : gas_used field > 8 bytes BE -/
+def chainComputeMinGasUsedFunction : String :=
+  "chain_compute_min_gas_used:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li s4, 0\n" ++
+  "  beqz s0, .Lccming_done\n" ++
+  ".Lccming_loop:\n" ++
+  "  beq s4, s0, .Lccming_done\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  mv a0, s2; li a2, 10\n" ++
+  "  la a3, ccming_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lccming_parse_fail\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lccming_size_fail\n" ++
+  "  la t0, ccming_field; ld t1, 0(t0)\n" ++
+  "  beqz s4, .Lccming_first\n" ++
+  "  ld t2, 0(s3)\n" ++
+  "  bgeu t1, t2, .Lccming_no_update\n" ++
+  ".Lccming_first:\n" ++
+  "  sd t1, 0(s3)\n" ++
+  ".Lccming_no_update:\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lccming_loop\n" ++
+  ".Lccming_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lccming_ret\n" ++
+  ".Lccming_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lccming_ret\n" ++
+  ".Lccming_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lccming_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainComputeMinGasUsedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010010\n" ++
+  "  jal ra, chain_compute_min_gas_used\n" ++
+  "  li t0, 0xa0010008\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lccming_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainComputeMinGasUsedFunction ++ "\n" ++
+  ".Lccming_pdone:"
+
+def ziskChainComputeMinGasUsedDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "ccming_field:\n" ++
+  "  .zero 8"
+
+def ziskChainComputeMinGasUsedProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainComputeMinGasUsedPrologue
+  dataAsm     := ziskChainComputeMinGasUsedDataSection
+}
+
 end EvmAsm.Codegen
