@@ -28,6 +28,7 @@ import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
 import EvmAsm.Evm64.DivMod.Spec.N2TrialWitnesses
 import EvmAsm.Evm64.DivMod.Spec.N3TrialWitnesses
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientWord
+import EvmAsm.Evm64.DivMod.Spec.N1FinalCarryZero
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridgeGetLimbStep
 import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N2DivStackSpec
