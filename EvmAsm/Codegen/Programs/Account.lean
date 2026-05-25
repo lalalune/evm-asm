@@ -534,4 +534,74 @@ def ziskAccountValidateStorageRootEmptyProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountValidateStorageRootEmptyDataSection
 }
 
+/-! ## account_validate_nonce_zero -- PR-K242
+
+    Predicate: `account.nonce == 0`. RLP canonical zero is the
+    empty byte string, so this is the predicate
+    `length(field 0) == 0`. Useful for fresh-account / dust-prune
+    detection; complements K234 (code_hash empty) and K235
+    (storage_root empty).
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : u64 out (1 if nonce == 0)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse failure / field 0 missing -/
+def accountValidateNonceZeroFunction : String :=
+  "account_validate_nonce_zero:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp)\n" ++
+  "  mv s0, a2                      # is_valid out\n" ++
+  "  sd zero, 0(s0)\n" ++
+  "  li a2, 0                       # field 0 = nonce\n" ++
+  "  la a3, avnz_offset; la a4, avnz_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lavnz_parse_fail\n" ++
+  "  la t0, avnz_length; ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lavnz_nonzero\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s0)\n" ++
+  ".Lavnz_nonzero:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lavnz_ret\n" ++
+  ".Lavnz_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lavnz_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+def ziskAccountValidateNonceZeroPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)\n" ++
+  "  addi a0, a3, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, account_validate_nonce_zero\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lavnz_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountValidateNonceZeroFunction ++ "\n" ++
+  ".Lavnz_pdone:"
+
+def ziskAccountValidateNonceZeroDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "avnz_offset:\n" ++
+  "  .zero 8\n" ++
+  "avnz_length:\n" ++
+  "  .zero 8"
+
+def ziskAccountValidateNonceZeroProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountValidateNonceZeroPrologue
+  dataAsm     := ziskAccountValidateNonceZeroDataSection
+}
+
 end EvmAsm.Codegen
