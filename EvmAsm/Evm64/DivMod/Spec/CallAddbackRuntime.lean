@@ -237,6 +237,40 @@ theorem n4CallAddbackBeqUn21_lt_b3prime_of_call {a b : EvmWord}
     n4CallAddbackBeqB3Prime, n4CallAddbackBeqShift,
     n4CallAddbackBeqAntiShift] using h
 
+/-- Decomposed-form `un21 < vTop` on the n=4 call path, with the raw
+    `un21 < B3Prime` premise supplied internally. -/
+theorem n4CallAddbackBeqUn21_lt_vTop_of_call {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)) :
+    (divKTrialCallV4Un21
+      (n4CallAddbackBeqU4 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqB3Prime b)).toNat <
+      (divKTrialCallV4DHi (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4DLo (n4CallAddbackBeqB3Prime b)).toNat :=
+  n4CallAddbackBeqUn21_lt_vTop_of_lt_b3prime
+    (n4CallAddbackBeqUn21_lt_b3prime_of_call hb3nz hshift_nz hcall)
+
+/-- Trial-call half decomposition of the n=4 call-addback qhat on the call
+    path, with the `un21` range proof supplied internally. -/
+theorem n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_call_path
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)) :
+    (n4CallAddbackBeqQHatV4 a b).toNat =
+      (divKTrialCallV4Q1dd
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat * 2^32 +
+        (divKTrialCallV4Q0dd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b)).toNat :=
+  n4CallAddbackBeqQHatV4_toNat_eq_trialCall_halves_of_call
+    hb3nz hcall (n4CallAddbackBeqUn21_lt_vTop_of_call hb3nz hshift_nz hcall)
+
 /-- Marker-name adapter for the v4 128/64 `+1` upper bound.
 
     This is not yet the compact `n4CallAddbackBeqRuntimeBounds` qhat
