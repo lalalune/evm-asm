@@ -470,4 +470,42 @@ theorem n3V4_full_div_getLimbN_of_path_conditions
     n3V4_exists_hdivs_of_path_conditions hbnz hcarry2 harith
   exact ⟨bltu_1, bltu_0, hdiv0, hdiv1, hdiv2, hdiv3⟩
 
+/-- Dispatcher-shape n=3 V4 quotient-limb package.
+
+    The shape hypotheses match the n=3 stack wrapper surface; the remaining
+    non-mechanical obligations are the carry and arithmetic path facts. -/
+theorem n3V4_shape_full_div_getLimbN_of_path_conditions
+    (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (_hb3z : b.getLimbN 3 = 0) (_hb2nz : b.getLimbN 2 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 2)).1 ≠ 0)
+    (hcarry2 : fullDivN3Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN3V4_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN3MulSubEqV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_1 bltu_0,
+      (EvmWord.div a b).getLimbN 0 =
+        (fullDivN3R0V4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 1 =
+        (fullDivN3R1V4 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+      (EvmWord.div a b).getLimbN 2 = (0 : Word) ∧
+      (EvmWord.div a b).getLimbN 3 = (0 : Word) :=
+  n3V4_full_div_getLimbN_of_path_conditions hbnz hcarry2 harith
+
 end EvmAsm.Evm64
