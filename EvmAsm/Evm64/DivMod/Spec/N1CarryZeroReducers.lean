@@ -908,6 +908,72 @@ theorem fullDivN1R3CarryZero_true_of_shape_all_phases_no_wrap
       (Nat.div_mul_le_self (uHi.toNat * 2^64 + uLo.toNat) vTop.toNat)
   simpa [uHi, uLo, vTop] using h_qHat_mul_le
 
+/-- Bundle the n=1 all-call carry-zero reducers behind the concrete
+    one-word remainder bounds for the first three steps. -/
+theorem fullDivN1CarryZeros_true_true_true_true_of_shape_remainders_lt_all_phases_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (hr3_lt :
+      val256
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat)
+    (hr2_lt :
+      val256
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat)
+    (hr1_lt :
+      val256
+        (fullDivN1R1 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+        (fullDivN1R1 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+        (fullDivN1R1 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+        (fullDivN1R1 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat)
+    (h_inv_r3 : Div128AllPhasesNoWrapInv
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (h_inv_r2 : Div128AllPhasesNoWrapInv
+      (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (h_inv_r1 : Div128AllPhasesNoWrapInv
+      (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (h_inv_final : Div128AllPhasesNoWrapInv
+      (fullDivN1R1 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (fullDivN1NormV b0 b1 b2 b3).1) :
+    fullDivN1R3CarryZero true a0 a1 a2 a3 b0 b1 b2 b3 ∧
+      fullDivN1R2CarryZero true true a0 a1 a2 a3 b0 b1 b2 b3 ∧
+      fullDivN1R1CarryZero true true true a0 a1 a2 a3 b0 b1 b2 b3 ∧
+      fullDivN1FinalCarryZero true true true true a0 a1 a2 a3 b0 b1 b2 b3 := by
+  have hb0nz : b0 ≠ 0 :=
+    fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z
+  have hv0_norm : (fullDivN1NormV b0 b1 b2 b3).1.toNat ≥ 2^63 := by
+    simpa [fullDivN1NormV, fullDivN1Shift, fullDivN1AntiShift] using
+      (b3_shifted_ge_pow63 hb0nz)
+  refine ⟨?hr3, ?hr2, ?hr1, ?hfinal⟩
+  · exact fullDivN1R3CarryZero_true_of_shape_all_phases_no_wrap
+      a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz h_inv_r3
+  · exact fullDivN1R2CarryZero_true_true_of_shape_r3_remainder_lt_all_phases_no_wrap
+      a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz
+      hv0_norm hr3_lt h_inv_r2
+  · exact fullDivN1R1CarryZero_true_true_true_of_shape_r2_remainder_lt_all_phases_no_wrap
+      a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz
+      hv0_norm hr2_lt h_inv_r1
+  · exact fullDivN1FinalCarryZero_true_true_true_true_of_shape_r1_remainder_lt_all_phases_no_wrap
+      a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz
+      hv0_norm hr1_lt h_inv_final
+
 /-- All-phases no-wrap form of the first-step n=1 top-limb-zero reducer. -/
 theorem fullDivN1R3_top_limb_zero_true_of_shape_all_phases_no_wrap
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
