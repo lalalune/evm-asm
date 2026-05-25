@@ -1267,5 +1267,201 @@ def ziskChainExtractFirstLastReceiptsRootProbeUnit : BuildUnit := {
   dataAsm     := ziskChainExtractFirstLastReceiptsRootDataSection
 }
 
+/-! ## chain_extract_first_last_transactions_root -- PR-K253
+
+    Extract `(headers[0].transactions_root,
+    headers[N-1].transactions_root)` from an N-element header
+    chain. Completes the trie-endpoint family alongside K250
+    (state_root field 3), K251 (block hashes), K252
+    (receipts_root field 5). Useful as a compact endpoint
+    commitment for txs-trie audit across a chain range.
+
+    Composes K204 `header_extract_transactions_root`
+    (HeaderFields.lean) at head and tail headers.
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : 32-byte out (first_transactions_root)
+      a4 (input)  : 32-byte out (last_transactions_root)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse fail at head or tail header -/
+def chainExtractFirstLastTransactionsRootFunction : String :=
+  "chain_extract_first_last_transactions_root:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  beqz s0, .Lcefltr_empty\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, header_extract_transactions_root\n" ++
+  "  bnez a0, .Lcefltr_parse_fail\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1\n" ++
+  ".Lcefltr_skip:\n" ++
+  "  beqz t3, .Lcefltr_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lcefltr_skip\n" ++
+  ".Lcefltr_at_last:\n" ++
+  "  ld a1, 0(t2)\n" ++
+  "  mv a0, t1\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, header_extract_transactions_root\n" ++
+  "  bnez a0, .Lcefltr_parse_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcefltr_ret\n" ++
+  ".Lcefltr_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcefltr_ret\n" ++
+  ".Lcefltr_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lcefltr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainExtractFirstLastTransactionsRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010028\n" ++
+  "  jal ra, chain_extract_first_last_transactions_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcefltr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractTransactionsRootFunction ++ "\n" ++
+  chainExtractFirstLastTransactionsRootFunction ++ "\n" ++
+  ".Lcefltr_pdone:"
+
+def ziskChainExtractFirstLastTransactionsRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hetr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hetr_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractFirstLastTransactionsRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractFirstLastTransactionsRootPrologue
+  dataAsm     := ziskChainExtractFirstLastTransactionsRootDataSection
+}
+
+/-! ## chain_extract_first_last_withdrawals_root -- PR-K254
+
+    Extract `(headers[0].withdrawals_root,
+    headers[N-1].withdrawals_root)` from an N-element header
+    chain. Completes the trie-endpoint family alongside K250
+    (state_root), K251 (block hashes), K252 (receipts_root),
+    K253 (transactions_root). Withdrawals are Shanghai+; pre-
+    Shanghai headers don't have field 16 and return parse-fail.
+
+    Composes K205 `header_extract_withdrawals_root`
+    (HeaderFields.lean) at head and tail headers.
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : 32-byte out (first_withdrawals_root)
+      a4 (input)  : 32-byte out (last_withdrawals_root)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse fail at head or tail header
+            (pre-Shanghai header missing withdrawals_root) -/
+def chainExtractFirstLastWithdrawalsRootFunction : String :=
+  "chain_extract_first_last_withdrawals_root:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  beqz s0, .Lceflwr_empty\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, header_extract_withdrawals_root\n" ++
+  "  bnez a0, .Lceflwr_parse_fail\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1\n" ++
+  ".Lceflwr_skip:\n" ++
+  "  beqz t3, .Lceflwr_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lceflwr_skip\n" ++
+  ".Lceflwr_at_last:\n" ++
+  "  ld a1, 0(t2)\n" ++
+  "  mv a0, t1\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, header_extract_withdrawals_root\n" ++
+  "  bnez a0, .Lceflwr_parse_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lceflwr_ret\n" ++
+  ".Lceflwr_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lceflwr_ret\n" ++
+  ".Lceflwr_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lceflwr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainExtractFirstLastWithdrawalsRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010028\n" ++
+  "  jal ra, chain_extract_first_last_withdrawals_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lceflwr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractWithdrawalsRootFunction ++ "\n" ++
+  chainExtractFirstLastWithdrawalsRootFunction ++ "\n" ++
+  ".Lceflwr_pdone:"
+
+def ziskChainExtractFirstLastWithdrawalsRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hewr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hewr_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractFirstLastWithdrawalsRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractFirstLastWithdrawalsRootPrologue
+  dataAsm     := ziskChainExtractFirstLastWithdrawalsRootDataSection
+}
 
 end EvmAsm.Codegen
