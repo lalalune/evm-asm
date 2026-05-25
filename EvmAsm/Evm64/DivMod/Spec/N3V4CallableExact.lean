@@ -325,13 +325,14 @@ theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_uni
       (divStackDispatchPostCallableExactFrame sp a b raVal
         (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
-  exact evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_autoTrial_uni
+  exact evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_trialWitnesses_uni
     sp base a b
     v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
     ((EvmWord.ne_zero_iff_getLimbN_or).mpr hbnz)
-    hb3z hb2nz hshift_nz halign hcarry2 harith
+    hb3z hb2nz hshift_nz halign
+    (n3V4TrialWitnesses_of_getLimbN a b) hcarry2 harith
 
 /-- Full-code form of
     `evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_uni`. -/
