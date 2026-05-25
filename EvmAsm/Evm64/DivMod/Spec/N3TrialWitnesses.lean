@@ -166,4 +166,33 @@ theorem N3V4TrialWitnesses.exists {a b : EvmWord}
   | mk bltu_1 bltu_0 hbltu_1 hbltu_0 =>
       exact ⟨bltu_1, bltu_0, hbltu_1, hbltu_0⟩
 
+/-- Assemble an existential bundled N3 V4 path predicate from the mechanical
+    trial witness bundle plus the remaining carry/arithmetic obligations.
+
+    The arithmetic continuation receives the concrete branch booleans and
+    their defining equalities from `htrial`. -/
+theorem N3V4TrialWitnesses.exists_path_conditions
+    {a b : EvmWord}
+    (htrial : N3V4TrialWitnesses a b)
+    (hcarry2 : fullDivN3Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_1 bltu_0,
+      isTrialN3V4_j1 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN3V4_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN3MulSubEqV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_1 bltu_0, fullDivN3PathConditionsWordV4 bltu_1 bltu_0 a b := by
+  cases htrial with
+  | mk bltu_1' bltu_0' hbltu_1 hbltu_0 =>
+      obtain ⟨hmulsub, hover⟩ := harith bltu_1' bltu_0' hbltu_1 hbltu_0
+      exact ⟨bltu_1', bltu_0', hbltu_1, hbltu_0, hcarry2, hmulsub, hover⟩
+
 end EvmAsm.Evm64
