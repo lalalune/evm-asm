@@ -760,8 +760,11 @@ theorem n2V4_full_div_getLimbN_of_path_conditions_ne_zero
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
       (EvmWord.div a b).getLimbN 3 = (0 : Word) :=
-  n2V4_full_div_getLimbN_of_path_conditions
-    ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry2 harith
+  by
+    obtain ⟨bltu_2, bltu_1, bltu_0, _hbltu_2, _hbltu_1, _hbltu_0, hdivs⟩ :=
+      N2V4TrialWitnesses.exists_hdivs_of_path_conditions_ne_zero
+        (n2V4TrialWitnesses_of_getLimbN a b) hbnz hcarry2 harith
+    exact ⟨bltu_2, bltu_1, bltu_0, hdivs⟩
 
 /-- Dispatcher-shape n=2 V4 quotient-limb package.
 
