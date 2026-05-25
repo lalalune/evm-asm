@@ -74,8 +74,9 @@ theorem evm_div_n1_stack_spec_within_word_noNop_preNoX1_callableOwnPost_shape_st
         b.getLimbN 3 ≠ 0 :=
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   obtain ⟨bltu_2, bltu_1, bltu_0,
-      hbltu_3, hbltu_2, hbltu_1, hbltu_0, hcarry2, hdivWord⟩ :=
-    n1_quotient_word_package_of_step_conservation_path
+      hbltu_3, hbltu_2, hbltu_1, hbltu_0,
+      hcarry2, _hmulsub, _hge, hdivWord⟩ :=
+    n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnzGet hb3z hb2z hb1z hshift_nz hpath
   exact evm_div_n1_stack_spec_within_word_noNop_preNoX1_callableOwnPost_uni
     true bltu_2 bltu_1 bltu_0 sp base a b
@@ -148,7 +149,7 @@ theorem evm_div_n1_stack_spec_within_word_noNop_shape_step_conservation_overesti
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   obtain ⟨bltu_2, bltu_1, bltu_0,
       hbltu_3, hbltu_2, hbltu_1, hbltu_0,
-      hcarry2, hmulsub, hge⟩ :=
+      hcarry2, hmulsub, hge, _hdivWord⟩ :=
     n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnzGet hb3z hb2z hb1z hshift_nz hpath
   exact evm_div_n1_stack_spec_within_word_noNop_uni_of_normalized_mulsub_overestimate
@@ -223,7 +224,7 @@ theorem evm_div_n1_stack_spec_within_word_exact_x1_noNop_shape_step_conservation
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   obtain ⟨bltu_2, bltu_1, bltu_0,
       hbltu_3, hbltu_2, hbltu_1, hbltu_0,
-      hcarry2, hmulsub, hge⟩ :=
+      hcarry2, hmulsub, hge, _hdivWord⟩ :=
     n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnzGet hb3z hb2z hb1z hshift_nz hpath
   exact evm_div_n1_stack_spec_within_word_exact_x1_noNop_uni_of_normalized_mulsub_overestimate
@@ -298,7 +299,7 @@ theorem evm_div_n1_stack_spec_within_word_exact_x1_shape_step_conservation_overe
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   obtain ⟨bltu_2, bltu_1, bltu_0,
       hbltu_3, hbltu_2, hbltu_1, hbltu_0,
-      hcarry2, hmulsub, hge⟩ :=
+      hcarry2, hmulsub, hge, _hdivWord⟩ :=
     n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnzGet hb3z hb2z hb1z hshift_nz hpath
   exact evm_div_n1_stack_spec_within_word_exact_x1_uni_of_normalized_mulsub_overestimate
@@ -372,7 +373,7 @@ theorem evm_div_n1_stack_spec_within_word_shape_step_conservation_overestimate_u
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   obtain ⟨bltu_2, bltu_1, bltu_0,
       hbltu_3, hbltu_2, hbltu_1, hbltu_0,
-      hcarry2, hmulsub, hge⟩ :=
+      hcarry2, hmulsub, hge, _hdivWord⟩ :=
     n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnzGet hb3z hb2z hb1z hshift_nz hpath
   exact evm_div_n1_stack_spec_within_word_uni_of_normalized_mulsub_overestimate
