@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.HeaderFields
 
 namespace EvmAsm.Codegen
 
@@ -1319,6 +1320,108 @@ def ziskChainExtractFirstLastBlockHashProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskChainExtractFirstLastBlockHashPrologue
   dataAsm     := ziskChainExtractFirstLastBlockHashDataSection
+}
+
+/-! ## chain_extract_first_last_prev_randao -- PR-K255
+
+    Extract `(headers[0].prev_randao, headers[N-1].prev_randao)`
+    from an N-element header chain. The post-merge `prev_randao`
+    field (header field 13, 32 B) is the value returned by the
+    PREVRANDAO opcode and is committed to via the consensus
+    beacon-chain randomness mix. Useful as an endpoint commitment
+    for randomness-trace audits across a chain range.
+
+    Sister to K250 (state_root), K251 (block hashes), K252
+    (receipts_root), K253 (transactions_root), K254
+    (withdrawals_root).
+
+    Composes K207 `header_extract_prev_randao` (HeaderFields.lean)
+    at head and tail headers.
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : 32-byte out (first_prev_randao)
+      a4 (input)  : 32-byte out (last_prev_randao)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse fail at head or tail header -/
+def chainExtractFirstLastPrevRandaoFunction : String :=
+  "chain_extract_first_last_prev_randao:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  beqz s0, .Lceflpr_empty\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, header_extract_prev_randao\n" ++
+  "  bnez a0, .Lceflpr_parse_fail\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1\n" ++
+  ".Lceflpr_skip:\n" ++
+  "  beqz t3, .Lceflpr_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lceflpr_skip\n" ++
+  ".Lceflpr_at_last:\n" ++
+  "  ld a1, 0(t2)\n" ++
+  "  mv a0, t1\n" ++
+  "  mv a2, s4\n" ++
+  "  jal ra, header_extract_prev_randao\n" ++
+  "  bnez a0, .Lceflpr_parse_fail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lceflpr_ret\n" ++
+  ".Lceflpr_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lceflpr_ret\n" ++
+  ".Lceflpr_parse_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lceflpr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainExtractFirstLastPrevRandaoPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010028\n" ++
+  "  jal ra, chain_extract_first_last_prev_randao\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lceflpr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractPrevRandaoFunction ++ "\n" ++
+  chainExtractFirstLastPrevRandaoFunction ++ "\n" ++
+  ".Lceflpr_pdone:"
+
+def ziskChainExtractFirstLastPrevRandaoDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hepr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hepr_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractFirstLastPrevRandaoProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractFirstLastPrevRandaoPrologue
+  dataAsm     := ziskChainExtractFirstLastPrevRandaoDataSection
 }
 
 end EvmAsm.Codegen
