@@ -867,14 +867,13 @@ theorem N1TrialWitnesses.exists_hdivs_of_mulsub_overestimate
   have hdivWord :=
     fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_overestimate
       bltu_3 bltu_2 bltu_1 bltu_0 hbnz hmulsub hge
-  have hdivs :=
+  exact ⟨bltu_3, bltu_2, bltu_1, bltu_0,
+    hbltu_3, hbltu_2, hbltu_1, hbltu_0,
     fullDivN1_hdivs_of_word_eq bltu_3 bltu_2 bltu_1 bltu_0
       a b
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-      hdivWord
-  exact ⟨bltu_3, bltu_2, bltu_1, bltu_0,
-    hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivs⟩
+      hdivWord⟩
 
 /-- Eliminate an `N1TrialWitnesses` bundle and derive all four quotient-limb
     witnesses from raw mulsub plus final-remainder facts for the owned branch
@@ -936,14 +935,13 @@ theorem N1TrialWitnesses.exists_hdivs_of_mulsub_remainder_lt
   have hdivWord :=
     fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_remainder_lt
       bltu_3 bltu_2 bltu_1 bltu_0 hbnz hmulsub hrem_lt
-  have hdivs :=
+  exact ⟨bltu_3, bltu_2, bltu_1, bltu_0,
+    hbltu_3, hbltu_2, hbltu_1, hbltu_0,
     fullDivN1_hdivs_of_word_eq bltu_3 bltu_2 bltu_1 bltu_0
       a b
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-      hdivWord
-  exact ⟨bltu_3, bltu_2, bltu_1, bltu_0,
-    hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivs⟩
+      hdivWord⟩
 
 /-- Eliminate an `N1TrialWitnesses` bundle and derive the quotient-word
     equality from raw mulsub plus final-remainder obligations for the owned
@@ -1096,14 +1094,13 @@ theorem n1_shape_hdivs_of_mulsub_remainder_lt
   have hdivWord :=
     fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_remainder_lt
       true bltu_2 bltu_1 bltu_0 hbnz hmulsub hrem_lt
-  have hdivs :=
+  exact ⟨bltu_2, bltu_1, bltu_0,
+    hbltu_3, hbltu_2, hbltu_1, hbltu_0,
     fullDivN1_hdivs_of_word_eq true bltu_2 bltu_1 bltu_0
       a b
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-      hdivWord
-  exact ⟨bltu_2, bltu_1, bltu_0,
-    hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivs⟩
+      hdivWord⟩
 
 /-- Shape-specialized n=1 hdiv witnesses from raw mulsub plus
     quotient-overestimate facts, with the forced first branch recorded as
@@ -1168,14 +1165,13 @@ theorem n1_shape_hdivs_of_mulsub_overestimate
   have hdivWord :=
     fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_overestimate
       true bltu_2 bltu_1 bltu_0 hbnz hmulsub hge
-  have hdivs :=
+  exact ⟨bltu_2, bltu_1, bltu_0,
+    hbltu_3, hbltu_2, hbltu_1, hbltu_0,
     fullDivN1_hdivs_of_word_eq true bltu_2 bltu_1 bltu_0
       a b
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-      hdivWord
-  exact ⟨bltu_2, bltu_1, bltu_0,
-    hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivs⟩
+      hdivWord⟩
 
 /-- Acceptance-shaped n=1 full division limb theorem from raw mulsub plus
     quotient-overestimate facts. The remaining unconditional step is to
@@ -1224,13 +1220,12 @@ theorem n1_full_div_getLimbN_of_mulsub_overestimate
   obtain ⟨bltu_2, bltu_1, bltu_0, hdivWord⟩ :=
     n1_shape_quotient_word_of_mulsub_overestimate
       a b hbnz hb3z hb2z hb1z hshift_nz hpath
-  have hdivs :=
+  exact ⟨bltu_2, bltu_1, bltu_0,
     fullDivN1_hdivs_of_word_eq true bltu_2 bltu_1 bltu_0
       a b
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-      hdivWord
-  exact ⟨bltu_2, bltu_1, bltu_0, hdivs⟩
+      hdivWord⟩
 
 /-- Acceptance-shaped n=1 full division limb theorem from raw mulsub plus
     final-remainder facts. The remaining unconditional step is to discharge
@@ -1279,12 +1274,11 @@ theorem n1_full_div_getLimbN_of_mulsub_remainder_lt
   obtain ⟨bltu_2, bltu_1, bltu_0, hdivWord⟩ :=
     n1_shape_quotient_word_of_mulsub_remainder_lt
       a b hbnz hb3z hb2z hb1z hshift_nz hpath
-  have hdivs :=
+  exact ⟨bltu_2, bltu_1, bltu_0,
     fullDivN1_hdivs_of_word_eq true bltu_2 bltu_1 bltu_0
       a b
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-      hdivWord
-  exact ⟨bltu_2, bltu_1, bltu_0, hdivs⟩
+      hdivWord⟩
 
 end EvmAsm.Evm64
