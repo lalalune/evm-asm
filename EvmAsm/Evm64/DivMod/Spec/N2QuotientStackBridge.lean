@@ -5,7 +5,6 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
-import EvmAsm.Evm64.DivMod.Spec.N2TrialWitnesses
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4Families
 import EvmAsm.Evm64.EvmWordArith.DivAccumulate
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
@@ -51,11 +50,31 @@ abbrev fullDivN2Carry2NzV4 (b0 b1 b2 b3 : Word) : Prop :=
     (fullDivN2NormV b0 b1 b2 b3).2.2.1
     (fullDivN2NormV b0 b1 b2 b3).2.2.2
 
+def isTrialN2V4_j2 (bltu_2 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  bltu_2 =
+    BitVec.ult (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2
+      (fullDivN2NormV b0 b1 b2 b3).2.1
+
+def isTrialN2V4_j1 (bltu_2 bltu_1 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  bltu_1 =
+    BitVec.ult
+      (fullDivN2R2V4 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN2NormV b0 b1 b2 b3).2.1
+
+def isTrialN2V4_j0 (bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  bltu_0 =
+    BitVec.ult
+      (fullDivN2R1V4 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN2NormV b0 b1 b2 b3).2.1
+
 abbrev fullDivN2PathConditionsV4 (bltu_2 bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
-  isTrialN2_j2 bltu_2 a3 b0 b1 ∧
-  isTrialN2_j1 bltu_2 bltu_1 a1 a2 a3 b0 b1 b2 b3 ∧
-  isTrialN2_j0 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+  isTrialN2V4_j2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+  isTrialN2V4_j1 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+  isTrialN2V4_j0 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
   fullDivN2Carry2NzV4 b0 b1 b2 b3 ∧
   fullDivN2MulSubEqV4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
   fullDivN2QuotientOverestimateV4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
@@ -70,16 +89,17 @@ abbrev fullDivN2PathConditionsWordV4 (bltu_2 bltu_1 bltu_0 : Bool)
 theorem fullDivN2PathConditionsWordV4_trial_j2
     (bltu_2 bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hpath : fullDivN2PathConditionsWordV4 bltu_2 bltu_1 bltu_0 a b) :
-    isTrialN2_j2 bltu_2
-      (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1) :=
+    isTrialN2V4_j2 bltu_2
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
   hpath.1
 
 /-- Project the second v4 N2 trial-branch witness from the bundled word path. -/
 theorem fullDivN2PathConditionsWordV4_trial_j1
     (bltu_2 bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hpath : fullDivN2PathConditionsWordV4 bltu_2 bltu_1 bltu_0 a b) :
-    isTrialN2_j1 bltu_2 bltu_1
-      (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    isTrialN2V4_j1 bltu_2 bltu_1
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
   hpath.2.1
 
@@ -87,7 +107,7 @@ theorem fullDivN2PathConditionsWordV4_trial_j1
 theorem fullDivN2PathConditionsWordV4_trial_j0
     (bltu_2 bltu_1 bltu_0 : Bool) (a b : EvmWord)
     (hpath : fullDivN2PathConditionsWordV4 bltu_2 bltu_1 bltu_0 a b) :
-    isTrialN2_j0 bltu_2 bltu_1 bltu_0
+    isTrialN2V4_j0 bltu_2 bltu_1 bltu_0
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
   hpath.2.2.1
