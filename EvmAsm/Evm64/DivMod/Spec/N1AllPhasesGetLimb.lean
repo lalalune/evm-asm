@@ -607,8 +607,8 @@ theorem n1_full_div_getLimbN_true_true_true_true_of_path_remainders_lt_all_phase
       a b hbnz hb3z hb2z hb1z hshift_nz hr3_lt hr2_lt hr1_lt
   obtain ⟨hcarry2, hr3_inv, hr2_inv, hr1_inv, hfinal_inv, hrem_lt⟩ :=
     hpath hbltu_3 hbltu_2 hbltu_1 hbltu_0
-  exact n1_full_div_getLimbN_of_remainders_lt_all_phases_no_wrap_remainder_lt
-    a b hbnz hb3z hb2z hb1z hshift_nz hcarry2
+  exact n1_full_div_getLimbN_of_remainders_lt_all_phases_no_wrap_remainder_lt_ne_zero
+    a b ((EvmWord.ne_zero_iff_getLimbN_or).mpr hbnz) hb3z hb2z hb1z hshift_nz hcarry2
     hr3_lt hr2_lt hr1_lt hr3_inv hr2_inv hr1_inv hfinal_inv hrem_lt
 
 /-- EvmWord-level all-call n=1 quotient-word wrapper from one-word step
