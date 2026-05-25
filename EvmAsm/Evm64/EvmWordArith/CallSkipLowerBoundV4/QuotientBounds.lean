@@ -1319,6 +1319,28 @@ theorem div128Quot_v4_ge_q_true_of_un21_eq_r1
   rw [h_left]
   exact h_core
 
+/-- Exact v4 128/64 quotient when the Phase-2 `un21` value is the first
+    mathematical remainder and the matching upper bound has been supplied. -/
+theorem div128Quot_v4_eq_q_true_of_un21_eq_r1_of_le
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat < vTop.toNat)
+    (hUn21_eq_r1 :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat =
+        (uHi.toNat * 2^32 + (divKTrialCallV4Un1 uLo).toNat) % vTop.toNat)
+    (h_le :
+      (div128Quot_v4 uHi uLo vTop).toNat ≤
+        (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat) :
+    (div128Quot_v4 uHi uLo vTop).toNat =
+      (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat := by
+  apply le_antisymm
+  · exact h_le
+  · exact div128Quot_v4_ge_q_true_of_un21_eq_r1 uHi uLo vTop
+      hvTop_ge huHi_lt_vTop huHi_lt_pow63 hUn21_lt_vTop hUn21_eq_r1
+
 /-- Full v4 128/64 lower bound from exact Phase 1, Phase-2 lower bound, and
     the Phase-1 low-half no-wrap condition. -/
 theorem div128Quot_v4_ge_q_true_of_no_wrap
@@ -1340,6 +1362,31 @@ theorem div128Quot_v4_ge_q_true_of_no_wrap
       hvTop_ge huHi_lt_vTop huHi_lt_pow63 h_no_wrap
   exact div128Quot_v4_ge_q_true_of_un21_eq_r1 uHi uLo vTop
     hvTop_ge huHi_lt_vTop huHi_lt_pow63 hUn21_lt_vTop hUn21_eq_r1
+
+/-- Exact v4 128/64 quotient from the Phase-1 low-half no-wrap condition
+    and the matching upper bound. -/
+theorem div128Quot_v4_eq_q_true_of_no_wrap_of_le
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (huHi_lt_pow63 : uHi.toNat < 2^63)
+    (hUn21_lt_vTop :
+      (divKTrialCallV4Un21 uHi uLo vTop).toNat < vTop.toNat)
+    (h_no_wrap :
+      (divKTrialCallV4Q1dd uHi uLo vTop).toNat *
+          (divKTrialCallV4DLo vTop).toNat ≤
+        ((divKTrialCallV4Rhatdd uHi uLo vTop).toNat % 2^32) * 2^32 +
+          (divKTrialCallV4Un1 uLo).toNat)
+    (h_le :
+      (div128Quot_v4 uHi uLo vTop).toNat ≤
+        (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat) :
+    (div128Quot_v4 uHi uLo vTop).toNat =
+      (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat := by
+  have hUn21_eq_r1 :=
+    divKTrialCallV4Un21_eq_r1_of_no_wrap uHi uLo vTop
+      hvTop_ge huHi_lt_vTop huHi_lt_pow63 h_no_wrap
+  exact div128Quot_v4_eq_q_true_of_un21_eq_r1_of_le uHi uLo vTop
+    hvTop_ge huHi_lt_vTop huHi_lt_pow63 hUn21_lt_vTop hUn21_eq_r1 h_le
 
 /-- Full v4 128/64 lower bound when the final Phase-1b remainder has zero
     high half. In this branch the low-half subtraction no-wrap condition
@@ -1377,10 +1424,10 @@ theorem div128Quot_v4_eq_q_true_of_rhatdd_hi_zero_of_le
         (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat) :
     (div128Quot_v4 uHi uLo vTop).toNat =
       (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat := by
-  apply le_antisymm
-  · exact h_le
-  · exact div128Quot_v4_ge_q_true_of_rhatdd_hi_zero
-      uHi uLo vTop hvTop_ge huHi_lt_vTop huHi_lt_pow63
-      hUn21_lt_vTop h_rhat_hi_zero
+  have h_no_wrap :=
+    divKTrialCallV4Un21_low_no_wrap_of_rhatdd_hi_zero
+      uHi uLo vTop hvTop_ge huHi_lt_vTop h_rhat_hi_zero
+  exact div128Quot_v4_eq_q_true_of_no_wrap_of_le uHi uLo vTop
+    hvTop_ge huHi_lt_vTop huHi_lt_pow63 hUn21_lt_vTop h_no_wrap h_le
 
 end EvmAsm.Evm64
