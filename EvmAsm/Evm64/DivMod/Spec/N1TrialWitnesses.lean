@@ -310,6 +310,50 @@ theorem N1TrialWitnesses.quotient_word
     N1TrialWitnesses.exists_quotient_word htrial hbnz harith
   exact ⟨bltu_3, bltu_2, bltu_1, bltu_0, hdivWord⟩
 
+/-- Shape-specialized n=1 quotient-word package.
+
+    Under the n=1 divisor shape, the first trial branch is forced to `true`;
+    this exposes only the remaining three selected branch booleans. -/
+theorem n1_shape_quotient_word_of_mulsub_overestimate
+    (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+    (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+    (hpath : ∀ bltu_2 bltu_1 bltu_0,
+      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
+      isTrialN1_j2 true bltu_2
+        (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN1_j1 true bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN1MulSubEq true bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN1QuotientOverestimate true bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_2 bltu_1 bltu_0,
+      fullDivN1QuotientWord true bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.div a b := by
+  obtain ⟨bltu_2, bltu_1, bltu_0,
+      hbltu_3, hbltu_2, hbltu_1, hbltu_0⟩ :=
+    n1_trial_witnesses_call_first_of_getLimbN_shape_shift_nz
+      a b hbnz hb3z hb2z hb1z hshift_nz
+  obtain ⟨hmulsub, hge⟩ :=
+    hpath bltu_2 bltu_1 bltu_0 hbltu_3 hbltu_2 hbltu_1 hbltu_0
+  have hdivWord :=
+    fullDivN1QuotientWord_eq_div_of_getLimbN_path_conditions
+      true bltu_2 bltu_1 bltu_0 hbnz hmulsub hge
+  exact ⟨bltu_2, bltu_1, bltu_0, hdivWord⟩
+
 /-- Eliminate an `N1TrialWitnesses` bundle and derive all four quotient-limb
     witnesses from raw mulsub plus quotient-overestimate facts for the owned
     branch booleans. -/
