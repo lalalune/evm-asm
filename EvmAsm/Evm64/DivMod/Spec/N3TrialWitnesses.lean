@@ -66,4 +66,18 @@ theorem n3TrialWitnesses_of_getLimbN_shape_shift_nz
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
   exact N3TrialWitnesses.mk bltu_1 bltu_0 hbltu_1 hbltu_0
 
+/-- Eliminate an `N3TrialWitnesses` bundle into the explicit branch booleans
+    and proof obligations expected by the existing stack-spec surfaces. -/
+theorem N3TrialWitnesses.exists {a b : EvmWord}
+    (h : N3TrialWitnesses a b) :
+    ∃ bltu_1 bltu_0,
+      isTrialN3_j1 bltu_1
+        (a.getLimbN 3) (b.getLimbN 1) (b.getLimbN 2) ∧
+      isTrialN3_j0 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  cases h with
+  | mk bltu_1 bltu_0 hbltu_1 hbltu_0 =>
+      exact ⟨bltu_1, bltu_0, hbltu_1, hbltu_0⟩
+
 end EvmAsm.Evm64
