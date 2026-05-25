@@ -387,6 +387,42 @@ theorem n2V4_quotient_word_of_path_conditions
     n2V4_exists_quotient_word_of_path_conditions hbnz hcarry2 harith
   exact ⟨bltu_2, bltu_1, bltu_0, hdivWord⟩
 
+/-- Dispatcher-shape n=2 V4 quotient-word package.
+
+    The shape hypotheses match the n=2 stack wrapper surface; the remaining
+    non-mechanical obligations are the carry and arithmetic path facts. -/
+theorem n2V4_shape_quotient_word_of_path_conditions
+    (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (_hb3z : b.getLimbN 3 = 0) (_hb2z : b.getLimbN 2 = 0)
+    (_hb1nz : b.getLimbN 1 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 1)).1 ≠ 0)
+    (hcarry2 : fullDivN2Carry2NzV4
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (harith : ∀ bltu_2 bltu_1 bltu_0,
+      isTrialN2V4_j2 bltu_2
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN2V4_j1 bltu_2 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      isTrialN2V4_j0 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+      fullDivN2MulSubEqV4 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+        fullDivN2QuotientOverestimateV4 bltu_2 bltu_1 bltu_0
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    ∃ bltu_2 bltu_1 bltu_0,
+      fullDivN2QuotientWordV4 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.div a b :=
+  n2V4_quotient_word_of_path_conditions hbnz hcarry2 harith
+
 /-- Auto-trial form of `N2V4TrialWitnesses.exists_hdivs_of_path_conditions`.
 
     This is the pure witness package needed by n=2 unconditional wrappers once
