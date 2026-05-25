@@ -106,9 +106,8 @@ theorem evm_div_n4_shift_nz_stack_spec_v4_of_runtime_bounds
           hb3nz hshift_nz halign hskip hbranch)
   | inr hadd =>
       have hsem : n4CallAddbackBeqSemanticHolds a b := by
-        simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
-          n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
-            hb3nz hshift_nz h_bounds hadd hcarry2
+        exact n4CallAddbackBeqSemanticHolds_of_runtime_bounds
+          hb3nz hshift_nz h_bounds hadd hcarry2
       exact evm_div_n4_call_addback_beq_stack_spec
         sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
