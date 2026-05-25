@@ -79,6 +79,23 @@ abbrev fullDivN2PathConditionsV4 (bltu_2 bltu_1 bltu_0 : Bool)
   fullDivN2MulSubEqV4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
   fullDivN2QuotientOverestimateV4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
 
+/-- Project the v4 N2 normalized mulsub equation from the bundled explicit-limb path. -/
+theorem fullDivN2PathConditionsV4_mulsub
+    (bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hpath : fullDivN2PathConditionsV4 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN2MulSubEqV4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 :=
+  hpath.2.2.2.2.1
+
+/-- Project the v4 N2 quotient-overestimate fact from the bundled explicit-limb path. -/
+theorem fullDivN2PathConditionsV4_overestimate
+    (bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hpath : fullDivN2PathConditionsV4 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN2QuotientOverestimateV4 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3 :=
+  hpath.2.2.2.2.2
+
 abbrev fullDivN2PathConditionsWordV4 (bltu_2 bltu_1 bltu_0 : Bool)
     (a b : EvmWord) : Prop :=
   fullDivN2PathConditionsV4 bltu_2 bltu_1 bltu_0
@@ -127,7 +144,10 @@ theorem fullDivN2PathConditionsWordV4_mulsub
     fullDivN2MulSubEqV4 bltu_2 bltu_1 bltu_0
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
-  hpath.2.2.2.2.1
+  fullDivN2PathConditionsV4_mulsub bltu_2 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hpath
 
 /-- Project the v4 N2 quotient-overestimate fact from the bundled word path. -/
 theorem fullDivN2PathConditionsWordV4_overestimate
@@ -136,7 +156,10 @@ theorem fullDivN2PathConditionsWordV4_overestimate
     fullDivN2QuotientOverestimateV4 bltu_2 bltu_1 bltu_0
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
-  hpath.2.2.2.2.2
+  fullDivN2PathConditionsV4_overestimate bltu_2 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hpath
 
 /-- Semantic bridge for the n=2 v4 quotient word once callers provide the
     accumulated mulsub equation and quotient-overestimate bound. -/
@@ -235,7 +258,10 @@ theorem fullDivN2QuotientWordV4_eq_div_of_path_conditions
       a0 a1 a2 a3 b0 b1 b2 b3) :
     fullDivN2QuotientWordV4 bltu_2 bltu_1 bltu_0
       a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.div a b := by
-  obtain ⟨_, _, _, _, hmulsub, hge⟩ := hpath
+  have hmulsub := fullDivN2PathConditionsV4_mulsub
+    bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 hpath
+  have hge := fullDivN2PathConditionsV4_overestimate
+    bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 hpath
   have hraw :=
     fullDivN2QuotientWordV4_eq_div_of_mulsub_overestimate
       bltu_2 bltu_1 bltu_0 hbnz hmulsub hge
