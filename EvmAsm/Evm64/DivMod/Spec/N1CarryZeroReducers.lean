@@ -421,6 +421,47 @@ theorem fullDivN1R1CarryZero_true_true_true_of_shape_all_phases_no_wrap
     (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
     hv0_norm hcall h_inv hr2_top_zero
 
+/-- R1 call-branch n=1 carry-zero reducer from a one-word bound on the R2
+    remainder. This mirrors the R2 wrapper one step later. -/
+theorem fullDivN1R1CarryZero_true_true_true_of_shape_r2_remainder_lt_all_phases_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (hv0_norm : (fullDivN1NormV b0 b1 b2 b3).1.toNat ≥ 2^63)
+    (hr2_lt :
+      val256
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+        (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat)
+    (h_inv : Div128AllPhasesNoWrapInv
+      (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1) :
+    fullDivN1R1CarryZero true true true a0 a1 a2 a3 b0 b1 b2 b3 := by
+  have h_high :=
+    fullDivN1R2_high_limbs_zero_of_remainder_lt true true
+      a0 a1 a2 a3 b0 b1 b2 b3
+      (fullDivN1NormV b0 b1 b2 b3).1 hr2_lt
+  have hr2_top_zero :
+      (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 = 0 :=
+    h_high.2.2
+  have hr2_limb0_lt :
+      (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat <
+        (fullDivN1NormV b0 b1 b2 b3).1.toNat := by
+    rw [h_high.1, h_high.2.1, h_high.2.2] at hr2_lt
+    simpa [EvmWord.val256] using hr2_lt
+  have hcall :
+      (fullDivN1R2 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat * 2^64 +
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1.toNat <
+          (fullDivN1NormV b0 b1 b2 b3).1.toNat * 2^64 := by
+    have hu1 := (fullDivN1NormU a0 a1 a2 a3 b0).2.1.isLt
+    omega
+  exact fullDivN1R1CarryZero_true_true_true_of_shape_all_phases_no_wrap
+    a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz
+    hr2_top_zero hv0_norm hcall h_inv
+
 /-- Final R0 call-branch n=1 carry-zero reducer from the generic all-phases
     iteration lemma. This completes the same mechanical reduction for the last
     n=1 call step, leaving the R1 top-limb-zero fact, the 128/64 call-regime
