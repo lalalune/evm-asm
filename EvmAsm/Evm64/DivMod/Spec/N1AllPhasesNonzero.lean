@@ -112,6 +112,50 @@ abbrev N1StepOverestimatePathCallback (a b : EvmWord) : Prop :=
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
+/-- Variable-branch n=1 path evidence where the R3 call provides the
+    all-phases no-wrap invariant used to derive the R3 carry-zero fact. -/
+abbrev N1AllPhasesOverestimatePathCallback (a b : EvmWord) : Prop :=
+  ∀ bltu_2 bltu_1 bltu_0,
+  isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
+  isTrialN1_j2 true bltu_2
+    (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+  isTrialN1_j1 true bltu_2 bltu_1
+    (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+  isTrialN1_j0 true bltu_2 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
+  Carry2NzAll
+    (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
+    ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+      (b.getLimbN 0 >>>
+        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+    ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+      (b.getLimbN 1 >>>
+        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+    ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+      (b.getLimbN 2 >>>
+        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64))) ∧
+  Div128AllPhasesNoWrapInv
+    (fullDivN1NormU
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0)).2.2.2.2
+    (fullDivN1NormU
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0)).2.2.2.1
+    (fullDivN1NormV
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+  fullDivN1R2CarryZero true bltu_2
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+  fullDivN1R1CarryZero true bltu_2 bltu_1
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
+  fullDivN1QuotientOverestimate true bltu_2 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
 /-- `b ≠ 0` and named-callback surface for the all-call n=1 path-level
     quotient-limb wrapper. -/
 theorem n1_full_div_getLimbN_true_true_true_true_of_path_remainders_lt_all_phases_no_wrap_ne_zero
