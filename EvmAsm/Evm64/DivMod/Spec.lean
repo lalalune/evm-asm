@@ -33,6 +33,7 @@ import EvmAsm.Evm64.DivMod.Spec.N3TrialWitnesses
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N1CarryZeroReducers
 import EvmAsm.Evm64.DivMod.Spec.N1FinalCarryZero
+import EvmAsm.Evm64.DivMod.Spec.N1AllPhasesGetLimb
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridgeGetLimbStep
 import EvmAsm.Evm64.DivMod.Spec.N1Harith
 import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
