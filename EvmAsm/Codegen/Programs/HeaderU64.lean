@@ -595,4 +595,64 @@ def ziskChainComputeMaxGasUsedProbeUnit : BuildUnit := {
   dataAsm     := ziskChainComputeMaxGasUsedDataSection
 }
 
+/-! ## header_extract_blob_gas_used -- PR-K241
+
+    Extract `blob_gas_used` (header field 17, u64 BE) from a
+    Cancun+ header RLP. The single-field counterpart to K90
+    `header_extract_blob_gas_pair` (which extracts the (used,
+    excess) tuple); useful when only one of the two is needed.
+
+    Pre-Cancun headers (<18 fields) return parse-failure status.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : u64 out ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure (pre-Cancun header)
+        2 : field 17 exceeds 8 bytes BE -/
+def headerExtractBlobGasUsedFunction : String :=
+  "header_extract_blob_gas_used:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  mv a3, a2\n" ++
+  "  li a2, 17\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+def ziskHeaderExtractBlobGasUsedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)\n" ++
+  "  addi a0, a7, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, header_extract_blob_gas_used\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhebgu_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractBlobGasUsedFunction ++ "\n" ++
+  ".Lhebgu_pdone:"
+
+def ziskHeaderExtractBlobGasUsedDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractBlobGasUsedProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractBlobGasUsedPrologue
+  dataAsm     := ziskHeaderExtractBlobGasUsedDataSection
+}
+
 end EvmAsm.Codegen
