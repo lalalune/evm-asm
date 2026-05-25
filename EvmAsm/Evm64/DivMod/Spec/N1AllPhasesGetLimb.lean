@@ -1,11 +1,11 @@
 import EvmAsm.Evm64.DivMod.Spec.N1CarryZeroReducers
 import EvmAsm.Evm64.DivMod.Spec.N1FinalCarryZero
+import EvmAsm.Evm64.DivMod.Spec.N1PathCallbacks
 import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
-
 /-- Shape-specialized n=1 full division limb theorem with the R3 carry-zero
     obligation discharged from the selected call's all-phases no-wrap
     invariant. This keeps the later R2/R1 carries, `hcarry2`, and quotient
