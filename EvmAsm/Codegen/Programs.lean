@@ -53,8 +53,12 @@ import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.Block
+import EvmAsm.Codegen.Programs.Account
+import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderFields
+import EvmAsm.Codegen.Programs.HeaderU64
+import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.Address
 
@@ -3506,313 +3510,6 @@ def ziskStateRootSingleAccountProbeUnit : BuildUnit := {
 
 /-! ## bloom atoms K148-K154 — moved to `Programs/Bloom.lean` (file-size hard cap). -/
 
-/-! ## rlp_encode_u64 -- PR-K155
-
-    Encode a `u64` register value as canonical RLP. A convenience
-    wrapper that takes the integer directly rather than the BE
-    byte buffer that PR-K30 `rlp_encode_uint_be` requires:
-
-      value == 0       -> 0x80                       (1 byte)
-      value < 0x80     -> single byte = value        (1 byte)
-      else             -> 0x80 + effective_len + BE bytes
-                          (effective_len in 1..8)    (2..9 bytes)
-
-    Pure register arithmetic, leaf-callable, no scratch memory.
-    Use cases where K30 with a stack-allocated BE buffer is
-    awkward boilerplate -- typical example is receipt encoding:
-
-      rlp_encode_u64(status, buf + cursor, &written); cursor += written
-      rlp_encode_u64(cumulative_gas, buf + cursor, &written); cursor += written
-      ...
-
-    Calling convention:
-      a0 (input)  : value (u64)
-      a1 (input)  : output buffer ptr (caller supplies >= 9 bytes)
-      a2 (input)  : u64 out length ptr (bytes written; 1..9)
-      ra (input)  : return
-      a0 (output) : 0 (always succeeds). -/
-def rlpEncodeU64Function : String :=
-  "rlp_encode_u64:\n" ++
-  "  beqz a0, .Lreu64_zero\n" ++
-  "  li t0, 0x80\n" ++
-  "  bgeu a0, t0, .Lreu64_multi\n" ++
-  "  # Single-byte form (value in 0x01..0x7f).\n" ++
-  "  sb a0, 0(a1)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lreu64_zero:\n" ++
-  "  li t0, 0x80\n" ++
-  "  sb t0, 0(a1)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lreu64_multi:\n" ++
-  "  # Compute effective byte length (1..8) by finding the top non-zero byte.\n" ++
-  "  # We already know value >= 0x80, so len >= 1.\n" ++
-  "  li t0, 1                   # effective_len candidate\n" ++
-  "  li t1, 0x100\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 2\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 3\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 4\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 5\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 6\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 7\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 8\n" ++
-  ".Lreu64_have_len:\n" ++
-  "  # Write prefix 0x80 + effective_len.\n" ++
-  "  addi t2, t0, 0x80\n" ++
-  "  sb t2, 0(a1)\n" ++
-  "  # Write effective_len BE bytes of value into a1+1..a1+1+len.\n" ++
-  "  addi t3, a1, 1                 # dst cursor\n" ++
-  "  addi t4, t0, -1                # shift_byte_index = len - 1\n" ++
-  ".Lreu64_emit:\n" ++
-  "  bltz t4, .Lreu64_done\n" ++
-  "  slli t5, t4, 3                 # bit shift = 8 * byte_index\n" ++
-  "  srl t6, a0, t5\n" ++
-  "  sb t6, 0(t3)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lreu64_emit\n" ++
-  ".Lreu64_done:\n" ++
-  "  addi t1, t0, 1                 # bytes_written = 1 + effective_len\n" ++
-  "  sd t1, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
-
-/-- `zisk_rlp_encode_u64`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : value (u64)
-    Output layout:
-      bytes  0.. 8 : status (always 0)
-      bytes  8..16 : bytes_written
-      bytes 16..25 : encoded RLP (up to 9 bytes) -/
-def ziskRlpEncodeU64Prologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a0, 8(a3)                # value\n" ++
-  "  li a1, 0xa0010010           # output buffer ptr\n" ++
-  "  li a2, 0xa0010008           # out length ptr\n" ++
-  "  jal ra, rlp_encode_u64\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lreu64_pdone\n" ++
-  rlpEncodeU64Function ++ "\n" ++
-  ".Lreu64_pdone:"
-
-def ziskRlpEncodeU64DataSection : String :=
-  ".section .data\n" ++
-  "reu64_pad:\n" ++
-  "  .zero 8"
-
-def ziskRlpEncodeU64ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRlpEncodeU64Prologue
-  dataAsm     := ziskRlpEncodeU64DataSection
-}
-
-/-! ## receipt_encode -- PR-K156
-
-    Encode an Ethereum tx receipt as RLP:
-
-      receipt = rlp([status, cumulative_gas_used,
-                     logs_bloom (256 B), logs])
-
-    This is the encoder side of PR-K152 `receipt_extract_logs_bloom`,
-    and the input to receipts-trie / receipts-root computation.
-    For typed receipts (EIP-2718), the caller prepends the
-    `0x<type>` byte to the output of this helper; the wire-format
-    typed receipt is `type_byte || rlp(inner)`.
-
-    Algorithm:
-      1. Write status (u64) at receipt_pl_buf[0..]    via K155.
-      2. Write cumulative_gas (u64) at next slot      via K155.
-      3. Write logs_bloom (256 B as RLP string) at
-         next slot                                    via K128.
-      4. Copy logs_rlp (pre-encoded list) verbatim    (memcpy).
-      5. Compute total payload length.
-      6. Write outer list prefix to output[0..]       via K129.
-      7. Copy receipt_pl_buf[..total_payload] to
-         output[prefix_len..].
-
-    Composes:
-      - PR-K155 `rlp_encode_u64`        -- status / gas
-      - PR-K128 `rlp_encode_bytes`      -- logs_bloom
-      - PR-K129 `rlp_encode_list_prefix`-- outer list prefix
-
-    Calling convention:
-      a0 (input)  : status (u64)
-      a1 (input)  : cumulative_gas_used (u64)
-      a2 (input)  : logs_bloom ptr (exactly 256 bytes)
-      a3 (input)  : logs_rlp ptr (pre-encoded list, copied verbatim)
-      a4 (input)  : logs_rlp byte length
-      a5 (input)  : output buffer ptr
-      a6 (input)  : u64 out length ptr (total bytes written)
-      ra (input)  : return
-      a0 (output) : 0 (always succeeds).
-
-    Uses a 16 KiB scratch buffer `re_payload_buf` in `.data` for
-    the intermediate payload. Should comfortably hold mainnet
-    receipt payloads (logs_bloom is 257 RLP bytes, status/gas
-    add <= 18 bytes, logs section is variable but typically
-    KBs at most). -/
-def receiptEncodeFunction : String :=
-  "receipt_encode:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # status\n" ++
-  "  mv s1, a1                   # cumulative_gas\n" ++
-  "  mv s2, a2                   # bloom ptr\n" ++
-  "  mv s3, a3                   # logs_rlp ptr\n" ++
-  "  mv s4, a4                   # logs_rlp len\n" ++
-  "  mv s5, a5                   # output ptr\n" ++
-  "  mv s6, a6                   # out_length ptr\n" ++
-  "  # The running cursor (payload offset within re_payload_buf) is\n" ++
-  "  # stashed to `re_cursor` across `jal` calls since t-registers are\n" ++
-  "  # caller-saved and the encode helpers clobber them.\n" ++
-  "  la t0, re_cursor; sd zero, 0(t0)\n" ++
-  "  # ---- Step 1: encode status into re_payload_buf[0..] ----\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, re_payload_buf\n" ++
-  "  la a2, re_field_len\n" ++
-  "  jal ra, rlp_encode_u64\n" ++
-  "  la t0, re_field_len; ld t1, 0(t0)         # status_len\n" ++
-  "  la t0, re_cursor; sd t1, 0(t0)            # cursor = status_len\n" ++
-  "  # ---- Step 2: encode cumulative_gas at re_payload_buf[cursor] ----\n" ++
-  "  la t0, re_cursor; ld t2, 0(t0)\n" ++
-  "  mv a0, s1\n" ++
-  "  la a1, re_payload_buf; add a1, a1, t2\n" ++
-  "  la a2, re_field_len\n" ++
-  "  jal ra, rlp_encode_u64\n" ++
-  "  la t0, re_field_len; ld t1, 0(t0)         # gas_len\n" ++
-  "  la t0, re_cursor; ld t2, 0(t0)\n" ++
-  "  add t2, t2, t1\n" ++
-  "  la t0, re_cursor; sd t2, 0(t0)\n" ++
-  "  # ---- Step 3: encode bloom (256 B) ----\n" ++
-  "  mv a0, s2; li a1, 256\n" ++
-  "  la a2, re_payload_buf; add a2, a2, t2\n" ++
-  "  la a3, re_field_len\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, re_field_len; ld t1, 0(t0)         # bloom_enc_len\n" ++
-  "  la t0, re_cursor; ld t2, 0(t0)\n" ++
-  "  add t2, t2, t1\n" ++
-  "  # ---- Step 4: copy logs_rlp verbatim ----\n" ++
-  "  la t3, re_payload_buf; add t3, t3, t2     # dst\n" ++
-  "  mv t4, s3                                 # src\n" ++
-  "  mv t5, s4                                 # remaining bytes\n" ++
-  ".Lre_logs_cp:\n" ++
-  "  beqz t5, .Lre_logs_done\n" ++
-  "  lbu t6, 0(t4)\n" ++
-  "  sb t6, 0(t3)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  j .Lre_logs_cp\n" ++
-  ".Lre_logs_done:\n" ++
-  "  add t2, t2, s4                            # total payload len\n" ++
-  "  # Stash total_payload before the next jal clobbers caller-saved t2.\n" ++
-  "  la t0, re_total_payload; sd t2, 0(t0)\n" ++
-  "  # ---- Step 5: write outer list prefix at output[0..] ----\n" ++
-  "  mv a0, t2; mv a1, s5\n" ++
-  "  la a2, re_field_len\n" ++
-  "  jal ra, rlp_encode_list_prefix\n" ++
-  "  la t0, re_field_len; ld t1, 0(t0)        # outer_prefix_len\n" ++
-  "  # ---- Step 6: copy re_payload_buf[..total_payload] to output[prefix_len..] ----\n" ++
-  "  # Total payload was last stashed in t2; restore via .data\n" ++
-  "  # Actually we lost t2 across jal. Re-derive: total_payload =\n" ++
-  "  # bytes_written - bytes_p, but cleaner to re-compute it from\n" ++
-  "  # re_payload_buf metadata. Save total_payload before jal next time.\n" ++
-  "  # Use the stashed value: we'll save t2 to .data BEFORE the\n" ++
-  "  # rlp_encode_list_prefix call.\n" ++
-  "  # (Fixed by re-reading the saved payload total below.)\n" ++
-  "  la t0, re_total_payload; ld t2, 0(t0)\n" ++
-  "  add t3, s5, t1                            # dst = output + prefix_len\n" ++
-  "  la t4, re_payload_buf                     # src\n" ++
-  "  mv t5, t2                                 # remaining\n" ++
-  ".Lre_body_cp:\n" ++
-  "  beqz t5, .Lre_body_done\n" ++
-  "  lbu t6, 0(t4)\n" ++
-  "  sb t6, 0(t3)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  j .Lre_body_cp\n" ++
-  ".Lre_body_done:\n" ++
-  "  # total_written = outer_prefix_len + total_payload\n" ++
-  "  add t1, t1, t2\n" ++
-  "  sd t1, 0(s6)\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
-
-/-- `zisk_receipt_encode`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : status (u64 LE)
-      bytes  8..16 : cumulative_gas (u64 LE)
-      bytes 16..272: logs_bloom (256 bytes)
-      bytes 272..280: logs_rlp_len (u64 LE)
-      bytes 280..   : logs_rlp
-    Output layout (256 B ziskemu cap):
-      bytes  0.. 8 : status (always 0)
-      bytes  8..16 : encoded receipt total length
-      bytes 16..   : encoded receipt bytes (truncated to fit) -/
-def ziskReceiptEncodePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)                # status\n" ++
-  "  ld a1, 16(a7)               # cumulative_gas\n" ++
-  "  addi a2, a7, 24             # logs_bloom ptr (256 B)\n" ++
-  "  ld a4, 280(a7)              # logs_rlp_len\n" ++
-  "  addi a3, a7, 288            # logs_rlp ptr\n" ++
-  "  li a5, 0xa0010010           # output ptr\n" ++
-  "  li a6, 0xa0010008           # out length ptr\n" ++
-  "  jal ra, receipt_encode\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lre_pdone\n" ++
-  rlpEncodeU64Function ++ "\n" ++
-  rlpEncodeBytesFunction ++ "\n" ++
-  rlpEncodeListPrefixFunction ++ "\n" ++
-  receiptEncodeFunction ++ "\n" ++
-  ".Lre_pdone:"
-
-def ziskReceiptEncodeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "re_field_len:\n" ++
-  "  .zero 8\n" ++
-  "re_cursor:\n" ++
-  "  .zero 8\n" ++
-  "re_total_payload:\n" ++
-  "  .zero 8\n" ++
-  "re_payload_buf:\n" ++
-  "  .zero 16384"
-
-def ziskReceiptEncodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskReceiptEncodePrologue
-  dataAsm     := ziskReceiptEncodeDataSection
-}
 
 /-! ## MPT encoders K157/K162-K167 — moved to `Programs/Mpt.lean` (file-size hard cap). -/
 
@@ -4315,6 +4012,115 @@ def statelessGuestUnit : BuildUnit := {
 
 /-! ## registry -/
 
+/-- Second half of the program lookup, split off `lookupProgram` to
+    keep the C-emitted match below clang's default 256 bracket-nesting
+    limit. New PRs append arms here, not to `lookupProgram`. -/
+def lookupProgramTail : String → Option BuildUnit
+  | "zisk_bloom_eq" => some ziskBloomEqProbeUnit
+  | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
+  | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
+  | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
+  | "zisk_mpt_leaf_node_encode" => some ziskMptLeafNodeEncodeProbeUnit
+  | "zisk_mpt_node_slot_encode" => some ziskMptNodeSlotEncodeProbeUnit
+  | "zisk_mpt_extension_node_encode" => some ziskMptExtensionNodeEncodeProbeUnit
+  | "zisk_mpt_branch_node_encode" => some ziskMptBranchNodeEncodeProbeUnit
+  | "zisk_nibbles_common_prefix_len" => some ziskNibblesCommonPrefixLenProbeUnit
+  | "zisk_mpt_branch_payload_two_slots" => some ziskMptBranchPayloadTwoSlotsProbeUnit
+  | "zisk_mpt_leaf_node_encode_from_nibbles" => some ziskMptLeafNodeEncodeFromNibblesProbeUnit
+  | "zisk_mpt_branch_node_keccak" => some ziskMptBranchNodeKeccakProbeUnit
+  | "zisk_mpt_two_leaf_root_indexed" => some ziskMptTwoLeafRootIndexedProbeUnit
+  | "zisk_mpt_one_leaf_root_indexed" => some ziskMptOneLeafRootIndexedProbeUnit
+  | "zisk_block_validate_transactions_root_one_tx" => some ziskBlockValidateTransactionsRootOneTxProbeUnit
+  | "zisk_block_validate_withdrawals_root_one_w" => some ziskBlockValidateWithdrawalsRootOneWProbeUnit
+  | "zisk_block_validate_withdrawals_root_two_w" => some ziskBlockValidateWithdrawalsRootTwoWProbeUnit
+  | "zisk_block_validate_receipts_root_one_receipt" => some ziskBlockValidateReceiptsRootOneReceiptProbeUnit
+  | "zisk_block_validate_receipts_root_two_receipts" => some ziskBlockValidateReceiptsRootTwoReceiptsProbeUnit
+  | "zisk_block_validate_transactions_root_two_tx" => some ziskBlockValidateTransactionsRootTwoTxProbeUnit
+  | "zisk_block_hash_from_header" => some ziskBlockHashFromHeaderProbeUnit
+  | "zisk_validate_parent_hash_link" => some ziskValidateParentHashLinkProbeUnit
+  | "zisk_validate_header_pair" => some ziskValidateHeaderPairProbeUnit
+  | "zisk_validate_header_chain" => some ziskValidateHeaderChainProbeUnit
+  | "zisk_block_hash_array_from_chain" => some ziskBlockHashArrayFromChainProbeUnit
+  | "zisk_validate_block_hash_chain_match" => some ziskValidateBlockHashChainMatchProbeUnit
+  | "zisk_chain_compute_total_gas_used" => some ziskChainComputeTotalGasUsedProbeUnit
+  | "zisk_chain_extract_number_range" => some ziskChainExtractNumberRangeProbeUnit
+  | "zisk_header_extract_basefee" => some ziskHeaderExtractBasefeeProbeUnit
+  | "zisk_chain_extract_basefee_range" => some ziskChainExtractBasefeeRangeProbeUnit
+  | "zisk_chain_block_hashes_commitment" => some ziskChainBlockHashesCommitmentProbeUnit
+  | "zisk_header_extract_state_root" => some ziskHeaderExtractStateRootProbeUnit
+  | "zisk_header_extract_parent_hash" => some ziskHeaderExtractParentHashProbeUnit
+  | "zisk_header_extract_receipts_root" => some ziskHeaderExtractReceiptsRootProbeUnit
+  | "zisk_header_extract_transactions_root" => some ziskHeaderExtractTransactionsRootProbeUnit
+  | "zisk_header_extract_withdrawals_root" => some ziskHeaderExtractWithdrawalsRootProbeUnit
+  | "zisk_header_extract_ommers_hash" => some ziskHeaderExtractOmmersHashProbeUnit
+  | "zisk_header_extract_prev_randao" => some ziskHeaderExtractPrevRandaoProbeUnit
+  | "zisk_header_extract_beneficiary" => some ziskHeaderExtractBeneficiaryProbeUnit
+  | "zisk_block_hash_matches" => some ziskBlockHashMatchesProbeUnit
+  | "zisk_header_extract_gas_used" => some ziskHeaderExtractGasUsedProbeUnit
+  | "zisk_header_extract_gas_limit" => some ziskHeaderExtractGasLimitProbeUnit
+  | "zisk_block_validate_block_hash_pair" => some ziskBlockValidateBlockHashPairProbeUnit
+  | "zisk_block_hash_and_extract_number" => some ziskBlockHashAndExtractNumberProbeUnit
+  | "zisk_header_compute_summary_struct" => some ziskHeaderComputeSummaryStructProbeUnit
+  | "zisk_header_extract_difficulty" => some ziskHeaderExtractDifficultyProbeUnit
+  | "zisk_header_extract_extra_data" => some ziskHeaderExtractExtraDataProbeUnit
+  | "zisk_header_extract_nonce" => some ziskHeaderExtractNonceProbeUnit
+  | "zisk_header_validate_nonce_zero" => some ziskHeaderValidateNonceZeroProbeUnit
+  | "zisk_header_validate_difficulty_zero" => some ziskHeaderValidateDifficultyZeroProbeUnit
+  | "zisk_validate_header_post_merge_zeros" => some ziskValidateHeaderPostMergeZerosProbeUnit
+  | "zisk_chain_validate_post_merge_zeros" => some ziskChainValidatePostMergeZerosProbeUnit
+  | "zisk_chain_validate_full" => some ziskChainValidateFullProbeUnit
+  | "zisk_chain_validate_increasing_timestamps" => some ziskChainValidateIncreasingTimestampsProbeUnit
+  | "zisk_chain_validate_consecutive_numbers" => some ziskChainValidateConsecutiveNumbersProbeUnit
+  | "zisk_chain_compute_total_blob_gas" => some ziskChainComputeTotalBlobGasProbeUnit
+  | "zisk_header_extract_timestamp" => some ziskHeaderExtractTimestampProbeUnit
+  | "zisk_header_extract_number" => some ziskHeaderExtractNumberProbeUnit
+  | "zisk_account_validate_code_hash_empty" => some ziskAccountValidateCodeHashEmptyProbeUnit
+  | "zisk_account_validate_storage_root_empty" => some ziskAccountValidateStorageRootEmptyProbeUnit
+  | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
+  | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
+  | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
+  | "zisk_block_validate_empty_ommers_hash" => some ziskBlockValidateEmptyOmmersHashProbeUnit
+  | "zisk_block_validate_no_withdrawals_pair" => some ziskBlockValidateNoWithdrawalsPairProbeUnit
+  | "zisk_block_body_extract_1tx" => some ziskBlockBodyExtract1txProbeUnit
+  | "zisk_block_validate_1tx_full" => some ziskBlockValidate1txFullProbeUnit
+  | "zisk_block_validate_1tx_full_with_body" => some ziskBlockValidate1txFullWithBodyProbeUnit
+  | "zisk_block_validate_empty_receipts_root" => some ziskBlockValidateEmptyReceiptsRootProbeUnit
+  | "zisk_block_validate_empty_block" => some ziskBlockValidateEmptyBlockProbeUnit
+  | "zisk_validate_empty_block_with_parent" => some ziskValidateEmptyBlockWithParentProbeUnit
+  | "zisk_validate_empty_block_chain" => some ziskValidateEmptyBlockChainProbeUnit
+  | "zisk_block_body_extract_tx_count" => some ziskBlockBodyExtractTxCountProbeUnit
+  | "zisk_block_body_extract_withdrawal_count" => some ziskBlockBodyExtractWithdrawalCountProbeUnit
+  | "zisk_block_body_summary" => some ziskBlockBodySummaryProbeUnit
+  | "zisk_block_body_validate_empty" => some ziskBlockBodyValidateEmptyProbeUnit
+  | "zisk_chain_body_total_tx_count" => some ziskChainBodyTotalTxCountProbeUnit
+  | "zisk_chain_body_total_withdrawal_count" => some ziskChainBodyTotalWithdrawalCountProbeUnit
+  | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
+  | "zisk_block_validate_logs_bloom" => some ziskBlockValidateLogsBloomProbeUnit
+  | "zisk_header_root_is_empty_trie" => some ziskHeaderRootIsEmptyTrieProbeUnit
+  | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
+  | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
+  | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
+  | "zisk_mpt_nibbles_to_compact" => some ziskMptNibblesToCompactProbeUnit
+  | "zisk_mpt_compact_to_nibbles" => some ziskMptCompactToNibblesProbeUnit
+  | "zisk_mpt_node_classify"      => some ziskMptNodeClassifyProbeUnit
+  | "zisk_mpt_encode_internal_node" => some ziskMptEncodeInternalNodeProbeUnit
+  | "zisk_mpt_branch_get_child" => some ziskMptBranchGetChildProbeUnit
+  | "zisk_mpt_branch_get_value" => some ziskMptBranchGetValueProbeUnit
+  | "zisk_mpt_leaf_extract"     => some ziskMptLeafExtractProbeUnit
+  | "zisk_mpt_extension_extract" => some ziskMptExtensionExtractProbeUnit
+  | "zisk_mpt_branch_used_count" => some ziskMptBranchUsedCountProbeUnit
+  | "zisk_mpt_branch_first_used_index" => some ziskMptBranchFirstUsedIndexProbeUnit
+  | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
+  | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
+  | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
+  | "zisk_ssz_merkleize_pow2"   => some ziskSszMerkleizePow2ProbeUnit
+  | "zisk_ssz_merkleize"        => some ziskSszMerkleizeProbeUnit
+  | "zisk_ssz_pack_bytes"       => some ziskSszPackBytesProbeUnit
+  | "zisk_ssz_hash_tree_root_bytes" => some ziskSszHashTreeRootBytesProbeUnit
+  | "zisk_ssz_hash_tree_root_list_bytelist" => some ziskSszHashTreeRootListByteListProbeUnit
+  | "zisk_ssz_hash_tree_root_execution_witness" => some ziskSszHashTreeRootExecutionWitnessProbeUnit
+  | _                           => none
+
 /-- Look up a program by name. Returns `none` for unknown names so the CLI
     can produce a clean error. -/
 def lookupProgram : String → Option BuildUnit
@@ -4473,101 +4279,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bloom_or_into" => some ziskBloomOrIntoProbeUnit
   | "zisk_receipt_extract_logs_bloom" => some ziskReceiptExtractLogsBloomProbeUnit
   | "zisk_header_extract_logs_bloom" => some ziskHeaderExtractLogsBloomProbeUnit
-  | "zisk_bloom_eq" => some ziskBloomEqProbeUnit
-  | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
-  | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
-  | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
-  | "zisk_mpt_leaf_node_encode" => some ziskMptLeafNodeEncodeProbeUnit
-  | "zisk_mpt_node_slot_encode" => some ziskMptNodeSlotEncodeProbeUnit
-  | "zisk_mpt_extension_node_encode" => some ziskMptExtensionNodeEncodeProbeUnit
-  | "zisk_mpt_branch_node_encode" => some ziskMptBranchNodeEncodeProbeUnit
-  | "zisk_nibbles_common_prefix_len" => some ziskNibblesCommonPrefixLenProbeUnit
-  | "zisk_mpt_branch_payload_two_slots" => some ziskMptBranchPayloadTwoSlotsProbeUnit
-  | "zisk_mpt_leaf_node_encode_from_nibbles" => some ziskMptLeafNodeEncodeFromNibblesProbeUnit
-  | "zisk_mpt_branch_node_keccak" => some ziskMptBranchNodeKeccakProbeUnit
-  | "zisk_mpt_two_leaf_root_indexed" => some ziskMptTwoLeafRootIndexedProbeUnit
-  | "zisk_mpt_one_leaf_root_indexed" => some ziskMptOneLeafRootIndexedProbeUnit
-  | "zisk_block_validate_transactions_root_one_tx" => some ziskBlockValidateTransactionsRootOneTxProbeUnit
-  | "zisk_block_validate_withdrawals_root_one_w" => some ziskBlockValidateWithdrawalsRootOneWProbeUnit
-  | "zisk_block_validate_withdrawals_root_two_w" => some ziskBlockValidateWithdrawalsRootTwoWProbeUnit
-  | "zisk_block_validate_receipts_root_one_receipt" => some ziskBlockValidateReceiptsRootOneReceiptProbeUnit
-  | "zisk_block_validate_receipts_root_two_receipts" => some ziskBlockValidateReceiptsRootTwoReceiptsProbeUnit
-  | "zisk_block_validate_transactions_root_two_tx" => some ziskBlockValidateTransactionsRootTwoTxProbeUnit
-  | "zisk_block_hash_from_header" => some ziskBlockHashFromHeaderProbeUnit
-  | "zisk_validate_parent_hash_link" => some ziskValidateParentHashLinkProbeUnit
-  | "zisk_validate_header_pair" => some ziskValidateHeaderPairProbeUnit
-  | "zisk_validate_header_chain" => some ziskValidateHeaderChainProbeUnit
-  | "zisk_block_hash_array_from_chain" => some ziskBlockHashArrayFromChainProbeUnit
-  | "zisk_validate_block_hash_chain_match" => some ziskValidateBlockHashChainMatchProbeUnit
-  | "zisk_chain_compute_total_gas_used" => some ziskChainComputeTotalGasUsedProbeUnit
-  | "zisk_chain_extract_number_range" => some ziskChainExtractNumberRangeProbeUnit
-  | "zisk_header_extract_basefee" => some ziskHeaderExtractBasefeeProbeUnit
-  | "zisk_chain_extract_basefee_range" => some ziskChainExtractBasefeeRangeProbeUnit
-  | "zisk_chain_block_hashes_commitment" => some ziskChainBlockHashesCommitmentProbeUnit
-  | "zisk_header_extract_state_root" => some ziskHeaderExtractStateRootProbeUnit
-  | "zisk_header_extract_parent_hash" => some ziskHeaderExtractParentHashProbeUnit
-  | "zisk_header_extract_receipts_root" => some ziskHeaderExtractReceiptsRootProbeUnit
-  | "zisk_header_extract_transactions_root" => some ziskHeaderExtractTransactionsRootProbeUnit
-  | "zisk_header_extract_withdrawals_root" => some ziskHeaderExtractWithdrawalsRootProbeUnit
-  | "zisk_header_extract_ommers_hash" => some ziskHeaderExtractOmmersHashProbeUnit
-  | "zisk_header_extract_prev_randao" => some ziskHeaderExtractPrevRandaoProbeUnit
-  | "zisk_header_extract_beneficiary" => some ziskHeaderExtractBeneficiaryProbeUnit
-  | "zisk_block_hash_matches" => some ziskBlockHashMatchesProbeUnit
-  | "zisk_header_extract_gas_used" => some ziskHeaderExtractGasUsedProbeUnit
-  | "zisk_header_extract_gas_limit" => some ziskHeaderExtractGasLimitProbeUnit
-  | "zisk_block_validate_block_hash_pair" => some ziskBlockValidateBlockHashPairProbeUnit
-  | "zisk_block_hash_and_extract_number" => some ziskBlockHashAndExtractNumberProbeUnit
-  | "zisk_header_compute_summary_struct" => some ziskHeaderComputeSummaryStructProbeUnit
-  | "zisk_header_extract_difficulty" => some ziskHeaderExtractDifficultyProbeUnit
-  | "zisk_header_extract_extra_data" => some ziskHeaderExtractExtraDataProbeUnit
-  | "zisk_header_extract_nonce" => some ziskHeaderExtractNonceProbeUnit
-  | "zisk_header_validate_nonce_zero" => some ziskHeaderValidateNonceZeroProbeUnit
-  | "zisk_header_validate_difficulty_zero" => some ziskHeaderValidateDifficultyZeroProbeUnit
-  | "zisk_validate_header_post_merge_zeros" => some ziskValidateHeaderPostMergeZerosProbeUnit
-  | "zisk_chain_validate_post_merge_zeros" => some ziskChainValidatePostMergeZerosProbeUnit
-  | "zisk_chain_validate_full" => some ziskChainValidateFullProbeUnit
-  | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
-  | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
-  | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
-  | "zisk_block_validate_empty_ommers_hash" => some ziskBlockValidateEmptyOmmersHashProbeUnit
-  | "zisk_block_validate_no_withdrawals_pair" => some ziskBlockValidateNoWithdrawalsPairProbeUnit
-  | "zisk_block_body_extract_1tx" => some ziskBlockBodyExtract1txProbeUnit
-  | "zisk_block_validate_1tx_full" => some ziskBlockValidate1txFullProbeUnit
-  | "zisk_block_validate_1tx_full_with_body" => some ziskBlockValidate1txFullWithBodyProbeUnit
-  | "zisk_block_validate_empty_receipts_root" => some ziskBlockValidateEmptyReceiptsRootProbeUnit
-  | "zisk_block_validate_empty_block" => some ziskBlockValidateEmptyBlockProbeUnit
-  | "zisk_validate_empty_block_with_parent" => some ziskValidateEmptyBlockWithParentProbeUnit
-  | "zisk_validate_empty_block_chain" => some ziskValidateEmptyBlockChainProbeUnit
-  | "zisk_block_body_extract_tx_count" => some ziskBlockBodyExtractTxCountProbeUnit
-  | "zisk_block_body_extract_withdrawal_count" => some ziskBlockBodyExtractWithdrawalCountProbeUnit
-  | "zisk_block_body_summary" => some ziskBlockBodySummaryProbeUnit
-  | "zisk_block_body_validate_empty" => some ziskBlockBodyValidateEmptyProbeUnit
-  | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
-  | "zisk_block_validate_logs_bloom" => some ziskBlockValidateLogsBloomProbeUnit
-  | "zisk_header_root_is_empty_trie" => some ziskHeaderRootIsEmptyTrieProbeUnit
-  | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
-  | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
-  | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
-  | "zisk_mpt_nibbles_to_compact" => some ziskMptNibblesToCompactProbeUnit
-  | "zisk_mpt_compact_to_nibbles" => some ziskMptCompactToNibblesProbeUnit
-  | "zisk_mpt_node_classify"      => some ziskMptNodeClassifyProbeUnit
-  | "zisk_mpt_encode_internal_node" => some ziskMptEncodeInternalNodeProbeUnit
-  | "zisk_mpt_branch_get_child" => some ziskMptBranchGetChildProbeUnit
-  | "zisk_mpt_branch_get_value" => some ziskMptBranchGetValueProbeUnit
-  | "zisk_mpt_leaf_extract"     => some ziskMptLeafExtractProbeUnit
-  | "zisk_mpt_extension_extract" => some ziskMptExtensionExtractProbeUnit
-  | "zisk_mpt_branch_used_count" => some ziskMptBranchUsedCountProbeUnit
-  | "zisk_mpt_branch_first_used_index" => some ziskMptBranchFirstUsedIndexProbeUnit
-  | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
-  | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
-  | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
-  | "zisk_ssz_merkleize_pow2"   => some ziskSszMerkleizePow2ProbeUnit
-  | "zisk_ssz_merkleize"        => some ziskSszMerkleizeProbeUnit
-  | "zisk_ssz_pack_bytes"       => some ziskSszPackBytesProbeUnit
-  | "zisk_ssz_hash_tree_root_bytes" => some ziskSszHashTreeRootBytesProbeUnit
-  | "zisk_ssz_hash_tree_root_list_bytelist" => some ziskSszHashTreeRootListByteListProbeUnit
-  | "zisk_ssz_hash_tree_root_execution_witness" => some ziskSszHashTreeRootExecutionWitnessProbeUnit
-  | _                           => none
+  | s                           => lookupProgramTail s
 
 /-- List of known program names, for use in CLI usage strings. -/
 def knownProgramNames : List String :=
@@ -4766,6 +4478,13 @@ def knownProgramNames : List String :=
    "zisk_validate_header_post_merge_zeros",
    "zisk_chain_validate_post_merge_zeros",
    "zisk_chain_validate_full",
+   "zisk_chain_validate_increasing_timestamps",
+   "zisk_chain_validate_consecutive_numbers",
+   "zisk_chain_compute_total_blob_gas",
+   "zisk_header_extract_timestamp",
+   "zisk_header_extract_number",
+   "zisk_account_validate_code_hash_empty",
+   "zisk_account_validate_storage_root_empty",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
@@ -4782,6 +4501,8 @@ def knownProgramNames : List String :=
    "zisk_block_body_extract_withdrawal_count",
    "zisk_block_body_summary",
    "zisk_block_body_validate_empty",
+   "zisk_chain_body_total_tx_count",
+   "zisk_chain_body_total_withdrawal_count",
    "zisk_block_logs_bloom_from_receipts_list",
    "zisk_block_validate_logs_bloom",
    "zisk_header_root_is_empty_trie",
@@ -4837,17 +4558,21 @@ end EvmAsm.Codegen
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 5125
+  let hardCap := 4804
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
+    "EvmAsm/Codegen/Programs/Account.lean",
     "EvmAsm/Codegen/Programs/Address.lean",
     "EvmAsm/Codegen/Programs/Block.lean",
+    "EvmAsm/Codegen/Programs/BlockRoots.lean",
     "EvmAsm/Codegen/Programs/Bloom.lean",
     "EvmAsm/Codegen/Programs/Evm.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderFields.lean",
+    "EvmAsm/Codegen/Programs/HeaderU64.lean",
     "EvmAsm/Codegen/Programs/Mpt.lean",
+    "EvmAsm/Codegen/Programs/Receipt.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
     "EvmAsm/Codegen/Programs/Ssz.lean",
     "EvmAsm/Codegen/Programs/Tx.lean",
