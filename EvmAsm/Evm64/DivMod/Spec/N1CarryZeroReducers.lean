@@ -1,5 +1,8 @@
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
 import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
+import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+import EvmAsm.Evm64.EvmWordArith.Div128KB6Composition
+import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
 
 namespace EvmAsm.Evm64
 
@@ -89,5 +92,382 @@ theorem fullDivN1R3CarryZero_true_of_qHat_v0_mul_le
   rw [hv1z, hv2z, hv3z]
   simp [EvmWord.val256]
   omega
+
+/-- When the n=1 CLZ shift is nonzero, the anti-shift spill from the low
+    divisor limb into normalized limb 1 is zero. -/
+theorem fullDivN1AntiShift_spill_zero_of_shift_nz
+    (b0 : Word)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    b0 >>> ((fullDivN1AntiShift b0).toNat % 64) = 0 := by
+  have h_shift_pos : 1 ≤ (clzResult b0).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b0).1.toNat with h | h
+    · exfalso
+      apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have hshift_le : (clzResult b0).1.toNat ≤ 63 := clzResult_fst_toNat_le b0
+  have hanti :
+      (fullDivN1AntiShift b0).toNat % 64 = 64 - (clzResult b0).1.toNat := by
+    unfold fullDivN1AntiShift fullDivN1Shift
+    exact antiShift_toNat_mod_eq h_shift_pos hshift_le
+  rw [hanti]
+  exact (ushiftRight_eq_zero_iff (64 - (clzResult b0).1.toNat)).mpr
+    (clzResult_fst_top_bound b0)
+
+/-- Under the runtime n=1 divisor shape and a nonzero normalization shift,
+    normalized divisor limb 1 is zero. -/
+theorem fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz
+    (b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1NormV b0 b1 b2 b3).2.1 = 0 := by
+  rw [fullDivN1NormV_limb1_eq_of_shape b0 b1 b2 b3 hb1z]
+  exact fullDivN1AntiShift_spill_zero_of_shift_nz b0 hshift_nz
+
+/-- Runtime n=1 divisor-shape form of the first-step carry-zero reducer. This
+    leaves only the standard 128/64 product bound for the selected trial
+    quotient. -/
+theorem fullDivN1R3CarryZero_true_of_shape_qHat_v0_mul_le
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (h_qHat_mul_le :
+      (div128Quot
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+          (fullDivN1NormV b0 b1 b2 b3).1).toNat *
+        (fullDivN1NormV b0 b1 b2 b3).1.toNat ≤
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2^64 +
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat) :
+    fullDivN1R3CarryZero true a0 a1 a2 a3 b0 b1 b2 b3 := by
+  exact fullDivN1R3CarryZero_true_of_qHat_v0_mul_le
+    a0 a1 a2 a3 b0 b1 b2 b3
+    (fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz)
+    (fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z)
+    (fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z)
+    h_qHat_mul_le
+
+/-- Exact-floor form of the first-step n=1 carry-zero reducer. Once the
+    selected `div128Quot` is identified with the usual 128/64 Nat quotient,
+    the product bound follows from `Nat.div_mul_le_self`. -/
+theorem fullDivN1R3CarryZero_true_of_shape_div128Quot_floor
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (h_qHat_eq :
+      (div128Quot
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+          (fullDivN1NormV b0 b1 b2 b3).1).toNat =
+        ((fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2^64 +
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat) /
+          (fullDivN1NormV b0 b1 b2 b3).1.toNat) :
+    fullDivN1R3CarryZero true a0 a1 a2 a3 b0 b1 b2 b3 := by
+  apply fullDivN1R3CarryZero_true_of_shape_qHat_v0_mul_le
+    a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz
+  rw [h_qHat_eq]
+  exact Nat.div_mul_le_self
+    ((fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2^64 +
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat)
+    (fullDivN1NormV b0 b1 b2 b3).1.toNat
+
+/-- The first n=1 128/64 trial call is in the strict call regime. A positive
+    normalization shift makes the overflow limb of the normalized dividend
+    below `2^63`, while the normalized divisor limb is at least `2^63`. -/
+theorem fullDivN1NormU_top_lt_normV_limb0_of_b0_ne_zero_shift_nz
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb0nz : b0 ≠ 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat := by
+  have h_shift_pos : 1 ≤ (clzResult b0).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b0).1.toNat with h | h
+    · exfalso
+      apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h])
+    · exact h
+  have h_u4_lt_pow63 :
+      (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b0).1).toNat % 64)).toNat <
+        2^63 :=
+    u_top_lt_pow63_of_shift_nz a3 (clzResult b0).1 h_shift_pos
+      (clzResult_fst_toNat_le b0)
+  have h_b0_ge_pow63 :
+      (b0 <<< ((clzResult b0).1.toNat % 64)).toNat ≥ 2^63 :=
+    b3_shifted_ge_pow63 hb0nz
+  have h_lt := Nat.lt_of_lt_of_le h_u4_lt_pow63 h_b0_ge_pow63
+  simpa [fullDivN1NormU, fullDivN1NormV, fullDivN1Shift, fullDivN1AntiShift]
+    using h_lt
+
+/-- Runtime n=1 divisor-shape wrapper for the strict first-call regime. -/
+theorem fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat := by
+  exact fullDivN1NormU_top_lt_normV_limb0_of_b0_ne_zero_shift_nz
+    a0 a1 a2 a3 b0 b1 b2 b3
+    (fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
+    hshift_nz
+
+/-- The high half of the normalized n=1 divisor limb satisfies the
+    normalization lower bound expected by the 128/64 quotient machinery. -/
+theorem fullDivN1NormV_limb0_dHi_ge_pow31_of_b0_ne_zero
+    (b0 b1 b2 b3 : Word)
+    (hb0nz : b0 ≠ 0) :
+    ((fullDivN1NormV b0 b1 b2 b3).1 >>> (32 : BitVec 6).toNat).toNat ≥
+      2^31 := by
+  apply div128Quot_dHi_ge_pow31
+  simpa [fullDivN1NormV, fullDivN1Shift, fullDivN1AntiShift] using
+    (b3_shifted_ge_pow63 hb0nz)
+
+/-- Runtime n=1 divisor-shape wrapper for the normalized divisor high-half
+    lower bound. -/
+theorem fullDivN1NormV_limb0_dHi_ge_pow31_of_shape
+    (b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    ((fullDivN1NormV b0 b1 b2 b3).1 >>> (32 : BitVec 6).toNat).toNat ≥
+      2^31 := by
+  exact fullDivN1NormV_limb0_dHi_ge_pow31_of_b0_ne_zero b0 b1 b2 b3
+    (fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
+
+/-- The high half of any normalized n=1 divisor limb is a 32-bit quantity. -/
+theorem fullDivN1NormV_limb0_dHi_lt_pow32 (b0 b1 b2 b3 : Word) :
+    ((fullDivN1NormV b0 b1 b2 b3).1 >>> (32 : BitVec 6).toNat).toNat <
+      2^32 := by
+  rw [BitVec.toNat_ushiftRight, show (32 : BitVec 6).toNat = 32 by decide,
+    Nat.shiftRight_eq_div_pow]
+  exact Nat.div_lt_of_lt_mul (fullDivN1NormV b0 b1 b2 b3).1.isLt
+
+/-- The low half of any normalized n=1 divisor limb is a 32-bit quantity. -/
+theorem fullDivN1NormV_limb0_dLo_lt_pow32 (b0 b1 b2 b3 : Word) :
+    (((fullDivN1NormV b0 b1 b2 b3).1 <<< (32 : BitVec 6).toNat) >>>
+        (32 : BitVec 6).toNat).toNat < 2^32 := by
+  rw [BitVec.toNat_ushiftRight, show (32 : BitVec 6).toNat = 32 by decide,
+    Nat.shiftRight_eq_div_pow]
+  exact Nat.div_lt_of_lt_mul
+    ((fullDivN1NormV b0 b1 b2 b3).1 <<< (32 : BitVec 6).toNat).isLt
+
+/-- High/low 32-bit reconstruction for the normalized n=1 divisor limb. -/
+theorem fullDivN1NormV_limb0_decomp (b0 b1 b2 b3 : Word) :
+    (fullDivN1NormV b0 b1 b2 b3).1.toNat =
+      ((fullDivN1NormV b0 b1 b2 b3).1 >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      (((fullDivN1NormV b0 b1 b2 b3).1 <<< (32 : BitVec 6).toNat) >>>
+        (32 : BitVec 6).toNat).toNat := by
+  exact div128Quot_vTop_decomp (fullDivN1NormV b0 b1 b2 b3).1
+
+/-- Runtime n=1 shape wrapper for the `uHi < dHi*2^32+dLo` precondition used
+    by `div128Quot_toNat_eq_strict` on the first R3 trial call. -/
+theorem fullDivN1NormU_top_lt_normV_limb0_halves_of_shape_shift_nz
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat <
+      ((fullDivN1NormV b0 b1 b2 b3).1 >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      (((fullDivN1NormV b0 b1 b2 b3).1 <<< (32 : BitVec 6).toNat) >>>
+        (32 : BitVec 6).toNat).toNat := by
+  have hlt := fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz
+    a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz
+  rwa [fullDivN1NormV_limb0_decomp b0 b1 b2 b3] at hlt
+
+/-- Instantiation of `div128Quot_toNat_eq_strict` for the first n=1 R3 trial
+    quotient. The remaining side condition is the usual final low-half quotient
+    bound `q0' < 2^32`. -/
+theorem fullDivN1R3_div128Quot_toNat_eq_strict_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    let uHi := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    let uLo := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    let vTop := (fullDivN1NormV b0 b1 b2 b3).1
+    let dHi := vTop >>> (32 : BitVec 6).toNat
+    let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
+    q0'.toNat < 2^32 →
+    (div128Quot uHi uLo vTop).toNat = q1'.toNat * 2^32 + q0'.toNat := by
+  intro uHi uLo vTop dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo
+    rhatUn1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0'
+    hq0
+  exact div128Quot_toNat_eq_strict uHi uLo vTop
+    (by
+      simpa [vTop] using
+        fullDivN1NormV_limb0_dHi_ge_pow31_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
+    (by simpa [vTop] using fullDivN1NormV_limb0_dHi_lt_pow32 b0 b1 b2 b3)
+    (by simpa [vTop] using fullDivN1NormV_limb0_dLo_lt_pow32 b0 b1 b2 b3)
+    (by
+      simpa [uHi, vTop] using
+        fullDivN1NormU_top_lt_normV_limb0_halves_of_shape_shift_nz
+          a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)
+    hq0
+
+/-- Instantiation of the generic second-half quotient bound for the first n=1
+    R3 trial call. This exposes the final semantic `un21 < vTop` precondition
+    in the same local names used by
+    `fullDivN1R3_div128Quot_toNat_eq_strict_of_shape`. -/
+theorem fullDivN1R3_q0_prime_lt_pow32_of_shape_un21_lt
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    let uHi := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    let uLo := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    let vTop := (fullDivN1NormV b0 b1 b2 b3).1
+    let dHi := vTop >>> (32 : BitVec 6).toNat
+    let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    un21.toNat < dHi.toNat * 2^32 + dLo.toNat →
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
+    q0'.toNat < 2^32 := by
+  intro uHi uLo vTop dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo
+    rhatUn1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 hun21_lt q0 rhat2 hi2 q0c
+    rhat2c q0'
+  exact div128Quot_q0_prime_lt_pow32 un21 dHi dLo uLo
+    (by
+      simpa [vTop, dHi] using
+        fullDivN1NormV_limb0_dHi_ge_pow31_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
+    (by simpa [vTop, dHi] using fullDivN1NormV_limb0_dHi_lt_pow32 b0 b1 b2 b3)
+    (by simpa [vTop, dLo] using fullDivN1NormV_limb0_dLo_lt_pow32 b0 b1 b2 b3)
+    hun21_lt
+
+/-- Strict first n=1 R3 trial quotient expansion under the generic
+    `Div128PhaseNoWrapInv` for the selected 128/64 call. This packages the
+    local `un21 < vTop` extraction and the `q0' < 2^32` reducer into the
+    strict `div128Quot` equality used by the product-bound path. -/
+theorem fullDivN1R3_div128Quot_toNat_eq_strict_of_shape_phase_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    let uHi := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    let uLo := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    let vTop := (fullDivN1NormV b0 b1 b2 b3).1
+    Div128PhaseNoWrapInv uHi uLo vTop →
+    let dHi := vTop >>> (32 : BitVec 6).toNat
+    let dLo := (vTop <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let div_un1 := uLo >>> (32 : BitVec 6).toNat
+    let div_un0 := (uLo <<< (32 : BitVec 6).toNat) >>> (32 : BitVec 6).toNat
+    let q1 := rv64_divu uHi dHi
+    let rhat := uHi - q1 * dHi
+    let hi1 := q1 >>> (32 : BitVec 6).toNat
+    let q1c := if hi1 = 0 then q1 else q1 + signExtend12 4095
+    let rhatc := if hi1 = 0 then rhat else rhat + dHi
+    let qDlo := q1c * dLo
+    let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| div_un1
+    let q1' := if BitVec.ult rhatUn1 qDlo then q1c + signExtend12 4095 else q1c
+    let rhat' := if BitVec.ult rhatUn1 qDlo then rhatc + dHi else rhatc
+    let cu_rhat_un1 := (rhat' <<< (32 : BitVec 6).toNat) ||| div_un1
+    let cu_q1_dlo := q1' * dLo
+    let un21 := cu_rhat_un1 - cu_q1_dlo
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi2 := q0 >>> (32 : BitVec 6).toNat
+    let q0c := if hi2 = 0 then q0 else q0 + signExtend12 4095
+    let rhat2c := if hi2 = 0 then rhat2 else rhat2 + dHi
+    let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo div_un0
+    (div128Quot uHi uLo vTop).toNat = q1'.toNat * 2^32 + q0'.toNat := by
+  intro uHi uLo vTop h_inv dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo
+    rhatUn1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0'
+  have h_inv' := h_inv
+  simp only [Div128PhaseNoWrapInv] at h_inv'
+  have h_un21_lt :
+      un21.toNat < dHi.toNat * 2^32 + dLo.toNat :=
+    h_inv'.1
+  have hq0 : q0'.toNat < 2^32 :=
+    div128Quot_q0_prime_lt_pow32 un21 dHi dLo uLo
+      (by
+        simpa [vTop, dHi] using
+          fullDivN1NormV_limb0_dHi_ge_pow31_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
+      (by simpa [vTop, dHi] using fullDivN1NormV_limb0_dHi_lt_pow32 b0 b1 b2 b3)
+      (by simpa [vTop, dLo] using fullDivN1NormV_limb0_dLo_lt_pow32 b0 b1 b2 b3)
+      h_un21_lt
+  exact div128Quot_toNat_eq_strict uHi uLo vTop
+    (by
+      simpa [vTop] using
+        fullDivN1NormV_limb0_dHi_ge_pow31_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
+    (by simpa [vTop] using fullDivN1NormV_limb0_dHi_lt_pow32 b0 b1 b2 b3)
+    (by simpa [vTop] using fullDivN1NormV_limb0_dLo_lt_pow32 b0 b1 b2 b3)
+    (by
+      simpa [uHi, vTop] using
+        fullDivN1NormU_top_lt_normV_limb0_halves_of_shape_shift_nz
+          a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)
+    hq0
+
+/-- All-phases no-wrap form of the first-step n=1 carry-zero reducer. The
+    strict div128 KB-6 bound gives `qHat ≤ floor((uHi: uLo) / vTop)`, which is
+    enough to discharge the R3 product bound and hence the `mulsubN4` carry. -/
+theorem fullDivN1R3CarryZero_true_of_shape_all_phases_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    let uHi := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    let uLo := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    let vTop := (fullDivN1NormV b0 b1 b2 b3).1
+    Div128AllPhasesNoWrapInv uHi uLo vTop →
+    fullDivN1R3CarryZero true a0 a1 a2 a3 b0 b1 b2 b3 := by
+  intro uHi uLo vTop h_inv
+  apply fullDivN1R3CarryZero_true_of_shape_qHat_v0_mul_le
+    a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz
+  have hb0nz : b0 ≠ 0 :=
+    fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z
+  have hvTop_norm : vTop.toNat ≥ 2^63 := by
+    simpa [vTop, fullDivN1NormV, fullDivN1Shift, fullDivN1AntiShift] using
+      (b3_shifted_ge_pow63 hb0nz)
+  have h_uHi_lt :
+      uHi.toNat < vTop.toNat := by
+    simpa [uHi, vTop] using
+      fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz
+        a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz
+  have hcall : uHi.toNat * 2^64 + uLo.toNat < vTop.toNat * 2^64 := by
+    have huLo := uLo.isLt
+    omega
+  have hq_le :=
+    div128Quot_le_q_true uHi uLo vTop hvTop_norm hcall h_inv
+  have h_qHat_mul_le :
+      (div128Quot uHi uLo vTop).toNat * vTop.toNat ≤
+        uHi.toNat * 2^64 + uLo.toNat := by
+    exact le_trans (Nat.mul_le_mul_right vTop.toNat hq_le)
+      (Nat.div_mul_le_self (uHi.toNat * 2^64 + uLo.toNat) vTop.toNat)
+  simpa [uHi, uLo, vTop] using h_qHat_mul_le
 
 end EvmAsm.Evm64
