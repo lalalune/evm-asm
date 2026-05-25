@@ -845,11 +845,9 @@ theorem fullDivN1R3_div128Quot_toNat_eq_strict_of_shape_phase_no_wrap
     (div128Quot uHi uLo vTop).toNat = q1'.toNat * 2^32 + q0'.toNat := by
   intro uHi uLo vTop h_inv dHi dLo div_un1 div_un0 q1 rhat hi1 q1c rhatc qDlo
     rhatUn1 q1' rhat' cu_rhat_un1 cu_q1_dlo un21 q0 rhat2 hi2 q0c rhat2c q0'
-  have h_inv' := h_inv
-  simp only [Div128PhaseNoWrapInv] at h_inv'
   have h_un21_lt :
       un21.toNat < dHi.toNat * 2^32 + dLo.toNat :=
-    h_inv'.1
+    Div128PhaseNoWrapInv.un21Lt h_inv
   have hq0 : q0'.toNat < 2^32 :=
     div128Quot_q0_prime_lt_pow32 un21 dHi dLo uLo
       (by
