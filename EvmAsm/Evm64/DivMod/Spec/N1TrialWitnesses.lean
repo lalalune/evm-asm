@@ -10,6 +10,25 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- First-class proof bundle for the mechanical n=1 trial-branch witnesses at the
+    public dispatcher surface.
+
+    The n=1 unconditional wrapper still needs the non-mechanical carry and
+    quotient/remainder witnesses separately; this bundle packages only the
+    branch booleans and their defining proof obligations. -/
+inductive N1TrialWitnesses (a b : EvmWord) : Prop where
+  | mk (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+      (hbltu_3 : isTrialN1_j3 bltu_3 (a.getLimbN 3) (b.getLimbN 0))
+      (hbltu_2 : isTrialN1_j2 bltu_3 bltu_2
+        (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_1 : isTrialN1_j1 bltu_3 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_0 : isTrialN1_j0 bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+
 /-- The four n=1 trial-branch booleans always have canonical witnesses.
 
     This packages the mechanical branch-enumeration part needed by
@@ -168,5 +187,21 @@ theorem n1_trial_witnesses_call_first_of_getLimbN_shape_shift_nz
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     hbnz hb3z hb2z hb1z hshift_nz
+
+/-- Bundled public-surface n=1 branch witnesses from the dispatcher shape
+    hypotheses, with the forced first branch recorded as `true`. -/
+theorem n1TrialWitnesses_of_getLimbN_shape_shift_nz
+    (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+    (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0) :
+    N1TrialWitnesses a b := by
+  obtain ⟨bltu_2, bltu_1, bltu_0, hbltu_3, hbltu_2, hbltu_1, hbltu_0⟩ :=
+    n1_trial_witnesses_call_first_of_getLimbN_shape_shift_nz
+      a b hbnz hb3z hb2z hb1z hshift_nz
+  exact N1TrialWitnesses.mk true bltu_2 bltu_1 bltu_0
+    hbltu_3 hbltu_2 hbltu_1 hbltu_0
 
 end EvmAsm.Evm64
