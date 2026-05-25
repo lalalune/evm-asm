@@ -286,6 +286,19 @@ theorem fullDivN2QuotientWordV4_eq_div_of_word_path_conditions
     (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
     rfl rfl rfl rfl rfl rfl rfl rfl hbnz hpath
 
+/-- EvmWord-level v4 quotient bridge from the bundled N2 path predicate,
+    accepting the public `b ≠ 0` nonzero form. -/
+theorem fullDivN2QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
+    (bltu_2 bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hpath : fullDivN2PathConditionsWordV4 bltu_2 bltu_1 bltu_0 a b) :
+    fullDivN2QuotientWordV4 bltu_2 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b := by
+  exact fullDivN2QuotientWordV4_eq_div_of_word_path_conditions
+    bltu_2 bltu_1 bltu_0 a b ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hpath
+
 /-- If `fullDivN2QuotientWordV4 ... = EvmWord.div a b`, then each limb of
     `EvmWord.div a b` matches the corresponding v4 `fullDivN2R{0,1,2}` result
     and the top limb is zero. -/
