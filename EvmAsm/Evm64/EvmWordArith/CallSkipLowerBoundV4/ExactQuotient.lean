@@ -8,6 +8,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
 
 namespace EvmAsm.Evm64
@@ -179,5 +180,36 @@ theorem div128Quot_v4_call_skip_ge_val256_div_of_no_wrap_of_le
     hUn21_lt_vTop h_no_wrap h_le
   exact div128Quot_v4_call_skip_ge_val256_div_of_floor
     a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hshift_nz h_floor
+
+/-- V4 call-skip val256 lower bound from runtime call conditions, the
+    Phase-1 low-half no-wrap condition, and a supplied 128/64 upper bound.
+
+    This wrapper discharges `un21 < vTop` via the V4 call-path invariant. -/
+theorem div128Quot_v4_call_skip_ge_val256_div_of_runtime_no_wrap_of_le
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let u4 := a3 >>> antiShift
+    let u3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    (divKTrialCallV4Q1dd u4 u3 b3').toNat *
+        (divKTrialCallV4DLo b3').toNat ≤
+      ((divKTrialCallV4Rhatdd u4 u3 b3').toNat % 2^32) * 2^32 +
+        (divKTrialCallV4Un1 u3).toNat →
+    (div128Quot_v4 u4 u3 b3').toNat ≤
+      (u4.toNat * 2^64 + u3.toNat) / b3'.toNat →
+    val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
+      (div128Quot_v4 u4 u3 b3').toNat := by
+  intro shift antiShift b3' u4 u3 h_no_wrap h_le
+  have hUn21_lt_vTop :
+      (divKTrialCallV4Un21 u4 u3 b3').toNat < b3'.toNat := by
+    have h := un21V4_lt_vTop_of_call a2 a3 b2 b3 hb3nz hshift_nz hcall
+    simpa [algorithmUn21V4, shift, antiShift, b3', u4, u3] using h
+  exact div128Quot_v4_call_skip_ge_val256_div_of_no_wrap_of_le
+    a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hshift_nz hcall
+    hUn21_lt_vTop h_no_wrap h_le
 
 end EvmAsm.Evm64
