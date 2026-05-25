@@ -323,6 +323,33 @@ theorem fullDivN1NormU_val256_eq_scaled
   rw [hsmod, antiShift_toNat_mod_eq h_shift_pos (clzResult_fst_toNat_le b0)]
   exact EvmWord.val256_normalize_general h_shift_pos (by omega) a0 a1 a2 a3
 
+/-- Raw Euclidean equation target for the n=1 schoolbook loop.  This is the
+    unnormalized mulsub equation consumed by the legacy stack wrappers. -/
+abbrev fullDivN1MulSubEq (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  EvmWord.val256 a0 a1 a2 a3 =
+    (((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 192 +
+      ((fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 128 +
+      ((fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+        2 ^ 64 +
+      ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+      EvmWord.val256 b0 b1 b2 b3 +
+    EvmWord.val256
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+      (fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+
+/-- Raw quotient-overestimate target for the n=1 schoolbook loop. -/
+abbrev fullDivN1QuotientOverestimate (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+    ((fullDivN1R3 bltu_3 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 192 +
+      ((fullDivN1R2 bltu_3 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2 ^ 128 +
+      ((fullDivN1R1 bltu_3 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+        2 ^ 64 +
+      ((fullDivN1R0 bltu_3 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat
+
 /-- Normalized Euclidean equation target for the n=1 schoolbook loop. The final
     normalized remainder `fullDivN1R0` is paired with all four quotient limbs. -/
 abbrev fullDivN1NormalizedMulSubEq (bltu_3 bltu_2 bltu_1 bltu_0 : Bool)
@@ -883,6 +910,23 @@ theorem fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_overestimate
     congr
     · exact EvmWord.fromLimbs_match_getLimbN_id a
     · exact EvmWord.fromLimbs_match_getLimbN_id b)
+
+/-- Word-specialized n=1 quotient bridge using the compact raw path aliases. -/
+theorem fullDivN1QuotientWord_eq_div_of_getLimbN_path_conditions
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) {a b : EvmWord}
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hmulsub : fullDivN1MulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (hge : fullDivN1QuotientOverestimate bltu_3 bltu_2 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b :=
+  fullDivN1QuotientWord_eq_div_of_getLimbN_mulsub_overestimate
+    bltu_3 bltu_2 bltu_1 bltu_0 hbnz hmulsub hge
 
 /-- n=1 quotient bridge specialized to `getLimbN` call sites, using the final
     remainder bound instead of an explicit quotient-overestimate hypothesis. -/
