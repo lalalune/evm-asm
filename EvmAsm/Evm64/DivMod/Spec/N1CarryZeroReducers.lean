@@ -139,6 +139,50 @@ theorem iterN1_true_carry_zero_of_v0_all_phases_no_wrap
     omega
   · exact huTop
 
+/-- If a one-limb `mulsubN4` starts from a two-limb partial dividend and has
+    zero final carry, the top remainder limb is zero. -/
+theorem mulsubN4_top_limb_zero_of_one_limb_c3_zero
+    (q v0 u0 u1 : Word)
+    (hc3 : (mulsubN4 q v0 0 0 0 u0 u1 0 0).2.2.2.2 = 0) :
+    (mulsubN4 q v0 0 0 0 u0 u1 0 0).2.2.2.1 = 0 := by
+  exact val256_top_limb_zero_of_lt_pow192
+    (mulsubN4 q v0 0 0 0 u0 u1 0 0).1
+    (mulsubN4 q v0 0 0 0 u0 u1 0 0).2.1
+    (mulsubN4 q v0 0 0 0 u0 u1 0 0).2.2.1
+    (mulsubN4 q v0 0 0 0 u0 u1 0 0).2.2.2.1
+    (by
+      have hmul := mulsubN4_val256_eq q v0 0 0 0 u0 u1 0 0
+      dsimp only at hmul
+      rw [hc3, show (0 : Word).toNat = 0 from rfl, Nat.zero_mul, Nat.add_zero]
+        at hmul
+      have hms_le :
+          val256 (mulsubN4 q v0 0 0 0 u0 u1 0 0).1
+            (mulsubN4 q v0 0 0 0 u0 u1 0 0).2.1
+            (mulsubN4 q v0 0 0 0 u0 u1 0 0).2.2.1
+            (mulsubN4 q v0 0 0 0 u0 u1 0 0).2.2.2.1 ≤
+          val256 u0 u1 0 0 := by
+        nlinarith [hmul]
+      have hu0 := u0.isLt
+      have hu1 := u1.isLt
+      simp [EvmWord.val256] at hms_le ⊢
+      omega)
+
+/-- Call-path n=1 structural top-limb reducer for a one-limb divisor and zero
+    incoming top limb. -/
+theorem iterN1_true_top_limb_zero_of_mulsub_c3_zero
+    (v0 u0 u1 : Word)
+    (hc3 : mulsubN4_c3 (div128Quot u1 u0 v0) v0 0 0 0 u0 u1 0 0 = 0) :
+    (iterN1 true v0 0 0 0 u0 u1 0 0 0).2.2.2.2.1 = 0 := by
+  simp only [iterN1_true]
+  unfold iterN1Call
+  rw [iterWithDoubleAddback_no_borrow]
+  · unfold mulsubN4_c3 at hc3
+    exact mulsubN4_top_limb_zero_of_one_limb_c3_zero
+      (div128Quot u1 u0 v0) v0 u0 u1 hc3
+  · unfold mulsubN4_c3 at hc3
+    rw [hc3]
+    decide
+
 /-- When the n=1 CLZ shift is nonzero, the anti-shift spill from the low
     divisor limb into normalized limb 1 is zero. -/
 theorem fullDivN1AntiShift_spill_zero_of_shift_nz
@@ -295,6 +339,30 @@ theorem fullDivN1R3CarryZero_true_of_shape_qHat_v0_mul_le
     (fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z)
     (fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z)
     h_qHat_mul_le
+
+/-- Runtime n=1 divisor-shape form of the first-step top-limb-zero reducer. -/
+theorem fullDivN1R3_top_limb_zero_true_of_shape_qHat_v0_mul_le
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (h_qHat_mul_le :
+      (div128Quot
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+          (fullDivN1NormV b0 b1 b2 b3).1).toNat *
+        (fullDivN1NormV b0 b1 b2 b3).1.toNat ≤
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2^64 +
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat) :
+    (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 = 0 := by
+  unfold fullDivN1R3
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z]
+  apply iterN1_true_top_limb_zero_of_mulsub_c3_zero
+  apply c3_un_zero_of_qHat_mul_le
+  simp [EvmWord.val256]
+  omega
 
 /-- Exact-floor form of the first-step n=1 carry-zero reducer. Once the
     selected `div128Quot` is identified with the usual 128/64 Nat quotient,
@@ -596,6 +664,42 @@ theorem fullDivN1R3CarryZero_true_of_shape_all_phases_no_wrap
     fullDivN1R3CarryZero true a0 a1 a2 a3 b0 b1 b2 b3 := by
   intro uHi uLo vTop h_inv
   apply fullDivN1R3CarryZero_true_of_shape_qHat_v0_mul_le
+    a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz
+  have hb0nz : b0 ≠ 0 :=
+    fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z
+  have hvTop_norm : vTop.toNat ≥ 2^63 := by
+    simpa [vTop, fullDivN1NormV, fullDivN1Shift, fullDivN1AntiShift] using
+      (b3_shifted_ge_pow63 hb0nz)
+  have h_uHi_lt :
+      uHi.toNat < vTop.toNat := by
+    simpa [uHi, vTop] using
+      fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz
+        a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz
+  have hcall : uHi.toNat * 2^64 + uLo.toNat < vTop.toNat * 2^64 := by
+    have huLo := uLo.isLt
+    omega
+  have hq_le :=
+    div128Quot_le_q_true uHi uLo vTop hvTop_norm hcall h_inv
+  have h_qHat_mul_le :
+      (div128Quot uHi uLo vTop).toNat * vTop.toNat ≤
+        uHi.toNat * 2^64 + uLo.toNat := by
+    exact le_trans (Nat.mul_le_mul_right vTop.toNat hq_le)
+      (Nat.div_mul_le_self (uHi.toNat * 2^64 + uLo.toNat) vTop.toNat)
+  simpa [uHi, uLo, vTop] using h_qHat_mul_le
+
+/-- All-phases no-wrap form of the first-step n=1 top-limb-zero reducer. -/
+theorem fullDivN1R3_top_limb_zero_true_of_shape_all_phases_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    let uHi := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+    let uLo := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+    let vTop := (fullDivN1NormV b0 b1 b2 b3).1
+    Div128AllPhasesNoWrapInv uHi uLo vTop →
+    (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 = 0 := by
+  intro uHi uLo vTop h_inv
+  apply fullDivN1R3_top_limb_zero_true_of_shape_qHat_v0_mul_le
     a0 a1 a2 a3 b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz
   have hb0nz : b0 ≠ 0 :=
     fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z
