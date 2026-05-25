@@ -1832,4 +1832,104 @@ def ziskChainExtractBasefeeFirstLastProbeUnit : BuildUnit := {
   dataAsm     := ziskChainExtractBasefeeFirstLastDataSection
 }
 
+/-! ## chain_compute_total_blob_count -- PR-K248
+
+    Sum `blob_gas_used / GAS_PER_BLOB` across an N-element header
+    chain — i.e., the total number of blobs in the chain segment.
+    EIP-4844 fixes `GAS_PER_BLOB = 131072 = 2^17`, so the per-header
+    division is a logical right shift by 17.
+
+    Pre-Cancun headers (≤17 fields) yield parse-failure status and
+    the count is the partial accumulator. Vacuous on empty chain:
+    count=0.
+
+    Calling convention:
+      a0 (input)  : N
+      a1 (input)  : header_lengths ptr (N u64 LE)
+      a2 (input)  : flat headers ptr
+      a3 (input)  : u64 out (total blob count)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse fail (pre-Cancun header in chain)
+        2 : blob_gas_used field > 8 bytes BE -/
+def chainComputeTotalBlobCountFunction : String :=
+  "chain_compute_total_blob_count:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li s4, 0\n" ++
+  "  beqz s0, .Lcctbc_done\n" ++
+  ".Lcctbc_loop:\n" ++
+  "  beq s4, s0, .Lcctbc_done\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  mv a0, s2; li a2, 17\n" ++
+  "  la a3, cctbc_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lcctbc_parse_fail\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lcctbc_size_fail\n" ++
+  "  la t0, cctbc_field; ld t1, 0(t0)\n" ++
+  "  srli t1, t1, 17                # / GAS_PER_BLOB = 2^17\n" ++
+  "  ld t2, 0(s3); add t2, t2, t1; sd t2, 0(s3)\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lcctbc_loop\n" ++
+  ".Lcctbc_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcctbc_ret\n" ++
+  ".Lcctbc_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcctbc_ret\n" ++
+  ".Lcctbc_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lcctbc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainComputeTotalBlobCountPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010010\n" ++
+  "  jal ra, chain_compute_total_blob_count\n" ++
+  "  li t0, 0xa0010008\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcctbc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainComputeTotalBlobCountFunction ++ "\n" ++
+  ".Lcctbc_pdone:"
+
+def ziskChainComputeTotalBlobCountDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cctbc_field:\n" ++
+  "  .zero 8"
+
+def ziskChainComputeTotalBlobCountProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainComputeTotalBlobCountPrologue
+  dataAsm     := ziskChainComputeTotalBlobCountDataSection
+}
+
 end EvmAsm.Codegen
