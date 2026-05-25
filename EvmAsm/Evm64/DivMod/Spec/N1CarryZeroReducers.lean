@@ -30,6 +30,42 @@ theorem val256_top_limb_zero_of_lt_word
     have h_bound := bound.isLt
     omega)
 
+/-- A four-limb value below one machine word has zero limb 2. -/
+theorem val256_limb2_zero_of_lt_word
+    (x0 x1 x2 x3 bound : Word)
+    (h_lt : val256 x0 x1 x2 x3 < bound.toNat) :
+    x2 = 0 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [show (0 : Word).toNat = 0 from rfl]
+  unfold val256 at h_lt
+  have h_bound := bound.isLt
+  have hx2 := x2.isLt
+  have hx3 := x3.isLt
+  omega
+
+/-- A four-limb value below one machine word has zero limb 1. -/
+theorem val256_limb1_zero_of_lt_word
+    (x0 x1 x2 x3 bound : Word)
+    (h_lt : val256 x0 x1 x2 x3 < bound.toNat) :
+    x1 = 0 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [show (0 : Word).toNat = 0 from rfl]
+  unfold val256 at h_lt
+  have h_bound := bound.isLt
+  have hx1 := x1.isLt
+  have hx2 := x2.isLt
+  have hx3 := x3.isLt
+  omega
+
+/-- A four-limb value below one machine word has all high limbs zero. -/
+theorem val256_high_limbs_zero_of_lt_word
+    (x0 x1 x2 x3 bound : Word)
+    (h_lt : val256 x0 x1 x2 x3 < bound.toNat) :
+    x1 = 0 ∧ x2 = 0 ∧ x3 = 0 := by
+  exact ⟨val256_limb1_zero_of_lt_word x0 x1 x2 x3 bound h_lt,
+    val256_limb2_zero_of_lt_word x0 x1 x2 x3 bound h_lt,
+    val256_top_limb_zero_of_lt_word x0 x1 x2 x3 bound h_lt⟩
+
 /-- First n=1 step carry-zero reducer. For the call branch, the step starts
     with top limb zero, so proving the `mulsubN4` carry `c3` is zero is enough
     to discharge `fullDivN1R3CarryZero`. -/
