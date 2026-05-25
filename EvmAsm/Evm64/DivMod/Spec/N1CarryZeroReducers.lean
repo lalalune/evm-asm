@@ -1,5 +1,6 @@
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
 import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
+import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
 import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
 
 namespace EvmAsm.Evm64
@@ -247,5 +248,28 @@ theorem fullDivN1NormV_limb0_dLo_lt_pow32 (b0 b1 b2 b3 : Word) :
     Nat.shiftRight_eq_div_pow]
   exact Nat.div_lt_of_lt_mul
     ((fullDivN1NormV b0 b1 b2 b3).1 <<< (32 : BitVec 6).toNat).isLt
+
+/-- High/low 32-bit reconstruction for the normalized n=1 divisor limb. -/
+theorem fullDivN1NormV_limb0_decomp (b0 b1 b2 b3 : Word) :
+    (fullDivN1NormV b0 b1 b2 b3).1.toNat =
+      ((fullDivN1NormV b0 b1 b2 b3).1 >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      (((fullDivN1NormV b0 b1 b2 b3).1 <<< (32 : BitVec 6).toNat) >>>
+        (32 : BitVec 6).toNat).toNat := by
+  exact div128Quot_vTop_decomp (fullDivN1NormV b0 b1 b2 b3).1
+
+/-- Runtime n=1 shape wrapper for the `uHi < dHi*2^32+dLo` precondition used
+    by `div128Quot_toNat_eq_strict` on the first R3 trial call. -/
+theorem fullDivN1NormU_top_lt_normV_limb0_halves_of_shape_shift_nz
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat <
+      ((fullDivN1NormV b0 b1 b2 b3).1 >>> (32 : BitVec 6).toNat).toNat * 2^32 +
+      (((fullDivN1NormV b0 b1 b2 b3).1 <<< (32 : BitVec 6).toNat) >>>
+        (32 : BitVec 6).toNat).toNat := by
+  have hlt := fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz
+    a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz
+  rwa [fullDivN1NormV_limb0_decomp b0 b1 b2 b3] at hlt
 
 end EvmAsm.Evm64
