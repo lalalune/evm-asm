@@ -994,40 +994,7 @@ theorem evm_div_n1_stack_spec_within_word_shape_step_conservation_overestimate_u
     (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
         ~~~(1 : Word) = base + div128CallRetOff)
-    (hpath : ∀ bltu_2 bltu_1 bltu_0,
-      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
-      isTrialN1_j2 true bltu_2
-        (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j1 true bltu_2 bltu_1
-        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j0 true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      Carry2NzAll
-        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
-        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 0 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 1 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 2 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64))) ∧
-      fullDivN1R3CarryZero true
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1R2CarryZero true bltu_2
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1R1CarryZero true bltu_2 bltu_1
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN1QuotientOverestimate true bltu_2 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hpath : N1StepOverestimatePathCallback a b) :
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode base)
       (divModStackDispatchPre sp a b
         (signExtend12 (4 : BitVec 12) - (4 : Word))
