@@ -804,12 +804,11 @@ theorem n1_shape_full_div_getLimbN_of_step_conservation_overestimate
       a b hbnz hb3z hb2z hb1z hshift_nz
   obtain ⟨hcarry2, hr3_zero, hr2_zero, hr1_zero, hge⟩ :=
     hpath bltu_2 bltu_1 bltu_0 hbltu_3 hbltu_2 hbltu_1 hbltu_0
-  have hdivs :=
+  exact ⟨bltu_2, bltu_1, bltu_0,
+    hbltu_3, hbltu_2, hbltu_1, hbltu_0,
     n1_full_div_getLimbN_of_step_conservation_overestimate
       a b bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1z hshift_nz hcarry2
-      hr3_zero hr2_zero hr1_zero hge
-  exact ⟨bltu_2, bltu_1, bltu_0,
-    hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivs⟩
+      hr3_zero hr2_zero hr1_zero hge⟩
 
 /-- Shape-specialized n=1 quotient-word theorem from a step-conservation
     path surface. This keeps the selected branch booleans but drops the
@@ -1139,12 +1138,11 @@ theorem n1_full_div_getLimbN_of_step_conservation_path
       _hcarry2, _hmulsub, _hge, hdivWord⟩ :=
     n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnz hb3z hb2z hb1z hshift_nz hpath
-  have hdivs :=
+  exact ⟨bltu_2, bltu_1, bltu_0,
     fullDivN1_hdivs_of_word_eq true bltu_2 bltu_1 bltu_0
       a b
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-      hdivWord
-  exact ⟨bltu_2, bltu_1, bltu_0, hdivs⟩
+      hdivWord⟩
 
 end EvmAsm.Evm64
