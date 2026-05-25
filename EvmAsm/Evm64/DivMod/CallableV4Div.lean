@@ -1415,8 +1415,12 @@ theorem evm_div_callable_v4_n3_stack_pre_to_callable_post_scratch_of_mulsub_over
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
           scratchMem)) := by
-  have hpath' := hpath
-  obtain ⟨hbltu_1, hbltu_0, hcarry2, _, _⟩ := hpath'
+  have hbltu_1 := fullDivN3PathConditionsWordV4_trial_j1
+    bltu_1 bltu_0 a b hpath
+  have hbltu_0 := fullDivN3PathConditionsWordV4_trial_j0
+    bltu_1 bltu_0 a b hpath
+  have hcarry2 := fullDivN3PathConditionsWordV4_carry2
+    bltu_1 bltu_0 a b hpath
   have hdivWord :=
     fullDivN3QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
       bltu_1 bltu_0 a b hbnz hpath
