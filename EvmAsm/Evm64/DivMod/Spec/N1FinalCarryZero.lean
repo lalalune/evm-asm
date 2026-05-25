@@ -1134,9 +1134,23 @@ theorem n1_full_div_getLimbN_of_step_conservation_path
         (fullDivN1R3 true
           (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 := by
-  obtain ⟨bltu_2, bltu_1, bltu_0, _, _, _, _, hdiv0, hdiv1, hdiv2, hdiv3⟩ :=
-    n1_shape_full_div_getLimbN_of_step_conservation_overestimate
+  obtain ⟨bltu_2, bltu_1, bltu_0,
+      _hbltu_3, _hbltu_2, _hbltu_1, _hbltu_0,
+      _hcarry2, _hmulsub, _hge, hdivWord⟩ :=
+    n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnz hb3z hb2z hb1z hshift_nz hpath
-  exact ⟨bltu_2, bltu_1, bltu_0, hdiv0, hdiv1, hdiv2, hdiv3⟩
+  refine ⟨bltu_2, bltu_1, bltu_0, ?_, ?_, ?_, ?_⟩
+  · rw [← hdivWord]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_0
+  · rw [← hdivWord]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_1
+  · rw [← hdivWord]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hdivWord]
+    delta fullDivN1QuotientWord
+    exact EvmWord.getLimbN_fromLimbs_3
 
 end EvmAsm.Evm64
