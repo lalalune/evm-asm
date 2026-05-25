@@ -240,67 +240,7 @@ theorem evm_div_n1_stack_spec_within_word_noNop_preNoX1_callableOwnPost_true_pat
           (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <
       (fullDivN1NormV
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1.toNat)
-    (hpath :
-      isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) →
-      isTrialN1_j2 true true
-        (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j1 true true true
-        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN1_j0 true true true true
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      Carry2NzAll
-        (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
-        ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 0 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 1 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
-        ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
-          (b.getLimbN 2 >>>
-            ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64))) ∧
-      Div128AllPhasesNoWrapInv
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.2
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.2.1
-        (fullDivN1NormV
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
-      Div128AllPhasesNoWrapInv
-        (fullDivN1R3 true
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.2.1
-        (fullDivN1NormV
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
-      Div128AllPhasesNoWrapInv
-        (fullDivN1R2 true true
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).2.1
-        (fullDivN1NormV
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
-      Div128AllPhasesNoWrapInv
-        (fullDivN1R1 true true true
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
-        (fullDivN1NormU
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0)).1
-        (fullDivN1NormV
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
-      fullDivN1NormalizedRemainderLt true true true true
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    (hpath : N1AllTruePathCallback a b) :
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
       (divModStackDispatchPreNoX1 sp a b
         (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
