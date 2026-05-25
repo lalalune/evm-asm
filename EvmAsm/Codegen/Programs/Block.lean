@@ -31,6 +31,7 @@ import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Mpt
+import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.Header
 
 namespace EvmAsm.Codegen
@@ -4023,6 +4024,184 @@ def ziskBlockBodyValidateEmptyProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskBlockBodyValidateEmptyPrologue
   dataAsm     := ziskBlockBodyValidateEmptyDataSection
+}
+
+/-! ## chain_body_total_tx_count -- PR-K227
+
+    Aggregate `tx_count` (from K223 `block_body_extract_tx_count`)
+    across an N-element array of block bodies into a single u64
+    sum. Useful for chain-level metrics ("how many txs in the
+    last 256 blocks").
+
+    The sum is plain u64; for mainnet typical block tx counts
+    (≤ ~500) and N ≤ 256, the total stays well below 2^64.
+
+    Calling convention:
+      a0 (input)  : N (body count)
+      a1 (input)  : body_lengths ptr (u64[N])
+      a2 (input)  : bodies ptr (concatenated)
+      a3 (input)  : u64 out (total_tx_count)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : body parse failure on some body (sum is partial)
+        2 : tx-list count walk failed on some body -/
+def chainBodyTotalTxCountFunction : String :=
+  "chain_body_total_tx_count:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # N\n" ++
+  "  mv s1, a1                   # body_lengths\n" ++
+  "  mv s2, a2                   # bodies\n" ++
+  "  mv s3, a3                   # out u64\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li s4, 0                    # i\n" ++
+  "  beqz s0, .Lcbttc_done\n" ++
+  ".Lcbttc_loop:\n" ++
+  "  beq s4, s0, .Lcbttc_done\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)                # body_len\n" ++
+  "  mv a0, s2                   # body_ptr\n" ++
+  "  la a2, cbttc_per_count\n" ++
+  "  jal ra, block_body_extract_tx_count\n" ++
+  "  bnez a0, .Lcbttc_propagate\n" ++
+  "  la t0, cbttc_per_count; ld t1, 0(t0)\n" ++
+  "  ld t2, 0(s3); add t2, t2, t1; sd t2, 0(s3)\n" ++
+  "  # advance\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lcbttc_loop\n" ++
+  ".Lcbttc_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcbttc_propagate:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainBodyTotalTxCountPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  jal ra, chain_body_total_tx_count\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcbttc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodyExtractTxCountFunction ++ "\n" ++
+  chainBodyTotalTxCountFunction ++ "\n" ++
+  ".Lcbttc_pdone:"
+
+def ziskChainBodyTotalTxCountDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "bbetc_body_struct:\n" ++
+  "  .zero 48\n" ++
+  "cbttc_per_count:\n" ++
+  "  .zero 8"
+
+def ziskChainBodyTotalTxCountProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainBodyTotalTxCountPrologue
+  dataAsm     := ziskChainBodyTotalTxCountDataSection
+}
+
+/-! ## chain_body_total_withdrawal_count -- PR-K228
+
+    Analogue of K227 for withdrawals: aggregate
+    `block_body_extract_withdrawal_count` (K224) across an
+    N-element array of block bodies into a single u64 sum.
+
+    Calling convention:
+      a0 (input)  : N (body count)
+      a1 (input)  : body_lengths ptr (u64[N])
+      a2 (input)  : bodies ptr (concatenated)
+      a3 (input)  : u64 out (total_withdrawal_count)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : body parse failure
+        2 : withdrawal-list count walk failed -/
+def chainBodyTotalWithdrawalCountFunction : String :=
+  "chain_body_total_withdrawal_count:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li s4, 0\n" ++
+  "  beqz s0, .Lcbtwc_done\n" ++
+  ".Lcbtwc_loop:\n" ++
+  "  beq s4, s0, .Lcbtwc_done\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  mv a0, s2\n" ++
+  "  la a2, cbtwc_per_count\n" ++
+  "  jal ra, block_body_extract_withdrawal_count\n" ++
+  "  bnez a0, .Lcbtwc_propagate\n" ++
+  "  la t0, cbtwc_per_count; ld t1, 0(t0)\n" ++
+  "  ld t2, 0(s3); add t2, t2, t1; sd t2, 0(s3)\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lcbtwc_loop\n" ++
+  ".Lcbtwc_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcbtwc_propagate:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainBodyTotalWithdrawalCountPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  jal ra, chain_body_total_withdrawal_count\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcbtwc_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  blockBodyDecodeFunction ++ "\n" ++
+  blockBodyExtractWithdrawalCountFunction ++ "\n" ++
+  chainBodyTotalWithdrawalCountFunction ++ "\n" ++
+  ".Lcbtwc_pdone:"
+
+def ziskChainBodyTotalWithdrawalCountDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "bbewc_body_struct:\n" ++
+  "  .zero 48\n" ++
+  "cbtwc_per_count:\n" ++
+  "  .zero 8"
+
+def ziskChainBodyTotalWithdrawalCountProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainBodyTotalWithdrawalCountPrologue
+  dataAsm     := ziskChainBodyTotalWithdrawalCountDataSection
 }
 
 end EvmAsm.Codegen
