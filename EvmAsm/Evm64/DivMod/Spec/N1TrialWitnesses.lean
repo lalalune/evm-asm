@@ -190,6 +190,50 @@ theorem n1_trial_witnesses_call_first_of_getLimbN_shape_shift_nz
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     hbnz hb3z hb2z hb1z hshift_nz
 
+/-- If a four-limb value is below one machine word, then its low limb is
+    below that word. -/
+theorem val256_limb0_lt_of_lt_word
+    (x0 x1 x2 x3 bound : Word)
+    (h_lt : EvmWord.val256 x0 x1 x2 x3 < bound.toNat) :
+    x0.toNat < bound.toNat := by
+  unfold EvmWord.val256 at h_lt
+  omega
+
+/-- A one-word bound on the first n=1 remainder forces the next trial branch
+    to be the call branch. -/
+theorem isTrialN1_j2_true_of_fullDivN1R3_remainder_lt
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hr3_lt :
+      EvmWord.val256
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+        (fullDivN1R3 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat) :
+    isTrialN1_j2 true true a2 a3 b0 b1 b2 b3 := by
+  unfold isTrialN1_j2
+  unfold fullDivN1R3 fullDivN1NormV fullDivN1NormU
+    fullDivN1Shift fullDivN1AntiShift at hr3_lt
+  dsimp only at hr3_lt ⊢
+  have h_ult := val256_limb0_lt_of_lt_word _ _ _ _
+    (b0 <<< ((clzResult b0).1.toNat % 64)) hr3_lt
+  unfold fullDivN1Shift at h_ult
+  rw [show BitVec.ult
+      (iterN1 true (b0 <<< ((clzResult b0).1.toNat % 64))
+            (b1 <<< ((clzResult b0).1.toNat % 64) |||
+              b0 >>> ((signExtend12 0 - (clzResult b0).1).toNat % 64))
+            (b2 <<< ((clzResult b0).1.toNat % 64) |||
+              b1 >>> ((signExtend12 0 - (clzResult b0).1).toNat % 64))
+            (b3 <<< ((clzResult b0).1.toNat % 64) |||
+              b2 >>> ((signExtend12 0 - (clzResult b0).1).toNat % 64))
+            (a3 <<< ((clzResult b0).1.toNat % 64) |||
+              a2 >>> ((signExtend12 0 - (clzResult b0).1).toNat % 64))
+            (a3 >>> ((signExtend12 0 - (clzResult b0).1).toNat % 64))
+            0 0 0).2.1
+      (b0 <<< ((clzResult b0).1.toNat % 64)) = true by
+    rw [EvmWord.ult_iff]
+    exact h_ult]
+
 /-- Bundled public-surface n=1 branch witnesses from the dispatcher shape
     hypotheses, with the forced first branch recorded as `true`. -/
 theorem n1TrialWitnesses_of_getLimbN_shape_shift_nz
