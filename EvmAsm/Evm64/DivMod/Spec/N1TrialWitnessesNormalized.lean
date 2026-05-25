@@ -11,6 +11,46 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- GetLimb-specialized normalized n=1 quotient bridge. This is the shape
+    produced by the trial-witness wrappers, before projecting the quotient word
+    into individual hdiv witnesses. -/
+theorem fullDivN1QuotientWord_eq_div_of_getLimbN_normalized_mulsub_remainder_lt
+    (bltu_3 bltu_2 bltu_1 bltu_0 : Bool) {a b : EvmWord}
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hmulsub : fullDivN1NormalizedMulSubEq bltu_3 bltu_2 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+    (hrem_lt : fullDivN1NormalizedRemainderLt bltu_3 bltu_2 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    fullDivN1QuotientWord bltu_3 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+      EvmWord.div a b := by
+  have hdivWordRaw :=
+    fullDivN1QuotientWord_eq_div_of_normalized_mulsub_remainder_lt
+      bltu_3 bltu_2 bltu_1 bltu_0
+      hbnz hmulsub hrem_lt
+  have hdivEq :
+      EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with
+          | 0 => a.getLimbN 0
+          | 1 => a.getLimbN 1
+          | 2 => a.getLimbN 2
+          | 3 => a.getLimbN 3)
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with
+          | 0 => b.getLimbN 0
+          | 1 => b.getLimbN 1
+          | 2 => b.getLimbN 2
+          | 3 => b.getLimbN 3) = EvmWord.div a b := by
+    exact congrArg₂ (fun x y : EvmWord => EvmWord.div x y)
+      (EvmWord.fromLimbs_match_getLimbN_id a)
+      (EvmWord.fromLimbs_match_getLimbN_id b)
+  exact hdivWordRaw.trans hdivEq
+
 /-- Eliminate an `N1TrialWitnesses` bundle and derive all four quotient-limb
     witnesses from normalized mulsub plus normalized final-remainder facts for
     the owned branch booleans. -/
@@ -68,15 +108,16 @@ theorem N1TrialWitnesses.exists_hdivs_of_normalized_mulsub_remainder_lt
     N1TrialWitnesses.exists htrial
   obtain ⟨hmulsub, hrem_lt⟩ :=
     hpath bltu_3 bltu_2 bltu_1 bltu_0 hbltu_3 hbltu_2 hbltu_1 hbltu_0
-  have hdivs :=
-    fullDivN1_getLimbN_of_limbs_normalized_mulsub_remainder_lt
+  have hdivWord :=
+    fullDivN1QuotientWord_eq_div_of_getLimbN_normalized_mulsub_remainder_lt
       bltu_3 bltu_2 bltu_1 bltu_0
-      (a := a) (b := b)
-      (a0 := a.getLimbN 0) (a1 := a.getLimbN 1)
-      (a2 := a.getLimbN 2) (a3 := a.getLimbN 3)
-      (b0 := b.getLimbN 0) (b1 := b.getLimbN 1)
-      (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
-      rfl rfl rfl rfl rfl rfl rfl rfl hbnz hmulsub hrem_lt
+      hbnz hmulsub hrem_lt
+  have hdivs :=
+    fullDivN1_hdivs_of_word_eq bltu_3 bltu_2 bltu_1 bltu_0
+      a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hdivWord
   exact ⟨bltu_3, bltu_2, bltu_1, bltu_0,
     hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivs⟩
 
@@ -201,15 +242,16 @@ theorem n1_shape_hdivs_of_normalized_mulsub_remainder_lt
       a b hbnz hb3z hb2z hb1z hshift_nz
   obtain ⟨hmulsub, hrem_lt⟩ :=
     hpath bltu_2 bltu_1 bltu_0 hbltu_3 hbltu_2 hbltu_1 hbltu_0
-  have hdivs :=
-    fullDivN1_getLimbN_of_limbs_normalized_mulsub_remainder_lt
+  have hdivWord :=
+    fullDivN1QuotientWord_eq_div_of_getLimbN_normalized_mulsub_remainder_lt
       true bltu_2 bltu_1 bltu_0
-      (a := a) (b := b)
-      (a0 := a.getLimbN 0) (a1 := a.getLimbN 1)
-      (a2 := a.getLimbN 2) (a3 := a.getLimbN 3)
-      (b0 := b.getLimbN 0) (b1 := b.getLimbN 1)
-      (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
-      rfl rfl rfl rfl rfl rfl rfl rfl hbnz hmulsub hrem_lt
+      hbnz hmulsub hrem_lt
+  have hdivs :=
+    fullDivN1_hdivs_of_word_eq true bltu_2 bltu_1 bltu_0
+      a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      hdivWord
   exact ⟨bltu_2, bltu_1, bltu_0,
     hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivs⟩
 
