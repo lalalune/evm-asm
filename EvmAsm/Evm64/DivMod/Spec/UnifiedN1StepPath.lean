@@ -320,6 +320,37 @@ theorem evm_div_n1_stack_spec_within_word_noNop_shape_step_conservation_all_phas
       hbnzGet hb1z hb2z hb3z hshift_nz hr3_inv
   exact ⟨hcarry2, hr3_zero, hr2_zero, hr1_zero, hge⟩
 
+/-- Shape-specialized n=1 no-NOP DIV wrapper from the step-conservation path
+    surface when the selected R3 call supplies the all-phases no-wrap
+    invariant as three local no-wrap conjuncts. -/
+theorem evm_div_n1_stack_spec_within_word_noNop_shape_step_conservation_r3_conjuncts_uni
+    (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 : Word)
+    (hbnz : b ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+    (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&&
+        ~~~(1 : Word) = base + div128CallRetOff)
+    (hpath : N1AllPhasesConjunctOverestimatePathCallback a b) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop base)
+      (divModStackDispatchPre sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word))
+        ((clzResult (b.getLimbN 0)).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0)
+      (divStackDispatchPost sp a b) := by
+  exact
+    evm_div_n1_stack_spec_within_word_noNop_shape_step_conservation_all_phases_uni
+      sp base a b v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      hbnz hb3z hb2z hb1z hshift_nz halign
+      (N1AllPhasesConjunctOverestimatePathCallback.toAllPhasesOverestimatePathCallback hpath)
+
 /-- Shape-specialized n=1 no-NOP DIV wrapper for the all-call path, with
     branch proofs and quotient-word equality derived internally from concrete
     all-phases arithmetic evidence. -/
