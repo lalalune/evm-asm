@@ -112,14 +112,13 @@ theorem N1TrialWitnesses.exists_hdivs_of_normalized_mulsub_remainder_lt
     fullDivN1QuotientWord_eq_div_of_getLimbN_normalized_mulsub_remainder_lt
       bltu_3 bltu_2 bltu_1 bltu_0
       hbnz hmulsub hrem_lt
-  have hdivs :=
+  exact ⟨bltu_3, bltu_2, bltu_1, bltu_0,
+    hbltu_3, hbltu_2, hbltu_1, hbltu_0,
     fullDivN1_hdivs_of_word_eq bltu_3 bltu_2 bltu_1 bltu_0
       a b
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-      hdivWord
-  exact ⟨bltu_3, bltu_2, bltu_1, bltu_0,
-    hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivs⟩
+      hdivWord⟩
 
 /-- Eliminate an `N1TrialWitnesses` bundle and derive all four quotient-limb
     witnesses from normalized mulsub plus the legacy quotient-overestimate
@@ -246,14 +245,13 @@ theorem n1_shape_hdivs_of_normalized_mulsub_remainder_lt
     fullDivN1QuotientWord_eq_div_of_getLimbN_normalized_mulsub_remainder_lt
       true bltu_2 bltu_1 bltu_0
       hbnz hmulsub hrem_lt
-  have hdivs :=
+  exact ⟨bltu_2, bltu_1, bltu_0,
+    hbltu_3, hbltu_2, hbltu_1, hbltu_0,
     fullDivN1_hdivs_of_word_eq true bltu_2 bltu_1 bltu_0
       a b
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-      hdivWord
-  exact ⟨bltu_2, bltu_1, bltu_0,
-    hbltu_3, hbltu_2, hbltu_1, hbltu_0, hdivs⟩
+      hdivWord⟩
 
 /-- Shape-specialized n=1 hdiv witnesses from normalized mulsub plus
     quotient-overestimate facts, with the forced first branch recorded as
