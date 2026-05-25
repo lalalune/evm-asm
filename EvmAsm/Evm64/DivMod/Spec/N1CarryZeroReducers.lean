@@ -209,4 +209,43 @@ theorem fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz
     (fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
     hshift_nz
 
+/-- The high half of the normalized n=1 divisor limb satisfies the
+    normalization lower bound expected by the 128/64 quotient machinery. -/
+theorem fullDivN1NormV_limb0_dHi_ge_pow31_of_b0_ne_zero
+    (b0 b1 b2 b3 : Word)
+    (hb0nz : b0 ≠ 0) :
+    ((fullDivN1NormV b0 b1 b2 b3).1 >>> (32 : BitVec 6).toNat).toNat ≥
+      2^31 := by
+  apply div128Quot_dHi_ge_pow31
+  simpa [fullDivN1NormV, fullDivN1Shift, fullDivN1AntiShift] using
+    (b3_shifted_ge_pow63 hb0nz)
+
+/-- Runtime n=1 divisor-shape wrapper for the normalized divisor high-half
+    lower bound. -/
+theorem fullDivN1NormV_limb0_dHi_ge_pow31_of_shape
+    (b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    ((fullDivN1NormV b0 b1 b2 b3).1 >>> (32 : BitVec 6).toNat).toNat ≥
+      2^31 := by
+  exact fullDivN1NormV_limb0_dHi_ge_pow31_of_b0_ne_zero b0 b1 b2 b3
+    (fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
+
+/-- The high half of any normalized n=1 divisor limb is a 32-bit quantity. -/
+theorem fullDivN1NormV_limb0_dHi_lt_pow32 (b0 b1 b2 b3 : Word) :
+    ((fullDivN1NormV b0 b1 b2 b3).1 >>> (32 : BitVec 6).toNat).toNat <
+      2^32 := by
+  rw [BitVec.toNat_ushiftRight, show (32 : BitVec 6).toNat = 32 by decide,
+    Nat.shiftRight_eq_div_pow]
+  exact Nat.div_lt_of_lt_mul (fullDivN1NormV b0 b1 b2 b3).1.isLt
+
+/-- The low half of any normalized n=1 divisor limb is a 32-bit quantity. -/
+theorem fullDivN1NormV_limb0_dLo_lt_pow32 (b0 b1 b2 b3 : Word) :
+    (((fullDivN1NormV b0 b1 b2 b3).1 <<< (32 : BitVec 6).toNat) >>>
+        (32 : BitVec 6).toNat).toNat < 2^32 := by
+  rw [BitVec.toNat_ushiftRight, show (32 : BitVec 6).toNat = 32 by decide,
+    Nat.shiftRight_eq_div_pow]
+  exact Nat.div_lt_of_lt_mul
+    ((fullDivN1NormV b0 b1 b2 b3).1 <<< (32 : BitVec 6).toNat).isLt
+
 end EvmAsm.Evm64
