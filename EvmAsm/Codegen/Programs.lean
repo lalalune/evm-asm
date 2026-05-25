@@ -1332,6 +1332,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_header_extract_excess_blob_gas" => some ziskHeaderExtractExcessBlobGasProbeUnit
   | "zisk_chain_extract_gas_used_range" => some ziskChainExtractGasUsedRangeProbeUnit
   | "zisk_chain_extract_blob_gas_used_range" => some ziskChainExtractBlobGasUsedRangeProbeUnit
+  | "zisk_chain_extract_basefee_first_last" => some ziskChainExtractBasefeeFirstLastProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -1752,6 +1753,7 @@ def knownProgramNames : List String :=
    "zisk_header_extract_excess_blob_gas",
    "zisk_chain_extract_gas_used_range",
    "zisk_chain_extract_blob_gas_used_range",
+   "zisk_chain_extract_basefee_first_last",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",

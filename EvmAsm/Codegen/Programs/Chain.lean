@@ -1732,4 +1732,104 @@ def ziskChainExtractBlobGasUsedRangeProbeUnit : BuildUnit := {
   dataAsm     := ziskChainExtractBlobGasUsedRangeDataSection
 }
 
+/-! ## chain_extract_basefee_first_last -- PR-K247
+
+    Extract `(first_basefee, last_basefee)` from an N-element
+    header chain. Basefee counterpart to K197
+    `chain_extract_number_range` and K239
+    `chain_extract_timestamp_range`. Useful for measuring
+    basefee drift across a chain segment (e.g., EIP-1559
+    market-pressure analytics).
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : u64 out (first_basefee)
+      a4 (input)  : u64 out (last_basefee)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse failure on some header
+        3 : a header's basefee field exceeds 8 bytes BE -/
+def chainExtractBasefeeFirstLastFunction : String :=
+  "chain_extract_basefee_first_last:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  beqz s0, .Lcebfl_empty\n" ++
+  "  # first = headers[0].basefee (field 15)\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  li a2, 15\n" ++
+  "  mv a3, s3\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcebfl_propagate\n" ++
+  "  # Advance to last header\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1\n" ++
+  ".Lcebfl_skip:\n" ++
+  "  beqz t3, .Lcebfl_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lcebfl_skip\n" ++
+  ".Lcebfl_at_last:\n" ++
+  "  ld a1, 0(t2)\n" ++
+  "  mv a0, t1\n" ++
+  "  li a2, 15\n" ++
+  "  mv a3, s4\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcebfl_propagate\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcebfl_ret\n" ++
+  ".Lcebfl_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcebfl_ret\n" ++
+  ".Lcebfl_propagate:\n" ++
+  "  addi a0, a0, 1\n" ++
+  ".Lcebfl_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainExtractBasefeeFirstLastPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_extract_basefee_first_last\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcebfl_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainExtractBasefeeFirstLastFunction ++ "\n" ++
+  ".Lcebfl_pdone:"
+
+def ziskChainExtractBasefeeFirstLastDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractBasefeeFirstLastProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractBasefeeFirstLastPrologue
+  dataAsm     := ziskChainExtractBasefeeFirstLastDataSection
+}
+
 end EvmAsm.Codegen
