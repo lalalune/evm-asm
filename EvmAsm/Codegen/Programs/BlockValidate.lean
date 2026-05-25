@@ -33,6 +33,7 @@ import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Block
 
 namespace EvmAsm.Codegen
