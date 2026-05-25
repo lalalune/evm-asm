@@ -31,6 +31,7 @@ import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Mpt
+import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.Header
 
 namespace EvmAsm.Codegen
