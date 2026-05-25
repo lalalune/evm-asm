@@ -149,18 +149,19 @@ theorem evm_div_n1_stack_spec_within_word_noNop_shape_step_conservation_overesti
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   obtain ⟨bltu_2, bltu_1, bltu_0,
       hbltu_3, hbltu_2, hbltu_1, hbltu_0,
-      hcarry2, hmulsub, hge, _hdivWord⟩ :=
+      hcarry2, _hmulsub, _hge, hdivWord⟩ :=
     n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnzGet hb3z hb2z hb1z hshift_nz hpath
-  exact evm_div_n1_stack_spec_within_word_noNop_uni_of_normalized_mulsub_overestimate
-    true bltu_2 bltu_1 bltu_0 sp base a b
-    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    v5 v6 v7 v10 v11Old
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    rfl rfl rfl rfl rfl rfl rfl rfl hbnzGet hb3z hb2z hb1z
-    hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  exact cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n1_stack_spec_within_word_noNop
+      true bltu_2 bltu_1 bltu_0 sp base a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      rfl rfl rfl rfl rfl rfl rfl rfl hbnzGet hb3z hb2z hb1z
+      hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
 
 /-- Shape-specialized n=1 exact-x1/no-NOP DIV wrapper from the
     step-conservation path surface plus quotient overestimate. -/
@@ -224,18 +225,19 @@ theorem evm_div_n1_stack_spec_within_word_exact_x1_noNop_shape_step_conservation
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   obtain ⟨bltu_2, bltu_1, bltu_0,
       hbltu_3, hbltu_2, hbltu_1, hbltu_0,
-      hcarry2, hmulsub, hge, _hdivWord⟩ :=
+      hcarry2, _hmulsub, _hge, hdivWord⟩ :=
     n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnzGet hb3z hb2z hb1z hshift_nz hpath
-  exact evm_div_n1_stack_spec_within_word_exact_x1_noNop_uni_of_normalized_mulsub_overestimate
-    true bltu_2 bltu_1 bltu_0 sp base a b
-    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    v5 v6 v7 v10 v11Old
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    rfl rfl rfl rfl rfl rfl rfl rfl hbnzGet hb3z hb2z hb1z
-    hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  exact cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n1_stack_spec_within_word_exact_x1_noNop
+      true bltu_2 bltu_1 bltu_0 sp base a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      rfl rfl rfl rfl rfl rfl rfl rfl hbnzGet hb3z hb2z hb1z
+      hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
 
 /-- Shape-specialized n=1 exact-x1 DIV wrapper from the step-conservation
     path surface plus quotient overestimate. -/
@@ -299,18 +301,19 @@ theorem evm_div_n1_stack_spec_within_word_exact_x1_shape_step_conservation_overe
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   obtain ⟨bltu_2, bltu_1, bltu_0,
       hbltu_3, hbltu_2, hbltu_1, hbltu_0,
-      hcarry2, hmulsub, hge, _hdivWord⟩ :=
+      hcarry2, _hmulsub, _hge, hdivWord⟩ :=
     n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnzGet hb3z hb2z hb1z hshift_nz hpath
-  exact evm_div_n1_stack_spec_within_word_exact_x1_uni_of_normalized_mulsub_overestimate
-    true bltu_2 bltu_1 bltu_0 sp base a b
-    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    v5 v6 v7 v10 v11Old
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    rfl rfl rfl rfl rfl rfl rfl rfl hbnzGet hb3z hb2z hb1z
-    hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  exact cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n1_stack_spec_within_word_exact_x1
+      true bltu_2 bltu_1 bltu_0 sp base a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      rfl rfl rfl rfl rfl rfl rfl rfl hbnzGet hb3z hb2z hb1z
+      hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
 
 /-- Shape-specialized n=1 DIV wrapper from the step-conservation path surface
     plus quotient overestimate. -/
@@ -373,17 +376,18 @@ theorem evm_div_n1_stack_spec_within_word_shape_step_conservation_overestimate_u
     (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
   obtain ⟨bltu_2, bltu_1, bltu_0,
       hbltu_3, hbltu_2, hbltu_1, hbltu_0,
-      hcarry2, hmulsub, hge, _hdivWord⟩ :=
+      hcarry2, _hmulsub, _hge, hdivWord⟩ :=
     n1_normalized_mulsub_overestimate_of_step_conservation_path
       a b hbnzGet hb3z hb2z hb1z hshift_nz hpath
-  exact evm_div_n1_stack_spec_within_word_uni_of_normalized_mulsub_overestimate
-    true bltu_2 bltu_1 bltu_0 sp base a b
-    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    v5 v6 v7 v10 v11Old
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0
-    rfl rfl rfl rfl rfl rfl rfl rfl hbnzGet hb3z hb2z hb1z
-    hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
+  exact cpsTripleWithin_mono_nSteps (by decide)
+    (evm_div_n1_stack_spec_within_word
+      true bltu_2 bltu_1 bltu_0 sp base a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0
+      rfl rfl rfl rfl rfl rfl rfl rfl hbnzGet hb3z hb2z hb1z
+      hshift_nz halign hbltu_3 hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
 
 end EvmAsm.Evm64
