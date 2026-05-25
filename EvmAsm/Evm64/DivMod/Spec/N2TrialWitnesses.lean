@@ -10,6 +10,23 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- First-class proof bundle for the mechanical n=2 trial-branch witnesses at
+    the public dispatcher surface.
+
+    This carries only the branch booleans and their defining proof obligations;
+    carry/addback and quotient correctness remain separate wrapper
+    obligations. -/
+inductive N2TrialWitnesses (a b : EvmWord) : Prop where
+  | mk (bltu_2 bltu_1 bltu_0 : Bool)
+      (hbltu_2 : isTrialN2_j2 bltu_2
+        (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1))
+      (hbltu_1 : isTrialN2_j1 bltu_2 bltu_1
+        (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+      (hbltu_0 : isTrialN2_j0 bltu_2 bltu_1 bltu_0
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
+
 /-- The three n=2 trial-branch booleans always have canonical witnesses.
 
     This packages the mechanical branch-enumeration part needed by
@@ -42,5 +59,21 @@ theorem n2_trial_witnesses (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
       u2S, u3S, u4_s, shift, antiShift]
   · simp [isTrialN2_j0, bltu_0, bltu_1, bltu_2, r1, r2, v0', v1', v2', v3',
       u1S, u2S, u3S, u4_s, shift, antiShift]
+
+/-- Bundled public-surface n=2 branch witnesses from the dispatcher shape
+    hypotheses. -/
+theorem n2TrialWitnesses_of_getLimbN_shape_shift_nz
+    (a b : EvmWord)
+    (_hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (_hb3z : b.getLimbN 3 = 0) (_hb2z : b.getLimbN 2 = 0)
+    (_hb1nz : b.getLimbN 1 ≠ 0)
+    (_hshift_nz : (clzResult (b.getLimbN 1)).1 ≠ 0) :
+    N2TrialWitnesses a b := by
+  obtain ⟨bltu_2, bltu_1, bltu_0, hbltu_2, hbltu_1, hbltu_0⟩ :=
+    n2_trial_witnesses
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+  exact N2TrialWitnesses.mk bltu_2 bltu_1 bltu_0 hbltu_2 hbltu_1 hbltu_0
 
 end EvmAsm.Evm64
