@@ -6,6 +6,7 @@
 
 import EvmAsm.Evm64.DivMod.Spec.N1ExactNoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4PreloopCallMax
+import EvmAsm.Evm64.EvmWordArith.DivAccumulate
 
 namespace EvmAsm.Evm64
 
@@ -143,6 +144,94 @@ theorem fullDivN1CallMaxmaxmaxHdivs_of_word_eq
   · rw [← hdiv]
     delta fullDivN1CallMaxmaxmaxQuotientWordV4
     exact EvmWord.getLimbN_fromLimbs_3
+
+/-- Semantic bridge for the selected N1 v4 call/max/max/max quotient word
+    once the loop proof supplies the selected accumulated mulsub equation and
+    quotient-overestimate bound. -/
+theorem fullDivN1CallMaxmaxmaxQuotientWordV4_eq_div_of_mulsub_overestimate
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hmulsub :
+      let v := fullDivN1NormV b0 b1 b2 b3
+      let u := fullDivN1NormU a0 a1 a2 a3 b0
+      let r3 := loopN1CallMaxmaxmaxR3
+        v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+      let r2 := loopN1CallMaxmaxmaxR2
+        v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+        u.2.2.1
+      let r1 := loopN1CallMaxmaxmaxR1
+        v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+        u.2.2.1 u.2.1
+      let r0 := iterN1Max v.1 v.2.1 v.2.2.1 v.2.2.2 u.1
+        r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+      EvmWord.val256 a0 a1 a2 a3 =
+        (r3.1.toNat * 2^192 + r2.1.toNat * 2^128 +
+          r1.1.toNat * 2^64 + r0.1.toNat) *
+          EvmWord.val256 b0 b1 b2 b3 +
+        EvmWord.val256 r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1)
+    (hge :
+      let v := fullDivN1NormV b0 b1 b2 b3
+      let u := fullDivN1NormU a0 a1 a2 a3 b0
+      let r3 := loopN1CallMaxmaxmaxR3
+        v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+      let r2 := loopN1CallMaxmaxmaxR2
+        v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+        u.2.2.1
+      let r1 := loopN1CallMaxmaxmaxR1
+        v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+        u.2.2.1 u.2.1
+      let r0 := iterN1Max v.1 v.2.1 v.2.2.1 v.2.2.2 u.1
+        r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+      EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+        r3.1.toNat * 2^192 + r2.1.toNat * 2^128 +
+          r1.1.toNat * 2^64 + r0.1.toNat) :
+    fullDivN1CallMaxmaxmaxQuotientWordV4 a0 a1 a2 a3 b0 b1 b2 b3 =
+      EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3) := by
+  let v := fullDivN1NormV b0 b1 b2 b3
+  let u := fullDivN1NormU a0 a1 a2 a3 b0
+  let r3 := loopN1CallMaxmaxmaxR3
+    v.1 v.2.1 v.2.2.1 v.2.2.2
+    u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+  let r2 := loopN1CallMaxmaxmaxR2
+    v.1 v.2.1 v.2.2.1 v.2.2.2
+    u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+    u.2.2.1
+  let r1 := loopN1CallMaxmaxmaxR1
+    v.1 v.2.1 v.2.2.1 v.2.2.2
+    u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+    u.2.2.1 u.2.1
+  let r0 := iterN1Max v.1 v.2.1 v.2.2.1 v.2.2.2 u.1
+    r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  have h_correct := EvmWord.div_correct_n1_no_shift
+    (a0 := a0) (a1 := a1) (a2 := a2) (a3 := a3)
+    (b0 := b0) (b1 := b1) (b2 := b2) (b3 := b3)
+    (q0 := r0.1) (q1 := r1.1) (q2 := r2.1) (q3 := r3.1)
+    (r0 := r0.2.1) (r1 := r0.2.2.1)
+    (r2 := r0.2.2.2.1) (r3 := r0.2.2.2.2.1)
+    hbnz
+    (by simpa [v, u, r3, r2, r1, r0] using hmulsub)
+    (by simpa [v, u, r3, r2, r1, r0] using hge)
+  delta fullDivN1CallMaxmaxmaxQuotientWordV4
+  change
+    EvmWord.fromLimbs (fun i : Fin 4 =>
+      match i with
+      | 0 => r0.1 | 1 => r1.1 | 2 => r2.1 | 3 => r3.1) =
+      EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)
+  exact h_correct.1
 
 /-- Direct full-v4 form of the N1 call/max/max/max exact-frame stack spec. -/
 theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtra_x9In_exactFrame_unified
