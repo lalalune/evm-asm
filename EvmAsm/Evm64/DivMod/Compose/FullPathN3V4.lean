@@ -155,6 +155,42 @@ def fullDivN3R1V4 (bltu_1 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
   iterN3V4 bltu_1 v.1 v.2.1 v.2.2.1 v.2.2.2
     u.2.1 u.2.2.1 u.2.2.2.1 u.2.2.2.2 (0 : Word)
 
+@[simp]
+theorem fullDivN3R1V4_false (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    fullDivN3R1V4 false a0 a1 a2 a3 b0 b1 b2 b3 =
+      iterN3Max
+        (fullDivN3NormV b0 b1 b2 b3).1
+        (fullDivN3NormV b0 b1 b2 b3).2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.2
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+        (0 : Word) := by
+  rw [fullDivN3R1V4, iterN3V4]
+  simp
+
+@[simp]
+theorem fullDivN3R1V4_true (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
+    fullDivN3R1V4 true a0 a1 a2 a3 b0 b1 b2 b3 =
+      iterWithDoubleAddback
+        (divKTrialCallV4QHat
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+          (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+          (fullDivN3NormV b0 b1 b2 b3).2.2.1)
+        (fullDivN3NormV b0 b1 b2 b3).1
+        (fullDivN3NormV b0 b1 b2 b3).2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.2
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+        (0 : Word) := by
+  rw [fullDivN3R1V4, iterN3V4]
+  simp
+
 @[irreducible]
 def fullDivN3R0V4 (bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     Word × Word × Word × Word × Word × Word :=
