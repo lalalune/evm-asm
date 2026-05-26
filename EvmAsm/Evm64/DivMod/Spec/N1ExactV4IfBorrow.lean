@@ -593,6 +593,17 @@ theorem FullDivN1CallMaxmaxmaxHdivs_of_selected_semantic_facts_if_borrow_project
     ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz
     ⟨hselected, hfacts⟩
 
+/-- Named hdiv adapter for explicit selected-if-borrow facts plus the selected
+    quotient-word equality. -/
+theorem FullDivN1CallMaxmaxmaxHdivs_of_selected_if_borrow_word
+    (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hword : fullDivN1CallMaxmaxmaxQuotientWordV4
+      a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.div a b) :
+    FullDivN1CallMaxmaxmaxHdivs a b a0 a1 a2 a3 b0 b1 b2 b3 := by
+  exact fullDivN1CallMaxmaxmaxHdivs_of_word_eq
+    a b a0 a1 a2 a3 b0 b1 b2 b3 hword
+
 /-- Full-v4 N1 call/max/max/max exact-frame stack spec consuming the
     selected-if-borrow input surface and the named hdiv package. -/
 theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtra_x9In_exactFrame_unified_of_selected_if_borrow_input_hdivs
@@ -1142,6 +1153,7 @@ theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtr
       (0 : Word) (0 : Word) (0 : Word) (0 : Word)
       retMem dMem dloMem scratchUn0 scratchMem raVal
       hbltu3 hbltu2 hbltu1 hbltu0 hselected)
-    (fullDivN1CallMaxmaxmaxHdivs_of_word_eq a b a0 a1 a2 a3 b0 b1 b2 b3 hword)
+    (FullDivN1CallMaxmaxmaxHdivs_of_selected_if_borrow_word
+      a b a0 a1 a2 a3 b0 b1 b2 b3 hword)
 
 end EvmAsm.Evm64
