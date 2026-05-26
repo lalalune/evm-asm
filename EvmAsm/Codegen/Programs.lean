@@ -332,6 +332,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_validate_blob_gas_used_under_max" => some ziskChainValidateBlobGasUsedUnderMaxProbeUnit
   | "zisk_chain_validate_blob_gas_used_multiple" => some ziskChainValidateBlobGasUsedMultipleProbeUnit
   | "zisk_chain_compute_max_timestamp_gap" => some ziskChainComputeMaxTimestampGapProbeUnit
+  | "zisk_chain_compute_min_timestamp_gap" => some ziskChainComputeMinTimestampGapProbeUnit
   | "zisk_chain_extract_first_last_state_root" => some ziskChainExtractFirstLastStateRootProbeUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
   | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
@@ -785,6 +786,7 @@ def knownProgramNames : List String :=
    "zisk_chain_validate_blob_gas_used_under_max",
    "zisk_chain_validate_blob_gas_used_multiple",
    "zisk_chain_compute_max_timestamp_gap",
+   "zisk_chain_compute_min_timestamp_gap",
    "zisk_chain_extract_first_last_state_root",
    "zisk_chain_extract_first_last_block_hash",
    "zisk_chain_extract_first_last_receipts_root",
