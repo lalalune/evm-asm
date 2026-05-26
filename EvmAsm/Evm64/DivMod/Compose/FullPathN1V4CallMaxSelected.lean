@@ -224,6 +224,23 @@ theorem divK_loop_n1_call_iter210_framed_exact_x1_v4_input_of_selected
     (loopN1CallMaxmaxmaxIter210FramedPostInput_to_scratchPost I)
     (divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input_of_selected I hh)
 
+/-- Full bundled N1 call/max/max/max exact path over the full `divCode_v4`
+    bundle, using selected-only input hypotheses. -/
+theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_selected
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (halign : loopN1CallMaxmaxmaxExactInputAligned I)
+    (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
+    loopN1CallMaxmaxmaxExactInputSpecV4 I := by
+  unfold loopN1CallMaxmaxmaxExactInputSpecV4
+  have J3 := divK_loop_n1_call_j3_exact_x1_framed_v4_input_of_selected I halign hh
+  unfold loopN1CallMaxmaxmaxJ3ExactInputSpecV4 at J3
+  have Htail := divK_loop_n1_call_iter210_framed_exact_x1_v4_input_of_selected I hh
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      unfold loopN1CallMaxmaxmaxJ3PostInput
+      exact hp)
+    J3 Htail
+
 /-- Bundled first j=3 call-body step over the full `divCode_v4` bundle,
     using the selected call carry from the bundled path facts. -/
 theorem divK_loop_n1_call_j3_exact_x1_framed_v4_input_selected_carry
@@ -285,5 +302,73 @@ theorem divK_loop_n1_call_iter210_framed_exact_x1_v4_input_selected_carry
   unfold loopN1CallMaxmaxmaxIter210FramedExactInputSpec at H
   exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
     H
+
+/-- Selected-only hypotheses specialized to the canonical full-DIV n=1
+    call/max/max/max bundled inputs. -/
+@[irreducible]
+def fullDivN1CallMaxmaxmaxSelectedInputHypotheses (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word) :
+    Prop :=
+  loopN1CallMaxmaxmaxSelectedInputHypotheses
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+
+/-- Compatibility projection from the old canonical full-DIV n=1
+    call/max/max/max exact hypotheses to the selected-only package. -/
+theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_of_exact
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hh : fullDivN1CallMaxmaxmaxExactInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal := by
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses
+  unfold fullDivN1CallMaxmaxmaxExactInputHypotheses at hh
+  exact loopN1CallMaxmaxmaxSelectedInputHypotheses_of_exact
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    hh
+
+/-- Final exact path for the canonical full-DIV n=1 call/max/max/max
+    bundled inputs over the full `divCode_v4` bundle, using the selected-only
+    input hypothesis surface. -/
+theorem fullDivN1_call_maxmaxmax_exact_x1_scratch_v4_of_selected
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (halign : fullDivN1CallMaxmaxmaxExactInputAligned sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hh : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    fullDivN1CallMaxmaxmaxExactInputSpecV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal := by
+  unfold fullDivN1CallMaxmaxmaxExactInputSpecV4
+  unfold fullDivN1CallMaxmaxmaxExactInputAligned at halign
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses at hh
+  exact divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_selected
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    halign hh
 
 end EvmAsm.Evm64
