@@ -7,6 +7,10 @@
   - Loop: divK_loop_n2_unified_spec_within (base+448 → base+904)
 
   Follows the pattern of FullPathN3Loop.lean but for n=2.
+
+  Legacy carry note: this lift module still exposes the raw `Carry2NzAll`
+  package. It is a compatibility surface for older full-path composition;
+  final/public v4 n=2 stack work should use selected/reachable carry wrappers.
 -/
 
 -- `FullPathN4Loop` (5-hop) transitively reaches `FullPathN2` via
@@ -100,7 +104,10 @@ theorem loopExitPostN2_j0_eq (sp q_f c3 un0F un1F un2F un3F u4F
 -- Lift unified n=2  loop from sharedDivModCode to divCode
 -- ============================================================================
 
-/-- Lift the unified n=2 3-iteration  loop spec from sharedDivModCode to divCode. -/
+/-- Lift the unified n=2 3-iteration loop spec from sharedDivModCode to divCode.
+
+    Legacy compatibility surface: this still consumes the raw `Carry2NzAll`
+    package. New v4 n=2 work should route through selected carry evidence. -/
 theorem divK_loop_n2_unified_divCode (bltu_2 bltu_1 bltu_0 : Bool)
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop
