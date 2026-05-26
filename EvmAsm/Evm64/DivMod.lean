@@ -23,6 +23,8 @@ import EvmAsm.Evm64.DivMod.Shift0Dispatcher
 import EvmAsm.Evm64.DivMod.SpecCall
 import EvmAsm.Evm64.DivMod.CallableV1Legacy
 import EvmAsm.Evm64.DivMod.CallableV4Div
+import EvmAsm.Evm64.DivMod.CallableV4DivShape
+import EvmAsm.Evm64.DivMod.CallableV4DivConcrete
 import EvmAsm.Evm64.DivMod.CallableV4Mod
 import EvmAsm.Evm64.DivMod.N4StackSpec
 import EvmAsm.Evm64.DivMod.N4StackSpecWithin
@@ -87,6 +89,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4PreloopCallMax
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN2LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
