@@ -39,8 +39,10 @@ untouched. Generated artifacts go in `gen-out/` (gitignored).
 | `EvmAsm/Codegen/Emit.lean` | Pure `emitReg`, `emitInstr`, `emitProgram` — `Instr → String`. No `IO`. |
 | `EvmAsm/Codegen/Layout.lean` | `HaltConv` enum, halt stubs, `_start` preamble, `.option norvc`, `MEM_START`/`MEM_END` constants, `BuildUnit` struct + `emitBuildUnit`/`emitDataLabel` helpers. |
 | `EvmAsm/Codegen/Dispatch.lean` | M5b dispatcher scaffolding: `OpcodeHandlerSpec` (optional `preBody` for x10-clobbering handlers + optional `postBodyLabel` for M9's trampoline pattern) + `HandlerTail` types, `emitDispatcherPrologue`/`Epilogue`/`DataSection` and `buildDispatchUnit` helpers. M8.5 adds the parallel runtime-bytecode helpers (`emitRuntimeDispatcherPrologue` / `emitRuntimeDispatcherDataSection` / `buildRuntimeDispatchUnit`) that read bytecode from `INPUT_ADDR + INPUT_DATA_OFFSET` at runtime. Pure (no IO). |
-| `EvmAsm/Codegen/Programs.lean` | Registry (`smoke`, `evm_add`, `evm_div`, `evm_mod`, `input_echo`, `evm_add_from_input`, `evm_div_from_input`, `evm_mod_from_input`, `tiny_interp_{add,add2}`, `tiny_interp_dispatch_{add,add2}` → `BuildUnit`) plus the M5b opcode handler registry (`tinyInterpRegistry`) composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (17 fixed-shape opcodes), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `stopHandler`; shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched` for the DIV/MOD NOP-splice). |
-| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list. Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
+| `EvmAsm/Codegen/Programs.lean` | `BuildUnit` lookup hub: `lookupProgram`, `knownProgramNames`, plus the `statelessGuestUnit` build target. Imports every `BuildUnit` defined under `Programs/`. The actual M5b opcode-handler registry (`tinyInterpRegistry`) and the `BuildUnit`s for `evm_add` / `evm_div` / `evm_mod` / `input_echo` / `runtime_dispatcher` / `tiny_interp_*` now live in `Programs/Evm.lean` (see next row). |
+| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `envHandlers` (13 simple environment opcodes ADDRESS/CALLER/.../BASEFEE, M12), `calldataHandlers` (CALLDATASIZE, M13), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable, M10), and `stopHandler`. Total: **107 wired opcodes**. Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
+| `EvmAsm/Codegen/Proofs/` | Codegen-proofs scaffolding (post-M10). `RegistryInvariants.lean` (Phase 1) — 6 `decide`-checked theorems about `tinyInterpRegistry`'s structural well-formedness (Nodup on opcodes/labels, byte bounds, jump-table coverage). `HandlerSpecs.lean` (Phase 4) — reusable `cleanRetHandlerSpec` template + **13 concrete handler-level `cpsTripleWithin` instances** for clean-shape singletons (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT). Phases 2, 3, 5 + the remaining Phase 4 instances are still future work. |
+| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**38 cases** as of M13). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
 | `EvmAsm/Codegen/Cli.lean` | Argument parsing (`--program`, `--test-case`, `--list-test-cases`, `--halt`, `--out`, `--asm-only`). |
 | `EvmAsm/Codegen/Driver.lean` | `IO`: shells out to `as`/`ld` if available; `--asm-only` for CI without the cross toolchain. |
 | `Main.lean` | Already exists as `import EvmAsm`; extend to call `EvmAsm.Codegen.Cli.main`. |
@@ -676,13 +678,160 @@ also exits 0. Pre-existing M2/M4/M5/M7/M8/M8.5 scripts unchanged.
 PROGRESS.md needs only a snapshot-line bump (ignored by CI's
 drift check) — no commit.
 
+### M11 — Remaining bitwise shifts (SHL + SAR) — **DONE (2026-05-26)**
+
+Wires the last two unwired entries from `EvmAsm/Evm64/Shift/Program.lean`
+into `singletonHandlers`. SHL (0x1b) and SAR (0x1d) share the exact
+shape that SHR (0x1c, wired in M6b) already uses: a `preBody :=
+"mv x9, x10"` + `x10RestoreAdvance1` tail because the verified
+bodies clobber `x10` as a JAL-target scratch.
+
+**Delivered:**
+- `EvmAsm/Codegen/Programs/Evm.lean` — two new entries adjacent to
+  `h_SHR` in `singletonHandlers`:
+  ```lean
+  { label := "h_SHL", opcodes := [0x1b], preBody := "  mv x9, x10",
+    body := EvmAsm.Evm64.evm_shl, tail := x10RestoreAdvance1 }
+  { label := "h_SAR", opcodes := [0x1d], preBody := "  mv x9, x10",
+    body := EvmAsm.Evm64.evm_sar, tail := x10RestoreAdvance1 }
+  ```
+  `singletonHandlers` grows from 17 → 19; `tinyInterpRegistry`'s total
+  wired-opcode count grows from 91 → 93.
+- `EvmAsm/Codegen/Tests/Cases.lean` — three new cases:
+  `shl_basic` (`1 << 4 = 0x10`),
+  `sar_basic_positive` (`0xff >>> 1 = 0x7f`, MSB clear so SAR == SHR),
+  `sar_basic_negative` (`-1 >>>arith 1 = -1`, exercises sign-fill via
+  PUSH32 of `2^256-1`). Total cases: 31 → 34.
+- `EvmAsm/Codegen/Proofs/RegistryInvariants.lean` — bump the two
+  hard-coded count theorems (`tinyInterpRegistry_wired_opcode_count`
+  and `jumpTable_non_invalid_count`) from 91 → 93. Discharged by
+  `decide` / `set_option maxRecDepth 2048 in decide` as before.
+
+**MSIZE (0x59) deferred.** The verified `evm_msize` Program exists
+(`EvmAsm/Evm64/MSize/Program.lean`, slice 6 of issue #99) and is a
+pure read of a memory-size cell, but slices 1–5 — updating that cell
+from MLOAD/MSTORE/MSTORE8 on memory expansion — have not shipped:
+`evm_mload` / `evm_mstore` / `evm_mstore8` take no `sizeReg`
+parameter and never reference `sizeLoc`. Wiring MSIZE today would
+push a 4-limb zero regardless of EVM-memory touches. Drop into
+`memoryHandlers` once issue #99 slices 1–5 land.
+
+**EXP (0x0a) still blocked** pending the upstream
+`evm_exp_msb_saved_bit_two_mul_fixed_fixed` callee-saved variant.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 34 cases
+PASS. `scripts/check-progress.sh` exits 0 (drift gate). Legacy
+`scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing
+M2/M4/M5/M7/M8/M8.5/M9/M10 scripts unchanged.
+
+### M12 — Simple environment opcodes (Bucket A drain) — **DONE (2026-05-26)**
+
+Wires the 13 `SimpleEnvField` opcodes (ADDRESS 0x30, ORIGIN 0x32,
+CALLER 0x33, CALLVALUE 0x34, GASPRICE 0x3a, COINBASE 0x41,
+TIMESTAMP 0x42, NUMBER 0x43, PREVRANDAO 0x44, GASLIMIT 0x45,
+CHAINID 0x46, SELFBALANCE 0x47, BASEFEE 0x48) into
+`tinyInterpRegistry` as `envHandlers`. Lifts wired opcode count
+93 → 106 in one PR.
+
+**Delivered:**
+- `EvmAsm/Codegen/Dispatch.lean` — prologue (both `.data`-baked and
+  runtime-bytecode variants) initialises **`x20 = &evm_env`**; data
+  section adds a 416-byte (13 × 32 B) `evm_env:` block zero-
+  initialised. `x20` was chosen over `x14` because M8/M9/M10
+  DIV/MOD/SDIV/SMOD/ADDMOD handlers all save `x10` to `x14` via
+  `preBody`. `x20` has zero references in any
+  `EvmAsm/Evm64/*/Program.lean` and zero existing handler uses,
+  making it the cleanest long-term home for the env base.
+- `EvmAsm/Codegen/Programs/Evm.lean` — new `envHandlers` builder
+  inserted between `memoryHandlers` and `divModHandlers` in the
+  registry composition. All 13 records share the verified body
+  `EvmAsm.Evm64.Env.evm_env_load .x20 .x15 <field>` (9 instructions
+  per handler) parameterized over the `SimpleEnvField` enum value.
+  No `preBody` needed (env body doesn't touch `x10`); all use the
+  standard `.advanceAndRet 1` tail.
+- `EvmAsm/Codegen/Tests/Cases.lean` — three representative cases:
+  `address_zero` (routes byte 0x30 → 32 zero bytes),
+  `caller_via_dup_add` (CALLER + DUP1 + ADD exercises post-ENV
+  stack flow), `env_field_offset_distinct` (TIMESTAMP + NUMBER + SUB
+  confirms different opcode bytes resolve to different env cells).
+  Total cases: 34 → 37.
+- `EvmAsm/Codegen/Proofs/RegistryInvariants.lean` — bumped the two
+  hard-coded counts (`tinyInterpRegistry_wired_opcode_count` and
+  `jumpTable_non_invalid_count`) from 93 → **106**.
+
+**Env values are zero-initialised.** The dispatcher's
+`evm_env:` data section is `.zero 416`. Wiring this PR validates
+that the handler dispatch + field-offset arithmetic + 4-limb push
+mechanism work correctly. Non-zero env values come from a future
+host-preload PR that extends `INPUT_DATA_OFFSET` semantics to carry
+an `EvmEnv` struct; not blocking codegen correctness today.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 37 cases
+PASS. `scripts/check-progress.sh` exits 0. Legacy
+`scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing scripts
+unchanged.
+
+### M13 — CALLDATASIZE (final Bucket A drain) — **DONE (2026-05-26)**
+
+Wires `CALLDATASIZE (0x36)` via a new `calldataHandlers` list of one
+entry. Reuses M12's `x20 = &evm_env` register convention — the
+calldata-length cell at `evm_env + 424` lives in the same env region.
+Lifts wired opcode count 106 → 107.
+
+**Delivered:**
+- `EvmAsm/Codegen/Dispatch.lean` — `evm_env:` data block bumped from
+  416 to **512 bytes**, large enough to cover all
+  `Environment/Layout.lean` field offsets up to `returnDataSizeOff =
+  440` + 8 with slack. Both `.data`-baked and runtime-bytecode
+  variants updated.
+- `EvmAsm/Codegen/Programs/Evm.lean` — new `calldataHandlers`
+  builder adjacent to `envHandlers`. Single record:
+  ```lean
+  { label := "h_CALLDATASIZE", opcodes := [0x36],
+    body := EvmAsm.Evm64.Calldata.evm_calldatasize .x20 .x15,
+    tail := .advanceAndRet 1 }
+  ```
+  `evm_calldatasize` is a verified 6-instruction Program (parametric
+  in `envBaseReg`/`tmpReg`) at
+  `EvmAsm/Evm64/Calldata/SizeProgram.lean`. It reads `callDataLenOff
+  = 424` from the env block (defined in
+  `EvmAsm/Evm64/Environment/Layout.lean:87`), decrements `x12` by 32,
+  writes the low limb plus three zero high limbs.
+- `EvmAsm/Codegen/Tests/Cases.lean` — one new case
+  `calldatasize_zero` (bytecode `0x36 0x00`). Total: 37 → 38.
+- `EvmAsm/Codegen/Proofs/RegistryInvariants.lean` — counts bumped
+  106 → 107.
+
+**Strategic crossroad reached.** M13 drains the last opcode whose
+verified body is ready AND wireable without new design surface.
+Continuing to 100% coverage from 107 requires either external
+unblock (issue #99 → MSIZE; upstream EXP fix), small core change
+(extend `EvmEnv` for BLOBHASH/BLOBBASEFEE), verified-core
+implementation (MULMOD, CALLDATACOPY, CODESIZE/COPY, RETURNDATA*,
+EXTCODE*, BALANCE, BLOCKHASH), or new codegen design surface
+(control flow with a `HandlerTail.writeX10` variant; host-syscall
+ECALL bridge for KECCAK256/LOG/SLOAD/SSTORE/precompiles; child
+frames for CALL/CREATE/RETURN/REVERT/SELFDESTRUCT/INVALID).
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 38 cases
+PASS. `scripts/check-progress.sh` exits 0. Legacy
+`scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing scripts
+unchanged.
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
-emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
-`callableLabel?`) and the rest of the long arc.
+emission unreadable. M11 (SHL + SAR) shipped 2026-05-26; M12
+(13 simple environment opcodes via `envHandlers`) shipped 2026-05-26;
+M13 (CALLDATASIZE via `calldataHandlers`) shipped 2026-05-26. EXP
+remains deferred pending upstream callee-saved register variants;
+MSIZE deferred pending issue #99 slices 1–5; BLOBHASH/BLOBBASEFEE
+pending `EvmEnv` struct extension.
 
 ## Tricky bits / open questions
 
@@ -828,6 +977,35 @@ emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
   the bit-test reload logic produces garbage after the first
   squaring. EXP can ship once upstream lands a fully callee-saved
   variant.
+- **M11.** ✅ `scripts/codegen-opcodes-runtime-check.sh` exits 0 with
+  **34 test cases** PASS (validated 2026-05-26). SHL (0x1b) and SAR
+  (0x1d) wired through `singletonHandlers` with the same
+  `preBody := "mv x9, x10"` + `x10RestoreAdvance1` pattern as
+  SHR/BYTE/MUL/SIGNEXTEND. `tinyInterpRegistry_wired_opcode_count`
+  and `jumpTable_non_invalid_count` (Codegen-proofs Phase 1) bumped
+  from 91 → 93. MSIZE (0x59) deferred until issue #99 slices 1–5
+  wire memory-expansion bookkeeping into `evm_mload` / `evm_mstore` /
+  `evm_mstore8`.
+- **M12.** ✅ `scripts/codegen-opcodes-runtime-check.sh` exits 0 with
+  **37 test cases** PASS (validated 2026-05-26). 13 simple
+  environment opcodes (ADDRESS / ORIGIN / CALLER / CALLVALUE /
+  GASPRICE / COINBASE / TIMESTAMP / NUMBER / PREVRANDAO / GASLIMIT /
+  CHAINID / SELFBALANCE / BASEFEE) wired as new `envHandlers`
+  builder. Dispatcher prologue extended with `la x20, evm_env` and
+  the data section grows by 416 zero bytes for the 13-slot env
+  region. `x20` chosen over `x14` because the M8–M10 handlers all
+  clobber `x14` via `preBody := "mv x14, x10"`. Registry-invariants
+  counts bumped 93 → 106. Bucket-A coverage drained except MSIZE
+  (still gated on issue #99) and BLOBHASH / BLOBBASEFEE (need env
+  struct extension).
+- **M13.** ✅ `scripts/codegen-opcodes-runtime-check.sh` exits 0 with
+  **38 test cases** PASS (validated 2026-05-26). CALLDATASIZE (0x36)
+  wired via new `calldataHandlers` builder. Reuses M12's
+  `x20 = &evm_env` (the calldata-length cell at offset 424 lives in
+  the same env region). `evm_env:` data block bumped from 416 to
+  **512 bytes** to cover all `Environment/Layout.lean` field offsets
+  up to `returnDataSizeOff = 440` + 8 with slack. Registry-invariants
+  counts bumped 106 → 107.
 - **Codegen-proofs Phase 1.** ✅ `lake build` exits 0 (validated
   2026-05-21). New file `EvmAsm/Codegen/Proofs/RegistryInvariants.lean`
   carries 6 kernel-checked theorems about `tinyInterpRegistry`:

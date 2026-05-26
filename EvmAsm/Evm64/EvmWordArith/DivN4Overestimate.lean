@@ -65,6 +65,30 @@ theorem max_trial_overestimate_n4 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (hb3nz : b3 �
   rw [signExtend12_4095_toNat]
   exact val256_div_lt_pow64 a0 a1 a2 a3 b0 b1 b2 b3 hb3nz
 
+/-- N1 max-branch local quotient bound.  If the selected branch used the max
+    trial because the high window limb is at least the one-limb divisor, then
+    `2^64 - 1` is within the local quotient plus the double-addback slack. -/
+theorem max_trial_local_overestimate_n1_of_not_ult
+    (v0 u0 u1 : Word)
+    (hv0nz : v0 ≠ 0)
+    (hbltu : ¬ BitVec.ult u1 v0) :
+    (signExtend12 (4095 : BitVec 12) : Word).toNat ≤
+      val256 u0 u1 0 0 / val256 v0 0 0 0 + 2 := by
+  rw [signExtend12_4095_toNat]
+  rw [EvmWord.val256_zero_upper_2, EvmWord.val256_zero_upper_3]
+  have hv0_pos : 0 < v0.toNat := by
+    by_contra h
+    have hv0_zero_toNat : v0.toNat = 0 := by omega
+    exact hv0nz (BitVec.eq_of_toNat_eq hv0_zero_toNat)
+  have hle : v0.toNat ≤ u1.toNat := by
+    rw [BitVec.ult_eq_decide] at hbltu
+    simp at hbltu
+    omega
+  have hdiv_ge : 2^64 ≤ (u0.toNat + u1.toNat * 2^64) / v0.toNat := by
+    rw [Nat.le_div_iff_mul_le hv0_pos]
+    nlinarith
+  omega
+
 -- ============================================================================
 -- Skip path: mulsub c3=0 → Euclidean equation → EvmWord.div correctness
 -- ============================================================================
@@ -150,6 +174,32 @@ theorem mulsub_addback_val256_combined (q : Word) {v0 v1 v2 v3 u0 u1 u2 u3 : Wor
       q.toNat * val256 v0 v1 v2 v3 by linarith
   have hq1 : q.toNat = q.toNat - 1 + 1 := by omega
   nlinarith
+
+/-- If an `addbackN4` step carries out, its low four output limbs are strictly
+    below the divisor. This is the local remainder-bound fact used by the
+    single- and double-addback branches. -/
+theorem addbackN4_low_val256_lt_of_carry_one
+    (x0 x1 x2 x3 uTop v0 v1 v2 v3 : Word)
+    (hcarry : addbackN4_carry x0 x1 x2 x3 v0 v1 v2 v3 = 1) :
+    let ab := addbackN4 x0 x1 x2 x3 uTop v0 v1 v2 v3
+    val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 < val256 v0 v1 v2 v3 := by
+  intro ab
+  subst ab
+  have h_eq := addbackN4_val256_eq x0 x1 x2 x3 uTop v0 v1 v2 v3
+  simp only [] at h_eq
+  rw [hcarry, word_toNat_1] at h_eq
+  have h_bound := val256_bound x0 x1 x2 x3
+  linarith
+
+/-- `toNat`-stated variant of `addbackN4_low_val256_lt_of_carry_one`,
+    matching runtime carry facts that have already pinned the carry word. -/
+theorem addbackN4_low_val256_lt_of_carry_toNat_one
+    (x0 x1 x2 x3 uTop v0 v1 v2 v3 : Word)
+    (hcarry : (addbackN4_carry x0 x1 x2 x3 v0 v1 v2 v3).toNat = 1) :
+    let ab := addbackN4 x0 x1 x2 x3 uTop v0 v1 v2 v3
+    val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 < val256 v0 v1 v2 v3 :=
+  addbackN4_low_val256_lt_of_carry_one
+    x0 x1 x2 x3 uTop v0 v1 v2 v3 (BitVec.eq_of_toNat_eq hcarry)
 
 @[irreducible]
 def iterSingleAddbackBranch (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
@@ -264,6 +314,31 @@ theorem iterSingleAddbackBranch_val256_conservation
         q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
       simp only [] at hlow
       exact hlow)
+
+/-- In the single-addback iterator branch, the returned five-limb remainder is
+    strictly below the divisor. -/
+theorem iterSingleAddbackBranch_remainder_lt
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterSingleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) v0 v1 v2 v3
+    EvmWord.val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 +
+        ab.2.2.2.2.toNat * 2^256 <
+      EvmWord.val256 v0 v1 v2 v3 := by
+  intro ms ab
+  have htop := iterSingleAddbackBranch_ab_top_toNat_eq_zero
+    q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
+  simp only [] at htop
+  have hlow : EvmWord.val256 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 <
+      EvmWord.val256 v0 v1 v2 v3 := by
+    delta iterSingleAddbackBranch at hbranch
+    simp only [] at hbranch
+    rcases hbranch with ⟨_hb, _hc3_one, hcarry_one, _hq_pos⟩
+    exact addbackN4_low_val256_lt_of_carry_one
+      ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+      (uTop - ms.2.2.2.2) v0 v1 v2 v3 hcarry_one
+  rw [htop, Nat.zero_mul, Nat.add_zero]
+  exact hlow
 
 -- ============================================================================
 -- Addback path correctness for max trial at n=4
@@ -551,6 +626,90 @@ theorem addbackN4_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   have : carry2 < 2 := (Nat.mul_lt_mul_right h256_pos).mp hc2_lt
   omega
 
+/-- Generic double-addback progress bridge. If a local trial quotient has the
+    usual `+2` overestimate bound and the first-addback-zero branch forces the
+    mulsub carry to be exactly one, then the second addback carry is nonzero.
+
+    This is the reusable reduction needed by selected/reachable path proofs:
+    they can focus on local reachability facts that force `c3 = 1` in the
+    branch where the first addback carry is zero. -/
+theorem isAddbackCarry2Nz_of_overestimate_c3_one_of_carry_zero
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
+    (hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 2)
+    (hc3_one_of_carry_zero :
+      addbackN4_carry
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+        v0 v1 v2 v3 = 0 →
+      (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1) :
+    isAddbackCarry2Nz q v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  dsimp [isAddbackCarry2Nz]
+  intro hcarry_zero
+  let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+  let abTop := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    (uTop - ms.2.2.2.2) v0 v1 v2 v3
+  let abZero := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    0 v0 v1 v2 v3
+  have hc3_one : ms.2.2.2.2 = 1 := by
+    subst ms
+    exact hc3_one_of_carry_zero hcarry_zero
+  have hsecond := addbackN4_second_carry_one q v0 v1 v2 v3 u0 u1 u2 u3
+    hbnz hq_over hc3_one hcarry_zero
+  simp only [] at hsecond
+  have h_indep := addbackN4_fst4_u4_indep
+    ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    (uTop - ms.2.2.2.2) 0 v0 v1 v2 v3
+  rcases h_indep with ⟨h0, h1, h2, h3⟩
+  have hsecond_top :
+      (addbackN4_carry abTop.1 abTop.2.1 abTop.2.2.1 abTop.2.2.2.1
+        v0 v1 v2 v3).toNat = 1 := by
+    rw [h0, h1, h2, h3]
+    exact hsecond
+  intro hzero
+  rw [hzero] at hsecond_top
+  norm_num at hsecond_top
+
+/-- N1 max-path specialization of the generic double-addback progress bridge.
+    With a one-limb divisor/window and the selected max-branch condition, the
+    remaining local obligation is the reachable fact that a zero first-addback
+    carry forces the mulsub carry to be one. -/
+theorem isAddbackCarry2NzN1Max_of_not_ult_c3_one_of_carry_zero
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hv0nz : v0 ≠ 0)
+    (hv1z : v1 = 0)
+    (hv2z : v2 = 0)
+    (hv3z : v3 = 0)
+    (hu2z : u2 = 0)
+    (hu3z : u3 = 0)
+    (hbltu : ¬ BitVec.ult u1 v0)
+    (hc3_one_of_carry_zero :
+      addbackN4_carry
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).1
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.1
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+        v0 v1 v2 v3 = 0 →
+      (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1) :
+    isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  unfold isAddbackCarry2NzN1Max
+  apply isAddbackCarry2Nz_of_overestimate_c3_one_of_carry_zero
+  · intro h
+    subst v1
+    subst v2
+    subst v3
+    simp at h
+    exact hv0nz h
+  · subst v1
+    subst v2
+    subst v3
+    subst u2
+    subst u3
+    exact max_trial_local_overestimate_n1_of_not_ult v0 u0 u1 hv0nz hbltu
+  · exact hc3_one_of_carry_zero
+
 /-- Combined Euclidean equation for the double-addback case:
     val256(u) = (q.toNat - 2) * val256(v) + val256(ab'_result). -/
 theorem mulsub_double_addback_val256_combined (q : Word) {v0 v1 v2 v3 u0 u1 u2 u3 : Word}
@@ -751,6 +910,40 @@ theorem iterDoubleAddbackBranch_val256_conservation
         q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
       simp only [] at hlow
       exact hlow)
+
+/-- In the double-addback iterator branch, the returned five-limb remainder is
+    strictly below the divisor. -/
+theorem iterDoubleAddbackBranch_remainder_lt
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbranch : iterDoubleAddbackBranch q v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 (uTop - ms.2.2.2.2) v0 v1 v2 v3
+    let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2 v0 v1 v2 v3
+    EvmWord.val256 ab'.1 ab'.2.1 ab'.2.2.1 ab'.2.2.2.1 +
+        ab'.2.2.2.2.toNat * 2^256 <
+      EvmWord.val256 v0 v1 v2 v3 := by
+  intro ms ab ab'
+  have htop := iterDoubleAddbackBranch_ab'_top_toNat_eq_zero
+    q v0 v1 v2 v3 u0 u1 u2 u3 uTop hbranch
+  simp only [] at htop
+  have hlow : EvmWord.val256 ab'.1 ab'.2.1 ab'.2.2.1 ab'.2.2.2.1 <
+      EvmWord.val256 v0 v1 v2 v3 := by
+    delta iterDoubleAddbackBranch at hbranch
+    simp only [] at hbranch
+    rcases hbranch with ⟨_hb, hc3_one, hcarry_zero, hbnz, hq_over, _hq_ge_2⟩
+    have hcarry2 := addbackN4_second_carry_one
+      q v0 v1 v2 v3 u0 u1 u2 u3 hbnz hq_over hc3_one hcarry_zero
+    simp only [] at hcarry2
+    have hcarry2_actual :
+        (addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 v0 v1 v2 v3).toNat = 1 := by
+      subst ab
+      simp only [addbackN4] at hcarry2 ⊢
+      exact hcarry2
+    exact addbackN4_low_val256_lt_of_carry_toNat_one
+      ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2
+      v0 v1 v2 v3 hcarry2_actual
+  rw [htop, Nat.zero_mul, Nat.add_zero]
+  exact hlow
 
 theorem q_pos_of_mulsub_borrow
     (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
