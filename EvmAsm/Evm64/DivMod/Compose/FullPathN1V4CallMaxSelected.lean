@@ -318,6 +318,56 @@ theorem divK_loop_n1_call_iter210_exact_x1_framed_v4_input_of_selected
       unfold loopN1CallMaxmaxmaxR2 at h
       exact h))
 
+/-- Bundled all-max tail after the first j=3 call-body step over the full
+    `divCode_v4` bundle, from selected-only input hypotheses, using
+    conditional max carry evidence for taken addback branches. -/
+theorem divK_loop_n1_call_iter210_exact_x1_framed_v4_input_of_selected_if_borrow
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
+    loopN1CallMaxmaxmaxIter210ExactInputSpecV4 I := by
+  unfold loopN1CallMaxmaxmaxIter210ExactInputSpecV4
+  let r3 := loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop_selected_carry_if_borrow I.sp I.base
+    I.jOld I.v5Old I.v6Old I.v7Old I.v10Old I.v11Old I.v2Old
+    I.v0 I.v1 I.v2 I.v3
+    I.u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+    I.u0Orig1 I.u0Orig0 I.q2Old I.q1Old I.q0Old
+    (I.base + div128CallRetOff) I.v0 (divKTrialCallV4DLo I.v0)
+    (divKTrialCallV4Un0 I.u0) I.raVal
+    (by
+      dsimp only [r3]
+      exact loopN1CallMaxmaxmaxSelectedInputHypotheses_hbltu2 I hh)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedInputHypotheses_hbltu1 I hh
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedInputHypotheses_hbltu0 I hh
+      unfold loopN1CallMaxmaxmaxR1 at h
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedInputHypotheses_carryIfBorrowMax2 I hh
+      unfold selectedN1MaxCarryIfBorrow at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedInputHypotheses_carryIfBorrowMax1 I hh
+      unfold loopN1CallMaxmaxmaxR2 at h
+      unfold selectedN1MaxCarryIfBorrow at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedInputHypotheses_carryIfBorrowMax0 I hh
+      unfold loopN1CallMaxmaxmaxR1 at h
+      unfold loopN1CallMaxmaxmaxR2 at h
+      unfold selectedN1MaxCarryIfBorrow at h
+      exact h))
+
 /-- Bundled framed all-max tail pre/post over the full `divCode_v4` bundle,
     from selected-only input hypotheses. -/
 theorem divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input_of_selected
@@ -375,6 +425,68 @@ theorem divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input_of_selected
     (loopN1CallMaxmaxmaxIter210FrameInput I) (by pcFree) H210
   exact H210f
 
+/-- Bundled framed all-max tail pre/post over the full `divCode_v4` bundle,
+    from selected-only input hypotheses, using conditional max carry evidence
+    for taken addback branches. -/
+theorem divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input_of_selected_if_borrow
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
+    cpsTripleWithin 556 (I.base + loopBodyOff) (I.base + denormOff)
+      (divCode_v4 I.base)
+      (loopN1CallMaxmaxmaxIter210FramedPreInput I)
+      (loopN1CallMaxmaxmaxIter210FramedPostInput I) := by
+  unfold loopN1CallMaxmaxmaxIter210FramedPreInput
+    loopN1CallMaxmaxmaxIter210FramedPostInput
+  let r3 := loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+  let c3 := (mulsubN4 (divKTrialCallV4QHat I.u1 I.u0 I.v0)
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3).2.2.2.2
+  let uBase3 := I.sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
+  let qAddr3 := I.sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
+  have H210 := cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop_selected_carry_if_borrow I.sp I.base
+    (3 : Word) ((3 : Word) <<< (3 : BitVec 6).toNat) uBase3 qAddr3 c3 r3.1
+    r3.2.2.2.2.1
+    I.v0 I.v1 I.v2 I.v3
+    I.u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+    I.u0Orig1 I.u0Orig0 I.q2Old I.q1Old I.q0Old
+    (I.base + div128CallRetOff) I.v0 (divKTrialCallV4DLo I.v0)
+    (divKTrialCallV4Un0 I.u0) I.raVal
+    (by
+      dsimp only [r3]
+      exact loopN1CallMaxmaxmaxSelectedInputHypotheses_hbltu2 I hh)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedInputHypotheses_hbltu1 I hh
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedInputHypotheses_hbltu0 I hh
+      unfold loopN1CallMaxmaxmaxR1 at h
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedInputHypotheses_carryIfBorrowMax2 I hh
+      unfold selectedN1MaxCarryIfBorrow at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedInputHypotheses_carryIfBorrowMax1 I hh
+      unfold loopN1CallMaxmaxmaxR2 at h
+      unfold selectedN1MaxCarryIfBorrow at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedInputHypotheses_carryIfBorrowMax0 I hh
+      unfold loopN1CallMaxmaxmaxR1 at h
+      unfold loopN1CallMaxmaxmaxR2 at h
+      unfold selectedN1MaxCarryIfBorrow at h
+      exact h))
+  have H210f := cpsTripleWithin_frameR
+    (loopN1CallMaxmaxmaxIter210FrameInput I) (by pcFree) H210
+  exact H210f
+
 /-- Framed all-max tail from the actual bundled j=3 post to the final N1
     call/max/max/max scratch post over the full `divCode_v4` bundle, from
     selected-only input hypotheses. -/
@@ -392,6 +504,24 @@ theorem divK_loop_n1_call_iter210_framed_exact_x1_v4_input_of_selected
     (loopN1CallMaxmaxmaxIter210FramedPostInput_to_scratchPost I)
     (divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input_of_selected I hh)
 
+/-- Framed all-max tail from the actual bundled j=3 post to the final N1
+    call/max/max/max scratch post over the full `divCode_v4` bundle, from
+    selected-only input hypotheses, using conditional max carry evidence for
+    taken addback branches. -/
+theorem divK_loop_n1_call_iter210_framed_exact_x1_v4_input_of_selected_if_borrow
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
+    cpsTripleWithin 556 (I.base + loopBodyOff) (I.base + denormOff)
+      (divCode_v4 I.base)
+      (loopN1CallMaxmaxmaxJ3PostInput I)
+      (loopN1CallMaxmaxmaxScratchPostNoX1 I.sp I.base
+        I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2 I.u0Orig1 I.u0Orig0 I.scratchMem ** (.x1 ↦ᵣ I.raVal)) := by
+  exact cpsTripleWithin_weaken
+    (loopN1CallMaxmaxmaxJ3PostInput_to_iter210FramedPre I)
+    (loopN1CallMaxmaxmaxIter210FramedPostInput_to_scratchPost I)
+    (divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input_of_selected_if_borrow I hh)
+
 /-- Full bundled N1 call/max/max/max exact path over the full `divCode_v4`
     bundle, using selected-only input hypotheses. -/
 theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_selected
@@ -403,6 +533,24 @@ theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_selected
   have J3 := divK_loop_n1_call_j3_exact_x1_framed_v4_input_of_selected I halign hh
   unfold loopN1CallMaxmaxmaxJ3ExactInputSpecV4 at J3
   have Htail := divK_loop_n1_call_iter210_framed_exact_x1_v4_input_of_selected I hh
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      unfold loopN1CallMaxmaxmaxJ3PostInput
+      exact hp)
+    J3 Htail
+
+/-- Full bundled N1 call/max/max/max exact path over the full `divCode_v4`
+    bundle, using selected-only input hypotheses and conditional max carry
+    evidence for taken addback branches. -/
+theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_selected_if_borrow
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (halign : loopN1CallMaxmaxmaxExactInputAligned I)
+    (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
+    loopN1CallMaxmaxmaxExactInputSpecV4 I := by
+  unfold loopN1CallMaxmaxmaxExactInputSpecV4
+  have J3 := divK_loop_n1_call_j3_exact_x1_framed_v4_input_of_selected I halign hh
+  unfold loopN1CallMaxmaxmaxJ3ExactInputSpecV4 at J3
+  have Htail := divK_loop_n1_call_iter210_framed_exact_x1_v4_input_of_selected_if_borrow I hh
   exact cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by
       unfold loopN1CallMaxmaxmaxJ3PostInput
@@ -1006,6 +1154,36 @@ theorem fullDivN1_call_maxmaxmax_exact_x1_scratch_v4_of_selected
   unfold fullDivN1CallMaxmaxmaxExactInputAligned at halign
   unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses at hh
   exact divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_selected
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    halign hh
+
+/-- Final exact path for the canonical full-DIV n=1 call/max/max/max
+    bundled inputs over the full `divCode_v4` bundle, using selected-only
+    hypotheses and conditional max carry evidence for taken addback branches. -/
+theorem fullDivN1_call_maxmaxmax_exact_x1_scratch_v4_of_selected_if_borrow
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (halign : fullDivN1CallMaxmaxmaxExactInputAligned sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hh : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    fullDivN1CallMaxmaxmaxExactInputSpecV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal := by
+  unfold fullDivN1CallMaxmaxmaxExactInputSpecV4
+  unfold fullDivN1CallMaxmaxmaxExactInputAligned at halign
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses at hh
+  exact divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_selected_if_borrow
     (fullDivN1CallMaxmaxmaxExactInputs sp base
       jOld v5Old v6Old v7Old v10Old v11Old v2Old
       a0 a1 a2 a3 b0 b1 b2 b3
