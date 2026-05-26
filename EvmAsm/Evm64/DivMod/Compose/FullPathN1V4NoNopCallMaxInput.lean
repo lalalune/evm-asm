@@ -61,6 +61,67 @@ theorem divK_loop_n1_call_j3_exact_x1_framed_v4_noNop_input
     (isAddbackCarry2NzN1CallV4_raw I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
       (loopN1CallMaxmaxmaxExactInputHypotheses_carry2Call I hh))
 
+theorem loopN1CallMaxmaxmaxExactInputHypotheses_selectedCarry
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (h : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    loopN1CallMaxmaxmaxSelectedCarryFacts
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+      I.u0Orig2 I.u0Orig1 I.u0Orig0 := by
+  unfold loopN1CallMaxmaxmaxExactInputHypotheses at h
+  unfold loopN1CallMaxmaxmaxExactHypotheses at h
+  exact h.2.2.2
+
+theorem loopN1CallMaxmaxmaxExactInputHypotheses_carryMax2
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    isAddbackCarry2NzN1Max
+      I.v0 I.v1 I.v2 I.v3 I.u0Orig2
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop).2.1
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop).2.2.1
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop).2.2.2.1
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop).2.2.2.2.1 := by
+  have hselected := loopN1CallMaxmaxmaxExactInputHypotheses_selectedCarry I hh
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
+  exact hselected.2.1
+
+theorem loopN1CallMaxmaxmaxExactInputHypotheses_carryMax1
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    isAddbackCarry2NzN1Max
+      I.v0 I.v1 I.v2 I.v3 I.u0Orig1
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2).2.1
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2).2.2.1
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2).2.2.2.1
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2).2.2.2.2.1 := by
+  have hselected := loopN1CallMaxmaxmaxExactInputHypotheses_selectedCarry I hh
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
+  exact hselected.2.2.1
+
+theorem loopN1CallMaxmaxmaxExactInputHypotheses_carryMax0
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxExactInputHypotheses I) :
+    isAddbackCarry2NzN1Max
+      I.v0 I.v1 I.v2 I.v3 I.u0Orig0
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2 I.u0Orig1).2.1
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2 I.u0Orig1).2.2.1
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2 I.u0Orig1).2.2.2.1
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2 I.u0Orig1).2.2.2.2.1 := by
+  have hselected := loopN1CallMaxmaxmaxExactInputHypotheses_selectedCarry I hh
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
+  exact hselected.2.2.2
+
 /-- Bundled statement for the j=2/j=1/j=0 all-max tail after the first
     j=3 call-body step in the N1 call/max/max/max exact path. -/
 @[irreducible]
@@ -88,7 +149,7 @@ theorem divK_loop_n1_call_iter210_exact_x1_framed_v4_noNop_input
     loopN1CallMaxmaxmaxIter210ExactInputSpec I := by
   unfold loopN1CallMaxmaxmaxIter210ExactInputSpec
   let r3 := loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
-  exact divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop I.sp I.base
+  exact divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop_selected_carry I.sp I.base
     I.jOld I.v5Old I.v6Old I.v7Old I.v10Old I.v11Old I.v2Old
     I.v0 I.v1 I.v2 I.v3
     I.u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
@@ -109,7 +170,20 @@ theorem divK_loop_n1_call_iter210_exact_x1_framed_v4_noNop_input
       unfold loopN1CallMaxmaxmaxR1 at h
       unfold loopN1CallMaxmaxmaxR2 at h
       exact h)
-    (loopN1CallMaxmaxmaxExactInputHypotheses_carry2 I hh)
+    (by
+      dsimp only [r3]
+      exact loopN1CallMaxmaxmaxExactInputHypotheses_carryMax2 I hh)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxExactInputHypotheses_carryMax1 I hh
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxExactInputHypotheses_carryMax0 I hh
+      unfold loopN1CallMaxmaxmaxR1 at h
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
 
 /-- Actual assertion produced by the bundled j=3 call-body step, including
     the cells framed for the following all-max tail. -/
@@ -254,7 +328,7 @@ theorem divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_noNop_input
     I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3).2.2.2.2
   let uBase3 := I.sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
   let qAddr3 := I.sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
-  have H210 := divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop I.sp I.base
+  have H210 := divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop_selected_carry I.sp I.base
     (3 : Word) ((3 : Word) <<< (3 : BitVec 6).toNat) uBase3 qAddr3 c3 r3.1
     r3.2.2.2.2.1
     I.v0 I.v1 I.v2 I.v3
@@ -276,7 +350,20 @@ theorem divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_noNop_input
       unfold loopN1CallMaxmaxmaxR1 at h
       unfold loopN1CallMaxmaxmaxR2 at h
       exact h)
-    (loopN1CallMaxmaxmaxExactInputHypotheses_carry2 I hh)
+    (by
+      dsimp only [r3]
+      exact loopN1CallMaxmaxmaxExactInputHypotheses_carryMax2 I hh)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxExactInputHypotheses_carryMax1 I hh
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxExactInputHypotheses_carryMax0 I hh
+      unfold loopN1CallMaxmaxmaxR1 at h
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
   have H210f := cpsTripleWithin_frameR
     (loopN1CallMaxmaxmaxIter210FrameInput I) (by pcFree) H210
   exact H210f
