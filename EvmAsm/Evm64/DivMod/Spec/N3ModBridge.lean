@@ -111,7 +111,7 @@ theorem fullModN3UnifiedPost_to_modStackDispatchPost
   rw [word_add_zero] at hq
   xperm_hyp hq
 
-/-- N=3 MOD stack-level entry point: mirrors `evm_mod_n2_stack_spec_within`
+/-- Legacy raw-carry N=3 MOD stack-level entry point: mirrors `evm_mod_n2_stack_spec_within`
 (Spec/N2ModBridge.lean) and `evm_div_n3_stack_spec_within`
 (Spec/Dispatcher.lean). Composes `evm_mod_n3_full_unified_spec` with
 `fullModN3UnifiedPost_to_modStackDispatchPost`. The step count `542` matches
@@ -183,7 +183,7 @@ theorem evm_mod_n3_stack_spec_within
         ha0 ha1 ha2 ha3 hmod0 hmod1 hmod2 hmod3 h hq)
     hFull
 
-/-- `_word` form of `evm_mod_n3_stack_spec_within`: takes a packed
+/-- Legacy raw-carry `_word` form of `evm_mod_n3_stack_spec_within`: takes a packed
 `fullModN3RemainderWord` equality with `EvmWord.mod a b` and unpacks it into
 the four per-limb equations. Mirrors `evm_mod_n2_stack_spec_within_word`. -/
 theorem evm_mod_n3_stack_spec_within_word
