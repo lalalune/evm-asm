@@ -10,9 +10,10 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-- The n=3 no-NOP loop body does not consume the caller's return address.
-    This wrapper carries exact `x1` through the existing unified loop theorem,
-    instead of weakening it to `regOwn .x1` in outer composition layers. -/
+/-- Legacy raw-carry exact-`x1` wrapper for the n=3 no-NOP loop body.
+    It carries exact `x1` through the existing unified loop theorem, but still
+    exposes the universal `Carry2NzAll` package. New final/public v4 work
+    should use selected-carry paths instead. -/
 theorem evm_div_n3_loop_unified_inst_noNop_exact_x1_frame
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (shift antiShift b0' b1' b2' b3' u0 u1 u2 u3 u4 : Word)
@@ -37,10 +38,10 @@ theorem evm_div_n3_loop_unified_inst_noNop_exact_x1_frame
       v10Old v11Old jMem retMem dMem dloMem scratch_un0
       halign hbltu_1 hbltu_0 hcarry2)
 
-/-- Max×max n=3 no-NOP loop path with caller `x1` kept as a concrete
-    register atom. This is the first non-vacuous no-`x1` source path: unlike
-    `loopN3PreWithScratch`, `loopN3PreWithScratchNoX1` does not already own
-    `x1`. -/
+/-- Legacy raw-carry max×max n=3 no-NOP loop path with caller `x1` kept as a
+    concrete register atom. It still exposes the universal `Carry2NzAll`
+    package; selected-carry paths are the intended route for final/public v4
+    wrappers. -/
 theorem divK_loop_n3_max_max_spec_within_noNop_exact_x1
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)

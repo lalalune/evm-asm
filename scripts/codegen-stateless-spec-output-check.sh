@@ -31,9 +31,11 @@
 # non-empty payloads will switch this stamp to a real computation.
 #
 # Fixtures: 5 chain_id values (1, 0x1234567890ABCDEF, 0, max-u32,
-# max-u64) at the default fork=0, plus one fork=1 case
+# max-u64) at the default fork=0; one fork=1 case
 # (`chain1_fork1`) exercising the `active_fork.fork` passthrough
-# from input through to OUTPUT[49..57).
+# from input through to OUTPUT[49..57); and one non-empty
+# `witness.codes` case (`chain1_witcode`) exercising the decoder's
+# outer-offset walk under input-layout drift.
 #
 # Exit:
 #   0 -- all fixtures match
@@ -71,6 +73,8 @@ run_fixture() {
   local label="$1"
   local cid="$2"
   local fork="${3:-0}"
+  local witness_code_hex="${4:-}"
+  local witness_state_hex="${5:-}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -78,10 +82,14 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork)"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty})"
   uv run --directory execution-specs --quiet python3 -c "
 import struct, sys
 from ethereum.forks.amsterdam.stateless_ssz import (
+    MAX_BYTES_PER_CODE,
+    MAX_BYTES_PER_WITNESS_NODE,
+    MAX_WITNESS_CODES,
+    MAX_WITNESS_NODES,
     STATELESS_INPUT_SCHEMA_ID_BYTES,
     SszChainConfig,
     SszExecutionWitness,
@@ -94,13 +102,19 @@ from ethereum.forks.amsterdam.stateless_ssz import (
 )
 from ethereum.forks.amsterdam.stateless_guest import run_stateless_guest
 from remerkleable.basic import uint64
+from remerkleable.byte_arrays import ByteList
+from remerkleable.complex import List as SszList
 
 cid = int(sys.argv[1], 0)
 fork_idx = int(sys.argv[4], 0)
+code_hex = sys.argv[5]
+state_hex = sys.argv[6]
 
 # Build the new-schema StatelessInput: empty new_payload_request,
-# empty witness, chain_config(cid, SszForkConfig(fork=fork_idx,
-# empty activation, empty blob_schedule)), empty public_keys.
+# witness whose 'state'/'codes' lists each hold zero or more
+# entries (controlled by the fixture), 'headers' empty,
+# chain_config(cid, SszForkConfig(fork=fork_idx, empty activation,
+# empty blob_schedule)), empty public_keys.
 empty_activation = SszForkActivation(
     block_number=SszOptionalForkActivationValue(),
     timestamp=SszOptionalForkActivationValue(),
@@ -111,9 +125,30 @@ fork_cfg = SszForkConfig(
     blob_schedule=SszOptionalBlobSchedule(),
 )
 cc = SszChainConfig(chain_id=uint64(cid), active_fork=fork_cfg)
+
+CodeBL = ByteList[MAX_BYTES_PER_CODE]
+CodesList = SszList[CodeBL, MAX_WITNESS_CODES]
+codes_arg = ()
+if code_hex:
+    # Multiple entries separated by ':', each is a hex blob.
+    code_entries = code_hex.split(':')
+    codes_arg = tuple(CodeBL(bytes.fromhex(c)) for c in code_entries)
+
+NodeBL = ByteList[MAX_BYTES_PER_WITNESS_NODE]
+NodesList = SszList[NodeBL, MAX_WITNESS_NODES]
+state_arg = ()
+if state_hex:
+    state_entries = state_hex.split(':')
+    state_arg = tuple(NodeBL(bytes.fromhex(s)) for s in state_entries)
+
+witness = SszExecutionWitness(
+    state=NodesList(*state_arg),
+    codes=CodesList(*codes_arg),
+)
+
 ssz_input = SszStatelessInput(
     new_payload_request=SszNewPayloadRequest(),
-    witness=SszExecutionWitness(),
+    witness=witness,
     chain_config=cc,
     public_keys=(),
 )
@@ -134,7 +169,7 @@ spec_bytes = bytes(run_stateless_guest(input_bytes))
 assert len(spec_bytes) == 73, f'spec: expected 73, got {len(spec_bytes)}'
 with open(sys.argv[3], 'w') as f:
     f.write(spec_bytes.hex())
-" "$cid" "$input_file" "$spec_exp_file" "$fork"
+" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex"
 
   echo "==> [$label] ziskemu run"
   "$ZISKEMU" -e gen-out/stateless_guest.elf -i "$input_file" \
@@ -185,6 +220,32 @@ run_fixture "chain_max_u64"         0xFFFFFFFFFFFFFFFF      || fail=1
 # One fixture suffices: the encoder pipes the raw u64 from x12 to
 # OUTPUT[49..57) without inspecting its value.
 run_fixture "chain1_fork1"          1                  1    || fail=1
+
+# Non-empty witness.codes -- exercises the decoder's outer-offset
+# walk on a non-trivial input layout. The witness section grows by
+# one ByteList entry; the outer `chain_config` offset (read by
+# `read_chain_id` from SSZ_BASE+8) shifts accordingly. ELF output
+# is unchanged (chain_config echoed, valid=False as for empty
+# witness), so this verifies that `read_chain_id` /
+# `read_active_fork` still land on the correct `chain_config_addr`
+# under input-layout drift. Code blob is 4 deterministic bytes.
+run_fixture "chain1_witcode"        1                  0    "deadbeef" || fail=1
+
+# Same path with TWO witness.codes entries -- exercises the SSZ
+# list-of-variable-size-elements encoding inside witness.codes (an
+# inner u32 offset table prefixes the codes section). The outer
+# `chain_config` offset shifts further than the single-entry case,
+# and the decoder must still chase it correctly.
+run_fixture "chain1_witcode_2"      1                  0    "deadbeef:cafef00d" || fail=1
+
+# Non-empty witness.state -- parallel to witness.codes but exercises
+# the FIRST inner field of `SszExecutionWitness` (state nodes). The
+# inner offset table inside the witness section now has state_offset
+# strictly less than codes_offset, but the outer-offset chase the
+# decoder performs (SSZ_BASE+8 -> chain_config_addr) is identical:
+# we verify the decoder doesn't accidentally depend on which inner
+# witness field is non-empty. State entry is one arbitrary node.
+run_fixture "chain1_witstate"       1                  0    ""           "a1b2c3d4e5f60718" || fail=1
 
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
