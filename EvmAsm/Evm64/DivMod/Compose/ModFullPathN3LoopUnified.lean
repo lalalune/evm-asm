@@ -2,6 +2,9 @@
   EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
 
   MOD n=3 full-path composition using the shared N3 unified loop post bundle.
+  These wrappers still thread the legacy universal Carry2NzAll package and
+  should be treated as compatibility surfaces only. New v4 stack/callable work
+  should use selected/reachable carry evidence instead.
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
