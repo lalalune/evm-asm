@@ -120,6 +120,53 @@ abbrev fullDivN2SelectedPathConditionsV4 (bltu_2 bltu_1 bltu_0 : Bool)
   fullDivN2MulSubEqV4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
   fullDivN2QuotientOverestimateV4 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
 
+/-- First selected n=2 carry component, for the `j=2` loop iteration. -/
+theorem fullDivN2SelectedCarryV4_j2
+    (bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hcarry : fullDivN2SelectedCarryV4 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    let v := fullDivN2NormV b0 b1 b2 b3
+    let u := fullDivN2NormU a0 a1 a2 a3 b1
+    if bltu_2 then
+      loopBodyN2CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.2.1 u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word)
+    else
+      isAddbackCarry2NzN2Max v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.2.1 u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) :=
+  hcarry.1
+
+/-- Second selected n=2 carry component, for the `j=1` loop iteration. -/
+theorem fullDivN2SelectedCarryV4_j1
+    (bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hcarry : fullDivN2SelectedCarryV4 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    let v := fullDivN2NormV b0 b1 b2 b3
+    let u := fullDivN2NormU a0 a1 a2 a3 b1
+    let r2 := fullDivN2R2V4 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3
+    if bltu_1 then
+      loopBodyN2CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+    else
+      isAddbackCarry2NzN2Max v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 :=
+  hcarry.2.1
+
+/-- Third selected n=2 carry component, for the `j=0` loop iteration. -/
+theorem fullDivN2SelectedCarryV4_j0
+    (bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hcarry : fullDivN2SelectedCarryV4 bltu_2 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    let v := fullDivN2NormV b0 b1 b2 b3
+    let u := fullDivN2NormU a0 a1 a2 a3 b1
+    let r1 := fullDivN2R1V4 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+    if bltu_0 then
+      loopBodyN2CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+    else
+      isAddbackCarry2NzN2Max v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 :=
+  hcarry.2.2
+
 /-- Project the v4 N2 normalized mulsub equation from the bundled explicit-limb path. -/
 theorem fullDivN2PathConditionsV4_mulsub
     (bltu_2 bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)

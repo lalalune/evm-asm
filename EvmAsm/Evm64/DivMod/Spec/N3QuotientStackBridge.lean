@@ -123,6 +123,37 @@ abbrev fullDivN3SelectedPathConditionsV4 (bltu_1 bltu_0 : Bool)
   fullDivN3MulSubEqV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
   fullDivN3QuotientOverestimateV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
 
+/-- First selected n=3 carry component, for the `j=1` loop iteration. -/
+theorem fullDivN3SelectedCarryV4_j1
+    (bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hcarry : fullDivN3SelectedCarryV4 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    let v := fullDivN3NormV b0 b1 b2 b3
+    let u := fullDivN3NormU a0 a1 a2 a3 b2
+    if bltu_1 then
+      loopBodyN3CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.1 u.2.2.1 u.2.2.2.1 u.2.2.2.2 (0 : Word)
+    else
+      isAddbackCarry2NzN3Max v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.1 u.2.2.1 u.2.2.2.1 u.2.2.2.2 (0 : Word) :=
+  hcarry.1
+
+/-- Second selected n=3 carry component, for the `j=0` loop iteration. -/
+theorem fullDivN3SelectedCarryV4_j0
+    (bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hcarry : fullDivN3SelectedCarryV4 bltu_1 bltu_0
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    let v := fullDivN3NormV b0 b1 b2 b3
+    let u := fullDivN3NormU a0 a1 a2 a3 b2
+    let r1 := fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+    if bltu_0 then
+      loopBodyN3CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+    else
+      isAddbackCarry2NzN3Max v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 :=
+  hcarry.2
+
 /-- Project the v4 N3 normalized mulsub equation from the bundled explicit-limb path. -/
 theorem fullDivN3PathConditionsV4_mulsub
     (bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
