@@ -258,6 +258,14 @@ run_fixture "chain1_witcode_2"      1                  0    "deadbeef:cafef00d" 
 # witness field is non-empty. State entry is one arbitrary node.
 run_fixture "chain1_witstate"       1                  0    ""           "a1b2c3d4e5f60718" || fail=1
 
+# Two witness.state entries -- parallel to chain1_witcode_2 but on
+# the FIRST inner witness field. The state list is variable-size
+# elements (ByteList[MAX_BYTES_PER_WITNESS_NODE]), so a 2-element
+# list ships its own u32 inner offset table prefix. Completes the
+# 1-vs-2 entries matrix across all three list-type SSZ slots
+# (codes, state, public_keys).
+run_fixture "chain1_witstate_2"     1                  0    ""           "a1b2c3d4e5f60718:9988776655443322" || fail=1
+
 # Both witness.state AND witness.codes non-empty simultaneously --
 # the inner-witness offset table now has three pairwise-distinct
 # offsets (state_offset < codes_offset < headers_offset), pushing
