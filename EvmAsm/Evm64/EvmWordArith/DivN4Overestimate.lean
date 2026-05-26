@@ -602,6 +602,52 @@ theorem addbackN4_second_carry_one (q v0 v1 v2 v3 u0 u1 u2 u3 : Word)
   have : carry2 < 2 := (Nat.mul_lt_mul_right h256_pos).mp hc2_lt
   omega
 
+/-- Generic double-addback progress bridge. If a local trial quotient has the
+    usual `+2` overestimate bound and the first-addback-zero branch forces the
+    mulsub carry to be exactly one, then the second addback carry is nonzero.
+
+    This is the reusable reduction needed by selected/reachable path proofs:
+    they can focus on local reachability facts that force `c3 = 1` in the
+    branch where the first addback carry is zero. -/
+theorem isAddbackCarry2Nz_of_overestimate_c3_one_of_carry_zero
+    (q v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hbnz : v0 ||| v1 ||| v2 ||| v3 ≠ 0)
+    (hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 2)
+    (hc3_one_of_carry_zero :
+      addbackN4_carry
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+        (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+        v0 v1 v2 v3 = 0 →
+      (mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1) :
+    isAddbackCarry2Nz q v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  dsimp [isAddbackCarry2Nz]
+  intro hcarry_zero
+  let ms := mulsubN4 q v0 v1 v2 v3 u0 u1 u2 u3
+  let abTop := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    (uTop - ms.2.2.2.2) v0 v1 v2 v3
+  let abZero := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    0 v0 v1 v2 v3
+  have hc3_one : ms.2.2.2.2 = 1 := by
+    subst ms
+    exact hc3_one_of_carry_zero hcarry_zero
+  have hsecond := addbackN4_second_carry_one q v0 v1 v2 v3 u0 u1 u2 u3
+    hbnz hq_over hc3_one hcarry_zero
+  simp only [] at hsecond
+  have h_indep := addbackN4_fst4_u4_indep
+    ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+    (uTop - ms.2.2.2.2) 0 v0 v1 v2 v3
+  rcases h_indep with ⟨h0, h1, h2, h3⟩
+  have hsecond_top :
+      (addbackN4_carry abTop.1 abTop.2.1 abTop.2.2.1 abTop.2.2.2.1
+        v0 v1 v2 v3).toNat = 1 := by
+    rw [h0, h1, h2, h3]
+    exact hsecond
+  intro hzero
+  rw [hzero] at hsecond_top
+  norm_num at hsecond_top
+
 /-- Combined Euclidean equation for the double-addback case:
     val256(u) = (q.toNat - 2) * val256(v) + val256(ab'_result). -/
 theorem mulsub_double_addback_val256_combined (q : Word) {v0 v1 v2 v3 u0 u1 u2 u3 : Word}
