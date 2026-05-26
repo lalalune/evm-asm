@@ -76,12 +76,24 @@ abbrev fullDivN3QuotientOverestimateV4 (bltu_1 bltu_0 : Bool)
       ((fullDivN3R0V4 bltu_1 bltu_0
         a0 a1 a2 a3 b0 b1 b2 b3).1).toNat
 
+/-- Legacy universal n=3 carry package.
+
+    This expands to raw `Carry2NzAll` over the normalized divisor. It is
+    counterexample-false as a final/public proof surface, because it quantifies
+    over carry facts for branch states that need not be reachable by the actual
+    selected v4 path. New stack/callable work should use
+    `fullDivN3SelectedCarryV4` instead. -/
 abbrev fullDivN3Carry2NzV4 (b0 b1 b2 b3 : Word) : Prop :=
   Carry2NzAll (fullDivN3NormV b0 b1 b2 b3).1
     (fullDivN3NormV b0 b1 b2 b3).2.1
     (fullDivN3NormV b0 b1 b2 b3).2.2.1
     (fullDivN3NormV b0 b1 b2 b3).2.2.2
 
+/-- Legacy bundled n=3 v4 path predicate.
+
+    This retains `fullDivN3Carry2NzV4`, so it is only a compatibility shim for
+    older callers. Use `fullDivN3SelectedPathConditionsV4` for new v4
+    stack/callable wrappers. -/
 abbrev fullDivN3PathConditionsV4 (bltu_1 bltu_0 : Bool)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
   isTrialN3V4_j1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3 ∧
