@@ -680,11 +680,12 @@ drift check) — no commit.
 
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
-emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
-`callableLabel?`) and the rest of the long arc.
+emission unreadable. M10 (ADDMOD via inline-callable) shipped on
+2026-05-21; EXP remains deferred pending upstream callee-saved
+register variants.
 
 ## Tricky bits / open questions
 
