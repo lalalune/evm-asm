@@ -73,6 +73,7 @@ import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Chain
 import EvmAsm.Codegen.Programs.ChainAggregator
 import EvmAsm.Codegen.Programs.ChainBasefee
+import EvmAsm.Codegen.Programs.ChainBlobCount
 import EvmAsm.Codegen.Programs.ChainExcessBlobGas
 import EvmAsm.Codegen.Programs.ChainTimestamp
 import EvmAsm.Codegen.Programs.ChainEndpoints
@@ -345,6 +346,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_validate_ommers_hash_empty" => some ziskChainValidateOmmersHashEmptyProbeUnit
   | "zisk_chain_validate_post_merge_full" => some ziskChainValidatePostMergeFullProbeUnit
   | "zisk_chain_validate_extra_data_length" => some ziskChainValidateExtraDataLengthProbeUnit
+  | "zisk_chain_compute_max_extra_data_length" => some ziskChainComputeMaxExtraDataLengthProbeUnit
   | "zisk_chain_extract_first_last_state_root" => some ziskChainExtractFirstLastStateRootProbeUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
   | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
@@ -810,6 +812,7 @@ def knownProgramNames : List String :=
    "zisk_chain_validate_ommers_hash_empty",
    "zisk_chain_validate_post_merge_full",
    "zisk_chain_validate_extra_data_length",
+   "zisk_chain_compute_max_extra_data_length",
    "zisk_chain_extract_first_last_state_root",
    "zisk_chain_extract_first_last_block_hash",
    "zisk_chain_extract_first_last_receipts_root",
@@ -907,6 +910,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/Chain.lean",
     "EvmAsm/Codegen/Programs/ChainAggregator.lean",
     "EvmAsm/Codegen/Programs/ChainBasefee.lean",
+    "EvmAsm/Codegen/Programs/ChainBlobCount.lean",
     "EvmAsm/Codegen/Programs/ChainExcessBlobGas.lean",
     "EvmAsm/Codegen/Programs/ChainTimestamp.lean",
     "EvmAsm/Codegen/Programs/ChainEndpoints.lean",
