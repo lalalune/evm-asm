@@ -313,6 +313,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_compute_min_basefee" => some ziskChainComputeMinBasefeeProbeUnit
   | "zisk_chain_compute_max_gas_limit" => some ziskChainComputeMaxGasLimitProbeUnit
   | "zisk_chain_compute_min_gas_limit" => some ziskChainComputeMinGasLimitProbeUnit
+  | "zisk_chain_compute_total_gas_limit" => some ziskChainComputeTotalGasLimitProbeUnit
   | "zisk_chain_extract_first_last_state_root" => some ziskChainExtractFirstLastStateRootProbeUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
   | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
@@ -750,6 +751,7 @@ def knownProgramNames : List String :=
    "zisk_chain_compute_min_basefee",
    "zisk_chain_compute_max_gas_limit",
    "zisk_chain_compute_min_gas_limit",
+   "zisk_chain_compute_total_gas_limit",
    "zisk_chain_extract_first_last_state_root",
    "zisk_chain_extract_first_last_block_hash",
    "zisk_chain_extract_first_last_receipts_root",
