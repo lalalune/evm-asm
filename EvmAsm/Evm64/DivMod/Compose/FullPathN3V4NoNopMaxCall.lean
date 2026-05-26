@@ -568,6 +568,73 @@ theorem divK_loop_n3_unified_from_source_exact_loopIterScratch_v4_noNop_selected
         v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal
         retMem dMem dloMem scratchUn0 scratchMem halign hb1 hcarry2_j1 hb0 hcarry2_j0)
 
+/-- R1-shaped selected-carry variant of
+    `divK_loop_n3_unified_from_source_exact_loopIterScratch_v4_noNop_selectedCarry`.
+    The `j=0` carry premise names the first loop result with `iterN3V4`
+    instead of exposing the expanded match-on-`bltu_1` proposition. -/
+theorem divK_loop_n3_unified_from_source_exact_loopIterScratch_v4_noNop_selectedCarryR1
+    (bltu_1 bltu_0 : Bool) (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu_1 : bltu_1 = BitVec.ult u3 v2)
+    (hbltu_0 : bltu_0 =
+      match bltu_1 with
+      | false => BitVec.ult (iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1 v2
+      | true =>
+        BitVec.ult
+          (iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+            v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1 v2)
+    (hcarry2_j1 :
+      if bltu_1 then
+        loopBodyN3CallAddbackCarry2NzV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      else
+        isAddbackCarry2NzN3Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hcarry2_j0 :
+      let r1 := iterN3V4 bltu_1 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      if bltu_0 then
+        loopBodyN3CallAddbackCarry2NzV4 v0 v1 v2 v3
+          u0Orig r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+      else
+        isAddbackCarry2NzN3Max v0 v1 v2 v3
+          u0Orig r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1) :
+    cpsTripleWithin 448 (base + loopBodyOff) (base + denormOff) (divCode_noNop_v4 base)
+      (loopN3PreWithScratchV4NoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal))
+      (loopN3UnifiedPostV4NoX1 bltu_1 bltu_0 sp base
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal)) := by
+  cases bltu_1 <;> cases bltu_0
+  · exact divK_loop_n3_unified_from_source_exact_loopIterScratch_v4_noNop_selectedCarry
+      false false sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal
+      retMem dMem dloMem scratchUn0 scratchMem
+      halign hbltu_1 hbltu_0 hcarry2_j1 (by simpa [iterN3V4] using hcarry2_j0)
+  · exact divK_loop_n3_unified_from_source_exact_loopIterScratch_v4_noNop_selectedCarry
+      false true sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal
+      retMem dMem dloMem scratchUn0 scratchMem
+      halign hbltu_1 hbltu_0 hcarry2_j1 (by simpa [iterN3V4] using hcarry2_j0)
+  · exact divK_loop_n3_unified_from_source_exact_loopIterScratch_v4_noNop_selectedCarry
+      true false sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal
+      retMem dMem dloMem scratchUn0 scratchMem
+      halign hbltu_1 hbltu_0 hcarry2_j1 (by simpa [iterN3V4] using hcarry2_j0)
+  · exact divK_loop_n3_unified_from_source_exact_loopIterScratch_v4_noNop_selectedCarry
+      true true sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old raVal
+      retMem dMem dloMem scratchUn0 scratchMem
+      halign hbltu_1 hbltu_0 hcarry2_j1 (by simpa [iterN3V4] using hcarry2_j0)
+
 /-- Helper: instantiate the v4 no-NOP exact-`x1` n=3 loop with explicit
     normalized values. This is the callable-ready analogue of
     `evm_div_n3_loop_unified_inst_noNop`, with the v4 div128 scratch cell and
