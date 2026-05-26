@@ -225,6 +225,37 @@ theorem n4CallSkipSemanticHoldsV4_of_runtime_no_wrap_of_le (a b : EvmWord)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     hb3nz hshift_nz hcall h_no_wrap h_le
 
+/-- V4 call-skip semantic lower bound from runtime call conditions and the
+    Phase-1 low-half no-wrap condition, without a separate 128/64 upper-bound
+    premise. -/
+theorem n4CallSkipSemanticHoldsV4_of_runtime_no_wrap (a b : EvmWord)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let b3' := ((b.getLimbN 3) <<< shift) ||| ((b.getLimbN 2) >>> antiShift)
+    let u4 := (a.getLimbN 3) >>> antiShift
+    let u3 := ((a.getLimbN 3) <<< shift) ||| ((a.getLimbN 2) >>> antiShift)
+    (divKTrialCallV4Q1dd u4 u3 b3').toNat *
+        (divKTrialCallV4DLo b3').toNat ≤
+      ((divKTrialCallV4Rhatdd u4 u3 b3').toNat % 2^32) * 2^32 +
+        (divKTrialCallV4Un1 u3).toNat →
+    n4CallSkipSemanticHoldsV4 a b := by
+  intro shift antiShift b3' u4 u3 h_no_wrap
+  unfold n4CallSkipSemanticHoldsV4
+  change
+    val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ≤
+      (div128Quot_v4 u4 u3 b3').toNat
+  have hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3) :=
+    isCallTrialN4_of_shift_nz (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)
+      hb3nz hshift_nz
+  exact div128Quot_v4_call_skip_ge_val256_div_of_runtime_no_wrap
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    hb3nz hshift_nz hcall h_no_wrap
+
 /-- Predicate-packaged semantic lower bound in the final Phase-1b
     high-half-zero branch. -/
 theorem n4CallSkipSemanticHoldsV4_of_rhatdd_hi_zero_pred (a b : EvmWord)
