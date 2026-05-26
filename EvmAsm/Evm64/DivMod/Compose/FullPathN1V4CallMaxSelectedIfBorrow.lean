@@ -235,4 +235,65 @@ theorem divK_loop_n1_call_iter210_exact_x1_framed_v4_input_of_selected_if_borrow
       unfold selectedN1MaxCarryIfBorrow at h
       exact h))
 
+/-- Bundled framed all-max tail pre/post over the full `divCode_v4` bundle,
+    using selected-if-borrow input hypotheses. -/
+theorem divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input_of_selected_if_borrow_input
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses I) :
+    cpsTripleWithin 556 (I.base + loopBodyOff) (I.base + denormOff)
+      (divCode_v4 I.base)
+      (loopN1CallMaxmaxmaxIter210FramedPreInput I)
+      (loopN1CallMaxmaxmaxIter210FramedPostInput I) := by
+  unfold loopN1CallMaxmaxmaxIter210FramedPreInput
+    loopN1CallMaxmaxmaxIter210FramedPostInput
+  let r3 := loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+  let c3 := (mulsubN4 (divKTrialCallV4QHat I.u1 I.u0 I.v0)
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3).2.2.2.2
+  let uBase3 := I.sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
+  let qAddr3 := I.sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
+  have H210 := cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop_selected_carry_if_borrow I.sp I.base
+    (3 : Word) ((3 : Word) <<< (3 : BitVec 6).toNat) uBase3 qAddr3 c3 r3.1
+    r3.2.2.2.2.1
+    I.v0 I.v1 I.v2 I.v3
+    I.u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1
+    I.u0Orig1 I.u0Orig0 I.q2Old I.q1Old I.q0Old
+    (I.base + div128CallRetOff) I.v0 (divKTrialCallV4DLo I.v0)
+    (divKTrialCallV4Un0 I.u0) I.raVal
+    (by
+      dsimp only [r3]
+      exact loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu2 I hh)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu1 I hh
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu0 I hh
+      unfold loopN1CallMaxmaxmaxR1 at h
+      unfold loopN1CallMaxmaxmaxR2 at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_carryIfBorrowMax2 I hh
+      unfold selectedN1MaxCarryIfBorrow at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_carryIfBorrowMax1 I hh
+      unfold loopN1CallMaxmaxmaxR2 at h
+      unfold selectedN1MaxCarryIfBorrow at h
+      exact h)
+    (by
+      dsimp only [r3]
+      have h := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_carryIfBorrowMax0 I hh
+      unfold loopN1CallMaxmaxmaxR1 at h
+      unfold loopN1CallMaxmaxmaxR2 at h
+      unfold selectedN1MaxCarryIfBorrow at h
+      exact h))
+  have H210f := cpsTripleWithin_frameR
+    (loopN1CallMaxmaxmaxIter210FrameInput I) (by pcFree) H210
+  exact H210f
+
 end EvmAsm.Evm64
