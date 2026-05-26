@@ -237,6 +237,65 @@ theorem loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts_of_selected
     selectedN1MaxCarryIfBorrow_of_carry _ _ _ _ _ _ _ _ _ hselected.2.2.1,
     selectedN1MaxCarryIfBorrow_of_carry _ _ _ _ _ _ _ _ _ hselected.2.2.2⟩
 
+theorem loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts_call
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
+    (hselected : loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) :
+    isAddbackCarry2NzN1CallV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  unfold loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts at hselected
+  exact hselected.1
+
+theorem loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts_max2
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
+    (hselected : loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) :
+    selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig2
+      (loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+      (loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+      (loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+      (loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1 := by
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  unfold loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts at hselected
+  change (_ ∧ selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig2
+      r3.2.1 r3.2.2.1 r3.2.2.2.1 r3.2.2.2.2.1 ∧ _ ∧ _) at hselected
+  simpa [r3] using hselected.2.1
+
+theorem loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts_max1
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
+    (hselected : loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) :
+    selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig1
+      (loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2).2.1
+      (loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2).2.2.1
+      (loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2).2.2.2.1
+      (loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2).2.2.2.2.1 := by
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  unfold loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts at hselected
+  change (_ ∧ _ ∧ selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig1
+      r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 ∧ _) at hselected
+  simpa [r2] using hselected.2.2.1
+
+theorem loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts_max0
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
+    (hselected : loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) :
+    selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig0
+      (loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1).2.1
+      (loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1).2.2.1
+      (loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1).2.2.2.1
+      (loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1).2.2.2.2.1 := by
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  unfold loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts at hselected
+  change (_ ∧ _ ∧ _ ∧ selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig0
+      r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1) at hselected
+  simpa [r1] using hselected.2.2.2
+
 theorem loopN1CallMaxmaxmaxSelectedCarryFacts_of_carry2All
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
