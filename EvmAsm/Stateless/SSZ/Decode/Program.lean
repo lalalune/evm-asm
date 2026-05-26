@@ -99,26 +99,25 @@ open EvmAsm.Rv64
     `EvmAsm.Codegen.Programs.INPUT_ADDR`. -/
 def INPUT_BASE : Word := 0x40000000
 
-/-- Byte offset (from `INPUT_BASE`) of `chain_config.chain_id` in the
-    SSZ-encoded `SszStatelessInput`:
-
-        INPUT_DATA_OFFSET (16, see Codegen) + SSZ header offset (8) = 24
--/
-def CHAIN_ID_BYTE_OFFSET : BitVec 12 := 24
-
 /-- ziskemu's 16-byte preamble at `INPUT_ADDR`: 8 bytes of zero
-    metadata + 8 bytes of u64 length prefix. The SSZ blob proper
-    starts at `INPUT_BASE + INPUT_DATA_OFFSET`. -/
+    metadata + 8 bytes of u64 length prefix. The host-supplied
+    payload starts at `INPUT_BASE + INPUT_DATA_OFFSET`. -/
 def INPUT_DATA_OFFSET : BitVec 12 := 16
 
-/-- SSZ byte offset of `offset_1` (the outer-container pointer to
-    the `witness` field). Relative to the SSZ blob start. -/
-def OUTER_WITNESS_OFFSET_SSZ : BitVec 12 := 4
+/-- New-schema (zkevm-projects/d7fe16ab8) input prefix: 2 bytes of
+    schema-ID (`STATELESS_INPUT_SCHEMA_ID = 0x0001`, big-endian)
+    before the SSZ-encoded `SszStatelessInput`. The SSZ container
+    therefore starts at `INPUT_BASE + INPUT_DATA_OFFSET +
+    SCHEMA_ID_SIZE = 0x40000012`. -/
+def SCHEMA_ID_SIZE : BitVec 12 := 2
 
-/-- SSZ byte offset of `offset_3` (the outer-container pointer to
-    the `public_keys` field, == end of the `witness` section).
-    Relative to the SSZ blob start. -/
-def OUTER_PUBLIC_KEYS_OFFSET_SSZ : BitVec 12 := 16
+/-- SSZ outer offset table: `SszStatelessInput` has 4 variable-size
+    fields (`new_payload_request`, `witness`, `chain_config`,
+    `public_keys`). Each offset is u32 LE. -/
+def OUTER_NPR_OFFSET_SSZ        : BitVec 12 := 0
+def OUTER_WITNESS_OFFSET_SSZ    : BitVec 12 := 4
+def OUTER_CHAIN_CONFIG_OFFSET_SSZ : BitVec 12 := 8
+def OUTER_PUBLIC_KEYS_OFFSET_SSZ : BitVec 12 := 12
 
 /-- Byte offset within an `SszExecutionWitness` section of its
     third u32 (`offset_2` = `headers` offset). The witness's fixed
@@ -127,57 +126,75 @@ def WITNESS_HEADERS_INNER_OFFSET : BitVec 12 := 8
 
 /-- Read `chain_config.chain_id` from `INPUT_BASE` into `x10`.
 
+    NEW-schema flow: skip 16 bytes of ziskemu preamble + 2 bytes
+    of schema-ID, then walk `SszStatelessInput`'s outer offset
+    table to find `chain_config`'s relative offset, then load the
+    `chain_id` u64 LE at the start of the chain_config section.
+
     Postcondition: `x10` holds the host-supplied `chain_id` as a u64.
-    Clobbers `x11`. -/
+    Clobbers `x11`, `x12`, `x13`. -/
 def read_chain_id : Program :=
   LI .x11 INPUT_BASE ;;
-  LD .x10 .x11 CHAIN_ID_BYTE_OFFSET
-
-/-- Compute the PR5 `successful_validation` bit by chasing the outer
-    SszStatelessInput → witness → headers offset chain and checking
-    whether the `witness.headers` list section is empty.
-
-    Register usage:
-      x12 : INPUT_BASE, then INPUT_BASE + INPUT_DATA_OFFSET
-            (start of the SSZ blob in memory)
-      x13 : offset_1, then witness_addr
-      x14 : (scratch) inner offset_headers, then
-            (output, preserved) headers_byte_length
-      x15 : offset_3, then headers_end_addr
-      x17 : (output, preserved) headers_addr
-
-    Postcondition:
-      x11 = 1 iff headers_byte_length == 0, else 0.
-      x14 = headers_byte_length.
-      x17 = headers_addr.
-    Clobbers `x12..x15`, `x17`. -/
-def decode_validation_bit : Program :=
-  LI .x12 INPUT_BASE ;;
-  LWU .x13 .x12 (INPUT_DATA_OFFSET + OUTER_WITNESS_OFFSET_SSZ) ;;
-  ADDI .x12 .x12 INPUT_DATA_OFFSET ;;
+  ADDI .x12 .x11 (INPUT_DATA_OFFSET + SCHEMA_ID_SIZE) ;;
+  LWU .x13 .x12 OUTER_CHAIN_CONFIG_OFFSET_SSZ ;;
   ADD .x13 .x12 .x13 ;;
-  LWU .x14 .x13 WITNESS_HEADERS_INNER_OFFSET ;;
-  ADD .x17 .x13 .x14 ;;
-  LWU .x15 .x12 OUTER_PUBLIC_KEYS_OFFSET_SSZ ;;
-  ADD .x15 .x12 .x15 ;;
-  SUB .x14 .x15 .x17 ;;
-  SLTIU .x11 .x14 1
+  LD .x10 .x13 0
 
-/-- Compute `header_count` for the diagnostic field at
-    `OUTPUT_ADDR + 48`. Reads the first u32 of the headers list
-    (= `4 * count` for non-empty lists) and divides by 4. When the
-    headers list is empty, skips the load (so we don't read past
-    the SSZ blob into ziskemu padding) and leaves `x16 = 0`.
+/-- Stub: leave `x11 = 0` (the validator pipeline downstream sets
+    OUTPUT[32] := 1 if all checks pass; for the new-schema decode
+    we don't yet walk `witness.headers`, so we set `x11 = 0` and
+    let the downstream override decide).
 
-    Precondition (left by `decode_validation_bit`):
-      x14 = headers_byte_length, x17 = headers_addr.
-    Postcondition: x16 = header_count.
-    Clobbers `x16`. -/
+    Also stub the headers-section pointers so the validator
+    pipeline takes the N=0 fast path:
+
+      x14 = 0 (headers_byte_length)
+      x16 = 0 (header_count)  [set by `decode_header_count`]
+      x17 = INPUT_BASE + INPUT_DATA_OFFSET + SCHEMA_ID_SIZE
+            (harmless: validator skips when x16 == 0)
+
+    Walking the new-schema 4-offset outer table + variable witness
+    section's headers list is a follow-up. Clobbers `x11`, `x14`,
+    `x15`, `x17` (preserves `x12` so the fork value carried over
+    from `read_active_fork` survives into the encoder). -/
+def decode_validation_bit : Program :=
+  ADDI .x11 .x0 0 ;;
+  ADDI .x14 .x0 0 ;;
+  LI .x15 INPUT_BASE ;;
+  ADDI .x17 .x15 (INPUT_DATA_OFFSET + SCHEMA_ID_SIZE)
+
+/-- Stub: leaves `x16 = 0`. The validator pipeline downstream
+    treats N=0 as vacuous-pass.
+
+    The real header-count walk through the new-schema variable
+    witness layout is a follow-up. -/
 def decode_header_count : Program :=
-  ADDI .x16 .x0 0 ;;
-  -- skip the next 2 instructions if x14 == 0 (empty headers list)
-  BEQ .x14 .x0 12 ;;
-  LWU .x16 .x17 0 ;;
-  SRLI .x16 .x16 2
+  ADDI .x16 .x0 0
+
+/-- Byte offset of `offset_active_fork` (u32 LE) within
+    `SszChainConfig`. `SszChainConfig` is the variable-size
+    Container `(chain_id: uint64, active_fork: SszForkConfig)`,
+    so its fixed-header area is 8 + 4 = 12 bytes:
+
+        bytes [0..8)  : chain_id
+        bytes [8..12) : offset_active_fork
+
+    `SszForkConfig`'s first field is `fork: uint64`, so the fork
+    value lives at the very start of the active_fork section. -/
+def CHAIN_CONFIG_ACTIVE_FORK_OFFSET_INNER : BitVec 12 := 8
+
+/-- Read `chain_config.active_fork.fork` (u64 LE) from `INPUT_BASE`
+    into `x12`.
+
+    Precondition (left by `read_chain_id`):
+      x13 = chain_config_addr (start of the SszChainConfig section
+            in memory)
+
+    Postcondition: `x12` holds the host-supplied `fork` index as a u64.
+    Clobbers `x12`, `x14`. -/
+def read_active_fork : Program :=
+  LWU .x14 .x13 CHAIN_CONFIG_ACTIVE_FORK_OFFSET_INNER ;;
+  ADD .x14 .x13 .x14 ;;
+  LD .x12 .x14 0
 
 end EvmAsm.Stateless.SSZ.Decode
