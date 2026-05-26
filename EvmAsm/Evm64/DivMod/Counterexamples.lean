@@ -148,6 +148,29 @@ theorem div128Quot_v4_counterexampleA_within_two_addbacks :
     (div128Quot_v4 ceA_u4 ceA_u3 ceA_b3Norm).toNat ≤ ceA_qTrue + 2 := by
   decide
 
+/-- Counterexample A satisfies the v4 call/un21 guard used by the exact
+    128/64 quotient route. The v4 trial quotient is exact for the normalized
+    128/64 division, while still one above the full val256 quotient pinned by
+    `ceA_qTrue`. -/
+theorem div128Quot_v4_counterexampleA_floor_of_un21_lt_vTop :
+    ceA_b3 ≠ 0 ∧
+    (clzResult ceA_b3).1 ≠ 0 ∧
+    isCallTrialN4 ceA_a3 ceA_b2 ceA_b3 ∧
+    (divKTrialCallV4Un21 ceA_u4 ceA_u3 ceA_b3Norm).toNat < ceA_b3Norm.toNat ∧
+    (div128Quot_v4 ceA_u4 ceA_u3 ceA_b3Norm).toNat =
+      (ceA_u4.toNat * 2^64 + ceA_u3.toNat) / ceA_b3Norm.toNat ∧
+    (div128Quot_v4 ceA_u4 ceA_u3 ceA_b3Norm).toNat = ceA_qTrue + 1 := by
+  constructor
+  · native_decide
+  constructor
+  · native_decide
+  constructor
+  · unfold isCallTrialN4
+    native_decide
+  constructor
+  · native_decide
+  constructor <;> native_decide
+
 theorem n4CallAddbackBeqSemanticHolds_counterexampleA_v4 :
     n4CallAddbackBeqSemanticHolds ceA_a ceA_b := by
   rw [n4CallAddbackBeqSemantic_unfold]
