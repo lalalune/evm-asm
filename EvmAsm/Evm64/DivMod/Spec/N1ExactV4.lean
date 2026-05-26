@@ -260,6 +260,60 @@ theorem FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4_of_bltu_selected
       hbltu3 hbltu2 hbltu1 hbltu0 hselected,
     hfacts⟩
 
+theorem FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4_selectedInput
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal :=
+  hevidence.1
+
+theorem FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4_semanticFacts
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    FullDivN1CallMaxmaxmaxSemanticFactsV4 a0 a1 a2 a3 b0 b1 b2 b3 :=
+  hevidence.2
+
+theorem FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4_selectedCarry
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    loopN1CallMaxmaxmaxSelectedCarryFacts
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).1 := by
+  exact fullDivN1CallMaxmaxmaxSelectedInputHypotheses_selectedCarry
+    sp base
+    jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    a0 a1 a2 a3 b0 b1 b2 b3
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+    hevidence.1
+
 theorem fullDivN1CallMaxmaxmaxHdivs_of_word_eq
     (a b : EvmWord) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (hdiv : fullDivN1CallMaxmaxmaxQuotientWordV4
