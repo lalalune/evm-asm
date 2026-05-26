@@ -332,9 +332,9 @@ theorem evm_div_n2_stack_spec_v4_preNoX1_callableExactFrame_autoTrialSelectedBod
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
       hbnz hcarry harith hbody
 
-/-- Path-bundled N2 DIV v4 callable wrapper.
+/-- Legacy path-bundled N2 DIV v4 callable wrapper.
 
-    This consumes the bundled v4 path predicate, derives the branch/carry
+    This consumes the bundled raw-carry v4 path predicate, derives the branch/carry
     obligations for the body proof and the quotient-word equality for the
     callable exact-frame bridge, then closes the trial-call scratch cell as
     `memOwn`. -/
