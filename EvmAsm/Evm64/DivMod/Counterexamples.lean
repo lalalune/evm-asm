@@ -270,6 +270,50 @@ theorem ceN1Carry_Carry2NzAll_false :
     (h ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord
       ceN1CarryMaxWord 0)
 
+-- A smaller diagnostic for the N1 max-path carry bridge:
+--
+--   v0 = u1 = 2^63, u0 = u2 = u3 = 0, qHat = 2^64 - 1.
+--
+-- This satisfies the normalized one-limb divisor shape and the selected max
+-- branch condition `¬ BitVec.ult u1 v0`, but a zero first-addback carry does
+-- not force the mulsub carry `c3` to be one.  Therefore the bridge introduced
+-- by `isAddbackCarry2NzN1Max_of_not_ult_c3_one_of_carry_zero` still needs a
+-- genuine reachable-path/remainder invariant; normalized shape plus branch
+-- condition alone is not enough.
+abbrev ceN1MaxLocalV0 : Word := BitVec.ofNat 64 (2^63)
+abbrev ceN1MaxLocalU1 : Word := BitVec.ofNat 64 (2^63)
+abbrev ceN1MaxLocalMs :=
+  mulsubN4 ceN1CarryMaxWord ceN1MaxLocalV0 0 0 0
+    0 ceN1MaxLocalU1 0 0
+
+theorem ceN1MaxLocal_v0_normalized :
+    2^63 ≤ ceN1MaxLocalV0.toNat := by
+  native_decide
+
+theorem ceN1MaxLocal_not_ult :
+    ¬ BitVec.ult ceN1MaxLocalU1 ceN1MaxLocalV0 := by
+  native_decide
+
+theorem ceN1MaxLocal_first_carry_zero :
+    addbackN4_carry ceN1MaxLocalMs.1 ceN1MaxLocalMs.2.1
+      ceN1MaxLocalMs.2.2.1 ceN1MaxLocalMs.2.2.2.1
+      ceN1MaxLocalV0 0 0 0 = 0 := by
+  native_decide
+
+theorem ceN1MaxLocal_mulsub_c3_zero :
+    ceN1MaxLocalMs.2.2.2.2 = 0 := by
+  native_decide
+
+theorem ceN1MaxLocal_c3_one_of_carry_zero_false :
+    ¬ (addbackN4_carry ceN1MaxLocalMs.1 ceN1MaxLocalMs.2.1
+        ceN1MaxLocalMs.2.2.1 ceN1MaxLocalMs.2.2.2.1
+        ceN1MaxLocalV0 0 0 0 = 0 →
+      ceN1MaxLocalMs.2.2.2.2 = 1) := by
+  intro h
+  have hc3_one := h ceN1MaxLocal_first_carry_zero
+  rw [ceN1MaxLocal_mulsub_c3_zero] at hc3_one
+  contradiction
+
 -- Reachable N1-shaped semantic regression using the same divisor shape as the
 -- universal-carry counterexample above.
 abbrev ceN1ShapeA : EvmWord :=
