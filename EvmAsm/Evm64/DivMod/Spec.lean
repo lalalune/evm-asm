@@ -55,6 +55,7 @@ import EvmAsm.Evm64.DivMod.Spec.UnifiedN1TruePath
 import EvmAsm.Evm64.DivMod.Spec.UnifiedExactNoNop
 import EvmAsm.Evm64.DivMod.Spec.UnifiedExactNoNopCallableFrame
 import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExact
+import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExactR1
 import EvmAsm.Evm64.DivMod.Spec.N2V4ConcretePostBridge
 import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExact
 import EvmAsm.Evm64.DivMod.Spec.BzeroV4ExactCallable
