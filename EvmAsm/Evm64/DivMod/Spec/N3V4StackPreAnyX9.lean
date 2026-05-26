@@ -77,8 +77,9 @@ theorem evm_mod_n3_to_loopSetup_stack_pre_spec_v4_noNop_anyX9 (sp base : Word)
       (by pcFree)
       hraw)
 
-/-- Generalization of `evm_mod_n3_preloop_loop_stack_pre_spec_v4_noNop`
-    allowing any initial `x9` value. -/
+/-- Legacy raw-carry generalization of
+    `evm_mod_n3_preloop_loop_stack_pre_spec_v4_noNop`, allowing any initial
+    `x9` value. Prefer selected-carry wrappers for new v4 work. -/
 theorem evm_mod_n3_preloop_loop_stack_pre_spec_v4_noNop_anyX9 (sp base : Word)
     (x9Init : Word)
     (a b : EvmWord)
@@ -229,8 +230,9 @@ theorem evm_mod_n3_preloop_loop_stack_pre_spec_v4_noNop_anyX9 (sp base : Word)
       v11Old jMem retMem dMem dloMem scratchUn0 scratchMem raVal)
     hSetup hLoopF
 
-/-- Generalization of `evm_mod_n3_stack_pre_to_unified_post_v4_noNop`
-    allowing any initial `x9` value. -/
+/-- Legacy raw-carry generalization of
+    `evm_mod_n3_stack_pre_to_unified_post_v4_noNop`, allowing any initial
+    `x9` value. Prefer selected-carry wrappers for new v4 work. -/
 theorem evm_mod_n3_stack_pre_to_unified_post_v4_noNop_anyX9 (sp base : Word)
     (x9Init : Word)
     (a b : EvmWord)
