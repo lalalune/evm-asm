@@ -125,6 +125,73 @@ theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_branches
         q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
       hinput
 
+/-- Project the explicit branch facts used by selected-if-borrow constructors
+    from selected-if-borrow semantic evidence. -/
+theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_branchFacts
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    isTrialN1_j3 true a3 b0 ∧
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1 ∧
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1 ∧
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1 := by
+  have hinput :=
+    FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_selectedInput
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hevidence
+  unfold fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses at hinput
+  let I := fullDivN1CallMaxmaxmaxExactInputs sp base
+    jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    a0 a1 a2 a3 b0 b1 b2 b3
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+  have hraw3 := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu3 I hinput
+  have hbltu3 : isTrialN1_j3 true a3 b0 := by
+    unfold isTrialN1_j3
+    unfold I fullDivN1CallMaxmaxmaxExactInputs fullDivN1NormU fullDivN1NormV
+      fullDivN1AntiShift fullDivN1Shift at hraw3
+    exact hraw3.symm
+  have hbltu2 := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu2 I hinput
+  have hbltu1 := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu1 I hinput
+  have hbltu0 := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu0 I hinput
+  exact ⟨hbltu3, hbltu2, hbltu1, hbltu0⟩
+
 /-- Project the named hdiv package from selected-if-borrow semantic evidence. -/
 theorem FullDivN1CallMaxmaxmaxHdivs_of_selected_if_borrow_semantic_evidence
     (sp base : Word) (a b : EvmWord)
