@@ -12,6 +12,10 @@
      Compose j=2 (max or call) with the two-iteration intermediate.
   3. `divK_loop_n2_unified_spec_within (bltu_2 bltu_1 bltu_0 : Bool)`:
      Full three-iteration — dispatches to the above via cases on bltu_2.
+
+  These generic unified-loop surfaces still consume the legacy universal
+  Carry2NzAll package. New v4 n=2 work should use the selected/reachable
+  carry wrappers in Compose/FullPathN2V4NoNopLoopSelected.lean instead.
 -/
 
 import EvmAsm.Evm64.DivMod.LoopComposeN2
