@@ -120,6 +120,66 @@ theorem loopN1CallMaxmaxmaxSelectedInputHypotheses_selectedCarry
   unfold loopN1CallMaxmaxmaxSelectedInputHypotheses at hh
   exact hh.2.2
 
+theorem loopN1CallMaxmaxmaxSelectedInputHypotheses_carryCall
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
+    isAddbackCarry2NzN1CallV4
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop := by
+  have hselected := loopN1CallMaxmaxmaxSelectedInputHypotheses_selectedCarry I hh
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
+  exact hselected.1
+
+theorem loopN1CallMaxmaxmaxSelectedInputHypotheses_carryMax2
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
+    isAddbackCarry2NzN1Max
+      I.v0 I.v1 I.v2 I.v3 I.u0Orig2
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop).2.1
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop).2.2.1
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop).2.2.2.1
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop).2.2.2.2.1 := by
+  have hselected := loopN1CallMaxmaxmaxSelectedInputHypotheses_selectedCarry I hh
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
+  exact hselected.2.1
+
+theorem loopN1CallMaxmaxmaxSelectedInputHypotheses_carryMax1
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
+    isAddbackCarry2NzN1Max
+      I.v0 I.v1 I.v2 I.v3 I.u0Orig1
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2).2.1
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2).2.2.1
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2).2.2.2.1
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2).2.2.2.2.1 := by
+  have hselected := loopN1CallMaxmaxmaxSelectedInputHypotheses_selectedCarry I hh
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
+  exact hselected.2.2.1
+
+theorem loopN1CallMaxmaxmaxSelectedInputHypotheses_carryMax0
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
+    isAddbackCarry2NzN1Max
+      I.v0 I.v1 I.v2 I.v3 I.u0Orig0
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2 I.u0Orig1).2.1
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2 I.u0Orig1).2.2.1
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2 I.u0Orig1).2.2.2.1
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3
+        I.uTop I.u0Orig2 I.u0Orig1).2.2.2.2.1 := by
+  have hselected := loopN1CallMaxmaxmaxSelectedInputHypotheses_selectedCarry I hh
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
+  exact hselected.2.2.2
+
 /-- Bundled first j=3 call-body step over the full `divCode_v4` bundle,
     from selected-only input hypotheses. -/
 theorem divK_loop_n1_call_j3_exact_x1_framed_v4_input_of_selected
