@@ -1,4 +1,5 @@
 import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMax
 import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
 
 namespace EvmAsm.Evm64
@@ -80,6 +81,160 @@ theorem N1AllTruePathEvidence.toCallback {a b : EvmWord}
     N1AllTruePathCallback a b := by
   intro _ _ _ _
   exact hpath
+
+/-- Project the selected call/max/max/max carry facts from all-true n=1 path
+    evidence. This consumes only the path-selected `Carry2NzAll` component,
+    not a public universal carry theorem. The divisor limbs are left in the
+    expanded normalized form used by `N1AllTruePathEvidence`, avoiding an
+    expensive irreducible-normalization rewrite at this layer. -/
+theorem N1AllTruePathEvidence.selectedCarryFactsRaw {a b : EvmWord}
+    (hpath : N1AllTruePathEvidence a b) :
+    loopN1CallMaxmaxmaxSelectedCarryFacts
+      (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
+      ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+        (b.getLimbN 0 >>>
+          ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+      ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+        (b.getLimbN 1 >>>
+          ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+      ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+        (b.getLimbN 2 >>>
+          ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).1 := by
+  exact loopN1CallMaxmaxmaxSelectedCarryFacts_of_carry2All
+    (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
+    ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+      (b.getLimbN 0 >>>
+        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+    ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+      (b.getLimbN 1 >>>
+        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+    ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+      (b.getLimbN 2 >>>
+        ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+    (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+    (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+    (0 : Word) (0 : Word) (0 : Word)
+    (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
+    (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1
+    (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).1
+    hpath.1
+
+/-- Project the control-flow-shaped selected carry facts from all-true n=1
+    path evidence. Max-step carry evidence is conditionalized for the
+    addback branches consumed by the v4 loop-body specs. -/
+theorem N1AllTruePathEvidence.selectedCarryIfBorrowFactsRaw {a b : EvmWord}
+    (hpath : N1AllTruePathEvidence a b) :
+    loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+      (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64))
+      ((b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+        (b.getLimbN 0 >>>
+          ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+      ((b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+        (b.getLimbN 1 >>>
+          ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+      ((b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+        (b.getLimbN 2 >>>
+          ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)))
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).1 := by
+  exact loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts_of_selected
+    _ _ _ _ _ _ _ _ _ _ _ _
+    (N1AllTruePathEvidence.selectedCarryFactsRaw hpath)
+
+theorem fullDivN1NormV_getLimbN_eq (b : EvmWord) :
+    fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3) =
+    (b.getLimbN 0 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64),
+     (b.getLimbN 1 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+        (b.getLimbN 0 >>>
+          ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)),
+     (b.getLimbN 2 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+        (b.getLimbN 1 >>>
+          ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64)),
+     (b.getLimbN 3 <<< (((clzResult (b.getLimbN 0)).1).toNat % 64)) |||
+        (b.getLimbN 2 >>>
+          ((signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 0)).1).toNat % 64))) := by
+  unfold fullDivN1NormV fullDivN1Shift fullDivN1AntiShift
+  simp [fullDivN1Shift]
+
+/-- Normalized-divisor form of `selectedCarryFactsRaw`, matching the existing
+    call/max/max/max wrapper surfaces. -/
+theorem N1AllTruePathEvidence.selectedCarryFacts {a b : EvmWord}
+    (hpath : N1AllTruePathEvidence a b) :
+    loopN1CallMaxmaxmaxSelectedCarryFacts
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).1 := by
+  rw [fullDivN1NormV_getLimbN_eq b]
+  exact N1AllTruePathEvidence.selectedCarryFactsRaw hpath
+
+/-- Normalized-divisor form of `selectedCarryIfBorrowFactsRaw`, matching the
+    existing v4 selected-if-borrow wrapper surfaces. -/
+theorem N1AllTruePathEvidence.selectedCarryIfBorrowFacts {a b : EvmWord}
+    (hpath : N1AllTruePathEvidence a b) :
+    loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).1 := by
+  rw [fullDivN1NormV_getLimbN_eq b]
+  exact N1AllTruePathEvidence.selectedCarryIfBorrowFactsRaw hpath
 
 /-- Package selected all-true path evidence after the one-word remainder bounds
     have forced the concrete n=1 branch facts. -/
