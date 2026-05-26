@@ -202,6 +202,15 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "env_field_offset_distinct"
       bytecode       := "0x42, 0x43, 0x03, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M13 calldata-context opcode (CALLDATASIZE)
+    -- The calldata-length cell at evm_env + 424 is zero-initialised by the
+    -- dispatcher's .data section, so CALLDATASIZE pushes 32 zero bytes.
+    -- This confirms (a) byte 0x36 routes to evm_calldatasize, (b) the
+    -- env-region size bump to 512 bytes makes offset 424 reachable.
+  , -- CALLDATASIZE; STOP
+    { name           := "calldatasize_zero"
+      bytecode       := "0x36, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;
