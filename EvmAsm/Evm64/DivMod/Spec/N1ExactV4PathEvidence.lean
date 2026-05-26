@@ -163,6 +163,34 @@ theorem FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4_branchFacts
       q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
       hevidence.1⟩
 
+/-- Project the named hdiv package from selected semantic evidence. -/
+theorem FullDivN1CallMaxmaxmaxHdivs_of_selected_semantic_evidence
+    (sp base : Word) (a b : EvmWord)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    FullDivN1CallMaxmaxmaxHdivs a b a0 a1 a2 a3 b0 b1 b2 b3 := by
+  have hword :=
+    fullDivN1CallMaxmaxmaxQuotientWordV4_eq_div_of_semantic_facts_word
+      a b a0 a1 a2 a3 b0 b1 b2 b3
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz
+      (FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4_semanticFacts
+        sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        a0 a1 a2 a3 b0 b1 b2 b3
+        q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+        hevidence)
+  exact fullDivN1CallMaxmaxmaxHdivs_of_word_eq
+    a b a0 a1 a2 a3 b0 b1 b2 b3 hword
+
 /-- Full-v4 N1 stack wrapper consuming all-true N1 path evidence plus the
     selected quotient-word equality, avoiding the heavier semantic-facts
     package at this layer. -/
