@@ -75,6 +75,7 @@ run_fixture() {
   local fork="${3:-0}"
   local witness_code_hex="${4:-}"
   local witness_state_hex="${5:-}"
+  local public_key_hex="${6:-}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -82,14 +83,16 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty})"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty})"
   uv run --directory execution-specs --quiet python3 -c "
 import struct, sys
 from ethereum.forks.amsterdam.stateless_ssz import (
     MAX_BYTES_PER_CODE,
     MAX_BYTES_PER_WITNESS_NODE,
+    MAX_PUBLIC_KEYS,
     MAX_WITNESS_CODES,
     MAX_WITNESS_NODES,
+    PUBLIC_KEY_BYTES,
     STATELESS_INPUT_SCHEMA_ID_BYTES,
     SszChainConfig,
     SszExecutionWitness,
@@ -102,13 +105,14 @@ from ethereum.forks.amsterdam.stateless_ssz import (
 )
 from ethereum.forks.amsterdam.stateless_guest import run_stateless_guest
 from remerkleable.basic import uint64
-from remerkleable.byte_arrays import ByteList
+from remerkleable.byte_arrays import ByteList, ByteVector
 from remerkleable.complex import List as SszList
 
 cid = int(sys.argv[1], 0)
 fork_idx = int(sys.argv[4], 0)
 code_hex = sys.argv[5]
 state_hex = sys.argv[6]
+pk_hex = sys.argv[7]
 
 # Build the new-schema StatelessInput: empty new_payload_request,
 # witness whose 'state'/'codes' lists each hold zero or more
@@ -146,11 +150,18 @@ witness = SszExecutionWitness(
     codes=CodesList(*codes_arg),
 )
 
+PkBV = ByteVector[PUBLIC_KEY_BYTES]
+PkList = SszList[PkBV, MAX_PUBLIC_KEYS]
+pk_args = ()
+if pk_hex:
+    pk_entries = pk_hex.split(':')
+    pk_args = tuple(PkBV(bytes.fromhex(p)) for p in pk_entries)
+
 ssz_input = SszStatelessInput(
     new_payload_request=SszNewPayloadRequest(),
     witness=witness,
     chain_config=cc,
-    public_keys=(),
+    public_keys=PkList(*pk_args),
 )
 input_bytes = STATELESS_INPUT_SCHEMA_ID_BYTES + ssz_input.encode_bytes()
 
@@ -169,7 +180,7 @@ spec_bytes = bytes(run_stateless_guest(input_bytes))
 assert len(spec_bytes) == 73, f'spec: expected 73, got {len(spec_bytes)}'
 with open(sys.argv[3], 'w') as f:
     f.write(spec_bytes.hex())
-" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex"
+" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex"
 
   echo "==> [$label] ziskemu run"
   "$ZISKEMU" -e gen-out/stateless_guest.elf -i "$input_file" \
@@ -253,6 +264,25 @@ run_fixture "chain1_witstate"       1                  0    ""           "a1b2c3
 # the outer chain_config offset further than any single-field case.
 # Decoder still chases SSZ_BASE+8 -> chain_config_addr correctly.
 run_fixture "chain1_witboth"        1                  0    "deadbeef"   "a1b2c3d4e5f60718" || fail=1
+
+# Non-empty public_keys -- exercises the FOURTH (last) outer field.
+# public_keys is a list of fixed-size `ByteVector[PUBLIC_KEY_BYTES]`
+# (65 bytes each) -- so no INNER offset table, just concatenated
+# 65-byte elements. The outer offsets[3] (public_keys_offset, read
+# from SSZ_BASE+12) is unchanged because the field comes AFTER
+# chain_config; only the SSZ blob total length grows. The decoder
+# reads SSZ_BASE+8 (offsets[2]) and never touches offsets[3], so
+# the ELF output is unchanged. PK is 65 deterministic bytes
+# (04 || 32 zeros || 32 zeros = SEC1 uncompressed-marker prefix).
+run_fixture "chain1_pk"             1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)" || fail=1
+
+# All three non-chain_config outer slots populated simultaneously
+# -- witness.state + witness.codes + public_keys -- the largest
+# input-layout complexity that still keeps spec output unchanged
+# (chain_config echoed, valid=False). Verifies the decoder's
+# outer-offset read at SSZ_BASE+8 is robust under the maximum
+# byte-budget shift this fixture set produces.
+run_fixture "chain1_all_outer"      1                  0    "deadbeef"   "a1b2c3d4e5f60718"  "04$(printf '%064d' 0)$(printf '%064d' 0)" || fail=1
 
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
