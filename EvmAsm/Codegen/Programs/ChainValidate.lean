@@ -911,4 +911,132 @@ def ziskChainValidateBasefeeNonIncreasingProbeUnit : BuildUnit := {
   dataAsm     := ziskChainValidateBasefeeNonIncreasingDataSection
 }
 
+/-! ## chain_validate_gas_limit_non_decreasing -- PR-K269
+
+    Per-pair invariant: `gas_limit[i] <= gas_limit[i+1]` for all
+    0 <= i < N-1 (header field 9). Useful for spotting
+    capacity-expansion windows; gas_limit counterpart to K267
+    chain_validate_basefee_non_decreasing.
+
+    Vacuous-true on N <= 1.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure on some header
+        2 : gas_limit field > 8 bytes BE on some header -/
+def chainValidateGasLimitNonDecreasingFunction : String :=
+  "chain_validate_gas_limit_non_decreasing:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
+  "  li t0, 2\n" ++
+  "  bltu s0, t0, .Lcvglnd_done\n" ++
+  "  # Extract headers[0].gas_limit into s5 (prev)\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  li a2, 9\n" ++
+  "  la a3, cvglnd_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcvglnd_propagate\n" ++
+  "  la t0, cvglnd_field; ld s5, 0(t0)\n" ++
+  "  ld t0, 0(s1)\n" ++
+  "  add t1, s2, t0\n" ++
+  "  li t2, 1\n" ++
+  ".Lcvglnd_loop:\n" ++
+  "  beq t2, s0, .Lcvglnd_done\n" ++
+  "  la t0, cvglnd_iter_child; sd t1, 0(t0)\n" ++
+  "  la t0, cvglnd_iter_i;     sd t2, 0(t0)\n" ++
+  "  la t0, cvglnd_iter_prev;  sd s5, 0(t0)\n" ++
+  "  slli t3, t2, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, t1\n" ++
+  "  li a2, 9\n" ++
+  "  la a3, cvglnd_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcvglnd_propagate\n" ++
+  "  la t0, cvglnd_field;        ld t3, 0(t0)\n" ++
+  "  la t0, cvglnd_iter_prev;    ld t4, 0(t0)\n" ++
+  "  bltu t3, t4, .Lcvglnd_pred_false\n" ++
+  "  la t0, cvglnd_iter_child;   ld t1, 0(t0)\n" ++
+  "  la t0, cvglnd_iter_i;       ld t2, 0(t0)\n" ++
+  "  mv s5, t3\n" ++
+  "  slli t5, t2, 3\n" ++
+  "  add t5, s1, t5\n" ++
+  "  ld t6, 0(t5)\n" ++
+  "  add t1, t1, t6\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  j .Lcvglnd_loop\n" ++
+  ".Lcvglnd_pred_false:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  la t0, cvglnd_iter_i; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvglnd_ret\n" ++
+  ".Lcvglnd_propagate:\n" ++
+  "  la t0, cvglnd_iter_i; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  j .Lcvglnd_ret\n" ++
+  ".Lcvglnd_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcvglnd_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+def ziskChainValidateGasLimitNonDecreasingPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_gas_limit_non_decreasing\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvglnd_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainValidateGasLimitNonDecreasingFunction ++ "\n" ++
+  ".Lcvglnd_pdone:"
+
+def ziskChainValidateGasLimitNonDecreasingDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cvglnd_field:\n" ++
+  "  .zero 8\n" ++
+  "cvglnd_iter_child:\n" ++
+  "  .zero 8\n" ++
+  "cvglnd_iter_i:\n" ++
+  "  .zero 8\n" ++
+  "cvglnd_iter_prev:\n" ++
+  "  .zero 8"
+
+def ziskChainValidateGasLimitNonDecreasingProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainValidateGasLimitNonDecreasingPrologue
+  dataAsm     := ziskChainValidateGasLimitNonDecreasingDataSection
+}
+
 end EvmAsm.Codegen
