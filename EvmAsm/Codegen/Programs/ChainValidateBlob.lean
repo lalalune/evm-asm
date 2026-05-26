@@ -409,4 +409,120 @@ def ziskChainValidateBlobGasUsedUnderMaxProbeUnit : BuildUnit := {
   dataAsm     := ziskChainValidateBlobGasUsedUnderMaxDataSection
 }
 
+/-! ## chain_validate_blob_gas_used_multiple -- PR-K278
+
+    Per-header invariant: `blob_gas_used % GAS_PER_BLOB == 0`
+    (header field 17, Cancun+). EIP-4844 defines blob_gas_used
+    as `len(blob_versioned_hashes) * GAS_PER_BLOB`, so any valid
+    Cancun+ header must have `blob_gas_used` as a non-negative
+    multiple of `GAS_PER_BLOB = 131072 = 2^17`.
+
+    Checked via the low-17-bits mask (`blob_gas_used & 0x1ffff
+    == 0`).
+
+    Pre-Cancun headers (<18 fields) raise parse-failure status.
+
+    Vacuous-true on N = 0.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure on some header
+        2 : blob_gas_used field > 8 bytes BE on some header -/
+def chainValidateBlobGasUsedMultipleFunction : String :=
+  "chain_validate_blob_gas_used_multiple:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
+  "  li s5, 0\n" ++
+  ".Lcvbgm_loop:\n" ++
+  "  beq s5, s0, .Lcvbgm_done\n" ++
+  "  la t0, cvbgm_iter_ptr; sd s2, 0(t0)\n" ++
+  "  la t0, cvbgm_iter_i;   sd s5, 0(t0)\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, s2; li a2, 17\n" ++
+  "  la a3, cvbgm_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcvbgm_propagate\n" ++
+  "  la t0, cvbgm_iter_ptr; ld s2, 0(t0)\n" ++
+  "  la t0, cvbgm_iter_i;   ld s5, 0(t0)\n" ++
+  "  la t0, cvbgm_field;    ld t1, 0(t0)\n" ++
+  "  li t2, 0x1ffff            # GAS_PER_BLOB - 1 = 131071\n" ++
+  "  and t5, t1, t2\n" ++
+  "  bnez t5, .Lcvbgm_violation\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld t4, 0(t3)\n" ++
+  "  add s2, s2, t4\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lcvbgm_loop\n" ++
+  ".Lcvbgm_violation:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  sd s5, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvbgm_ret\n" ++
+  ".Lcvbgm_propagate:\n" ++
+  "  sd s5, 0(s4)\n" ++
+  "  j .Lcvbgm_ret\n" ++
+  ".Lcvbgm_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcvbgm_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+def ziskChainValidateBlobGasUsedMultiplePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_blob_gas_used_multiple\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvbgm_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainValidateBlobGasUsedMultipleFunction ++ "\n" ++
+  ".Lcvbgm_pdone:"
+
+def ziskChainValidateBlobGasUsedMultipleDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cvbgm_field:\n" ++
+  "  .zero 8\n" ++
+  "cvbgm_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvbgm_iter_i:\n" ++
+  "  .zero 8"
+
+def ziskChainValidateBlobGasUsedMultipleProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainValidateBlobGasUsedMultiplePrologue
+  dataAsm     := ziskChainValidateBlobGasUsedMultipleDataSection
+}
+
 end EvmAsm.Codegen
