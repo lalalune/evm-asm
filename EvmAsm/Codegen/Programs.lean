@@ -335,6 +335,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_compute_min_timestamp_gap" => some ziskChainComputeMinTimestampGapProbeUnit
   | "zisk_header_extract_parent_beacon_block_root" => some ziskHeaderExtractParentBeaconBlockRootProbeUnit
   | "zisk_chain_extract_first_last_parent_beacon_block_root" => some ziskChainExtractFirstLastParentBeaconBlockRootProbeUnit
+  | "zisk_header_extract_requests_hash" => some ziskHeaderExtractRequestsHashProbeUnit
   | "zisk_chain_extract_first_last_state_root" => some ziskChainExtractFirstLastStateRootProbeUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
   | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
@@ -791,6 +792,7 @@ def knownProgramNames : List String :=
    "zisk_chain_compute_min_timestamp_gap",
    "zisk_header_extract_parent_beacon_block_root",
    "zisk_chain_extract_first_last_parent_beacon_block_root",
+   "zisk_header_extract_requests_hash",
    "zisk_chain_extract_first_last_state_root",
    "zisk_chain_extract_first_last_block_hash",
    "zisk_chain_extract_first_last_receipts_root",
