@@ -126,7 +126,9 @@ CodeBL = ByteList[MAX_BYTES_PER_CODE]
 CodesList = SszList[CodeBL, MAX_WITNESS_CODES]
 codes_arg = ()
 if code_hex:
-    codes_arg = (CodeBL(bytes.fromhex(code_hex)),)
+    # Multiple entries separated by ':', each is a hex blob.
+    code_entries = code_hex.split(':')
+    codes_arg = tuple(CodeBL(bytes.fromhex(c)) for c in code_entries)
 witness = SszExecutionWitness(codes=CodesList(*codes_arg))
 
 ssz_input = SszStatelessInput(
@@ -213,6 +215,13 @@ run_fixture "chain1_fork1"          1                  1    || fail=1
 # `read_active_fork` still land on the correct `chain_config_addr`
 # under input-layout drift. Code blob is 4 deterministic bytes.
 run_fixture "chain1_witcode"        1                  0    "deadbeef" || fail=1
+
+# Same path with TWO witness.codes entries -- exercises the SSZ
+# list-of-variable-size-elements encoding inside witness.codes (an
+# inner u32 offset table prefixes the codes section). The outer
+# `chain_config` offset shifts further than the single-entry case,
+# and the decoder must still chase it correctly.
+run_fixture "chain1_witcode_2"      1                  0    "deadbeef:cafef00d" || fail=1
 
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
