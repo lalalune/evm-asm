@@ -11,6 +11,37 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- Convert the word-level selected N2 path package into the compose-layer
+    selected loop carry predicate.
+
+    The two predicates carry the same three branch-selected facts.  This bridge
+    only reconciles the names of the intermediate states:
+    `fullDivN2R2V4`/`fullDivN2R1V4` use `iterN2V4`, while the lower loop
+    wrappers use `loopN2IterSelectedV4`. -/
+theorem loopN2SelectedCarryV4_of_selectedPathConditionsWord
+    (bltu_2 bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN2SelectedPathConditionsWordV4 bltu_2 bltu_1 bltu_0 a b) :
+    loopN2SelectedCarryV4 bltu_2 bltu_1 bltu_0
+      (fullDivN2NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN2NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN2NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN2NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+      (fullDivN2NormU (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 1)).2.2.1
+      (fullDivN2NormU (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 1)).2.2.2.1
+      (fullDivN2NormU (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 1)).2.2.2.2
+      (0 : Word) (0 : Word)
+      (fullDivN2NormU (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 1)).2.1
+      (fullDivN2NormU (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 1)).1 := by
+  have hcarry := fullDivN2SelectedPathConditionsWordV4_selectedCarry
+    bltu_2 bltu_1 bltu_0 a b hpath
+  simpa [loopN2SelectedCarryV4, fullDivN2SelectedCarryV4,
+    fullDivN2R2V4, fullDivN2R1V4, iterN2V4, loopN2IterSelectedV4] using hcarry
+
 /-- Path-bundled N2 DIV v4 callable wrapper with selected loop-carry evidence.
 
     This is the spec-level counterpart of the selected-carry callable-post
