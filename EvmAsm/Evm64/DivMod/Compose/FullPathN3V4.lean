@@ -139,15 +139,6 @@ theorem fullDivN3_preloop_loop_unified_exact_x1_scratch_v4
   exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4 h
 
 @[irreducible]
-def iterN3V4 (bltu : Bool) (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
-    Word × Word × Word × Word × Word × Word :=
-  if bltu then
-    iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop
-  else
-    iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
-
-@[irreducible]
 def fullDivN3R1V4 (bltu_1 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) :
     Word × Word × Word × Word × Word × Word :=
   let v := fullDivN3NormV b0 b1 b2 b3
