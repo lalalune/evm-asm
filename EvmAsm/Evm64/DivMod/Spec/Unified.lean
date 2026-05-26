@@ -19,6 +19,13 @@
   Pre/post are unchanged; the proof is a single `cpsTripleWithin_mono_nSteps`
   application with `by decide` for the bound inequality.
 
+  Legacy carry note:
+  The n=2 and n=3 `_uni` wrappers in this file still thread the old universal
+  `Carry2NzAll` package through the dispatcher stack surface. Those wrappers
+  are compatibility shims for the pre-selected-carry proof path. New final v4
+  stack work should use selected-carry wrappers instead of extending these raw
+  `Carry2NzAll` surfaces.
+
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 
   Refs: GH #61, beads `evm-asm-unta` (parent `evm-asm-4keh`, grandparent

@@ -1288,7 +1288,9 @@ theorem fullDivN3UnifiedPost_to_divStackDispatchPostNoX1
   rw [word_add_zero] at hq
   xperm_hyp hq
 
-/-- N=3 DIV stack-level entry point: mirrors `evm_div_n1_stack_spec_within`. -/
+/-- Legacy N=3 DIV stack-level entry point. This still exposes the old
+    universal `Carry2NzAll`; final/public v4 work should use selected-carry
+    wrappers in `N3V4CallableExact`. -/
 theorem evm_div_n3_stack_spec_within
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -1344,7 +1346,8 @@ theorem evm_div_n3_stack_spec_within
         ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hq)
     hFull
 
-/-- No-NOP variant of `evm_div_n3_stack_spec_within`. -/
+/-- Legacy no-NOP variant of `evm_div_n3_stack_spec_within`; retained for
+    compatibility with the old public `Carry2NzAll` premise. -/
 theorem evm_div_n3_stack_spec_within_noNop
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)

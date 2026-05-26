@@ -236,6 +236,108 @@ theorem N1AllTruePathEvidence.selectedCarryIfBorrowFacts {a b : EvmWord}
   rw [fullDivN1NormV_getLimbN_eq b]
   exact N1AllTruePathEvidence.selectedCarryIfBorrowFactsRaw hpath
 
+/-- Selected-if-borrow n=1 path evidence with the carry component already
+    projected to the actual branch-sensitive facts consumed by the v4 loop.
+
+    This is the non-`Carry2NzAll` boundary for new n=1 wrappers. The older
+    `N1AllTruePathEvidence` package can still populate it while callers are
+    migrated. -/
+abbrev N1SelectedIfBorrowPathEvidence (a b : EvmWord) : Prop :=
+  loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+    (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)).1
+    (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)).2.1
+    (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+    (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+    (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+    (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+    (0 : Word) (0 : Word) (0 : Word)
+    (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
+    (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1
+    (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).1 ∧
+  Div128AllPhasesNoWrapInv
+    (fullDivN1NormU
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0)).2.2.2.2
+    (fullDivN1NormU
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0)).2.2.2.1
+    (fullDivN1NormV
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+  Div128AllPhasesNoWrapInv
+    (fullDivN1R3 true
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+    (fullDivN1NormU
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0)).2.2.1
+    (fullDivN1NormV
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+  Div128AllPhasesNoWrapInv
+    (fullDivN1R2 true true
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+    (fullDivN1NormU
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0)).2.1
+    (fullDivN1NormV
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+  Div128AllPhasesNoWrapInv
+    (fullDivN1R1 true true true
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+    (fullDivN1NormU
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0)).1
+    (fullDivN1NormV
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+  fullDivN1NormalizedRemainderLt true true true true
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+theorem N1SelectedIfBorrowPathEvidence.ofAllTruePathEvidence {a b : EvmWord}
+    (hpath : N1AllTruePathEvidence a b) :
+    N1SelectedIfBorrowPathEvidence a b := by
+  exact ⟨
+    N1AllTruePathEvidence.selectedCarryIfBorrowFacts hpath,
+    hpath.2.1,
+    hpath.2.2.1,
+    hpath.2.2.2.1,
+    hpath.2.2.2.2.1,
+    hpath.2.2.2.2.2⟩
+
+theorem N1SelectedIfBorrowPathEvidence.selectedCarryIfBorrowFacts
+    {a b : EvmWord} (hpath : N1SelectedIfBorrowPathEvidence a b) :
+    loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).1 := by
+  exact hpath.1
+
 /-- Package selected all-true path evidence after the one-word remainder bounds
     have forced the concrete n=1 branch facts. -/
 theorem N1AllTruePathEvidence.ofRemaindersLt
