@@ -17,6 +17,15 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
 
+@[irreducible]
+def iterN3V4 (bltu : Bool) (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  if bltu then
+    iterWithDoubleAddback (divKTrialCallV4QHat u3 u2 v2)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  else
+    iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
 /-- Sp-relative n=3 max-skip j=0 precondition over `divCode_noNop_v4`. -/
 @[irreducible]
 def loopBodyN3MaxSkipJ0NormPreV4

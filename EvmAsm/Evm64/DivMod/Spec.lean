@@ -18,6 +18,8 @@ import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
 import EvmAsm.Evm64.DivMod.Spec.N4V4StackPre
 import EvmAsm.Evm64.DivMod.Spec.N4V4ShiftNzDispatcher
 import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
+import EvmAsm.Evm64.DivMod.Spec.N3V4StackPreR1
+import EvmAsm.Evm64.DivMod.Spec.N3V4StackPreSelected
 import EvmAsm.Evm64.DivMod.Spec.DivMaxSkipV4
 import EvmAsm.Evm64.DivMod.Spec.ModN4V4StackPre
 import EvmAsm.Evm64.DivMod.Spec.ModMaxSkipV4
@@ -53,6 +55,7 @@ import EvmAsm.Evm64.DivMod.Spec.UnifiedN1TruePath
 import EvmAsm.Evm64.DivMod.Spec.UnifiedExactNoNop
 import EvmAsm.Evm64.DivMod.Spec.UnifiedExactNoNopCallableFrame
 import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExact
+import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExactR1
 import EvmAsm.Evm64.DivMod.Spec.N2V4ConcretePostBridge
 import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExact
 import EvmAsm.Evm64.DivMod.Spec.BzeroV4ExactCallable

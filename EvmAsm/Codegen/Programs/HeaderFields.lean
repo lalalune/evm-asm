@@ -894,4 +894,171 @@ def ziskChainExtractFirstLastBeneficiaryProbeUnit : BuildUnit := {
   dataAsm     := ziskChainExtractFirstLastBeneficiaryDataSection
 }
 
+/-! ## header_extract_parent_beacon_block_root -- PR-K281
+
+    Extract `parent_beacon_block_root` (header field 19, Cancun+,
+    32 bytes) from a header RLP and copy it to a caller-supplied
+    32-byte output buffer. Per EIP-4788, this field commits to
+    the parent beacon block's hash_tree_root and is exposed in
+    the EL via the beacon-roots contract at 0xBEAC0000...0002.
+
+    Pre-Cancun headers (<20 fields) raise parse-failure status.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 32-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 19 missing
+        2 : field 19 length != 32 -/
+def headerExtractParentBeaconBlockRootFunction : String :=
+  "header_extract_parent_beacon_block_root:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 19\n" ++
+  "  la a3, hepbbr_offset; la a4, hepbbr_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lhepbbr_parse_fail\n" ++
+  "  la t0, hepbbr_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lhepbbr_size_fail\n" ++
+  "  la t0, hepbbr_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lhepbbr_ret\n" ++
+  ".Lhepbbr_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lhepbbr_ret\n" ++
+  ".Lhepbbr_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lhepbbr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+def ziskHeaderExtractParentBeaconBlockRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_rlp_len\n" ++
+  "  addi a0, a7, 16             # header_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # 32 B output\n" ++
+  "  jal ra, header_extract_parent_beacon_block_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lhepbbr_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractParentBeaconBlockRootFunction ++ "\n" ++
+  ".Lhepbbr_pdone:"
+
+def ziskHeaderExtractParentBeaconBlockRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "hepbbr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hepbbr_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractParentBeaconBlockRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractParentBeaconBlockRootPrologue
+  dataAsm     := ziskHeaderExtractParentBeaconBlockRootDataSection
+}
+
+/-! ## header_extract_requests_hash -- PR-K283
+
+    Extract `requests_hash` (header field 20, Prague+, 32 bytes)
+    from a header RLP and copy it to a caller-supplied 32-byte
+    output buffer. Per EIP-7685, this field commits to the
+    keccak256(sha256(req_0_data) ++ sha256(req_1_data) ++ ...)
+    of the per-request lists (deposits, withdrawals,
+    consolidations).
+
+    Pre-Prague headers (<21 fields) raise parse-failure status.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : 32-byte output ptr
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure / field 20 missing
+        2 : field 20 length != 32 -/
+def headerExtractRequestsHashFunction : String :=
+  "header_extract_requests_hash:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  mv s2, a2\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 20\n" ++
+  "  la a3, herh_offset; la a4, herh_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lherh_parse_fail\n" ++
+  "  la t0, herh_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lherh_size_fail\n" ++
+  "  la t0, herh_offset; ld t1, 0(t0)\n" ++
+  "  add t3, s0, t1\n" ++
+  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
+  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
+  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
+  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lherh_ret\n" ++
+  ".Lherh_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lherh_ret\n" ++
+  ".Lherh_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lherh_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret"
+
+def ziskHeaderExtractRequestsHashPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_rlp_len\n" ++
+  "  addi a0, a7, 16             # header_rlp ptr\n" ++
+  "  li a2, 0xa0010008           # 32 B output\n" ++
+  "  jal ra, header_extract_requests_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lherh_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractRequestsHashFunction ++ "\n" ++
+  ".Lherh_pdone:"
+
+def ziskHeaderExtractRequestsHashDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "herh_offset:\n" ++
+  "  .zero 8\n" ++
+  "herh_length:\n" ++
+  "  .zero 8"
+
+def ziskHeaderExtractRequestsHashProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskHeaderExtractRequestsHashPrologue
+  dataAsm     := ziskHeaderExtractRequestsHashDataSection
+}
+
 end EvmAsm.Codegen
