@@ -393,11 +393,15 @@ theorem evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_path_uni
     (fullDivN2QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
       bltu_2 bltu_1 bltu_0 a b hbnz hpath) hbody
 
-/-- Trial-witness bundled N2 DIV v4 callable wrapper.
+/-- Legacy trial-witness bundled N2 DIV v4 callable wrapper.
 
     This internalizes the three V4 trial branch booleans, assembling the
     path-bundled callable wrapper from the mechanical branch witness bundle
-    and the remaining carry/arithmetic obligations. -/
+    and the remaining carry/arithmetic obligations.
+
+    Compatibility shim: this surface still exposes the false universal
+    `fullDivN2Carry2NzV4` package.  New public N2 callable wrappers should use
+    the selected-carry surfaces in `N2V4CallableExactSelected` instead. -/
 theorem evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_trialWitnesses_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -466,8 +470,12 @@ theorem evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_trialWitnesses
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
     hdivWord hbody
 
-/-- N2 DIV v4 callable wrapper with the mechanical trial branch witnesses
-    constructed internally. -/
+/-- Legacy N2 DIV v4 callable wrapper with the mechanical trial branch witnesses
+    constructed internally.
+
+    Compatibility shim: this surface still exposes the false universal
+    `fullDivN2Carry2NzV4` package.  Prefer
+    `evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_autoTrialSelectedCarry_uni`. -/
 theorem evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_autoTrial_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -518,8 +526,12 @@ theorem evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_autoTrial_uni
     hbnz hb3z hb2z hb1nz hshift_nz halign
     (n2V4TrialWitnesses_of_getLimbN a b) hcarry2 harith
 
-/-- N2 DIV v4 callable wrapper using the dispatcher-style limb nonzero
-    hypothesis for the divisor. -/
+/-- Legacy N2 DIV v4 callable wrapper using the dispatcher-style limb nonzero
+    hypothesis for the divisor.
+
+    Compatibility shim: this surface still exposes the false universal
+    `fullDivN2Carry2NzV4` package.  Prefer
+    `evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_selectedCarry_uni`. -/
 theorem evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -572,8 +584,12 @@ theorem evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_uni
     hb3z hb2z hb1nz hshift_nz halign
     (n2V4TrialWitnesses_of_getLimbN a b) hcarry2 harith
 
-/-- N2 DIV v4 noNop callable wrapper deriving divisor nonzero from the n=2
-    shape. -/
+/-- Legacy N2 DIV v4 noNop callable wrapper deriving divisor nonzero from the
+    n=2 shape.
+
+    Compatibility shim: this surface still exposes the false universal
+    `fullDivN2Carry2NzV4` package.  Prefer
+    `evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_shape_selectedCarry_uni`. -/
 theorem evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_shape_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -625,8 +641,12 @@ theorem evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_shape_uni
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
     hbnz hb3z hb2z hb1nz hshift_nz halign hcarry2 harith
 
-/-- Full-code form of
-    `evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_uni`. -/
+/-- Legacy full-code form of
+    `evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_uni`.
+
+    Compatibility shim: this surface still exposes the false universal
+    `fullDivN2Carry2NzV4` package.  Prefer
+    `evm_div_n2_stack_spec_v4_preNoX1_callableExactFrame_limbNz_selectedCarry_uni`. -/
 theorem evm_div_n2_stack_spec_v4_preNoX1_callableExactFrame_limbNz_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -678,8 +698,12 @@ theorem evm_div_n2_stack_spec_v4_preNoX1_callableExactFrame_limbNz_uni
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
       hbnz hb3z hb2z hb1nz hshift_nz halign hcarry2 harith
 
-/-- Full-code form of
-    `evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_shape_uni`. -/
+/-- Legacy full-code form of
+    `evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_shape_uni`.
+
+    Compatibility shim: this surface still exposes the false universal
+    `fullDivN2Carry2NzV4` package.  Prefer
+    `evm_div_n2_stack_spec_v4_preNoX1_callableExactFrame_shape_selectedCarry_uni`. -/
 theorem evm_div_n2_stack_spec_v4_preNoX1_callableExactFrame_shape_uni
     (sp base : Word)
     (a b : EvmWord)
