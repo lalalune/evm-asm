@@ -124,6 +124,61 @@ def fullDivN1CallMaxmaxmaxQuotientWordV4
     | 2 => r2.1
     | 3 => r3.1)
 
+/-- Accumulated mulsub equation for the selected N1 v4 call/max/max/max
+    quotient path. -/
+abbrev FullDivN1CallMaxmaxmaxMulSubEqV4
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  let v := fullDivN1NormV b0 b1 b2 b3
+  let u := fullDivN1NormU a0 a1 a2 a3 b0
+  let r3 := loopN1CallMaxmaxmaxR3
+    v.1 v.2.1 v.2.2.1 v.2.2.2
+    u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+  let r2 := loopN1CallMaxmaxmaxR2
+    v.1 v.2.1 v.2.2.1 v.2.2.2
+    u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+    u.2.2.1
+  let r1 := loopN1CallMaxmaxmaxR1
+    v.1 v.2.1 v.2.2.1 v.2.2.2
+    u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+    u.2.2.1 u.2.1
+  let r0 := iterN1Max v.1 v.2.1 v.2.2.1 v.2.2.2 u.1
+    r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  EvmWord.val256 a0 a1 a2 a3 =
+    (r3.1.toNat * 2^192 + r2.1.toNat * 2^128 +
+      r1.1.toNat * 2^64 + r0.1.toNat) *
+      EvmWord.val256 b0 b1 b2 b3 +
+    EvmWord.val256 r0.2.1 r0.2.2.1 r0.2.2.2.1 r0.2.2.2.2.1
+
+/-- Quotient-overestimate bound for the selected N1 v4 call/max/max/max
+    quotient path. -/
+abbrev FullDivN1CallMaxmaxmaxQuotientOverestimateV4
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  let v := fullDivN1NormV b0 b1 b2 b3
+  let u := fullDivN1NormU a0 a1 a2 a3 b0
+  let r3 := loopN1CallMaxmaxmaxR3
+    v.1 v.2.1 v.2.2.1 v.2.2.2
+    u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+  let r2 := loopN1CallMaxmaxmaxR2
+    v.1 v.2.1 v.2.2.1 v.2.2.2
+    u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+    u.2.2.1
+  let r1 := loopN1CallMaxmaxmaxR1
+    v.1 v.2.1 v.2.2.1 v.2.2.2
+    u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) (0 : Word)
+    u.2.2.1 u.2.1
+  let r0 := iterN1Max v.1 v.2.1 v.2.2.1 v.2.2.2 u.1
+    r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  EvmWord.val256 a0 a1 a2 a3 / EvmWord.val256 b0 b1 b2 b3 ≤
+    r3.1.toNat * 2^192 + r2.1.toNat * 2^128 +
+      r1.1.toNat * 2^64 + r0.1.toNat
+
+/-- Semantic facts needed to bridge the selected N1 v4 call/max/max/max
+    quotient word to `EvmWord.div`. -/
+abbrev FullDivN1CallMaxmaxmaxSemanticFactsV4
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  FullDivN1CallMaxmaxmaxMulSubEqV4 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+  FullDivN1CallMaxmaxmaxQuotientOverestimateV4 a0 a1 a2 a3 b0 b1 b2 b3
+
 theorem fullDivN1CallMaxmaxmaxHdivs_of_word_eq
     (a b : EvmWord) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (hdiv : fullDivN1CallMaxmaxmaxQuotientWordV4
@@ -232,6 +287,22 @@ theorem fullDivN1CallMaxmaxmaxQuotientWordV4_eq_div_of_mulsub_overestimate
         (EvmWord.fromLimbs fun i : Fin 4 =>
           match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)
   exact h_correct.1
+
+/-- Package-form semantic bridge for the selected N1 v4 call/max/max/max
+    quotient word. -/
+theorem fullDivN1CallMaxmaxmaxQuotientWordV4_eq_div_of_semantic_facts
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hfacts : FullDivN1CallMaxmaxmaxSemanticFactsV4
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    fullDivN1CallMaxmaxmaxQuotientWordV4 a0 a1 a2 a3 b0 b1 b2 b3 =
+      EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3) := by
+  exact fullDivN1CallMaxmaxmaxQuotientWordV4_eq_div_of_mulsub_overestimate
+    hbnz hfacts.1 hfacts.2
 
 /-- Direct full-v4 form of the N1 call/max/max/max exact-frame stack spec. -/
 theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtra_x9In_exactFrame_unified
