@@ -86,17 +86,25 @@ codegen_registry_count() {
 
 codegen_milestones() {
   # Source of truth: the "### Sequencing" line in CODEGEN.md uses
-  # `M0 ✅ → M1 ✅ → ... → M5 (next)` to mark milestone status.
-  # We pull each milestone's mark from there. Falls back to "⏳"
-  # for any milestone not listed (e.g. deferred M3).
+  # `M0 ✅ → M1 ✅ → ... → M10 ✅` to mark milestone status. We pull
+  # each milestone's mark from there. Falls back to "⏳" for any
+  # milestone not listed (e.g. deferred M3).
+  #
+  # Note: the regex `${m_esc} ✅` requires a literal space between
+  # the milestone and ✅, so `M8 ✅` does NOT substring-match
+  # `M8.5 ✅` (the char after `M8` is `.`, not space). The loop
+  # order therefore reads naturally.
   local seq
   seq="$(grep -A2 '^### Sequencing' CODEGEN.md | tr -d '\n' || true)"
-  for m in M0 M1 M2 M3 M4 M5; do
-    if echo "$seq" | grep -qE "${m} ✅"; then
+  for m in M0 M1 M2 M3 M4 M5a M5b M6a M6b M7 M8 M8.5 M9 M10; do
+    # Escape regex metachars in $m (e.g. the `.` in M8.5).
+    local m_esc
+    m_esc="$(printf '%s' "$m" | sed 's/[.[\*^$()+?{|]/\\&/g')"
+    if echo "$seq" | grep -qE "${m_esc} ✅"; then
       printf "| %s | ✅ |\n" "$m"
-    elif echo "$seq" | grep -qE "${m} \\("; then
+    elif echo "$seq" | grep -qE "${m_esc} \\("; then
       # Marked as (next), (deferred), etc.
-      tag="$(echo "$seq" | grep -oE "${m} \\([a-z]+\\)" | head -1 | sed -E "s/${m} //")"
+      tag="$(echo "$seq" | grep -oE "${m_esc} \\([a-z]+\\)" | head -1 | sed -E "s/${m_esc} //")"
       printf "| %s | ⏳ %s |\n" "$m" "$tag"
     else
       printf "| %s | ⏳ |\n" "$m"
