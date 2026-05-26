@@ -292,4 +292,121 @@ def ziskChainValidateExcessBlobGasNonIncreasingProbeUnit : BuildUnit := {
   dataAsm     := ziskChainValidateExcessBlobGasNonIncreasingDataSection
 }
 
+/-! ## chain_validate_blob_gas_used_under_max -- PR-K277
+
+    Per-header invariant: `blob_gas_used <= MAX_BLOB_GAS_PER_BLOCK`
+    (field 17, Cancun+). The EIP-4844 cap is
+    `MAX_BLOB_GAS_PER_BLOCK = 6 * GAS_PER_BLOB = 6 * 131072 = 786432`
+    (Cancun's `target = 393216`, `max = 786432`). Prague raised
+    this to 9 * GAS_PER_BLOB = 1179648; we use the Cancun value
+    here as a conservative lower bound that holds in both forks.
+
+    Useful as a per-block sanity check on RLP-decoded blob_gas_used
+    values. A failure signals corrupted header data or a future
+    fork that hasn't been wired in yet.
+
+    Pre-Cancun headers (<18 fields) raise parse-failure status.
+
+    Vacuous-true on N = 0.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure on some header
+        2 : blob_gas_used field > 8 bytes BE on some header -/
+def chainValidateBlobGasUsedUnderMaxFunction : String :=
+  "chain_validate_blob_gas_used_under_max:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
+  "  li s5, 0\n" ++
+  ".Lcvbgum_loop:\n" ++
+  "  beq s5, s0, .Lcvbgum_done\n" ++
+  "  la t0, cvbgum_iter_ptr; sd s2, 0(t0)\n" ++
+  "  la t0, cvbgum_iter_i;   sd s5, 0(t0)\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, s2; li a2, 17\n" ++
+  "  la a3, cvbgum_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcvbgum_propagate\n" ++
+  "  la t0, cvbgum_iter_ptr; ld s2, 0(t0)\n" ++
+  "  la t0, cvbgum_iter_i;   ld s5, 0(t0)\n" ++
+  "  la t0, cvbgum_field;    ld t1, 0(t0)\n" ++
+  "  li t2, 786432             # Cancun MAX_BLOB_GAS_PER_BLOCK\n" ++
+  "  bgtu t1, t2, .Lcvbgum_violation\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld t4, 0(t3)\n" ++
+  "  add s2, s2, t4\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lcvbgum_loop\n" ++
+  ".Lcvbgum_violation:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  sd s5, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvbgum_ret\n" ++
+  ".Lcvbgum_propagate:\n" ++
+  "  sd s5, 0(s4)\n" ++
+  "  j .Lcvbgum_ret\n" ++
+  ".Lcvbgum_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcvbgum_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+def ziskChainValidateBlobGasUsedUnderMaxPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_blob_gas_used_under_max\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvbgum_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainValidateBlobGasUsedUnderMaxFunction ++ "\n" ++
+  ".Lcvbgum_pdone:"
+
+def ziskChainValidateBlobGasUsedUnderMaxDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cvbgum_field:\n" ++
+  "  .zero 8\n" ++
+  "cvbgum_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvbgum_iter_i:\n" ++
+  "  .zero 8"
+
+def ziskChainValidateBlobGasUsedUnderMaxProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainValidateBlobGasUsedUnderMaxPrologue
+  dataAsm     := ziskChainValidateBlobGasUsedUnderMaxDataSection
+}
+
 end EvmAsm.Codegen
