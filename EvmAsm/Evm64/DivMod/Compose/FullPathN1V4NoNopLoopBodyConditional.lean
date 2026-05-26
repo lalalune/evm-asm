@@ -12,6 +12,7 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
+open EvmAsm.Evm64.DivMod.AddrNorm (jpred_1 slt_jpos_1)
 
 /-- Loop body n=1, max path, j>0 over `divCode_noNop_v4`, requiring the
     double-addback progress fact only when the addback branch is taken. -/
@@ -164,5 +165,85 @@ theorem divK_loop_body_n1_max_j0_exact_loopIter_v4_noNop_if_borrow (sp base : Wo
         rw [← loopIterPostN1Max_skip hb]
         exact hp)
       (cpsTripleWithin_mono_nSteps (by decide) framed)
+
+/-- Exact-`x1` N1 two-iteration max/max path over `divCode_noNop_v4`,
+    threading max carry evidence only through taken addback branches. -/
+theorem divK_loop_n1_iter10_maxmax_exact_x1_v4_noNop_selected_carry_if_borrow (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
+    (retMem dMem dloMem scratch_un0 raVal : Word)
+    (hbltu_1 : ¬BitVec.ult u1 v0)
+    (hbltu_0 : ¬BitVec.ult (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v0)
+    (hcarry2_j1 : isAddbackCarry2NzN1MaxIfBorrow v0 v1 v2 v3 u0 u1 u2 u3 uTop)
+    (hcarry2_j0 : isAddbackCarry2NzN1MaxIfBorrow v0 v1 v2 v3 u0Orig
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+      (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1) :
+    cpsTripleWithin 404 (base + loopBodyOff) (base + denormOff) (divCode_noNop_v4 base)
+      (loopN1Iter10PreWithScratchNoX1 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old
+        retMem dMem dloMem scratch_un0 ** (.x1 ↦ᵣ raVal))
+      (loopN1Iter10PostNoX1 false false sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig
+        retMem dMem dloMem scratch_un0 ** (.x1 ↦ᵣ raVal)) := by
+  let u_base_1 := sp + signExtend12 4056 - (1 : Word) <<< (3 : BitVec 6).toNat
+  let u_base_0 := sp + signExtend12 4056 - (0 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_1 := sp + signExtend12 4088 - (1 : Word) <<< (3 : BitVec 6).toNat
+  let q_addr_0 := sp + signExtend12 4088 - (0 : Word) <<< (3 : BitVec 6).toNat
+  have J1 := divK_loop_body_n1_max_jgt0_exact_loopIter_v4_noNop_if_borrow
+    (1 : Word) sp base slt_jpos_1
+    jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old raVal hbltu_1
+    hcarry2_j1
+  have J1f := cpsTripleWithin_frameR
+    (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
+     (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+    (by pcFree) J1
+  have J0 := divK_loop_body_n1_max_j0_exact_loopIter_v4_noNop_if_borrow
+    sp base (1 : Word) ((1 : Word) <<< (3 : BitVec 6).toNat) u_base_1 q_addr_1
+    ((mulsubN4 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2)
+    (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).1
+    (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
+    v0 v1 v2 v3 u0Orig
+    (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+    (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+    (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+    (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1
+    q0Old raVal hbltu_0
+    hcarry2_j0
+  have J0f := cpsTripleWithin_frameR
+    (((u_base_1 + signExtend12 4064) ↦ₘ
+        (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
+      (q_addr_1 ↦ₘ (iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).1) **
+      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+      (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratch_un0))
+    (by pcFree) J0
+  have full := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      delta loopIterPostN1Max loopExitPostN1 loopExitPost at hp
+      delta loopBodyN1MaxSkipJ0NormPreV4 at ⊢
+      simp only [] at hp ⊢
+      have hj' := jpred_1
+      rw [hj', u_n1_j1_0_eq_j0_4088, u_n1_j1_4088_eq_j0_4080,
+          u_n1_j1_4080_eq_j0_4072, u_n1_j1_4072_eq_j0_4064] at hp
+      dsimp only [u_base_0, u_base_1, q_addr_0, q_addr_1] at hp ⊢
+      simp only [se12_32, se12_40, se12_48, se12_56,
+                 u_base_off0_j0, u_base_off4088_j0, u_base_off4080_j0,
+                 u_base_off4072_j0, u_base_off4064_j0, q_addr_j0] at hp ⊢
+      rw [sepConj_assoc'] at hp
+      xperm_hyp hp)
+    J1f J0f
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by
+      delta loopN1Iter10PreWithScratchNoX1 loopN1Iter10Pre at hp
+      delta loopBodyN1MaxSkipJgt0NormPreV4 at ⊢
+      xperm_hyp hp)
+    (fun h hp => by
+      delta loopN1Iter10PostNoX1 loopIterPostN1NoX1 loopIterPostN1Max at hp ⊢
+      simp only [iterN1_false, sepConj_emp_right'] at hp ⊢
+      rw [sepConj_assoc'] at hp
+      xperm_hyp hp)
+    full
 
 end EvmAsm.Evm64
