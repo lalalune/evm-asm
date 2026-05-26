@@ -168,4 +168,22 @@ theorem loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_carryIfBorrowMax0
     I.u0Orig2 I.u0Orig1 I.u0Orig0
     (loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_selectedCarryIfBorrow I hh)
 
+/-- Bundled first j=3 call-body step over the full `divCode_v4` bundle,
+    using selected-if-borrow input hypotheses. -/
+theorem divK_loop_n1_call_j3_exact_x1_framed_v4_input_of_selected_if_borrow
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (halign : loopN1CallMaxmaxmaxExactInputAligned I)
+    (hh : loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses I) :
+    loopN1CallMaxmaxmaxJ3ExactInputSpecV4 I := by
+  unfold loopN1CallMaxmaxmaxJ3ExactInputSpecV4
+  exact divK_loop_n1_call_j3_exact_x1_framed_v4 I.sp I.base
+    I.jOld I.v5Old I.v6Old I.v7Old I.v10Old I.v11Old I.v2Old
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+    I.u0Orig2 I.u0Orig1 I.u0Orig0 I.q3Old I.q2Old I.q1Old I.q0Old
+    I.retMem I.dMem I.dloMem I.scratchUn0 I.scratchMem I.raVal
+    (loopN1CallMaxmaxmaxExactInputAligned_raw I halign)
+    (loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu3 I hh)
+    (isAddbackCarry2NzN1CallV4_raw I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+      (loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_carryIfBorrowCall I hh))
+
 end EvmAsm.Evm64
