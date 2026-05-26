@@ -316,6 +316,22 @@ block-body helpers
 `chain_validate_full`,
 `chain_validate_increasing_timestamps`,
 `chain_validate_consecutive_numbers`,
+`chain_extract_basefee_range`,
+`chain_validate_basefee_non_decreasing`,
+`chain_validate_basefee_non_increasing`,
+`chain_validate_gas_limit_constant`,
+`chain_validate_gas_limit_non_decreasing`,
+`chain_validate_gas_limit_non_increasing`,
+`chain_extract_gas_limit_first_last`,
+`chain_compute_total_gas_limit`,
+`chain_extract_excess_blob_gas_first_last`,
+`chain_compute_max_excess_blob_gas`,
+`chain_compute_min_excess_blob_gas`,
+`chain_compute_max_blob_count`,
+`chain_compute_min_blob_count`,
+`chain_extract_first_last_parent_beacon_block_root`,
+`chain_extract_first_last_requests_hash`,
+`header_extract_requests_hash`,
 withdrawal RLP/hash, …), and address
 derivation (`address_compute_create`, `address_compute_create2`,
 `address_from_pubkey`). The catalogue is tracked under the
@@ -448,8 +464,8 @@ Top-line invariants:
   `seqFrame`, `liftSpec`, `runBlock`).
 - **EVM opcode coverage**: see the [`PROGRESS.md`](PROGRESS.md) coverage
   table — currently proven, partial, executable-spec-only, and not-started
-  tiers are tracked per opcode against the 143 bytes in
-  `EvmAsm.Evm64.EvmOpcode`.
+  tiers are tracked per opcode against the 149 byte-codes in
+  `EvmAsm.Evm64.EvmOpcode` (PUSH/DUP/SWAP/LOG families expanded).
 - **Codegen**: M0–M4 of [`CODEGEN.md`](CODEGEN.md) shipped; M5 (tiny EVM
   interpreter) is next.
 - **Stateless-guest scaffold** (`PR-K*` series): unproved RV64
