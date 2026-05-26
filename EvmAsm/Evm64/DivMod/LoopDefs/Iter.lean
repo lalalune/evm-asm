@@ -481,6 +481,21 @@ def isAddbackCarry2NzN1Call (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
 def isAddbackCarry2NzN1Max (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
   isAddbackCarry2Nz (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
+/-- Control-flow-shaped specialization for n=1 max path. The double-addback
+    progress fact is needed only when the max step takes the addback branch. -/
+def isAddbackCarry2NzN1MaxIfBorrow (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
+  (if BitVec.ult uTop
+      (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+   then (1 : Word) else 0) ≠ (0 : Word) →
+    isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+theorem isAddbackCarry2NzN1MaxIfBorrow_of_carry
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hcarry : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    isAddbackCarry2NzN1MaxIfBorrow v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  intro _hborrow
+  exact hcarry
+
 /-- Specialization of `isAddbackCarry2Nz` for n=2 call path, where
     `qHat = div128Quot u2 u1 v1`. -/
 def isAddbackCarry2NzN2Call (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
