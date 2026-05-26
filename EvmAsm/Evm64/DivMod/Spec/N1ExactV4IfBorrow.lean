@@ -52,6 +52,43 @@ theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_semanticFacts
     FullDivN1CallMaxmaxmaxSemanticFactsV4 a0 a1 a2 a3 b0 b1 b2 b3 :=
   hevidence.2
 
+/-- Project the conditional selected-carry facts from selected-if-borrow
+    semantic evidence. -/
+theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_selectedCarry
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).1 := by
+  have hinput :=
+    FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_selectedInput
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hevidence
+  unfold fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses at hinput
+  exact
+    loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_selectedCarryIfBorrow
+      (fullDivN1CallMaxmaxmaxExactInputs sp base
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        a0 a1 a2 a3 b0 b1 b2 b3
+        q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+      hinput
+
 /-- Project the named hdiv package from selected-if-borrow semantic evidence. -/
 theorem FullDivN1CallMaxmaxmaxHdivs_of_selected_if_borrow_semantic_evidence
     (sp base : Word) (a b : EvmWord)
