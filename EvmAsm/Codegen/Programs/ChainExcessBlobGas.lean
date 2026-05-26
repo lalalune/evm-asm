@@ -243,4 +243,109 @@ def ziskChainComputeMinExcessBlobGasProbeUnit : BuildUnit := {
   dataAsm     := ziskChainComputeMinExcessBlobGasDataSection
 }
 
+/-! ## chain_compute_total_excess_blob_gas -- PR-K276
+
+    Sum `excess_blob_gas` (header field 18, Cancun+) across an
+    N-element header chain. Sum counterpart to K272/K273
+    (max/min excess_blob_gas); mirrors K231
+    chain_compute_total_blob_gas (field 17) and K249
+    chain_compute_total_basefee (field 15).
+
+    Useful as a time-integrated blob-fee pressure metric:
+    dividing by N gives the average excess_blob_gas across the
+    window.
+
+    Pre-Cancun headers (<19 fields) yield parse-failure status
+    and the sum is the partial accumulator.
+
+    Vacuous on empty chain: sum = 0.
+
+    Calling convention:
+      a0 (input)  : N
+      a1 (input)  : header_lengths ptr (N u64 LE)
+      a2 (input)  : flat headers ptr
+      a3 (input)  : u64 out (total excess_blob_gas)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse fail (pre-Cancun header in chain)
+        2 : excess_blob_gas field > 8 bytes BE -/
+def chainComputeTotalExcessBlobGasFunction : String :=
+  "chain_compute_total_excess_blob_gas:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li s4, 0\n" ++
+  "  beqz s0, .Lcctebg_done\n" ++
+  ".Lcctebg_loop:\n" ++
+  "  beq s4, s0, .Lcctebg_done\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  mv a0, s2; li a2, 18\n" ++
+  "  la a3, cctebg_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lcctebg_parse_fail\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lcctebg_size_fail\n" ++
+  "  la t0, cctebg_field; ld t1, 0(t0)\n" ++
+  "  ld t2, 0(s3); add t2, t2, t1; sd t2, 0(s3)\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lcctebg_loop\n" ++
+  ".Lcctebg_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcctebg_ret\n" ++
+  ".Lcctebg_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcctebg_ret\n" ++
+  ".Lcctebg_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lcctebg_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainComputeTotalExcessBlobGasPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010010\n" ++
+  "  jal ra, chain_compute_total_excess_blob_gas\n" ++
+  "  li t0, 0xa0010008\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcctebg_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainComputeTotalExcessBlobGasFunction ++ "\n" ++
+  ".Lcctebg_pdone:"
+
+def ziskChainComputeTotalExcessBlobGasDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cctebg_field:\n" ++
+  "  .zero 8"
+
+def ziskChainComputeTotalExcessBlobGasProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainComputeTotalExcessBlobGasPrologue
+  dataAsm     := ziskChainComputeTotalExcessBlobGasDataSection
+}
+
 end EvmAsm.Codegen
