@@ -918,7 +918,7 @@ theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtr
         retMem dMem dloMem scratchUn0 scratchMem raVal
         hevidence)
   have hdivs :=
-    FullDivN1CallMaxmaxmaxHdivs_of_selected_semantic_facts_if_borrow
+    FullDivN1CallMaxmaxmaxHdivs_of_selected_semantic_facts_if_borrow_projections
       sp base a b
       jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
       (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
