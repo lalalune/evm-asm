@@ -14,6 +14,14 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 
   See beads `evm-asm-8bu1`, parent `evm-asm-pb40` (#61 slice 2a-ii).
+
+  Legacy note:
+  The stack wrappers in this file predate the selected-carry v4 retrofit and
+  still expose the counterexample-false universal `Carry2NzAll` package.
+  Treat them as compatibility shims for older v1/no-NOP composition paths, not
+  as the surface for new public DIV n=2 stack work. New v4 callable/final
+  wrappers should use the selected-carry surfaces in
+  `Spec.N2V4CallableExactSelected` and `CallableV4DivSelected` instead.
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
@@ -324,8 +332,12 @@ theorem fullDivN2UnifiedPostNoX1_frame_to_divStackDispatchPostCallableExactFrame
     a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 raVal
     ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hp
 
-/-- N=2 DIV stack-level entry point: mirrors `evm_div_n3_stack_spec_within`
-and `evm_mod_n2_stack_spec_within`. -/
+/-- Legacy N=2 DIV stack-level entry point.
+
+    This mirrors `evm_div_n3_stack_spec_within` and
+    `evm_mod_n2_stack_spec_within`, but still exposes the old universal
+    `Carry2NzAll` premise. Do not use this as the final/public v4 DIV n=2
+    route; prefer selected-carry wrappers in `N2V4CallableExactSelected`. -/
 theorem evm_div_n2_stack_spec_within
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -384,7 +396,9 @@ theorem evm_div_n2_stack_spec_within
         ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hq)
     hFull
 
-/-- No-NOP variant of `evm_div_n2_stack_spec_within`. -/
+/-- Legacy no-NOP variant of `evm_div_n2_stack_spec_within`.
+
+    This retains the old public `Carry2NzAll` premise for compatibility only. -/
 theorem evm_div_n2_stack_spec_within_noNop
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -443,10 +457,13 @@ theorem evm_div_n2_stack_spec_within_noNop
         ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hq)
     hFull
 
-/-- `_word` form: mirror of `evm_div_n1_stack_spec_within_word`. Takes a
-single `EvmWord`-valued equality `fullDivN2QuotientWord ... = EvmWord.div a b`
-and projects it into the four per-limb hypotheses via
-`fullDivN2_hdivs_of_word_eq`. -/
+/-- Legacy `_word` form: mirror of `evm_div_n1_stack_spec_within_word`.
+
+    Takes a single `EvmWord`-valued equality
+    `fullDivN2QuotientWord ... = EvmWord.div a b` and projects it into the four
+    per-limb hypotheses via `fullDivN2_hdivs_of_word_eq`. It still exposes the
+    old `Carry2NzAll` premise, so new v4 work should use selected-carry
+    wrappers instead. -/
 theorem evm_div_n2_stack_spec_within_word
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -490,8 +507,10 @@ theorem evm_div_n2_stack_spec_within_word
     hshift_nz halign hbltu_2 hbltu_1 hbltu_0 hcarry2
     hdiv0 hdiv1 hdiv2 hdiv3
 
-/-- Exact-x1 form of `evm_div_n2_stack_spec_within_word`, exposing the
-    dispatcher postcondition without consuming the caller's `x1` atom. -/
+/-- Legacy exact-x1 form of `evm_div_n2_stack_spec_within_word`, exposing the
+    dispatcher postcondition without consuming the caller's `x1` atom.
+
+    This is a compatibility wrapper over the raw `Carry2NzAll` path. -/
 theorem evm_div_n2_stack_spec_within_word_exact_x1
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -549,7 +568,9 @@ theorem evm_div_n2_stack_spec_within_word_exact_x1
         ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hq)
     hFull
 
-/-- No-NOP variant of `evm_div_n2_stack_spec_within_word`. -/
+/-- Legacy no-NOP variant of `evm_div_n2_stack_spec_within_word`.
+
+    This is a compatibility wrapper over the raw `Carry2NzAll` path. -/
 theorem evm_div_n2_stack_spec_within_word_noNop
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -593,7 +614,9 @@ theorem evm_div_n2_stack_spec_within_word_noNop
     hshift_nz halign hbltu_2 hbltu_1 hbltu_0 hcarry2
     hdiv0 hdiv1 hdiv2 hdiv3
 
-/-- Exact-x1 no-NOP form of `evm_div_n2_stack_spec_within_word`. -/
+/-- Legacy exact-x1 no-NOP form of `evm_div_n2_stack_spec_within_word`.
+
+    This is a compatibility wrapper over the raw `Carry2NzAll` path. -/
 theorem evm_div_n2_stack_spec_within_word_exact_x1_noNop
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -651,8 +674,12 @@ theorem evm_div_n2_stack_spec_within_word_exact_x1_noNop
         ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hq)
     hFull
 
-/-- No-NOP n=2 DIV stack spec weakened to the callable post surface with
-    separate `x1` ownership and exact `x9`. -/
+/-- Legacy no-NOP n=2 DIV stack spec weakened to the callable post surface with
+    separate `x1` ownership and exact `x9`.
+
+    This compatibility wrapper still routes through the raw `Carry2NzAll`
+    theorem stack. New v4 callable surfaces should use selected carry evidence
+    instead. -/
 theorem evm_div_n2_stack_spec_within_word_noNop_callableOwnPost
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -698,8 +725,12 @@ theorem evm_div_n2_stack_spec_within_word_noNop_callableOwnPost
       ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1nz
       hshift_nz halign hbltu_2 hbltu_1 hbltu_0 hcarry2 hdivWord)
 
-/-- No-NOP n=2 DIV stack spec from the callable precondition shape to the
-    public callable post, with separate `x1` ownership and exact `x9`. -/
+/-- Legacy no-NOP n=2 DIV stack spec from the callable precondition shape to the
+    public callable post, with separate `x1` ownership and exact `x9`.
+
+    This compatibility wrapper still routes through the raw `Carry2NzAll`
+    theorem stack. New v4 callable surfaces should use selected carry evidence
+    instead. -/
 theorem evm_div_n2_stack_spec_within_word_noNop_preNoX1_callableOwnPost
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
