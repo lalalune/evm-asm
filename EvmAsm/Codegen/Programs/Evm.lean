@@ -454,7 +454,9 @@ def singletonHandlers : List OpcodeHandlerSpec :=
   , { label := "h_XOR"        , opcodes := [0x18], body := EvmAsm.Evm64.evm_xor       , tail := .advanceAndRet 1 }
   , { label := "h_NOT"        , opcodes := [0x19], body := EvmAsm.Evm64.evm_not       , tail := .advanceAndRet 1 }
   , { label := "h_BYTE"       , opcodes := [0x1a], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_byte      , tail := x10RestoreAdvance1 }
+  , { label := "h_SHL"        , opcodes := [0x1b], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_shl       , tail := x10RestoreAdvance1 }
   , { label := "h_SHR"        , opcodes := [0x1c], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_shr       , tail := x10RestoreAdvance1 }
+  , { label := "h_SAR"        , opcodes := [0x1d], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_sar       , tail := x10RestoreAdvance1 }
   , { label := "h_POP"        , opcodes := [0x50], body := EvmAsm.Evm64.evm_pop       , tail := .advanceAndRet 1 } ]
 
 /-- M7 memory opcodes. Register-parameterized; the dispatcher
