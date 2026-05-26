@@ -148,6 +148,19 @@ def loopN2IterSelectedV4 (bltu : Bool)
   else
     iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
+@[simp] theorem loopN2IterSelectedV4_false
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    loopN2IterSelectedV4 false v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  rfl
+
+@[simp] theorem loopN2IterSelectedV4_true
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    loopN2IterSelectedV4 true v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  simp [loopN2IterSelectedV4]
+
 /-- Selected per-iteration carry facts for the normalized n=2 loop source.
 
     This is the compose-layer replacement shape for `Carry2NzAll`: it carries
