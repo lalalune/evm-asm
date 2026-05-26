@@ -20,11 +20,19 @@ zkVM standards: `EvmAsm/Evm64/zkvm-standards/` (submodule).
 
 > **Parallel codegen track.** Emitting verified `Program`s as executable
 > RV64 ELFs that run on the Zisk emulator is tracked separately in
-> [`CODEGEN.md`](CODEGEN.md). M0–M4 are done (text emitter, total
+> [`CODEGEN.md`](CODEGEN.md). **M0–M10 are done**: text emitter, total
 > `Instr` coverage, `evm_add` round-trip on `ziskemu` from both `.data`
-> and `ziskemu -i`); M5 (tiny EVM interpreter on `PUSH1 PUSH1 ADD STOP`)
-> is next. Codegen is purely additive — it does not modify the verified
-> core.
+> and `ziskemu -i`, tiny EVM interpreter with runtime fetch/decode/
+> dispatch, and **91 wired opcodes** through `tinyInterpRegistry` —
+> PUSH0–32, DUP1–16, SWAP1–16, 17 clean-shape singletons, MLOAD/MSTORE/
+> MSTORE8 (M7), DIV/MOD (M8), runtime-bytecode dispatcher (M8.5),
+> SDIV/SMOD via trampoline (M9), and ADDMOD via inline-callable (M10).
+> EXP is deferred pending an upstream callee-saved variant. Codegen-
+> proofs **Phase 1 (registry invariants)** and the first 13/91
+> instances of **Phase 4 (handler-level `cpsTripleWithin` specs via
+> `cleanRetHandlerSpec`)** have landed under
+> `EvmAsm/Codegen/Proofs/`. Codegen remains purely additive — it does
+> not modify the verified core.
 
 ---
 
