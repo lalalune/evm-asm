@@ -186,6 +186,57 @@ def loopN1CallMaxmaxmaxSelectedCarryFacts
   isAddbackCarry2NzN1Max v0 v1 v2 v3 u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1
     r1.2.2.2.2.1
 
+/-- Conditional carry evidence for one selected N1 max iteration. The
+    double-addback progress proof is only needed on the addback branch, i.e.
+    when the computed mulsub borrow bit is nonzero. -/
+@[irreducible]
+def selectedN1MaxCarryIfBorrow
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
+  (if BitVec.ult uTop
+      (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+   then (1 : Word) else 0) ≠ (0 : Word) →
+    isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+/-- Control-flow-shaped selected carry facts for the N1 call/max/max/max path.
+    Unlike `loopN1CallMaxmaxmaxSelectedCarryFacts`, the max-step carry facts
+    are conditional on the corresponding addback branch being selected. This
+    matches the loop-body specs that consume the carry proof only after the
+    borrow branch split. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word) : Prop :=
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  isAddbackCarry2NzN1CallV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop ∧
+  selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1
+    r3.2.2.2.2.1 ∧
+  selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1
+    r2.2.2.2.2.1 ∧
+  selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1
+    r1.2.2.2.2.1
+
+theorem selectedN1MaxCarryIfBorrow_of_carry
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hcarry : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  unfold selectedN1MaxCarryIfBorrow
+  intro _hborrow
+  exact hcarry
+
+theorem loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts_of_selected
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
+    (hselected : loopN1CallMaxmaxmaxSelectedCarryFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) :
+    loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 := by
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
+  unfold loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+  exact ⟨hselected.1,
+    selectedN1MaxCarryIfBorrow_of_carry _ _ _ _ _ _ _ _ _ hselected.2.1,
+    selectedN1MaxCarryIfBorrow_of_carry _ _ _ _ _ _ _ _ _ hselected.2.2.1,
+    selectedN1MaxCarryIfBorrow_of_carry _ _ _ _ _ _ _ _ _ hselected.2.2.2⟩
+
 theorem loopN1CallMaxmaxmaxSelectedCarryFacts_of_carry2All
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
