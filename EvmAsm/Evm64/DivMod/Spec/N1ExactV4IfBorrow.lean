@@ -347,18 +347,15 @@ theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtr
       (0 : Word) (0 : Word) (0 : Word) (0 : Word)
       retMem dMem dloMem scratchUn0 scratchMem raVal
       hevidence
-  have hword :=
-    fullDivN1CallMaxmaxmaxQuotientWordV4_eq_div_of_semantic_facts_word
-      a b a0 a1 a2 a3 b0 b1 b2 b3
-      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz
-      (FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_semanticFacts
-        sp base
-        jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
-        (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
-        a0 a1 a2 a3 b0 b1 b2 b3
-        (0 : Word) (0 : Word) (0 : Word) (0 : Word)
-        retMem dMem dloMem scratchUn0 scratchMem raVal
-        hevidence)
+  have hdivs :=
+    FullDivN1CallMaxmaxmaxHdivs_of_selected_if_borrow_semantic_evidence
+      sp base a b
+      jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+      a0 a1 a2 a3 b0 b1 b2 b3
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hevidence
   exact evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtra_x9In_exactFrame_unified_of_selected_if_borrow_input_hdivs
     sp base a b
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In
@@ -367,7 +364,7 @@ theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtr
     raVal
     ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1z
     hshift_nz halign hselected
-    (fullDivN1CallMaxmaxmaxHdivs_of_word_eq a b a0 a1 a2 a3 b0 b1 b2 b3 hword)
+    hdivs
 
 /-- Compatibility stack wrapper for callers that still produce the existing
     selected semantic evidence package. Internally this routes through the
