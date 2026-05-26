@@ -89,6 +89,19 @@ When adding or modifying proofs:
   3. Breaking up large `have`s into separate lemmas so the core composition step has fewer atoms to permute.
 - **Exception for Shift composition files**: `set_option maxHeartbeats` up to 6400000 is acceptable for body/path composition proofs (Section 4+) which are bottlenecked by `xperm_hyp` permutation on large atom chains. Subsumption lemmas (Section 2) should NOT need heartbeat overrides — they use structural `unionAll` reasoning.
 
+- **All memory accesses must be aligned.** The verified RV64 operational semantics in `EvmAsm/Rv64/Basic.lean` defines `isValidDwordAccess = isValidMemAddr && isAligned8` and `isValidMemAccess = isValidMemAddr && isAligned4` — i.e. an `LD`/`SD` has no semantics unless its address is a multiple of 8, and `LW`/`LWU`/`SW` likewise need a multiple of 4. Per-width requirements:
+
+  | Op            | Width | Required alignment |
+  |---------------|-------|--------------------|
+  | `LD`, `SD`    | 8 B   | `addr % 8 == 0`    |
+  | `LW`, `LWU`, `SW` | 4 B   | `addr % 4 == 0`    |
+  | `LH`, `LHU`, `SH` | 2 B   | `addr % 2 == 0`    |
+  | `LB`, `LBU`, `SB` | 1 B   | any                |
+
+  Proofs that reach an unaligned access cannot close — `isValidDwordAccess`/`isValidMemAccess` evaluate to `false`. Ziskemu may tolerate unaligned reads at runtime, but the verified subset does not, so do **not** rely on runtime tolerance when writing new RV64 snippets.
+
+  When the natural source/dest address is unaligned (e.g. SSZ blob base at `INPUT_BASE + 18 = 0x40000012`, mod 4 = 2), pick accesses whose alignment still works (`LBU`/`SB` always do; `LH`/`LHU` at mod 2 = 0; `LWU` at mod 4 = 0; `LD`/`SD` at mod 8 = 0) and reconstruct wider values by shift/OR packing. Pre-existing unaligned reads in `EvmAsm/Stateless/SSZ/Decode/Program.lean` are debt, not a precedent.
+
 ## Common Pitfalls
 
 1. **Notation issues**: Custom notations (like `↦ᵣ ?`) may not parse correctly; use functions directly
