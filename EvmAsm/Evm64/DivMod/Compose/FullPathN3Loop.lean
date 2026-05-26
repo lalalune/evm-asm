@@ -4,6 +4,10 @@
   Lifts n=3 two-iteration loop compositions from sharedDivModCode to divCode,
   and composes with the pre-loop (base → base+448) to produce
   preloop+loop specs (base → base+904).
+
+  Legacy carry note: this lift module still exposes the raw `Carry2NzAll`
+  package. It is a compatibility surface for older full-path composition;
+  final/public v4 n=3 stack work should use selected/reachable carry wrappers.
 -/
 
 -- `LoopUnifiedN3` transitively imports `LoopComposeN3`.
@@ -64,7 +68,10 @@ theorem n3_qa0 {sp : Word} :
 -- Lift unified n=3  loop from sharedDivModCode to divCode
 -- ============================================================================
 
-/-- Lift the unified n=3 2-iteration  loop spec from sharedDivModCode to divCode. -/
+/-- Lift the unified n=3 2-iteration loop spec from sharedDivModCode to divCode.
+
+    Legacy compatibility surface: this still consumes the raw `Carry2NzAll`
+    package. New v4 n=3 work should route through selected carry evidence. -/
 theorem divK_loop_n3_unified_divCode (bltu_1 bltu_0 : Bool)
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)
@@ -88,7 +95,10 @@ theorem divK_loop_n3_unified_divCode (bltu_1 bltu_0 : Bool)
       retMem dMem dloMem scratch_un0 base halign
       hbltu_1 hbltu_0 hcarry2)
 
-/-- No-NOP variant of `divK_loop_n3_unified_divCode`. -/
+/-- No-NOP variant of `divK_loop_n3_unified_divCode`.
+
+    Legacy compatibility surface: this still consumes the raw `Carry2NzAll`
+    package. New v4 n=3 work should route through selected carry evidence. -/
 theorem divK_loop_n3_unified_divCode_noNop (bltu_1 bltu_0 : Bool)
     (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q1Old q0Old : Word)

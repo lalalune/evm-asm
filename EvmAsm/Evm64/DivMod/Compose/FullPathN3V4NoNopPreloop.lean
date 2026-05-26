@@ -267,7 +267,11 @@ theorem evm_div_n3_to_loopSetup_spec_within_v4_noNop_exact_x1_scratch_frame
     (fun h hq => by xperm_hyp hq)
     hFramed
 
-/-- n=3 v4/no-NOP path from entry through the exact-x1 loop handoff. -/
+/-- n=3 v4/no-NOP path from entry through the exact-x1 loop handoff.
+
+    Legacy compatibility surface: this still consumes the raw normalized
+    `Carry2NzAll` package. Final/public v4 n=3 stack work should use the
+    selected-carry/R1 siblings below. -/
 theorem fullDivN3_preloop_loop_unified_exact_x1_scratch_v4_noNop
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
