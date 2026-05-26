@@ -309,6 +309,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_compute_total_blob_count" => some ziskChainComputeTotalBlobCountProbeUnit
   | "zisk_chain_compute_total_basefee" => some ziskChainComputeTotalBasefeeProbeUnit
   | "zisk_chain_compute_max_basefee" => some ziskChainComputeMaxBasefeeProbeUnit
+  | "zisk_chain_compute_min_basefee" => some ziskChainComputeMinBasefeeProbeUnit
   | "zisk_chain_extract_first_last_state_root" => some ziskChainExtractFirstLastStateRootProbeUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
   | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
@@ -743,6 +744,7 @@ def knownProgramNames : List String :=
    "zisk_chain_compute_total_blob_count",
    "zisk_chain_compute_total_basefee",
    "zisk_chain_compute_max_basefee",
+   "zisk_chain_compute_min_basefee",
    "zisk_chain_extract_first_last_state_root",
    "zisk_chain_extract_first_last_block_hash",
    "zisk_chain_extract_first_last_receipts_root",
