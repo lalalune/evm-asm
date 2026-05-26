@@ -74,9 +74,11 @@ import EvmAsm.Codegen.Programs.Chain
 import EvmAsm.Codegen.Programs.ChainAggregator
 import EvmAsm.Codegen.Programs.ChainBasefee
 import EvmAsm.Codegen.Programs.ChainExcessBlobGas
+import EvmAsm.Codegen.Programs.ChainTimestamp
 import EvmAsm.Codegen.Programs.ChainEndpoints
 import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateBlob
+import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
@@ -330,6 +332,16 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_compute_total_excess_blob_gas" => some ziskChainComputeTotalExcessBlobGasProbeUnit
   | "zisk_chain_validate_blob_gas_used_under_max" => some ziskChainValidateBlobGasUsedUnderMaxProbeUnit
   | "zisk_chain_validate_blob_gas_used_multiple" => some ziskChainValidateBlobGasUsedMultipleProbeUnit
+  | "zisk_chain_compute_max_timestamp_gap" => some ziskChainComputeMaxTimestampGapProbeUnit
+  | "zisk_chain_compute_min_timestamp_gap" => some ziskChainComputeMinTimestampGapProbeUnit
+  | "zisk_header_extract_parent_beacon_block_root" => some ziskHeaderExtractParentBeaconBlockRootProbeUnit
+  | "zisk_chain_extract_first_last_parent_beacon_block_root" => some ziskChainExtractFirstLastParentBeaconBlockRootProbeUnit
+  | "zisk_header_extract_requests_hash" => some ziskHeaderExtractRequestsHashProbeUnit
+  | "zisk_chain_extract_first_last_requests_hash" => some ziskChainExtractFirstLastRequestsHashProbeUnit
+  | "zisk_chain_compute_max_blob_count" => some ziskChainComputeMaxBlobCountProbeUnit
+  | "zisk_chain_compute_min_blob_count" => some ziskChainComputeMinBlobCountProbeUnit
+  | "zisk_chain_validate_difficulty_zero" => some ziskChainValidateDifficultyZeroProbeUnit
+  | "zisk_chain_validate_nonce_zero" => some ziskChainValidateNonceZeroProbeUnit
   | "zisk_chain_extract_first_last_state_root" => some ziskChainExtractFirstLastStateRootProbeUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
   | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
@@ -782,6 +794,16 @@ def knownProgramNames : List String :=
    "zisk_chain_compute_total_excess_blob_gas",
    "zisk_chain_validate_blob_gas_used_under_max",
    "zisk_chain_validate_blob_gas_used_multiple",
+   "zisk_chain_compute_max_timestamp_gap",
+   "zisk_chain_compute_min_timestamp_gap",
+   "zisk_header_extract_parent_beacon_block_root",
+   "zisk_chain_extract_first_last_parent_beacon_block_root",
+   "zisk_header_extract_requests_hash",
+   "zisk_chain_extract_first_last_requests_hash",
+   "zisk_chain_compute_max_blob_count",
+   "zisk_chain_compute_min_blob_count",
+   "zisk_chain_validate_difficulty_zero",
+   "zisk_chain_validate_nonce_zero",
    "zisk_chain_extract_first_last_state_root",
    "zisk_chain_extract_first_last_block_hash",
    "zisk_chain_extract_first_last_receipts_root",
@@ -880,9 +902,11 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/ChainAggregator.lean",
     "EvmAsm/Codegen/Programs/ChainBasefee.lean",
     "EvmAsm/Codegen/Programs/ChainExcessBlobGas.lean",
+    "EvmAsm/Codegen/Programs/ChainTimestamp.lean",
     "EvmAsm/Codegen/Programs/ChainEndpoints.lean",
     "EvmAsm/Codegen/Programs/ChainValidate.lean",
     "EvmAsm/Codegen/Programs/ChainValidateBlob.lean",
+    "EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean",
     "EvmAsm/Codegen/Programs/Bloom.lean",
     "EvmAsm/Codegen/Programs/Evm.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
