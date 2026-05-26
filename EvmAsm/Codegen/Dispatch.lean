@@ -188,7 +188,8 @@ def emitDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 416\n" ++      -- 13 SimpleEnvField slots × 32 bytes (M12 onward)
+  "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+                          -- slots up to returnDataSizeOff = 440 + 8 (M12 / M13 onward)
   emitJumpTable registry
 
 /-! ## Runtime-bytecode dispatcher (M8.5)
@@ -240,7 +241,8 @@ def emitRuntimeDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 416\n" ++      -- 13 SimpleEnvField slots × 32 bytes (M12 onward)
+  "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+                          -- slots up to returnDataSizeOff = 440 + 8 (M12 / M13 onward)
   emitJumpTable registry
 
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.

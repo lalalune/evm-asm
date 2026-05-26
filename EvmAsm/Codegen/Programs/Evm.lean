@@ -14,6 +14,7 @@ import EvmAsm.Evm64.Add.Program
 import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.And.Program
 import EvmAsm.Evm64.Byte.Program
+import EvmAsm.Evm64.Calldata.SizeProgram
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
@@ -527,6 +528,27 @@ def envHandlers : List OpcodeHandlerSpec :=
   , { label := "h_SELFBALANCE", opcodes := [0x47], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .selfBalance, tail := .advanceAndRet 1 }
   , { label := "h_BASEFEE"    , opcodes := [0x48], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .baseFee    , tail := .advanceAndRet 1 } ]
 
+/-- M13 calldata-context opcodes. Sibling to `envHandlers` — reads the
+    `callDataLenOff = 424` cell from the same env block that M12
+    initialises via `la x20, evm_env`.
+
+    `evm_calldatasize` has the same 6-instruction shape as
+    `evm_env_load`: load 8 bytes from `envBaseReg + 424`, decrement
+    `x12` by 32, write the low limb and three zero high limbs. The
+    M12 env-region size of 416 bytes is too small for offset 424;
+    `Dispatch.lean`'s `evm_env:` block is bumped to 512 bytes in this
+    PR (covers all `Environment/Layout.lean` fields up to
+    `returnDataSizeOff = 440` + 8 with slack).
+
+    The calldata-length cell is zero-initialised by the data section
+    (same as the env fields), so `CALLDATASIZE` currently returns 0.
+    Non-zero values come from a future host-preload PR. -/
+def calldataHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_CALLDATASIZE"
+    , opcodes := [0x36]
+    , body    := EvmAsm.Evm64.Calldata.evm_calldatasize .x20 .x15
+    , tail    := .advanceAndRet 1 } ]
+
 /-- M8 unsigned division opcodes. Both `evm_div` and `evm_mod` carry
     a 75-instruction `divK_div128_v4` subroutine appended after a
     NOP "exit PC" at body index 267; the `evmDivPatched` /
@@ -705,7 +727,7 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ envHandlers ++ divModHandlers ++
+  memoryHandlers ++ envHandlers ++ calldataHandlers ++ divModHandlers ++
   signedDivModHandlers ++ selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
