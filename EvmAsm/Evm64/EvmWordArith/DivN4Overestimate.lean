@@ -65,6 +65,30 @@ theorem max_trial_overestimate_n4 (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (hb3nz : b3 �
   rw [signExtend12_4095_toNat]
   exact val256_div_lt_pow64 a0 a1 a2 a3 b0 b1 b2 b3 hb3nz
 
+/-- N1 max-branch local quotient bound.  If the selected branch used the max
+    trial because the high window limb is at least the one-limb divisor, then
+    `2^64 - 1` is within the local quotient plus the double-addback slack. -/
+theorem max_trial_local_overestimate_n1_of_not_ult
+    (v0 u0 u1 : Word)
+    (hv0nz : v0 ≠ 0)
+    (hbltu : ¬ BitVec.ult u1 v0) :
+    (signExtend12 (4095 : BitVec 12) : Word).toNat ≤
+      val256 u0 u1 0 0 / val256 v0 0 0 0 + 2 := by
+  rw [signExtend12_4095_toNat]
+  rw [EvmWord.val256_zero_upper_2, EvmWord.val256_zero_upper_3]
+  have hv0_pos : 0 < v0.toNat := by
+    by_contra h
+    have hv0_zero_toNat : v0.toNat = 0 := by omega
+    exact hv0nz (BitVec.eq_of_toNat_eq hv0_zero_toNat)
+  have hle : v0.toNat ≤ u1.toNat := by
+    rw [BitVec.ult_eq_decide] at hbltu
+    simp at hbltu
+    omega
+  have hdiv_ge : 2^64 ≤ (u0.toNat + u1.toNat * 2^64) / v0.toNat := by
+    rw [Nat.le_div_iff_mul_le hv0_pos]
+    nlinarith
+  omega
+
 -- ============================================================================
 -- Skip path: mulsub c3=0 → Euclidean equation → EvmWord.div correctness
 -- ============================================================================
