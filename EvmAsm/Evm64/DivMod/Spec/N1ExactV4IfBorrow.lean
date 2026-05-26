@@ -52,6 +52,34 @@ theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_semanticFacts
     FullDivN1CallMaxmaxmaxSemanticFactsV4 a0 a1 a2 a3 b0 b1 b2 b3 :=
   hevidence.2
 
+/-- Compatibility bridge from the existing selected semantic evidence package
+    to the selected-if-borrow package. -/
+theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_of_selected
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal := by
+  have hselected := hevidence.1
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses at hselected
+  unfold FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4
+  constructor
+  · unfold fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses
+    exact loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_of_selected
+      (fullDivN1CallMaxmaxmaxExactInputs sp base
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        a0 a1 a2 a3 b0 b1 b2 b3
+        q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+      hselected
+  · exact hevidence.2
+
 /-- Build the selected-if-borrow semantic evidence package from explicit
     branch facts, conditional selected carry facts, and semantic facts. -/
 theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_of_bltu_selected
