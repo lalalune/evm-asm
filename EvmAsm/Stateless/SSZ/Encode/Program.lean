@@ -18,31 +18,35 @@
 
   Total: 41 bytes.
 
-  ## Caller contract (PR6)
+  ## Caller contract (spec-mimic)
 
-  Caller places all three fields in registers:
+  Caller places both SSZ fields in registers:
 
       x10 : chain_id              (u64 LE at output bytes 33..41)
       x11 : successful_validation (low byte at output byte 32)
-      x16 : header_count          (u64 LE at output bytes 48..56,
-                                   PR6 diagnostic field)
 
-  The encoder must only see `0` or `1` in `x11`'s low byte; PR5's
-  `decode_validation_bit` guarantees that.
+  The encoder must only see `0` or `1` in `x11`'s low byte; the
+  decoder's `decode_validation_bit` guarantees that.
 
-  PR6 layout at `OUTPUT_ADDR`:
+  Layout at `OUTPUT_ADDR`:
 
-      bytes  0..32 : new_payload_request_root  (still zero-stub)
+      bytes  0..32 : new_payload_request_root  (still zero-stub here;
+                                                stateless_guest's
+                                                epilogue overwrites
+                                                with hash_tree_root)
       byte      32 : successful_validation     (x11 low byte)
       bytes 33..41 : chain_id                  (x10 LE)
-      bytes 41..48 : zero gap                  (ziskemu inits OUTPUT to 0)
-      bytes 48..56 : header_count              (x16 LE u64, PR6 diagnostic)
 
-  Bytes 48..56 are **not** part of the SSZ-encoded
-  `StatelessValidationResult` -- they're scratch the test harness
-  uses to verify that the deeper offset walk in
-  `decode_header_count` actually produces the right value.
-  Once the real STF lands, this scratch field goes away.
+  Total: 41 bytes -- mirrors the OLD (pre-zkevm-projects-d7fe16ab8)
+  fixed-size `SszStatelessValidationResult` layout exactly. The
+  NEW (post-d7fe16ab8) schema adds a variable-size `active_fork`
+  field to `SszChainConfig`, which makes the result variable-size;
+  encoding that is a follow-up. The 41-byte head we emit here is
+  still a valid SSZ prefix for any non-empty active_fork because
+  the new container uses offset placeholders past byte 40.
+
+  Earlier diagnostic-tail bytes 41..56 (zero gap + 8-byte header_count)
+  have been dropped to match the spec output byte-for-byte.
 
   Later PRs replace the zero `root`.
 
@@ -63,9 +67,9 @@
 
   ## Frame
 
-  11 instructions: 1 LI (base) + 4 SD (zero hash) + 1 SLLI + 1 OR
+  10 instructions: 1 LI (base) + 4 SD (zero hash) + 1 SLLI + 1 OR
   (mix in bool) + 1 SD (packed bool || low-7 chain bytes) + 1 SRLI +
-  1 SB (high chain byte) + 1 SD (header_count diagnostic).
+  1 SB (high chain byte).
 
   ## Encoding math
 
@@ -104,11 +108,9 @@ def OUTPUT_BASE : Word := 0xa0010000
     Caller contract:
       - `x10` holds the u64 `chain_id` to encode.
       - `x11` holds `successful_validation` (low byte = 0 or 1).
-      - `x16` holds `header_count` (u64; PR6 diagnostic field).
 
-    The body writes the 41-byte SSZ encoding of
-    `StatelessValidationResult` at `OUTPUT_BASE`, an 8-byte
-    `header_count` diagnostic at `OUTPUT_BASE + 48`, and falls
+    The body writes exactly 41 bytes (SSZ encoding of
+    `SszStatelessValidationResult`) at `OUTPUT_BASE`, and falls
     through to the caller's halt stub. -/
 def serialize_stateless_output : Program :=
   LI .x6 OUTPUT_BASE ;;
@@ -120,7 +122,6 @@ def serialize_stateless_output : Program :=
   OR' .x7 .x7 .x11 ;;
   SD .x6 .x7 32 ;;
   SRLI .x7 .x10 56 ;;
-  SB .x6 .x7 40 ;;
-  SD .x6 .x16 48
+  SB .x6 .x7 40
 
 end EvmAsm.Stateless.SSZ.Encode
