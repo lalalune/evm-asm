@@ -291,7 +291,10 @@ theorem divK_loop_n3_max_call_from_source_exact_loopIterScratch_v4_noNop (sp bas
 
 /-- Unified n=3 v4 no-NOP loop path from the callable-ready no-`x1` source,
     selecting the max/call branch for both iterations and preserving concrete
-    caller `x1`. -/
+    caller `x1`.
+
+    Legacy compatibility surface: this still consumes the raw `Carry2NzAll`
+    package. New v4 n=3 work should use the selected-carry/R1 siblings below. -/
 theorem divK_loop_n3_unified_from_source_exact_loopIterScratch_v4_noNop
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
@@ -638,7 +641,10 @@ theorem divK_loop_n3_unified_from_source_exact_loopIterScratch_v4_noNop_selected
 /-- Helper: instantiate the v4 no-NOP exact-`x1` n=3 loop with explicit
     normalized values. This is the callable-ready analogue of
     `evm_div_n3_loop_unified_inst_noNop`, with the v4 div128 scratch cell and
-    caller-owned `x1` split out of the loop source. -/
+    caller-owned `x1` split out of the loop source.
+
+    Legacy compatibility surface: this still consumes the raw `Carry2NzAll`
+    package. New v4 n=3 work should use the selected-carry/R1 sibling. -/
 theorem evm_div_n3_loop_unified_inst_noNop_exact_x1_v4
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (shift antiShift b0' b1' b2' b3' u0 u1 u2 u3 u4 : Word)
