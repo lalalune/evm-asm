@@ -126,13 +126,14 @@ theorem evm_div_callable_v4_n1_stack_pre_to_callable_post_scratch_selected_if_bo
       v5 v6 v7 v10 v11Old
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratchUn0
-      (evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExactFrame_unified_noNop_of_selected_if_borrow_path_semantic_facts_ne_zero_getLimbN
+      (evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExactFrame_unified_noNop_of_selected_if_borrow_selected_path_semantic_facts_ne_zero_getLimbN
         sp base a b
         v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
         raVal hbnz hb3z hb2z hb1z hshift_nz halign
-        hbltu3 hbltu2 hbltu1 hbltu0 hpath hfacts)
+        hbltu3 hbltu2 hbltu1 hbltu0
+        (N1SelectedIfBorrowPathEvidence.ofAllTruePathEvidence hpath) hfacts)
 
 /-- N1 DIV v4 callable wrapper over `divCode_noNop_v4`, consuming selected
     path evidence directly instead of the older all-true path package. -/
