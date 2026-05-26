@@ -330,6 +330,22 @@ theorem iterWithDoubleAddback_no_borrow {qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Wor
     (qHat, ms.1, ms.2.1, ms.2.2.1, ms.2.2.2.1, uTop - ms.2.2.2.2) := by
   simp only [iterWithDoubleAddback, if_neg hb]
 
+/-- If a double-addback iteration starts with a zero top limb and `mulsub`
+    has zero final carry, the no-borrow branch keeps the outgoing top limb
+    zero. -/
+theorem iterWithDoubleAddback_carry_zero_of_mulsub_c3_zero
+    (qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hc3 : mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3 = 0)
+    (huTop : uTop = 0) :
+    (iterWithDoubleAddback qHat v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2 = 0 := by
+  rw [iterWithDoubleAddback_no_borrow]
+  · unfold mulsubN4_c3 at hc3
+    rw [hc3, huTop]
+    rfl
+  · unfold mulsubN4_c3 at hc3
+    rw [hc3, huTop]
+    decide
+
 @[irreducible] def iterN1Max (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
     Word × Word × Word × Word × Word × Word :=
   iterWithDoubleAddback (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 uTop
@@ -411,6 +427,28 @@ theorem iterN1_false {v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
     iterN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   simp [iterN1]
 
+/-- Call-path n=1 carry-zero reducer for a zero incoming top limb. -/
+theorem iterN1_true_carry_zero_of_mulsub_c3_zero
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hc3 : mulsubN4_c3 (div128Quot u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 = 0)
+    (huTop : uTop = 0) :
+    (iterN1 true v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2 = 0 := by
+  rw [iterN1_true]
+  unfold iterN1Call
+  exact iterWithDoubleAddback_carry_zero_of_mulsub_c3_zero
+    (div128Quot u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 uTop hc3 huTop
+
+/-- Max-path n=1 carry-zero reducer for a zero incoming top limb. -/
+theorem iterN1_false_carry_zero_of_mulsub_c3_zero
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hc3 : mulsubN4_c3 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 = 0)
+    (huTop : uTop = 0) :
+    (iterN1 false v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2 = 0 := by
+  rw [iterN1_false]
+  unfold iterN1Max
+  exact iterWithDoubleAddback_carry_zero_of_mulsub_c3_zero
+    (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 uTop hc3 huTop
+
 -- ============================================================================
 -- Borrow/carry predicates consumed by loop iter postconditions
 -- ============================================================================
@@ -442,6 +480,21 @@ def isAddbackCarry2NzN1Call (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
     `qHat = signExtend12 4095` (i.e. 2^64-1). -/
 def isAddbackCarry2NzN1Max (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
   isAddbackCarry2Nz (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+/-- Control-flow-shaped specialization for n=1 max path. The double-addback
+    progress fact is needed only when the max step takes the addback branch. -/
+def isAddbackCarry2NzN1MaxIfBorrow (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
+  (if BitVec.ult uTop
+      (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+   then (1 : Word) else 0) ≠ (0 : Word) →
+    isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+theorem isAddbackCarry2NzN1MaxIfBorrow_of_carry
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hcarry : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    isAddbackCarry2NzN1MaxIfBorrow v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  intro _hborrow
+  exact hcarry
 
 /-- Specialization of `isAddbackCarry2Nz` for n=2 call path, where
     `qHat = div128Quot u2 u1 v1`. -/
