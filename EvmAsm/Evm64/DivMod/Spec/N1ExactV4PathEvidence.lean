@@ -534,29 +534,18 @@ theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtr
           (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
             (b.getLimbN 2) (b.getLimbN 3)).1 scratchMem)) := by
   exact
-    evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtra_x9In_exactFrame_unified_of_selected_word
+    evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtra_x9In_exactFrame_unified_of_selected_path_hdivs_getLimbN
       sp base a b
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
       v5 v6 v7 v10 v11Old x9In
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
-      rfl rfl rfl rfl rfl rfl rfl rfl
       hbnz hb3z hb2z hb1z hshift_nz halign
-      (fullDivN1CallMaxmaxmaxSelectedInputHypotheses_of_bltu_selected
-        sp base
-        jMem (1 : Word) (fullDivN1Shift (b.getLimbN 0))
-        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
-          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).1
-        (a.getLimbN 0 >>> ((fullDivN1AntiShift (b.getLimbN 0)).toNat % 64))
-        v11Old (fullDivN1AntiShift (b.getLimbN 0))
+      hbltu3 hbltu2 hbltu1 hbltu0 hpath
+      (fullDivN1CallMaxmaxmaxHdivs_of_word_eq
+        a b
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-        (0 : Word) (0 : Word) (0 : Word) (0 : Word)
-        retMem dMem dloMem scratchUn0 scratchMem raVal
-        hbltu3 hbltu2 hbltu1 hbltu0
-        (N1AllTruePathEvidence.selectedCarryFacts hpath))
-      hdivWord
+        hdivWord)
 
 /-- Full-v4 N1 stack wrapper consuming all-true N1 path evidence for canonical
     `getLimbN` inputs, routing through selected semantic evidence. -/
