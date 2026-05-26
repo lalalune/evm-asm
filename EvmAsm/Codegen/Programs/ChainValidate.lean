@@ -1167,4 +1167,111 @@ def ziskChainValidateGasLimitNonIncreasingProbeUnit : BuildUnit := {
   dataAsm     := ziskChainValidateGasLimitNonIncreasingDataSection
 }
 
+/-! ## chain_validate_extra_data_length -- PR-K291
+
+    Per-header invariant: `len(extra_data) <= 32` (field 12).
+    The yellow paper / EIP-3675 cap the `extraData` field at 32
+    bytes for all post-Homestead headers (mainnet protocol
+    constraint). Useful as a per-block sanity check on
+    RLP-decoded headers.
+
+    Vacuous-true on N = 0.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure on some header -/
+def chainValidateExtraDataLengthFunction : String :=
+  "chain_validate_extra_data_length:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
+  "  li s5, 0\n" ++
+  ".Lcvedl_loop:\n" ++
+  "  beq s5, s0, .Lcvedl_done\n" ++
+  "  la t0, cvedl_iter_ptr; sd s2, 0(t0)\n" ++
+  "  la t0, cvedl_iter_i;   sd s5, 0(t0)\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, s2; li a2, 12\n" ++
+  "  la a3, cvedl_offset; la a4, cvedl_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lcvedl_propagate\n" ++
+  "  la t0, cvedl_iter_ptr; ld s2, 0(t0)\n" ++
+  "  la t0, cvedl_iter_i;   ld s5, 0(t0)\n" ++
+  "  la t0, cvedl_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bgtu t1, t2, .Lcvedl_violation\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld t4, 0(t3)\n" ++
+  "  add s2, s2, t4\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lcvedl_loop\n" ++
+  ".Lcvedl_violation:\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  sd s5, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvedl_ret\n" ++
+  ".Lcvedl_propagate:\n" ++
+  "  sd s5, 0(s4)\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lcvedl_ret\n" ++
+  ".Lcvedl_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcvedl_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+def ziskChainValidateExtraDataLengthPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_extra_data_length\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvedl_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  chainValidateExtraDataLengthFunction ++ "\n" ++
+  ".Lcvedl_pdone:"
+
+def ziskChainValidateExtraDataLengthDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "cvedl_offset:\n" ++
+  "  .zero 8\n" ++
+  "cvedl_length:\n" ++
+  "  .zero 8\n" ++
+  "cvedl_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvedl_iter_i:\n" ++
+  "  .zero 8"
+
+def ziskChainValidateExtraDataLengthProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainValidateExtraDataLengthPrologue
+  dataAsm     := ziskChainValidateExtraDataLengthDataSection
+}
+
 end EvmAsm.Codegen
