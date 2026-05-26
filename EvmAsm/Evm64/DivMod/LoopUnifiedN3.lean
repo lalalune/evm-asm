@@ -10,6 +10,10 @@
 
   The proofs delegate to the existing per-path theorems in LoopComposeN3.lean
   via `cases bltu`, then bridge the pre/postconditions to the unified forms.
+
+  These generic unified-loop surfaces still consume the legacy universal
+  Carry2NzAll package. New v4 n=3 work should use selected/reachable carry
+  wrappers instead of this raw-carry route.
 -/
 
 import EvmAsm.Evm64.DivMod.LoopComposeN3
