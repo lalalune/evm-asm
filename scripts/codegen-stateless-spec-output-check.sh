@@ -276,6 +276,14 @@ run_fixture "chain1_witboth"        1                  0    "deadbeef"   "a1b2c3
 # (04 || 32 zeros || 32 zeros = SEC1 uncompressed-marker prefix).
 run_fixture "chain1_pk"             1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)" || fail=1
 
+# All three non-chain_config outer slots populated simultaneously
+# -- witness.state + witness.codes + public_keys -- the largest
+# input-layout complexity that still keeps spec output unchanged
+# (chain_config echoed, valid=False). Verifies the decoder's
+# outer-offset read at SSZ_BASE+8 is robust under the maximum
+# byte-budget shift this fixture set produces.
+run_fixture "chain1_all_outer"      1                  0    "deadbeef"   "a1b2c3d4e5f60718"  "04$(printf '%064d' 0)$(printf '%064d' 0)" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0
