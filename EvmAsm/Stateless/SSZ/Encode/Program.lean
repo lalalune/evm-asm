@@ -192,6 +192,21 @@ def serialize_stateless_output : Program :=
   LBU .x7 .x13 41 ;; SB .x6 .x7 78 ;;
   LBU .x7 .x13 42 ;; SB .x6 .x7 79 ;;
   LBU .x7 .x13 43 ;; SB .x6 .x7 80 ;;
+  -- bytes [81..89): byte-copy active_fork[32..40) from input.
+  -- This range is the timestamp value slot when both
+  -- block_number and timestamp are non-empty (then
+  -- activation_body_len = 24, occupying active_fork[16..40)).
+  -- For any other activation shape, these bytes lie past the
+  -- actual active_fork section and ziskemu zero-fills them; the
+  -- test framework only compares the first spec.len() bytes.
+  LBU .x7 .x13 44 ;; SB .x6 .x7 81 ;;
+  LBU .x7 .x13 45 ;; SB .x6 .x7 82 ;;
+  LBU .x7 .x13 46 ;; SB .x6 .x7 83 ;;
+  LBU .x7 .x13 47 ;; SB .x6 .x7 84 ;;
+  LBU .x7 .x13 48 ;; SB .x6 .x7 85 ;;
+  LBU .x7 .x13 49 ;; SB .x6 .x7 86 ;;
+  LBU .x7 .x13 50 ;; SB .x6 .x7 87 ;;
+  LBU .x7 .x13 51 ;; SB .x6 .x7 88 ;;
   -- byte 64: high byte of offset_blob_schedule (always 0 since
   -- the value fits in 1 byte).
   SB .x6 .x0 64
