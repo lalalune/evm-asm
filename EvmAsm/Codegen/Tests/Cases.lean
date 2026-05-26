@@ -115,11 +115,28 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "byte_basic"
       bytecode       := "0x7f, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x60, 0x1f, 0x1a, 0x00"
       expectedOutHex := "2000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x01; PUSH1 0x04; SHL; STOP — shift=4 on top, value=0x01
+    -- → 0x01 << 4 = 0x10.
+    { name           := "shl_basic"
+      bytecode       := "0x60, 0x01, 0x60, 0x04, 0x1b, 0x00"
+      expectedOutHex := "1000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x80; PUSH1 0x04; SHR; STOP — shift=4 on top, value=0x80
     -- → 0x80 >> 4 = 0x08.
     { name           := "shr_basic"
       bytecode       := "0x60, 0x80, 0x60, 0x04, 0x1c, 0x00"
       expectedOutHex := "0800000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0xff; PUSH1 0x01; SAR; STOP — shift=1 on top, value=0xff
+    -- (MSB clear → positive in 256-bit two's complement). 0xff >>>arith 1
+    -- = 0x7f; SAR matches SHR on the positive path.
+    { name           := "sar_basic_positive"
+      bytecode       := "0x60, 0xff, 0x60, 0x01, 0x1d, 0x00"
+      expectedOutHex := "7f00000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH32 (2^256 - 1); PUSH1 0x01; SAR; STOP — value is -1 in two's
+    -- complement (all 256 bits set). SAR sign-fills, so -1 >>>arith 1 = -1
+    -- (all bits stay set). Exercises the sign-extension path.
+    { name           := "sar_basic_negative"
+      bytecode       := "0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x60, 0x01, 0x1d, 0x00"
+      expectedOutHex := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
   , -- PUSH1 0x42; PUSH1 0xff; POP; STOP — POP removes 0xff, leaves 0x42
     { name           := "pop_basic"
       bytecode       := "0x60, 0x42, 0x60, 0xff, 0x50, 0x00"
@@ -162,6 +179,38 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mstore8_basic"
       bytecode       := "0x60, 0xff, 0x60, 0x00, 0x53, 0x60, 0x00, 0x51, 0x00"
       expectedOutHex := "00000000000000000000000000000000000000000000000000000000000000ff" }
+    -- ## M12 simple environment opcodes (ADDRESS, CALLER, …)
+    -- The evm_env data region is zero-initialised by the dispatcher's
+    -- .data section. Each test confirms the handler routes through
+    -- evm_env_load + x12 advances + 32 bytes land on the stack.
+  , -- ADDRESS; STOP — routes byte 0x30 to evm_env_load .x20 .x15 .address.
+    -- Reads 32 zero bytes from evm_env + 0 and pushes them.
+    { name           := "address_zero"
+      bytecode       := "0x30, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- CALLER; DUP1; ADD; STOP — exercises a non-trivial post-ENV stack
+    -- flow. CALLER pushes 0 (zero-init env). DUP1 yields [0, 0].
+    -- ADD → 0. Confirms env handler advances x12 correctly so DUP1/ADD
+    -- find their operand.
+    { name           := "caller_via_dup_add"
+      bytecode       := "0x33, 0x80, 0x01, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- TIMESTAMP; NUMBER; SUB; STOP — exercises two distinct env field
+    -- offsets back-to-back. Both fields zero-init → SUB yields 0.
+    -- Confirms different opcode bytes resolve to different env cells
+    -- (handler-table dispatch, not aliasing).
+    { name           := "env_field_offset_distinct"
+      bytecode       := "0x42, 0x43, 0x03, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M13 calldata-context opcode (CALLDATASIZE)
+    -- The calldata-length cell at evm_env + 424 is zero-initialised by the
+    -- dispatcher's .data section, so CALLDATASIZE pushes 32 zero bytes.
+    -- This confirms (a) byte 0x36 routes to evm_calldatasize, (b) the
+    -- env-region size bump to 512 bytes makes offset 424 reachable.
+  , -- CALLDATASIZE; STOP
+    { name           := "calldatasize_zero"
+      bytecode       := "0x36, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;
