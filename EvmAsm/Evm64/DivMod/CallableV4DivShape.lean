@@ -102,14 +102,15 @@ theorem evm_div_callable_v4_n1_stack_pre_to_callable_post_scratch_shape_selected
         (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
   exact
-    evm_div_callable_v4_n1_stack_pre_to_callable_post_scratch_selected_if_borrow_path_semantic_facts_limbNz_memOwn
+    evm_div_callable_v4_n1_stack_pre_to_callable_post_scratch_selected_if_borrow_selected_path_semantic_facts_limbNz_memOwn
       sp base a b
       v5 v6 v7 v10 v11Old
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
       ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz)
       hb3z hb2z hb1z hshift_nz halign
-      hbltu3 hbltu2 hbltu1 hbltu0 hpath hfacts
+      hbltu3 hbltu2 hbltu1 hbltu0
+      (N1SelectedIfBorrowPathEvidence.ofAllTruePathEvidence hpath) hfacts
 
 /-- N1 DIV v4 callable wrapper over the selected-if-borrow path, using
     selected path evidence directly at the shape-level boundary. -/
