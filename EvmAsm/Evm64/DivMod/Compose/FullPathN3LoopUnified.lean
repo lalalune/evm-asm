@@ -6,6 +6,12 @@
   preloop+loop level (base → base+904).
 
   Dispatches to the existing 4 per-path theorems in FullPathN3Loop.lean.
+
+  Legacy carry note: the wrappers in this module still expose the raw
+  normalized `Carry2NzAll` package. They are compatibility surfaces for older
+  full-path composition; final/public v4 n=3 stack work should use the
+  selected/reachable carry route in FullPathN3V4NoNopMaxCall and its callers
+  instead.
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
@@ -86,7 +92,10 @@ def preloopN3UnifiedPost (bltu_1 bltu_0 : Bool)
 -- ============================================================================
 
 /-- Helper: instantiate unified n=3 loop (double-addback) with explicit normalized values.
-    Separates the loop application from the composition for heartbeat budgeting. -/
+    Separates the loop application from the composition for heartbeat budgeting.
+
+    Legacy compatibility surface: this still consumes the raw `Carry2NzAll`
+    package. New v4 n=3 work should route through selected carry evidence. -/
 theorem evm_div_n3_loop_unified_inst
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (shift antiShift b0' b1' b2' b3' u0 u1 u2 u3 u4 : Word)
@@ -110,7 +119,10 @@ theorem evm_div_n3_loop_unified_inst
     retMem dMem dloMem scratch_un0 base halign
     hbltu_1 hbltu_0 hcarry2
 
-/-- No-NOP variant of `evm_div_n3_loop_unified_inst`. -/
+/-- No-NOP variant of `evm_div_n3_loop_unified_inst`.
+
+    Legacy compatibility surface: this still consumes the raw `Carry2NzAll`
+    package. New v4 n=3 work should route through selected carry evidence. -/
 theorem evm_div_n3_loop_unified_inst_noNop
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (shift antiShift b0' b1' b2' b3' u0 u1 u2 u3 u4 : Word)
@@ -141,7 +153,10 @@ theorem evm_div_n3_loop_unified_inst_noNop
 /-- Unified preloop+loop for n=3 (double-addback), parameterized by `(bltu_1 bltu_0 : Bool)`.
     Covers all 4 path combinations (max×max, call×call, max×call, call×max).
     Precondition always includes scratch cells.
-    Composes preloop (base→base+448) with unified loop (base+448→base+908). -/
+    Composes preloop (base→base+448) with unified loop (base+448→base+908).
+
+    Legacy compatibility surface: this still exposes normalized `Carry2NzAll`;
+    final/public v4 n=3 stack wrappers should use selected carry evidence. -/
 theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
@@ -236,7 +251,10 @@ theorem evm_div_n3_preloop_loop_unified_spec (bltu_1 bltu_0 : Bool) (sp base : W
     (fun h hq => by delta preloopN3UnifiedPost; xperm_hyp hq)
     hFull
 
-/-- No-NOP variant of `evm_div_n3_preloop_loop_unified_spec`. -/
+/-- No-NOP variant of `evm_div_n3_preloop_loop_unified_spec`.
+
+    Legacy compatibility surface: this still exposes normalized `Carry2NzAll`;
+    final/public v4 n=3 stack wrappers should use selected carry evidence. -/
 theorem evm_div_n3_preloop_loop_unified_spec_noNop (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
