@@ -52,6 +52,146 @@ theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_semanticFacts
     FullDivN1CallMaxmaxmaxSemanticFactsV4 a0 a1 a2 a3 b0 b1 b2 b3 :=
   hevidence.2
 
+/-- Project the conditional selected-carry facts from selected-if-borrow
+    semantic evidence. -/
+theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_selectedCarry
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).1 := by
+  have hinput :=
+    FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_selectedInput
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hevidence
+  unfold fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses at hinput
+  exact
+    loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_selectedCarryIfBorrow
+      (fullDivN1CallMaxmaxmaxExactInputs sp base
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        a0 a1 a2 a3 b0 b1 b2 b3
+        q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+      hinput
+
+/-- Project the bundled branch facts from selected-if-borrow semantic
+    evidence. -/
+theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_branches
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    loopN1CallMaxmaxmaxBranchFacts
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1 := by
+  have hinput :=
+    FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_selectedInput
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hevidence
+  unfold fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses at hinput
+  exact
+    loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_branches
+      (fullDivN1CallMaxmaxmaxExactInputs sp base
+        jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        a0 a1 a2 a3 b0 b1 b2 b3
+        q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+      hinput
+
+/-- Project the explicit branch facts used by selected-if-borrow constructors
+    from selected-if-borrow semantic evidence. -/
+theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_branchFacts
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    isTrialN1_j3 true a3 b0 ∧
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1 ∧
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1 ∧
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1 := by
+  have hinput :=
+    FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_selectedInput
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hevidence
+  unfold fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses at hinput
+  let I := fullDivN1CallMaxmaxmaxExactInputs sp base
+    jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    a0 a1 a2 a3 b0 b1 b2 b3
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+  have hraw3 := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu3 I hinput
+  have hbltu3 : isTrialN1_j3 true a3 b0 := by
+    unfold isTrialN1_j3
+    unfold I fullDivN1CallMaxmaxmaxExactInputs fullDivN1NormU fullDivN1NormV
+      fullDivN1AntiShift fullDivN1Shift at hraw3
+    exact hraw3.symm
+  have hbltu2 := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu2 I hinput
+  have hbltu1 := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu1 I hinput
+  have hbltu0 := loopN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_hbltu0 I hinput
+  exact ⟨hbltu3, hbltu2, hbltu1, hbltu0⟩
+
 /-- Project the named hdiv package from selected-if-borrow semantic evidence. -/
 theorem FullDivN1CallMaxmaxmaxHdivs_of_selected_if_borrow_semantic_evidence
     (sp base : Word) (a b : EvmWord)
@@ -655,7 +795,26 @@ theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtr
           (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
           (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
           (fullDivN1NormV b0 b1 b2 b3).1 scratchMem)) := by
-  exact evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtra_x9In_exactFrame_unified_of_selected_if_borrow_semantic_evidence
+  have hselectedInput :=
+    fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_of_bltu_selected
+      sp base
+      jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+      a0 a1 a2 a3 b0 b1 b2 b3
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal
+      hbltu3 hbltu2 hbltu1 hbltu0 hselected
+  have hdivs :=
+    FullDivN1CallMaxmaxmaxHdivs_of_selected_if_borrow_semantic_facts
+      sp base a b
+      jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+      a0 a1 a2 a3 b0 b1 b2 b3
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal
+      ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz
+      hbltu3 hbltu2 hbltu1 hbltu0 hselected hfacts
+  exact evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtra_x9In_exactFrame_unified_of_selected_if_borrow_input_hdivs
     sp base a b
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
@@ -663,14 +822,7 @@ theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtr
     raVal
     ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1z
     hshift_nz halign
-    (FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_of_bltu_selected
-      sp base
-      jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
-      (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
-      a0 a1 a2 a3 b0 b1 b2 b3
-      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
-      retMem dMem dloMem scratchUn0 scratchMem raVal
-      hbltu3 hbltu2 hbltu1 hbltu0 hselected hfacts)
+    hselectedInput hdivs
 
 /-- Full-v4 N1 stack wrapper from explicit branch facts, conditional selected
     carry facts, and quotient-word equality. -/
