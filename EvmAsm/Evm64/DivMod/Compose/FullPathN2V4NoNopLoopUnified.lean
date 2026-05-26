@@ -148,6 +148,19 @@ def loopN2IterSelectedV4 (bltu : Bool)
   else
     iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
+@[simp] theorem loopN2IterSelectedV4_false
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    loopN2IterSelectedV4 false v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  rfl
+
+@[simp] theorem loopN2IterSelectedV4_true
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    loopN2IterSelectedV4 true v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  simp [loopN2IterSelectedV4]
+
 /-- Selected per-iteration carry facts for the normalized n=2 loop source.
 
     This is the compose-layer replacement shape for `Carry2NzAll`: it carries
@@ -157,75 +170,75 @@ def loopN2IterSelectedV4 (bltu : Bool)
     universal carry package. -/
 @[irreducible]
 def loopN2SelectedCarryV4 (bltu_2 bltu_1 bltu_0 : Bool)
-    (v0 v1 v2 v3 u2S u3S u4S u1S u0S : Word) : Prop :=
-  let r2 := loopN2IterSelectedV4 bltu_2 v0 v1 v2 v3 u2S u3S u4S (0 : Word) (0 : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word) : Prop :=
+  let r2 := loopN2IterSelectedV4 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop
   let r1 := loopN2IterSelectedV4 bltu_1 v0 v1 v2 v3
-    u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+    u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
   (if bltu_2 then
     loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
-      u2S u3S u4S (0 : Word) (0 : Word)
+      u0 u1 u2 u3 uTop
    else
     isAddbackCarry2NzN2Max v0 v1 v2 v3
-      u2S u3S u4S (0 : Word) (0 : Word)) ∧
+      u0 u1 u2 u3 uTop) ∧
   (if bltu_1 then
     loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
-      u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+      u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
    else
     isAddbackCarry2NzN2Max v0 v1 v2 v3
-      u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1) ∧
+      u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1) ∧
   (if bltu_0 then
     loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
-      u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+      u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
    else
     isAddbackCarry2NzN2Max v0 v1 v2 v3
-      u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1)
+      u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1)
 
 /-- First selected n=2 normalized-loop carry component, for `j=2`. -/
 theorem loopN2SelectedCarryV4_j2
     (bltu_2 bltu_1 bltu_0 : Bool)
-    (v0 v1 v2 v3 u2S u3S u4S u1S u0S : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word)
     (hcarry : loopN2SelectedCarryV4 bltu_2 bltu_1 bltu_0
-      v0 v1 v2 v3 u2S u3S u4S u1S u0S) :
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0) :
     if bltu_2 then
       loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
-        u2S u3S u4S (0 : Word) (0 : Word)
+        u0 u1 u2 u3 uTop
     else
       isAddbackCarry2NzN2Max v0 v1 v2 v3
-        u2S u3S u4S (0 : Word) (0 : Word) := by
+        u0 u1 u2 u3 uTop := by
   rw [loopN2SelectedCarryV4] at hcarry
   exact hcarry.1
 
 /-- Second selected n=2 normalized-loop carry component, for `j=1`. -/
 theorem loopN2SelectedCarryV4_j1
     (bltu_2 bltu_1 bltu_0 : Bool)
-    (v0 v1 v2 v3 u2S u3S u4S u1S u0S : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word)
     (hcarry : loopN2SelectedCarryV4 bltu_2 bltu_1 bltu_0
-      v0 v1 v2 v3 u2S u3S u4S u1S u0S) :
-    let r2 := loopN2IterSelectedV4 bltu_2 v0 v1 v2 v3 u2S u3S u4S (0 : Word) (0 : Word)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0) :
+    let r2 := loopN2IterSelectedV4 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop
     if bltu_1 then
       loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
-        u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+        u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
     else
       isAddbackCarry2NzN2Max v0 v1 v2 v3
-        u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 := by
+        u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 := by
   rw [loopN2SelectedCarryV4] at hcarry
   exact hcarry.2.1
 
 /-- Third selected n=2 normalized-loop carry component, for `j=0`. -/
 theorem loopN2SelectedCarryV4_j0
     (bltu_2 bltu_1 bltu_0 : Bool)
-    (v0 v1 v2 v3 u2S u3S u4S u1S u0S : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word)
     (hcarry : loopN2SelectedCarryV4 bltu_2 bltu_1 bltu_0
-      v0 v1 v2 v3 u2S u3S u4S u1S u0S) :
-    let r2 := loopN2IterSelectedV4 bltu_2 v0 v1 v2 v3 u2S u3S u4S (0 : Word) (0 : Word)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0) :
+    let r2 := loopN2IterSelectedV4 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop
     let r1 := loopN2IterSelectedV4 bltu_1 v0 v1 v2 v3
-      u1S r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+      u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
     if bltu_0 then
       loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
-        u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+        u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
     else
       isAddbackCarry2NzN2Max v0 v1 v2 v3
-        u0S r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 := by
+        u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 := by
   rw [loopN2SelectedCarryV4] at hcarry
   exact hcarry.2.2
 
