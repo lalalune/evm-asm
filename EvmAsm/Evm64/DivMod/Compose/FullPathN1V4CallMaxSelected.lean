@@ -350,10 +350,7 @@ theorem divK_loop_n1_call_j3_exact_x1_framed_v4_input_selected_carry
     (loopN1CallMaxmaxmaxExactInputAligned_raw I halign)
     (loopN1CallMaxmaxmaxExactInputHypotheses_hbltu3 I hh)
     (isAddbackCarry2NzN1CallV4_raw I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
-      (by
-        have hselected := loopN1CallMaxmaxmaxExactInputHypotheses_selectedCarry I hh
-        unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
-        exact hselected.1))
+      (loopN1CallMaxmaxmaxExactInputHypotheses_carry2Call I hh))
 
 /-- Bundled all-max tail after the first j=3 call-body step over the full
     `divCode_v4` bundle, routed through the selected-carry no-NOP wrapper. -/
