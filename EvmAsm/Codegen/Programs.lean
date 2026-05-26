@@ -73,6 +73,7 @@ import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Chain
 import EvmAsm.Codegen.Programs.ChainAggregator
 import EvmAsm.Codegen.Programs.ChainBasefee
+import EvmAsm.Codegen.Programs.ChainExcessBlobGas
 import EvmAsm.Codegen.Programs.ChainEndpoints
 import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateBlob
@@ -325,6 +326,8 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_compute_max_excess_blob_gas" => some ziskChainComputeMaxExcessBlobGasProbeUnit
   | "zisk_chain_compute_min_excess_blob_gas" => some ziskChainComputeMinExcessBlobGasProbeUnit
   | "zisk_chain_validate_excess_blob_gas_non_decreasing" => some ziskChainValidateExcessBlobGasNonDecreasingProbeUnit
+  | "zisk_chain_validate_excess_blob_gas_non_increasing" => some ziskChainValidateExcessBlobGasNonIncreasingProbeUnit
+  | "zisk_chain_compute_total_excess_blob_gas" => some ziskChainComputeTotalExcessBlobGasProbeUnit
   | "zisk_chain_extract_first_last_state_root" => some ziskChainExtractFirstLastStateRootProbeUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
   | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
@@ -773,6 +776,8 @@ def knownProgramNames : List String :=
    "zisk_chain_compute_max_excess_blob_gas",
    "zisk_chain_compute_min_excess_blob_gas",
    "zisk_chain_validate_excess_blob_gas_non_decreasing",
+   "zisk_chain_validate_excess_blob_gas_non_increasing",
+   "zisk_chain_compute_total_excess_blob_gas",
    "zisk_chain_extract_first_last_state_root",
    "zisk_chain_extract_first_last_block_hash",
    "zisk_chain_extract_first_last_receipts_root",
@@ -870,6 +875,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/Chain.lean",
     "EvmAsm/Codegen/Programs/ChainAggregator.lean",
     "EvmAsm/Codegen/Programs/ChainBasefee.lean",
+    "EvmAsm/Codegen/Programs/ChainExcessBlobGas.lean",
     "EvmAsm/Codegen/Programs/ChainEndpoints.lean",
     "EvmAsm/Codegen/Programs/ChainValidate.lean",
     "EvmAsm/Codegen/Programs/ChainValidateBlob.lean",
