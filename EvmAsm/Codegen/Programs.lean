@@ -329,6 +329,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_validate_excess_blob_gas_non_increasing" => some ziskChainValidateExcessBlobGasNonIncreasingProbeUnit
   | "zisk_chain_compute_total_excess_blob_gas" => some ziskChainComputeTotalExcessBlobGasProbeUnit
   | "zisk_chain_validate_blob_gas_used_under_max" => some ziskChainValidateBlobGasUsedUnderMaxProbeUnit
+  | "zisk_chain_validate_blob_gas_used_multiple" => some ziskChainValidateBlobGasUsedMultipleProbeUnit
   | "zisk_chain_extract_first_last_state_root" => some ziskChainExtractFirstLastStateRootProbeUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
   | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
@@ -780,6 +781,7 @@ def knownProgramNames : List String :=
    "zisk_chain_validate_excess_blob_gas_non_increasing",
    "zisk_chain_compute_total_excess_blob_gas",
    "zisk_chain_validate_blob_gas_used_under_max",
+   "zisk_chain_validate_blob_gas_used_multiple",
    "zisk_chain_extract_first_last_state_root",
    "zisk_chain_extract_first_last_block_hash",
    "zisk_chain_extract_first_last_receipts_root",
