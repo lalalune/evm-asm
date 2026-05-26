@@ -172,6 +172,84 @@ theorem FullDivN1CallMaxmaxmaxHdivs_of_selected_path_evidence_getLimbN
       q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
       hbltu3 hbltu2 hbltu1 hbltu0 hpath hfacts)
 
+/-- Project the hdiv package from selected N1 path evidence for canonical
+    `getLimbN` inputs, using the public EVM-word nonzero hypothesis. -/
+theorem FullDivN1CallMaxmaxmaxHdivs_of_selected_path_evidence_ne_zero_getLimbN
+    (sp base : Word) (a b : EvmWord)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbnz : b ≠ 0)
+    (hbltu3 : isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0))
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+        0 0 0).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+        0 0 0
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+        0 0 0
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hpath : N1SelectedIfBorrowPathEvidence a b)
+    (hfacts : FullDivN1CallMaxmaxmaxSemanticFactsV4
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    FullDivN1CallMaxmaxmaxHdivs a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  FullDivN1CallMaxmaxmaxHdivs_of_selected_path_evidence_getLimbN
+    sp base a b jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+    ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz)
+    hbltu3 hbltu2 hbltu1 hbltu0 hpath hfacts
+
 /-- N1 selected-if-borrow stack wrapper consuming selected path evidence
     directly, without exposing the older all-true `Carry2NzAll` package at
     this boundary. This is the `divCode_v4` counterpart to the no-NOP wrapper
