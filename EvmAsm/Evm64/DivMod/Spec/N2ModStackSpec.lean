@@ -24,7 +24,7 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (word_add_zero)
 
-/-- N=2 MOD stack-level entry point: mirrors `evm_mod_n1_stack_spec_within`.
+/-- Legacy raw-carry N=2 MOD stack-level entry point: mirrors `evm_mod_n1_stack_spec_within`.
 
 Composes `evm_mod_n2_full_unified_spec` with the limb-shaped pre and post
 bridges (`divModStackDispatchPre` ↔ raw cells, and
@@ -98,7 +98,7 @@ theorem evm_mod_n2_stack_spec_within
         ha0 ha1 ha2 ha3 hmod0 hmod1 hmod2 hmod3 h hq)
     hFull
 
-/-- `_word` form: mirror of `evm_mod_n1_stack_spec_within_word`. Takes a
+/-- Legacy raw-carry `_word` form: mirror of `evm_mod_n1_stack_spec_within_word`. Takes a
 single `EvmWord`-valued equality `fullModN2RemainderWord ... = EvmWord.mod a b`
 and projects it into the four per-limb hypotheses via
 `fullModN2_hmods_of_word_eq`. -/
