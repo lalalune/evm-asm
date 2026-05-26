@@ -1,7 +1,7 @@
 /-
   EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
 
-  Stack-level wrappers for n=3 DIV v4 preloop+loop paths.
+  Legacy stack-level wrappers for n=3 DIV v4 preloop+loop paths with raw carry.
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.Dispatcher
@@ -18,9 +18,9 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (word_add_zero)
 
-/-- EvmWord-level wrapper around the n=3 exact-x1/scratch v4 preloop+loop
-    path over the no-NOP v4 body. It keeps the stack precondition bundled as
-    `evmWordIs` plus the v4 scratch cell. -/
+/-- Legacy EvmWord-level wrapper around the n=3 exact-x1/scratch v4
+    preloop+loop path over the no-NOP v4 body. It still exposes raw
+    `Carry2NzAll`; prefer selected-carry wrappers for new v4 work. -/
 theorem evm_div_n3_preloop_loop_stack_pre_spec_v4_noNop (sp base : Word)
     (a b : EvmWord)
     (v5 v6 v7 v10 v11Old : Word)
@@ -788,8 +788,8 @@ theorem evm_mod_n3_stack_pre_to_unified_post_v4_noNop (sp base : Word)
     (fun h hq => hq)
     hFull
 
-/-- Compose the n=3 v4 stack preloop+loop path through denormalization to the
-    v4 final no-`x1` post, preserving the exact caller `x1`. -/
+/-- Legacy raw-carry path through denormalization to the v4 final no-`x1`
+    post, preserving the exact caller `x1`. -/
 theorem evm_div_n3_stack_pre_to_unified_post_v4_noNop (sp base : Word)
     (a b : EvmWord)
     (v5 v6 v7 v10 v11Old : Word)
@@ -916,7 +916,7 @@ theorem evm_div_n3_stack_pre_to_unified_post_v4_noNop (sp base : Word)
     (fun h hq => hq)
     hFull
 
-/-- Full-code form of `evm_div_n3_stack_pre_to_unified_post_v4_noNop`. -/
+/-- Legacy full-code form of `evm_div_n3_stack_pre_to_unified_post_v4_noNop`. -/
 theorem evm_div_n3_stack_pre_to_unified_post_v4 (sp base : Word)
     (a b : EvmWord)
     (v5 v6 v7 v10 v11Old : Word)
@@ -1203,7 +1203,7 @@ theorem fullDivN3UnifiedPostNoX1V4_frame_to_divStackDispatchPostCallableExactFra
     retMem dMem dloMem scratchUn0 scratchMem raVal
     rfl rfl rfl rfl hdiv0 hdiv1 hdiv2 hdiv3
 
-/-- Compose the n=3 v4 stack precondition through the v4 no-NOP path to the
+/-- Legacy raw-carry stack precondition through the v4 no-NOP path to the
     public callable DIV post, keeping the v4 trial-call scratch cell framed. -/
 theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_noNop (sp base : Word)
     (a b : EvmWord)
@@ -1317,9 +1317,9 @@ theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_noNop (sp base : Word)
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
       hbnz hb3z hb2nz hshift_nz halign hbltu_1 hbltu_0 hcarry2)
 
-/-- Quotient-word version of
+/-- Legacy quotient-word version of
     `evm_div_n3_stack_pre_to_callable_post_v4_scratch_noNop`.
-    This is the callable N3 v4 bridge shape expected by dispatcher code. -/
+    It still consumes the legacy carry package; prefer selected wrappers. -/
 theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_word (sp base : Word)
     (a b : EvmWord)
     (v5 v6 v7 v10 v11Old : Word)
@@ -1427,7 +1427,7 @@ theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_word (sp base : Word)
         nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
         hbnz hb3z hb2nz hshift_nz halign hbltu_1 hbltu_0 hcarry2)
 
-/-- Arithmetic-assumption version of
+/-- Legacy arithmetic-assumption version of
     `evm_div_n3_stack_pre_to_callable_post_v4_scratch_word`. -/
 theorem evm_div_n3_stack_pre_to_callable_post_v4_scratch_of_mulsub_overestimate
     (sp base : Word) (a b : EvmWord)
