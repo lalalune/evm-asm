@@ -88,6 +88,7 @@ open EvmAsm.Rv64
     execute → encode pipeline. -/
 def run_stateless_guest : Program :=
   EvmAsm.Stateless.SSZ.Decode.read_chain_id ++
+  EvmAsm.Stateless.SSZ.Decode.read_active_fork ++
   EvmAsm.Stateless.SSZ.Decode.decode_validation_bit ++
   EvmAsm.Stateless.SSZ.Decode.decode_header_count ++
   EvmAsm.Stateless.SSZ.Encode.serialize_stateless_output
