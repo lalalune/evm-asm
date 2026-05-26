@@ -1035,7 +1035,11 @@ theorem fullDivN3UnifiedPost_weaken (bltu_1 bltu_0 : Bool)
   xperm_hyp hq
 
 /-- Unified full n=3 DIV path (shift ≠ 0) with double addback,
-    covering all 4 path combinations. -/
+    covering all 4 path combinations.
+
+    Legacy compatibility surface: this full-code wrapper still exposes
+    normalized raw `Carry2NzAll`. Final/public v4 n=3 stack wrappers should
+    use selected/reachable carry wrappers instead. -/
 theorem evm_div_n3_full_unified_spec (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
@@ -1106,7 +1110,11 @@ theorem evm_div_n3_full_unified_spec (bltu_1 bltu_0 : Bool) (sp base : Word)
       sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 h hq)
     hFull
 
-/-- No-NOP variant of `evm_div_n3_full_unified_spec`. -/
+/-- No-NOP variant of `evm_div_n3_full_unified_spec`.
+
+    Legacy compatibility surface: this no-NOP full-code wrapper still exposes
+    normalized raw `Carry2NzAll`. Final/public v4 n=3 stack wrappers should
+    use selected/reachable carry wrappers instead. -/
 theorem evm_div_n3_full_unified_spec_noNop (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)

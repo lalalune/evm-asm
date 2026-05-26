@@ -363,7 +363,11 @@ theorem loopN2UnifiedPostV4NoX1_to_fullDivN2DenormPreV4_frame_TTT
 -- ============================================================================
 
 /-- Compose the n=2 v4 stack preloop+loop path through denormalization to the
-    v4 final no-`x1` post, preserving the exact caller `x1`. -/
+    v4 final no-`x1` post, preserving the exact caller `x1`.
+
+    Legacy compatibility surface: this still consumes the raw normalized
+    `Carry2NzAll` package. Final/public v4 n=2 stack work should use
+    `evm_div_n2_stack_pre_to_unified_post_v4_noNop_selectedCarry`. -/
 theorem evm_div_n2_stack_pre_to_unified_post_v4_noNop (sp base : Word)
     (a b : EvmWord)
     (v5 v6 v7 v10 v11Old : Word)
