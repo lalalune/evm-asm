@@ -1074,5 +1074,4 @@ def ziskChainComputeTotalBasefeeProbeUnit : BuildUnit := {
   dataAsm     := ziskChainComputeTotalBasefeeDataSection
 }
 
-
 end EvmAsm.Codegen
