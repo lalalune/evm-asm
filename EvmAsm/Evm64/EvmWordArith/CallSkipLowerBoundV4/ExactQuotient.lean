@@ -200,6 +200,75 @@ theorem div128Quot_v4_call_skip_ge_val256_div_of_un21_eq_r1
   exact le_trans h_bridge h_floor_le
 
 /-- V4 call-skip val256 lower bound from the Phase-1 low-half no-wrap
+    condition, without requiring the matching 128/64 upper bound. -/
+theorem div128Quot_v4_call_skip_ge_val256_div_of_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let u4 := a3 >>> antiShift
+    let u3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    (divKTrialCallV4Un21 u4 u3 b3').toNat < b3'.toNat →
+    (divKTrialCallV4Q1dd u4 u3 b3').toNat *
+        (divKTrialCallV4DLo b3').toNat ≤
+      ((divKTrialCallV4Rhatdd u4 u3 b3').toNat % 2^32) * 2^32 +
+        (divKTrialCallV4Un1 u3).toNat →
+    val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
+      (div128Quot_v4 u4 u3 b3').toNat := by
+  intro shift antiShift b3' u4 u3 hUn21_lt_vTop h_no_wrap
+  have hb3'_ge : b3'.toNat ≥ 2^63 :=
+    b3_prime_ge_pow63 b3 b2 hb3nz _
+  have hu4_lt_b3' : u4.toNat < b3'.toNat :=
+    isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have h_shift_pos : 1 ≤ (clzResult b3).1.toNat := by
+    rcases Nat.eq_zero_or_pos (clzResult b3).1.toNat with h_zero | h_pos
+    · exfalso
+      apply hshift_nz
+      exact BitVec.eq_of_toNat_eq (by simp [h_zero])
+    · exact h_pos
+  have hu4_lt_pow63 : u4.toNat < 2^63 :=
+    u_top_lt_pow63_of_shift_nz a3 (clzResult b3).1 h_shift_pos
+      (clzResult_fst_toNat_le b3)
+  have hUn21_eq_r1 :=
+    divKTrialCallV4Un21_eq_r1_of_no_wrap u4 u3 b3'
+      hb3'_ge hu4_lt_b3' hu4_lt_pow63 h_no_wrap
+  exact div128Quot_v4_call_skip_ge_val256_div_of_un21_eq_r1
+    a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hshift_nz hcall
+    hUn21_lt_vTop hUn21_eq_r1
+
+/-- V4 call-skip val256 lower bound from runtime call conditions and the
+    Phase-1 low-half no-wrap condition.
+
+    This wrapper discharges `un21 < vTop` via the V4 call-path invariant. -/
+theorem div128Quot_v4_call_skip_ge_val256_div_of_runtime_no_wrap
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    let shift := (clzResult b3).1.toNat % 64
+    let antiShift := (signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64
+    let b3' := (b3 <<< shift) ||| (b2 >>> antiShift)
+    let u4 := a3 >>> antiShift
+    let u3 := (a3 <<< shift) ||| (a2 >>> antiShift)
+    (divKTrialCallV4Q1dd u4 u3 b3').toNat *
+        (divKTrialCallV4DLo b3').toNat ≤
+      ((divKTrialCallV4Rhatdd u4 u3 b3').toNat % 2^32) * 2^32 +
+        (divKTrialCallV4Un1 u3).toNat →
+    val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
+      (div128Quot_v4 u4 u3 b3').toNat := by
+  intro shift antiShift b3' u4 u3 h_no_wrap
+  have hUn21_lt_vTop :
+      (divKTrialCallV4Un21 u4 u3 b3').toNat < b3'.toNat := by
+    have h := un21V4_lt_vTop_of_call a2 a3 b2 b3 hb3nz hshift_nz hcall
+    simpa [algorithmUn21V4, shift, antiShift, b3', u4, u3] using h
+  exact div128Quot_v4_call_skip_ge_val256_div_of_no_wrap
+    a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hshift_nz hcall
+    hUn21_lt_vTop h_no_wrap
+
+/-- V4 call-skip val256 lower bound from the Phase-1 low-half no-wrap
     condition and a supplied 128/64 upper bound. -/
 theorem div128Quot_v4_call_skip_ge_val256_div_of_no_wrap_of_le
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
