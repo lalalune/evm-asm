@@ -12,6 +12,10 @@
   This file provides:
   1. Address linking lemmas for j=2 → j=1 transition
   2. Unified max-path per-iteration specs for j=2, j=1, and j=0
+
+  The compose surfaces in this file still thread the legacy universal
+  Carry2NzAll package. They are compatibility surfaces for older callers; new
+  v4 N2 stack/callable work should use selected/reachable carry wrappers.
 -/
 
 import EvmAsm.Evm64.DivMod.LoopIterN2

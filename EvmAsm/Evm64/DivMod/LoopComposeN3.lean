@@ -7,6 +7,10 @@
   For n=3, the loop runs 2 iterations. The j=1 iteration modifies u[1]..u[4]
   and stores q[1]. The j=0 iteration reads u[0]..u[4] (where u[1]..u[4]
   are the updated values from j=1) and stores q[0].
+
+  The compose surfaces in this file still thread the legacy universal
+  Carry2NzAll package. They are compatibility surfaces for older callers; new
+  v4 N3 stack/callable work should use selected/reachable carry wrappers.
 -/
 
 import EvmAsm.Evm64.DivMod.LoopIterN3NoNop
