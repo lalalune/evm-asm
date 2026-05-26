@@ -68,6 +68,7 @@ import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderBaseFee
+import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Chain
 import EvmAsm.Codegen.Programs.ChainAggregator
@@ -845,6 +846,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderBaseFee.lean",
+    "EvmAsm/Codegen/Programs/HeaderDecode.lean",
     "EvmAsm/Codegen/Programs/HeaderChain.lean",
     "EvmAsm/Codegen/Programs/HeaderFields.lean",
     "EvmAsm/Codegen/Programs/BlockHashPredicates.lean",
