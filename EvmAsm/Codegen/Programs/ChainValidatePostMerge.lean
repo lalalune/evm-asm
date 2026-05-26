@@ -383,4 +383,185 @@ def ziskChainValidateOmmersHashEmptyProbeUnit : BuildUnit := {
   dataAsm     := ziskChainValidateOmmersHashEmptyDataSection
 }
 
+/-! ## chain_validate_post_merge_full -- PR-K290
+
+    Bundle predicate: every header in the chain satisfies all
+    three EIP-3675 invariants in a single pass:
+      - K287: `difficulty == 0` (field 7)
+      - K288: `nonce       == 0` (field 14)
+      - K289: `ommers_hash == EMPTY_LIST_KECCAK` (field 1)
+
+    Single-pass: each header is parsed once and the three
+    checks run inline. Cheaper than calling the three K287/K288/
+    K289 functions serially (which would re-decode the header
+    three times).
+
+    The `kind` output (a4) distinguishes which sub-predicate
+    failed:
+      0  = all three OK (when valid)
+      1  = difficulty violation
+      2  = nonce violation
+      3  = ommers_hash violation
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (encoded as bad_index<<2 | kind on
+                   violation; 0 when is_valid=1)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure on some header
+        2 : difficulty or nonce field > 8 bytes BE
+        3 : ommers_hash field length != 32 -/
+def chainValidatePostMergeFullFunction : String :=
+  "chain_validate_post_merge_full:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
+  "  li s5, 0\n" ++
+  ".Lcvpmf_loop:\n" ++
+  "  beq s5, s0, .Lcvpmf_done\n" ++
+  "  la t0, cvpmf_iter_ptr; sd s2, 0(t0)\n" ++
+  "  la t0, cvpmf_iter_i;   sd s5, 0(t0)\n" ++
+  "  # (1) difficulty (field 7) -- must be 0\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, s2; li a2, 7\n" ++
+  "  la a3, cvpmf_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcvpmf_propagate\n" ++
+  "  la t0, cvpmf_field; ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lcvpmf_diff_fail\n" ++
+  "  # (2) nonce (field 14) -- must be 0\n" ++
+  "  la t0, cvpmf_iter_ptr; ld s2, 0(t0)\n" ++
+  "  la t0, cvpmf_iter_i;   ld s5, 0(t0)\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, s2; li a2, 14\n" ++
+  "  la a3, cvpmf_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lcvpmf_propagate\n" ++
+  "  la t0, cvpmf_field; ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lcvpmf_nonce_fail\n" ++
+  "  # (3) ommers_hash (field 1, 32B) -- must equal EMPTY_LIST_KECCAK\n" ++
+  "  la t0, cvpmf_iter_ptr; ld s2, 0(t0)\n" ++
+  "  la t0, cvpmf_iter_i;   ld s5, 0(t0)\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld a1, 0(t3)\n" ++
+  "  mv a0, s2; li a2, 1\n" ++
+  "  la a3, cvpmf_offset; la a4, cvpmf_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lcvpmf_propagate\n" ++
+  "  la t0, cvpmf_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32\n" ++
+  "  bne t1, t2, .Lcvpmf_size_fail\n" ++
+  "  la t0, cvpmf_iter_ptr; ld s2, 0(t0)\n" ++
+  "  la t0, cvpmf_iter_i;   ld s5, 0(t0)\n" ++
+  "  la t0, cvpmf_offset; ld t1, 0(t0)\n" ++
+  "  add t2, s2, t1\n" ++
+  "  la t3, cvpmf_empty_hash\n" ++
+  "  ld t4,  0(t2); ld t5,  0(t3); bne t4, t5, .Lcvpmf_omh_fail\n" ++
+  "  ld t4,  8(t2); ld t5,  8(t3); bne t4, t5, .Lcvpmf_omh_fail\n" ++
+  "  ld t4, 16(t2); ld t5, 16(t3); bne t4, t5, .Lcvpmf_omh_fail\n" ++
+  "  ld t4, 24(t2); ld t5, 24(t3); bne t4, t5, .Lcvpmf_omh_fail\n" ++
+  "  # All three checks pass; advance to next header\n" ++
+  "  slli t3, s5, 3\n" ++
+  "  add t3, s1, t3\n" ++
+  "  ld t4, 0(t3)\n" ++
+  "  add s2, s2, t4\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lcvpmf_loop\n" ++
+  ".Lcvpmf_diff_fail:\n" ++
+  "  slli t2, s5, 2; ori t2, t2, 1\n" ++
+  "  sd zero, 0(s3); sd t2, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvpmf_ret\n" ++
+  ".Lcvpmf_nonce_fail:\n" ++
+  "  slli t2, s5, 2; ori t2, t2, 2\n" ++
+  "  sd zero, 0(s3); sd t2, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvpmf_ret\n" ++
+  ".Lcvpmf_omh_fail:\n" ++
+  "  slli t2, s5, 2; ori t2, t2, 3\n" ++
+  "  sd zero, 0(s3); sd t2, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lcvpmf_ret\n" ++
+  ".Lcvpmf_size_fail:\n" ++
+  "  la t0, cvpmf_iter_i; ld t1, 0(t0)\n" ++
+  "  slli t2, t1, 2; ori t2, t2, 3\n" ++
+  "  sd t2, 0(s4)\n" ++
+  "  li a0, 3\n" ++
+  "  j .Lcvpmf_ret\n" ++
+  ".Lcvpmf_propagate:\n" ++
+  "  la t0, cvpmf_iter_i; ld t1, 0(t0)\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  j .Lcvpmf_ret\n" ++
+  ".Lcvpmf_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lcvpmf_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
+def ziskChainValidatePostMergeFullPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_validate_post_merge_full\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lcvpmf_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainValidatePostMergeFullFunction ++ "\n" ++
+  ".Lcvpmf_pdone:"
+
+def ziskChainValidatePostMergeFullDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "cvpmf_field:\n" ++
+  "  .zero 8\n" ++
+  "cvpmf_offset:\n" ++
+  "  .zero 8\n" ++
+  "cvpmf_length:\n" ++
+  "  .zero 8\n" ++
+  "cvpmf_iter_ptr:\n" ++
+  "  .zero 8\n" ++
+  "cvpmf_iter_i:\n" ++
+  "  .zero 8\n" ++
+  "cvpmf_empty_hash:\n" ++
+  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
+  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
+  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
+  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47"
+
+def ziskChainValidatePostMergeFullProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainValidatePostMergeFullPrologue
+  dataAsm     := ziskChainValidatePostMergeFullDataSection
+}
+
 end EvmAsm.Codegen
