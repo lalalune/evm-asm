@@ -28,6 +28,44 @@ theorem loopN1CallMaxmaxmaxSelectedInputHypotheses_of_exact
     loopN1CallMaxmaxmaxExactInputHypotheses_branches I hh,
     loopN1CallMaxmaxmaxExactInputHypotheses_selectedCarry I hh⟩
 
+/-- Build selected-only bundled N1 call/max/max/max hypotheses from bundled
+    branch facts and selected carry facts. -/
+theorem loopN1CallMaxmaxmaxSelectedInputHypotheses_of_branches
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hbltu3 : BitVec.ult I.u1 I.v0)
+    (hbranches : loopN1CallMaxmaxmaxBranchFacts
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1)
+    (hselected : loopN1CallMaxmaxmaxSelectedCarryFacts
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+      I.u0Orig2 I.u0Orig1 I.u0Orig0) :
+    loopN1CallMaxmaxmaxSelectedInputHypotheses I := by
+  unfold loopN1CallMaxmaxmaxSelectedInputHypotheses
+  exact ⟨hbltu3, hbranches, hselected⟩
+
+/-- Build selected-only bundled N1 call/max/max/max hypotheses directly from
+    the four path branch facts and selected carry facts. -/
+theorem loopN1CallMaxmaxmaxSelectedInputHypotheses_of_bltu_selected
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hbltu3 : BitVec.ult I.u1 I.v0)
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop).2.1
+      I.v0)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2).2.1 I.v0)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1 I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2 I.u0Orig1).2.1 I.v0)
+    (hselected : loopN1CallMaxmaxmaxSelectedCarryFacts
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+      I.u0Orig2 I.u0Orig1 I.u0Orig0) :
+    loopN1CallMaxmaxmaxSelectedInputHypotheses I := by
+  exact loopN1CallMaxmaxmaxSelectedInputHypotheses_of_branches I hbltu3
+    (loopN1CallMaxmaxmaxBranchFacts_of_bltu
+      I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1
+      hbltu2 hbltu1 hbltu0)
+    hselected
+
 theorem loopN1CallMaxmaxmaxSelectedInputHypotheses_hbltu3
     (I : LoopN1CallMaxmaxmaxExactInputs)
     (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
@@ -335,6 +373,268 @@ theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_of_exact
   unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses
   unfold fullDivN1CallMaxmaxmaxExactInputHypotheses at hh
   exact loopN1CallMaxmaxmaxSelectedInputHypotheses_of_exact
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    hh
+
+/-- Build the canonical full-DIV n=1 call/max/max/max selected hypothesis
+    wrapper directly from path branch facts and selected carry facts. -/
+theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_of_bltu_selected
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbltu3 : isTrialN1_j3 true a3 b0)
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1)
+    (hselected : loopN1CallMaxmaxmaxSelectedCarryFacts
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).1) :
+    fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal := by
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses
+  exact loopN1CallMaxmaxmaxSelectedInputHypotheses_of_bltu_selected
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (fullDivN1CallMaxmaxmaxExactInputs_hbltu3 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hbltu3)
+    hbltu2 hbltu1 hbltu0 hselected
+
+/-- Project the raw j=3 branch fact from canonical full-DIV n=1
+    call/max/max/max selected hypotheses. -/
+theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_hbltu3
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hh : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    BitVec.ult
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (fullDivN1NormV b0 b1 b2 b3).1 := by
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses at hh
+  exact loopN1CallMaxmaxmaxSelectedInputHypotheses_hbltu3
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    hh
+
+/-- Project the caller-facing j=3 trial predicate from canonical full-DIV
+    n=1 call/max/max/max selected hypotheses. -/
+theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_isTrial_j3
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hh : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    isTrialN1_j3 true a3 b0 := by
+  have hraw :=
+    fullDivN1CallMaxmaxmaxSelectedInputHypotheses_hbltu3 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hh
+  unfold isTrialN1_j3
+  unfold fullDivN1NormU fullDivN1NormV fullDivN1AntiShift fullDivN1Shift at hraw
+  exact hraw.symm
+
+/-- Project the bundled branch facts from canonical full-DIV n=1
+    call/max/max/max selected hypotheses. -/
+theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_branches
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hh : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    loopN1CallMaxmaxmaxBranchFacts
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1 := by
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses at hh
+  exact loopN1CallMaxmaxmaxSelectedInputHypotheses_branches
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    hh
+
+/-- Project the j=2 max-branch fact from canonical full-DIV n=1
+    call/max/max/max selected hypotheses. -/
+theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_hbltu2
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hh : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1 := by
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses at hh
+  exact loopN1CallMaxmaxmaxSelectedInputHypotheses_hbltu2
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    hh
+
+/-- Project the j=1 max-branch fact from canonical full-DIV n=1
+    call/max/max/max selected hypotheses. -/
+theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_hbltu1
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hh : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1 := by
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses at hh
+  exact loopN1CallMaxmaxmaxSelectedInputHypotheses_hbltu1
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    hh
+
+/-- Project the j=0 max-branch fact from canonical full-DIV n=1
+    call/max/max/max selected hypotheses. -/
+theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_hbltu0
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hh : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1
+        (fullDivN1NormV b0 b1 b2 b3).1
+        (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        0 0 0
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1).2.1
+      (fullDivN1NormV b0 b1 b2 b3).1 := by
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses at hh
+  exact loopN1CallMaxmaxmaxSelectedInputHypotheses_hbltu0
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    hh
+
+/-- Project the selected carry package from canonical full-DIV n=1
+    call/max/max/max selected hypotheses. -/
+theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_selectedCarry
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hh : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    loopN1CallMaxmaxmaxSelectedCarryFacts
+      (fullDivN1NormV b0 b1 b2 b3).1
+      (fullDivN1NormV b0 b1 b2 b3).2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.1
+      (fullDivN1NormV b0 b1 b2 b3).2.2.2
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+      (0 : Word) (0 : Word) (0 : Word)
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+      (fullDivN1NormU a0 a1 a2 a3 b0).1 := by
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses at hh
+  exact loopN1CallMaxmaxmaxSelectedInputHypotheses_selectedCarry
     (fullDivN1CallMaxmaxmaxExactInputs sp base
       jOld v5Old v6Old v7Old v10Old v11Old v2Old
       a0 a1 a2 a3 b0 b1 b2 b3
