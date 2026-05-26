@@ -39,8 +39,10 @@ untouched. Generated artifacts go in `gen-out/` (gitignored).
 | `EvmAsm/Codegen/Emit.lean` | Pure `emitReg`, `emitInstr`, `emitProgram` — `Instr → String`. No `IO`. |
 | `EvmAsm/Codegen/Layout.lean` | `HaltConv` enum, halt stubs, `_start` preamble, `.option norvc`, `MEM_START`/`MEM_END` constants, `BuildUnit` struct + `emitBuildUnit`/`emitDataLabel` helpers. |
 | `EvmAsm/Codegen/Dispatch.lean` | M5b dispatcher scaffolding: `OpcodeHandlerSpec` (optional `preBody` for x10-clobbering handlers + optional `postBodyLabel` for M9's trampoline pattern) + `HandlerTail` types, `emitDispatcherPrologue`/`Epilogue`/`DataSection` and `buildDispatchUnit` helpers. M8.5 adds the parallel runtime-bytecode helpers (`emitRuntimeDispatcherPrologue` / `emitRuntimeDispatcherDataSection` / `buildRuntimeDispatchUnit`) that read bytecode from `INPUT_ADDR + INPUT_DATA_OFFSET` at runtime. Pure (no IO). |
-| `EvmAsm/Codegen/Programs.lean` | Registry (`smoke`, `evm_add`, `evm_div`, `evm_mod`, `input_echo`, `evm_add_from_input`, `evm_div_from_input`, `evm_mod_from_input`, `tiny_interp_{add,add2}`, `tiny_interp_dispatch_{add,add2}` → `BuildUnit`) plus the M5b opcode handler registry (`tinyInterpRegistry`) composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (17 fixed-shape opcodes), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `stopHandler`; shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched` for the DIV/MOD NOP-splice). |
-| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list. Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
+| `EvmAsm/Codegen/Programs.lean` | `BuildUnit` lookup hub: `lookupProgram`, `knownProgramNames`, plus the `statelessGuestUnit` build target. Imports every `BuildUnit` defined under `Programs/`. The actual M5b opcode-handler registry (`tinyInterpRegistry`) and the `BuildUnit`s for `evm_add` / `evm_div` / `evm_mod` / `input_echo` / `runtime_dispatcher` / `tiny_interp_*` now live in `Programs/Evm.lean` (see next row). |
+| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable, M10), and `stopHandler`. Total: **93 wired opcodes**. Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
+| `EvmAsm/Codegen/Proofs/` | Codegen-proofs scaffolding (post-M10). `RegistryInvariants.lean` (Phase 1) — 6 `decide`-checked theorems about `tinyInterpRegistry`'s structural well-formedness (Nodup on opcodes/labels, byte bounds, jump-table coverage). `HandlerSpecs.lean` (Phase 4) — reusable `cleanRetHandlerSpec` template + **13 concrete handler-level `cpsTripleWithin` instances** for clean-shape singletons (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT). Phases 2, 3, 5 + the remaining Phase 4 instances are still future work. |
+| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**34 cases** as of M11). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
 | `EvmAsm/Codegen/Cli.lean` | Argument parsing (`--program`, `--test-case`, `--list-test-cases`, `--halt`, `--out`, `--asm-only`). |
 | `EvmAsm/Codegen/Driver.lean` | `IO`: shells out to `as`/`ld` if available; `--asm-only` for CI without the cross toolchain. |
 | `Main.lean` | Already exists as `import EvmAsm`; extend to call `EvmAsm.Codegen.Cli.main`. |
@@ -676,13 +678,62 @@ also exits 0. Pre-existing M2/M4/M5/M7/M8/M8.5 scripts unchanged.
 PROGRESS.md needs only a snapshot-line bump (ignored by CI's
 drift check) — no commit.
 
+### M11 — Remaining bitwise shifts (SHL + SAR) — **DONE (2026-05-26)**
+
+Wires the last two unwired entries from `EvmAsm/Evm64/Shift/Program.lean`
+into `singletonHandlers`. SHL (0x1b) and SAR (0x1d) share the exact
+shape that SHR (0x1c, wired in M6b) already uses: a `preBody :=
+"mv x9, x10"` + `x10RestoreAdvance1` tail because the verified
+bodies clobber `x10` as a JAL-target scratch.
+
+**Delivered:**
+- `EvmAsm/Codegen/Programs/Evm.lean` — two new entries adjacent to
+  `h_SHR` in `singletonHandlers`:
+  ```lean
+  { label := "h_SHL", opcodes := [0x1b], preBody := "  mv x9, x10",
+    body := EvmAsm.Evm64.evm_shl, tail := x10RestoreAdvance1 }
+  { label := "h_SAR", opcodes := [0x1d], preBody := "  mv x9, x10",
+    body := EvmAsm.Evm64.evm_sar, tail := x10RestoreAdvance1 }
+  ```
+  `singletonHandlers` grows from 17 → 19; `tinyInterpRegistry`'s total
+  wired-opcode count grows from 91 → 93.
+- `EvmAsm/Codegen/Tests/Cases.lean` — three new cases:
+  `shl_basic` (`1 << 4 = 0x10`),
+  `sar_basic_positive` (`0xff >>> 1 = 0x7f`, MSB clear so SAR == SHR),
+  `sar_basic_negative` (`-1 >>>arith 1 = -1`, exercises sign-fill via
+  PUSH32 of `2^256-1`). Total cases: 31 → 34.
+- `EvmAsm/Codegen/Proofs/RegistryInvariants.lean` — bump the two
+  hard-coded count theorems (`tinyInterpRegistry_wired_opcode_count`
+  and `jumpTable_non_invalid_count`) from 91 → 93. Discharged by
+  `decide` / `set_option maxRecDepth 2048 in decide` as before.
+
+**MSIZE (0x59) deferred.** The verified `evm_msize` Program exists
+(`EvmAsm/Evm64/MSize/Program.lean`, slice 6 of issue #99) and is a
+pure read of a memory-size cell, but slices 1–5 — updating that cell
+from MLOAD/MSTORE/MSTORE8 on memory expansion — have not shipped:
+`evm_mload` / `evm_mstore` / `evm_mstore8` take no `sizeReg`
+parameter and never reference `sizeLoc`. Wiring MSIZE today would
+push a 4-limb zero regardless of EVM-memory touches. Drop into
+`memoryHandlers` once issue #99 slices 1–5 land.
+
+**EXP (0x0a) still blocked** pending the upstream
+`evm_exp_msb_saved_bit_two_mul_fixed_fixed` callee-saved variant.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 34 cases
+PASS. `scripts/check-progress.sh` exits 0 (drift gate). Legacy
+`scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing
+M2/M4/M5/M7/M8/M8.5/M9/M10 scripts unchanged.
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
-emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
-`callableLabel?`) and the rest of the long arc.
+emission unreadable. M10 (ADDMOD via inline-callable) shipped on
+2026-05-21; M11 (SHL + SAR) shipped on 2026-05-26. EXP remains
+deferred pending upstream callee-saved register variants; MSIZE
+deferred pending issue #99 slices 1–5.
 
 ## Tricky bits / open questions
 
@@ -828,6 +879,15 @@ emission unreadable. M9 unblocks M10 (ADDMOD/EXP via
   the bit-test reload logic produces garbage after the first
   squaring. EXP can ship once upstream lands a fully callee-saved
   variant.
+- **M11.** ✅ `scripts/codegen-opcodes-runtime-check.sh` exits 0 with
+  **34 test cases** PASS (validated 2026-05-26). SHL (0x1b) and SAR
+  (0x1d) wired through `singletonHandlers` with the same
+  `preBody := "mv x9, x10"` + `x10RestoreAdvance1` pattern as
+  SHR/BYTE/MUL/SIGNEXTEND. `tinyInterpRegistry_wired_opcode_count`
+  and `jumpTable_non_invalid_count` (Codegen-proofs Phase 1) bumped
+  from 91 → 93. MSIZE (0x59) deferred until issue #99 slices 1–5
+  wire memory-expansion bookkeeping into `evm_mload` / `evm_mstore` /
+  `evm_mstore8`.
 - **Codegen-proofs Phase 1.** ✅ `lake build` exits 0 (validated
   2026-05-21). New file `EvmAsm/Codegen/Proofs/RegistryInvariants.lean`
   carries 6 kernel-checked theorems about `tinyInterpRegistry`:

@@ -20,11 +20,19 @@ zkVM standards: `EvmAsm/Evm64/zkvm-standards/` (submodule).
 
 > **Parallel codegen track.** Emitting verified `Program`s as executable
 > RV64 ELFs that run on the Zisk emulator is tracked separately in
-> [`CODEGEN.md`](CODEGEN.md). M0–M4 are done (text emitter, total
+> [`CODEGEN.md`](CODEGEN.md). **M0–M10 are done**: text emitter, total
 > `Instr` coverage, `evm_add` round-trip on `ziskemu` from both `.data`
-> and `ziskemu -i`); M5 (tiny EVM interpreter on `PUSH1 PUSH1 ADD STOP`)
-> is next. Codegen is purely additive — it does not modify the verified
-> core.
+> and `ziskemu -i`, tiny EVM interpreter with runtime fetch/decode/
+> dispatch, and **91 wired opcodes** through `tinyInterpRegistry` —
+> PUSH0–32, DUP1–16, SWAP1–16, 17 clean-shape singletons, MLOAD/MSTORE/
+> MSTORE8 (M7), DIV/MOD (M8), runtime-bytecode dispatcher (M8.5),
+> SDIV/SMOD via trampoline (M9), and ADDMOD via inline-callable (M10).
+> EXP is deferred pending an upstream callee-saved variant. Codegen-
+> proofs **Phase 1 (registry invariants)** and the first 13/91
+> instances of **Phase 4 (handler-level `cpsTripleWithin` specs via
+> `cleanRetHandlerSpec`)** have landed under
+> `EvmAsm/Codegen/Proofs/`. Codegen remains purely additive — it does
+> not modify the verified core.
 
 ---
 
@@ -1019,6 +1027,27 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   `ziskos/entrypoint/src/syscalls/keccakf.rs` + `syscall.rs`
   (`SYSCALL_KECCAKF_ID = 0x800`) + `ziskos_syscall!` macro
   expanding to `csrs <csr>, <reg>`.
+- ✅ PR-K2…PR-K286 (rolling, in active development): per-helper
+  RV64IM macro-asm pieces of `run_stateless_guest` shipped under
+  `EvmAsm/Codegen/Programs/` and `EvmAsm/Stateless/`. The catalogue
+  currently covers RLP primitives, transaction decoders (legacy +
+  EIP-1559/2930/4844/7702), account and MPT walkers, block-body
+  helpers, header field extractors, withdrawal RLP/hash, address
+  derivation (CREATE / CREATE2), and (recent slice, 2026-05-)
+  the chain-level helpers `chain_extract_basefee_range`,
+  `chain_validate_basefee_{non-decreasing,non-increasing}`,
+  `chain_validate_gas_limit_{constant,non-decreasing,non-increasing}`,
+  `chain_extract_gas_limit_first_last`, `chain_compute_total_gas_limit`,
+  `chain_extract_excess_blob_gas_first_last`,
+  `chain_compute_{max,min}_excess_blob_gas`,
+  `chain_compute_{max,min}_blob_count`,
+  `chain_extract_first_last_parent_beacon_block_root`,
+  `chain_extract_first_last_requests_hash`,
+  `header_extract_requests_hash`. Each helper ships with a
+  ziskemu fixture cross-checked against
+  [`execution-specs`](execution-specs/) Python; see
+  `scripts/codegen-stateless-*-check.sh` for the per-helper round-
+  trip scripts.
 
 ### Cross-references
 
@@ -1039,15 +1068,25 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
 4. ~~Recreate `ByteSpec.lean`~~ — ✅ Done (Byte/Spec.lean + Byte/LimbSpec.lean, stack-level spec)
 
 **Short-term (enables simple contracts):**
-5. Phase 4.2: DIV, MOD — near complete. Full-path compositions proved
-   for all n-cases × shift variants × DIV/MOD; stack-level b=0 and b≠0
-   specs with evmWordIs. **Recent (PR #1353)**: closed
-   `n4CallSkipSemanticHolds_of_call_trial` (formerly issue #65 / Knuth-A
-   lower bound), so call-skip stack specs are now unconditional. Added
-   `evm_{div,mod}_n4_call_stack_spec_full` top-level dispatchers
-   (shift0+shift_nz, skip+addback). Remaining: close
-   `n4CallAddbackBeqSemanticHolds` (Knuth-B + addback correctness, gated
-   behind PR #1353's bridge stub).
+5. Phase 4.2: DIV, MOD — partial. Per-branch stack specs landed for
+   the partial domain `b.getLimbN 3 = 0` (bzero / n=1/2/3) under the
+   unified `evm_div_stack_spec` / `evm_mod_stack_spec` dispatchers
+   (`Spec/Unified.lean`). Executable `evm_div` / `evm_mod` were switched
+   to `divK_div128_v4` (full Knuth Algorithm D, 2-correction in both
+   Phase 1b and Phase 2b) by [PR #4992](https://github.com/Verified-zkEVM/evm-asm/pull/4992)
+   on 2026-05-19, so the runtime path is correct over the full
+   4-limb domain. The remaining spec-layer work — extending
+   `divCode` / `modCode` to v4 and proving full-domain
+   `evm_div_stack_spec_unconditional` / `evm_mod_stack_spec_unconditional`
+   (the n=4 path) — is tracked under bead `evm-asm-9iqmw` and reopened
+   [GitHub issue #61](https://github.com/Verified-zkEVM/evm-asm/issues/61).
+   In flight as of 2026-05-26: a long series of `feat/div-n1-*`,
+   `feat/div-n2-n3-selected-*`, and `feat/div-double-addback-*` PRs
+   (n=1 ifborrow path closure, selected-input conditional carry,
+   double-addback overestimate bridge, n=2/n=3 selected path conditions
+   and counterexamples). SDIV (`evm_sdiv_stack_spec_within`) and
+   the SDIV/SMOD epilog wrappers are conditional on the same v4
+   migration and unblock automatically when `evm-asm-9iqmw.5` lands.
 6. Phase 5: MLOAD, MSTORE, EVM memory model
 7. Phase 5.1: EVM code region (needed for PUSHn and interpreter)
 
