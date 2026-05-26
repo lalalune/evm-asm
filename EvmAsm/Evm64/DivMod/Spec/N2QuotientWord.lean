@@ -132,4 +132,54 @@ theorem fullDivN2QuotientWord_eq_div_of_mulsub_overestimate
           match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)
   exact h_correct.1
 
+/-- Four-limb n=2 division witness from the accumulated mulsub equation and
+    quotient-overestimate hypothesis. -/
+theorem fullDivN2_getLimbN_of_mulsub_overestimate
+    (bltu_2 bltu_1 bltu_0 : Bool)
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hmulsub :
+      val256 a0 a1 a2 a3 =
+        (((fullDivN2R2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^128 +
+          ((fullDivN2R1 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) *
+          val256 b0 b1 b2 b3 +
+        val256
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1)
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1))
+    (hge :
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 ≤
+        ((fullDivN2R2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1).toNat *
+            2^128 +
+          ((fullDivN2R1 bltu_2 bltu_1
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat * 2^64 +
+          ((fullDivN2R0 bltu_2 bltu_1 bltu_0
+            a0 a1 a2 a3 b0 b1 b2 b3).1).toNat) :
+    let a := EvmWord.fromLimbs fun i : Fin 4 =>
+      match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3
+    let b := EvmWord.fromLimbs fun i : Fin 4 =>
+      match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN2R0 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN2R1 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 2 =
+      (fullDivN2R2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 3 = (0 : Word) := by
+  intro a b
+  have hdiv :=
+    fullDivN2QuotientWord_eq_div_of_mulsub_overestimate
+      bltu_2 bltu_1 bltu_0 hbnz hmulsub hge
+  exact fullDivN2_hdivs_of_word_eq bltu_2 bltu_1 bltu_0
+    a b a0 a1 a2 a3 b0 b1 b2 b3 hdiv
+
 end EvmAsm.Evm64

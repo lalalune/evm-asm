@@ -171,6 +171,96 @@ def loopN1CallMaxmaxmaxR1
   iterN1Max v0 v1 v2 v3 u0Orig1
     r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
 
+/-- Selected carry facts for the N1 call/max/max/max path. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxSelectedCarryFacts
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word) : Prop :=
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  isAddbackCarry2NzN1CallV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop ∧
+  isAddbackCarry2NzN1Max v0 v1 v2 v3 u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1
+    r3.2.2.2.2.1 ∧
+  isAddbackCarry2NzN1Max v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1
+    r2.2.2.2.2.1 ∧
+  isAddbackCarry2NzN1Max v0 v1 v2 v3 u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1
+    r1.2.2.2.2.1
+
+/-- Conditional carry evidence for one selected N1 max iteration. The
+    double-addback progress proof is only needed on the addback branch, i.e.
+    when the computed mulsub borrow bit is nonzero. -/
+@[irreducible]
+def selectedN1MaxCarryIfBorrow
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
+  (if BitVec.ult uTop
+      (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
+   then (1 : Word) else 0) ≠ (0 : Word) →
+    isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+/-- Control-flow-shaped selected carry facts for the N1 call/max/max/max path.
+    Unlike `loopN1CallMaxmaxmaxSelectedCarryFacts`, the max-step carry facts
+    are conditional on the corresponding addback branch being selected. This
+    matches the loop-body specs that consume the carry proof only after the
+    borrow branch split. -/
+@[irreducible]
+def loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word) : Prop :=
+  let r3 := loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r2 := loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2
+  let r1 := loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1
+  isAddbackCarry2NzN1CallV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop ∧
+  selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig2 r3.2.1 r3.2.2.1 r3.2.2.2.1
+    r3.2.2.2.2.1 ∧
+  selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1
+    r2.2.2.2.2.1 ∧
+  selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1
+    r1.2.2.2.2.1
+
+theorem selectedN1MaxCarryIfBorrow_of_carry
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hcarry : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  unfold selectedN1MaxCarryIfBorrow
+  intro _hborrow
+  exact hcarry
+
+theorem loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts_of_selected
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
+    (hselected : loopN1CallMaxmaxmaxSelectedCarryFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) :
+    loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 := by
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
+  unfold loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts
+  exact ⟨hselected.1,
+    selectedN1MaxCarryIfBorrow_of_carry _ _ _ _ _ _ _ _ _ hselected.2.1,
+    selectedN1MaxCarryIfBorrow_of_carry _ _ _ _ _ _ _ _ _ hselected.2.2.1,
+    selectedN1MaxCarryIfBorrow_of_carry _ _ _ _ _ _ _ _ _ hselected.2.2.2⟩
+
+theorem loopN1CallMaxmaxmaxSelectedCarryFacts_of_carry2All
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
+    (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
+    loopN1CallMaxmaxmaxSelectedCarryFacts
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 := by
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts
+  exact ⟨isAddbackCarry2NzN1CallV4_of_carry2All
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop hcarry2,
+    hcarry2 (signExtend12 4095) u0Orig2
+      (loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+      (loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+      (loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+      (loopN1CallMaxmaxmaxR3 v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1,
+    hcarry2 (signExtend12 4095) u0Orig1
+      (loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2).2.1
+      (loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2).2.2.1
+      (loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2).2.2.2.1
+      (loopN1CallMaxmaxmaxR2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2).2.2.2.2.1,
+    hcarry2 (signExtend12 4095) u0Orig0
+      (loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1).2.1
+      (loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1).2.2.1
+      (loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1).2.2.2.1
+      (loopN1CallMaxmaxmaxR1 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1).2.2.2.2.1⟩
+
 /-- Compact all-max branch facts after the j=3 v4 call iteration in the
     N1 call/max/max/max path. -/
 @[irreducible]
@@ -588,32 +678,33 @@ def loopN1CallMaxmaxmaxExactX1ScratchSpec (sp base : Word)
 /-- Compact assumptions for the N1 call/max/max/max exact path. -/
 @[irreducible]
 def loopN1CallMaxmaxmaxExactHypotheses
-    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word) : Prop :=
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word) : Prop :=
   BitVec.ult u1 v0 ∧
   loopN1CallMaxmaxmaxBranchFacts v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 ∧
   Carry2NzAll v0 v1 v2 v3 ∧
-  isAddbackCarry2NzN1CallV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  loopN1CallMaxmaxmaxSelectedCarryFacts
+    v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0
 
 /-- Build the compact N1 call/max/max/max exact-path hypothesis bundle from
     the branch facts plus the universal carry2 assumption. -/
 theorem loopN1CallMaxmaxmaxExactHypotheses_of_branches
-    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
     (hbltu3 : BitVec.ult u1 v0)
     (hbranches : loopN1CallMaxmaxmaxBranchFacts
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1)
     (hcarry2 : Carry2NzAll v0 v1 v2 v3) :
     loopN1CallMaxmaxmaxExactHypotheses
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 := by
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 := by
   unfold loopN1CallMaxmaxmaxExactHypotheses
   exact ⟨hbltu3, hbranches, hcarry2,
-    isAddbackCarry2NzN1CallV4_of_carry2All
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop hcarry2⟩
+    loopN1CallMaxmaxmaxSelectedCarryFacts_of_carry2All
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 hcarry2⟩
 
 /-- Project the j=3 BLTU-taken fact from the compact N1 call/max/max/max hypotheses. -/
 theorem loopN1CallMaxmaxmaxExactHypotheses_hbltu3
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
     (h : loopN1CallMaxmaxmaxExactHypotheses
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1) :
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) :
     BitVec.ult u1 v0 := by
   unfold loopN1CallMaxmaxmaxExactHypotheses at h
   exact h.1
@@ -622,7 +713,7 @@ theorem loopN1CallMaxmaxmaxExactHypotheses_hbltu3
 theorem loopN1CallMaxmaxmaxExactHypotheses_branches
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
     (h : loopN1CallMaxmaxmaxExactHypotheses
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1) :
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) :
     loopN1CallMaxmaxmaxBranchFacts
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 := by
   unfold loopN1CallMaxmaxmaxExactHypotheses at h
@@ -632,7 +723,7 @@ theorem loopN1CallMaxmaxmaxExactHypotheses_branches
 theorem loopN1CallMaxmaxmaxExactHypotheses_carry2
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
     (h : loopN1CallMaxmaxmaxExactHypotheses
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1) :
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) :
     Carry2NzAll v0 v1 v2 v3 := by
   unfold loopN1CallMaxmaxmaxExactHypotheses at h
   exact h.2.2.1
@@ -641,10 +732,12 @@ theorem loopN1CallMaxmaxmaxExactHypotheses_carry2
 theorem loopN1CallMaxmaxmaxExactHypotheses_carry2Call
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 : Word)
     (h : loopN1CallMaxmaxmaxExactHypotheses
-      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1) :
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0) :
     isAddbackCarry2NzN1CallV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   unfold loopN1CallMaxmaxmaxExactHypotheses at h
-  exact h.2.2.2
+  have hselected := h.2.2.2
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
+  exact hselected.1
 
 /-- Bundle the many scalar inputs to the N1 call/max/max/max exact path.
     This gives later theorem statements a single data parameter instead of a
@@ -774,7 +867,7 @@ def fullDivN1CallMaxmaxmaxExactInputSpec (sp base : Word)
 def loopN1CallMaxmaxmaxExactInputHypotheses
     (I : LoopN1CallMaxmaxmaxExactInputs) : Prop :=
   loopN1CallMaxmaxmaxExactHypotheses
-    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1 I.u0Orig0
 
 /-- Build the bundled N1 call/max/max/max exact-path hypothesis wrapper
     from the bundled branch facts plus the universal carry2 assumption. -/
@@ -787,7 +880,7 @@ theorem loopN1CallMaxmaxmaxExactInputHypotheses_of_branches
     loopN1CallMaxmaxmaxExactInputHypotheses I := by
   unfold loopN1CallMaxmaxmaxExactInputHypotheses
   exact loopN1CallMaxmaxmaxExactHypotheses_of_branches
-    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1
+    I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop I.u0Orig2 I.u0Orig1 I.u0Orig0
     hbltu3 hbranches hcarry2
 
 /-- Build the bundled N1 call/max/max/max exact-path hypotheses directly
