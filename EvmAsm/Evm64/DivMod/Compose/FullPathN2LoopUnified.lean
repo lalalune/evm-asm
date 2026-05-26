@@ -11,6 +11,12 @@
 
   Unlike n=3 (which dispatches to 4 existing per-path theorems),
   n=2 composes the preloop and unified loop directly.
+
+  Legacy carry note: the wrappers in this module still expose the raw
+  normalized `Carry2NzAll` package. They are compatibility surfaces for older
+  full-path composition; final/public v4 n=2 stack work should use the
+  selected/reachable carry route in FullPathN2V4NoNopLoopSelected and its
+  callers instead.
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
@@ -105,7 +111,10 @@ def preloopN2UnifiedPost (bltu_2 bltu_1 bltu_0 : Bool)
 -- ============================================================================
 
 /-- Helper: instantiate unified n=2 loop (double-addback) with explicit normalized values.
-    Separates the loop application from the composition for heartbeat budgeting. -/
+    Separates the loop application from the composition for heartbeat budgeting.
+
+    Legacy compatibility surface: this still consumes the raw `Carry2NzAll`
+    package. New v4 n=2 work should route through selected carry evidence. -/
 theorem evm_div_n2_loop_unified_inst
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (shift antiShift v0' v1' v2' v3' u0S u1S u2S u3S u4_s : Word)
@@ -140,7 +149,10 @@ theorem evm_div_n2_loop_unified_inst
 
     hbltu_2 hbltu_1 hbltu_0 hcarry2
 
-/-- Helper: instantiate unified n=2 loop (double-addback) over `divCode_noNop`. -/
+/-- Helper: instantiate unified n=2 loop (double-addback) over `divCode_noNop`.
+
+    Legacy compatibility surface: this still consumes the raw `Carry2NzAll`
+    package. New v4 n=2 work should route through selected carry evidence. -/
 theorem evm_div_n2_loop_unified_inst_noNop
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (shift antiShift v0' v1' v2' v3' u0S u1S u2S u3S u4_s : Word)
@@ -182,7 +194,10 @@ theorem evm_div_n2_loop_unified_inst_noNop
 /-- Unified preloop+loop for n=2 (double-addback), parameterized by `(bltu_2 bltu_1 bltu_0 : Bool)`.
     Covers all 8 path combinations.
     Precondition always includes scratch cells.
-    Composes preloop (base→base+448) with unified loop (base+448→base+904). -/
+    Composes preloop (base→base+448) with unified loop (base+448→base+904).
+
+    Legacy compatibility surface: this still exposes normalized `Carry2NzAll`;
+    final/public v4 n=2 stack wrappers should use selected carry evidence. -/
 theorem evm_div_n2_preloop_loop_unified_spec
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
@@ -283,7 +298,10 @@ theorem evm_div_n2_preloop_loop_unified_spec
     (fun h hq => by delta preloopN2UnifiedPost; xperm_hyp hq)
     hFull
 
-/-- Unified preloop+loop for n=2 (double-addback) over `divCode_noNop`. -/
+/-- Unified preloop+loop for n=2 (double-addback) over `divCode_noNop`.
+
+    Legacy compatibility surface: this still exposes normalized `Carry2NzAll`;
+    final/public v4 n=2 stack wrappers should use selected carry evidence. -/
 theorem evm_div_n2_preloop_loop_unified_spec_noNop
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
