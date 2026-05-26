@@ -241,6 +241,49 @@ theorem fullDivN3SelectedPathConditionsWordV4_selectedCarry
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
   hpath.2.2.1
 
+/-- Project the first selected n=3 carry component from the selected-carry word path. -/
+theorem fullDivN3SelectedPathConditionsWordV4_carry_j1
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3SelectedPathConditionsWordV4 bltu_1 bltu_0 a b) :
+    let v := fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)
+    let u := fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)
+    if bltu_1 then
+      loopBodyN3CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.1 u.2.2.1 u.2.2.2.1 u.2.2.2.2 (0 : Word)
+    else
+      isAddbackCarry2NzN3Max v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.1 u.2.2.1 u.2.2.2.1 u.2.2.2.2 (0 : Word) :=
+  fullDivN3SelectedCarryV4_j1 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (fullDivN3SelectedPathConditionsWordV4_selectedCarry
+      bltu_1 bltu_0 a b hpath)
+
+/-- Project the second selected n=3 carry component from the selected-carry word path. -/
+theorem fullDivN3SelectedPathConditionsWordV4_carry_j0
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3SelectedPathConditionsWordV4 bltu_1 bltu_0 a b) :
+    let v := fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)
+    let u := fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)
+    let r1 := fullDivN3R1V4 bltu_1
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    if bltu_0 then
+      loopBodyN3CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+    else
+      isAddbackCarry2NzN3Max v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 :=
+  fullDivN3SelectedCarryV4_j0 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (fullDivN3SelectedPathConditionsWordV4_selectedCarry
+      bltu_1 bltu_0 a b hpath)
+
 /-- Project the first v4 N3 trial-branch witness from the selected-carry word path. -/
 theorem fullDivN3SelectedPathConditionsWordV4_trial_j1
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)

@@ -264,6 +264,72 @@ theorem fullDivN2SelectedPathConditionsWordV4_selectedCarry
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
   hpath.2.2.2.1
 
+/-- Project the first selected n=2 carry component from the selected-carry word path. -/
+theorem fullDivN2SelectedPathConditionsWordV4_carry_j2
+    (bltu_2 bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN2SelectedPathConditionsWordV4 bltu_2 bltu_1 bltu_0 a b) :
+    let v := fullDivN2NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)
+    let u := fullDivN2NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 1)
+    if bltu_2 then
+      loopBodyN2CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.2.1 u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word)
+    else
+      isAddbackCarry2NzN2Max v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.2.1 u.2.2.2.1 u.2.2.2.2 (0 : Word) (0 : Word) :=
+  fullDivN2SelectedCarryV4_j2 bltu_2 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (fullDivN2SelectedPathConditionsWordV4_selectedCarry
+      bltu_2 bltu_1 bltu_0 a b hpath)
+
+/-- Project the second selected n=2 carry component from the selected-carry word path. -/
+theorem fullDivN2SelectedPathConditionsWordV4_carry_j1
+    (bltu_2 bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN2SelectedPathConditionsWordV4 bltu_2 bltu_1 bltu_0 a b) :
+    let v := fullDivN2NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)
+    let u := fullDivN2NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 1)
+    let r2 := fullDivN2R2V4 bltu_2
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    if bltu_1 then
+      loopBodyN2CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+    else
+      isAddbackCarry2NzN2Max v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.2.1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 :=
+  fullDivN2SelectedCarryV4_j1 bltu_2 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (fullDivN2SelectedPathConditionsWordV4_selectedCarry
+      bltu_2 bltu_1 bltu_0 a b hpath)
+
+/-- Project the third selected n=2 carry component from the selected-carry word path. -/
+theorem fullDivN2SelectedPathConditionsWordV4_carry_j0
+    (bltu_2 bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN2SelectedPathConditionsWordV4 bltu_2 bltu_1 bltu_0 a b) :
+    let v := fullDivN2NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)
+    let u := fullDivN2NormU (a.getLimbN 0) (a.getLimbN 1)
+      (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 1)
+    let r1 := fullDivN2R1V4 bltu_2 bltu_1
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    if bltu_0 then
+      loopBodyN2CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+    else
+      isAddbackCarry2NzN2Max v.1 v.2.1 v.2.2.1 v.2.2.2
+        u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 :=
+  fullDivN2SelectedCarryV4_j0 bltu_2 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (fullDivN2SelectedPathConditionsWordV4_selectedCarry
+      bltu_2 bltu_1 bltu_0 a b hpath)
+
 /-- Project the first v4 N2 trial-branch witness from the selected-carry word path. -/
 theorem fullDivN2SelectedPathConditionsWordV4_trial_j2
     (bltu_2 bltu_1 bltu_0 : Bool) (a b : EvmWord)
