@@ -192,10 +192,7 @@ def loopN1CallMaxmaxmaxSelectedCarryFacts
 @[irreducible]
 def selectedN1MaxCarryIfBorrow
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
-  (if BitVec.ult uTop
-      (mulsubN4_c3 (signExtend12 4095 : Word) v0 v1 v2 v3 u0 u1 u2 u3)
-   then (1 : Word) else 0) ≠ (0 : Word) →
-    isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  isAddbackCarry2NzN1MaxIfBorrow v0 v1 v2 v3 u0 u1 u2 u3 uTop
 
 /-- Control-flow-shaped selected carry facts for the N1 call/max/max/max path.
     Unlike `loopN1CallMaxmaxmaxSelectedCarryFacts`, the max-step carry facts
@@ -221,8 +218,7 @@ theorem selectedN1MaxCarryIfBorrow_of_carry
     (hcarry : isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
     selectedN1MaxCarryIfBorrow v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   unfold selectedN1MaxCarryIfBorrow
-  intro _hborrow
-  exact hcarry
+  exact isAddbackCarry2NzN1MaxIfBorrow_of_carry v0 v1 v2 v3 u0 u1 u2 u3 uTop hcarry
 
 theorem loopN1CallMaxmaxmaxSelectedCarryIfBorrowFacts_of_selected
     (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig2 u0Orig1 u0Orig0 : Word)
