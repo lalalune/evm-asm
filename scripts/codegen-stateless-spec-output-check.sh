@@ -247,6 +247,13 @@ run_fixture "chain1_witcode_2"      1                  0    "deadbeef:cafef00d" 
 # witness field is non-empty. State entry is one arbitrary node.
 run_fixture "chain1_witstate"       1                  0    ""           "a1b2c3d4e5f60718" || fail=1
 
+# Both witness.state AND witness.codes non-empty simultaneously --
+# the inner-witness offset table now has three pairwise-distinct
+# offsets (state_offset < codes_offset < headers_offset), pushing
+# the outer chain_config offset further than any single-field case.
+# Decoder still chases SSZ_BASE+8 -> chain_config_addr correctly.
+run_fixture "chain1_witboth"        1                  0    "deadbeef"   "a1b2c3d4e5f60718" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0

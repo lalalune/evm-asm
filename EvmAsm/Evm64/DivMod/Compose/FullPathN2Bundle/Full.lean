@@ -74,6 +74,10 @@ theorem evm_div_n2_denorm_epilogue_bundled_spec_noNop
       xperm_hyp hq)
     h
 
+/-- Legacy raw-carry N2 full-path wrapper backed by the bundled denorm
+    postcondition and preserved frame. It still exposes the universal
+    `Carry2NzAll` package, so final/public v4 stack wrappers should use
+    selected-carry paths instead. -/
 theorem evm_div_n2_full_bundled_spec
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
@@ -142,7 +146,9 @@ theorem evm_div_n2_full_bundled_spec
     (fun h hq => by xperm_hyp hq)
     hFull
 
-/-- N=2 full-path wrapper with the named bundled post surface. -/
+/-- Legacy raw-carry N2 full-path wrapper with the named bundled post surface.
+    It still exposes the universal `Carry2NzAll` package, so final/public v4
+    stack wrappers should use selected-carry paths instead. -/
 theorem evm_div_n2_full_unified_spec
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
@@ -194,6 +200,10 @@ theorem evm_div_n2_full_unified_spec
       retMem dMem dloMem scratch_un0
       hbnz hb3z hb2z hb1nz hshift_nz halign hbltu_2 hbltu_1 hbltu_0 hcarry2)
 
+/-- Legacy raw-carry no-NOP N2 full-path wrapper backed by the bundled denorm
+    postcondition and preserved frame. It still exposes the universal
+    `Carry2NzAll` package, so final/public v4 stack wrappers should use
+    selected-carry paths instead. -/
 theorem evm_div_n2_full_bundled_spec_noNop
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
@@ -262,7 +272,9 @@ theorem evm_div_n2_full_bundled_spec_noNop
     (fun h hq => by xperm_hyp hq)
     hFull
 
-/-- No-NOP n=2 full-path wrapper with the named bundled post surface. -/
+/-- Legacy raw-carry no-NOP N2 full-path wrapper with the named bundled post
+    surface. It still exposes the universal `Carry2NzAll` package, so
+    final/public v4 stack wrappers should use selected-carry paths instead. -/
 theorem evm_div_n2_full_unified_spec_noNop
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
