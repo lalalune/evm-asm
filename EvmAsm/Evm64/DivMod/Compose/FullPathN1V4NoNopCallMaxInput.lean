@@ -278,7 +278,10 @@ theorem divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_noNop_input
     I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3).2.2.2.2
   let uBase3 := I.sp + signExtend12 4056 - (3 : Word) <<< (3 : BitVec 6).toNat
   let qAddr3 := I.sp + signExtend12 4088 - (3 : Word) <<< (3 : BitVec 6).toNat
-  have H210 := divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop I.sp I.base
+  have hselected := loopN1CallMaxmaxmaxExactInputHypotheses_selectedCarry I hh
+  unfold loopN1CallMaxmaxmaxSelectedCarryFacts at hselected
+  obtain ⟨_hcall, hcarry2_j2, hcarry2_j1, hcarry2_j0⟩ := hselected
+  have H210 := divK_loop_n1_iter210_maxmaxmax_exact_x1_v4_noNop_selected_carry I.sp I.base
     (3 : Word) ((3 : Word) <<< (3 : BitVec 6).toNat) uBase3 qAddr3 c3 r3.1
     r3.2.2.2.2.1
     I.v0 I.v1 I.v2 I.v3
@@ -300,7 +303,18 @@ theorem divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_noNop_input
       unfold loopN1CallMaxmaxmaxR1 at h
       unfold loopN1CallMaxmaxmaxR2 at h
       exact h)
-    (loopN1CallMaxmaxmaxExactInputHypotheses_carry2 I hh)
+    (by
+      dsimp only [r3]
+      exact hcarry2_j2)
+    (by
+      dsimp only [r3]
+      unfold loopN1CallMaxmaxmaxR2 at hcarry2_j1
+      exact hcarry2_j1)
+    (by
+      dsimp only [r3]
+      unfold loopN1CallMaxmaxmaxR1 at hcarry2_j0
+      unfold loopN1CallMaxmaxmaxR2 at hcarry2_j0
+      exact hcarry2_j0)
   have H210f := cpsTripleWithin_frameR
     (loopN1CallMaxmaxmaxIter210FrameInput I) (by pcFree) H210
   exact H210f
