@@ -341,6 +341,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_compute_max_blob_count" => some ziskChainComputeMaxBlobCountProbeUnit
   | "zisk_chain_compute_min_blob_count" => some ziskChainComputeMinBlobCountProbeUnit
   | "zisk_chain_validate_difficulty_zero" => some ziskChainValidateDifficultyZeroProbeUnit
+  | "zisk_chain_validate_nonce_zero" => some ziskChainValidateNonceZeroProbeUnit
   | "zisk_chain_extract_first_last_state_root" => some ziskChainExtractFirstLastStateRootProbeUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
   | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
@@ -802,6 +803,7 @@ def knownProgramNames : List String :=
    "zisk_chain_compute_max_blob_count",
    "zisk_chain_compute_min_blob_count",
    "zisk_chain_validate_difficulty_zero",
+   "zisk_chain_validate_nonce_zero",
    "zisk_chain_extract_first_last_state_root",
    "zisk_chain_extract_first_last_block_hash",
    "zisk_chain_extract_first_last_receipts_root",
