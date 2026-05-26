@@ -59,6 +59,23 @@ def REASON_WITNESS_MISSING_NODE : Word := 0x06
 def REASON_STATE_ROOT_MISMATCH  : Word := 0x07
 def REASON_STF_BODY             : Word := 0x08
 
+/-! ## Header-validation reason codes
+
+    The `stateless_guest` integration body (PR `feat/stateless-guest-
+    integration-test`) wires a curated set of K-PR header validators
+    into the run_stateless_guest pipeline. Each validator that catches
+    a violation maps to one of the codes below; an RLP parse failure
+    in any validator maps to `REASON_RLP_PARSE_FAIL_IN_HEADER`. -/
+
+def REASON_POST_MERGE_VIOLATION     : Word := 0x10
+def REASON_EXTRA_DATA_TOO_LONG      : Word := 0x11
+def REASON_GAS_USED_OVER_LIMIT      : Word := 0x12
+def REASON_BLOB_GAS_MISALIGNED      : Word := 0x13
+def REASON_BLOB_GAS_OVER_MAX        : Word := 0x14
+def REASON_TIMESTAMP_NOT_INCREASING : Word := 0x15
+def REASON_NUMBERS_NOT_CONSECUTIVE  : Word := 0x16
+def REASON_RLP_PARSE_FAIL_IN_HEADER : Word := 0x17
+
 /-- Address of the public-output region. Mirrors
     `EvmAsm.Codegen.OUTPUT_ADDR = 0xa0010000`. Duplicated here so
     `EvmAsm/Stateless/*` does not pull in the codegen umbrella. -/
