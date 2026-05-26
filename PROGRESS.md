@@ -253,14 +253,37 @@ This is the verified gas-cost surrogate.
 
 - Programs in `EvmAsm/Codegen/Programs.lean` registry: **300**
 - ziskemu round-trip scripts: **290** under `scripts/codegen-*.sh`
+- Wired opcodes through `tinyInterpRegistry`
+  (`EvmAsm/Codegen/Programs/Evm.lean`): **91** (PUSH0–32, DUP1–16,
+  SWAP1–16, 17 fixed-shape singletons, MLOAD/MSTORE/MSTORE8, DIV/MOD,
+  SDIV/SMOD, ADDMOD, STOP)
+- Opcode regression test cases (`EvmAsm/Codegen/Tests/Cases.lean`): **31**
 - Milestones (CODEGEN.md):
 
-| Milestone | Status |
-|---|---|
-| M0 | ✅ |
-| M1 | ✅ |
-| M2 | ✅ |
-| M3 | ⏳ |
-| M4 | ✅ |
-| M5 | ⏳ |
+| Milestone | Status | Notes |
+|---|---|---|
+| M0   | ✅ | Synthetic smoke on `ziskemu` |
+| M1   | ✅ | Total `Instr` coverage + `#guard` round-trip |
+| M2   | ✅ | `evm_add` from `.data` |
+| M3   | ⏸ | Deferred — verified Programs carry explicit byte offsets |
+| M4   | ✅ | `read_input` / `write_output` via `ziskemu -i` |
+| M5a  | ✅ | Unrolled tiny interpreter |
+| M5b  | ✅ | Runtime fetch/decode/dispatch loop |
+| M6a  | ✅ | Opcode registry + test harness |
+| M6b  | ✅ | 83 fixed-shape opcodes wired |
+| M7   | ✅ | MLOAD / MSTORE / MSTORE8 |
+| M8   | ✅ | DIV / MOD through dispatcher |
+| M8.5 | ✅ | Runtime-bytecode dispatcher (3× suite speedup) |
+| M9   | ✅ | SDIV / SMOD via trampoline |
+| M10  | ✅ | ADDMOD via inline-callable (EXP deferred upstream) |
+
+- Codegen-proofs (post-M10, under `EvmAsm/Codegen/Proofs/`):
+
+| Phase | Status | Notes |
+|---|---|---|
+| Phase 1 — registry invariants    | ✅ | 6 `decide`-checked theorems |
+| Phase 2 — parser round-trip      | ⏳ | `parseInstr (emitInstr i) = some i` |
+| Phase 3 — dispatch-loop spec     | ⏳ | 7-instr loop `cpsTripleWithin` |
+| Phase 4 — handler specs          | ⏳ | 13/91 wired opcodes (clean singletons) |
+| Phase 5 — end-to-end refinement  | ⏳ | Runtime dispatcher ≡ executable EVM spec |
 
