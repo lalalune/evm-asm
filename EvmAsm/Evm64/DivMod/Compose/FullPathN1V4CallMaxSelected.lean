@@ -470,6 +470,28 @@ theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_hbltu3
       q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
     hh
 
+/-- Project the caller-facing j=3 trial predicate from canonical full-DIV
+    n=1 call/max/max/max selected hypotheses. -/
+theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_isTrial_j3
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hh : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    isTrialN1_j3 true a3 b0 := by
+  have hraw :=
+    fullDivN1CallMaxmaxmaxSelectedInputHypotheses_hbltu3 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hh
+  unfold isTrialN1_j3
+  unfold fullDivN1NormU fullDivN1NormV fullDivN1AntiShift fullDivN1Shift at hraw
+  exact hraw.symm
+
 /-- Project the bundled branch facts from canonical full-DIV n=1
     call/max/max/max selected hypotheses. -/
 theorem fullDivN1CallMaxmaxmaxSelectedInputHypotheses_branches
