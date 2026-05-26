@@ -1,5 +1,6 @@
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelected
 
 namespace EvmAsm.Evm64
 
@@ -125,6 +126,63 @@ theorem fullDivN1_preloop_call_maxmaxmax_exact_x1_scratch_v4_x9In_of_bltu
     (0 : Word) (0 : Word) (0 : Word) (0 : Word)
     retMem dMem dloMem scratchUn0 scratchMem raVal
     halign hbltu3 hbltu2 hbltu1 hbltu0 hcarry2
+  unfold fullDivN1CallMaxmaxmaxExactInputSpecV4 at hLoop
+  unfold loopN1CallMaxmaxmaxExactInputSpecV4 at hLoop
+  unfold fullDivN1CallMaxmaxmaxExactInputs at hLoop
+  dsimp only at hLoop
+  have hLoopF := cpsTripleWithin_frameR
+    (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 3992) ↦ₘ (clzResult b0).1))
+    (by pcFree) hLoop
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      exact loopSetupPost_to_fullDivN1CallMaxmaxmaxScratchPreNoX1_framed
+        sp a0 a1 a2 a3 b0 b1 b2 b3 v11Old
+        jMem retMem dMem dloMem scratchUn0 scratchMem raVal h hp)
+    hPre hLoopF
+
+/-- Full-DIV n=1 preloop with arbitrary incoming `x9`, composed with the
+    call/max/max/max loop path over the full `divCode_v4` bundle using the
+    selected-only loop hypothesis surface. -/
+theorem fullDivN1_preloop_call_maxmaxmax_exact_x1_scratch_v4_x9In_of_selected
+    (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
+    (jMem retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : fullDivN1CallMaxmaxmaxExactInputAligned sp base
+      jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+      a0 a1 a2 a3 b0 b1 b2 b3
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hselected : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+      a0 a1 a2 a3 b0 b1 b2 b3
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    fullDivN1PreloopCallMaxmaxmaxExactSpecV4X9In sp base
+      a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+      jMem retMem dMem dloMem scratchUn0 scratchMem raVal := by
+  unfold fullDivN1PreloopCallMaxmaxmaxExactSpecV4X9In
+  have hPre := evm_div_n1_to_loopSetup_spec_v4_x9In_exact_x1_scratch_frame
+    sp base a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+    hbnz hb3z hb2z hb1z hshift_nz
+  have hLoop := fullDivN1_call_maxmaxmax_exact_x1_scratch_v4_of_selected
+    sp base
+    jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+    (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+    a0 a1 a2 a3 b0 b1 b2 b3
+    (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+    retMem dMem dloMem scratchUn0 scratchMem raVal
+    halign hselected
   unfold fullDivN1CallMaxmaxmaxExactInputSpecV4 at hLoop
   unfold loopN1CallMaxmaxmaxExactInputSpecV4 at hLoop
   unfold fullDivN1CallMaxmaxmaxExactInputs at hLoop
