@@ -411,8 +411,10 @@ theorem evm_mod_callable_v4_spec_from_modCode_noNop_exact_frame_x9out_body_frame
     q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 hStack
 
-/-- Callable-program N3 v4 MOD surface from the no-NOP stack bridge, with the
-    v4 trial-call scratch cell framed through the callable return. -/
+/-- Legacy callable-program N3 v4 MOD surface from the no-NOP stack bridge,
+    with the v4 trial-call scratch cell framed through the callable return.
+    This compatibility wrapper still exposes the raw `fullDivN3Carry2NzV4`
+    package; new v4 MOD work should use selected/reachable carry surfaces. -/
 theorem evm_mod_callable_v4_n3_stack_pre_to_callable_post_scratch_word
     (sp base : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11Old : Word)
@@ -548,10 +550,13 @@ theorem evm_mod_callable_v4_n3_stack_pre_to_callable_post_scratch_word
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 hBodyUnified
 
-/-- Generalization of `evm_mod_callable_v4_n3_stack_pre_to_callable_post_scratch_word`
-    allowing any initial `x9` value in the precondition.  The n=3 loop setup
-    overwrites `x9 ← 4 - 3 = 1` before the loop body, so the initial value is
-    irrelevant to correctness. -/
+/-- Legacy generalization of
+    `evm_mod_callable_v4_n3_stack_pre_to_callable_post_scratch_word` allowing
+    any initial `x9` value in the precondition. The n=3 loop setup overwrites
+    `x9 ← 4 - 3 = 1` before the loop body, so the initial value is irrelevant
+    to correctness. This compatibility wrapper still exposes the raw
+    `fullDivN3Carry2NzV4` package; new v4 MOD work should use
+    selected/reachable carry surfaces. -/
 theorem evm_mod_callable_v4_n3_stack_pre_to_callable_post_scratch_word_anyX9
     (x9Init : Word) (sp base : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11Old : Word)
