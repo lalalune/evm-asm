@@ -136,6 +136,32 @@ theorem FullDivN1CallMaxmaxmaxHdivs_of_selected_semantic_evidence_if_borrow
       q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
       hevidence)
 
+/-- Project the named hdiv package from existing selected input evidence and
+    semantic facts, routing through the selected-if-borrow bridge. -/
+theorem FullDivN1CallMaxmaxmaxHdivs_of_selected_semantic_facts_if_borrow
+    (sp base : Word) (a b : EvmWord)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hselected : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hfacts : FullDivN1CallMaxmaxmaxSemanticFactsV4
+      a0 a1 a2 a3 b0 b1 b2 b3) :
+    FullDivN1CallMaxmaxmaxHdivs a b a0 a1 a2 a3 b0 b1 b2 b3 := by
+  exact FullDivN1CallMaxmaxmaxHdivs_of_selected_semantic_evidence_if_borrow
+    sp base a b jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    a0 a1 a2 a3 b0 b1 b2 b3
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+    ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz
+    ⟨hselected, hfacts⟩
+
 /-- Build the selected-if-borrow semantic evidence package from explicit
     branch facts, conditional selected carry facts, and semantic facts. -/
 theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_of_bltu_selected
