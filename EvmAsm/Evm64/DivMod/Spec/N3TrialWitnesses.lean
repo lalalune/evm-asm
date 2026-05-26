@@ -536,8 +536,10 @@ theorem N3V4TrialWitnesses.exists_hdivs_of_selected_path_conditions_ne_zero
   exact N3V4TrialWitnesses.exists_hdivs_of_selected_path_conditions
     htrial ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hcarry harith
 
-/-- Nonzero-surface quotient-word witnesses from an `N3V4TrialWitnesses`
-    bundle. -/
+/-- Legacy nonzero-surface quotient-word witnesses from an
+    `N3V4TrialWitnesses` bundle. This still consumes
+    `fullDivN3Carry2NzV4`; prefer the selected-path quotient helpers for new
+    v4 work. -/
 theorem N3V4TrialWitnesses.exists_quotient_word_of_path_conditions_ne_zero
     {a b : EvmWord}
     (htrial : N3V4TrialWitnesses a b)
@@ -576,8 +578,10 @@ theorem N3V4TrialWitnesses.exists_quotient_word_of_path_conditions_ne_zero
     fullDivN3QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
       bltu_1 bltu_0 a b hbnz hpath⟩
 
-/-- Nonzero-surface quotient-limb witnesses from an `N3V4TrialWitnesses`
-    bundle. -/
+/-- Legacy nonzero-surface quotient-limb witnesses from an
+    `N3V4TrialWitnesses` bundle. This still consumes
+    `fullDivN3Carry2NzV4`; prefer the selected-path hdiv helpers for new v4
+    work. -/
 theorem N3V4TrialWitnesses.exists_hdivs_of_path_conditions_ne_zero
     {a b : EvmWord}
     (htrial : N3V4TrialWitnesses a b)
@@ -745,10 +749,12 @@ theorem n3V4_quotient_word_of_path_conditions
     n3V4_exists_quotient_word_of_path_conditions hbnz hcarry2 harith
   exact ⟨bltu_1, bltu_0, hdivWord⟩
 
-/-- Nonzero-surface n=3 V4 quotient-word package.
+/-- Legacy nonzero-surface n=3 V4 quotient-word package.
 
     This is the same witness package as `n3V4_quotient_word_of_path_conditions`,
-    but accepts the stack-wrapper `b ≠ 0` premise directly. -/
+    but accepts the stack-wrapper `b ≠ 0` premise directly. It still consumes
+    `fullDivN3Carry2NzV4`; prefer selected-path quotient helpers for new v4
+    work. -/
 theorem n3V4_quotient_word_of_path_conditions_ne_zero
     {a b : EvmWord}
     (hbnz : b ≠ 0)
@@ -779,10 +785,11 @@ theorem n3V4_quotient_word_of_path_conditions_ne_zero
     fullDivN3QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
       bltu_1 bltu_0 a b hbnz hpath⟩
 
-/-- Dispatcher-shape n=3 V4 quotient-word package.
+/-- Legacy dispatcher-shape n=3 V4 quotient-word package.
 
     The shape hypotheses match the n=3 stack wrapper surface; the remaining
-    non-mechanical obligations are the carry and arithmetic path facts. -/
+    non-mechanical obligations include the old `fullDivN3Carry2NzV4` package.
+    Prefer selected-path quotient helpers for new v4 work. -/
 theorem n3V4_shape_quotient_word_of_path_conditions
     (a b : EvmWord)
     (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
@@ -820,8 +827,10 @@ theorem n3_limb_or_ne_zero_of_limb2_ne_zero {b : EvmWord}
   intro h_or
   exact hb2nz (EvmWord.or_eq_zero_imp_right (EvmWord.or_eq_zero_imp_left h_or))
 
-/-- Dispatcher-shape n=3 V4 quotient-word package deriving divisor nonzero
-    from the n=3 shape itself. -/
+/-- Legacy dispatcher-shape n=3 V4 quotient-word package deriving divisor
+    nonzero from the n=3 shape itself. It still consumes
+    `fullDivN3Carry2NzV4`; prefer selected-path quotient helpers for new v4
+    work. -/
 theorem n3V4_shape_quotient_word_of_path_conditions_of_hb2nz
     (a b : EvmWord)
     (_hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
