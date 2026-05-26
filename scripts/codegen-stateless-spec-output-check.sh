@@ -313,6 +313,15 @@ run_fixture "chain1_actbn"          1                  0    ""           ""     
 # correctly across the offset/body permutation.
 run_fixture "chain1_actts"          1                  0    ""           ""                  ""    ""           "9876543210" || fail=1
 
+# Both `block_number = [B]` AND `timestamp = [T]` non-empty.
+# Activation body grows to 24 bytes (8 offsets + 8 bn + 8 ts);
+# active_fork = 40 bytes; spec output = 89 bytes. The encoder
+# now byte-copies active_fork[32..40) into OUTPUT[81..89) (the
+# timestamp value slot), in addition to the [16..32) copy from
+# #6793. offset_blob_schedule becomes 40 (= 0x28) -- still
+# fits in 1 byte, so the LBU+SB at OUTPUT[61] handles it.
+run_fixture "chain1_act_both"       1                  0    ""           ""                  ""    "1111111111" "2222222222" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0
