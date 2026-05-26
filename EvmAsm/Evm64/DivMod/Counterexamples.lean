@@ -9,6 +9,8 @@ import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
 import EvmAsm.Evm64.DivMod.Spec.CallAddback
+import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
+import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
 
 namespace EvmAsm.Evm64
 
@@ -269,6 +271,63 @@ theorem ceN1Carry_Carry2NzAll_false :
   exact ceN1Carry_isAddbackCarry2Nz_false
     (h ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord
       ceN1CarryMaxWord 0)
+
+-- N2/N3 universal-carry counterexamples:
+--
+-- These pin the same proof-shape failure for the current `fullDivN2Carry2NzV4`
+-- and `fullDivN3Carry2NzV4` packages. The bad states are arbitrary
+-- `Carry2NzAll` witnesses, not known reachable runtime states.
+abbrev ceN23CarryB0 : Word := BitVec.ofNat 64 (2^63 - 1)
+abbrev ceN23CarryBTop : Word := BitVec.ofNat 64 (2^62)
+abbrev ceN23CarryMaxWord : Word := BitVec.ofNat 64 (2^64 - 1)
+abbrev ceN23CarryNormV0 : Word := BitVec.ofNat 64 (2^64 - 2)
+abbrev ceN23CarryNormV1 : Word := BitVec.ofNat 64 (2^63)
+abbrev ceN23CarryNormV2 : Word := BitVec.ofNat 64 (2^63)
+
+theorem ceN2Carry_norm_eq :
+    fullDivN2NormV ceN23CarryB0 ceN23CarryBTop 0 0 =
+      (ceN23CarryNormV0, ceN23CarryNormV1, 0, 0) := by
+  native_decide
+
+theorem ceN3Carry_norm_eq :
+    fullDivN3NormV ceN23CarryB0 ceN23CarryBTop ceN23CarryBTop 0 =
+      (ceN23CarryNormV0, ceN23CarryNormV1, ceN23CarryNormV2, 0) := by
+  native_decide
+
+theorem ceN2Carry_isAddbackCarry2Nz_false :
+    ¬ isAddbackCarry2Nz ceN23CarryMaxWord ceN23CarryNormV0 ceN23CarryNormV1 0 0
+      ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord 0 := by
+  intro h
+  rw [isAddbackCarry2Nz] at h
+  have h_second_ne := h (by native_decide)
+  exact h_second_ne (by native_decide)
+
+theorem ceN3Carry_isAddbackCarry2Nz_false :
+    ¬ isAddbackCarry2Nz ceN23CarryMaxWord ceN23CarryNormV0 ceN23CarryNormV1
+      ceN23CarryNormV2 0
+      ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord 0 := by
+  intro h
+  rw [isAddbackCarry2Nz] at h
+  have h_second_ne := h (by native_decide)
+  exact h_second_ne (by native_decide)
+
+theorem ceN2Carry_fullDivN2Carry2NzV4_false :
+    ¬ fullDivN2Carry2NzV4 ceN23CarryB0 ceN23CarryBTop 0 0 := by
+  intro h
+  unfold fullDivN2Carry2NzV4 at h
+  rw [ceN2Carry_norm_eq] at h
+  exact ceN2Carry_isAddbackCarry2Nz_false
+    (h ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord
+      ceN23CarryMaxWord 0)
+
+theorem ceN3Carry_fullDivN3Carry2NzV4_false :
+    ¬ fullDivN3Carry2NzV4 ceN23CarryB0 ceN23CarryBTop ceN23CarryBTop 0 := by
+  intro h
+  unfold fullDivN3Carry2NzV4 at h
+  rw [ceN3Carry_norm_eq] at h
+  exact ceN3Carry_isAddbackCarry2Nz_false
+    (h ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord
+      ceN23CarryMaxWord 0)
 
 -- A smaller diagnostic for the N1 max-path carry bridge:
 --
