@@ -135,6 +135,113 @@ def loopN2UnifiedPostV4NoX1 (bltu_2 bltu_1 bltu_0 : Bool)
     (((uBase1 + signExtend12 4064 ↦ₘ r1.2.2.2.2.2) ** (qAddr1 ↦ₘ r1.1)) **
      ((uBase2 + signExtend12 4064 ↦ₘ r2.2.2.2.2.2) ** (qAddr2 ↦ₘ r2.1)))
 
+/-- Branch-selected n=2 v4 loop iteration, local to the lower loop layer.
+
+    This duplicates the branch shape of `iterN2V4` without importing the
+    higher full-path family module, which depends on this lower loop module. -/
+def loopN2IterSelectedV4 (bltu : Bool)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  if bltu then
+    iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  else
+    iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+@[simp] theorem loopN2IterSelectedV4_false
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    loopN2IterSelectedV4 false v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  rfl
+
+@[simp] theorem loopN2IterSelectedV4_true
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    loopN2IterSelectedV4 true v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      iterWithDoubleAddback (divKTrialCallV4QHat u2 u1 v1)
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  simp [loopN2IterSelectedV4]
+
+/-- Selected per-iteration carry facts for the normalized n=2 loop source.
+
+    This is the compose-layer replacement shape for `Carry2NzAll`: it carries
+    only the facts selected by the actual branch booleans and names the
+    intermediate states through `loopN2IterSelectedV4`.  Downstream
+    loop/preloop wrappers can consume this without exposing the false
+    universal carry package. -/
+@[irreducible]
+def loopN2SelectedCarryV4 (bltu_2 bltu_1 bltu_0 : Bool)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word) : Prop :=
+  let r2 := loopN2IterSelectedV4 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  let r1 := loopN2IterSelectedV4 bltu_1 v0 v1 v2 v3
+    u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+  (if bltu_2 then
+    loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
+      u0 u1 u2 u3 uTop
+   else
+    isAddbackCarry2NzN2Max v0 v1 v2 v3
+      u0 u1 u2 u3 uTop) ∧
+  (if bltu_1 then
+    loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
+      u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+   else
+    isAddbackCarry2NzN2Max v0 v1 v2 v3
+      u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1) ∧
+  (if bltu_0 then
+    loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
+      u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+   else
+    isAddbackCarry2NzN2Max v0 v1 v2 v3
+      u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1)
+
+/-- First selected n=2 normalized-loop carry component, for `j=2`. -/
+theorem loopN2SelectedCarryV4_j2
+    (bltu_2 bltu_1 bltu_0 : Bool)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word)
+    (hcarry : loopN2SelectedCarryV4 bltu_2 bltu_1 bltu_0
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0) :
+    if bltu_2 then
+      loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
+        u0 u1 u2 u3 uTop
+    else
+      isAddbackCarry2NzN2Max v0 v1 v2 v3
+        u0 u1 u2 u3 uTop := by
+  rw [loopN2SelectedCarryV4] at hcarry
+  exact hcarry.1
+
+/-- Second selected n=2 normalized-loop carry component, for `j=1`. -/
+theorem loopN2SelectedCarryV4_j1
+    (bltu_2 bltu_1 bltu_0 : Bool)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word)
+    (hcarry : loopN2SelectedCarryV4 bltu_2 bltu_1 bltu_0
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0) :
+    let r2 := loopN2IterSelectedV4 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    if bltu_1 then
+      loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
+        u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+    else
+      isAddbackCarry2NzN2Max v0 v1 v2 v3
+        u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1 := by
+  rw [loopN2SelectedCarryV4] at hcarry
+  exact hcarry.2.1
+
+/-- Third selected n=2 normalized-loop carry component, for `j=0`. -/
+theorem loopN2SelectedCarryV4_j0
+    (bltu_2 bltu_1 bltu_0 : Bool)
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word)
+    (hcarry : loopN2SelectedCarryV4 bltu_2 bltu_1 bltu_0
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0) :
+    let r2 := loopN2IterSelectedV4 bltu_2 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+    let r1 := loopN2IterSelectedV4 bltu_1 v0 v1 v2 v3
+      u0Orig1 r2.2.1 r2.2.2.1 r2.2.2.2.1 r2.2.2.2.2.1
+    if bltu_0 then
+      loopBodyN2CallAddbackCarry2NzV4 v0 v1 v2 v3
+        u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+    else
+      isAddbackCarry2NzN2Max v0 v1 v2 v3
+        u0Orig0 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1 := by
+  rw [loopN2SelectedCarryV4] at hcarry
+  exact hcarry.2.2
+
 /-- Unified n=2 v4 no-NOP loop source theorem, dispatching to the 8 per-case
     proofs via `bltu_2 × bltu_1 × bltu_0`.  Preserves caller-owned exact `x1`.
     The 672-step bound accommodates the worst-case (all-call) path; lighter paths
