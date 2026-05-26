@@ -1160,4 +1160,34 @@ theorem fullDivN1_call_maxmaxmax_exact_x1_scratch_v4_of_selected
       q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
     halign hh
 
+/-- Final exact path for the canonical full-DIV n=1 call/max/max/max
+    bundled inputs over the full `divCode_v4` bundle, using selected-only
+    hypotheses and conditional max carry evidence for taken addback branches. -/
+theorem fullDivN1_call_maxmaxmax_exact_x1_scratch_v4_of_selected_if_borrow
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (halign : fullDivN1CallMaxmaxmaxExactInputAligned sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hh : fullDivN1CallMaxmaxmaxSelectedInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    fullDivN1CallMaxmaxmaxExactInputSpecV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal := by
+  unfold fullDivN1CallMaxmaxmaxExactInputSpecV4
+  unfold fullDivN1CallMaxmaxmaxExactInputAligned at halign
+  unfold fullDivN1CallMaxmaxmaxSelectedInputHypotheses at hh
+  exact divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_selected_if_borrow
+    (fullDivN1CallMaxmaxmaxExactInputs sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal)
+    halign hh
+
 end EvmAsm.Evm64
