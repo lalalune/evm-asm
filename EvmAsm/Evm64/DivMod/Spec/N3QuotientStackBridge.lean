@@ -284,6 +284,104 @@ theorem fullDivN3SelectedPathConditionsWordV4_carry_j0
     (fullDivN3SelectedPathConditionsWordV4_selectedCarry
       bltu_1 bltu_0 a b hpath)
 
+/-- Expanded selected n=3 carry component for the `j=0` loop iteration.
+    This is the older stack-wrapper shape, where the `j=1` intermediate state
+    is exposed by case-splitting on the first trial branch. -/
+abbrev fullDivN3SelectedCarryJ0ExpandedWordV4
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord) : Prop :=
+  match bltu_1 with
+  | false =>
+    let r1 := iterN3Max
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+      (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.1
+      (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.1
+      (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.1
+      (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.2
+      (0 : Word)
+    if bltu_0 then
+      loopBodyN3CallAddbackCarry2NzV4
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).1
+        r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+    else
+      isAddbackCarry2NzN3Max
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).1
+        r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  | true =>
+    let r1 := iterWithDoubleAddback
+      (divKTrialCallV4QHat
+        (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.2
+        (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1)
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+      (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.1
+      (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.1
+      (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.1
+      (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).2.2.2.2
+      (0 : Word)
+    if bltu_0 then
+      loopBodyN3CallAddbackCarry2NzV4
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).1
+        r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+    else
+      isAddbackCarry2NzN3Max
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).1
+        r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+
+/-- `fullDivN3R1V4`-shaped selected n=3 carry component for the `j=0`
+    loop iteration. This is the shape projected from the selected path
+    package. -/
+abbrev fullDivN3SelectedCarryJ0R1WordV4
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord) : Prop :=
+  let v := fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+    (b.getLimbN 2) (b.getLimbN 3)
+  let u := fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+    (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)
+  let r1 := fullDivN3R1V4 bltu_1
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+  if bltu_0 then
+    loopBodyN3CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+      u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+  else
+    isAddbackCarry2NzN3Max v.1 v.2.1 v.2.2.1 v.2.2.2
+      u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+
 /-- Project the first v4 N3 trial-branch witness from the selected-carry word path. -/
 theorem fullDivN3SelectedPathConditionsWordV4_trial_j1
     (bltu_1 bltu_0 : Bool) (a b : EvmWord)
