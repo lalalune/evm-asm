@@ -285,7 +285,11 @@ theorem evm_div_n2_to_loopSetup_spec_within_v4_noNop_exact_x1_scratch_frame
 /-- n=2 v4/no-NOP path from entry through the exact-x1 loop handoff.
     Mirrors `fullDivN3_preloop_loop_unified_exact_x1_scratch_v4_noNop`.
     Output: divModStackDispatchPreNoX1 + scratchMem ** (.x1 ↦ᵣ raVal) →
-    loopN2UnifiedPostV4NoX1 ** (.x1 ↦ᵣ raVal) ** frame_atoms over divCode_noNop_v4. -/
+    loopN2UnifiedPostV4NoX1 ** (.x1 ↦ᵣ raVal) ** frame_atoms over divCode_noNop_v4.
+
+    Legacy compatibility surface: this still consumes the raw normalized
+    `Carry2NzAll` package. Final/public v4 n=2 stack work should use the
+    selected-carry sibling below. -/
 theorem fullDivN2_preloop_loop_unified_exact_x1_scratch_v4_noNop
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)

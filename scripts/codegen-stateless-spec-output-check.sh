@@ -258,6 +258,14 @@ run_fixture "chain1_witcode_2"      1                  0    "deadbeef:cafef00d" 
 # witness field is non-empty. State entry is one arbitrary node.
 run_fixture "chain1_witstate"       1                  0    ""           "a1b2c3d4e5f60718" || fail=1
 
+# Two witness.state entries -- parallel to chain1_witcode_2 but on
+# the FIRST inner witness field. The state list is variable-size
+# elements (ByteList[MAX_BYTES_PER_WITNESS_NODE]), so a 2-element
+# list ships its own u32 inner offset table prefix. Completes the
+# 1-vs-2 entries matrix across all three list-type SSZ slots
+# (codes, state, public_keys).
+run_fixture "chain1_witstate_2"     1                  0    ""           "a1b2c3d4e5f60718:9988776655443322" || fail=1
+
 # Both witness.state AND witness.codes non-empty simultaneously --
 # the inner-witness offset table now has three pairwise-distinct
 # offsets (state_offset < codes_offset < headers_offset), pushing
@@ -275,6 +283,22 @@ run_fixture "chain1_witboth"        1                  0    "deadbeef"   "a1b2c3
 # the ELF output is unchanged. PK is 65 deterministic bytes
 # (04 || 32 zeros || 32 zeros = SEC1 uncompressed-marker prefix).
 run_fixture "chain1_pk"             1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)" || fail=1
+
+# Two public_keys entries -- exercises a 2-element SSZ list of
+# fixed-size ByteVectors. Unlike SszList[ByteList, N] (variable-
+# size elements, requires an inner offset table), this list has
+# NO inner offset table; the 130-byte payload is just the two
+# 65-byte entries concatenated. Doubles the public_keys
+# byte-budget. Decoder's outer-offset chase is unaffected.
+run_fixture "chain1_pk_2"           1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0):04$(printf '%064d' 1)$(printf '%064d' 1)" || fail=1
+
+# All three non-chain_config outer slots populated simultaneously
+# -- witness.state + witness.codes + public_keys -- the largest
+# input-layout complexity that still keeps spec output unchanged
+# (chain_config echoed, valid=False). Verifies the decoder's
+# outer-offset read at SSZ_BASE+8 is robust under the maximum
+# byte-budget shift this fixture set produces.
+run_fixture "chain1_all_outer"      1                  0    "deadbeef"   "a1b2c3d4e5f60718"  "04$(printf '%064d' 0)$(printf '%064d' 0)" || fail=1
 
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"

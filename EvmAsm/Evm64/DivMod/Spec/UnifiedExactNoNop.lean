@@ -3,6 +3,11 @@
 
   Unified-bound exact-x1 no-NOP DIV branch wrappers split out from
   `Spec.Unified` to keep the public dispatcher file under the size cap.
+
+  Legacy carry note: these wrappers still thread the raw normalized
+  `Carry2NzAll` package through exact no-NOP stack surfaces. N2/N3 final v4
+  stack work should use selected/reachable carry wrappers instead of extending
+  these compatibility surfaces.
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.N1ExactNoNop

@@ -114,7 +114,9 @@ theorem fullModN3UnifiedPost_to_modStackDispatchPost
 /-- Legacy raw-carry N=3 MOD stack-level entry point: mirrors `evm_mod_n2_stack_spec_within`
 (Spec/N2ModBridge.lean) and `evm_div_n3_stack_spec_within`
 (Spec/Dispatcher.lean). Composes `evm_mod_n3_full_unified_spec` with
-`fullModN3UnifiedPost_to_modStackDispatchPost`. The step count `542` matches
+`fullModN3UnifiedPost_to_modStackDispatchPost`. New v4 stack/callable work
+should use selected/reachable carry wrappers instead of extending this raw
+`Carry2NzAll` surface. The step count `542` matches
 `evm_mod_n3_full_unified_spec`. -/
 theorem evm_mod_n3_stack_spec_within
     (bltu_1 bltu_0 : Bool) (sp base : Word)
@@ -185,7 +187,9 @@ theorem evm_mod_n3_stack_spec_within
 
 /-- Legacy raw-carry `_word` form of `evm_mod_n3_stack_spec_within`: takes a packed
 `fullModN3RemainderWord` equality with `EvmWord.mod a b` and unpacks it into
-the four per-limb equations. Mirrors `evm_mod_n2_stack_spec_within_word`. -/
+the four per-limb equations. Mirrors `evm_mod_n2_stack_spec_within_word`. New
+v4 stack/callable work should use selected/reachable carry wrappers instead of
+this raw `Carry2NzAll` surface. -/
 theorem evm_mod_n3_stack_spec_within_word
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
