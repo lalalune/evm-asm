@@ -13,6 +13,14 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 
   See beads `evm-asm-pwvj`, parent `evm-asm-pb40` (#61).
+
+  Legacy note:
+  The stack wrappers in this file predate the selected-carry v4 retrofit and
+  still expose the counterexample-false universal `Carry2NzAll` package.
+  Treat them as compatibility shims for older v1/no-NOP composition paths, not
+  as the surface for new public DIV n=3 stack work. New v4 callable/final
+  wrappers should use the selected-carry surfaces in `Spec.N3V4CallableExact`
+  and `CallableV4DivSelected` instead.
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.CallablePost
@@ -24,9 +32,13 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Rv64.AddrNorm (word_add_zero)
 
-/-- `_word` form of `evm_div_n3_stack_spec_within`: takes a single
+/-- Legacy `_word` form of `evm_div_n3_stack_spec_within`: takes a single
     `EvmWord`-valued equality `fullDivN3QuotientWord ... = EvmWord.div a b`
-    rather than the four per-limb equalities. -/
+    rather than the four per-limb equalities.
+
+    This still exposes the old universal `Carry2NzAll` premise. Do not use it
+    as the final/public v4 DIV n=3 route; prefer selected-carry wrappers in
+    `N3V4CallableExact`. -/
 theorem evm_div_n3_stack_spec_within_word
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -69,8 +81,10 @@ theorem evm_div_n3_stack_spec_within_word
     hshift_nz halign hbltu_1 hbltu_0 hcarry2
     hdiv0 hdiv1 hdiv2 hdiv3
 
-/-- Exact-x1 form of `evm_div_n3_stack_spec_within_word`, exposing the
-    dispatcher postcondition without consuming the caller's `x1` atom. -/
+/-- Legacy exact-x1 form of `evm_div_n3_stack_spec_within_word`, exposing the
+    dispatcher postcondition without consuming the caller's `x1` atom.
+
+    This is a compatibility wrapper over the raw `Carry2NzAll` path. -/
 theorem evm_div_n3_stack_spec_within_word_exact_x1
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -350,8 +364,12 @@ theorem fullDivN3UnifiedPostNoX1_frame_to_divStackDispatchPostCallableExactFrame
     a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratch_un0 raVal
     ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hp
 
-/-- No-NOP n=3 DIV stack spec weakened to the callable post surface with
-    separate `x1` ownership and exact `x9`. -/
+/-- Legacy no-NOP n=3 DIV stack spec weakened to the callable post surface with
+    separate `x1` ownership and exact `x9`.
+
+    This compatibility wrapper still routes through the raw `Carry2NzAll`
+    theorem stack. New v4 callable surfaces should use selected carry evidence
+    instead. -/
 theorem evm_div_n3_stack_spec_within_word_noNop_callableOwnPost
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -396,8 +414,12 @@ theorem evm_div_n3_stack_spec_within_word_noNop_callableOwnPost
       ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2nz
       hshift_nz halign hbltu_1 hbltu_0 hcarry2 hdivWord)
 
-/-- No-NOP n=3 DIV stack spec from the callable precondition shape to the
-    public callable post, with separate `x1` ownership and exact `x9`. -/
+/-- Legacy no-NOP n=3 DIV stack spec from the callable precondition shape to the
+    public callable post, with separate `x1` ownership and exact `x9`.
+
+    This compatibility wrapper still routes through the raw `Carry2NzAll`
+    theorem stack. New v4 callable surfaces should use selected carry evidence
+    instead. -/
 theorem evm_div_n3_stack_spec_within_word_noNop_preNoX1_callableOwnPost
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -461,7 +483,9 @@ theorem evm_div_n3_stack_spec_within_word_noNop_preNoX1_callableOwnPost
       ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2nz
       hshift_nz halign hbltu_1 hbltu_0 hcarry2 hdivWord)
 
-/-- No-NOP variant of `evm_div_n3_stack_spec_within_word`. -/
+/-- Legacy no-NOP variant of `evm_div_n3_stack_spec_within_word`.
+
+    This is a compatibility wrapper over the raw `Carry2NzAll` path. -/
 theorem evm_div_n3_stack_spec_within_word_noNop
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
