@@ -116,11 +116,21 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
     `x13` is added in M7 for the memory opcodes (MLOAD, MSTORE,
     MSTORE8). Handlers that don't touch memory ignore it; the verified
     bodies that do use it take `memBaseReg` as a Lean argument and our
-    M7 handler entries pass `.x13`. -/
+    M7 handler entries pass `.x13`.
+
+    `x20` is added in M12 for the simple environment opcodes
+    (ADDRESS, CALLER, …). The verified `evm_env_load` body takes
+    `envBaseReg` as a Lean argument and our M12 env handler entries
+    pass `.x20`. `x20` was chosen because no verified body in
+    `EvmAsm/Evm64/*/Program.lean` references it AND no existing
+    handler `preBody` writes to it — the M8/M9/M10 DIV/MOD/SDIV/
+    SMOD/ADDMOD handlers all save `x10` to `x14`, so `x14` is
+    NOT safe as a permanent dispatcher register. -/
 def emitDispatcherPrologue : String :=
   "  la x10, evm_code\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x13, evm_memory\n" ++
+  "  la x20, evm_env\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -176,6 +186,9 @@ def emitDispatcherDataSection
   ".balign 32\n" ++
   "evm_memory:\n" ++
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
+  ".balign 8\n" ++
+  "evm_env:\n" ++
+  "  .zero 416\n" ++      -- 13 SimpleEnvField slots × 32 bytes (M12 onward)
   emitJumpTable registry
 
 /-! ## Runtime-bytecode dispatcher (M8.5)
@@ -202,6 +215,7 @@ def emitRuntimeDispatcherPrologue : String :=
   "  li x10, 0x40000010\n" ++   -- INPUT_ADDR + INPUT_DATA_OFFSET
   "  la x12, evm_stack_top\n" ++
   "  la x13, evm_memory\n" ++
+  "  la x20, evm_env\n" ++       -- M12: env-region base (ADDRESS, CALLER, …)
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -224,6 +238,9 @@ def emitRuntimeDispatcherDataSection
   ".balign 32\n" ++
   "evm_memory:\n" ++
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
+  ".balign 8\n" ++
+  "evm_env:\n" ++
+  "  .zero 416\n" ++      -- 13 SimpleEnvField slots × 32 bytes (M12 onward)
   emitJumpTable registry
 
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.

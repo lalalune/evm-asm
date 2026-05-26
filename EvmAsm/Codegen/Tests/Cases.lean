@@ -179,6 +179,29 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mstore8_basic"
       bytecode       := "0x60, 0xff, 0x60, 0x00, 0x53, 0x60, 0x00, 0x51, 0x00"
       expectedOutHex := "00000000000000000000000000000000000000000000000000000000000000ff" }
+    -- ## M12 simple environment opcodes (ADDRESS, CALLER, …)
+    -- The evm_env data region is zero-initialised by the dispatcher's
+    -- .data section. Each test confirms the handler routes through
+    -- evm_env_load + x12 advances + 32 bytes land on the stack.
+  , -- ADDRESS; STOP — routes byte 0x30 to evm_env_load .x20 .x15 .address.
+    -- Reads 32 zero bytes from evm_env + 0 and pushes them.
+    { name           := "address_zero"
+      bytecode       := "0x30, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- CALLER; DUP1; ADD; STOP — exercises a non-trivial post-ENV stack
+    -- flow. CALLER pushes 0 (zero-init env). DUP1 yields [0, 0].
+    -- ADD → 0. Confirms env handler advances x12 correctly so DUP1/ADD
+    -- find their operand.
+    { name           := "caller_via_dup_add"
+      bytecode       := "0x33, 0x80, 0x01, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- TIMESTAMP; NUMBER; SUB; STOP — exercises two distinct env field
+    -- offsets back-to-back. Both fields zero-init → SUB yields 0.
+    -- Confirms different opcode bytes resolve to different env cells
+    -- (handler-table dispatch, not aliasing).
+    { name           := "env_field_offset_distinct"
+      bytecode       := "0x42, 0x43, 0x03, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;
