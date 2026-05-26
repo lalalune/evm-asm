@@ -1041,9 +1041,11 @@ theorem divK_loop_n3_call_max_mod_v4_from_source_exact_loopIterScratch_noNop (sp
       v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig q0Old raVal)
     J1 J0f
 
-/-- Unified n=3 v4 no-NOP loop path over `modCode_noNop_v4` from the
+/-- Legacy unified n=3 v4 no-NOP loop path over `modCode_noNop_v4` from the
     callable-ready no-`x1` source, selecting the max/call branch for both
-    iterations and preserving concrete caller `x1`. -/
+    iterations and preserving concrete caller `x1`. This wrapper still exposes
+    the raw `Carry2NzAll` package; selected/reachable carry wrappers should be
+    preferred for new v4 stack/callable work. -/
 theorem divK_loop_n3_unified_from_source_exact_loopIterScratch_mod_v4_noNop
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)

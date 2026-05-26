@@ -12,9 +12,11 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-- Helper: instantiate the MOD v4 no-NOP exact-`x1` n=3 loop with explicit
-    normalized values, keeping the v4 div128 scratch cell and caller-owned
-    `x1` split out of the loop source. -/
+/-- Legacy helper: instantiate the MOD v4 no-NOP exact-`x1` n=3 loop with
+    explicit normalized values, keeping the v4 div128 scratch cell and
+    caller-owned `x1` split out of the loop source. This wrapper still exposes
+    the raw `Carry2NzAll` package; selected/reachable carry wrappers should be
+    preferred for new v4 stack/callable work. -/
 theorem evm_mod_n3_loop_unified_inst_noNop_exact_x1_v4
     (bltu_1 bltu_0 : Bool) (sp base : Word)
     (shift antiShift b0' b1' b2' b3' u0 u1 u2 u3 u4 : Word)
