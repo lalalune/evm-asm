@@ -90,6 +90,39 @@ abbrev fullDivN3PathConditionsV4 (bltu_1 bltu_0 : Bool)
   fullDivN3MulSubEqV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
   fullDivN3QuotientOverestimateV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
 
+/-- Selected per-iteration carry facts for the n=3 V4 path.
+
+    This is the replacement surface for the false universal
+    `fullDivN3Carry2NzV4` package: it asks only for the carry fact selected by
+    each concrete branch boolean and by the actual intermediate `u` state. -/
+abbrev fullDivN3SelectedCarryV4 (bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  let v := fullDivN3NormV b0 b1 b2 b3
+  let u := fullDivN3NormU a0 a1 a2 a3 b2
+  let r1 := fullDivN3R1V4 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3
+  (if bltu_1 then
+    loopBodyN3CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+      u.2.1 u.2.2.1 u.2.2.2.1 u.2.2.2.2 (0 : Word)
+   else
+    isAddbackCarry2NzN3Max v.1 v.2.1 v.2.2.1 v.2.2.2
+      u.2.1 u.2.2.1 u.2.2.2.1 u.2.2.2.2 (0 : Word)) ∧
+  (if bltu_0 then
+    loopBodyN3CallAddbackCarry2NzV4 v.1 v.2.1 v.2.2.1 v.2.2.2
+      u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1
+   else
+    isAddbackCarry2NzN3Max v.1 v.2.1 v.2.2.1 v.2.2.2
+      u.1 r1.2.1 r1.2.2.1 r1.2.2.2.1 r1.2.2.2.2.1)
+
+/-- Selected-carry n=3 V4 path predicate. Unlike
+    `fullDivN3PathConditionsV4`, this contains no `Carry2NzAll` component. -/
+abbrev fullDivN3SelectedPathConditionsV4 (bltu_1 bltu_0 : Bool)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : Prop :=
+  isTrialN3V4_j1 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+  isTrialN3V4_j0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+  fullDivN3SelectedCarryV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+  fullDivN3MulSubEqV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 ∧
+  fullDivN3QuotientOverestimateV4 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3
+
 /-- Project the v4 N3 normalized mulsub equation from the bundled explicit-limb path. -/
 theorem fullDivN3PathConditionsV4_mulsub
     (bltu_1 bltu_0 : Bool) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
@@ -109,6 +142,12 @@ theorem fullDivN3PathConditionsV4_overestimate
 abbrev fullDivN3PathConditionsWordV4 (bltu_1 bltu_0 : Bool)
     (a b : EvmWord) : Prop :=
   fullDivN3PathConditionsV4 bltu_1 bltu_0
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+
+abbrev fullDivN3SelectedPathConditionsWordV4 (bltu_1 bltu_0 : Bool)
+    (a b : EvmWord) : Prop :=
+  fullDivN3SelectedPathConditionsV4 bltu_1 bltu_0
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
@@ -161,6 +200,51 @@ theorem fullDivN3PathConditionsWordV4_overestimate
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     hpath
+
+/-- Project the selected carry package from the selected-carry word path. -/
+theorem fullDivN3SelectedPathConditionsWordV4_selectedCarry
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3SelectedPathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3SelectedCarryV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.2.1
+
+/-- Project the first v4 N3 trial-branch witness from the selected-carry word path. -/
+theorem fullDivN3SelectedPathConditionsWordV4_trial_j1
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3SelectedPathConditionsWordV4 bltu_1 bltu_0 a b) :
+    isTrialN3V4_j1 bltu_1
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.1
+
+/-- Project the second v4 N3 trial-branch witness from the selected-carry word path. -/
+theorem fullDivN3SelectedPathConditionsWordV4_trial_j0
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3SelectedPathConditionsWordV4 bltu_1 bltu_0 a b) :
+    isTrialN3V4_j0 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.1
+
+/-- Project the v4 N3 normalized mulsub equation from the selected-carry word path. -/
+theorem fullDivN3SelectedPathConditionsWordV4_mulsub
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3SelectedPathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3MulSubEqV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.2.2.1
+
+/-- Project the v4 N3 quotient-overestimate fact from the selected-carry word path. -/
+theorem fullDivN3SelectedPathConditionsWordV4_overestimate
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hpath : fullDivN3SelectedPathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  hpath.2.2.2.2
 
 /-- n=3 quotient bridge specialized to the explicit limb variables used by the
     unified-bound wrappers. -/
@@ -351,6 +435,42 @@ theorem fullDivN3QuotientWordV4_eq_div_of_word_path_conditions_ne_zero
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
         EvmWord.div a b := by
   exact fullDivN3QuotientWordV4_eq_div_of_word_path_conditions
+    bltu_1 bltu_0 a b ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hpath
+
+/-- EvmWord-level v4 quotient bridge from the selected-carry N3 path predicate.
+
+    This avoids the false `fullDivN3Carry2NzV4`/`Carry2NzAll` package: quotient
+    correctness only needs the selected path's mulsub equation and
+    quotient-overestimate fact. -/
+theorem fullDivN3QuotientWordV4_eq_div_of_selected_word_path_conditions
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hpath : fullDivN3SelectedPathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3QuotientWordV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b := by
+  exact fullDivN3QuotientWordV4_eq_div_of_limbs_mulsub_overestimate
+    bltu_1 bltu_0
+    (a0 := a.getLimbN 0) (a1 := a.getLimbN 1)
+    (a2 := a.getLimbN 2) (a3 := a.getLimbN 3)
+    (b0 := b.getLimbN 0) (b1 := b.getLimbN 1)
+    (b2 := b.getLimbN 2) (b3 := b.getLimbN 3)
+    rfl rfl rfl rfl rfl rfl rfl rfl hbnz
+    (fullDivN3SelectedPathConditionsWordV4_mulsub bltu_1 bltu_0 a b hpath)
+    (fullDivN3SelectedPathConditionsWordV4_overestimate bltu_1 bltu_0 a b hpath)
+
+/-- EvmWord-level v4 quotient bridge from the selected-carry N3 path predicate,
+    accepting the public `b ≠ 0` nonzero form. -/
+theorem fullDivN3QuotientWordV4_eq_div_of_selected_word_path_conditions_ne_zero
+    (bltu_1 bltu_0 : Bool) (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hpath : fullDivN3SelectedPathConditionsWordV4 bltu_1 bltu_0 a b) :
+    fullDivN3QuotientWordV4 bltu_1 bltu_0
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b := by
+  exact fullDivN3QuotientWordV4_eq_div_of_selected_word_path_conditions
     bltu_1 bltu_0 a b ((EvmWord.ne_zero_iff_getLimbN_or).mp hbnz) hpath
 
 /-- Explicit-limb v4 four-limb division witness from the bundled N3 path
