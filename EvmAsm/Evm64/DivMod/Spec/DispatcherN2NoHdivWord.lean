@@ -3,6 +3,13 @@
 
   Exact-bound N2 dispatcher wrappers whose semantic quotient equality is
   derived from the mulsub/overestimate bridge instead of supplied directly.
+
+  Legacy note:
+  These dispatcher wrappers still thread the old universal `Carry2NzAll`
+  premise through the N2 stack path. That package is counterexample-false as a
+  final/public proof surface, so this module is retained as a compatibility
+  shim only. New v4 N2 callable/final work should use selected-carry wrappers
+  from `Spec.N2V4CallableExactSelected` instead of extending this path.
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.UnifiedExactNoNop
