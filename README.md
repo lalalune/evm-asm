@@ -221,11 +221,17 @@ execution-specs/              -- Submodule: Ethereum execution specs
 Verified `Program`s can be emitted as RV64 assembly, assembled, linked,
 and run on the [Zisk](https://0xpolygonhermez.github.io/zisk/) emulator
 (`ziskemu`). See [CODEGEN.md](CODEGEN.md) for the roadmap and status.
-M0–M4 are complete: text emitter, total `Instr` coverage with build-time
-`#guard` round-trip tests, `evm_add` 256-bit round-trip on `ziskemu`
-from both a baked-in `.data` section and from prover input via
-`ziskemu -i`. M5 (tiny EVM interpreter on `PUSH1 1 PUSH1 2 ADD STOP`)
-is the next milestone.
+**M0–M10 are complete**: text emitter, total `Instr` coverage with
+build-time `#guard` round-trip tests, `evm_add` 256-bit round-trip on
+`ziskemu` from both a baked-in `.data` section and from prover input
+via `ziskemu -i`, tiny EVM interpreter with runtime fetch/decode/
+dispatch (M5a/M5b), 91 wired opcodes through `tinyInterpRegistry`
+(PUSH0–32, DUP1–16, SWAP1–16, 17 fixed-shape singletons, MLOAD/MSTORE/
+MSTORE8, DIV/MOD, SDIV/SMOD via trampoline, ADDMOD via inline-callable),
+and a runtime-bytecode dispatcher (M8.5) that shaves the regression
+suite from ~60 s to ~20 s. Codegen-proofs **Phase 1 (registry
+invariants)** and the first 13/91 instances of **Phase 4 (handler-level
+`cpsTripleWithin` specs)** have landed under `EvmAsm/Codegen/Proofs/`.
 
 Quick start:
 
@@ -238,6 +244,7 @@ ziskemu -e gen-out/evm_add.elf -o gen-out/evm_add.output
 scripts/codegen-smoke.sh                            # M0 toolchain validation
 scripts/codegen-evm_add-check.sh                    # M2 verified ADD
 scripts/codegen-evm_add-from-input-check.sh         # M4 ADD from ziskemu -i
+scripts/codegen-opcodes-runtime-check.sh            # M8.5 31-case opcode regression
 ```
 
 Setup requirements: `riscv64-elf-binutils` (or `riscv-gnu-toolchain`)
@@ -316,6 +323,22 @@ block-body helpers
 `chain_validate_full`,
 `chain_validate_increasing_timestamps`,
 `chain_validate_consecutive_numbers`,
+`chain_extract_basefee_range`,
+`chain_validate_basefee_non_decreasing`,
+`chain_validate_basefee_non_increasing`,
+`chain_validate_gas_limit_constant`,
+`chain_validate_gas_limit_non_decreasing`,
+`chain_validate_gas_limit_non_increasing`,
+`chain_extract_gas_limit_first_last`,
+`chain_compute_total_gas_limit`,
+`chain_extract_excess_blob_gas_first_last`,
+`chain_compute_max_excess_blob_gas`,
+`chain_compute_min_excess_blob_gas`,
+`chain_compute_max_blob_count`,
+`chain_compute_min_blob_count`,
+`chain_extract_first_last_parent_beacon_block_root`,
+`chain_extract_first_last_requests_hash`,
+`header_extract_requests_hash`,
 withdrawal RLP/hash, …), and address
 derivation (`address_compute_create`, `address_compute_create2`,
 `address_from_pubkey`). The catalogue is tracked under the
@@ -448,10 +471,12 @@ Top-line invariants:
   `seqFrame`, `liftSpec`, `runBlock`).
 - **EVM opcode coverage**: see the [`PROGRESS.md`](PROGRESS.md) coverage
   table — currently proven, partial, executable-spec-only, and not-started
-  tiers are tracked per opcode against the 143 bytes in
-  `EvmAsm.Evm64.EvmOpcode`.
-- **Codegen**: M0–M4 of [`CODEGEN.md`](CODEGEN.md) shipped; M5 (tiny EVM
-  interpreter) is next.
+  tiers are tracked per opcode against the 149 byte-codes in
+  `EvmAsm.Evm64.EvmOpcode` (PUSH/DUP/SWAP/LOG families expanded).
+- **Codegen**: M0–M10 of [`CODEGEN.md`](CODEGEN.md) shipped (text emitter,
+  tiny EVM interpreter with runtime dispatcher, 91 wired opcodes including
+  DIV/MOD, SDIV/SMOD, ADDMOD); codegen-proofs Phase 1 (registry invariants)
+  and initial Phase 4 handler specs (13/91) have landed.
 - **Stateless-guest scaffold** (`PR-K*` series): unproved RV64
   macro-asm helpers for RLP, MPT, transaction decoding,
   account / block-body accessors, and address derivation. Each
