@@ -541,6 +541,90 @@ theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_of_path_evidenc
     (N1AllTruePathEvidence.selectedCarryIfBorrowFacts hpath)
     hfacts
 
+/-- Project the hdiv package from all-true N1 path evidence for the canonical
+    `getLimbN` inputs. -/
+theorem FullDivN1CallMaxmaxmaxHdivs_of_path_evidence_getLimbN
+    (sp base : Word) (a b : EvmWord)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hbltu3 : isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0))
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+        0 0 0).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+        0 0 0
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+        0 0 0
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hpath : N1AllTruePathEvidence a b)
+    (hfacts : FullDivN1CallMaxmaxmaxSemanticFactsV4
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    FullDivN1CallMaxmaxmaxHdivs a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  exact FullDivN1CallMaxmaxmaxHdivs_of_selected_if_borrow_semantic_evidence
+    sp base a b jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+    rfl rfl rfl rfl rfl rfl rfl rfl hbnz
+    (FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_of_path_evidence_getLimbN
+      sp base a b jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hbltu3 hbltu2 hbltu1 hbltu0 hpath hfacts)
+
 /-- Project the named hdiv package from explicit branch facts, conditional
     selected carry facts, and semantic facts. -/
 theorem FullDivN1CallMaxmaxmaxHdivs_of_selected_if_borrow_semantic_facts
