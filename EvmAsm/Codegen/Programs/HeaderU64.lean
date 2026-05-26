@@ -1127,4 +1127,109 @@ def ziskChainExtractGasLimitFirstLastProbeUnit : BuildUnit := {
   dataAsm     := ziskChainExtractGasLimitFirstLastDataSection
 }
 
+/-! ## chain_extract_excess_blob_gas_first_last -- PR-K271
+
+    Extract `(first_excess_blob_gas, last_excess_blob_gas)`
+    (header field 18, Cancun+) from an N-element header chain.
+    Mirrors K247 chain_extract_basefee_first_last and K265
+    chain_extract_gas_limit_first_last by field.
+
+    Excess blob gas is a running counter that determines blob
+    base fee; the (first, last) pair surfaces blob-market drift
+    across a chain segment without aggregating intermediate
+    values.
+
+    Pre-Cancun headers (<19 fields) raise parse-failure status.
+
+    Calling convention:
+      a0 (input)  : N (header count, must be >= 1)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr
+      a3 (input)  : u64 out (first_excess_blob_gas)
+      a4 (input)  : u64 out (last_excess_blob_gas)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : empty chain (N == 0)
+        2 : RLP parse failure on some header
+        3 : excess_blob_gas field > 8 bytes BE on some header -/
+def chainExtractExcessBlobGasFirstLastFunction : String :=
+  "chain_extract_excess_blob_gas_first_last:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  beqz s0, .Lceebgfl_empty\n" ++
+  "  # first = headers[0].excess_blob_gas (field 18)\n" ++
+  "  ld a1, 0(s1)\n" ++
+  "  mv a0, s2\n" ++
+  "  li a2, 18\n" ++
+  "  mv a3, s3\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lceebgfl_propagate\n" ++
+  "  # Advance to last header\n" ++
+  "  mv t1, s2\n" ++
+  "  mv t2, s1\n" ++
+  "  addi t3, s0, -1\n" ++
+  ".Lceebgfl_skip:\n" ++
+  "  beqz t3, .Lceebgfl_at_last\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  add t1, t1, t4\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lceebgfl_skip\n" ++
+  ".Lceebgfl_at_last:\n" ++
+  "  ld a1, 0(t2)\n" ++
+  "  mv a0, t1\n" ++
+  "  li a2, 18\n" ++
+  "  mv a3, s4\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lceebgfl_propagate\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lceebgfl_ret\n" ++
+  ".Lceebgfl_empty:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lceebgfl_ret\n" ++
+  ".Lceebgfl_propagate:\n" ++
+  "  addi a0, a0, 1\n" ++
+  ".Lceebgfl_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainExtractExcessBlobGasFirstLastPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  li a4, 0xa0010010\n" ++
+  "  jal ra, chain_extract_excess_blob_gas_first_last\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lceebgfl_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainExtractExcessBlobGasFirstLastFunction ++ "\n" ++
+  ".Lceebgfl_pdone:"
+
+def ziskChainExtractExcessBlobGasFirstLastDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8"
+
+def ziskChainExtractExcessBlobGasFirstLastProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainExtractExcessBlobGasFirstLastPrologue
+  dataAsm     := ziskChainExtractExcessBlobGasFirstLastDataSection
+}
+
 end EvmAsm.Codegen
