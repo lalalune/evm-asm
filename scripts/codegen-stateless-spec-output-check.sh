@@ -76,6 +76,7 @@ run_fixture() {
   local witness_code_hex="${4:-}"
   local witness_state_hex="${5:-}"
   local public_key_hex="${6:-}"
+  local block_number="${7:-}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -83,7 +84,7 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty})"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty})"
   uv run --directory execution-specs --quiet python3 -c "
 import struct, sys
 from ethereum.forks.amsterdam.stateless_ssz import (
@@ -113,19 +114,23 @@ fork_idx = int(sys.argv[4], 0)
 code_hex = sys.argv[5]
 state_hex = sys.argv[6]
 pk_hex = sys.argv[7]
+bn_str = sys.argv[8]
 
 # Build the new-schema StatelessInput: empty new_payload_request,
 # witness whose 'state'/'codes' lists each hold zero or more
 # entries (controlled by the fixture), 'headers' empty,
 # chain_config(cid, SszForkConfig(fork=fork_idx, empty activation,
 # empty blob_schedule)), empty public_keys.
-empty_activation = SszForkActivation(
-    block_number=SszOptionalForkActivationValue(),
+bn_list = SszOptionalForkActivationValue()
+if bn_str:
+    bn_list = SszOptionalForkActivationValue(uint64(int(bn_str, 0)))
+activation = SszForkActivation(
+    block_number=bn_list,
     timestamp=SszOptionalForkActivationValue(),
 )
 fork_cfg = SszForkConfig(
     fork=uint64(fork_idx),
-    activation=empty_activation,
+    activation=activation,
     blob_schedule=SszOptionalBlobSchedule(),
 )
 cc = SszChainConfig(chain_id=uint64(cid), active_fork=fork_cfg)
@@ -177,18 +182,18 @@ with open(sys.argv[2], 'wb') as f:
 # The Lean ELF should match this byte-for-byte for the current
 # empty-input regime.
 spec_bytes = bytes(run_stateless_guest(input_bytes))
-assert len(spec_bytes) == 73, f'spec: expected 73, got {len(spec_bytes)}'
 with open(sys.argv[3], 'w') as f:
     f.write(spec_bytes.hex())
-" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex"
+" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number"
 
   echo "==> [$label] ziskemu run"
   "$ZISKEMU" -e gen-out/stateless_guest.elf -i "$input_file" \
     -o "$out_file" -n 500000 >"$log_file" 2>&1
 
-  local actual spec_expected
-  actual="$(xxd -p -l 73 "$out_file" | tr -d '\n')"
+  local actual spec_expected spec_len
   spec_expected="$(cat "$spec_exp_file")"
+  spec_len=$(( ${#spec_expected} / 2 ))
+  actual="$(xxd -p -l "$spec_len" "$out_file" | tr -d '\n')"
 
   echo "    ELF actual:              $actual"
   echo "    Python run_stateless_guest:"
@@ -258,6 +263,14 @@ run_fixture "chain1_witcode_2"      1                  0    "deadbeef:cafef00d" 
 # witness field is non-empty. State entry is one arbitrary node.
 run_fixture "chain1_witstate"       1                  0    ""           "a1b2c3d4e5f60718" || fail=1
 
+# Two witness.state entries -- parallel to chain1_witcode_2 but on
+# the FIRST inner witness field. The state list is variable-size
+# elements (ByteList[MAX_BYTES_PER_WITNESS_NODE]), so a 2-element
+# list ships its own u32 inner offset table prefix. Completes the
+# 1-vs-2 entries matrix across all three list-type SSZ slots
+# (codes, state, public_keys).
+run_fixture "chain1_witstate_2"     1                  0    ""           "a1b2c3d4e5f60718:9988776655443322" || fail=1
+
 # Both witness.state AND witness.codes non-empty simultaneously --
 # the inner-witness offset table now has three pairwise-distinct
 # offsets (state_offset < codes_offset < headers_offset), pushing
@@ -291,6 +304,16 @@ run_fixture "chain1_pk_2"           1                  0    ""           ""     
 # outer-offset read at SSZ_BASE+8 is robust under the maximum
 # byte-budget shift this fixture set produces.
 run_fixture "chain1_all_outer"      1                  0    "deadbeef"   "a1b2c3d4e5f60718"  "04$(printf '%064d' 0)$(printf '%064d' 0)" || fail=1
+
+# Non-empty `active_fork.activation.block_number = [N]` --
+# exercises the encoder's variable-length-output path. Spec
+# emits 81 bytes (vs 73 for empty activation): the extra 8
+# bytes are the block_number u64 at OUTPUT[73..81). The
+# encoder now byte-copies active_fork[16..32) from input,
+# which covers both the activation header (offset_block_number
+# + offset_timestamp, bytes 16..24) and the block_number value
+# (bytes 24..32) when present.
+run_fixture "chain1_actbn"          1                  0    ""           ""                  ""    "1234567890" || fail=1
 
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"

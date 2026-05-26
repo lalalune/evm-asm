@@ -148,14 +148,52 @@ def serialize_stateless_output : Program :=
   SLLI .x7 .x12 8 ;;
   SD .x6 .x7 48 ;;
   -- bytes [56..64): fork high byte || offset_activation=16 || offset_blob_schedule_lo3
+  -- offset_blob_schedule (low byte of the u32 at output[61..65))
+  -- defaults to 24 (= empty-activation case); the LBU+SB below
+  -- overwrites it with the input's actual offset_blob_schedule for
+  -- non-empty activation cases.
   SRLI .x7 .x12 56 ;;
   LI .x5 0x180000001000 ;;
   OR' .x7 .x7 .x5 ;;
   SD .x6 .x7 56 ;;
-  -- bytes [64..72): offset_blob_schedule high (0) || offset_bn=8 || offset_ts_lo3
-  LI .x7 0x80000000800 ;;
-  SD .x6 .x7 64 ;;
-  -- byte 72: offset_ts high (0)
-  SB .x6 .x0 72
+  -- Override output[61] with input's offset_blob_schedule LSB
+  -- (= chain_config[24] = active_fork[12]). Always <= 64 for the
+  -- amsterdam schema (one MAX_OPTIONAL_FORK_ACTIVATION_VALUES slot
+  -- + one MAX_BLOB_SCHEDULES_PER_FORK slot), so 1 byte suffices.
+  LBU .x7 .x13 24 ;;
+  SB .x6 .x7 61 ;;
+  -- bytes [65..81): byte-copy active_fork[16..32) from input.
+  -- active_fork[16..24) = activation header (offset_block_number,
+  --   offset_timestamp); same shape regardless of emptiness:
+  --     empty:                  [8, 0, 0, 0, 8, 0, 0, 0]
+  --     block_number=[N]:       [8, 0, 0, 0, 16, 0, 0, 0]
+  -- active_fork[24..32) = block_number value (8 bytes) IF
+  --   activation.block_number is non-empty; otherwise PAST the
+  --   active_fork section (ziskemu zero-fills past file content).
+  -- For empty activation, output[73..81) is past spec.len() (= 73)
+  -- and the test framework only compares the first spec.len()
+  -- bytes, so garbage there doesn't matter.
+  -- byte 64 left at zero (the high byte of offset_blob_schedule,
+  -- written by the SD at offset 56 -- this works because
+  -- offset_blob_schedule is always <= 64 fits in one byte).
+  LBU .x7 .x13 28 ;; SB .x6 .x7 65 ;;
+  LBU .x7 .x13 29 ;; SB .x6 .x7 66 ;;
+  LBU .x7 .x13 30 ;; SB .x6 .x7 67 ;;
+  LBU .x7 .x13 31 ;; SB .x6 .x7 68 ;;
+  LBU .x7 .x13 32 ;; SB .x6 .x7 69 ;;
+  LBU .x7 .x13 33 ;; SB .x6 .x7 70 ;;
+  LBU .x7 .x13 34 ;; SB .x6 .x7 71 ;;
+  LBU .x7 .x13 35 ;; SB .x6 .x7 72 ;;
+  LBU .x7 .x13 36 ;; SB .x6 .x7 73 ;;
+  LBU .x7 .x13 37 ;; SB .x6 .x7 74 ;;
+  LBU .x7 .x13 38 ;; SB .x6 .x7 75 ;;
+  LBU .x7 .x13 39 ;; SB .x6 .x7 76 ;;
+  LBU .x7 .x13 40 ;; SB .x6 .x7 77 ;;
+  LBU .x7 .x13 41 ;; SB .x6 .x7 78 ;;
+  LBU .x7 .x13 42 ;; SB .x6 .x7 79 ;;
+  LBU .x7 .x13 43 ;; SB .x6 .x7 80 ;;
+  -- byte 64: high byte of offset_blob_schedule (always 0 since
+  -- the value fits in 1 byte).
+  SB .x6 .x0 64
 
 end EvmAsm.Stateless.SSZ.Encode
