@@ -2,6 +2,9 @@
 # codegen-stateless-spec-output-check.sh -- new-schema (zkevm-projects/
 # d7fe16ab8) `SszStatelessValidationResult` round-trip.
 #
+# Drives the ELF against the spec entrypoint run_stateless_guest()
+# directly and requires a byte-for-byte match.
+#
 # What's exercised:
 #   * Input shape: `STATELESS_INPUT_SCHEMA_ID_BYTES` (= b'\x00\x01')
 #     prepended to the SSZ-encoded `SszStatelessInput`, then the
@@ -15,20 +18,17 @@
 #     validators take the N=0 fast path until the new-schema witness
 #     walk is wired up (follow-up).
 #
-# Two comparisons per fixture:
-#   1. Against the Lean encoder's INTENDED output -- hand-constructed
-#      `SszStatelessValidationResult(hash_tree_root(witness), 1,
-#      chain_config)`. Byte-for-byte match is required (pass/fail).
-#   2. Against Python's `run_stateless_guest(input_bytes)` -- the spec
-#      entrypoint. The Lean ELF diverges from this in TWO documented
-#      ways that the test prints but does not fail on:
-#        (a) bytes 0..32: Lean stamps `hash_tree_root(witness)` while
-#            the spec stamps `compute_new_payload_request_root(input)`.
-#            Aligning these is a follow-up.
-#        (b) byte 32: Lean's epilogue takes the `.Lsg_all_pass` fast
-#            path (writes 1) while Python's `verify_stateless_new_
-#            payload` raises on the empty witness (returns 0). A real
-#            STF wiring would converge them.
+# How the ELF achieves spec-match in the empty-input regime:
+#   (a) The decoder stub leaves `x11 = 0`; the encoder writes
+#       `successful_validation = 0` (matching the spec's
+#       `verify_stateless_new_payload(empty) == False` outcome --
+#       `validate_headers([])` raises).
+#   (b) The epilogue stamps `compute_new_payload_request_root(empty)`
+#       (a 32-byte constant `empty_npr_root` in `.data`) at OUTPUT
+#       bytes [0..32). This is the spec's hash field for any input
+#       whose `new_payload_request` is empty.
+# A future PR generalising `hash_tree_root(SszNewPayloadRequest)` to
+# non-empty payloads will switch this stamp to a real computation.
 #
 # Fixtures: 5 chain_id values (1, 0x1234567890ABCDEF, 0, max-u32,
 # max-u64).
@@ -63,11 +63,8 @@ echo "==> emit stateless_guest ELF"
 lake exe codegen --program stateless_guest --halt linux93 \
   -o gen-out/stateless_guest
 
-# Generate one fixture, build input, run ELF, then run TWO compares:
-#  (1) Against the Lean encoder's INTENDED output (must match).
-#  (2) Against Python's `run_stateless_guest(input_bytes)` (informational
-#      diff is printed; mismatches in bytes 0..32 and byte 32 are
-#      tolerated and documented).
+# Generate one fixture, build input, run ELF, diff against
+# run_stateless_guest byte-for-byte.
 run_fixture() {
   local label="$1"
   local cid="$2"
@@ -75,11 +72,10 @@ run_fixture() {
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
   local out_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.output"
-  local lean_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.lean-expected"
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + expecteds (chain_id=$cid)"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid)"
   uv run --directory execution-specs --quiet python3 -c "
 import struct, sys
 from ethereum.forks.amsterdam.stateless_ssz import (
@@ -90,14 +86,11 @@ from ethereum.forks.amsterdam.stateless_ssz import (
     SszForkConfig,
     SszNewPayloadRequest,
     SszStatelessInput,
-    SszStatelessValidationResult,
     SszOptionalBlobSchedule,
     SszOptionalForkActivationValue,
-    validation_result_to_ssz,
 )
 from ethereum.forks.amsterdam.stateless_guest import run_stateless_guest
-from remerkleable.basic import boolean, uint64
-from remerkleable.byte_arrays import Bytes32
+from remerkleable.basic import uint64
 
 cid = int(sys.argv[1], 0)
 
@@ -130,70 +123,48 @@ with open(sys.argv[2], 'wb') as f:
     f.write(input_bytes)
     if pad: f.write(b'\\x00' * pad)
 
-# --- Expected #1: Lean encoder's INTENDED output ---
-# hash_tree_root(witness) stamped at [0..32) by the epilogue
-# + successful_validation = 1 (epilogue's .Lsg_all_pass override)
-# + chain_config (SSZ-encoded by Lean).
-witness_root = ssz_input.witness.hash_tree_root()
-lean_intended = SszStatelessValidationResult(
-    new_payload_request_root=Bytes32(bytes(witness_root)),
-    successful_validation=boolean(True),
-    chain_config=cc,
-)
-lean_bytes = lean_intended.encode_bytes()
-assert len(lean_bytes) == 73, f'lean: expected 73, got {len(lean_bytes)}'
-with open(sys.argv[3], 'w') as f:
-    f.write(lean_bytes.hex())
-
-# --- Expected #2: Spec's run_stateless_guest output ---
-# This is what a fully-implemented STF would produce.
+# Expected = Python run_stateless_guest output -- the spec entrypoint.
+# The Lean ELF should match this byte-for-byte for the current
+# empty-input regime.
 spec_bytes = bytes(run_stateless_guest(input_bytes))
 assert len(spec_bytes) == 73, f'spec: expected 73, got {len(spec_bytes)}'
-with open(sys.argv[4], 'w') as f:
+with open(sys.argv[3], 'w') as f:
     f.write(spec_bytes.hex())
-" "$cid" "$input_file" "$lean_exp_file" "$spec_exp_file"
+" "$cid" "$input_file" "$spec_exp_file"
 
   echo "==> [$label] ziskemu run"
   "$ZISKEMU" -e gen-out/stateless_guest.elf -i "$input_file" \
     -o "$out_file" -n 500000 >"$log_file" 2>&1
 
-  local actual lean_expected spec_expected
+  local actual spec_expected
   actual="$(xxd -p -l 73 "$out_file" | tr -d '\n')"
-  lean_expected="$(cat "$lean_exp_file")"
   spec_expected="$(cat "$spec_exp_file")"
 
-  echo "    Lean intended:           $lean_expected"
   echo "    ELF actual:              $actual"
   echo "    Python run_stateless_guest:"
   echo "                             $spec_expected"
 
-  # Diff actual vs spec, byte by byte, to show divergence regions.
-  python3 -c "
-a = bytes.fromhex('$actual')
-s = bytes.fromhex('$spec_expected')
-diffs = [(i, a[i], s[i]) for i in range(len(a)) if a[i] != s[i]]
-if not diffs:
-    print('    spec diff: none -- ELF output matches run_stateless_guest exactly!')
-else:
-    # Coalesce contiguous diff ranges.
-    ranges = []
-    cur = [diffs[0][0], diffs[0][0]]
-    for (i, _, _) in diffs[1:]:
-        if i == cur[1] + 1:
-            cur[1] = i
-        else:
-            ranges.append(tuple(cur))
-            cur = [i, i]
-    ranges.append(tuple(cur))
-    rs = ', '.join(f'[{lo}..{hi+1})' for lo, hi in ranges)
-    print(f'    spec diff: bytes {rs} differ from spec (documented: hash field + valid bit)')
-"
-
-  if [[ "$actual" == "$lean_expected" ]]; then
-    echo "    PASS (matches Lean intended)"
+  if [[ "$actual" == "$spec_expected" ]]; then
+    echo "    PASS (matches run_stateless_guest exactly)"
     return 0
   else
-    echo "    FAIL (ELF actual != Lean intended)"
+    # Show coalesced diff ranges to make tracking regressions easy.
+    python3 -c "
+a = bytes.fromhex('$actual')
+s = bytes.fromhex('$spec_expected')
+diffs = [i for i in range(len(a)) if a[i] != s[i]]
+ranges = []
+cur = [diffs[0], diffs[0]]
+for i in diffs[1:]:
+    if i == cur[1] + 1:
+        cur[1] = i
+    else:
+        ranges.append(tuple(cur)); cur = [i, i]
+ranges.append(tuple(cur))
+rs = ', '.join(f'[{lo}..{hi+1})' for lo, hi in ranges)
+print(f'    spec diff: bytes {rs} differ from spec')
+"
+    echo "    FAIL"
     return 1
   fi
 }
