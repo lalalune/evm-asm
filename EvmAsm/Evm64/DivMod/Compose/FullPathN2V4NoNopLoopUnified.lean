@@ -242,6 +242,100 @@ theorem loopN2SelectedCarryV4_j0
   rw [loopN2SelectedCarryV4] at hcarry
   exact hcarry.2.2
 
+/-- Build the n=2 max-max-max source conditions from selected carry evidence. -/
+theorem loopN2MaxMaxMaxSourceConds_of_selectedCarryV4
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word)
+    (hbltu_2 : ¬BitVec.ult u2 v1)
+    (hbltu_1 : ¬BitVec.ult
+      (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
+    (hbltu_0 : ¬BitVec.ult
+      (iterN2Max v0 v1 v2 v3 u0Orig1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
+    (hcarry : loopN2SelectedCarryV4 false false false
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0) :
+    loopN2MaxMaxMaxSourceConds v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig1 u0Orig0 := by
+  rw [loopN2SelectedCarryV4] at hcarry
+  rw [loopN2MaxMaxMaxSourceConds_unfold]
+  simp only [loopN2IterSelectedV4_false, r2MMMN2V4_eq, r1MMMN2V4_eq] at hcarry ⊢
+  exact ⟨hbltu_2, hcarry.1, hbltu_1, hcarry.2.1, hbltu_0, hcarry.2.2⟩
+
+/-- Build the n=2 max-max-call source conditions from selected carry evidence. -/
+theorem loopN2MaxMaxCallSourceConds_of_selectedCarryV4
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word)
+    (hbltu_2 : ¬BitVec.ult u2 v1)
+    (hbltu_1 : ¬BitVec.ult
+      (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
+    (hbltu_0 : BitVec.ult
+      (iterN2Max v0 v1 v2 v3 u0Orig1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
+    (hcarry : loopN2SelectedCarryV4 false false true
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0) :
+    loopN2MaxMaxCallSourceConds v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig1 u0Orig0 := by
+  rw [loopN2SelectedCarryV4] at hcarry
+  rw [loopN2MaxMaxCallSourceConds_unfold]
+  simp only [loopN2IterSelectedV4_false, r2MMTN2V4_eq, r1MMTN2V4_eq] at hcarry ⊢
+  exact ⟨hbltu_2, hcarry.1, hbltu_1, hcarry.2.1, hbltu_0, hcarry.2.2⟩
+
+/-- Build the n=2 max-call-max source conditions from selected carry evidence. -/
+theorem loopN2MaxCallMaxSourceConds_of_selectedCarryV4
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word)
+    (hbltu_2 : ¬BitVec.ult u2 v1)
+    (hbltu_1 : BitVec.ult
+      (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
+    (hbltu_0 : ¬BitVec.ult
+      (iterWithDoubleAddback
+        (divKTrialCallV4QHat
+          (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+          (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v1)
+        v0 v1 v2 v3 u0Orig1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
+    (hcarry : loopN2SelectedCarryV4 false true false
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0) :
+    loopN2MaxCallMaxSourceConds v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig1 u0Orig0 := by
+  rw [loopN2SelectedCarryV4] at hcarry
+  rw [loopN2MaxCallMaxSourceConds_unfold]
+  simp only [loopN2IterSelectedV4_false, loopN2IterSelectedV4_true,
+    r2MTMN2V4_eq, r1MTMN2V4_eq] at hcarry ⊢
+  exact ⟨hbltu_2, hcarry.1, hbltu_1, hcarry.2.1, hbltu_0, hcarry.2.2⟩
+
+/-- Build the n=2 max-call-call source conditions from selected carry evidence. -/
+theorem loopN2MaxCallCallSourceConds_of_selectedCarryV4
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0 : Word)
+    (hbltu_2 : ¬BitVec.ult u2 v1)
+    (hbltu_1 : BitVec.ult
+      (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1 v1)
+    (hbltu_0 : BitVec.ult
+      (iterWithDoubleAddback
+        (divKTrialCallV4QHat
+          (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+          (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1 v1)
+        v0 v1 v2 v3 u0Orig1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
+        (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1)
+    (hcarry : loopN2SelectedCarryV4 false true true
+      v0 v1 v2 v3 u0 u1 u2 u3 uTop u0Orig1 u0Orig0) :
+    loopN2MaxCallCallSourceConds v0 v1 v2 v3 u0 u1 u2 u3 uTop
+      u0Orig1 u0Orig0 := by
+  rw [loopN2SelectedCarryV4] at hcarry
+  rw [loopN2MaxCallCallSourceConds_unfold]
+  simp only [loopN2IterSelectedV4_false, loopN2IterSelectedV4_true,
+    r2MTTN2V4_eq, r1MTTN2V4_eq] at hcarry ⊢
+  exact ⟨hbltu_2, hcarry.1, hbltu_1, hcarry.2.1, hbltu_0, hcarry.2.2⟩
+
 /-- Unified n=2 v4 no-NOP loop source theorem, dispatching to the 8 per-case
     proofs via `bltu_2 × bltu_1 × bltu_0`.  Preserves caller-owned exact `x1`.
     The 672-step bound accommodates the worst-case (all-call) path; lighter paths
