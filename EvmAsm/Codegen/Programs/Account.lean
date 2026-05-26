@@ -873,4 +873,75 @@ def ziskAccountRefundGasPostExecProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountRefundGasPostExecDataSection
 }
 
+/-! ## account_validate_balance_zero -- PR-K259
+
+    Predicate: `account.balance == 0`. RLP canonical zero is the
+    empty byte string, so this is the predicate
+    `length(field 1) == 0`. Mirror of K242
+    `account_validate_nonce_zero`; completes the
+    nonce/balance/storage_root/code_hash zero-predicates pair
+    needed for EIP-161 emptiness checks.
+
+    Calling convention:
+      a0 (input)  : account_rlp ptr
+      a1 (input)  : account_rlp byte length
+      a2 (input)  : u64 out (1 if balance == 0)
+      ra (input)  : return
+      a0 (output) :
+        0 : success — predicate written
+        1 : RLP parse failure / field 1 missing -/
+def accountValidateBalanceZeroFunction : String :=
+  "account_validate_balance_zero:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp)\n" ++
+  "  mv s0, a2                      # is_valid out\n" ++
+  "  sd zero, 0(s0)\n" ++
+  "  li a2, 1                       # field 1 = balance\n" ++
+  "  la a3, avbz_offset; la a4, avbz_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lavbz_parse_fail\n" ++
+  "  la t0, avbz_length; ld t1, 0(t0)\n" ++
+  "  bnez t1, .Lavbz_nonzero\n" ++
+  "  li t0, 1\n" ++
+  "  sd t0, 0(s0)\n" ++
+  ".Lavbz_nonzero:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lavbz_ret\n" ++
+  ".Lavbz_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lavbz_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret"
+
+def ziskAccountValidateBalanceZeroPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)\n" ++
+  "  addi a0, a3, 16\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  jal ra, account_validate_balance_zero\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lavbz_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  accountValidateBalanceZeroFunction ++ "\n" ++
+  ".Lavbz_pdone:"
+
+def ziskAccountValidateBalanceZeroDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "avbz_offset:\n" ++
+  "  .zero 8\n" ++
+  "avbz_length:\n" ++
+  "  .zero 8"
+
+def ziskAccountValidateBalanceZeroProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountValidateBalanceZeroPrologue
+  dataAsm     := ziskAccountValidateBalanceZeroDataSection
+}
+
 end EvmAsm.Codegen
