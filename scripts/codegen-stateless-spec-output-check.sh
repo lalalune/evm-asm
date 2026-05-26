@@ -276,6 +276,14 @@ run_fixture "chain1_witboth"        1                  0    "deadbeef"   "a1b2c3
 # (04 || 32 zeros || 32 zeros = SEC1 uncompressed-marker prefix).
 run_fixture "chain1_pk"             1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)" || fail=1
 
+# Two public_keys entries -- exercises a 2-element SSZ list of
+# fixed-size ByteVectors. Unlike SszList[ByteList, N] (variable-
+# size elements, requires an inner offset table), this list has
+# NO inner offset table; the 130-byte payload is just the two
+# 65-byte entries concatenated. Doubles the public_keys
+# byte-budget. Decoder's outer-offset chase is unaffected.
+run_fixture "chain1_pk_2"           1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0):04$(printf '%064d' 1)$(printf '%064d' 1)" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0
