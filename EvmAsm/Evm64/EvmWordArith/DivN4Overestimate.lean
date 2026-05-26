@@ -672,6 +672,44 @@ theorem isAddbackCarry2Nz_of_overestimate_c3_one_of_carry_zero
   rw [hzero] at hsecond_top
   norm_num at hsecond_top
 
+/-- N1 max-path specialization of the generic double-addback progress bridge.
+    With a one-limb divisor/window and the selected max-branch condition, the
+    remaining local obligation is the reachable fact that a zero first-addback
+    carry forces the mulsub carry to be one. -/
+theorem isAddbackCarry2NzN1Max_of_not_ult_c3_one_of_carry_zero
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hv0nz : v0 ≠ 0)
+    (hv1z : v1 = 0)
+    (hv2z : v2 = 0)
+    (hv3z : v3 = 0)
+    (hu2z : u2 = 0)
+    (hu3z : u3 = 0)
+    (hbltu : ¬ BitVec.ult u1 v0)
+    (hc3_one_of_carry_zero :
+      addbackN4_carry
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).1
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.1
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+        v0 v1 v2 v3 = 0 →
+      (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1) :
+    isAddbackCarry2NzN1Max v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  unfold isAddbackCarry2NzN1Max
+  apply isAddbackCarry2Nz_of_overestimate_c3_one_of_carry_zero
+  · intro h
+    subst v1
+    subst v2
+    subst v3
+    simp at h
+    exact hv0nz h
+  · subst v1
+    subst v2
+    subst v3
+    subst u2
+    subst u3
+    exact max_trial_local_overestimate_n1_of_not_ult v0 u0 u1 hv0nz hbltu
+  · exact hc3_one_of_carry_zero
+
 /-- Combined Euclidean equation for the double-addback case:
     val256(u) = (q.toNat - 2) * val256(v) + val256(ab'_result). -/
 theorem mulsub_double_addback_val256_combined (q : Word) {v0 v1 v2 v3 u0 u1 u2 u3 : Word}
