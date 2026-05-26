@@ -9,6 +9,8 @@ import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
 import EvmAsm.Evm64.DivMod.Spec.CallAddback
+import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
+import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
 
 namespace EvmAsm.Evm64
 
@@ -221,6 +223,203 @@ theorem evm_div_counterexampleB_v4_regression_pin :
   constructor
   · exact evm_div_uses_div128_v4
   constructor <;> decide
+
+-- N1 universal-carry counterexample:
+--   b0 = 2^63 - 1, b1 = b2 = b3 = 0, shift = 1
+--   qHat = u0 = u1 = u2 = u3 = 2^64 - 1, uTop = 0
+--
+-- This does not exercise a reachable runtime state of the v4 program. It pins
+-- the proof-shape failure: `Carry2NzAll` is too strong when quantified over
+-- arbitrary qHat/u states, even for a normalized one-limb divisor.
+abbrev ceN1CarryB0 : Word := BitVec.ofNat 64 (2^63 - 1)
+abbrev ceN1CarryNormB0 : Word :=
+  ceN1CarryB0 <<< (((clzResult ceN1CarryB0).1).toNat % 64)
+abbrev ceN1CarryMaxWord : Word := BitVec.ofNat 64 (2^64 - 1)
+abbrev ceN1CarryMs :=
+  mulsubN4 ceN1CarryMaxWord ceN1CarryNormB0 0 0 0
+    ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord
+abbrev ceN1CarryAb :=
+  addbackN4 ceN1CarryMs.1 ceN1CarryMs.2.1 ceN1CarryMs.2.2.1
+    ceN1CarryMs.2.2.2.1 (0 - ceN1CarryMs.2.2.2.2)
+    ceN1CarryNormB0 0 0 0
+
+theorem ceN1Carry_norm_eq :
+    ceN1CarryNormB0 = BitVec.ofNat 64 (2^64 - 2) := by
+  native_decide
+
+theorem ceN1Carry_first_carry_zero :
+    addbackN4_carry ceN1CarryMs.1 ceN1CarryMs.2.1 ceN1CarryMs.2.2.1
+      ceN1CarryMs.2.2.2.1 ceN1CarryNormB0 0 0 0 = 0 := by
+  native_decide
+
+theorem ceN1Carry_second_carry_zero :
+    addbackN4_carry ceN1CarryAb.1 ceN1CarryAb.2.1 ceN1CarryAb.2.2.1
+      ceN1CarryAb.2.2.2.1 ceN1CarryNormB0 0 0 0 = 0 := by
+  native_decide
+
+theorem ceN1Carry_isAddbackCarry2Nz_false :
+    ¬ isAddbackCarry2Nz ceN1CarryMaxWord ceN1CarryNormB0 0 0 0
+      ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord 0 := by
+  intro h
+  rw [isAddbackCarry2Nz] at h
+  have h_second_ne := h ceN1Carry_first_carry_zero
+  exact h_second_ne ceN1Carry_second_carry_zero
+
+theorem ceN1Carry_Carry2NzAll_false :
+    ¬ Carry2NzAll ceN1CarryNormB0 0 0 0 := by
+  intro h
+  exact ceN1Carry_isAddbackCarry2Nz_false
+    (h ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord ceN1CarryMaxWord
+      ceN1CarryMaxWord 0)
+
+-- N2/N3 universal-carry counterexamples:
+--
+-- These pin the same proof-shape failure for the current `fullDivN2Carry2NzV4`
+-- and `fullDivN3Carry2NzV4` packages. The bad states are arbitrary
+-- `Carry2NzAll` witnesses, not known reachable runtime states.
+abbrev ceN23CarryB0 : Word := BitVec.ofNat 64 (2^63 - 1)
+abbrev ceN23CarryBTop : Word := BitVec.ofNat 64 (2^62)
+abbrev ceN23CarryMaxWord : Word := BitVec.ofNat 64 (2^64 - 1)
+abbrev ceN23CarryNormV0 : Word := BitVec.ofNat 64 (2^64 - 2)
+abbrev ceN23CarryNormV1 : Word := BitVec.ofNat 64 (2^63)
+abbrev ceN23CarryNormV2 : Word := BitVec.ofNat 64 (2^63)
+
+theorem ceN2Carry_norm_eq :
+    fullDivN2NormV ceN23CarryB0 ceN23CarryBTop 0 0 =
+      (ceN23CarryNormV0, ceN23CarryNormV1, 0, 0) := by
+  native_decide
+
+theorem ceN3Carry_norm_eq :
+    fullDivN3NormV ceN23CarryB0 ceN23CarryBTop ceN23CarryBTop 0 =
+      (ceN23CarryNormV0, ceN23CarryNormV1, ceN23CarryNormV2, 0) := by
+  native_decide
+
+theorem ceN2Carry_isAddbackCarry2Nz_false :
+    ¬ isAddbackCarry2Nz ceN23CarryMaxWord ceN23CarryNormV0 ceN23CarryNormV1 0 0
+      ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord 0 := by
+  intro h
+  rw [isAddbackCarry2Nz] at h
+  have h_second_ne := h (by native_decide)
+  exact h_second_ne (by native_decide)
+
+theorem ceN3Carry_isAddbackCarry2Nz_false :
+    ¬ isAddbackCarry2Nz ceN23CarryMaxWord ceN23CarryNormV0 ceN23CarryNormV1
+      ceN23CarryNormV2 0
+      ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord 0 := by
+  intro h
+  rw [isAddbackCarry2Nz] at h
+  have h_second_ne := h (by native_decide)
+  exact h_second_ne (by native_decide)
+
+theorem ceN2Carry_fullDivN2Carry2NzV4_false :
+    ¬ fullDivN2Carry2NzV4 ceN23CarryB0 ceN23CarryBTop 0 0 := by
+  intro h
+  unfold fullDivN2Carry2NzV4 at h
+  rw [ceN2Carry_norm_eq] at h
+  exact ceN2Carry_isAddbackCarry2Nz_false
+    (h ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord
+      ceN23CarryMaxWord 0)
+
+theorem ceN3Carry_fullDivN3Carry2NzV4_false :
+    ¬ fullDivN3Carry2NzV4 ceN23CarryB0 ceN23CarryBTop ceN23CarryBTop 0 := by
+  intro h
+  unfold fullDivN3Carry2NzV4 at h
+  rw [ceN3Carry_norm_eq] at h
+  exact ceN3Carry_isAddbackCarry2Nz_false
+    (h ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord ceN23CarryMaxWord
+      ceN23CarryMaxWord 0)
+
+-- A smaller diagnostic for the N1 max-path carry bridge:
+--
+--   v0 = u1 = 2^63, u0 = u2 = u3 = 0, qHat = 2^64 - 1.
+--
+-- This satisfies the normalized one-limb divisor shape and the selected max
+-- branch condition `¬ BitVec.ult u1 v0`, but a zero first-addback carry does
+-- not force the mulsub carry `c3` to be one.  Therefore the bridge introduced
+-- by `isAddbackCarry2NzN1Max_of_not_ult_c3_one_of_carry_zero` still needs a
+-- genuine reachable-path/remainder invariant; normalized shape plus branch
+-- condition alone is not enough.
+abbrev ceN1MaxLocalV0 : Word := BitVec.ofNat 64 (2^63)
+abbrev ceN1MaxLocalU1 : Word := BitVec.ofNat 64 (2^63)
+abbrev ceN1MaxLocalMs :=
+  mulsubN4 ceN1CarryMaxWord ceN1MaxLocalV0 0 0 0
+    0 ceN1MaxLocalU1 0 0
+
+theorem ceN1MaxLocal_v0_normalized :
+    2^63 ≤ ceN1MaxLocalV0.toNat := by
+  native_decide
+
+theorem ceN1MaxLocal_not_ult :
+    ¬ BitVec.ult ceN1MaxLocalU1 ceN1MaxLocalV0 := by
+  native_decide
+
+theorem ceN1MaxLocal_first_carry_zero :
+    addbackN4_carry ceN1MaxLocalMs.1 ceN1MaxLocalMs.2.1
+      ceN1MaxLocalMs.2.2.1 ceN1MaxLocalMs.2.2.2.1
+      ceN1MaxLocalV0 0 0 0 = 0 := by
+  native_decide
+
+theorem ceN1MaxLocal_mulsub_c3_zero :
+    ceN1MaxLocalMs.2.2.2.2 = 0 := by
+  native_decide
+
+theorem ceN1MaxLocal_c3_one_of_carry_zero_false :
+    ¬ (addbackN4_carry ceN1MaxLocalMs.1 ceN1MaxLocalMs.2.1
+        ceN1MaxLocalMs.2.2.1 ceN1MaxLocalMs.2.2.2.1
+        ceN1MaxLocalV0 0 0 0 = 0 →
+      ceN1MaxLocalMs.2.2.2.2 = 1) := by
+  intro h
+  have hc3_one := h ceN1MaxLocal_first_carry_zero
+  rw [ceN1MaxLocal_mulsub_c3_zero] at hc3_one
+  contradiction
+
+-- Reachable N1-shaped semantic regression using the same divisor shape as the
+-- universal-carry counterexample above.
+abbrev ceN1ShapeA : EvmWord :=
+  EvmWord.fromLimbs fun i : Fin 4 =>
+    match i with | 0 => ceN1CarryB0 | 1 => 0 | 2 => 0 | 3 => 0
+abbrev ceN1ShapeB : EvmWord :=
+  EvmWord.fromLimbs fun i : Fin 4 =>
+    match i with | 0 => ceN1CarryB0 | 1 => 0 | 2 => 0 | 3 => 0
+abbrev ceN1ShapeQuot : EvmWord :=
+  EvmWord.fromLimbs fun i : Fin 4 =>
+    match i with | 0 => 1 | 1 => 0 | 2 => 0 | 3 => 0
+
+theorem ceN1Shape_semantic_div_eq_one :
+    EvmWord.div ceN1ShapeA ceN1ShapeB = ceN1ShapeQuot := by
+  native_decide
+
+theorem ceN1Shape_fullDivN1QuotientWord_eq_semantic_div :
+    fullDivN1QuotientWord true true true true
+      ceN1CarryB0 0 0 0 ceN1CarryB0 0 0 0 =
+    EvmWord.div ceN1ShapeA ceN1ShapeB := by
+  native_decide
+
+theorem evm_div_ceN1Shape_v4_semantic_regression_pin :
+    evm_div =
+      (divK_phaseA 1020 ;;
+      divK_phaseB ;;
+      divK_clz ;;
+      divK_phaseC2 172 ;;
+      divK_normB ;;
+      divK_normA 40 ;;
+      divK_copyAU ;;
+      divK_loopSetup 464 ;;
+      divK_loopBody 560 7736 ;;
+      divK_denorm ;;
+      divK_div_epilogue 24 ;;
+      divK_zeroPath ;;
+      single (.ADDI .x0 .x0 0) ;;
+      divK_div128_v4) ∧
+    EvmWord.div ceN1ShapeA ceN1ShapeB = ceN1ShapeQuot ∧
+    fullDivN1QuotientWord true true true true
+      ceN1CarryB0 0 0 0 ceN1CarryB0 0 0 0 =
+    EvmWord.div ceN1ShapeA ceN1ShapeB := by
+  constructor
+  · exact evm_div_uses_div128_v4
+  constructor
+  · exact ceN1Shape_semantic_div_eq_one
+  · exact ceN1Shape_fullDivN1QuotientWord_eq_semantic_div
 
 end DivModCounterexamples
 
