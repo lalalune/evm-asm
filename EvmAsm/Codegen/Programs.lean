@@ -268,10 +268,10 @@ def statelessGuestEpilogue : String :=
   "  # state / codes / headers lists.\n" ++
   "  li sp, 0xa0050000\n" ++
   "  li t3, 0x40000000\n" ++
-  "  addi t3, t3, 16             # t3 = ssz_start\n" ++
-  "  lwu t4, 4(t3)               # outer offset_1 (witness offset)\n" ++
+  "  addi t3, t3, 18             # t3 = ssz_start (skip metadata + length + 2-byte schema-ID)\n" ++
+  "  lwu t4, 4(t3)               # outer offset_1 (witness)\n" ++
   "  add a0, t3, t4              # a0 = witness_start (section ptr)\n" ++
-  "  lwu t5, 16(t3)              # outer offset_3 (witness end)\n" ++
+  "  lwu t5, 8(t3)               # outer offset_2 (chain_config = end of witness)\n" ++
   "  add t5, t3, t5              # witness_end\n" ++
   "  sub a1, t5, a0              # a1 = witness section_len\n" ++
   "  li a2, 0xa0010000           # a2 = OUTPUT_ADDR (hash field)\n" ++
