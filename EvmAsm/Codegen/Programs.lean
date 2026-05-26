@@ -75,6 +75,7 @@ import EvmAsm.Codegen.Programs.ChainAggregator
 import EvmAsm.Codegen.Programs.ChainBasefee
 import EvmAsm.Codegen.Programs.ChainEndpoints
 import EvmAsm.Codegen.Programs.ChainValidate
+import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
@@ -871,6 +872,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/ChainBasefee.lean",
     "EvmAsm/Codegen/Programs/ChainEndpoints.lean",
     "EvmAsm/Codegen/Programs/ChainValidate.lean",
+    "EvmAsm/Codegen/Programs/ChainValidateBlob.lean",
     "EvmAsm/Codegen/Programs/Bloom.lean",
     "EvmAsm/Codegen/Programs/Evm.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
