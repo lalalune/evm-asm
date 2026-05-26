@@ -1048,11 +1048,17 @@ theorem evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_path_uni
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
       hbnz hb3z hb2nz hshift_nz halign hpath
 
-/-- Trial-witness bundled N3 DIV v4 callable wrapper.
+/-- Legacy trial-witness bundled N3 DIV v4 callable wrapper.
 
     This internalizes the two V4 trial branch booleans, assembling the
     path-bundled callable wrapper from the mechanical branch witness bundle
-    and the remaining carry/arithmetic obligations. -/
+    and the remaining carry/arithmetic obligations.
+
+    This surface is a compatibility shim for callers that still provide the
+    old universal `fullDivN3Carry2NzV4` package. New callable wrappers should
+    use the selected R1 path surfaces in `N3V4CallableExactR1` instead, so the
+    final N3 stack-spec path does not expose the false universal carry
+    obligation. -/
 theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_trialWitnesses_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -1104,8 +1110,14 @@ theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_trialWitnesses
     (by cases bltu_1 <;> simpa [isTrialN3V4_j0] using hbltu_0)
     hcarry2 hdivWord
 
-/-- Full-code form of
-    `evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_trialWitnesses_uni`. -/
+/-- Legacy full-code form of
+    `evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_trialWitnesses_uni`.
+
+    Kept only as the full-code lift of the compatibility shim above; prefer
+    `evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_selectedPathR1_uni`
+    or
+    `evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_autoTrialSelectedR1_uni`
+    for selected carry evidence. -/
 theorem evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_trialWitnesses_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -1153,8 +1165,13 @@ theorem evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_trialWitnesses_uni
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
       hbnz hb3z hb2nz hshift_nz halign htrial hcarry2 harith
 
-/-- N3 DIV v4 callable wrapper with the mechanical trial branch witnesses
-    constructed internally. -/
+/-- Legacy N3 DIV v4 callable wrapper with the mechanical trial branch
+    witnesses constructed internally.
+
+    This compatibility wrapper still exposes `fullDivN3Carry2NzV4`. New callers
+    should use
+    `evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_autoTrialSelectedR1_uni`,
+    which keeps only selected carry evidence for the reachable branch path. -/
 theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_autoTrial_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -1201,8 +1218,12 @@ theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_autoTrial_uni
     hbnz hb3z hb2nz hshift_nz halign
     (n3V4TrialWitnesses_of_getLimbN a b) hcarry2 harith
 
-/-- Full-code form of
-    `evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_autoTrial_uni`. -/
+/-- Legacy full-code form of
+    `evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_autoTrial_uni`.
+
+    Prefer
+    `evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_autoTrialSelectedR1_uni`
+    for the selected-carry route. -/
 theorem evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_autoTrial_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -1249,8 +1270,12 @@ theorem evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_autoTrial_uni
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
       hbnz hb3z hb2nz hshift_nz halign hcarry2 harith
 
-/-- N3 DIV v4 callable wrapper using the dispatcher-style limb nonzero
-    hypothesis for the divisor. -/
+/-- Legacy N3 DIV v4 callable wrapper using the dispatcher-style limb nonzero
+    hypothesis for the divisor.
+
+    This is still tied to the universal `fullDivN3Carry2NzV4` package. It is
+    kept for compatibility only; new stack-spec plumbing should route through
+    the selected R1 wrappers instead. -/
 theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -1299,8 +1324,12 @@ theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_uni
     hb3z hb2nz hshift_nz halign
     (n3V4TrialWitnesses_of_getLimbN a b) hcarry2 harith
 
-/-- N3 DIV v4 noNop callable wrapper deriving divisor nonzero from the n=3
-    shape. -/
+/-- Legacy N3 DIV v4 noNop callable wrapper deriving divisor nonzero from the
+    n=3 shape.
+
+    This shape convenience wrapper remains on the old universal carry package.
+    Do not use it as the final public stack-spec route; prefer the selected R1
+    callable wrappers and derive any shape facts before entering that path. -/
 theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_shape_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -1348,8 +1377,11 @@ theorem evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_shape_uni
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
     hbnz hb3z hb2nz hshift_nz halign hcarry2 harith
 
-/-- Full-code form of
-    `evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_uni`. -/
+/-- Legacy full-code form of
+    `evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_limbNz_uni`.
+
+    Kept only for compatibility with callers that still provide
+    `fullDivN3Carry2NzV4`; new callers should use the selected R1 surfaces. -/
 theorem evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_limbNz_uni
     (sp base : Word)
     (a b : EvmWord)
@@ -1397,8 +1429,11 @@ theorem evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_limbNz_uni
       nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
       hbnz hb3z hb2nz hshift_nz halign hcarry2 harith
 
-/-- Full-code form of
-    `evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_shape_uni`. -/
+/-- Legacy full-code form of
+    `evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_shape_uni`.
+
+    Kept only for compatibility with callers that still provide
+    `fullDivN3Carry2NzV4`; new callers should use the selected R1 surfaces. -/
 theorem evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_shape_uni
     (sp base : Word)
     (a b : EvmWord)
