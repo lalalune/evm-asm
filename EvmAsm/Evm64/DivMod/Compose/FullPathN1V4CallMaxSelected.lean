@@ -539,6 +539,24 @@ theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_selected
       exact hp)
     J3 Htail
 
+/-- Full bundled N1 call/max/max/max exact path over the full `divCode_v4`
+    bundle, using selected-only input hypotheses and conditional max carry
+    evidence for taken addback branches. -/
+theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_selected_if_borrow
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (halign : loopN1CallMaxmaxmaxExactInputAligned I)
+    (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
+    loopN1CallMaxmaxmaxExactInputSpecV4 I := by
+  unfold loopN1CallMaxmaxmaxExactInputSpecV4
+  have J3 := divK_loop_n1_call_j3_exact_x1_framed_v4_input_of_selected I halign hh
+  unfold loopN1CallMaxmaxmaxJ3ExactInputSpecV4 at J3
+  have Htail := divK_loop_n1_call_iter210_framed_exact_x1_v4_input_of_selected_if_borrow I hh
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      unfold loopN1CallMaxmaxmaxJ3PostInput
+      exact hp)
+    J3 Htail
+
 /-- Bundled first j=3 call-body step over the full `divCode_v4` bundle,
     using the selected call carry from the bundled path facts. -/
 theorem divK_loop_n1_call_j3_exact_x1_framed_v4_input_selected_carry
