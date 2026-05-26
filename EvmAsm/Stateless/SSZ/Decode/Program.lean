@@ -154,13 +154,14 @@ def read_chain_id : Program :=
             (harmless: validator skips when x16 == 0)
 
     Walking the new-schema 4-offset outer table + variable witness
-    section's headers list is a follow-up. Clobbers `x11`, `x12`,
-    `x14`, `x17`. -/
+    section's headers list is a follow-up. Clobbers `x11`, `x14`,
+    `x15`, `x17` (preserves `x12` so the fork value carried over
+    from `read_active_fork` survives into the encoder). -/
 def decode_validation_bit : Program :=
   ADDI .x11 .x0 0 ;;
   ADDI .x14 .x0 0 ;;
-  LI .x12 INPUT_BASE ;;
-  ADDI .x17 .x12 (INPUT_DATA_OFFSET + SCHEMA_ID_SIZE)
+  LI .x15 INPUT_BASE ;;
+  ADDI .x17 .x15 (INPUT_DATA_OFFSET + SCHEMA_ID_SIZE)
 
 /-- Stub: leaves `x16 = 0`. The validator pipeline downstream
     treats N=0 as vacuous-pass.
@@ -169,5 +170,31 @@ def decode_validation_bit : Program :=
     witness layout is a follow-up. -/
 def decode_header_count : Program :=
   ADDI .x16 .x0 0
+
+/-- Byte offset of `offset_active_fork` (u32 LE) within
+    `SszChainConfig`. `SszChainConfig` is the variable-size
+    Container `(chain_id: uint64, active_fork: SszForkConfig)`,
+    so its fixed-header area is 8 + 4 = 12 bytes:
+
+        bytes [0..8)  : chain_id
+        bytes [8..12) : offset_active_fork
+
+    `SszForkConfig`'s first field is `fork: uint64`, so the fork
+    value lives at the very start of the active_fork section. -/
+def CHAIN_CONFIG_ACTIVE_FORK_OFFSET_INNER : BitVec 12 := 8
+
+/-- Read `chain_config.active_fork.fork` (u64 LE) from `INPUT_BASE`
+    into `x12`.
+
+    Precondition (left by `read_chain_id`):
+      x13 = chain_config_addr (start of the SszChainConfig section
+            in memory)
+
+    Postcondition: `x12` holds the host-supplied `fork` index as a u64.
+    Clobbers `x12`, `x14`. -/
+def read_active_fork : Program :=
+  LWU .x14 .x13 CHAIN_CONFIG_ACTIVE_FORK_OFFSET_INNER ;;
+  ADD .x14 .x13 .x14 ;;
+  LD .x12 .x14 0
 
 end EvmAsm.Stateless.SSZ.Decode

@@ -120,10 +120,12 @@ def OUTPUT_BASE : Word := 0xa0010000
     Caller contract:
       - `x10` holds the u64 `chain_id` to encode.
       - `x11` holds `successful_validation` (low byte = 0 or 1).
+      - `x12` holds `active_fork.fork` (u64) to encode at bytes 49..57.
 
     The body writes exactly 73 bytes (SSZ encoding of
-    `SszStatelessValidationResult` with empty `active_fork`) at
-    `OUTPUT_BASE`, and falls through to the caller's halt stub. -/
+    `SszStatelessValidationResult` with empty `activation` +
+    `blob_schedule`) at `OUTPUT_BASE`, and falls through to the
+    caller's halt stub. -/
 def serialize_stateless_output : Program :=
   LI .x6 OUTPUT_BASE ;;
   -- bytes [0..32) hash zero-stub (epilogue overwrites)
@@ -142,10 +144,13 @@ def serialize_stateless_output : Program :=
   LI .x5 0xc0000000000 ;;
   OR' .x7 .x7 .x5 ;;
   SD .x6 .x7 40 ;;
-  -- bytes [48..56): offset_active_fork high (0) || fork=0 low 7 bytes
-  SD .x6 .x0 48 ;;
-  -- bytes [56..64): fork high (0) || offset_activation=16 || offset_blob_schedule_lo3
-  LI .x7 0x180000001000 ;;
+  -- bytes [48..56): offset_active_fork high (0) || fork low 7 bytes
+  SLLI .x7 .x12 8 ;;
+  SD .x6 .x7 48 ;;
+  -- bytes [56..64): fork high byte || offset_activation=16 || offset_blob_schedule_lo3
+  SRLI .x7 .x12 56 ;;
+  LI .x5 0x180000001000 ;;
+  OR' .x7 .x7 .x5 ;;
   SD .x6 .x7 56 ;;
   -- bytes [64..72): offset_blob_schedule high (0) || offset_bn=8 || offset_ts_lo3
   LI .x7 0x80000000800 ;;

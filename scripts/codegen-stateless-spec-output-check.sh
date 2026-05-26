@@ -31,7 +31,9 @@
 # non-empty payloads will switch this stamp to a real computation.
 #
 # Fixtures: 5 chain_id values (1, 0x1234567890ABCDEF, 0, max-u32,
-# max-u64).
+# max-u64) at the default fork=0, plus one fork=1 case
+# (`chain1_fork1`) exercising the `active_fork.fork` passthrough
+# from input through to OUTPUT[49..57).
 #
 # Exit:
 #   0 -- all fixtures match
@@ -68,6 +70,7 @@ lake exe codegen --program stateless_guest --halt linux93 \
 run_fixture() {
   local label="$1"
   local cid="$2"
+  local fork="${3:-0}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -75,7 +78,7 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid)"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork)"
   uv run --directory execution-specs --quiet python3 -c "
 import struct, sys
 from ethereum.forks.amsterdam.stateless_ssz import (
@@ -93,20 +96,21 @@ from ethereum.forks.amsterdam.stateless_guest import run_stateless_guest
 from remerkleable.basic import uint64
 
 cid = int(sys.argv[1], 0)
+fork_idx = int(sys.argv[4], 0)
 
-# Build the minimal new-schema StatelessInput: empty
-# new_payload_request, empty witness, chain_config(cid, empty
-# active_fork), empty public_keys.
+# Build the new-schema StatelessInput: empty new_payload_request,
+# empty witness, chain_config(cid, SszForkConfig(fork=fork_idx,
+# empty activation, empty blob_schedule)), empty public_keys.
 empty_activation = SszForkActivation(
     block_number=SszOptionalForkActivationValue(),
     timestamp=SszOptionalForkActivationValue(),
 )
-empty_fork = SszForkConfig(
-    fork=uint64(0),
+fork_cfg = SszForkConfig(
+    fork=uint64(fork_idx),
     activation=empty_activation,
     blob_schedule=SszOptionalBlobSchedule(),
 )
-cc = SszChainConfig(chain_id=uint64(cid), active_fork=empty_fork)
+cc = SszChainConfig(chain_id=uint64(cid), active_fork=fork_cfg)
 ssz_input = SszStatelessInput(
     new_payload_request=SszNewPayloadRequest(),
     witness=SszExecutionWitness(),
@@ -130,7 +134,7 @@ spec_bytes = bytes(run_stateless_guest(input_bytes))
 assert len(spec_bytes) == 73, f'spec: expected 73, got {len(spec_bytes)}'
 with open(sys.argv[3], 'w') as f:
     f.write(spec_bytes.hex())
-" "$cid" "$input_file" "$spec_exp_file"
+" "$cid" "$input_file" "$spec_exp_file" "$fork"
 
   echo "==> [$label] ziskemu run"
   "$ZISKEMU" -e gen-out/stateless_guest.elf -i "$input_file" \
@@ -170,11 +174,17 @@ print(f'    spec diff: bytes {rs} differ from spec')
 }
 
 fail=0
+# Fork = 0 (default) fixtures -- exercise chain_id read.
 run_fixture "chain1"                1                       || fail=1
 run_fixture "chain_big"             0x1234567890ABCDEF      || fail=1
 run_fixture "chain_zero"            0                       || fail=1
 run_fixture "chain_max_u32"         0xFFFFFFFF              || fail=1
 run_fixture "chain_max_u64"         0xFFFFFFFFFFFFFFFF      || fail=1
+
+# Non-zero fork fixture -- exercises active_fork.fork passthrough.
+# One fixture suffices: the encoder pipes the raw u64 from x12 to
+# OUTPUT[49..57) without inspecting its value.
+run_fixture "chain1_fork1"          1                  1    || fail=1
 
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
