@@ -2,6 +2,12 @@
   EvmAsm.Evm64.DivMod.Spec.N3TrialWitnesses
 
   Mechanical branch-boolean witnesses for the n=3 DIV path.
+
+  Legacy note:
+  Helpers below whose names end in `_of_path_conditions` still consume the old
+  `fullDivN3Carry2NzV4` package. They are compatibility shims only. New v4
+  stack/callable work should use the `_of_selected_path_conditions` helpers,
+  which consume selected per-iteration carry evidence for the reachable path.
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
@@ -166,11 +172,13 @@ theorem N3V4TrialWitnesses.exists {a b : EvmWord}
   | mk bltu_1 bltu_0 hbltu_1 hbltu_0 =>
       exact ⟨bltu_1, bltu_0, hbltu_1, hbltu_0⟩
 
-/-- Assemble an existential bundled N3 V4 path predicate from the mechanical
+/-- Legacy: assemble an existential bundled N3 V4 path predicate from the mechanical
     trial witness bundle plus the remaining carry/arithmetic obligations.
 
     The arithmetic continuation receives the concrete branch booleans and
-    their defining equalities from `htrial`. -/
+    their defining equalities from `htrial`. This still consumes
+    `fullDivN3Carry2NzV4`; prefer
+    `N3V4TrialWitnesses.exists_selected_path_conditions` for new v4 work. -/
 theorem N3V4TrialWitnesses.exists_path_conditions
     {a b : EvmWord}
     (htrial : N3V4TrialWitnesses a b)
@@ -233,8 +241,11 @@ theorem N3V4TrialWitnesses.exists_selected_path_conditions
       exact ⟨bltu_1', bltu_0', hbltu_1, hbltu_0,
         hcarry bltu_1' bltu_0' hbltu_1 hbltu_0, hmulsub, hover⟩
 
-/-- Assemble a V4 quotient-word equality from an `N3V4TrialWitnesses` bundle
-    plus the remaining path-condition obligations. -/
+/-- Legacy: assemble a V4 quotient-word equality from an `N3V4TrialWitnesses`
+    bundle plus the remaining path-condition obligations.
+
+    This still consumes `fullDivN3Carry2NzV4`; prefer the selected-path
+    variant for new v4 stack/callable work. -/
 theorem N3V4TrialWitnesses.exists_quotient_word_of_path_conditions
     {a b : EvmWord}
     (htrial : N3V4TrialWitnesses a b)
@@ -614,11 +625,13 @@ theorem N3V4TrialWitnesses.exists_hdivs_of_path_conditions_ne_zero
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
         hdivWord⟩
 
-/-- Auto-trial form of
+/-- Legacy auto-trial form of
     `N3V4TrialWitnesses.exists_quotient_word_of_path_conditions`.
 
     This constructs the mechanical V4 trial branch witnesses internally, so
-    callers only provide the remaining carry and arithmetic path obligations. -/
+    callers only provide the remaining carry and arithmetic path obligations.
+    It still uses `fullDivN3Carry2NzV4`; prefer
+    `n3V4_exists_quotient_word_of_selected_path_conditions`. -/
 theorem n3V4_exists_quotient_word_of_path_conditions
     {a b : EvmWord}
     (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
@@ -699,10 +712,11 @@ theorem n3V4_exists_quotient_word_of_selected_path_conditions
   N3V4TrialWitnesses.exists_quotient_word_of_selected_path_conditions
     (n3V4TrialWitnesses_of_getLimbN a b) hbnz hcarry harith
 
-/-- Slim auto-trial n=3 V4 quotient-word package.
+/-- Legacy slim auto-trial n=3 V4 quotient-word package.
 
     This keeps the selected branch booleans but drops their mechanical proof
-    witnesses from the conclusion. -/
+    witnesses from the conclusion. It still consumes `fullDivN3Carry2NzV4`;
+    prefer selected-path quotient helpers for new v4 work. -/
 theorem n3V4_quotient_word_of_path_conditions
     {a b : EvmWord}
     (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
@@ -836,10 +850,13 @@ theorem n3V4_shape_quotient_word_of_path_conditions_of_hb2nz
     a b (n3_limb_or_ne_zero_of_limb2_ne_zero hb2nz)
     _hb3z hb2nz _hshift_nz hcarry2 harith
 
-/-- Auto-trial form of `N3V4TrialWitnesses.exists_hdivs_of_path_conditions`.
+/-- Legacy auto-trial form of
+    `N3V4TrialWitnesses.exists_hdivs_of_path_conditions`.
 
     This is the pure witness package needed by n=3 unconditional wrappers once
-    carry and arithmetic path obligations are available. -/
+    carry and arithmetic path obligations are available, but still consumes
+    `fullDivN3Carry2NzV4`. Prefer the selected-path hdiv helper for new v4
+    wrappers. -/
 theorem n3V4_exists_hdivs_of_path_conditions
     {a b : EvmWord}
     (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
@@ -932,11 +949,13 @@ theorem n3V4_exists_hdivs_of_selected_path_conditions
   N3V4TrialWitnesses.exists_hdivs_of_selected_path_conditions
     (n3V4TrialWitnesses_of_getLimbN a b) hbnz hcarry harith
 
-/-- Slim auto-trial n=3 V4 quotient-limb package.
+/-- Legacy slim auto-trial n=3 V4 quotient-limb package.
 
     This is the consumer-facing form of
     `n3V4_exists_hdivs_of_path_conditions`: it keeps the selected branch
-    booleans but drops their mechanical proof witnesses from the conclusion. -/
+    booleans but drops their mechanical proof witnesses from the conclusion.
+    It still consumes `fullDivN3Carry2NzV4`; prefer selected-path hdiv helpers
+    for new v4 wrappers. -/
 theorem n3V4_full_div_getLimbN_of_path_conditions
     {a b : EvmWord}
     (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
