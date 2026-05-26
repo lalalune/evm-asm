@@ -46,6 +46,9 @@ abbrev fullDivN2QuotientOverestimate (bltu_2 bltu_1 bltu_0 : Bool)
       ((fullDivN2R0 bltu_2 bltu_1 bltu_0
         a0 a1 a2 a3 b0 b1 b2 b3).1).toNat
 
+/-- Legacy compatibility wrapper for the old N2 no-hdiv dispatcher path.
+    It still exposes the universal `Carry2NzAll` package and should not be
+    used by final/public v4 stack wrappers. -/
 theorem evm_div_n2_stack_spec_within_word_of_mulsub_overestimate
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -96,6 +99,9 @@ theorem evm_div_n2_stack_spec_within_word_of_mulsub_overestimate
       ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1nz
       hshift_nz halign hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
 
+/-- Legacy compatibility wrapper for the old N2 no-hdiv exact-x1 dispatcher
+    path. It still exposes the universal `Carry2NzAll` package and should not
+    be used by final/public v4 stack wrappers. -/
 theorem evm_div_n2_stack_spec_within_word_exact_x1_of_mulsub_overestimate
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -147,6 +153,9 @@ theorem evm_div_n2_stack_spec_within_word_exact_x1_of_mulsub_overestimate
       ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1nz
       hshift_nz halign hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
 
+/-- Legacy compatibility wrapper for the old N2 no-hdiv no-nop dispatcher
+    path. It still exposes the universal `Carry2NzAll` package and should not
+    be used by final/public v4 stack wrappers. -/
 theorem evm_div_n2_stack_spec_within_word_noNop_of_mulsub_overestimate
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -197,6 +206,9 @@ theorem evm_div_n2_stack_spec_within_word_noNop_of_mulsub_overestimate
       ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hbnz hb3z hb2z hb1nz
       hshift_nz halign hbltu_2 hbltu_1 hbltu_0 hcarry2 hmulsub hge
 
+/-- Legacy compatibility wrapper for the old N2 no-hdiv exact-x1 no-nop
+    dispatcher path. It still exposes the universal `Carry2NzAll` package and
+    should not be used by final/public v4 stack wrappers. -/
 theorem evm_div_n2_stack_spec_within_word_exact_x1_noNop_of_mulsub_overestimate
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
