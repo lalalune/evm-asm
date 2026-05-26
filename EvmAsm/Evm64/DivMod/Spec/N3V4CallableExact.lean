@@ -402,15 +402,13 @@ theorem evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_autoTrialSelectedBod
       (divStackDispatchPostCallableExactFrame sp a b raVal
         (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
-  obtain ⟨bltu_1, bltu_0, hpath⟩ :=
-    N3V4TrialWitnesses.exists_selected_path_conditions
-      (n3V4TrialWitnesses_of_getLimbN a b) hcarry harith
-  exact evm_div_n3_stack_spec_v4_preNoX1_callableExactFrame_selectedPathBody_uni
-    bltu_1 bltu_0 sp base a b
-    v5 v6 v7 v10 v11Old
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
-    hbnz hpath (hbody bltu_1 bltu_0 hpath)
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4 <|
+    evm_div_n3_stack_spec_noNop_v4_preNoX1_callableExactFrame_autoTrialSelectedBody_uni
+      sp base a b
+      v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+      hbnz hcarry harith hbody
 
 /-- Path-bundled N3 DIV v4 callable wrapper.
 
