@@ -247,6 +247,118 @@ theorem evm_div_callable_v4_n1_stack_pre_to_callable_post_scratch_selected_if_bo
     hb3z hb2z hb1z hshift_nz halign
     hbltu3 hbltu2 hbltu1 hbltu0 hpath hfacts
 
+/-- N1 selected-if-borrow callable wrapper with dispatcher-style limb-or
+    nonzero input, weakening the concrete scratch output to ownership. -/
+theorem evm_div_callable_v4_n1_stack_pre_to_callable_post_scratch_selected_if_borrow_path_semantic_facts_limbNz_memOwn
+    (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (raVal : Word)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+    (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+    (halign : fullDivN1CallMaxmaxmaxExactInputAligned sp base
+      jMem (1 : Word) (fullDivN1Shift (b.getLimbN 0))
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).1
+      (a.getLimbN 0 >>> ((fullDivN1AntiShift (b.getLimbN 0)).toNat % 64))
+      v11Old (fullDivN1AntiShift (b.getLimbN 0))
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hbltu3 : isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0))
+    (hbltu2 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR3
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+        0 0 0).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hbltu1 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR2
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+        0 0 0
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hbltu0 : ¬BitVec.ult
+      (loopN1CallMaxmaxmaxR1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+        0 0 0
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
+        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1)
+    (hpath : N1AllTruePathEvidence a b)
+    (hfacts : FullDivN1CallMaxmaxmaxSemanticFactsV4
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_div_callable_code_v4 base)
+      (divModStackDispatchPreNoX1 sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
+        ((clzResult (b.getLimbN 0)).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       memOwn (sp + signExtend12 3936)) := by
+  exact
+    cpsTripleWithin_weaken
+      (fun _ hp => hp)
+      (fun h hq => by
+        obtain ⟨hFrame, hScratchState, hDisjoint, hUnion, hFramePost, hScratch⟩ := hq
+        exact ⟨hFrame, hScratchState, hDisjoint, hUnion, hFramePost,
+          memIs_implies_memOwn hScratchState hScratch⟩)
+      (evm_div_callable_v4_n1_stack_pre_to_callable_post_scratch_selected_if_borrow_path_semantic_facts_limbNz
+        sp base a b
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+        hbnz hb3z hb2z hb1z hshift_nz halign
+        hbltu3 hbltu2 hbltu1 hbltu0 hpath hfacts)
+
 /-- Path-bundled N2 DIV v4 callable wrapper preserving the concrete v4
     trial-call scratch value, with selected carry evidence only. -/
 theorem evm_div_callable_v4_n2_stack_pre_to_callable_post_scratch_selected_path_word
