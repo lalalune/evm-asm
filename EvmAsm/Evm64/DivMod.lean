@@ -83,6 +83,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMTT
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMTM
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMMT
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopUnified
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4Families
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
