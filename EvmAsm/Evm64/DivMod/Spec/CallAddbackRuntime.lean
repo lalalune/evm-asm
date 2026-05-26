@@ -456,6 +456,39 @@ theorem n4CallAddbackBeqQHatV4_le_norm_div_plus_one_of_call_rhatdd_hi_zero
       hb3nz hshift_nz hcall hUn21_lt_pow63 h_rhat_hi_zero
   omega
 
+/-- Floor-named variant of the compact runtime qhat bound reduction.
+
+    This keeps the normalized-divisor bridge phrased over the floor-shaped
+    upper-bound adapter, matching the N4 Knuth-A path while leaving the
+    remaining high-divisor-to-normalized-divisor premise explicit. -/
+theorem n4CallAddbackBeqQHatV4_le_norm_div_plus_one_of_floor_call_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_high_div_le_norm :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b) :
+    (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1 := by
+  have h_qhat_high :=
+    n4CallAddbackBeqQHatV4_le_floor_plus_one_of_call_rhatdd_hi_zero
+      hb3nz hshift_nz hcall hUn21_lt_pow63 h_rhat_hi_zero
+  omega
+
 /-- Runtime-normalized c3 bridge: if the normalized trial quotient is within
     one of the normalized true quotient, the raw borrow condition pins the
     mulsub carry-out to one. -/
