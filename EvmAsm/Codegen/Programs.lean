@@ -52,6 +52,7 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.MptInternal
+import EvmAsm.Codegen.Programs.MptNibbles
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Tx
@@ -67,9 +68,11 @@ import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderBaseFee
+import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Chain
 import EvmAsm.Codegen.Programs.ChainAggregator
+import EvmAsm.Codegen.Programs.ChainBasefee
 import EvmAsm.Codegen.Programs.ChainEndpoints
 import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.HeaderFields
@@ -306,6 +309,20 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_extract_basefee_first_last" => some ziskChainExtractBasefeeFirstLastProbeUnit
   | "zisk_chain_compute_total_blob_count" => some ziskChainComputeTotalBlobCountProbeUnit
   | "zisk_chain_compute_total_basefee" => some ziskChainComputeTotalBasefeeProbeUnit
+  | "zisk_chain_compute_max_basefee" => some ziskChainComputeMaxBasefeeProbeUnit
+  | "zisk_chain_compute_min_basefee" => some ziskChainComputeMinBasefeeProbeUnit
+  | "zisk_chain_compute_max_gas_limit" => some ziskChainComputeMaxGasLimitProbeUnit
+  | "zisk_chain_compute_min_gas_limit" => some ziskChainComputeMinGasLimitProbeUnit
+  | "zisk_chain_compute_total_gas_limit" => some ziskChainComputeTotalGasLimitProbeUnit
+  | "zisk_chain_extract_gas_limit_first_last" => some ziskChainExtractGasLimitFirstLastProbeUnit
+  | "zisk_chain_validate_constant_gas_limit" => some ziskChainValidateConstantGasLimitProbeUnit
+  | "zisk_chain_validate_basefee_non_decreasing" => some ziskChainValidateBasefeeNonDecreasingProbeUnit
+  | "zisk_chain_validate_basefee_non_increasing" => some ziskChainValidateBasefeeNonIncreasingProbeUnit
+  | "zisk_chain_validate_gas_limit_non_decreasing" => some ziskChainValidateGasLimitNonDecreasingProbeUnit
+  | "zisk_chain_validate_gas_limit_non_increasing" => some ziskChainValidateGasLimitNonIncreasingProbeUnit
+  | "zisk_chain_extract_excess_blob_gas_first_last" => some ziskChainExtractExcessBlobGasFirstLastProbeUnit
+  | "zisk_chain_compute_max_excess_blob_gas" => some ziskChainComputeMaxExcessBlobGasProbeUnit
+  | "zisk_chain_compute_min_excess_blob_gas" => some ziskChainComputeMinExcessBlobGasProbeUnit
   | "zisk_chain_extract_first_last_state_root" => some ziskChainExtractFirstLastStateRootProbeUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
   | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
@@ -315,6 +332,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_extract_first_last_beneficiary" => some ziskChainExtractFirstLastBeneficiaryProbeUnit
   | "zisk_chain_extract_first_last_ommers_hash" => some ziskChainExtractFirstLastOmmersHashProbeUnit
   | "zisk_chain_validate_no_blob_txs" => some ziskChainValidateNoBlobTxsProbeUnit
+  | "zisk_account_validate_balance_zero" => some ziskAccountValidateBalanceZeroProbeUnit
   | "zisk_block_validate_2tx_full" => some ziskBlockValidate2txFullProbeUnit
   | "zisk_block_body_extract_2tx" => some ziskBlockBodyExtract2txProbeUnit
   | "zisk_block_validate_2tx_full_with_body" => some ziskBlockValidate2txFullWithBodyProbeUnit
@@ -738,6 +756,20 @@ def knownProgramNames : List String :=
    "zisk_chain_extract_basefee_first_last",
    "zisk_chain_compute_total_blob_count",
    "zisk_chain_compute_total_basefee",
+   "zisk_chain_compute_max_basefee",
+   "zisk_chain_compute_min_basefee",
+   "zisk_chain_compute_max_gas_limit",
+   "zisk_chain_compute_min_gas_limit",
+   "zisk_chain_compute_total_gas_limit",
+   "zisk_chain_extract_gas_limit_first_last",
+   "zisk_chain_validate_constant_gas_limit",
+   "zisk_chain_validate_basefee_non_decreasing",
+   "zisk_chain_validate_basefee_non_increasing",
+   "zisk_chain_validate_gas_limit_non_decreasing",
+   "zisk_chain_validate_gas_limit_non_increasing",
+   "zisk_chain_extract_excess_blob_gas_first_last",
+   "zisk_chain_compute_max_excess_blob_gas",
+   "zisk_chain_compute_min_excess_blob_gas",
    "zisk_chain_extract_first_last_state_root",
    "zisk_chain_extract_first_last_block_hash",
    "zisk_chain_extract_first_last_receipts_root",
@@ -747,6 +779,7 @@ def knownProgramNames : List String :=
    "zisk_chain_extract_first_last_beneficiary",
    "zisk_chain_extract_first_last_ommers_hash",
    "zisk_chain_validate_no_blob_txs",
+   "zisk_account_validate_balance_zero",
    "zisk_block_validate_2tx_full",
    "zisk_block_body_extract_2tx",
    "zisk_block_validate_2tx_full_with_body",
@@ -820,7 +853,7 @@ end EvmAsm.Codegen
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 1368
+  let hardCap := 1328
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
     "EvmAsm/Codegen/Programs/Account.lean",
@@ -833,6 +866,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BlockValidate.lean",
     "EvmAsm/Codegen/Programs/Chain.lean",
     "EvmAsm/Codegen/Programs/ChainAggregator.lean",
+    "EvmAsm/Codegen/Programs/ChainBasefee.lean",
     "EvmAsm/Codegen/Programs/ChainEndpoints.lean",
     "EvmAsm/Codegen/Programs/ChainValidate.lean",
     "EvmAsm/Codegen/Programs/Bloom.lean",
@@ -842,6 +876,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderBaseFee.lean",
+    "EvmAsm/Codegen/Programs/HeaderDecode.lean",
     "EvmAsm/Codegen/Programs/HeaderChain.lean",
     "EvmAsm/Codegen/Programs/HeaderFields.lean",
     "EvmAsm/Codegen/Programs/BlockHashPredicates.lean",
@@ -850,6 +885,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/Mpt.lean",
     "EvmAsm/Codegen/Programs/MptEncode.lean",
     "EvmAsm/Codegen/Programs/MptInternal.lean",
+    "EvmAsm/Codegen/Programs/MptNibbles.lean",
     "EvmAsm/Codegen/Programs/Receipt.lean",
     "EvmAsm/Codegen/Programs/State.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
