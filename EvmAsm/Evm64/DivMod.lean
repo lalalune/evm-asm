@@ -89,6 +89,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4PreloopCallMax
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN2LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
