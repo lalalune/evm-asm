@@ -719,4 +719,107 @@ def ziskHeaderExtractExcessBlobGasProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderExtractExcessBlobGasDataSection
 }
 
+/-! ## chain_compute_max_gas_limit -- PR-K262
+
+    Find max(`gas_limit`) (header field 9) across an N-element
+    header chain. Cross-fork — every header has gas_limit.
+    Useful for capacity-planning / network-policy monitoring.
+
+    Mirrors K236 chain_compute_max_gas_used (field 10) which
+    lives in this module; the chain-level basefee counterparts
+    are K260/K261 (in Programs/ChainBasefee.lean).
+
+    Vacuous on empty chain: max = 0.
+
+    Calling convention:
+      a0 (input)  : N
+      a1 (input)  : header_lengths ptr (N u64 LE)
+      a2 (input)  : flat headers ptr
+      a3 (input)  : u64 out (max gas_limit)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse fail (in any header)
+        2 : gas_limit field > 8 bytes BE -/
+def chainComputeMaxGasLimitFunction : String :=
+  "chain_compute_max_gas_limit:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  li s4, 0\n" ++
+  "  beqz s0, .Lccmgl_done\n" ++
+  ".Lccmgl_loop:\n" ++
+  "  beq s4, s0, .Lccmgl_done\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld a1, 0(t0)\n" ++
+  "  mv a0, s2; li a2, 9\n" ++
+  "  la a3, ccmgl_field\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  li t0, 1\n" ++
+  "  beq a0, t0, .Lccmgl_parse_fail\n" ++
+  "  li t0, 2\n" ++
+  "  beq a0, t0, .Lccmgl_size_fail\n" ++
+  "  la t0, ccmgl_field; ld t1, 0(t0)\n" ++
+  "  ld t2, 0(s3)\n" ++
+  "  bgeu t2, t1, .Lccmgl_no_update\n" ++
+  "  sd t1, 0(s3)\n" ++
+  ".Lccmgl_no_update:\n" ++
+  "  slli t0, s4, 3\n" ++
+  "  add t0, s1, t0\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  add s2, s2, t1\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lccmgl_loop\n" ++
+  ".Lccmgl_done:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lccmgl_ret\n" ++
+  ".Lccmgl_parse_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lccmgl_ret\n" ++
+  ".Lccmgl_size_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lccmgl_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+def ziskChainComputeMaxGasLimitPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a0, 8(a7)\n" ++
+  "  addi a1, a7, 16\n" ++
+  "  slli t0, a0, 3\n" ++
+  "  add a2, a1, t0\n" ++
+  "  li a3, 0xa0010010\n" ++
+  "  jal ra, chain_compute_max_gas_limit\n" ++
+  "  li t0, 0xa0010008\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lccmgl_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  chainComputeMaxGasLimitFunction ++ "\n" ++
+  ".Lccmgl_pdone:"
+
+def ziskChainComputeMaxGasLimitDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "ccmgl_field:\n" ++
+  "  .zero 8"
+
+def ziskChainComputeMaxGasLimitProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskChainComputeMaxGasLimitPrologue
+  dataAsm     := ziskChainComputeMaxGasLimitDataSection
+}
+
 end EvmAsm.Codegen
