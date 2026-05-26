@@ -440,7 +440,12 @@ theorem evm_div_callable_v4_n1_stack_pre_to_callable_post_scratch_shape_selected
 
 /-- N1 selected-if-borrow shape wrapper for callers that still carry the
     all-true path package, while deriving the selected callable evidence from
-    the selected semantic package internally. -/
+    the selected semantic package internally.
+
+    This still requires selected-if-borrow semantic evidence: all-true
+    remainder-bound witnesses select the all-call route, and do not provide the
+    `¬ BitVec.ult ...` max-branch facts needed by the call/max/max/max
+    selected-if-borrow path. -/
 theorem evm_div_callable_v4_n1_stack_pre_to_callable_post_scratch_shape_allTruePathSelectedIfBorrowSemanticEvidence
     (sp base : Word) (a b : EvmWord)
     (v5 v6 v7 v10 v11Old : Word)
