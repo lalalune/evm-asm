@@ -457,7 +457,11 @@ theorem loopN2CallCallCallSourceConds_of_selectedCarryV4
 /-- Unified n=2 v4 no-NOP loop source theorem, dispatching to the 8 per-case
     proofs via `bltu_2 × bltu_1 × bltu_0`.  Preserves caller-owned exact `x1`.
     The 672-step bound accommodates the worst-case (all-call) path; lighter paths
-    use `cpsTripleWithin_mono_nSteps` to fit. -/
+    use `cpsTripleWithin_mono_nSteps` to fit.
+
+    Legacy compatibility surface: this still consumes the raw `Carry2NzAll`
+    package. New v4 n=2 work should use the selected-carry sibling in
+    `FullPathN2V4NoNopLoopSelected`. -/
 theorem divK_loop_n2_unified_from_source_exact_loopIterScratch_v4_noNop
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
@@ -911,7 +915,10 @@ theorem divK_loop_n2_unified_from_source_exact_loopIterScratch_v4_noNop
 
 /-- Instantiate the v4/no-NOP n=2 unified loop with explicit normalized values.
     Separates loop application from preloop composition for heartbeat budgeting.
-    Parameters match `evm_div_n2_loop_unified_inst_noNop` plus `scratchMem` and `raVal`. -/
+    Parameters match `evm_div_n2_loop_unified_inst_noNop` plus `scratchMem` and `raVal`.
+
+    Legacy compatibility surface: this still consumes the raw `Carry2NzAll`
+    package. New v4 n=2 work should use the selected-carry sibling. -/
 theorem evm_div_n2_loop_unified_inst_noNop_exact_x1_v4
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (shift antiShift v0' v1' v2' v3' u0S u1S u2S u3S u4_s : Word)

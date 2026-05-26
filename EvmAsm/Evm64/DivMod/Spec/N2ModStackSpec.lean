@@ -28,7 +28,9 @@ open EvmAsm.Rv64.AddrNorm (word_add_zero)
 
 Composes `evm_mod_n2_full_unified_spec` with the limb-shaped pre and post
 bridges (`divModStackDispatchPre` ↔ raw cells, and
-`fullModN2UnifiedPost_to_modStackDispatchPost`). -/
+`fullModN2UnifiedPost_to_modStackDispatchPost`). New v4 stack/callable work
+should use selected/reachable carry wrappers instead of extending this raw
+`Carry2NzAll` surface. -/
 theorem evm_mod_n2_stack_spec_within
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
@@ -98,10 +100,12 @@ theorem evm_mod_n2_stack_spec_within
         ha0 ha1 ha2 ha3 hmod0 hmod1 hmod2 hmod3 h hq)
     hFull
 
-/-- Legacy raw-carry `_word` form: mirror of `evm_mod_n1_stack_spec_within_word`. Takes a
-single `EvmWord`-valued equality `fullModN2RemainderWord ... = EvmWord.mod a b`
-and projects it into the four per-limb hypotheses via
-`fullModN2_hmods_of_word_eq`. -/
+/-- Legacy raw-carry `_word` form: mirror of `evm_mod_n1_stack_spec_within_word`.
+Takes a single `EvmWord`-valued equality
+`fullModN2RemainderWord ... = EvmWord.mod a b` and projects it into the four
+per-limb hypotheses via `fullModN2_hmods_of_word_eq`. New v4 stack/callable work
+should use selected/reachable carry wrappers instead of this raw `Carry2NzAll`
+surface. -/
 theorem evm_mod_n2_stack_spec_within_word
     (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
     (a b : EvmWord)
