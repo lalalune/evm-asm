@@ -1,0 +1,150 @@
+/-
+  EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrow
+
+  Selected-if-borrow evidence packages for exact N1 DIV v4 stack specs.
+-/
+
+import EvmAsm.Evm64.DivMod.Spec.N1ExactV4
+
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
+open EvmAsm.Rv64.AddrNorm (word_add_zero)
+
+/-- Selected-if-borrow path evidence plus semantic facts for the canonical
+    full-DIV N1 v4 call/max/max/max route. This is the conditional-carry
+    counterpart of `FullDivN1CallMaxmaxmaxSelectedSemanticEvidenceV4`. -/
+abbrev FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4 (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word) :
+    Prop :=
+  fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses sp base
+    jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    a0 a1 a2 a3 b0 b1 b2 b3
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal ∧
+  FullDivN1CallMaxmaxmaxSemanticFactsV4 a0 a1 a2 a3 b0 b1 b2 b3
+
+theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_selectedInput
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal :=
+  hevidence.1
+
+theorem FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_semanticFacts
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a0 a1 a2 a3 b0 b1 b2 b3
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    FullDivN1CallMaxmaxmaxSemanticFactsV4 a0 a1 a2 a3 b0 b1 b2 b3 :=
+  hevidence.2
+
+/-- Full-v4 N1 call/max/max/max exact-frame stack spec consuming the
+    selected-if-borrow input surface and the named hdiv package. -/
+theorem evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtra_x9In_exactFrame_unified_of_selected_if_borrow_input_hdivs
+    (sp base : Word) (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (raVal : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0)
+    (halign : fullDivN1CallMaxmaxmaxExactInputAligned sp base
+      jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+      a0 a1 a2 a3 b0 b1 b2 b3
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hselected : fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses sp base
+      jMem (1 : Word) (fullDivN1Shift b0) (fullDivN1NormU a0 a1 a2 a3 b0).1
+      (a0 >>> ((fullDivN1AntiShift b0).toNat % 64)) v11Old (fullDivN1AntiShift b0)
+      a0 a1 a2 a3 b0 b1 b2 b3
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hdivs : FullDivN1CallMaxmaxmaxHdivs a b a0 a1 a2 a3 b0 b1 b2 b3) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_v4 base)
+      (divModStackDispatchPreNoX1 sp a b x9In raVal
+        ((clzResult b0).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divStackDispatchPostCallableExactFrame sp a b raVal (signExtend12 4095 : Word) **
+       ((sp + signExtend12 3936) ↦ₘ
+        divKTrialCallV4ScratchOut
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+          (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+          (fullDivN1NormV b0 b1 b2 b3).1 scratchMem)) := by
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ := hdivs
+  have hFull :=
+    fullDivN1_preloop_call_maxmaxmax_denorm_epilogue_exact_x1_v4_x9In_of_selected_if_borrow_input
+      sp base
+      a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x9In
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+      jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+      hbnz hb3z hb2z hb1z hshift_nz halign hselected
+  have hBody :
+      cpsTripleWithin ((8 + 21 + 24 + 4 + 21 + 21 + 4 + 780) + (2 + 23 + 10))
+        base (base + nopOff) (divCode_v4 base)
+        (divModStackDispatchPreNoX1 sp a b x9In raVal
+          ((clzResult b0).2 >>> (63 : Nat))
+          v5 v6 v7 v10 v11Old
+          q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+         ((sp + signExtend12 3936) ↦ₘ scratchMem))
+        (divStackDispatchPostCallableExactFrame sp a b raVal (signExtend12 4095 : Word) **
+         ((sp + signExtend12 3936) ↦ₘ
+          divKTrialCallV4ScratchOut
+            (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+            (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+            (fullDivN1NormV b0 b1 b2 b3).1 scratchMem)) :=
+    cpsTripleWithin_weaken
+      (fun h hp => by
+        rw [divModStackDispatchPreNoX1_unfold] at hp
+        rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ ha0 ha1 ha2 ha3,
+            evmWordIs_sp32_limbs_eq sp b _ _ _ _ hb0 hb1 hb2 hb3,
+            divScratchValuesCallNoX1_unfold, divScratchValues_unfold] at hp
+        rw [word_add_zero]
+        xperm_hyp hp)
+      (fun h hp => by
+        have hConcrete :=
+          fullDivN1CallMaxmaxmaxUnifiedPostNoX1_to_divConcretePostNoX1Frame_extra
+            sp base (clzResult b0).1 a b
+            a0 a1 a2 a3
+            (fullDivN1NormV b0 b1 b2 b3).1
+            (fullDivN1NormV b0 b1 b2 b3).2.1
+            (fullDivN1NormV b0 b1 b2 b3).2.2.1
+            (fullDivN1NormV b0 b1 b2 b3).2.2.2
+            (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+            (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+            (0 : Word) (0 : Word) (0 : Word)
+            (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+            (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+            (fullDivN1NormU a0 a1 a2 a3 b0).1
+            scratchMem raVal
+            ha0 ha1 ha2 ha3 hdiv0 hdiv1 hdiv2 hdiv3 h hp
+        refine sepConj_mono_left (fun hLeft hpLeft => ?_) h hConcrete
+        simpa [divStackDispatchPostCallableExactFrame_unfold] using
+          divConcretePostNoX1_weaken_callable_frame sp a b hLeft hpLeft)
+      hFull
+  exact cpsTripleWithin_mono_nSteps (by unfold unifiedDivBound; decide) hBody
+
+end EvmAsm.Evm64
