@@ -504,6 +504,24 @@ theorem divK_loop_n1_call_iter210_framed_exact_x1_v4_input_of_selected
     (loopN1CallMaxmaxmaxIter210FramedPostInput_to_scratchPost I)
     (divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input_of_selected I hh)
 
+/-- Framed all-max tail from the actual bundled j=3 post to the final N1
+    call/max/max/max scratch post over the full `divCode_v4` bundle, from
+    selected-only input hypotheses, using conditional max carry evidence for
+    taken addback branches. -/
+theorem divK_loop_n1_call_iter210_framed_exact_x1_v4_input_of_selected_if_borrow
+    (I : LoopN1CallMaxmaxmaxExactInputs)
+    (hh : loopN1CallMaxmaxmaxSelectedInputHypotheses I) :
+    cpsTripleWithin 556 (I.base + loopBodyOff) (I.base + denormOff)
+      (divCode_v4 I.base)
+      (loopN1CallMaxmaxmaxJ3PostInput I)
+      (loopN1CallMaxmaxmaxScratchPostNoX1 I.sp I.base
+        I.v0 I.v1 I.v2 I.v3 I.u0 I.u1 I.u2 I.u3 I.uTop
+        I.u0Orig2 I.u0Orig1 I.u0Orig0 I.scratchMem ** (.x1 ↦ᵣ I.raVal)) := by
+  exact cpsTripleWithin_weaken
+    (loopN1CallMaxmaxmaxJ3PostInput_to_iter210FramedPre I)
+    (loopN1CallMaxmaxmaxIter210FramedPostInput_to_scratchPost I)
+    (divK_loop_n1_call_iter210_framed_prepost_exact_x1_v4_input_of_selected_if_borrow I hh)
+
 /-- Full bundled N1 call/max/max/max exact path over the full `divCode_v4`
     bundle, using selected-only input hypotheses. -/
 theorem divK_loop_n1_call_maxmaxmax_exact_x1_scratch_input_v4_of_selected
