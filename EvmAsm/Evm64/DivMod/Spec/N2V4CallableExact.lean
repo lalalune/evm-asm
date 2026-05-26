@@ -134,6 +134,50 @@ theorem evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_selectedPathBo
     (fullDivN2QuotientWordV4_eq_div_of_selected_word_path_conditions_ne_zero
       bltu_2 bltu_1 bltu_0 a b hbnz hpath) hbody
 
+/-- Full-code form of
+    `evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_selectedPathBody_uni`. -/
+theorem evm_div_n2_stack_spec_v4_preNoX1_callableExactFrame_selectedPathBody_uni
+    (bltu_2 bltu_1 bltu_0 : Bool) (sp base : Word)
+    (a b : EvmWord)
+    (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (raVal : Word)
+    (hbnz : b ≠ 0)
+    (hpath : fullDivN2SelectedPathConditionsWordV4 bltu_2 bltu_1 bltu_0 a b)
+    (hbody : cpsTripleWithin ((8 + 21 + 24 + 4 + 21 + 21 + 4 + 672) + (2 + 23 + 10))
+      base (base + nopOff) (divCode_noNop_v4 base)
+      (divModStackDispatchPreNoX1 sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
+        ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (fullDivN2UnifiedPostNoX1V4 bltu_2 bltu_1 bltu_0 sp base
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        retMem dMem dloMem scratchUn0 scratchMem **
+       (.x1 ↦ᵣ raVal))) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_v4 base)
+      (divModStackDispatchPreNoX1 sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
+        ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       memOwn (sp + signExtend12 3936)) := by
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4 <|
+    evm_div_n2_stack_spec_noNop_v4_preNoX1_callableExactFrame_selectedPathBody_uni
+      bltu_2 bltu_1 bltu_0 sp base a b
+      v5 v6 v7 v10 v11Old
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+      hbnz hpath hbody
+
 /-- Path-bundled N2 DIV v4 callable wrapper.
 
     This consumes the bundled v4 path predicate, derives the branch/carry
