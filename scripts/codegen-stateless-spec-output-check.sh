@@ -181,6 +181,7 @@ if hdr_hex in (
     'INVALID_EXTRA',
     'INVALID_GAS',
     'INVALID_BLOB_MISALIGN',
+    'INVALID_BLOB_OVERMAX',
 ):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
@@ -189,8 +190,13 @@ if hdr_hex in (
     #   INVALID_GAS            -- gas_used > gas_limit; K240 rejects.
     #   INVALID_BLOB_MISALIGN  -- blob_gas_used=1 (not a multiple
     #                             of GAS_PER_BLOB=131072); K278
-    #                             (chain_validate_blob_gas_used_multiple)
     #                             rejects.
+    #   INVALID_BLOB_OVERMAX   -- blob_gas_used = 7 * 131072 =
+    #                             917504. Multiple of 131072 so
+    #                             K278 passes, but > MAX_BLOB_GAS_
+    #                             PER_BLOCK = 6 * 131072 = 786432,
+    #                             so K277 (chain_validate_blob_gas_-
+    #                             used_under_max) rejects.
     from ethereum.forks.amsterdam.blocks import Header
     from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
     from ethereum_types.bytes import Bytes32, Bytes8, Bytes
@@ -203,7 +209,12 @@ if hdr_hex in (
     extra = Bytes(b'\\xab' * 33) if hdr_hex == 'INVALID_EXTRA' else Bytes(b'')
     gas_limit_v = 1000000
     gas_used_v = 1000001 if hdr_hex == 'INVALID_GAS' else 0
-    blob_gas_used_v = 1 if hdr_hex == 'INVALID_BLOB_MISALIGN' else 0
+    if hdr_hex == 'INVALID_BLOB_MISALIGN':
+        blob_gas_used_v = 1
+    elif hdr_hex == 'INVALID_BLOB_OVERMAX':
+        blob_gas_used_v = 7 * 131072  # 917504
+    else:
+        blob_gas_used_v = 0
     h = Header(
         parent_hash=Hash32(b'\\x00' * 32),
         ommers_hash=EMPTY_OMMER_HASH,
@@ -526,6 +537,15 @@ run_fixture "chain1_invalid_gas"    1                  0    ""           ""     
 # -> .Lsg_unimpl (= j .Lsg_hash, post #6878) -> halt.
 # Output 73 bytes valid=False; spec catches and returns same.
 run_fixture "chain1_invalid_blob_misalign" 1   0    ""           ""                  ""    ""           ""           ""    "INVALID_BLOB_MISALIGN" || fail=1
+
+# Header that fails K277 (chain_validate_blob_gas_used_under_max).
+# blob_gas_used=917504 = 7*131072: passes K278's multiple-of-
+# GAS_PER_BLOB check, but exceeds MAX_BLOB_GAS_PER_BLOCK
+# (6*131072 = 786432). K277 rejects.
+# Pipeline: K290+K291+K240+K278 pass, K277 fails ->
+# .Lsg_fail_bgum -> .Lsg_unimpl (= j .Lsg_hash, post #6878).
+# Output 73 bytes valid=False; spec catches and returns same.
+run_fixture "chain1_invalid_blob_overmax"  1   0    ""           ""                  ""    ""           ""           ""    "INVALID_BLOB_OVERMAX" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
