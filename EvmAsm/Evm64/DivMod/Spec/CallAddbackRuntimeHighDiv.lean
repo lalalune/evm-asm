@@ -132,6 +132,39 @@ theorem n4CallAddbackBeqHighDivKnuthABound.of_le {a b : EvmWord}
   rwa [n4CallAddbackBeqHighDivKnuthABound_def,
     n4CallAddbackBeqHighDivVal_def]
 
+theorem n4CallAddbackBeqRhatddHiZero.of_eq {a b : EvmWord}
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word)) :
+    n4CallAddbackBeqRhatddHiZero a b := by
+  rwa [n4CallAddbackBeqRhatddHiZero_def]
+
+theorem n4CallAddbackBeqShiftHighDivEvidence.of_raw_parts {a b : EvmWord}
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1) :
+    n4CallAddbackBeqShiftHighDivEvidence a b :=
+  n4CallAddbackBeqShiftHighDivEvidence.of_parts
+    (n4CallAddbackBeqRhatddHiZero.of_eq h_rhat_hi_zero)
+    (n4CallAddbackBeqQHatHighDivBound.of_le h_qhat_le_high_div)
+    (n4CallAddbackBeqHighDivKnuthABound.of_le h_high_div_le_norm_plus_one)
+
 theorem n4CallAddbackBeqQHatHighDivBound.of_floor_eq {a b : EvmWord}
     (h_floor :
       (n4CallAddbackBeqQHatV4 a b).toNat =
