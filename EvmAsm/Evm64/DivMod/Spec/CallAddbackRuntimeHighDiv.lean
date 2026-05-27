@@ -891,9 +891,11 @@ theorem n4CallAddbackBeqRuntimeBounds_of_qhat_high_div_le_norm_plus_one_and_borr
     (n4CallAddbackBeqHighDivKnuthABound.of_le h_high_div_le_norm_plus_one)
     h_borrow
 
-/-- Runtime semantic bridge from a direct qhat high-divisor bound and the
-    weakened Knuth-A `+1` denominator bridge. -/
-theorem n4CallAddbackBeqSemanticHoldsV4_of_qhat_high_div_le_norm_plus_one_and_borrow
+/-- Runtime-facing semantic bridge from direct qhat/high-div evidence parts.
+    This is the final addback-side shape before the remaining high-div facts are
+    discharged: no compact `RuntimeBounds`, `hq_over`, or remainder-bound
+    premise is exposed. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_runtime_qhat_high_div_parts
     {a b : EvmWord}
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
@@ -914,6 +916,53 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_qhat_high_div_le_norm_plus_one_and_bo
     hb3nz hshift_nz
     (n4CallAddbackBeqRuntimeBounds_of_qhat_high_div_le_norm_plus_one_and_borrow
       hb3nz h_qhat_le_high_div h_high_div_le_norm_plus_one h_borrow)
+    h_borrow h_carry2
+
+/-- Historical spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_runtime_qhat_high_div_parts`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_runtime_qhat_high_div_parts
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_runtime_qhat_high_div_parts
+      hb3nz hshift_nz h_qhat_le_high_div h_high_div_le_norm_plus_one
+      h_borrow h_carry2
+
+/-- Runtime semantic bridge from a direct qhat high-divisor bound and the
+    weakened Knuth-A `+1` denominator bridge. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_qhat_high_div_le_norm_plus_one_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_qhat_high_div_parts
+    hb3nz hshift_nz h_qhat_le_high_div h_high_div_le_norm_plus_one
     h_borrow h_carry2
 
 /-- Historical non-`V4` spelling of
