@@ -466,6 +466,57 @@ theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.of_parts {a b : EvmWord}
   rw [n4ShiftNzDispatcherRuntimeHighDivRawEvidence_def]
   exact ⟨hbranch, hcarry2, h_rhat_hi_zero, h_qhat_le_high_div, h_high_div_le_norm_plus_one⟩
 
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.callSkipRuntimeBranch {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4CallSkipRuntimeBranchV4 a b := by
+  rw [n4ShiftNzDispatcherRuntimeHighDivRawEvidence_def] at hruntime
+  exact hruntime.1
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.addbackCarry2 {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    isAddbackCarry2NzN4CallV4Evm a b := by
+  rw [n4ShiftNzDispatcherRuntimeHighDivRawEvidence_def] at hruntime
+  exact hruntime.2.1
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.addbackHighDivEvidence {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4CallAddbackBeqShiftHighDivEvidence a b :=
+  n4ShiftNzDispatcherRuntimeHighDivEvidence.addbackHighDivEvidence
+    (n4ShiftNzDispatcherRuntimeHighDivEvidence_of_raw hruntime)
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.addbackRuntimeBounds {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b)
+    (hadd : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqRuntimeBounds a b :=
+  n4ShiftNzDispatcherRuntimeHighDivEvidence.addbackRuntimeBounds
+    hb3nz hshift_nz
+    (n4ShiftNzDispatcherRuntimeHighDivEvidence_of_raw hruntime)
+    hadd
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.semanticHoldsV4 {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b)
+    (hadd : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4ShiftNzDispatcherRuntimeHighDivEvidence.semanticHoldsV4
+    hb3nz hshift_nz
+    (n4ShiftNzDispatcherRuntimeHighDivEvidence_of_raw hruntime)
+    hadd
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.semanticHolds {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b)
+    (hadd : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b :=
+  n4ShiftNzDispatcherRuntimeHighDivEvidence.semanticHolds
+    hb3nz hshift_nz
+    (n4ShiftNzDispatcherRuntimeHighDivEvidence_of_raw hruntime)
+    hadd
+
 theorem n4ShiftNzDispatcherBranchHighDivRawEvidence_of_runtime_raw {a b : EvmWord}
     (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
     n4ShiftNzDispatcherBranchHighDivRawEvidence a b := by
