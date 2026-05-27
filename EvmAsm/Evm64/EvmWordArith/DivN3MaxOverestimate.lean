@@ -172,4 +172,38 @@ theorem max_trial_local_overestimate_n3_of_not_ult
     u0.toNat u1.toNat u2.toNat u3.toNat
     hBhalf hV0_lt hV1_lt hv2_msb hle
 
+/-- N3 max-path specialization of the generic double-addback progress bridge.
+    With a 3-limb divisor (`v3 = 0`), `v2` normalised (top bit set), and the
+    selected max-branch condition `¬ BitVec.ult u3 v2`, the remaining local
+    obligation is exactly the reachable fact that a zero first-addback carry
+    forces the mulsub carry `c3` to be one. -/
+theorem isAddbackCarry2NzN3Max_of_not_ult_c3_one_of_carry_zero
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hv2_msb : 2^63 ≤ v2.toNat)
+    (hv3z : v3 = 0)
+    (hc3_one_of_carry_zero :
+      addbackN4_carry
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).1
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.1
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
+        (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
+        v0 v1 v2 v3 = 0 →
+      (mulsubN4 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 1)
+    (hbltu : ¬ BitVec.ult u3 v2) :
+    isAddbackCarry2NzN3Max v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  unfold isAddbackCarry2NzN3Max
+  apply isAddbackCarry2Nz_of_overestimate_c3_one_of_carry_zero
+  · -- v0 ||| v1 ||| v2 ||| v3 ≠ 0 from v2 ≥ 2^63.
+    intro h
+    subst v3
+    have h1 : v0 ||| v1 ||| v2 = 0 := (BitVec.or_eq_zero_iff.mp h).1
+    have hv2 : v2 = 0 := (BitVec.or_eq_zero_iff.mp h1).2
+    have hv2_zero : v2.toNat = 0 := by rw [hv2]; decide
+    have hpos : (0:Nat) < 2^63 := by positivity
+    omega
+  · subst v3
+    exact max_trial_local_overestimate_n3_of_not_ult v0 v1 v2 u0 u1 u2 u3
+      hv2_msb hbltu
+  · exact hc3_one_of_carry_zero
+
 end EvmAsm.Evm64
