@@ -111,6 +111,19 @@ def n4ShiftNzDispatcherBranchHighDivEvidence (a b : EvmWord) : Prop :=
    isAddbackCarry2NzN4CallV4Evm a b ∧
    n4CallAddbackBeqShiftHighDivEvidence a b)
 
+/-- Branch-sensitive compact qhat/high-div evidence for the n=4,
+    shift-nonzero DIV v4 dispatcher.
+
+    This is the addback-side projection of
+    `n4ShiftNzDispatcherBranchHighDivEvidence`: the skip branch is unchanged,
+    while the addback branch carries only the compact direct qhat/high-div
+    evidence package. -/
+def n4ShiftNzDispatcherBranchQHatHighDivEvidence (a b : EvmWord) : Prop :=
+  (isSkipBorrowN4CallV4Evm a b ∧ n4CallSkipRuntimeBranchV4 a b) ∨
+  (isAddbackBorrowN4CallV4Evm a b ∧
+   isAddbackCarry2NzN4CallV4Evm a b ∧
+   n4CallAddbackBeqRuntimeQHatHighDivEvidence a b)
+
 theorem n4ShiftNzDispatcherRuntimeV4_def {a b : EvmWord} :
     n4ShiftNzDispatcherRuntimeV4 a b =
       (n4CallSkipRuntimeBranchV4 a b ∧

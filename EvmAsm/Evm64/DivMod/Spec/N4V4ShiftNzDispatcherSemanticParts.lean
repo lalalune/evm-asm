@@ -149,6 +149,33 @@ theorem n4ShiftNzDispatcherBranchHighDivEvidence.semanticHolds_of_addback_parts
     n4ShiftNzDispatcherBranchHighDivEvidence.semanticHoldsV4_of_addback_parts
       hb3nz hshift_nz hadd hcarry2 hevidence
 
+/-- Addback semantic bridge from compact qhat/high-div evidence parts at the
+    n=4 shift-nonzero dispatcher surface. -/
+theorem n4ShiftNzDispatcherBranchQHatHighDivEvidence.semanticHoldsV4_of_addback_parts
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hadd : isAddbackBorrowN4CallV4Evm a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (hevidence : n4CallAddbackBeqRuntimeQHatHighDivEvidence a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_qhat_high_div_evidence
+    hb3nz hshift_nz hevidence hadd hcarry2
+
+/-- Historical non-V4 addback semantic bridge from compact qhat/high-div
+    evidence parts at the n=4 shift-nonzero dispatcher surface. -/
+theorem n4ShiftNzDispatcherBranchQHatHighDivEvidence.semanticHolds_of_addback_parts
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hadd : isAddbackBorrowN4CallV4Evm a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (hevidence : n4CallAddbackBeqRuntimeQHatHighDivEvidence a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4ShiftNzDispatcherBranchQHatHighDivEvidence.semanticHoldsV4_of_addback_parts
+      hb3nz hshift_nz hadd hcarry2 hevidence
+
 /-- Addback semantic bridge from direct raw high-div evidence parts at the n=4
     shift-nonzero dispatcher surface. -/
 theorem n4ShiftNzDispatcherBranchHighDivRawEvidence.semanticHoldsV4_of_addback_parts
@@ -850,6 +877,22 @@ theorem n4ShiftNzDispatcherBranchHighDivEvidence.toBranchSemanticV4 {a b : EvmWo
   | inr hadd =>
       exact n4ShiftNzDispatcherBranchSemanticV4.addback hadd.1 hadd.2.1
         (n4ShiftNzDispatcherBranchHighDivEvidence.semanticHoldsV4_of_addback_parts
+          hb3nz hshift_nz hadd.1 hadd.2.1 hadd.2.2)
+
+/-- Compact qhat/high-div branch evidence lowers to branch-semantic dispatcher
+    evidence by deriving the repaired V4 semantic marker on the addback side. -/
+theorem n4ShiftNzDispatcherBranchQHatHighDivEvidence.toBranchSemanticV4 {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hevidence : n4ShiftNzDispatcherBranchQHatHighDivEvidence a b) :
+    n4ShiftNzDispatcherBranchSemanticV4 a b := by
+  rw [n4ShiftNzDispatcherBranchQHatHighDivEvidence] at hevidence
+  cases hevidence with
+  | inl hskip =>
+      exact n4ShiftNzDispatcherBranchSemanticV4.skip hskip.1 hskip.2
+  | inr hadd =>
+      exact n4ShiftNzDispatcherBranchSemanticV4.addback hadd.1 hadd.2.1
+        (n4ShiftNzDispatcherBranchQHatHighDivEvidence.semanticHoldsV4_of_addback_parts
           hb3nz hshift_nz hadd.1 hadd.2.1 hadd.2.2)
 
 /-- Raw high-div branch evidence lowers to branch-semantic dispatcher evidence by
