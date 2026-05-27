@@ -18,6 +18,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
 import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
 namespace EvmAsm.Evm64
 
@@ -96,5 +97,26 @@ theorem fullDivN3NormV_top_zero_of_shape_shift_nz
   rw [fullDivN3AntiShift_toNat_mod_64 b2 hshift_nz]
   rw [ushiftRight_eq_zero_iff]
   exact clzResult_fst_top_bound b2
+
+/-- Under `b2 ≠ 0`, the third limb of the normalised `v` has its MSB set,
+    i.e., `2^63 ≤ v.2.2.1.toNat`.  Uses `b3_shifted_ge_pow63` from
+    `MaxTrialVacuity` (specialised for `b3` but generic over the input). -/
+theorem fullDivN3NormV_msb_of_b2_ne_zero
+    (b0 b1 b2 b3 : Word)
+    (hb2nz : b2 ≠ 0) :
+    2^63 ≤ (fullDivN3NormV b0 b1 b2 b3).2.2.1.toNat := by
+  rw [fullDivN3NormV_unfold]
+  show 2^63 ≤ ((b2 <<< ((fullDivN3Shift b2).toNat % 64)) |||
+                (b1 >>> ((fullDivN3AntiShift b2).toNat % 64))).toNat
+  rw [fullDivN3Shift_unfold]
+  rw [BitVec.toNat_or]
+  -- (x ||| y).toNat ≥ x.toNat (bitwise OR can only increase value)
+  have h_or_ge : (b2 <<< ((clzResult b2).1.toNat % 64)).toNat ≤
+      ((b2 <<< ((clzResult b2).1.toNat % 64)).toNat |||
+       (b1 >>> ((fullDivN3AntiShift b2).toNat % 64)).toNat) :=
+    Nat.left_le_or
+  -- (b2 <<< clz(b2)).toNat ≥ 2^63 by the existing MaxTrialVacuity lemma.
+  have h_b2_shifted := b3_shifted_ge_pow63 (b3 := b2) hb2nz
+  exact le_trans h_b2_shifted h_or_ge
 
 end EvmAsm.Evm64
