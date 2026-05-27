@@ -175,14 +175,15 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex == 'INVALID_TS':
-    # Two valid post-merge headers but the second's timestamp
-    # is not strictly greater than the first's. K229
-    # (chain_validate_increasing_timestamps) rejects.
+if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO'):
+    # Two valid post-merge headers exhibiting either:
+    #   INVALID_TS  -- non-increasing timestamps, K229 rejects
+    #   INVALID_NM  -- non-consecutive numbers, K230 rejects
+    #   VALID_TWO   -- strictly-increasing timestamps AND
+    #                  consecutive numbers; ALL K-PRs accept
+    #                  -> .Lsg_all_pass branch reached
     # Each header individually passes K290 / K291 / K240 /
-    # K278 / K277. With consecutive numbers (1, 2), K230 also
-    # passes -- but K229 runs BEFORE K230 in the pipeline, so
-    # the timestamp regression is caught first.
+    # K278 / K277.
     from ethereum.forks.amsterdam.blocks import Header
     from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
     from ethereum_types.bytes import Bytes32, Bytes8, Bytes
@@ -217,8 +218,17 @@ if hdr_hex == 'INVALID_TS':
             block_access_list_hash=Hash32(b'\\x00' * 32),
             slot_number=U64t(0),
         )
-    # Both timestamps 1234 -- K229 requires STRICT increase.
-    hdr_arg = (HeaderBL(rlp.encode(mk(1, 1234))), HeaderBL(rlp.encode(mk(2, 1234))))
+    if hdr_hex == 'INVALID_TS':
+        # Both timestamps 1234 -- K229 requires STRICT increase.
+        h0 = mk(1, 1234); h1 = mk(2, 1234)
+    elif hdr_hex == 'INVALID_NM':
+        # Numbers 1 and 3 -- not consecutive (should be 2).
+        h0 = mk(1, 1234); h1 = mk(3, 2000)
+    else:  # VALID_TWO
+        # Consecutive numbers (1, 2) and increasing timestamps
+        # (1234, 2000). Every K-PR validator accepts.
+        h0 = mk(1, 1234); h1 = mk(2, 2000)
+    hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)))
 elif hdr_hex in (
     'VALID_POST_MERGE',
     'INVALID_DIFF',
@@ -226,6 +236,7 @@ elif hdr_hex in (
     'INVALID_GAS',
     'INVALID_BLOB_MISALIGN',
     'INVALID_BLOB_OVERMAX',
+    'VALID_EXTRA_BOUNDARY',
 ):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
@@ -239,8 +250,10 @@ elif hdr_hex in (
     #                             917504. Multiple of 131072 so
     #                             K278 passes, but > MAX_BLOB_GAS_
     #                             PER_BLOCK = 6 * 131072 = 786432,
-    #                             so K277 (chain_validate_blob_gas_-
-    #                             used_under_max) rejects.
+    #                             so K277 rejects.
+    #   VALID_EXTRA_BOUNDARY   -- extra_data length EXACTLY 32
+    #                             (max allowed); K291 ACCEPTS at
+    #                             the boundary.
     from ethereum.forks.amsterdam.blocks import Header
     from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
     from ethereum_types.bytes import Bytes32, Bytes8, Bytes
@@ -250,7 +263,12 @@ elif hdr_hex in (
     from ethereum.crypto.hash import Hash32
     from ethereum_rlp import rlp
     diff = 1 if hdr_hex == 'INVALID_DIFF' else 0
-    extra = Bytes(b'\\xab' * 33) if hdr_hex == 'INVALID_EXTRA' else Bytes(b'')
+    if hdr_hex == 'INVALID_EXTRA':
+        extra = Bytes(b'\\xab' * 33)
+    elif hdr_hex == 'VALID_EXTRA_BOUNDARY':
+        extra = Bytes(b'\\xab' * 32)
+    else:
+        extra = Bytes(b'')
     gas_limit_v = 1000000
     gas_used_v = 1000001 if hdr_hex == 'INVALID_GAS' else 0
     if hdr_hex == 'INVALID_BLOB_MISALIGN':
@@ -657,6 +675,39 @@ run_fixture "chain1_invalid_blob_overmax"  1   0    ""           ""             
 # does not chain to first header's keccak); both return
 # 73 bytes valid=False.
 run_fixture "chain1_invalid_ts"     1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_TS" || fail=1
+
+# Two valid post-merge headers with strictly increasing
+# timestamps (so K229 passes) but non-consecutive numbers
+# (1 and 3, not 1 and 2). K230 (chain_validate_consecutive_
+# numbers) rejects. This completes the validator-pipeline
+# REJECT-path coverage: all 7 K-PRs' individual reject
+# paths plus .Lsg_fail_rlp now have at least one fixture.
+# Pipeline flow:
+#   1. .Lsg_bl builds sg_header_lengths[N=2].
+#   2. K-PRs 290/291/240/278/277 each pass on both headers.
+#   3. K229 passes (1234 < 2000).
+#   4. K230 catches header[1].number != header[0].number + 1
+#      (3 != 2), sets sg_kpr_valid=0.
+#   5. Pipeline branches to .Lsg_fail_nm -> .Lsg_unimpl
+#      (= j .Lsg_hash, post #6878).
+run_fixture "chain1_invalid_nm"     1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_NM" || fail=1
+
+# Two valid post-merge headers with strictly increasing
+# timestamps AND consecutive numbers. ALL 7 K-PR validators
+# accept; the pipeline reaches .Lsg_all_pass for N=2 (the
+# multi-header all-pass branch -- chain1_valid_header
+# already covered N=1 all-pass in PR #6886). K229 and K230
+# fire and ACCEPT for the first time in a passing fixture;
+# previously they only had REJECT-path tests (#6905, #6908).
+run_fixture "chain1_valid_two"      1                  0    ""           ""                  ""    ""           ""           ""    "VALID_TWO" || fail=1
+
+# Boundary-accept test for K291. Header has extra_data of
+# EXACTLY 32 bytes (the maximum allowed by K291). Pairs with
+# chain1_invalid_extra (#6893, 33 bytes -> reject) to verify
+# the boundary condition is on the right side. Pipeline
+# reaches .Lsg_all_pass; output 73 bytes valid=False; spec
+# matches via STF failure on empty NPR.
+run_fixture "chain1_extra_at_boundary" 1   0    ""           ""                  ""    ""           ""           ""    "VALID_EXTRA_BOUNDARY" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +

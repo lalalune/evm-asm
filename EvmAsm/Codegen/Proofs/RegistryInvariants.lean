@@ -101,17 +101,17 @@ theorem jumpTargetLabel_well_formed :
 -- when wiring new opcodes is a deliberate-by-design step — drift here
 -- means PROGRESS.md's coverage table is also stale.
 
-/-- Exactly 111 opcode bytes are claimed by `tinyInterpRegistry` today.
+/-- Exactly 112 opcode bytes are claimed by `tinyInterpRegistry` today.
     Update this number when wiring new opcodes (EXP, etc.). -/
 theorem tinyInterpRegistry_wired_opcode_count :
-    (tinyInterpRegistry.flatMap (·.opcodes)).length = 111 := by
+    (tinyInterpRegistry.flatMap (·.opcodes)).length = 112 := by
   decide
 
-/-- Exactly 111 bytes in `[0, 255]` route to a registered handler;
-    the remaining 145 fall through to `h_invalid`. -/
+/-- Exactly 112 bytes in `[0, 255]` route to a registered handler;
+    the remaining 144 fall through to `h_invalid`. -/
 theorem jumpTable_non_invalid_count :
     ((List.range 256).filter
-      (fun b => jumpTargetLabel tinyInterpRegistry b ≠ "h_invalid")).length = 111 := by
+      (fun b => jumpTargetLabel tinyInterpRegistry b ≠ "h_invalid")).length = 112 := by
   set_option maxRecDepth 2048 in decide
 
 end EvmAsm.Codegen.Proofs
