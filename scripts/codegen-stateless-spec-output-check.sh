@@ -79,6 +79,7 @@ run_fixture() {
   local block_number="${7:-}"
   local timestamp="${8:-}"
   local blob_schedule="${9:-}"
+  local witness_headers_hex="${10:-}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -86,14 +87,16 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty})"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty})"
   uv run --directory execution-specs --quiet python3 -c "
 import struct, sys
 from ethereum.forks.amsterdam.stateless_ssz import (
     MAX_BYTES_PER_CODE,
+    MAX_BYTES_PER_HEADER,
     MAX_BYTES_PER_WITNESS_NODE,
     MAX_PUBLIC_KEYS,
     MAX_WITNESS_CODES,
+    MAX_WITNESS_HEADERS,
     MAX_WITNESS_NODES,
     PUBLIC_KEY_BYTES,
     STATELESS_INPUT_SCHEMA_ID_BYTES,
@@ -120,6 +123,7 @@ pk_hex = sys.argv[7]
 bn_str = sys.argv[8]
 ts_str = sys.argv[9]
 blob_str = sys.argv[10]
+hdr_hex = sys.argv[11]
 
 # Build the new-schema StatelessInput: empty new_payload_request,
 # witness whose 'state'/'codes' lists each hold zero or more
@@ -168,9 +172,17 @@ if state_hex:
     state_entries = state_hex.split(':')
     state_arg = tuple(NodeBL(bytes.fromhex(s)) for s in state_entries)
 
+HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
+HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
+hdr_arg = ()
+if hdr_hex:
+    hdr_entries = hdr_hex.split(':')
+    hdr_arg = tuple(HeaderBL(bytes.fromhex(h)) for h in hdr_entries)
+
 witness = SszExecutionWitness(
     state=NodesList(*state_arg),
     codes=CodesList(*codes_arg),
+    headers=HeadersList(*hdr_arg),
 )
 
 PkBV = ByteVector[PUBLIC_KEY_BYTES]
@@ -202,7 +214,7 @@ with open(sys.argv[2], 'wb') as f:
 spec_bytes = bytes(run_stateless_guest(input_bytes))
 with open(sys.argv[3], 'w') as f:
     f.write(spec_bytes.hex())
-" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule"
+" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex"
 
   echo "==> [$label] ziskemu run"
   "$ZISKEMU" -e gen-out/stateless_guest.elf -i "$input_file" \
@@ -417,6 +429,47 @@ run_fixture "chain1_act_blob_all"   1                  0    ""           ""     
 # panicked with "section not found". The bounded loop stops at
 # chain_config_end, never reaching the unmapped page.
 run_fixture "chain1_witcode_actbn_unbounded" 1   0    "deadbeef"   ""                  ""    "1234567890" || fail=1
+
+# Stronger stress for the bounded byte-copy: BOTH witness
+# fields populated AND non-empty block_number, no PK padding.
+# Under the old unrolled encoder, chain_config_end lands close
+# enough to ziskemu's input-region boundary that the trailing
+# unconditional LBUs at chain_config + 28..76 panic with
+# "section not found". The bounded loop in PR #6843 stops at
+# chain_config_end so the combination passes.
+run_fixture "chain1_witboth_actbn_unbounded" 1   0    "deadbeef"   "a1b2c3d4e5f60718"  ""    "1234567890" || fail=1
+
+# Non-empty witness.headers -- exercises the THIRD inner witness
+# field, which the decoder's `decode_header_count` stub leaves
+# inert (x16 = 0) so the validator pipeline takes the N=0 fast
+# path. Spec's `validate_headers([bogus])` raises -> valid=False,
+# matching the ELF's x11=0 stub. Adding a 32-byte arbitrary
+# header tests that the decoder's outer-offset chase is robust
+# even when witness.headers is non-empty.
+run_fixture "chain1_witheaders"     1                  0    ""           ""                  ""    ""           ""           ""    "$(printf 'aa%.0s' {1..32})" || fail=1
+
+# Two witness.headers entries -- exercises the SSZ list inner
+# offset table (2 u32 offsets prefix the headers section)
+# parallel to chain1_witcode_2 / chain1_witstate_2. The decoder
+# still leaves x16=0 from the stub so the validator pipeline
+# takes the N=0 fast path; ELF output stays the 73-byte
+# valid=False template. Stress test for the bounded byte-copy
+# under maximum-witness-headers byte-budget.
+run_fixture "chain1_witheaders_2"   1                  0    ""           ""                  ""    ""           ""           ""    "$(printf 'aa%.0s' {1..32}):$(printf 'bb%.0s' {1..32})" || fail=1
+
+# Kitchen-sink fixture -- every input slot populated
+# simultaneously. All three inner witness fields (state +
+# codes + headers) carry one entry each; public_keys has one
+# 65-byte entry; chain_config.active_fork has bn=[N] +
+# ts=[T] + blob=[entry] = MAX active_fork (64 bytes). Spec
+# emits 113 bytes (the maximum-shape SszForkConfig echo).
+# Stress test for the bounded byte-copy under maximum input
+# byte-budget (witness ~68 bytes + chain_config 76 bytes +
+# pk 65 bytes + npr 596 bytes), validating that the
+# decoder's outer-offset chase and the encoder's bounded
+# loop work together at the upper end of every variable
+# dimension simultaneously.
+run_fixture "chain1_kitchen_sink"   1                  0    "deadbeef"   "a1b2c3d4e5f60718"  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "5555555555" "6666666666" "1000:2000:3000"    "$(printf 'aa%.0s' {1..32})" || fail=1
 
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
