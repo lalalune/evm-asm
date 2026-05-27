@@ -66,6 +66,7 @@ import EvmAsm.Evm64.DivMod.Spec.DivisorBzeroExcludesShape
 import EvmAsm.Evm64.DivMod.Spec.DivisorLimbCaseHelpers
 import EvmAsm.Evm64.DivMod.Spec.DivisorFullDomainShape
 import EvmAsm.Evm64.DivMod.Spec.DivisorFullDomainShapeNamed
+import EvmAsm.Evm64.DivMod.Spec.DivisorShapeDisjunctionElim
 import EvmAsm.Evm64.DivMod.Spec.UnifiedN1Normalized
 import EvmAsm.Evm64.DivMod.Spec.UnifiedN1NormalizedRemainder
 import EvmAsm.Evm64.DivMod.Spec.UnifiedN1StepPath
