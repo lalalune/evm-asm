@@ -670,6 +670,21 @@ run_fixture "chain1_valid_ts_hibit" 1                  0    ""           ""     
 # dimension simultaneously.
 run_fixture "chain1_kitchen_sink"   1                  0    "deadbeef"   "a1b2c3d4e5f60718"  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "5555555555" "6666666666" "1000:2000:3000"    "$(printf 'aa%.0s' {1..32})" || fail=1
 
+# Kitchen-sink + real RLP-encoded VALID_POST_MERGE header.
+# Identical input shape to chain1_kitchen_sink (every variable
+# slot populated, max-shape SszForkConfig, full PK) but the
+# witness.headers entry is a real RLP-encoded post-merge
+# Header instead of 32 bytes of 0xAA. Drives the K-PR pipeline
+# down the all-pass path (K290/K291/K240/K278/K277 all
+# accept; K229/K230 vacuous at N=1) simultaneously with the
+# encoder's bounded byte-copy + chain_id pack + chain_config
+# echo paths. Previously the kitchen-sink fixture stopped at
+# the first K-PR's RLP parse failure (status != 0 -> fall
+# through to .Lsg_hash) so the validator bodies were never
+# fully exercised under max-input conditions. This fixture
+# closes that gap.
+run_fixture "chain1_kitchen_real_header" 1            0    "deadbeef"   "a1b2c3d4e5f60718"  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "5555555555" "6666666666" "1000:2000:3000"    "VALID_POST_MERGE" || fail=1
+
 # All numeric slots at u64 max (0xFFFFFFFFFFFFFFFF). Tests
 # the encoder's bit-packing and byte-copy under full-width
 # values in every slot: chain_id, fork, block_number,
