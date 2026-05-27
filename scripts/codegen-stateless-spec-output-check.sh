@@ -362,6 +362,18 @@ run_fixture "chain1_act_both"       1                  0    ""           ""     
 # all three u64s of the entry.
 run_fixture "chain1_blob"           1                  0    ""           ""                  ""    ""           ""           "100:200:300" || fail=1
 
+# Cross-product: non-empty public_keys AND non-empty
+# block_number. The decoder's outer-offset chase
+# (SSZ_BASE+8 -> chain_config_addr) must land correctly under
+# input-layout drift, AND the encoder's variable-length byte-
+# copy must produce the 81-byte block_number passthrough.
+# public_keys (65 bytes) sits AFTER chain_config in the outer
+# SSZ blob, so it doesn't shift chain_config_offset; it does
+# extend the input file enough that the encoder's trailing
+# byte-copy reads stay within ziskemu's mapped input region
+# (cross-products with witness.codes/state would land 0..few
+# bytes of mem slack -- too tight, would panic).
+run_fixture "chain1_pk_actbn"       1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "1234567890" || fail=1
 # Cross-product corner: bn=[B], ts=[T], blob=[entry] all
 # populated simultaneously. MAX active_fork = 64 bytes (16
 # fc-header + 24 activation body + 24 blob_schedule), so spec
