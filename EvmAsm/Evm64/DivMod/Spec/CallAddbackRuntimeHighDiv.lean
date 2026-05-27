@@ -69,6 +69,36 @@ theorem n4CallAddbackBeqHighDivKnuthABound.of_le {a b : EvmWord}
   rwa [n4CallAddbackBeqHighDivKnuthABound_def,
     n4CallAddbackBeqHighDivVal_def]
 
+theorem n4CallAddbackBeqQHatHighDivBound.of_floor_eq {a b : EvmWord}
+    (h_floor :
+      (n4CallAddbackBeqQHatV4 a b).toNat =
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat) :
+    n4CallAddbackBeqQHatHighDivBound a b := by
+  rw [n4CallAddbackBeqQHatHighDivBound_def,
+    n4CallAddbackBeqHighDivVal_def]
+  omega
+
+theorem n4CallAddbackBeqQHatHighDivBound.floor_eq_of_call_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_high : n4CallAddbackBeqQHatHighDivBound a b) :
+    (n4CallAddbackBeqQHatV4 a b).toNat = n4CallAddbackBeqHighDivVal a b := by
+  rw [n4CallAddbackBeqHighDivVal_def]
+  rw [n4CallAddbackBeqQHatHighDivBound_def,
+    n4CallAddbackBeqHighDivVal_def] at h_qhat_high
+  exact n4CallAddbackBeqQHatV4_eq_floor_of_call_rhatdd_hi_zero_of_le
+    hb3nz hshift_nz hcall h_rhat_hi_zero h_qhat_high
+
 /-- Runtime-bounds package from the named high-divisor qhat and Knuth-A
     bridge predicates. -/
 theorem n4CallAddbackBeqRuntimeBounds_of_high_div_bounds_and_borrow
@@ -116,6 +146,65 @@ theorem n4CallAddbackBeqSemanticHolds_of_high_div_bounds_and_borrow
   simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
     n4CallAddbackBeqSemanticHoldsV4_of_high_div_bounds_and_borrow
       hb3nz hshift_nz h_qhat_high h_high_div h_borrow h_carry2
+
+/-- Runtime-bounds package from exact-floor qhat evidence and the named
+    Knuth-A high-divisor bridge. -/
+theorem n4CallAddbackBeqRuntimeBounds_of_floor_eq_high_div_bound_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (h_floor :
+      (n4CallAddbackBeqQHatV4 a b).toNat =
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div : n4CallAddbackBeqHighDivKnuthABound a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqRuntimeBounds a b :=
+  n4CallAddbackBeqRuntimeBounds_of_high_div_bounds_and_borrow
+    hb3nz
+    (n4CallAddbackBeqQHatHighDivBound.of_floor_eq h_floor)
+    h_high_div
+    h_borrow
+
+/-- Runtime semantic bridge from exact-floor qhat evidence and the named
+    Knuth-A high-divisor bridge. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_floor_eq_high_div_bound_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_floor :
+      (n4CallAddbackBeqQHatV4 a b).toNat =
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div : n4CallAddbackBeqHighDivKnuthABound a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_high_div_bounds_and_borrow
+    hb3nz hshift_nz
+    (n4CallAddbackBeqQHatHighDivBound.of_floor_eq h_floor)
+    h_high_div
+    h_borrow h_carry2
+
+/-- Historical non-`V4` spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_floor_eq_high_div_bound_and_borrow`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_floor_eq_high_div_bound_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_floor :
+      (n4CallAddbackBeqQHatV4 a b).toNat =
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div : n4CallAddbackBeqHighDivKnuthABound a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_floor_eq_high_div_bound_and_borrow
+      hb3nz hshift_nz h_floor h_high_div h_borrow h_carry2
 
 /-- Runtime-bounds package from a direct qhat high-divisor bound, the weakened
     Knuth-A `+1` denominator bridge, and the runtime borrow predicate. -/
