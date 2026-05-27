@@ -549,6 +549,21 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     , body    := EvmAsm.Evm64.Calldata.evm_calldatasize .x20 .x15
     , tail    := .advanceAndRet 1 } ]
 
+/-- M14 control-flow opcodes. Currently just JUMPDEST (0x5b), the EVM
+    no-op marker. The dispatcher emits an empty body (mirrors
+    `stopHandler`'s shape) followed by the standard
+    `.advanceAndRet 1` tail — JUMPDEST just advances `x10` by 1 and
+    returns to the dispatcher loop.
+
+    M15 will extend this list with JUMP (0x56), JUMPI (0x57), and
+    PC (0x58), which need a new `HandlerTail.writeX10` variant and
+    a dispatcher-preserved code-base register. -/
+def controlFlowHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_JUMPDEST"
+    , opcodes := [0x5b]
+    , body    := []
+    , tail    := .advanceAndRet 1 } ]
+
 /-- M8 unsigned division opcodes. Both `evm_div` and `evm_mod` carry
     a 75-instruction `divK_div128_v4` subroutine appended after a
     NOP "exit PC" at body index 267; the `evmDivPatched` /
@@ -727,8 +742,9 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ envHandlers ++ calldataHandlers ++ divModHandlers ++
-  signedDivModHandlers ++ selfCallingHandlers ++ [stopHandler]
+  memoryHandlers ++ envHandlers ++ calldataHandlers ++
+  controlFlowHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
   buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode
