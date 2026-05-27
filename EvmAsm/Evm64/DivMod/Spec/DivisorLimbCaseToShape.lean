@@ -17,7 +17,6 @@ open EvmAsm.Rv64 EvmWord
 theorem DivisorLimbCase.n1_implies_N1ShapeIs
     {b : EvmWord}
     (hbnz : b ≠ 0)
-    (_hbnzOr : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
     (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
     (hb1z : b.getLimbN 1 = 0) (hb0nz : b.getLimbN 0 ≠ 0) :
     N1ShapeIs b :=
@@ -27,7 +26,6 @@ theorem DivisorLimbCase.n1_implies_N1ShapeIs
 theorem DivisorLimbCase.n2_implies_N2ShapeIs
     {b : EvmWord}
     (hbnz : b ≠ 0)
-    (_hbnzOr : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
     (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
     (hb1nz : b.getLimbN 1 ≠ 0) :
     N2ShapeIs b :=
@@ -37,7 +35,6 @@ theorem DivisorLimbCase.n2_implies_N2ShapeIs
 theorem DivisorLimbCase.n3_implies_N3ShapeIs
     {b : EvmWord}
     (hbnz : b ≠ 0)
-    (_hbnzOr : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
     (hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0) :
     N3ShapeIs b :=
   ⟨hbnz, hb3z, hb2nz⟩
@@ -46,7 +43,6 @@ theorem DivisorLimbCase.n3_implies_N3ShapeIs
 theorem DivisorLimbCase.n4_implies_N4ShapeIs
     {b : EvmWord}
     (hbnz : b ≠ 0)
-    (_hbnzOr : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0) :
     N4ShapeIs b :=
   ⟨hbnz, hb3nz⟩
