@@ -636,5 +636,142 @@ theorem evm_div_n4_shift_nz_stack_spec_noNop_of_branch_semantic
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign hevidence
 
+/-- Packaged high-div branch evidence lowers to branch-semantic dispatcher
+    evidence by deriving the repaired V4 semantic marker on the addback side. -/
+theorem n4ShiftNzDispatcherBranchHighDivEvidence.toBranchSemanticV4 {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivEvidence a b) :
+    n4ShiftNzDispatcherBranchSemanticV4 a b := by
+  rw [n4ShiftNzDispatcherBranchHighDivEvidence_def] at hevidence
+  cases hevidence with
+  | inl hskip =>
+      exact n4ShiftNzDispatcherBranchSemanticV4.skip hskip.1 hskip.2
+  | inr hadd =>
+      exact n4ShiftNzDispatcherBranchSemanticV4.addback hadd.1 hadd.2.1
+        (n4ShiftNzDispatcherBranchHighDivEvidence.semanticHoldsV4_of_addback_parts
+          hb3nz hshift_nz hadd.1 hadd.2.1 hadd.2.2)
+
+/-- Raw high-div branch evidence lowers to branch-semantic dispatcher evidence by
+    deriving the repaired V4 semantic marker on the addback side. -/
+theorem n4ShiftNzDispatcherBranchHighDivRawEvidence.toBranchSemanticV4 {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchSemanticV4 a b := by
+  rw [n4ShiftNzDispatcherBranchHighDivRawEvidence_def] at hevidence
+  cases hevidence with
+  | inl hskip =>
+      exact n4ShiftNzDispatcherBranchSemanticV4.skip hskip.1 hskip.2
+  | inr hadd =>
+      exact n4ShiftNzDispatcherBranchSemanticV4.addback hadd.1 hadd.2.1
+        (n4ShiftNzDispatcherBranchHighDivRawEvidence.semanticHoldsV4_of_addback_parts
+          hb3nz hshift_nz hadd.1 hadd.2.1 hadd.2.2.1 hadd.2.2.2.1
+          hadd.2.2.2.2)
+
+/-- Packaged high-div branch evidence stack surface routed through the repaired
+    branch-semantic dispatcher package. -/
+theorem evm_div_n4_shift_nz_stack_spec_v4_of_branch_high_div_semantic
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivEvidence a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
+  evm_div_n4_shift_nz_stack_spec_v4_of_branch_semantic
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hb3nz hshift_nz halign
+    (n4ShiftNzDispatcherBranchHighDivEvidence.toBranchSemanticV4
+      hb3nz hshift_nz hevidence)
+
+/-- No-NOP packaged high-div branch evidence stack surface routed through the
+    repaired branch-semantic dispatcher package. -/
+theorem evm_div_n4_shift_nz_stack_spec_v4_noNop_of_branch_high_div_semantic
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivEvidence a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_noNop_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
+  evm_div_n4_shift_nz_stack_spec_v4_noNop_of_branch_semantic
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hb3nz hshift_nz halign
+    (n4ShiftNzDispatcherBranchHighDivEvidence.toBranchSemanticV4
+      hb3nz hshift_nz hevidence)
+
+/-- Raw high-div branch evidence stack surface routed through the repaired
+    branch-semantic dispatcher package. -/
+theorem evm_div_n4_shift_nz_stack_spec_v4_of_branch_high_div_raw_semantic
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivRawEvidence a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
+  evm_div_n4_shift_nz_stack_spec_v4_of_branch_semantic
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hb3nz hshift_nz halign
+    (n4ShiftNzDispatcherBranchHighDivRawEvidence.toBranchSemanticV4
+      hb3nz hshift_nz hevidence)
+
+/-- No-NOP raw high-div branch evidence stack surface routed through the repaired
+    branch-semantic dispatcher package. -/
+theorem evm_div_n4_shift_nz_stack_spec_v4_noNop_of_branch_high_div_raw_semantic
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivRawEvidence a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_noNop_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
+  evm_div_n4_shift_nz_stack_spec_v4_noNop_of_branch_semantic
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hb3nz hshift_nz halign
+    (n4ShiftNzDispatcherBranchHighDivRawEvidence.toBranchSemanticV4
+      hb3nz hshift_nz hevidence)
+
 
 end EvmAsm.Evm64
