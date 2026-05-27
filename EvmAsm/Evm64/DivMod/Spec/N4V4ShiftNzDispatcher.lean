@@ -44,6 +44,31 @@ def n4ShiftNzDispatcherBranchBoundsV4 (a b : EvmWord) : Prop :=
   isAddbackCarry2NzN4CallV4Evm a b ∧
   n4CallAddbackBeqRuntimeBounds a b
 
+/-- Raw branch-sensitive high-div evidence for the n=4, shift-nonzero DIV
+    v4 dispatcher.
+
+    This is the arithmetic-facing form of
+    `n4ShiftNzDispatcherBranchHighDivEvidence`: the addback branch carries the
+    concrete `rhatdd` high-half-zero fact, the qhat/high-div inequality, and
+    the surviving Knuth-A `+1` high-div bound directly. -/
+def n4ShiftNzDispatcherBranchHighDivRawEvidence (a b : EvmWord) : Prop :=
+  (isSkipBorrowN4CallV4Evm a b ∧ n4CallSkipRuntimeBranchV4 a b) ∨
+  (isAddbackBorrowN4CallV4Evm a b ∧
+   isAddbackCarry2NzN4CallV4Evm a b ∧
+   divKTrialCallV4Rhatdd
+       (n4CallAddbackBeqU4 a b)
+       (n4CallAddbackBeqU3 a b)
+       (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+     (0 : Word) ∧
+   (n4CallAddbackBeqQHatV4 a b).toNat ≤
+     ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+         (n4CallAddbackBeqU3 a b).toNat) /
+       (n4CallAddbackBeqB3Prime b).toNat ∧
+   ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+       (n4CallAddbackBeqU3 a b).toNat) /
+     (n4CallAddbackBeqB3Prime b).toNat ≤
+       n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+
 /-- Branch-sensitive high-div evidence for the n=4, shift-nonzero DIV v4
     dispatcher.
 
@@ -85,6 +110,26 @@ theorem n4ShiftNzDispatcherBranchHighDivEvidence_def {a b : EvmWord} :
        (isAddbackBorrowN4CallV4Evm a b ∧
         isAddbackCarry2NzN4CallV4Evm a b ∧
         n4CallAddbackBeqShiftHighDivEvidence a b)) :=
+  rfl
+
+theorem n4ShiftNzDispatcherBranchHighDivRawEvidence_def {a b : EvmWord} :
+    n4ShiftNzDispatcherBranchHighDivRawEvidence a b =
+      ((isSkipBorrowN4CallV4Evm a b ∧ n4CallSkipRuntimeBranchV4 a b) ∨
+       (isAddbackBorrowN4CallV4Evm a b ∧
+        isAddbackCarry2NzN4CallV4Evm a b ∧
+        divKTrialCallV4Rhatdd
+            (n4CallAddbackBeqU4 a b)
+            (n4CallAddbackBeqU3 a b)
+            (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+          (0 : Word) ∧
+        (n4CallAddbackBeqQHatV4 a b).toNat ≤
+          ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+              (n4CallAddbackBeqU3 a b).toNat) /
+            (n4CallAddbackBeqB3Prime b).toNat ∧
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat ≤
+            n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)) :=
   rfl
 
 theorem n4ShiftNzDispatcherBranchBoundsV4.callSkipBranch {a b : EvmWord}
@@ -203,6 +248,57 @@ theorem n4ShiftNzDispatcherBranchRuntimeV4_of_high_div_evidence {a b : EvmWord}
       exact n4ShiftNzDispatcherBranchRuntimeV4.addback hadd.1 hadd.2.1
         (n4CallAddbackBeqRuntimeBounds_of_shift_high_div_evidence_and_borrow
           hb3nz hshift_nz hadd.2.2 hadd.1)
+
+theorem n4ShiftNzDispatcherBranchHighDivRawEvidence.skip {a b : EvmWord}
+    (hskip : isSkipBorrowN4CallV4Evm a b)
+    (hbranch : n4CallSkipRuntimeBranchV4 a b) :
+    n4ShiftNzDispatcherBranchHighDivRawEvidence a b := by
+  rw [n4ShiftNzDispatcherBranchHighDivRawEvidence_def]
+  exact Or.inl ⟨hskip, hbranch⟩
+
+theorem n4ShiftNzDispatcherBranchHighDivRawEvidence.addback {a b : EvmWord}
+    (hadd : isAddbackBorrowN4CallV4Evm a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1) :
+    n4ShiftNzDispatcherBranchHighDivRawEvidence a b := by
+  rw [n4ShiftNzDispatcherBranchHighDivRawEvidence_def]
+  exact Or.inr
+    ⟨hadd, hcarry2, h_rhat_hi_zero, h_qhat_le_high_div, h_high_div_le_norm_plus_one⟩
+
+theorem n4ShiftNzDispatcherBranchHighDivEvidence_of_raw {a b : EvmWord}
+    (hevidence : n4ShiftNzDispatcherBranchHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchHighDivEvidence a b := by
+  rw [n4ShiftNzDispatcherBranchHighDivRawEvidence_def] at hevidence
+  cases hevidence with
+  | inl hskip =>
+      exact n4ShiftNzDispatcherBranchHighDivEvidence.skip hskip.1 hskip.2
+  | inr hadd =>
+      exact n4ShiftNzDispatcherBranchHighDivEvidence.addbackRaw
+        hadd.1 hadd.2.1 hadd.2.2.1 hadd.2.2.2.1 hadd.2.2.2.2
+
+theorem n4ShiftNzDispatcherBranchRuntimeV4_of_high_div_raw_evidence {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+  n4ShiftNzDispatcherBranchRuntimeV4_of_high_div_evidence
+    hb3nz hshift_nz
+    (n4ShiftNzDispatcherBranchHighDivEvidence_of_raw hevidence)
 
 /-- n=4, shift-nonzero DIV v4 dispatcher over the call branch.
 
@@ -832,6 +928,56 @@ theorem evm_div_n4_shift_nz_stack_spec_noNop_of_high_div_evidence
     hb3nz hshift_nz halign
     (n4ShiftNzDispatcherBranchRuntimeV4_of_high_div_evidence
       hb3nz hshift_nz hevidence)
+
+/-- Final named n=4, shift-nonzero DIV dispatcher surface from raw
+    branch-sensitive high-div evidence. -/
+theorem evm_div_n4_shift_nz_stack_spec_of_high_div_raw_evidence
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivRawEvidence a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
+  evm_div_n4_shift_nz_stack_spec_of_high_div_evidence
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hb3nz hshift_nz halign
+    (n4ShiftNzDispatcherBranchHighDivEvidence_of_raw hevidence)
+
+/-- Final named no-NOP n=4, shift-nonzero DIV dispatcher surface from raw
+    branch-sensitive high-div evidence. -/
+theorem evm_div_n4_shift_nz_stack_spec_noNop_of_high_div_raw_evidence
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivRawEvidence a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_noNop_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
+  evm_div_n4_shift_nz_stack_spec_noNop_of_high_div_evidence
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hb3nz hshift_nz halign
+    (n4ShiftNzDispatcherBranchHighDivEvidence_of_raw hevidence)
 
 /-- Final named n=4, shift-nonzero DIV dispatcher surface from packaged
     branch/bounds evidence. -/
