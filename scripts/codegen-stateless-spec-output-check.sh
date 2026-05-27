@@ -175,15 +175,22 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO'):
-    # Two valid post-merge headers exhibiting either:
-    #   INVALID_TS  -- non-increasing timestamps, K229 rejects
-    #   INVALID_NM  -- non-consecutive numbers, K230 rejects
-    #   VALID_TWO   -- strictly-increasing timestamps AND
-    #                  consecutive numbers; ALL K-PRs accept
-    #                  -> .Lsg_all_pass branch reached
-    # Each header individually passes K290 / K291 / K240 /
-    # K278 / K277.
+if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE'):
+    # Multi-header fixtures (N=2 or N=3) exercising K229 and
+    # K230 in their accept and reject branches. Each header
+    # individually passes K290 / K291 / K240 / K278 / K277.
+    #   INVALID_TS   -- non-increasing timestamps, K229 rejects
+    #   INVALID_NM   -- non-consecutive numbers, K230 rejects
+    #   VALID_TWO    -- N=2 strictly-increasing + consecutive
+    #                   numbers; all K-PRs accept.
+    #   VALID_THREE  -- N=3 chained headers (parent_hash chain
+    #                   computed via keccak256) with strictly-
+    #                   increasing timestamps and consecutive
+    #                   numbers 1, 2, 3; all K-PRs accept and
+    #                   spec's validate_headers ALSO succeeds
+    #                   (because contiguity holds), then spec
+    #                   STF fails on empty NPR. ELF reaches
+    #                   .Lsg_all_pass for the first time at N=3.
     from ethereum.forks.amsterdam.blocks import Header
     from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
     from ethereum_types.bytes import Bytes32, Bytes8, Bytes
@@ -221,14 +228,55 @@ if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO'):
     if hdr_hex == 'INVALID_TS':
         # Both timestamps 1234 -- K229 requires STRICT increase.
         h0 = mk(1, 1234); h1 = mk(2, 1234)
+        hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)))
     elif hdr_hex == 'INVALID_NM':
         # Numbers 1 and 3 -- not consecutive (should be 2).
         h0 = mk(1, 1234); h1 = mk(3, 2000)
-    else:  # VALID_TWO
+        hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)))
+    elif hdr_hex == 'VALID_TWO':
         # Consecutive numbers (1, 2) and increasing timestamps
         # (1234, 2000). Every K-PR validator accepts.
         h0 = mk(1, 1234); h1 = mk(2, 2000)
-    hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)))
+        hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)))
+    else:  # VALID_THREE
+        # Three chained valid post-merge headers. parent_hash
+        # chain so spec's validate_headers ALSO accepts
+        # (contiguity holds). Strictly-increasing timestamps
+        # (1234, 2000, 3000), consecutive numbers (1, 2, 3).
+        from ethereum.crypto.hash import keccak256
+        def mk_chained(number, timestamp, parent_hash):
+            return Header(
+                parent_hash=parent_hash,
+                ommers_hash=EMPTY_OMMER_HASH,
+                coinbase=b'\\x00' * 20,
+                state_root=Hash32(b'\\x00' * 32),
+                transactions_root=Hash32(b'\\x00' * 32),
+                receipt_root=Hash32(b'\\x00' * 32),
+                bloom=b'\\x00' * 256,
+                difficulty=Uint(0),
+                number=Uint(number),
+                gas_limit=Uint(1000000),
+                gas_used=Uint(0),
+                timestamp=U256(timestamp),
+                extra_data=Bytes(b''),
+                prev_randao=Bytes32(b'\\x00' * 32),
+                nonce=Bytes8(b'\\x00' * 8),
+                base_fee_per_gas=Uint(0),
+                withdrawals_root=Hash32(b'\\x00' * 32),
+                blob_gas_used=U64t(0),
+                excess_blob_gas=U64t(0),
+                parent_beacon_block_root=Hash32(b'\\x00' * 32),
+                requests_hash=Hash32(b'\\x00' * 32),
+                block_access_list_hash=Hash32(b'\\x00' * 32),
+                slot_number=U64t(0),
+            )
+        h0 = mk_chained(1, 1234, Hash32(b'\\x00' * 32))
+        h0_bytes = rlp.encode(h0)
+        h1 = mk_chained(2, 2000, keccak256(h0_bytes))
+        h1_bytes = rlp.encode(h1)
+        h2 = mk_chained(3, 3000, keccak256(h1_bytes))
+        h2_bytes = rlp.encode(h2)
+        hdr_arg = (HeaderBL(h0_bytes), HeaderBL(h1_bytes), HeaderBL(h2_bytes))
 elif hdr_hex in (
     'VALID_POST_MERGE',
     'INVALID_DIFF',
@@ -750,6 +798,15 @@ run_fixture "chain1_blob_at_boundary" 1   0    ""           ""                  
 #   K278:  131072 (accept, #6923) / 1 (reject, #6899)
 #   K277: 786432 (accept, this PR) / 917504 (reject, #6901)
 run_fixture "chain1_blob_max_at_boundary" 1 0  ""           ""                  ""    ""           ""           ""    "VALID_BLOB_MAX_BOUNDARY" || fail=1
+
+# Three chained valid post-merge headers. parent_hash chain
+# computed via keccak256 so spec's validate_headers accepts
+# (contiguity holds). All K-PRs accept (timestamps increasing
+# 1234<2000<3000, numbers consecutive 1,2,3). ELF reaches
+# .Lsg_all_pass for N=3 -- first N=3 all-pass exercise.
+# Spec's validate_headers succeeds, then STF fails on empty
+# NPR -> valid=False. ELF: valid=False from x11 stub. Match.
+run_fixture "chain1_valid_three"    1                  0    ""           ""                  ""    ""           ""           ""    "VALID_THREE" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
