@@ -175,12 +175,13 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex.startswith('VALID_POST_MERGE') or hdr_hex.startswith('INVALID_DIFF'):
+if hdr_hex in ('VALID_POST_MERGE', 'INVALID_DIFF', 'INVALID_EXTRA'):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE -- passes all 7 K-PR validators.
-    #   INVALID_DIFF     -- same shape but difficulty=1 instead
-    #                       of 0; K290 (chain_validate_post_merge_full)
-    #                       should reject it.
+    #   INVALID_DIFF     -- difficulty=1; K290 rejects.
+    #   INVALID_EXTRA    -- extra_data length 33 (> 32 limit);
+    #                       K291 (chain_validate_extra_data_length)
+    #                       rejects.
     from ethereum.forks.amsterdam.blocks import Header
     from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
     from ethereum_types.bytes import Bytes32, Bytes8, Bytes
@@ -190,6 +191,7 @@ if hdr_hex.startswith('VALID_POST_MERGE') or hdr_hex.startswith('INVALID_DIFF'):
     from ethereum.crypto.hash import Hash32
     from ethereum_rlp import rlp
     diff = 1 if hdr_hex == 'INVALID_DIFF' else 0
+    extra = Bytes(b'\\xab' * 33) if hdr_hex == 'INVALID_EXTRA' else Bytes(b'')
     h = Header(
         parent_hash=Hash32(b'\\x00' * 32),
         ommers_hash=EMPTY_OMMER_HASH,
@@ -203,7 +205,7 @@ if hdr_hex.startswith('VALID_POST_MERGE') or hdr_hex.startswith('INVALID_DIFF'):
         gas_limit=Uint(1000000),
         gas_used=Uint(0),
         timestamp=U256(1234),
-        extra_data=Bytes(b''),
+        extra_data=extra,
         prev_randao=Bytes32(b'\\x00' * 32),
         nonce=Bytes8(b'\\x00' * 8),
         base_fee_per_gas=Uint(0),
@@ -482,6 +484,20 @@ run_fixture "chain1_valid_header"   1                  0    ""           ""     
 # byte sequence. Match confirms K290 is actually triggered
 # AND the .Lsg_fail_pm routing reaches the cleanup path.
 run_fixture "chain1_invalid_diff"   1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_DIFF" || fail=1
+
+# Header that fails K291 (chain_validate_extra_data_length).
+# Same shape as chain1_valid_header but extra_data has 33
+# bytes instead of 0 -- exceeds the 32-byte amsterdam limit.
+# Pipeline flow:
+#   1. K290 passes (difficulty=0, ommers_hash=EMPTY, nonce=0).
+#   2. K291 reads extra_data length, finds 33 > 32, sets
+#      sg_kpr_valid=0, returns.
+#   3. Pipeline branches to .Lsg_fail_ed -> .Lsg_unimpl
+#      (= j .Lsg_hash, per PR #6878) -> halt.
+# Output 73 bytes valid=False. Spec catches and returns same.
+# Third validator-specific REJECT path exercised (after
+# .Lsg_fail_rlp and .Lsg_fail_pm).
+run_fixture "chain1_invalid_extra"  1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_EXTRA" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
