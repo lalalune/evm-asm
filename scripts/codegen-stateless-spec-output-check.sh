@@ -362,6 +362,16 @@ run_fixture "chain1_act_both"       1                  0    ""           ""     
 # all three u64s of the entry.
 run_fixture "chain1_blob"           1                  0    ""           ""                  ""    ""           ""           "100:200:300" || fail=1
 
+# Triple cross-product: witness.codes + public_keys + block_number.
+# witness.codes shifts chain_config_addr forward, block_number
+# drives the variable-length encoder, and public_keys padding
+# pushes mem_end far enough past chain_config_end that the
+# encoder's trailing LBU reads stay in-bounds (see the [[ziskemu-
+# input-slack]] memory note). Without the PK padding this exact
+# witcode + actbn combo would panic ziskemu with "section not
+# found"; the PK trick recovers it.
+run_fixture "chain1_witcode_pk_actbn" 1                0    "deadbeef"   ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "1234567890" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0
