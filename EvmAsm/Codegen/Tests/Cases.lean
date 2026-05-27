@@ -211,6 +211,16 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "calldatasize_zero"
       bytecode       := "0x36, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M14 control-flow opcode (JUMPDEST)
+    -- JUMPDEST is an EVM no-op marker. The dispatcher emits empty body
+    -- + .advanceAndRet 1, so x10 is bumped by 1 and the loop continues.
+    -- This case confirms JUMPDEST doesn't corrupt the stack and the
+    -- next opcode (PUSH1) executes correctly.
+  , -- JUMPDEST; PUSH1 0x42; STOP — JUMPDEST is a no-op; PUSH1 0x42 lands
+    -- the value on the stack; STOP halts. Expected: 0x42 in low limb.
+    { name           := "jumpdest_basic"
+      bytecode       := "0x5b, 0x60, 0x42, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;
