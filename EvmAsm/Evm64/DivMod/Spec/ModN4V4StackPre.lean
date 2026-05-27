@@ -460,6 +460,7 @@ This isolates the arithmetic bridge still needed to turn the denormalized
 addback remainder into `EvmWord.mod a b`: callers can prove this assertion
 equals `evmWordIs (sp + 32) (EvmWord.mod a b)` once the remainder arithmetic
 is discharged. -/
+@[irreducible]
 def n4CallAddbackBeqModSlotPostV4
     (sp : Word) (a b : EvmWord) : Assertion :=
   let shift := (clzResult (b.getLimbN 3)).1
