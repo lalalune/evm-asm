@@ -339,6 +339,36 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mcopy_pop3"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x5e, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M19 child-frame opcodes (CREATE/CALL/CALLCODE/DELEGATECALL/
+    -- CREATE2/STATICCALL) — wired as pop-N + push-zero no-ops.
+    -- Each opcode pops the EVM-spec input count and writes 32 zero
+    -- bytes to the new top-of-stack slot ("call failed" / "address 0").
+    -- Three representative test cases spanning the net-pop spectrum
+    -- (CREATE = 2, STATICCALL = 5, CALL = 6).
+  , -- PUSH1 0x01; PUSH1 0x02; PUSH1 0x03; CREATE; PUSH1 0x42; STOP
+    -- CREATE pops 3 (value, offset, size), pushes 1 (addr = 0). Net
+    -- pop = 2 words = +64 bytes. Then PUSH1 0x42 lands on the
+    -- now-1-deep stack; the address slot at the previous top is
+    -- replaced by 0x42 via the new PUSH. Expected: 0x42.
+    { name           := "create_pop3_push_zero"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0xf0, 0x60, 0x42, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x01..0x07; CALL; PUSH1 0xff; STOP
+    -- CALL pops 7 (gas, to, value, in_off, in_size, out_off,
+    -- out_size), pushes 1 (success = 0). Net pop = 6 = +192 bytes.
+    -- Then PUSH1 0xff lands on the 1-deep stack and replaces the
+    -- success slot. Expected: 0xff.
+    { name           := "call_pop7_push_zero"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0x60, 0x07, 0xf1, 0x60, 0xff, 0x00"
+      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x01..0x06; STATICCALL; PUSH1 0xab; STOP
+    -- STATICCALL pops 6 (gas, to, in_off, in_size, out_off,
+    -- out_size), pushes 1 (success = 0). Net pop = 5 = +160 bytes.
+    -- Confirms the third distinct ADDI immediate (160). Expected:
+    -- 0xab.
+    { name           := "staticcall_pop6_push_zero"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xfa, 0x60, 0xab, 0x00"
+      expectedOutHex := "ab00000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;

@@ -166,4 +166,52 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
     , tail := .advanceAndRet 1 } ]
 
+/-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
+    CREATE2, STATICCALL). All ship as **pop-N + push-zero** no-ops:
+    the dispatcher pops the EVM-spec input count, then writes 32
+    zero bytes into the new top-of-stack slot (= "call failed" /
+    "create returned address 0").
+
+    Net stack delta per opcode (= pop − push, multiplied by 32):
+
+    - **CREATE (0xf0)**: pops 3 (value, offset, size), pushes 1 (addr).
+      Net = +64 bytes (= 2 × 32).
+    - **CALL (0xf1)** / **CALLCODE (0xf2)**: pops 7 (gas, to, value,
+      in_off, in_size, out_off, out_size), pushes 1 (success).
+      Net = +192 (= 6 × 32).
+    - **DELEGATECALL (0xf4)** / **STATICCALL (0xfa)**: pops 6 (gas,
+      to, in_off, in_size, out_off, out_size), pushes 1 (success).
+      Net = +160 (= 5 × 32).
+    - **CREATE2 (0xf5)**: pops 4 (value, offset, size, salt),
+      pushes 1 (addr). Net = +96 (= 3 × 32).
+
+    EVM stack-arg ordering: `μ_s[0]` (top) is `gas`/`value` per the
+    Yellow Paper; for our no-op the ordering doesn't matter because
+    we drop everything.
+
+    **Known limitations** (documented in CODEGEN.md M19 narrative):
+    - CALL / CALLCODE / DELEGATECALL / STATICCALL always return 0
+      (= "call failed"). No actual sub-frame execution.
+    - CREATE / CREATE2 always return address 0 (= "deployment
+      failed"). The would-be deployed code is not executed.
+    - No frame stack / recursion. The dispatcher doesn't push a
+      sub-frame, run called code, and resume. Real frame-stack
+      design is deferred (likely tied to STF integration). -/
+def childFrameHandlers : List OpcodeHandlerSpec :=
+  let mkHandler (lbl : String) (op : Nat) (netPopBytes : Nat) : OpcodeHandlerSpec :=
+    { label := lbl
+    , opcodes := [op]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 netPopBytes) ;;
+              SD .x12 .x0 0 ;;
+              SD .x12 .x0 8 ;;
+              SD .x12 .x0 16 ;;
+              SD .x12 .x0 24
+    , tail := .advanceAndRet 1 }
+  [ mkHandler "h_CREATE"        0xf0 64
+  , mkHandler "h_CALL"          0xf1 192
+  , mkHandler "h_CALLCODE"      0xf2 192
+  , mkHandler "h_DELEGATECALL"  0xf4 160
+  , mkHandler "h_CREATE2"       0xf5 96
+  , mkHandler "h_STATICCALL"    0xfa 160 ]
+
 end EvmAsm.Codegen
