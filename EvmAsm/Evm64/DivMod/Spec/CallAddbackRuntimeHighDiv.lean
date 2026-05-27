@@ -176,6 +176,43 @@ theorem n4CallAddbackBeqQHatHighDivBound.of_floor_eq {a b : EvmWord}
     n4CallAddbackBeqHighDivVal_def]
   omega
 
+theorem n4CallAddbackBeqShiftHighDivEvidence.of_floor_parts {a b : EvmWord}
+    (h_rhat_hi_zero : n4CallAddbackBeqRhatddHiZero a b)
+    (h_floor :
+      (n4CallAddbackBeqQHatV4 a b).toNat =
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div : n4CallAddbackBeqHighDivKnuthABound a b) :
+    n4CallAddbackBeqShiftHighDivEvidence a b :=
+  n4CallAddbackBeqShiftHighDivEvidence.of_parts
+    h_rhat_hi_zero
+    (n4CallAddbackBeqQHatHighDivBound.of_floor_eq h_floor)
+    h_high_div
+
+theorem n4CallAddbackBeqShiftHighDivEvidence.of_floor_raw_parts {a b : EvmWord}
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_floor :
+      (n4CallAddbackBeqQHatV4 a b).toNat =
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1) :
+    n4CallAddbackBeqShiftHighDivEvidence a b :=
+  n4CallAddbackBeqShiftHighDivEvidence.of_floor_parts
+    (n4CallAddbackBeqRhatddHiZero.of_eq h_rhat_hi_zero)
+    h_floor
+    (n4CallAddbackBeqHighDivKnuthABound.of_le h_high_div_le_norm_plus_one)
+
 theorem n4CallAddbackBeqQHatHighDivBound.floor_eq_of_call_rhatdd_hi_zero
     {a b : EvmWord}
     (hb3nz : b.getLimbN 3 ≠ 0)
@@ -552,6 +589,95 @@ theorem n4CallAddbackBeqSemanticHolds_of_shift_high_div_evidence_and_borrow
   simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
     n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_evidence_and_borrow
       hb3nz hshift_nz h_evidence h_borrow h_carry2
+
+/-- Runtime-bounds bridge from raw shift/high-div evidence. -/
+theorem n4CallAddbackBeqRuntimeBounds_of_shift_high_div_raw_parts_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqRuntimeBounds a b :=
+  n4CallAddbackBeqRuntimeBounds_of_shift_high_div_evidence_and_borrow
+    hb3nz hshift_nz
+    (n4CallAddbackBeqShiftHighDivEvidence.of_raw_parts
+      h_rhat_hi_zero h_qhat_le_high_div h_high_div_le_norm_plus_one)
+    h_borrow
+
+/-- Runtime semantic bridge from raw shift/high-div evidence. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_raw_parts_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_evidence_and_borrow
+    hb3nz hshift_nz
+    (n4CallAddbackBeqShiftHighDivEvidence.of_raw_parts
+      h_rhat_hi_zero h_qhat_le_high_div h_high_div_le_norm_plus_one)
+    h_borrow h_carry2
+
+/-- Historical non-`V4` spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_raw_parts_and_borrow`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_shift_high_div_raw_parts_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_raw_parts_and_borrow
+      hb3nz hshift_nz h_rhat_hi_zero h_qhat_le_high_div
+      h_high_div_le_norm_plus_one h_borrow h_carry2
 
 /-- Runtime-bounds package from a direct qhat high-divisor bound, the weakened
     Knuth-A `+1` denominator bridge, and the runtime borrow predicate. -/
