@@ -25,6 +25,7 @@ import EvmAsm.Evm64.DivMod.CallableV1Legacy
 import EvmAsm.Evm64.DivMod.CallableV4Div
 import EvmAsm.Evm64.DivMod.CallableV4DivSelected
 import EvmAsm.Evm64.DivMod.CallableV4DivShape
+import EvmAsm.Evm64.DivMod.CallableV4DivShapeSelectedEvidence
 import EvmAsm.Evm64.DivMod.CallableV4DivConcrete
 import EvmAsm.Evm64.DivMod.CallableV4DivConcreteSelected
 import EvmAsm.Evm64.DivMod.CallableV4DivConcreteShapeSelected

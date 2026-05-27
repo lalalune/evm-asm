@@ -151,6 +151,24 @@ theorem N1CallableSelectedIfBorrowShapeEvidence.of_parts {a b : EvmWord}
   rcases hbranches with ⟨hbltu3, hbltu2, hbltu1, hbltu0⟩
   exact ⟨hbltu3, hbltu2, hbltu1, hbltu0, hpath, hfacts⟩
 
+/-- Build bundled callable evidence from explicit selected branch facts,
+    all-true path evidence, and arithmetic semantic facts.
+
+    This removes the selected semantic evidence package from the caller
+    boundary; branch-fact discharge is left to the public wrapper layer. -/
+theorem N1CallableSelectedIfBorrowShapeEvidence.ofBranchFactsAllTruePathSemanticFacts
+    {a b : EvmWord}
+    (hbranches : N1CallableSelectedIfBorrowBranchFacts a b)
+    (hpath : N1AllTruePathEvidence a b)
+    (hfacts : FullDivN1CallMaxmaxmaxSemanticFactsV4
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    N1CallableSelectedIfBorrowShapeEvidence a b := by
+  exact N1CallableSelectedIfBorrowShapeEvidence.of_parts hbranches
+    (N1SelectedIfBorrowPathEvidence.ofAllTruePathEvidence hpath)
+    hfacts
+
+
 theorem N1CallableSelectedIfBorrowShapeEvidence.ofSelectedIfBorrowSemanticEvidence
     (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
