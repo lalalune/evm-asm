@@ -30,11 +30,11 @@ theorem evm_div_n4_shift_nz_stack_spec_of_branch_skip_parts
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_of_branch_runtime
+  evm_div_n4_shift_nz_stack_spec_of_branch_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
-    (n4ShiftNzDispatcherBranchRuntimeV4.skip hskip hbranch)
+    (n4ShiftNzDispatcherBranchSemanticV4.skip hskip hbranch)
 
 /-- Final named no-NOP n=4, shift-nonzero DIV dispatcher surface from direct
     skip-branch runtime evidence. -/
@@ -56,11 +56,11 @@ theorem evm_div_n4_shift_nz_stack_spec_noNop_of_branch_skip_parts
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_noNop_of_branch_runtime
+  evm_div_n4_shift_nz_stack_spec_noNop_of_branch_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
-    (n4ShiftNzDispatcherBranchRuntimeV4.skip hskip hbranch)
+    (n4ShiftNzDispatcherBranchSemanticV4.skip hskip hbranch)
 
 /-- Final named n=4, shift-nonzero DIV dispatcher surface from direct
     addback-branch runtime-bounds evidence. -/
