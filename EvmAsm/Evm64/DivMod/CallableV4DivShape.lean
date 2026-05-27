@@ -386,6 +386,91 @@ theorem evm_div_callable_v4_n1_stack_pre_to_callable_post_scratch_shape_selected
       retMem dMem dloMem scratchUn0 scratchMem raVal
       hevidence)
 
+/-- N1 selected-if-borrow shape wrapper routed through the bundled selected
+    input/hdiv package. This lets downstream public-wrapper assembly consume
+    `N1CallableSelectedIfBorrowShapeEvidence` without rebuilding selected stack
+    inputs and quotient-limb witnesses separately. -/
+theorem evm_div_callable_v4_n1_stack_pre_to_callable_post_scratch_shape_selectedIfBorrowEvidence_inputHdivRoute
+    (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11Old : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (raVal : Word)
+    (hbnz : b ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+    (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+    (halign : fullDivN1CallMaxmaxmaxExactInputAligned sp base
+      jMem (1 : Word) (fullDivN1Shift (b.getLimbN 0))
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).1
+      (a.getLimbN 0 >>> ((fullDivN1AntiShift (b.getLimbN 0)).toNat % 64))
+      v11Old (fullDivN1AntiShift (b.getLimbN 0))
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal)
+    (hevidence : N1CallableSelectedIfBorrowShapeEvidence a b) :
+    cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
+      (evm_div_callable_code_v4 base)
+      (divModStackDispatchPreNoX1 sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
+        ((clzResult (b.getLimbN 0)).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       memOwn (sp + signExtend12 3936)) := by
+  have hbnzLimbs :
+      b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0 :=
+    (EvmWord.ne_zero_iff_getLimbN_or).mp hbnz
+  obtain ⟨hselected, hdivs⟩ :=
+    N1CallableSelectedIfBorrowShapeEvidence.selectedInputAndHdivs
+      sp base
+      jMem (1 : Word) (fullDivN1Shift (b.getLimbN 0))
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).1
+      (a.getLimbN 0 >>> ((fullDivN1AntiShift (b.getLimbN 0)).toNat % 64))
+      v11Old (fullDivN1AntiShift (b.getLimbN 0))
+      a b
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      retMem dMem dloMem scratchUn0 scratchMem raVal
+      hbnzLimbs hevidence
+  exact
+    cpsTripleWithin_weaken
+      (fun _ hp => hp)
+      (fun _ hq => by
+        obtain ⟨hFrame, hScratchState, hDisjoint, hUnion, hFramePost, hScratch⟩ := hq
+        exact ⟨hFrame, hScratchState, hDisjoint, hUnion, hFramePost,
+          memIs_implies_memOwn hScratchState hScratch⟩)
+      (evm_div_callable_v4_spec_from_divCode_noNop_exact_frame_x9out_body_frame_transform
+        (FPre := ((sp + signExtend12 3936) ↦ₘ scratchMem))
+        (FPost := ((sp + signExtend12 3936) ↦ₘ
+          divKTrialCallV4ScratchOut
+            (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+            (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+              (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+            (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+              (b.getLimbN 2) (b.getLimbN 3)).1 scratchMem))
+        sp base (signExtend12 (4 : BitVec 12) - (4 : Word))
+        (signExtend12 4095 : Word) raVal a b
+        ((clzResult (b.getLimbN 0)).2 >>> (63 : Nat))
+        v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0
+        (evm_div_n1_call_maxmaxmax_stack_spec_within_word_v4_preNoX1_callableExtra_x9In_exactFrame_unified_noNop_of_selected_if_borrow_input_hdivs
+          sp base a b
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+          v5 v6 v7 v10 v11Old (signExtend12 (4 : BitVec 12) - (4 : Word))
+          q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+          nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+          rfl rfl rfl rfl rfl rfl rfl rfl
+          hbnzLimbs hb3z hb2z hb1z hshift_nz halign hselected hdivs))
+
 /-- N1 selected-if-borrow shape wrapper for callers that still carry the
     all-true path package, while deriving the selected callable evidence from
     the selected semantic package internally.
