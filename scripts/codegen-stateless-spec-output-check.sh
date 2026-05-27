@@ -236,6 +236,7 @@ elif hdr_hex in (
     'INVALID_GAS',
     'INVALID_BLOB_MISALIGN',
     'INVALID_BLOB_OVERMAX',
+    'VALID_EXTRA_BOUNDARY',
 ):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
@@ -249,8 +250,10 @@ elif hdr_hex in (
     #                             917504. Multiple of 131072 so
     #                             K278 passes, but > MAX_BLOB_GAS_
     #                             PER_BLOCK = 6 * 131072 = 786432,
-    #                             so K277 (chain_validate_blob_gas_-
-    #                             used_under_max) rejects.
+    #                             so K277 rejects.
+    #   VALID_EXTRA_BOUNDARY   -- extra_data length EXACTLY 32
+    #                             (max allowed); K291 ACCEPTS at
+    #                             the boundary.
     from ethereum.forks.amsterdam.blocks import Header
     from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
     from ethereum_types.bytes import Bytes32, Bytes8, Bytes
@@ -260,7 +263,12 @@ elif hdr_hex in (
     from ethereum.crypto.hash import Hash32
     from ethereum_rlp import rlp
     diff = 1 if hdr_hex == 'INVALID_DIFF' else 0
-    extra = Bytes(b'\\xab' * 33) if hdr_hex == 'INVALID_EXTRA' else Bytes(b'')
+    if hdr_hex == 'INVALID_EXTRA':
+        extra = Bytes(b'\\xab' * 33)
+    elif hdr_hex == 'VALID_EXTRA_BOUNDARY':
+        extra = Bytes(b'\\xab' * 32)
+    else:
+        extra = Bytes(b'')
     gas_limit_v = 1000000
     gas_used_v = 1000001 if hdr_hex == 'INVALID_GAS' else 0
     if hdr_hex == 'INVALID_BLOB_MISALIGN':
@@ -692,6 +700,14 @@ run_fixture "chain1_invalid_nm"     1                  0    ""           ""     
 # fire and ACCEPT for the first time in a passing fixture;
 # previously they only had REJECT-path tests (#6905, #6908).
 run_fixture "chain1_valid_two"      1                  0    ""           ""                  ""    ""           ""           ""    "VALID_TWO" || fail=1
+
+# Boundary-accept test for K291. Header has extra_data of
+# EXACTLY 32 bytes (the maximum allowed by K291). Pairs with
+# chain1_invalid_extra (#6893, 33 bytes -> reject) to verify
+# the boundary condition is on the right side. Pipeline
+# reaches .Lsg_all_pass; output 73 bytes valid=False; spec
+# matches via STF failure on empty NPR.
+run_fixture "chain1_extra_at_boundary" 1   0    ""           ""                  ""    ""           ""           ""    "VALID_EXTRA_BOUNDARY" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
