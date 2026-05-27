@@ -40,9 +40,9 @@ untouched. Generated artifacts go in `gen-out/` (gitignored).
 | `EvmAsm/Codegen/Layout.lean` | `HaltConv` enum, halt stubs, `_start` preamble, `.option norvc`, `MEM_START`/`MEM_END` constants, `BuildUnit` struct + `emitBuildUnit`/`emitDataLabel` helpers. |
 | `EvmAsm/Codegen/Dispatch.lean` | M5b dispatcher scaffolding: `OpcodeHandlerSpec` (optional `preBody` for x10-clobbering handlers + optional `postBodyLabel` for M9's trampoline pattern) + `HandlerTail` types, `emitDispatcherPrologue`/`Epilogue`/`DataSection` and `buildDispatchUnit` helpers. M8.5 adds the parallel runtime-bytecode helpers (`emitRuntimeDispatcherPrologue` / `emitRuntimeDispatcherDataSection` / `buildRuntimeDispatchUnit`) that read bytecode from `INPUT_ADDR + INPUT_DATA_OFFSET` at runtime. Pure (no IO). |
 | `EvmAsm/Codegen/Programs.lean` | `BuildUnit` lookup hub: `lookupProgram`, `knownProgramNames`, plus the `statelessGuestUnit` build target. Imports every `BuildUnit` defined under `Programs/`. The actual M5b opcode-handler registry (`tinyInterpRegistry`) and the `BuildUnit`s for `evm_add` / `evm_div` / `evm_mod` / `input_echo` / `runtime_dispatcher` / `tiny_interp_*` now live in `Programs/Evm.lean` (see next row). |
-| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `envHandlers` (13 simple environment opcodes ADDRESS/CALLER/.../BASEFEE, M12), `calldataHandlers` (CALLDATASIZE, M13), `controlFlowHandlers` (JUMPDEST from M14; JUMP/JUMPI/PC added in M15), `hashHandlers` (KECCAK256 via ECALL bridge from M16), `logHandlers` (LOG0–LOG4 as stack-pop no-ops, M17), `storageHandlers` (SLOAD/SSTORE/TLOAD/TSTORE as no-op stack ops with empty-storage semantics, M17), `haltHandlers`/`pushZeroHandlers`/`popPushZeroHandlers`/`copyNoopHandlers` (M18 — 20 trivial no-ops covering RETURN/REVERT/INVALID/SELFDESTRUCT + 5 push-zero + 6 pop+push-zero + 5 copy-no-op opcodes; defined in `Programs/Noop.lean`), `childFrameHandlers` (M19 — 6 child-frame opcodes CREATE/CALL/CALLCODE/DELEGATECALL/CREATE2/STATICCALL as pop-N + push-zero no-ops; also in `Programs/Noop.lean`), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable, M10), and `stopHandler`. Total: **147 wired opcodes** (98.7% of the 149-byte EVM space). Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
+| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `envHandlers` (13 simple environment opcodes ADDRESS/CALLER/.../BASEFEE, M12), `calldataHandlers` (CALLDATASIZE, M13), `controlFlowHandlers` (JUMPDEST from M14; JUMP/JUMPI/PC added in M15), `hashHandlers` (KECCAK256 via ECALL bridge from M16), `logHandlers` (LOG0–LOG4 as stack-pop no-ops, M17), `storageHandlers` (SLOAD/SSTORE/TLOAD/TSTORE as no-op stack ops with empty-storage semantics, M17), `haltHandlers`/`pushZeroHandlers`/`popPushZeroHandlers`/`copyNoopHandlers` (M18 — 20 trivial no-ops covering RETURN/REVERT/INVALID/SELFDESTRUCT + 5 push-zero + 6 pop+push-zero + 5 copy-no-op opcodes; defined in `Programs/Noop.lean`), `childFrameHandlers` (M19 — 6 child-frame opcodes CREATE/CALL/CALLCODE/DELEGATECALL/CREATE2/STATICCALL as pop-N + push-zero no-ops; also in `Programs/Noop.lean`), `arithNoopHandlers` (M20 — MULMOD + EXP as pop-N + push-zero no-ops; in `Programs/Noop.lean`), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable, M10), and `stopHandler`. Total: **149 wired opcodes — 🎯 100% of the 149-byte EVM space**. Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
 | `EvmAsm/Codegen/Proofs/` | Codegen-proofs scaffolding (post-M10). `RegistryInvariants.lean` (Phase 1) — 6 `decide`-checked theorems about `tinyInterpRegistry`'s structural well-formedness (Nodup on opcodes/labels, byte bounds, jump-table coverage). `HandlerSpecs.lean` (Phase 4) — reusable `cleanRetHandlerSpec` template + **13 concrete handler-level `cpsTripleWithin` instances** for clean-shape singletons (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT). Phases 2, 3, 5 + the remaining Phase 4 instances are still future work. |
-| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**57 cases** as of M19). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
+| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**59 cases** as of M20). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
 | `EvmAsm/Codegen/Cli.lean` | Argument parsing (`--program`, `--test-case`, `--list-test-cases`, `--halt`, `--out`, `--asm-only`). |
 | `EvmAsm/Codegen/Driver.lean` | `IO`: shells out to `as`/`ld` if available; `--asm-only` for CI without the cross toolchain. |
 | `Main.lean` | Already exists as `import EvmAsm`; extend to call `EvmAsm.Codegen.Cli.main`. |
@@ -1175,9 +1175,83 @@ cases PASS. `scripts/check-progress.sh` exits 0. Legacy
 `scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing
 scripts unchanged.
 
+### M20 — Wire MULMOD + EXP as no-ops — **🎯 100% OPCODE COVERAGE** (DONE 2026-05-27)
+
+The 100% coverage milestone PR. Wires the last two unwired
+opcodes — **MULMOD (0x09)** and **EXP (0x0a)** — as no-ops via a
+new `arithNoopHandlers` builder in
+`EvmAsm/Codegen/Programs/Noop.lean`. Lifts wired count
+**147 → 149 (100%)**. **Every EVM byte-code now routes through
+a `tinyInterpRegistry` handler instead of `h_invalid`.**
+
+**Why no-ops for these two:**
+- **MULMOD**: the verified body is still a placeholder in
+  `EvmAsm/Evm64/MulMod/Program.lean` (slice evm-asm-m4wu is
+  unscheduled). No real body to wire.
+- **EXP**: the verified body
+  `evm_exp_msb_saved_bit_two_mul_fixed` actually exists in
+  `EvmAsm/Evm64/Exp/Program.lean` (x19-callee-saved cursor
+  design, 84 instructions, fully proven). The M10 "upstream
+  blocker" doc note was stale. Wiring it requires ~300–500 LOC
+  of M10-style inline-callable composition (embed
+  `mul_callable` in the dispatcher epilogue, pin JAL offsets
+  for the squaring + cond-multiply calls, use M9-style
+  trampoline tail). M21 (the next planned PR) will do that
+  upgrade.
+
+**Delivered:**
+
+- **`EvmAsm/Codegen/Programs/Noop.lean`** — new `arithNoopHandlers`
+  builder adjacent to `childFrameHandlers`:
+
+  | Opcode | Byte | Pops | Pushes | Net pops × 32 |
+  |---|---|---|---|---|
+  | MULMOD | 0x09 | 3 (a, b, N) | 1 | 64 |
+  | EXP    | 0x0a | 2 (base, exp) | 1 | 32 |
+
+  Same 5-instruction body shape (`ADDI .x12 .x12 N` + 4 × SD)
+  as the rest of the M17/M18/M19 no-op family.
+
+- **`EvmAsm/Codegen/Proofs/RegistryInvariants.lean`** — counts
+  bumped 147 → 149. Phase 1 `decide` recompile ~20 s (under
+  the 30 s budget; `maxRecDepth 2048` already set from M18).
+  **Every byte 0..255 now either routes to a registered handler
+  (149 bytes) or falls through to `h_invalid` (107 bytes —
+  bytes never assigned a real opcode by the EVM spec).**
+
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — two new cases
+  (`mulmod_pop3`, `exp_pop2`) confirming dispatch and net-pop
+  arithmetic. Total cases: 57 → 59.
+
+**Known limitations** (documented in `Programs/Noop.lean`):
+
+- **MULMOD** always returns 0. Future upgrade: real body
+  (Knuth-style 512-bit intermediate + reduce-by-N using the
+  existing div/mod callables) when slice evm-asm-m4wu lands.
+- **EXP** always returns 0. M21 = real body wiring (the
+  verified body exists; just needs M10-style inline-callable
+  wiring).
+
+Trusted bytecode that doesn't depend on MULMOD/EXP results
+continues to work correctly.
+
+**Coverage trajectory (final):**
+
+- M11–M16: 91 → 112 (75.2%)
+- M17: 121 (81%)
+- M18: 141 (94.6%) ✅ crosses 90%
+- M19: 147 (98.7%) ✅ crosses 95%
+- **M20: 149 (100%) 🎯**
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 59
+cases PASS. `scripts/check-progress.sh` exits 0. Legacy
+`scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing
+scripts unchanged.
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → **M20 ✅ 🎯 100%**.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
 emission unreadable. M11 (SHL + SAR) shipped 2026-05-26; M12
@@ -1189,9 +1263,17 @@ M16 (KECCAK256 via ECALL bridge in `hashHandlers`) shipped 2026-05-27;
 M17 (LOG0–LOG4 + SLOAD/SSTORE/TLOAD/TSTORE as no-ops) shipped
 2026-05-27; M18 (20 trivial no-ops in `Noop.lean` — 94.6%
 coverage) shipped 2026-05-27; M19 (6 child-frame opcodes as
-no-ops — 98.7% coverage) shipped 2026-05-27. **Remaining gap to
-100%**: MULMOD (needs verified body; natural M20) and EXP
-(blocked upstream until the callee-saved variant lands).
+no-ops — 98.7% coverage) shipped 2026-05-27; **M20 (MULMOD + EXP
+no-ops — 🎯 100% coverage) shipped 2026-05-27.**
+
+**The codegen track now pivots from "wire opcodes" to
+"spec-compliance upgrades" and "STF integration"**: M21 = real
+EXP wiring (verified body already exists); future PRs upgrade
+the other no-ops (LOG / storage / child frames / MULMOD) as
+host syscalls and verified bodies land; ultimately
+PLAN.md Phase 11 (STF integration — RLP-decoded transactions
+through the dispatcher to a state-root output) is the project's
+real end goal.
 
 ## Tricky bits / open questions
 
@@ -1450,6 +1532,22 @@ no-ops — 98.7% coverage) shipped 2026-05-27. **Remaining gap to
   0"); trusted bytecode that handles call-failure paths via
   ISZERO+JUMPI continues to work. **Remaining gap to 100%**:
   MULMOD (verified body) and EXP (external unblock).
+- **M20.** ✅ `scripts/codegen-opcodes-runtime-check.sh` exits 0
+  with **59 test cases** PASS (validated 2026-05-27). **MULMOD
+  (0x09)** and **EXP (0x0a)** — the last 2 unwired opcodes —
+  wired as no-ops via a new `arithNoopHandlers` builder in
+  `EvmAsm/Codegen/Programs/Noop.lean`. MULMOD: net pop 2 →
+  ADDI +64; EXP: net pop 1 → ADDI +32. Both share the same
+  `ADDI + 4 × SD` body shape as M17–M19. Registry-invariants
+  counts bumped 147 → 149; Phase 1 recompile ~20 s, under
+  budget. **🎯 100% opcode coverage** — every EVM byte-code now
+  routes through `tinyInterpRegistry` instead of `h_invalid`.
+  MULMOD ships as a placeholder (slice evm-asm-m4wu's verified
+  body unscheduled). EXP's verified body
+  (`evm_exp_msb_saved_bit_two_mul_fixed`) exists; M21 will wire
+  it via M10-style inline-callable composition. The codegen
+  track now pivots from "wire opcodes" to "spec-compliance
+  upgrades" and "STF integration".
 - **Codegen-proofs Phase 1.** ✅ `lake build` exits 0 (validated
   2026-05-21). New file `EvmAsm/Codegen/Proofs/RegistryInvariants.lean`
   carries 6 kernel-checked theorems about `tinyInterpRegistry`:

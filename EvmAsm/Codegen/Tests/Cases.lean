@@ -369,6 +369,23 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "staticcall_pop6_push_zero"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xfa, 0x60, 0xab, 0x00"
       expectedOutHex := "ab00000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M20 arithmetic no-ops (MULMOD, EXP) — the LAST TWO unwired
+    -- opcodes; M20 brings tinyInterpRegistry to 100% coverage 🎯.
+    -- Both ship as placeholders; real upgrades follow in M21+.
+  , -- PUSH1 0x03; PUSH1 0x05; PUSH1 0x07; MULMOD; PUSH1 0x42; STOP
+    -- MULMOD pops 3 (a, b, N), pushes 1 (result = 0). Net pop = 2 =
+    -- +64 bytes. PUSH1 0x42 lands on the 1-deep stack and replaces
+    -- the zero result. Expected: 0x42.
+    { name           := "mulmod_pop3"
+      bytecode       := "0x60, 0x03, 0x60, 0x05, 0x60, 0x07, 0x09, 0x60, 0x42, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x02; PUSH1 0x03; EXP; PUSH1 0xff; STOP
+    -- EXP pops 2 (base, exponent), pushes 1 (result = 0). Net pop =
+    -- 1 = +32 bytes. PUSH1 0xff lands on the 1-deep stack and
+    -- replaces the zero result. Expected: 0xff.
+    { name           := "exp_pop2"
+      bytecode       := "0x60, 0x02, 0x60, 0x03, 0x0a, 0x60, 0xff, 0x00"
+      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;

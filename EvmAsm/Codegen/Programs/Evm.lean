@@ -910,8 +910,8 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   storageHandlers ++ haltHandlers ++ pushZeroHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
-  divModHandlers ++ signedDivModHandlers ++ selfCallingHandlers ++
-  [stopHandler]
+  arithNoopHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
   buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode
