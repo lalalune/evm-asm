@@ -68,6 +68,7 @@ import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidence
 import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
 import EvmAsm.Evm64.DivMod.Spec.N3SelectedQuotientHdivs
 import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExactSelectedEvidenceCanonical
+import EvmAsm.Evm64.DivMod.Spec.N3SelectedQuotientHdivsCanonical
 import EvmAsm.Evm64.DivMod.Spec.N2V4ConcretePostBridge
 import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExact
 import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExactSelected
