@@ -94,6 +94,23 @@ theorem n4CallSkipBranchV4_def {a b : EvmWord} :
       (n4CallSkipRhatddHiZeroV4 a b ∨ n4CallSkipNoWrapLeV4 a b) :=
   rfl
 
+theorem n4CallSkipNoWrapV4_of_no_wrap_le {a b : EvmWord}
+    (h_no_wrap_le : n4CallSkipNoWrapLeV4 a b) :
+    n4CallSkipNoWrapV4 a b := by
+  rw [n4CallSkipNoWrapLeV4_def] at h_no_wrap_le
+  rw [n4CallSkipNoWrapV4_def]
+  exact h_no_wrap_le.1
+
+theorem n4CallSkipRuntimeBranchV4_of_branch_pred {a b : EvmWord}
+    (hbranch : n4CallSkipBranchV4 a b) :
+    n4CallSkipRuntimeBranchV4 a b := by
+  rw [n4CallSkipBranchV4_def] at hbranch
+  rw [n4CallSkipRuntimeBranchV4_def]
+  cases hbranch with
+  | inl hrhat => exact Or.inl hrhat
+  | inr h_no_wrap_le =>
+      exact Or.inr (n4CallSkipNoWrapV4_of_no_wrap_le h_no_wrap_le)
+
 /-- Predicate-packaged v4 call-skip semantic lower bound in the runtime
     no-wrap branch, without a separate 128/64 upper-bound premise. -/
 theorem n4CallSkipSemanticHoldsV4_of_no_wrap_pred (a b : EvmWord)
