@@ -129,3 +129,4 @@ import EvmAsm.Evm64.DivMod.Spec.N2MaxBranchFromInvariant
 import EvmAsm.Evm64.DivMod.Spec.N3MaxBranchShapeOnly
 import EvmAsm.Evm64.DivMod.Spec.N2MaxBranchShapeOnly
 import EvmAsm.Evm64.DivMod.Spec.N3BltBranchShapeOnly
+import EvmAsm.Evm64.DivMod.Spec.N2BltBranchShapeOnly
