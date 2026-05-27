@@ -442,7 +442,7 @@ theorem n4ShiftNzDispatcherRuntimeHighDivEvidence.semanticHoldsV4 {a b : EvmWord
     (hruntime : n4ShiftNzDispatcherRuntimeHighDivEvidence a b)
     (hadd : isAddbackBorrowN4CallV4Evm a b) :
     n4CallAddbackBeqSemanticHoldsV4 a b :=
-  n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_evidence_and_borrow
+  n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_evidence
     hb3nz hshift_nz
     (n4ShiftNzDispatcherRuntimeHighDivEvidence.addbackHighDivEvidence hruntime)
     hadd

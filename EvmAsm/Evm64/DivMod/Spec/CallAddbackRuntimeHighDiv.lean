@@ -541,6 +541,72 @@ theorem n4CallAddbackBeqSemanticHolds_of_shift_nz_high_div_bound_and_borrow
     n4CallAddbackBeqSemanticHoldsV4_of_shift_nz_high_div_bound_and_borrow
       hb3nz hshift_nz h_rhat_hi_zero h_qhat_high h_high_div h_borrow h_carry2
 
+/-- Call-path semantic bridge from packaged high-div evidence.
+    This is the call-local runtime wrapper shape needed by the final
+    runtime-only discharger: the old `hq_over` and `h_rem_lt` obligations are
+    hidden behind the named high-div evidence package. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_call_runtime_high_div_evidence
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4Evm a b)
+    (h_evidence : n4CallAddbackBeqShiftHighDivEvidence a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_call_evm_high_div_bound_and_borrow
+    hb3nz hshift_nz hcall
+    (by
+      simpa [n4CallAddbackBeqRhatddHiZero_def] using
+        n4CallAddbackBeqShiftHighDivEvidence.rhatddHiZero h_evidence)
+    (n4CallAddbackBeqShiftHighDivEvidence.qhatHighDiv h_evidence)
+    (n4CallAddbackBeqShiftHighDivEvidence.knuthA h_evidence)
+    h_borrow h_carry2
+
+/-- Historical spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_call_runtime_high_div_evidence`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_call_runtime_high_div_evidence
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4Evm a b)
+    (h_evidence : n4CallAddbackBeqShiftHighDivEvidence a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_call_runtime_high_div_evidence
+      hb3nz hshift_nz hcall h_evidence h_borrow h_carry2
+
+/-- Shift-nonzero semantic bridge from packaged high-div evidence. It derives
+    the call-trial premise internally from the n=4 top-limb and shift facts,
+    while still keeping the named high-div evidence explicit. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_evidence
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_evidence : n4CallAddbackBeqShiftHighDivEvidence a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_call_runtime_high_div_evidence
+    hb3nz hshift_nz (isCallTrialN4Evm_of_shift_nz a b hb3nz hshift_nz)
+    h_evidence h_borrow h_carry2
+
+/-- Historical spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_evidence`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_shift_runtime_high_div_evidence
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_evidence : n4CallAddbackBeqShiftHighDivEvidence a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_evidence
+      hb3nz hshift_nz h_evidence h_borrow h_carry2
+
 /-- Runtime-bounds bridge from packaged shift/high-div evidence. -/
 theorem n4CallAddbackBeqRuntimeBounds_of_shift_high_div_evidence_and_borrow
     {a b : EvmWord}

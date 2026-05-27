@@ -132,7 +132,7 @@ theorem n4ShiftNzDispatcherBranchHighDivEvidence.semanticHoldsV4_of_addback_part
     (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
     (hevidence : n4CallAddbackBeqShiftHighDivEvidence a b) :
     n4CallAddbackBeqSemanticHoldsV4 a b :=
-  n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_evidence_and_borrow
+  n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_evidence
     hb3nz hshift_nz hevidence hadd hcarry2
 
 /-- Historical non-V4 addback semantic bridge from direct packaged high-div
