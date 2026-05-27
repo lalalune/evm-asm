@@ -156,12 +156,50 @@ def serialize_stateless_output : Program :=
   LI .x5 0x180000001000 ;;
   OR' .x7 .x7 .x5 ;;
   SD .x6 .x7 56 ;;
-  -- Override output[61] with input's offset_blob_schedule LSB
-  -- (= chain_config[24] = active_fork[12]). Always <= 64 for the
-  -- amsterdam schema (one MAX_OPTIONAL_FORK_ACTIVATION_VALUES slot
-  -- + one MAX_BLOB_SCHEDULES_PER_FORK slot), so 1 byte suffices.
-  LBU .x7 .x13 24 ;;
-  SB .x6 .x7 61 ;;
+  -- Bounded byte-copy from chain_config[24..len) to OUTPUT[61..49+len)
+  -- where `len = chain_config_length` is derived from the outer
+  -- SSZ offset table: outer.offsets[3] - outer.offsets[2]. We
+  -- equivalently compute `chain_config_end_addr = SSZ_BASE +
+  -- outer.offsets[3]` and stop when the source pointer reaches it.
+  --
+  -- The previous unrolled implementation (PRs #6793 / #6802 /
+  -- #6807 / #6811) read chain_config[24..76) UNCONDITIONALLY and
+  -- relied on ziskemu's per-fixture mem slack. Cross-product
+  -- fixtures with witness content + active_fork content could
+  -- panic ziskemu with "section not found" when chain_config_end
+  -- landed at or past mem_end; the [[ziskemu-input-slack]] memory
+  -- note documents this. The bounded loop eliminates that
+  -- constraint entirely.
+  --
+  -- Range covers: offset_blob_schedule (chain_config[24..28)),
+  -- activation header (chain_config[28..36)), activation body
+  -- (chain_config[36..N)), blob_schedule (chain_config[..len)).
+  -- The previous separate LBU+SB at OUTPUT[61] (for
+  -- offset_blob_schedule LSB) and SB at OUTPUT[64] (high byte of
+  -- offset_activation = 0) are subsumed -- the loop writes
+  -- chain_config[24] to OUTPUT[61], chain_config[27] (always 0)
+  -- to OUTPUT[64], etc.
+  --
+  -- Register usage: x18=chain_config_end_addr, x19=src cursor,
+  -- x20=dst cursor, x7=byte temp. x13=chain_config_addr and
+  -- x17=SSZ_BASE are preserved from the decoder.
+  LWU .x18 .x17 12 ;;             -- offsets[3] (= chain_config_end_offset)
+  ADD .x18 .x17 .x18 ;;           -- chain_config_end_addr
+  ADDI .x19 .x13 24 ;;            -- src = chain_config + 24
+  ADDI .x20 .x6 61 ;;             -- dst = output + 61
+  -- Loop: BGEU exit forward 24 bytes (skip 6 instructions: BGEU
+  -- itself + the 5 body instructions). Otherwise: LBU + SB + bump
+  -- cursors + JAL back 20 bytes to the BGEU.
+  BGEU .x19 .x18 24 ;;
+  LBU .x7 .x19 0 ;;
+  SB .x20 .x7 0 ;;
+  ADDI .x19 .x19 1 ;;
+  ADDI .x20 .x20 1 ;;
+  JAL .x0 (-20 : BitVec 21)
+  -- Old unrolled byte-copy (chain_config[28..76) -> OUTPUT[65..113))
+  -- and the standalone byte 64 zero-fill removed; the loop above
+  -- subsumes both.
+  /-
   -- bytes [65..81): byte-copy active_fork[16..32) from input.
   -- active_fork[16..24) = activation header (offset_block_number,
   --   offset_timestamp); same shape regardless of emptiness:
@@ -223,8 +261,32 @@ def serialize_stateless_output : Program :=
   LBU .x7 .x13 57 ;; SB .x6 .x7 94 ;;
   LBU .x7 .x13 58 ;; SB .x6 .x7 95 ;;
   LBU .x7 .x13 59 ;; SB .x6 .x7 96 ;;
-  -- byte 64: high byte of offset_blob_schedule (always 0 since
-  -- the value fits in 1 byte).
-  SB .x6 .x0 64
+  -- bytes [97..113): byte-copy active_fork[48..64) from input.
+  -- Covers the blob_schedule entry when activation is non-empty
+  -- (then activation pushes blob_schedule forward by 8/16 bytes,
+  -- so the entry's bytes land at active_fork[48..72) -- the
+  -- first 16 bytes of which fall in this range). The MAX
+  -- active_fork = 64 bytes (16 fc-header + 24 activation + 24
+  -- blob_schedule) so OUTPUT[97..113) is the tail of spec
+  -- output. For smaller active_fork shapes, the range is past
+  -- the actual section; ziskemu zero-fills and the test
+  -- framework ignores bytes past len(spec).
+  LBU .x7 .x13 60 ;; SB .x6 .x7 97 ;;
+  LBU .x7 .x13 61 ;; SB .x6 .x7 98 ;;
+  LBU .x7 .x13 62 ;; SB .x6 .x7 99 ;;
+  LBU .x7 .x13 63 ;; SB .x6 .x7 100 ;;
+  LBU .x7 .x13 64 ;; SB .x6 .x7 101 ;;
+  LBU .x7 .x13 65 ;; SB .x6 .x7 102 ;;
+  LBU .x7 .x13 66 ;; SB .x6 .x7 103 ;;
+  LBU .x7 .x13 67 ;; SB .x6 .x7 104 ;;
+  LBU .x7 .x13 68 ;; SB .x6 .x7 105 ;;
+  LBU .x7 .x13 69 ;; SB .x6 .x7 106 ;;
+  LBU .x7 .x13 70 ;; SB .x6 .x7 107 ;;
+  LBU .x7 .x13 71 ;; SB .x6 .x7 108 ;;
+  LBU .x7 .x13 72 ;; SB .x6 .x7 109 ;;
+  LBU .x7 .x13 73 ;; SB .x6 .x7 110 ;;
+  LBU .x7 .x13 74 ;; SB .x6 .x7 111 ;;
+  LBU .x7 .x13 75 ;; SB .x6 .x7 112
+  -/
 
 end EvmAsm.Stateless.SSZ.Encode
