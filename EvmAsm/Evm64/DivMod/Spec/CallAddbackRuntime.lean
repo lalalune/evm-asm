@@ -7,6 +7,7 @@
 import EvmAsm.Evm64.DivMod.Spec.CallAddback
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.ExactQuotient
 
 namespace EvmAsm.Evm64
 
@@ -380,6 +381,90 @@ theorem n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_call_rhatdd_hi_zero
     (n4CallAddbackBeqUn21_lt_b3prime_of_call hb3nz hshift_nz hcall)
     h_rhat_hi_zero
 
+/-- Marker-name adapter for the floor-shaped v4 128/64 `+1` upper bound
+    in the call-path, final high-half-zero branch. This is the same numeric
+    bound as the older `128_div` adapter, but routed through the floor-named
+    surface consumed by the Knuth-A/qhat path. -/
+theorem n4CallAddbackBeqQHatV4_le_floor_plus_one_of_call_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word)) :
+    (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat + 1 := by
+  rw [n4CallAddbackBeqQHatV4_eq_normalized]
+  have hu4_lt_b3prime :
+      (n4CallAddbackBeqU4 a b).toNat < (n4CallAddbackBeqB3Prime b).toNat := by
+    have h_decomp := n4CallAddbackBeqU4_lt_vTop_of_call hcall
+    rw [div128Quot_vTop_decomp (n4CallAddbackBeqB3Prime b)]
+    simpa [divKTrialCallV4DHi, divKTrialCallV4DLo] using h_decomp
+  exact div128Quot_v4_le_floor_plus_one_of_rhatdd_hi_zero
+    (n4CallAddbackBeqU4 a b)
+    (n4CallAddbackBeqU3 a b)
+    (n4CallAddbackBeqB3Prime b)
+    (n4CallAddbackBeqB3Prime_ge_pow63 hb3nz)
+    hu4_lt_b3prime
+    (n4CallAddbackBeqU4_lt_pow63_of_shift_nz hshift_nz)
+    hUn21_lt_pow63
+    (n4CallAddbackBeqUn21_lt_b3prime_of_call hb3nz hshift_nz hcall)
+    h_rhat_hi_zero
+
+/-- Marker-name adapter for exact v4 128/64 floor qhat evidence in the
+    call-path final high-half-zero branch.
+
+    The matching upper bound is intentionally explicit: this is the evidence
+    that future exact-quotient work should discharge before applying the
+    weaker normalized `+1` bridge. -/
+theorem n4CallAddbackBeqQHatV4_eq_floor_of_call_rhatdd_hi_zero_of_le
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_le :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat) :
+    (n4CallAddbackBeqQHatV4 a b).toNat =
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat := by
+  rw [n4CallAddbackBeqQHatV4_eq_normalized] at h_le ⊢
+  have hu4_lt_b3prime :
+      (n4CallAddbackBeqU4 a b).toNat < (n4CallAddbackBeqB3Prime b).toNat := by
+    have h_decomp := n4CallAddbackBeqU4_lt_vTop_of_call hcall
+    rw [div128Quot_vTop_decomp (n4CallAddbackBeqB3Prime b)]
+    simpa [divKTrialCallV4DHi, divKTrialCallV4DLo] using h_decomp
+  exact div128Quot_v4_eq_floor_of_rhatdd_hi_zero_of_le
+    (n4CallAddbackBeqU4 a b)
+    (n4CallAddbackBeqU3 a b)
+    (n4CallAddbackBeqB3Prime b)
+    (n4CallAddbackBeqB3Prime_ge_pow63 hb3nz)
+    hu4_lt_b3prime
+    (n4CallAddbackBeqU4_lt_pow63_of_shift_nz hshift_nz)
+    (n4CallAddbackBeqUn21_lt_b3prime_of_call hb3nz hshift_nz hcall)
+    h_rhat_hi_zero
+    h_le
+
 /-- Reduce the compact runtime qhat bound to the remaining denominator bridge.
 
     The v4 128/64 qhat bound is already discharged by the call path,
@@ -412,6 +497,61 @@ theorem n4CallAddbackBeqQHatV4_le_norm_div_plus_one_of_call_rhatdd_hi_zero
   have h_qhat_high :=
     n4CallAddbackBeqQHatV4_le_128_div_plus_one_of_call_rhatdd_hi_zero
       hb3nz hshift_nz hcall hUn21_lt_pow63 h_rhat_hi_zero
+  omega
+
+/-- Floor-named variant of the compact runtime qhat bound reduction.
+
+    This keeps the normalized-divisor bridge phrased over the floor-shaped
+    upper-bound adapter, matching the N4 Knuth-A path while leaving the
+    remaining high-divisor-to-normalized-divisor premise explicit. -/
+theorem n4CallAddbackBeqQHatV4_le_norm_div_plus_one_of_floor_call_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_high_div_le_norm :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b) :
+    (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1 := by
+  have h_qhat_high :=
+    n4CallAddbackBeqQHatV4_le_floor_plus_one_of_call_rhatdd_hi_zero
+      hb3nz hshift_nz hcall hUn21_lt_pow63 h_rhat_hi_zero
+  omega
+
+/-- Exact-floor qhat evidence plus the correct Knuth-A `+1` denominator
+    bridge gives the compact normalized qhat runtime bound.
+
+    This is the shape left viable by the v4 counterexample: the high 128/64
+    quotient need not be below the lower normalized quotient, but it may be
+    within one of it. -/
+theorem n4CallAddbackBeqQHatV4_le_norm_div_plus_one_of_floor_eq
+    {a b : EvmWord}
+    (h_floor :
+      (n4CallAddbackBeqQHatV4 a b).toNat =
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1) :
+    (n4CallAddbackBeqQHatV4 a b).toNat ≤
+      n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1 := by
   omega
 
 /-- Runtime-normalized c3 bridge: if the normalized trial quotient is within
@@ -971,6 +1111,276 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_qhat_bound_and_borrow
     (n4CallAddbackBeqRuntimeBounds_of_qhat_bound_and_borrow
       hb3nz hq_over h_borrow)
     h_borrow h_carry2
+
+/-- Runtime-bounds package from exact-floor qhat evidence, the weakened
+    Knuth-A `+1` denominator bridge, and the runtime borrow predicate. -/
+theorem n4CallAddbackBeqRuntimeBounds_of_floor_eq_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (h_floor :
+      (n4CallAddbackBeqQHatV4 a b).toNat =
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqRuntimeBounds a b :=
+  n4CallAddbackBeqRuntimeBounds_of_qhat_bound_and_borrow
+    hb3nz
+    (n4CallAddbackBeqQHatV4_le_norm_div_plus_one_of_floor_eq
+      h_floor h_high_div_le_norm_plus_one)
+    h_borrow
+
+/-- Runtime semantic bridge from exact-floor qhat evidence and the weakened
+    Knuth-A `+1` denominator bridge. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_floor_eq_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_floor :
+      (n4CallAddbackBeqQHatV4 a b).toNat =
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
+    hb3nz hshift_nz
+    (n4CallAddbackBeqRuntimeBounds_of_floor_eq_and_borrow
+      hb3nz h_floor h_high_div_le_norm_plus_one h_borrow)
+    h_borrow h_carry2
+
+/-- Runtime-bounds package from the call-path exact-floor adapter and the
+    weakened Knuth-A `+1` denominator bridge. -/
+theorem n4CallAddbackBeqRuntimeBounds_of_exact_floor_call_rhatdd_hi_zero_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqRuntimeBounds a b :=
+  n4CallAddbackBeqRuntimeBounds_of_floor_eq_and_borrow
+    hb3nz
+    (n4CallAddbackBeqQHatV4_eq_floor_of_call_rhatdd_hi_zero_of_le
+      hb3nz hshift_nz hcall h_rhat_hi_zero h_qhat_le_high_div)
+    h_high_div_le_norm_plus_one
+    h_borrow
+
+/-- Runtime semantic bridge from the call-path exact-floor adapter and the
+    weakened Knuth-A `+1` denominator bridge. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_exact_floor_call_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
+    hb3nz hshift_nz
+    (n4CallAddbackBeqRuntimeBounds_of_exact_floor_call_rhatdd_hi_zero_and_borrow
+      hb3nz hshift_nz hcall h_rhat_hi_zero h_qhat_le_high_div
+      h_high_div_le_norm_plus_one h_borrow)
+    h_borrow h_carry2
+
+/-- Historical non-`V4` spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_floor_eq_and_borrow`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_floor_eq_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_floor :
+      (n4CallAddbackBeqQHatV4 a b).toNat =
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_floor_eq_and_borrow
+      hb3nz hshift_nz h_floor h_high_div_le_norm_plus_one h_borrow h_carry2
+
+/-- Historical non-`V4` spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_exact_floor_call_rhatdd_hi_zero`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_exact_floor_call_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_exact_floor_call_rhatdd_hi_zero
+      hb3nz hshift_nz hcall h_rhat_hi_zero h_qhat_le_high_div
+      h_high_div_le_norm_plus_one h_borrow h_carry2
+
+/-- Runtime-bounds package from the floor-named qhat upper-bound path and
+    the runtime borrow predicate.
+
+    This packages the two compact arithmetic facts consumed by the semantic
+    bridge: the normalized qhat `+1` upper bound and the corresponding
+    normalized remainder bound after the double-addback path. -/
+theorem n4CallAddbackBeqRuntimeBounds_of_floor_call_rhatdd_hi_zero_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_high_div_le_norm :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqRuntimeBounds a b :=
+  n4CallAddbackBeqRuntimeBounds_of_qhat_bound_and_borrow
+    hb3nz
+    (n4CallAddbackBeqQHatV4_le_norm_div_plus_one_of_floor_call_rhatdd_hi_zero
+      hb3nz hshift_nz hcall hUn21_lt_pow63 h_rhat_hi_zero
+      h_high_div_le_norm)
+    h_borrow
+
+/-- Runtime semantic bridge using the floor-named qhat upper-bound path.
+
+    The remaining explicit arithmetic premise is exactly the Knuth-A
+    high-divisor-to-normalized-divisor bridge. The qhat bound and remainder
+    runtime bounds are then derived internally. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_floor_call_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_high_div_le_norm :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
+    hb3nz hshift_nz
+    (n4CallAddbackBeqRuntimeBounds_of_floor_call_rhatdd_hi_zero_and_borrow
+      hb3nz hshift_nz hcall hUn21_lt_pow63 h_rhat_hi_zero
+      h_high_div_le_norm h_borrow)
+    h_borrow h_carry2
+
+/-- Historical non-`V4` spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_floor_call_rhatdd_hi_zero`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_floor_call_rhatdd_hi_zero
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hUn21_lt_pow63 :
+      (divKTrialCallV4Un21
+        (n4CallAddbackBeqU4 a b)
+        (n4CallAddbackBeqU3 a b)
+        (n4CallAddbackBeqB3Prime b)).toNat < 2^63)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_high_div_le_norm :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_floor_call_rhatdd_hi_zero
+      hb3nz hshift_nz hcall hUn21_lt_pow63 h_rhat_hi_zero
+      h_high_div_le_norm h_borrow h_carry2
 
 /-- Historical non-`V4` spelling of
     `n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds`. -/

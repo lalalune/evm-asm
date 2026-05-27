@@ -359,6 +359,14 @@ run_fixture "chain1_witcode_2"      1                  0    "deadbeef:cafef00d" 
 # witness field is non-empty. State entry is one arbitrary node.
 run_fixture "chain1_witstate"       1                  0    ""           "a1b2c3d4e5f60718" || fail=1
 
+# Two witness.state entries -- parallel to chain1_witcode_2 but on
+# the FIRST inner witness field. The state list is variable-size
+# elements (ByteList[MAX_BYTES_PER_WITNESS_NODE]), so a 2-element
+# list ships its own u32 inner offset table prefix. Completes the
+# 1-vs-2 entries matrix across all three list-type SSZ slots
+# (codes, state, public_keys).
+run_fixture "chain1_witstate_2"     1                  0    ""           "a1b2c3d4e5f60718:9988776655443322" || fail=1
+
 # Both witness.state AND witness.codes non-empty simultaneously --
 # the inner-witness offset table now has three pairwise-distinct
 # offsets (state_offset < codes_offset < headers_offset), pushing
@@ -376,6 +384,14 @@ run_fixture "chain1_witboth"        1                  0    "deadbeef"   "a1b2c3
 # the ELF output is unchanged. PK is 65 deterministic bytes
 # (04 || 32 zeros || 32 zeros = SEC1 uncompressed-marker prefix).
 run_fixture "chain1_pk"             1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)" || fail=1
+
+# Two public_keys entries -- exercises a 2-element SSZ list of
+# fixed-size ByteVectors. Unlike SszList[ByteList, N] (variable-
+# size elements, requires an inner offset table), this list has
+# NO inner offset table; the 130-byte payload is just the two
+# 65-byte entries concatenated. Doubles the public_keys
+# byte-budget. Decoder's outer-offset chase is unaffected.
+run_fixture "chain1_pk_2"           1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0):04$(printf '%064d' 1)$(printf '%064d' 1)" || fail=1
 
 # All three non-chain_config outer slots populated simultaneously
 # -- witness.state + witness.codes + public_keys -- the largest
@@ -413,6 +429,15 @@ run_fixture "chain1_actts"          1                  0    ""           ""     
 # fits in 1 byte, so the LBU+SB at OUTPUT[61] handles it.
 run_fixture "chain1_act_both"       1                  0    ""           ""                  ""    "1111111111" "2222222222" || fail=1
 
+# Cross-product: public_keys + both activation slots
+# (block_number + timestamp). Largest output for fixtures that
+# don't also drive blob_schedule -- 89 bytes -- with PK padding
+# for ziskemu input-region headroom (see the [[ziskemu-input-
+# slack]] memory note). Exercises the encoder's full
+# active_fork[16..40) byte-copy path together with PK
+# byte-budget shift.
+run_fixture "chain1_pk_act_both"    1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "7777777777" "8888888888" || fail=1
+
 # Non-empty `blob_schedule = [SszBlobSchedule(...)]` with one
 # fixed-size 24-byte entry (3 u64s: target, max,
 # base_fee_update_fraction). Activation stays empty, so
@@ -424,6 +449,36 @@ run_fixture "chain1_act_both"       1                  0    ""           ""     
 # all three u64s of the entry.
 run_fixture "chain1_blob"           1                  0    ""           ""                  ""    ""           ""           "100:200:300" || fail=1
 
+# Triple cross-product: witness.codes + public_keys + block_number.
+# witness.codes shifts chain_config_addr forward, block_number
+# drives the variable-length encoder, and public_keys padding
+# pushes mem_end far enough past chain_config_end that the
+# encoder's trailing LBU reads stay in-bounds (see the [[ziskemu-
+# input-slack]] memory note). Without the PK padding this exact
+# witcode + actbn combo would panic ziskemu with "section not
+# found"; the PK trick recovers it.
+run_fixture "chain1_witcode_pk_actbn" 1                0    "deadbeef"   ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "1234567890" || fail=1
+# Cross-product: non-empty public_keys AND non-empty
+# blob_schedule. Both fields shift only `offsets[3]`
+# (public_keys_offset) and the SSZ blob total length; neither
+# affects chain_config_offset. The encoder's full byte-copy of
+# active_fork[16..64) (covering the entire blob_schedule
+# entry) must produce 97 bytes that match spec. PK padding
+# gives plenty of mem slack so the byte-copy never reads past
+# ziskemu's input section.
+run_fixture "chain1_pk_blob"        1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)"    ""           ""           "100:200:300" || fail=1
+# Cross-product: non-empty public_keys AND non-empty
+# block_number. The decoder's outer-offset chase
+# (SSZ_BASE+8 -> chain_config_addr) must land correctly under
+# input-layout drift, AND the encoder's variable-length byte-
+# copy must produce the 81-byte block_number passthrough.
+# public_keys (65 bytes) sits AFTER chain_config in the outer
+# SSZ blob, so it doesn't shift chain_config_offset; it does
+# extend the input file enough that the encoder's trailing
+# byte-copy reads stay within ziskemu's mapped input region
+# (cross-products with witness.codes/state would land 0..few
+# bytes of mem slack -- too tight, would panic).
+run_fixture "chain1_pk_actbn"       1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "1234567890" || fail=1
 # Cross-product corner: bn=[B], ts=[T], blob=[entry] all
 # populated simultaneously. MAX active_fork = 64 bytes (16
 # fc-header + 24 activation body + 24 blob_schedule), so spec
