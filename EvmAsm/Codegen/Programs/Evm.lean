@@ -15,6 +15,7 @@ import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.And.Program
 import EvmAsm.Evm64.Byte.Program
 import EvmAsm.Evm64.Calldata.SizeProgram
+import EvmAsm.Evm64.ControlFlow.Program
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
@@ -42,6 +43,7 @@ import EvmAsm.Evm64.Swap.Program
 import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.Noop
 
 namespace EvmAsm.Codegen
 
@@ -549,6 +551,183 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     , body    := EvmAsm.Evm64.Calldata.evm_calldatasize .x20 .x15
     , tail    := .advanceAndRet 1 } ]
 
+/-- M14 / M15 control-flow opcodes.
+
+    - **JUMPDEST (0x5b, M14)** — no-op marker. Empty body +
+      `.advanceAndRet 1` tail.
+    - **JUMP (0x56, M15)** — pops dest, writes `x10 := x21 + dest`.
+      Tail is `.custom "  ret"`; the body has already written `x10`,
+      so the dispatcher's next loop iteration reads the jump-target
+      byte. No `.advanceAndRet` (would over-advance by 1).
+    - **JUMPI (0x57, M15)** — pops dest + cond; if cond ≠ 0 writes
+      `x10 := x21 + dest`, else advances `x10` by 1 in the body.
+      Tail is `.custom "  ret"` — body handles both branches.
+    - **PC (0x58, M15)** — pushes `x10 - x21` as a 256-bit word
+      with the value in the low limb. Tail is `.advanceAndRet 1`.
+
+    All three M15 handlers consume the dispatcher's preserved
+    code-base register `x21` (set in the prologue via
+    `la x21, evm_code` / `li x21, 0x40000010`). The scratch
+    registers `x14`/`x15`/`x16` are caller-saved per the existing
+    convention.
+
+    **M15 known limitation**: JUMP / JUMPI do NOT validate the
+    destination is a JUMPDEST byte. A spec-compliant EVM rejects
+    invalid jumps; ours unconditionally follows them. Trusted test
+    programs only jump to real JUMPDESTs. A follow-on PR will
+    inline the `LBU + BEQ 0x5b` check. -/
+def controlFlowHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_JUMPDEST"
+    , opcodes := [0x5b]
+    , body    := []
+    , tail    := .advanceAndRet 1 }
+  , { label := "h_JUMP"
+    , opcodes := [0x56]
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jump .x21 .x14
+    , tail    := .custom "  ret" }
+  , { label := "h_JUMPI"
+    , opcodes := [0x57]
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x14 .x15 .x16
+    , tail    := .custom "  ret" }
+  , { label := "h_PC"
+    , opcodes := [0x58]
+    , body    := EvmAsm.Evm64.ControlFlow.evm_pc .x21 .x14
+    , tail    := .advanceAndRet 1 } ]
+
+/-- M16 hash / precompile-via-syscall opcodes. KECCAK256 (0x20) is the
+    first ECALL-bridge opcode wired into the dispatcher.
+
+    The handler does NOT have a verified body (`Instr` has no CSRS
+    variant; the Zisk `csrs 0x800, a0` accelerator is encoded as a
+    raw `.4byte 0x80052073` inside the `zkvm_keccak256` subroutine).
+    Like `stopHandler` and the M15 JUMP/JUMPI handlers, this uses
+    `body := []` + `tail := .custom "..."` with the full asm inline.
+
+    **Calling convention.** The handler must navigate the conflict
+    between LP64 (a0/a1/a2 = x10/x11/x12) and the dispatcher's
+    preserved state (x10 = EVM code ptr, x12 = EVM stack ptr).
+    Solution: save `x10` to `s10` and `x12` to `s11` (callee-saved
+    in LP64, preserved across the keccak call), set up a0/a1/a2 as
+    keccak args, then restore after the call.
+
+    **Stack delta**: pop 2 words (offset + size, 64 B) and push 1
+    word (32-byte digest). Net x12 advance = +32 (one word).
+
+    **Tail return mechanism**: `j .dispatch_loop` (NOT `ret`),
+    because the `jal x1, zkvm_keccak256` clobbers `x1`. Same fix as
+    M9's `signedDivModTail`.
+
+    **Endianness**: the keccak subroutine writes the 32-byte digest
+    to `a2` in standard byte order (`digest[0]` first). The
+    dispatcher's epilogue (e.g. `evmAddEpilogue`) copies x12+0..x12+31
+    verbatim to OUTPUT_ADDR. So `expectedOutHex` in test cases is
+    the standard keccak digest hex.
+
+    M17+ will extend `hashHandlers` with LOG0-4 / SLOAD / SSTORE /
+    other precompiles via the same ECALL bridge pattern. -/
+def hashHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_KECCAK256"
+    , opcodes := [0x20]
+    , body    := []
+    , tail    := .custom (
+        "  mv s10, x10\n" ++           -- save EVM code ptr
+        "  ld t0, 0(x12)\n" ++          -- t0 = offset_low (low 64 bits of top word)
+        "  ld a1, 32(x12)\n" ++         -- a1 = size_low
+        "  addi x12, x12, 32\n" ++      -- net stack delta: pop 2 (64), push 1 (-32) = +32
+        "  add a0, x13, t0\n" ++        -- a0 = evm_memory + offset (input ptr)
+        "  mv a2, x12\n" ++             -- a2 = result slot (= new EVM stack top)
+        "  mv s11, x12\n" ++            -- save EVM stack ptr across the call
+        "  jal x1, zkvm_keccak256\n" ++ -- call keccak (clobbers x1, a0, a1, a2)
+        "  mv x10, s10\n" ++            -- restore EVM code ptr
+        "  mv x12, s11\n" ++            -- restore EVM stack ptr
+        "  addi x10, x10, 1\n" ++       -- advance PC by 1
+        "  j .dispatch_loop") } ]
+
+/-- M17 LOG opcodes (LOG0..LOG4). Wired as **stack-pop no-ops** —
+    the EVM emits a log event that affects the receipt root, but
+    NOT the OUTPUT_ADDR our dispatcher surfaces, so for codegen
+    we just consume the right number of stack words and advance.
+
+    Stack pop counts (per the EVM Yellow Paper): LOGn pops
+    `(2 + n)` 256-bit words = offset, size, and `n` topics. So
+    pop bytes = `(2 + n) × 32`: 64, 96, 128, 160, 192 for n=0..4.
+
+    All entries share the standard `.advanceAndRet 1` tail (PC
+    advances by 1 byte; ret). The body is a single
+    `ADDI .x12 .x12 popBytes` that moves the EVM stack ptr UP
+    (EVM stack grows DOWN, so increasing x12 pops).
+
+    **Known limitation**: LOG events are dropped (no receipt log
+    list). Spec-compliant emission is deferred until the host
+    gets a log syscall (Zisk's `zkvm_accelerators.h` doesn't
+    have one today). Trusted test programs that don't depend on
+    log persistence continue running correctly. -/
+def logHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_LOG0", opcodes := [0xa0]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
+    , tail := .advanceAndRet 1 }
+  , { label := "h_LOG1", opcodes := [0xa1]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
+    , tail := .advanceAndRet 1 }
+  , { label := "h_LOG2", opcodes := [0xa2]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 128)
+    , tail := .advanceAndRet 1 }
+  , { label := "h_LOG3", opcodes := [0xa3]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 160)
+    , tail := .advanceAndRet 1 }
+  , { label := "h_LOG4", opcodes := [0xa4]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
+    , tail := .advanceAndRet 1 } ]
+
+/-- M17 storage opcodes (SLOAD/SSTORE/TLOAD/TSTORE). Wired as
+    **no-op stack ops** under an "empty storage" semantic — storage
+    always reads 0; writes are dropped. Same rationale as M17's
+    LOG handlers: no Zisk storage syscall exists yet, so a
+    spec-compliant ECALL bridge has nowhere to call.
+
+    - **SLOAD (0x54)** / **TLOAD (0x5c)**: pop a 256-bit key, push
+      a 256-bit value (= 0). Net stack delta = 0; we just
+      overwrite the top word (at `[x12..x12+31]`) with 32 zero
+      bytes via 4 × `SD .x12 .x0 …`.
+    - **SSTORE (0x55)** / **TSTORE (0x5d)**: pop 2 words (key,
+      value). Net stack delta = +64; `ADDI .x12 .x12 64`.
+
+    EVM stack ordering for STORE: `μ_s[0] = key, μ_s[1] = value`
+    (key on top, value below). For our no-op implementation we
+    drop both regardless of order.
+
+    **Known limitation**: writes are dropped, reads return 0.
+    Trusted programs that don't depend on storage persistence
+    within a transaction continue running. Spec-compliant
+    storage is deferred to a future PR once the host gains
+    storage syscalls. -/
+def storageHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_SLOAD", opcodes := [0x54]
+    , body := SD .x12 .x0 0 ;;
+              SD .x12 .x0 8 ;;
+              SD .x12 .x0 16 ;;
+              SD .x12 .x0 24
+    , tail := .advanceAndRet 1 }
+  , { label := "h_SSTORE", opcodes := [0x55]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
+    , tail := .advanceAndRet 1 }
+  , { label := "h_TLOAD", opcodes := [0x5c]
+    , body := SD .x12 .x0 0 ;;
+              SD .x12 .x0 8 ;;
+              SD .x12 .x0 16 ;;
+              SD .x12 .x0 24
+    , tail := .advanceAndRet 1 }
+  , { label := "h_TSTORE", opcodes := [0x5d]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
+    , tail := .advanceAndRet 1 } ]
+
+-- M18 stack-pop / push-zero / halt no-op handlers (haltHandlers,
+-- pushZeroHandlers, popPushZeroHandlers, copyNoopHandlers) live in
+-- `EvmAsm/Codegen/Programs/Noop.lean` — extracted to respect the
+-- file-size guard at the bottom of `Programs.lean`. They're brought
+-- into scope here by the `import EvmAsm.Codegen.Programs.Noop`
+-- statement near the top of this file.
+
 /-- M8 unsigned division opcodes. Both `evm_div` and `evm_mod` carry
     a 75-instruction `divK_div128_v4` subroutine appended after a
     NOP "exit PC" at body index 267; the `evmDivPatched` /
@@ -727,7 +906,10 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ envHandlers ++ calldataHandlers ++ divModHandlers ++
+  memoryHandlers ++ envHandlers ++ calldataHandlers ++
+  controlFlowHandlers ++ hashHandlers ++ logHandlers ++
+  storageHandlers ++ haltHandlers ++ pushZeroHandlers ++
+  popPushZeroHandlers ++ copyNoopHandlers ++ divModHandlers ++
   signedDivModHandlers ++ selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
