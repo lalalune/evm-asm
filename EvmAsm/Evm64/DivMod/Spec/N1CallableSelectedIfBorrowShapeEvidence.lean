@@ -226,6 +226,31 @@ theorem N1CallableSelectedIfBorrowShapeEvidence.selectedIfBorrowSemanticEvidence
       (N1CallableSelectedIfBorrowShapeEvidence.selectedPath hevidence))
     (N1CallableSelectedIfBorrowShapeEvidence.semanticFacts hevidence)
 
+/-- Project the named selected-path hdiv package from the bundled N1
+    callable shape evidence. This gives later N1 public-wrapper wiring a single
+    private evidence object from which to recover the quotient-limb witnesses. -/
+theorem N1CallableSelectedIfBorrowShapeEvidence.hdivs
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a b : EvmWord)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hevidence : N1CallableSelectedIfBorrowShapeEvidence a b) :
+    FullDivN1CallMaxmaxmaxHdivs a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  exact FullDivN1CallMaxmaxmaxHdivs_of_selected_if_borrow_semantic_evidence
+    sp base a b
+    jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+    rfl rfl rfl rfl rfl rfl rfl rfl hbnz
+    (N1CallableSelectedIfBorrowShapeEvidence.selectedIfBorrowSemanticEvidence
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hevidence)
+
 theorem N1CallableSelectedIfBorrowShapeEvidence.ofAllTruePathSelectedIfBorrowSemanticEvidence
     (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
