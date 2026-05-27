@@ -175,7 +175,7 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1'):
+if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2'):
     # Multi-header fixtures (N=2 or N=3) exercising K229 and
     # K230 in their accept and reject branches. Each header
     # individually passes K290 / K291 / K240 / K278 / K277.
@@ -272,6 +272,43 @@ if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_
         h0 = mk_diff(1, 1234, 0)
         h1 = mk_diff(2, 2000, 1)  # difficulty != 0 at index 1
         hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)))
+    elif hdr_hex == 'INVALID_EXTRA_AT_2':
+        # Three headers: 0 and 1 valid, header[2] has
+        # extra_data of 33 bytes (over the 32-byte limit).
+        # K290 iterates 3 times pass; K291 iterates 3 times,
+        # passes on 0 and 1, fails on 2. Tests the K-PR
+        # iteration loop body at the LAST index.
+        def mk_extra(number, timestamp, extra):
+            return Header(
+                parent_hash=Hash32(b'\\x00' * 32),
+                ommers_hash=EMPTY_OMMER_HASH,
+                coinbase=b'\\x00' * 20,
+                state_root=Hash32(b'\\x00' * 32),
+                transactions_root=Hash32(b'\\x00' * 32),
+                receipt_root=Hash32(b'\\x00' * 32),
+                bloom=b'\\x00' * 256,
+                difficulty=Uint(0),
+                number=Uint(number),
+                gas_limit=Uint(1000000),
+                gas_used=Uint(0),
+                timestamp=U256(timestamp),
+                extra_data=extra,
+                prev_randao=Bytes32(b'\\x00' * 32),
+                nonce=Bytes8(b'\\x00' * 8),
+                base_fee_per_gas=Uint(0),
+                withdrawals_root=Hash32(b'\\x00' * 32),
+                blob_gas_used=U64t(0),
+                excess_blob_gas=U64t(0),
+                parent_beacon_block_root=Hash32(b'\\x00' * 32),
+                requests_hash=Hash32(b'\\x00' * 32),
+                block_access_list_hash=Hash32(b'\\x00' * 32),
+                slot_number=U64t(0),
+            )
+        h0 = mk_extra(1, 1234, Bytes(b''))
+        h1 = mk_extra(2, 2000, Bytes(b''))
+        h2 = mk_extra(3, 3000, Bytes(b'\\xab' * 33))
+        hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)),
+                   HeaderBL(rlp.encode(h2)))
     else:  # VALID_THREE
         # Three chained valid post-merge headers. parent_hash
         # chain so spec's validate_headers ALSO accepts
@@ -863,6 +900,14 @@ run_fixture "chain1_invalid_ommers" 1                  0    ""           ""     
 # Same fail label (.Lsg_fail_pm) as chain1_invalid_diff but
 # reached on the second loop iteration rather than the first.
 run_fixture "chain1_invalid_diff_at_1" 1               0    ""           ""                  ""    ""           ""           ""    "INVALID_DIFF_AT_1" || fail=1
+
+# Three headers: 0 and 1 valid, header[2] has extra_data
+# length 33. K290 iterates 3 times (all pass); K291 iterates
+# 3 times -- passes on 0 and 1, FAILS on 2. Tests K-PR
+# iteration loop body at the LAST index in a multi-header
+# pipeline, complementing chain1_invalid_diff_at_1 (fail at
+# index 1 of 2) by checking failure detection at index 2 of 3.
+run_fixture "chain1_invalid_extra_at_2" 1              0    ""           ""                  ""    ""           ""           ""    "INVALID_EXTRA_AT_2" || fail=1
 
 # Three chained valid post-merge headers. parent_hash chain
 # computed via keccak256 so spec's validate_headers accepts
