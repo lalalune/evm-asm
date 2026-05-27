@@ -91,6 +91,21 @@ theorem n4ShiftNzDispatcherBranchBoundsV4.of_runtime_pred {a b : EvmWord}
   rw [n4ShiftNzDispatcherBranchBoundsV4_def]
   exact ⟨hbranch, hruntime.2.1, hruntime.2.2⟩
 
+theorem n4ShiftNzDispatcherBranchRuntimeV4.skip {a b : EvmWord}
+    (hskip : isSkipBorrowN4CallV4Evm a b)
+    (hbranch : n4CallSkipRuntimeBranchV4 a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b := by
+  rw [n4ShiftNzDispatcherBranchRuntimeV4_def]
+  exact Or.inl ⟨hskip, hbranch⟩
+
+theorem n4ShiftNzDispatcherBranchRuntimeV4.addback {a b : EvmWord}
+    (hadd : isAddbackBorrowN4CallV4Evm a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_bounds : n4CallAddbackBeqRuntimeBounds a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b := by
+  rw [n4ShiftNzDispatcherBranchRuntimeV4_def]
+  exact Or.inr ⟨hadd, hcarry2, h_bounds⟩
+
 theorem n4ShiftNzDispatcherRuntimeV4.of_branch_bounds {a b : EvmWord}
     (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
     n4ShiftNzDispatcherRuntimeV4 a b := by
@@ -102,12 +117,17 @@ theorem n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_pred {a b : EvmWord}
     (hruntime : n4ShiftNzDispatcherRuntimeV4 a b) :
     n4ShiftNzDispatcherBranchRuntimeV4 a b := by
   rw [n4ShiftNzDispatcherRuntimeV4_def] at hruntime
-  rw [n4ShiftNzDispatcherBranchRuntimeV4_def]
   cases isSkipBorrowN4CallV4Evm_or_isAddbackBorrowN4CallV4Evm a b with
   | inl hskip =>
-      exact Or.inl ⟨hskip, hruntime.1⟩
+      exact n4ShiftNzDispatcherBranchRuntimeV4.skip hskip hruntime.1
   | inr hadd =>
-      exact Or.inr ⟨hadd, hruntime.2.1, hruntime.2.2⟩
+      exact n4ShiftNzDispatcherBranchRuntimeV4.addback hadd hruntime.2.1 hruntime.2.2
+
+theorem n4ShiftNzDispatcherBranchRuntimeV4_of_branch_bounds {a b : EvmWord}
+    (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+  n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_pred
+    (n4ShiftNzDispatcherRuntimeV4.of_branch_bounds hevidence)
 
 /-- n=4, shift-nonzero DIV v4 dispatcher over the call branch.
 
@@ -194,33 +214,6 @@ theorem evm_div_n4_shift_nz_stack_spec_v4_of_runtime_bounds
         nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
         hbnz hb3nz hshift_nz halign hbltu hadd hcarry2 hsem
 
-/-- n=4, shift-nonzero DIV v4 dispatcher from packaged branch/bounds
-    evidence. -/
-theorem evm_div_n4_shift_nz_stack_spec_v4_of_branch_bounds
-    (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
-    (hb3nz : b.getLimbN 3 ≠ 0)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
-      base + div128CallRetOff)
-    (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
-    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
-      base (base + nopOff) (divCode_v4 base)
-      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
-       ((sp + signExtend12 3936) ↦ₘ scratchMem))
-      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_v4_of_runtime_bounds
-    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
-    hb3nz hshift_nz halign
-    (n4ShiftNzDispatcherBranchBoundsV4.callSkipBranch hevidence)
-    (n4ShiftNzDispatcherBranchBoundsV4.addbackCarry2 hevidence)
-    (n4ShiftNzDispatcherBranchBoundsV4.addbackRuntimeBounds hevidence)
-
 /-- n=4, shift-nonzero DIV v4 dispatcher from the packaged runtime evidence
     predicate. -/
 theorem evm_div_n4_shift_nz_stack_spec_v4_of_runtime_pred
@@ -303,6 +296,31 @@ theorem evm_div_n4_shift_nz_stack_spec_v4_of_branch_runtime
         hbnz hb3nz hshift_nz halign hbltu haddRuntime.1 haddRuntime.2.1 hsem
 
 
+/-- n=4, shift-nonzero DIV v4 dispatcher from packaged branch/bounds
+    evidence. -/
+theorem evm_div_n4_shift_nz_stack_spec_v4_of_branch_bounds
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
+  evm_div_n4_shift_nz_stack_spec_v4_of_branch_runtime
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hb3nz hshift_nz halign
+    (n4ShiftNzDispatcherBranchRuntimeV4_of_branch_bounds hevidence)
+
 /-- No-NOP n=4, shift-nonzero DIV v4 dispatcher over the call branch. -/
 theorem evm_div_n4_shift_nz_stack_spec_v4_noNop_of_branch_pred
     (sp base : Word)
@@ -378,33 +396,6 @@ theorem evm_div_n4_shift_nz_stack_spec_v4_noNop_of_runtime_bounds
         sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
         hbnz hb3nz hshift_nz halign hbltu hadd hcarry2 hsem
-
-/-- No-NOP n=4, shift-nonzero DIV v4 dispatcher from packaged
-    branch/bounds evidence. -/
-theorem evm_div_n4_shift_nz_stack_spec_v4_noNop_of_branch_bounds
-    (sp base : Word)
-    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
-    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
-    (hb3nz : b.getLimbN 3 ≠ 0)
-    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
-    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
-      base + div128CallRetOff)
-    (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
-    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
-      base (base + nopOff) (divCode_noNop_v4 base)
-      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
-         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
-       ((sp + signExtend12 3936) ↦ₘ scratchMem))
-      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_v4_noNop_of_runtime_bounds
-    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
-    hb3nz hshift_nz halign
-    (n4ShiftNzDispatcherBranchBoundsV4.callSkipBranch hevidence)
-    (n4ShiftNzDispatcherBranchBoundsV4.addbackCarry2 hevidence)
-    (n4ShiftNzDispatcherBranchBoundsV4.addbackRuntimeBounds hevidence)
 
 /-- No-NOP n=4, shift-nonzero DIV v4 dispatcher from packaged runtime evidence. -/
 theorem evm_div_n4_shift_nz_stack_spec_v4_noNop_of_runtime_pred
@@ -485,6 +476,31 @@ theorem evm_div_n4_shift_nz_stack_spec_v4_noNop_of_branch_runtime
         nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
         hbnz hb3nz hshift_nz halign hbltu haddRuntime.1 haddRuntime.2.1 hsem
 
+
+/-- No-NOP n=4, shift-nonzero DIV v4 dispatcher from packaged
+    branch/bounds evidence. -/
+theorem evm_div_n4_shift_nz_stack_spec_v4_noNop_of_branch_bounds
+    (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
+      base (base + nopOff) (divCode_noNop_v4 base)
+      (divN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
+  evm_div_n4_shift_nz_stack_spec_v4_noNop_of_branch_runtime
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hb3nz hshift_nz halign
+    (n4ShiftNzDispatcherBranchRuntimeV4_of_branch_bounds hevidence)
 
 /-- Final named n=4, shift-nonzero DIV dispatcher surface over `divCode_v4`.
     This is the branch-predicate API consumed by later n=4 stack assembly. -/
