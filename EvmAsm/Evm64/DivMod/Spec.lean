@@ -70,6 +70,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExact
 import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExactSelected
 import EvmAsm.Evm64.DivMod.Spec.N2CallableSelectedShapeEvidence
 import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExactSelectedEvidence
+import EvmAsm.Evm64.DivMod.Spec.N2SelectedQuotientHdivs
 import EvmAsm.Evm64.DivMod.Spec.BzeroV4ExactCallable
 import EvmAsm.Evm64.DivMod.Spec.ModBzeroV4Callable
 import EvmAsm.Evm64.DivMod.Spec.BzeroV4ExactFrame
