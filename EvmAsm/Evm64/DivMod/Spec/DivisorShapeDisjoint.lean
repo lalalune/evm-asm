@@ -42,4 +42,22 @@ theorem N3ShapeIs.not_N4ShapeIs {b : EvmWord} (h3 : N3ShapeIs b) :
   intro h4
   exact absurd h3.2.1 h4.2
 
+theorem N2ShapeIs.not_N1ShapeIs {b : EvmWord} (h2 : N2ShapeIs b) :
+    ¬ N1ShapeIs b := fun h1 => h1.not_N2ShapeIs h2
+
+theorem N3ShapeIs.not_N1ShapeIs {b : EvmWord} (h3 : N3ShapeIs b) :
+    ¬ N1ShapeIs b := fun h1 => h1.not_N3ShapeIs h3
+
+theorem N4ShapeIs.not_N1ShapeIs {b : EvmWord} (h4 : N4ShapeIs b) :
+    ¬ N1ShapeIs b := fun h1 => h1.not_N4ShapeIs h4
+
+theorem N3ShapeIs.not_N2ShapeIs {b : EvmWord} (h3 : N3ShapeIs b) :
+    ¬ N2ShapeIs b := fun h2 => h2.not_N3ShapeIs h3
+
+theorem N4ShapeIs.not_N2ShapeIs {b : EvmWord} (h4 : N4ShapeIs b) :
+    ¬ N2ShapeIs b := fun h2 => h2.not_N4ShapeIs h4
+
+theorem N4ShapeIs.not_N3ShapeIs {b : EvmWord} (h4 : N4ShapeIs b) :
+    ¬ N3ShapeIs b := fun h3 => h3.not_N4ShapeIs h4
+
 end EvmAsm.Evm64
