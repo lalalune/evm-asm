@@ -228,6 +228,32 @@ theorem n4ShiftNzDispatcherBranchRuntimeV4.addback {a b : EvmWord}
   rw [n4ShiftNzDispatcherBranchRuntimeV4_def]
   exact Or.inr ⟨hadd, hcarry2, h_bounds⟩
 
+theorem n4ShiftNzDispatcherRuntimeV4.of_parts {a b : EvmWord}
+    (hbranch : n4CallSkipRuntimeBranchV4 a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_bounds : n4CallAddbackBeqRuntimeBounds a b) :
+    n4ShiftNzDispatcherRuntimeV4 a b := by
+  rw [n4ShiftNzDispatcherRuntimeV4_def]
+  exact ⟨hbranch, hcarry2, h_bounds⟩
+
+theorem n4ShiftNzDispatcherRuntimeV4.callSkipRuntimeBranch {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeV4 a b) :
+    n4CallSkipRuntimeBranchV4 a b := by
+  rw [n4ShiftNzDispatcherRuntimeV4_def] at hruntime
+  exact hruntime.1
+
+theorem n4ShiftNzDispatcherRuntimeV4.addbackCarry2 {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeV4 a b) :
+    isAddbackCarry2NzN4CallV4Evm a b := by
+  rw [n4ShiftNzDispatcherRuntimeV4_def] at hruntime
+  exact hruntime.2.1
+
+theorem n4ShiftNzDispatcherRuntimeV4.addbackRuntimeBounds {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeV4 a b) :
+    n4CallAddbackBeqRuntimeBounds a b := by
+  rw [n4ShiftNzDispatcherRuntimeV4_def] at hruntime
+  exact hruntime.2.2
+
 theorem n4ShiftNzDispatcherRuntimeV4.of_branch_bounds {a b : EvmWord}
     (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
     n4ShiftNzDispatcherRuntimeV4 a b := by
