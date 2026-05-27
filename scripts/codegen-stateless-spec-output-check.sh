@@ -409,6 +409,15 @@ run_fixture "chain1_pk_actbn"       1                  0    ""           ""     
 # (= 0x28); still fits in 1 byte.
 run_fixture "chain1_act_blob_all"   1                  0    ""           ""                  ""    "3333333333" "4444444444" "500:600:700" || fail=1
 
+# Previously-blocked cross-product witness.codes + block_number
+# (no PK padding), now passing thanks to the bounded byte-copy.
+# Without the bound, this combo's mem slack between
+# chain_config_end and ziskemu's input-region boundary is 0
+# bytes, so the prior unrolled LBUs at chain_config + 28..76
+# panicked with "section not found". The bounded loop stops at
+# chain_config_end, never reaching the unmapped page.
+run_fixture "chain1_witcode_actbn_unbounded" 1   0    "deadbeef"   ""                  ""    "1234567890" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0
