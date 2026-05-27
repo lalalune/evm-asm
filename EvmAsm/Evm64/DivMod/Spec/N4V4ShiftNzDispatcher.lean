@@ -91,6 +91,21 @@ theorem n4ShiftNzDispatcherBranchBoundsV4.of_runtime_pred {a b : EvmWord}
   rw [n4ShiftNzDispatcherBranchBoundsV4_def]
   exact ⟨hbranch, hruntime.2.1, hruntime.2.2⟩
 
+theorem n4ShiftNzDispatcherBranchRuntimeV4.skip {a b : EvmWord}
+    (hskip : isSkipBorrowN4CallV4Evm a b)
+    (hbranch : n4CallSkipRuntimeBranchV4 a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b := by
+  rw [n4ShiftNzDispatcherBranchRuntimeV4_def]
+  exact Or.inl ⟨hskip, hbranch⟩
+
+theorem n4ShiftNzDispatcherBranchRuntimeV4.addback {a b : EvmWord}
+    (hadd : isAddbackBorrowN4CallV4Evm a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_bounds : n4CallAddbackBeqRuntimeBounds a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b := by
+  rw [n4ShiftNzDispatcherBranchRuntimeV4_def]
+  exact Or.inr ⟨hadd, hcarry2, h_bounds⟩
+
 theorem n4ShiftNzDispatcherRuntimeV4.of_branch_bounds {a b : EvmWord}
     (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
     n4ShiftNzDispatcherRuntimeV4 a b := by
@@ -102,12 +117,11 @@ theorem n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_pred {a b : EvmWord}
     (hruntime : n4ShiftNzDispatcherRuntimeV4 a b) :
     n4ShiftNzDispatcherBranchRuntimeV4 a b := by
   rw [n4ShiftNzDispatcherRuntimeV4_def] at hruntime
-  rw [n4ShiftNzDispatcherBranchRuntimeV4_def]
   cases isSkipBorrowN4CallV4Evm_or_isAddbackBorrowN4CallV4Evm a b with
   | inl hskip =>
-      exact Or.inl ⟨hskip, hruntime.1⟩
+      exact n4ShiftNzDispatcherBranchRuntimeV4.skip hskip hruntime.1
   | inr hadd =>
-      exact Or.inr ⟨hadd, hruntime.2.1, hruntime.2.2⟩
+      exact n4ShiftNzDispatcherBranchRuntimeV4.addback hadd hruntime.2.1 hruntime.2.2
 
 theorem n4ShiftNzDispatcherBranchRuntimeV4_of_branch_bounds {a b : EvmWord}
     (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
