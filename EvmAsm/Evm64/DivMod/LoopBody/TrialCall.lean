@@ -1054,4 +1054,233 @@ theorem divK_trial_call_full_v4_spec_within_noNop_exact_x1
       xperm_hyp hq)
     full
 
+/-- Lift the v4 trial-call path over the DIV no-NOP v4 code bundle. -/
+theorem divK_trial_call_full_v4_spec_within_divCode_noNop
+    (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
+    (retMem dMem dloMem un0Mem scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult uHi vTop) :
+    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 88 (base + loopBodyOff) (base + div128CallRetOff) (divCode_noNop_v4 base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem)) ** regOwn .x1)
+      (divKTrialCallFullPostV4 sp j n uHi uLo vTop base scratchMem) := by
+  intro uAddr vtopBase
+  exact cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_divCode_noNop_v4)
+    (divK_trial_call_full_v4_spec_within_noNop sp j n jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old uHi uLo vTop retMem dMem dloMem un0Mem scratchMem base halign hbltu)
+
+/-- Lift the v4 trial-call path over the MOD no-NOP v4 code bundle. -/
+theorem divK_trial_call_full_v4_spec_within_modCode_noNop
+    (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
+    (retMem dMem dloMem un0Mem scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult uHi vTop) :
+    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 88 (base + loopBodyOff) (base + div128CallRetOff) (modCode_noNop_v4 base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem)) ** regOwn .x1)
+      (divKTrialCallFullPostV4 sp j n uHi uLo vTop base scratchMem) := by
+  intro uAddr vtopBase
+  exact cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_modCode_noNop_v4)
+    (divK_trial_call_full_v4_spec_within_noNop sp j n jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old uHi uLo vTop retMem dMem dloMem un0Mem scratchMem base halign hbltu)
+
+/-- Lift the v4 trial-call path over the full DIV v4 code bundle. -/
+theorem divK_trial_call_full_v4_spec_within_divCode
+    (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
+    (retMem dMem dloMem un0Mem scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult uHi vTop) :
+    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 88 (base + loopBodyOff) (base + div128CallRetOff) (divCode_v4 base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem)) ** regOwn .x1)
+      (divKTrialCallFullPostV4 sp j n uHi uLo vTop base scratchMem) := by
+  intro uAddr vtopBase
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_trial_call_full_v4_spec_within_divCode_noNop sp j n jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old uHi uLo vTop retMem dMem dloMem un0Mem scratchMem base halign hbltu)
+
+/-- Lift the v4 trial-call path over the full MOD v4 code bundle. -/
+theorem divK_trial_call_full_v4_spec_within_modCode
+    (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
+    (retMem dMem dloMem un0Mem scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult uHi vTop) :
+    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 88 (base + loopBodyOff) (base + div128CallRetOff) (modCode_v4 base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem)) ** regOwn .x1)
+      (divKTrialCallFullPostV4 sp j n uHi uLo vTop base scratchMem) := by
+  intro uAddr vtopBase
+  exact cpsTripleWithin_modCode_noNop_v4_to_modCode_v4
+    (divK_trial_call_full_v4_spec_within_modCode_noNop sp j n jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old uHi uLo vTop retMem dMem dloMem un0Mem scratchMem base halign hbltu)
+
+/-- Exact-x1 lift of the v4 trial-call path over the DIV no-NOP v4 code bundle. -/
+theorem divK_trial_call_full_v4_spec_within_divCode_noNop_exact_x1
+    (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
+    (retMem dMem dloMem un0Mem scratchMem raVal : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult uHi vTop) :
+    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 88 (base + loopBodyOff) (base + div128CallRetOff) (divCode_noNop_v4 base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem)) ** (.x1 ↦ᵣ raVal))
+      (divKTrialCallFullPostV4ExactX1 sp j n uHi uLo vTop base scratchMem raVal) := by
+  intro uAddr vtopBase
+  exact cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_divCode_noNop_v4)
+    (divK_trial_call_full_v4_spec_within_noNop_exact_x1 sp j n jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old uHi uLo vTop retMem dMem dloMem un0Mem scratchMem raVal base halign hbltu)
+
+/-- Exact-x1 lift of the v4 trial-call path over the MOD no-NOP v4 code bundle. -/
+theorem divK_trial_call_full_v4_spec_within_modCode_noNop_exact_x1
+    (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
+    (retMem dMem dloMem un0Mem scratchMem raVal : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult uHi vTop) :
+    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 88 (base + loopBodyOff) (base + div128CallRetOff) (modCode_noNop_v4 base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem)) ** (.x1 ↦ᵣ raVal))
+      (divKTrialCallFullPostV4ExactX1 sp j n uHi uLo vTop base scratchMem raVal) := by
+  intro uAddr vtopBase
+  exact cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_modCode_noNop_v4)
+    (divK_trial_call_full_v4_spec_within_noNop_exact_x1 sp j n jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old uHi uLo vTop retMem dMem dloMem un0Mem scratchMem raVal base halign hbltu)
+
+/-- Exact-x1 lift of the v4 trial-call path over the full DIV v4 code bundle. -/
+theorem divK_trial_call_full_v4_spec_within_divCode_exact_x1
+    (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
+    (retMem dMem dloMem un0Mem scratchMem raVal : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult uHi vTop) :
+    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 88 (base + loopBodyOff) (base + div128CallRetOff) (divCode_v4 base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem)) ** (.x1 ↦ᵣ raVal))
+      (divKTrialCallFullPostV4ExactX1 sp j n uHi uLo vTop base scratchMem raVal) := by
+  intro uAddr vtopBase
+  exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_trial_call_full_v4_spec_within_divCode_noNop_exact_x1 sp j n jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old uHi uLo vTop retMem dMem dloMem un0Mem scratchMem raVal base halign hbltu)
+
+/-- Exact-x1 lift of the v4 trial-call path over the full MOD v4 code bundle. -/
+theorem divK_trial_call_full_v4_spec_within_modCode_exact_x1
+    (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
+    (retMem dMem dloMem un0Mem scratchMem raVal : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult uHi vTop) :
+    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 88 (base + loopBodyOff) (base + div128CallRetOff) (modCode_v4 base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem)) ** (.x1 ↦ᵣ raVal))
+      (divKTrialCallFullPostV4ExactX1 sp j n uHi uLo vTop base scratchMem raVal) := by
+  intro uAddr vtopBase
+  exact cpsTripleWithin_modCode_noNop_v4_to_modCode_v4
+    (divK_trial_call_full_v4_spec_within_modCode_noNop_exact_x1 sp j n jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old uHi uLo vTop retMem dMem dloMem un0Mem scratchMem raVal base halign hbltu)
+
+
 end EvmAsm.Evm64

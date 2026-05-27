@@ -46,7 +46,8 @@ lake build codegen
 echo "==> emit + link runtime_dispatcher.elf (once)"
 lake exe codegen --program runtime_dispatcher --halt linux93 -o gen-out/runtime_dispatcher
 
-# `--list-test-cases` is a 3-column TSV: <name> <expected_hex> <bytecode_csv>.
+# `--list-test-cases` is a 4-column TSV: <name> <expected_hex> <bytecode_csv> <calldata>.
+# (M21: optional 4th column. Empty 4th column = no calldata, preserves pre-M21 behavior.)
 # Single source of truth lives in `EvmAsm/Codegen/Tests/Cases.lean`.
 LIST_FILE="gen-out/.opcodes-list"
 lake exe codegen --list-test-cases >"$LIST_FILE"
@@ -62,7 +63,7 @@ fi
 echo "==> running $TOTAL test case(s) through runtime_dispatcher.elf"
 
 FAILED=()
-while IFS=$'\t' read -r name expected bytecode_csv; do
+while IFS=$'\t' read -r name expected bytecode_csv calldata; do
   if [[ -z "$name" || -z "$expected" || -z "$bytecode_csv" ]]; then
     echo
     echo "==> SKIP: malformed --list-test-cases line (missing 1+ columns)"
@@ -72,7 +73,14 @@ while IFS=$'\t' read -r name expected bytecode_csv; do
 
   echo
   echo "==> pack $name"
-  "$PYTHON" scripts/pack-bytecode.py "$bytecode_csv" "gen-out/$name.input"
+  # M21: pass --calldata only when non-empty so pre-M21 invocations
+  # produce identical input bytes (zero-length calldata segment still
+  # gets appended by pack-bytecode.py for both paths).
+  if [[ -n "$calldata" ]]; then
+    "$PYTHON" scripts/pack-bytecode.py --calldata "$calldata" "$bytecode_csv" "gen-out/$name.input"
+  else
+    "$PYTHON" scripts/pack-bytecode.py "$bytecode_csv" "gen-out/$name.input"
+  fi
 
   echo "==> ziskemu -e runtime_dispatcher.elf -i gen-out/$name.input"
   "$ZISKEMU" -e gen-out/runtime_dispatcher.elf -i "gen-out/$name.input" \

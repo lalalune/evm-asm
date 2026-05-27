@@ -41,7 +41,7 @@ open EvmAsm.Codegen
     fighting for the same byte" at build time. -/
 theorem tinyInterpRegistry_opcodes_Nodup :
     (tinyInterpRegistry.flatMap (·.opcodes)).Nodup := by
-  decide
+  set_option maxRecDepth 2048 in decide
 
 -- ============================================================================
 -- 2. Handler-label uniqueness
@@ -57,7 +57,7 @@ theorem tinyInterpRegistry_opcodes_Nodup :
     accidental label collisions before they reach the assembler. -/
 theorem tinyInterpRegistry_labels_Nodup :
     (tinyInterpRegistry.map (·.label)).Nodup := by
-  decide
+  set_option maxRecDepth 2048 in decide
 
 -- ============================================================================
 -- 3. Opcode bytes fit in a u8
@@ -71,7 +71,7 @@ theorem tinyInterpRegistry_labels_Nodup :
 /-- Every opcode byte claimed by `tinyInterpRegistry` is `< 256`. -/
 theorem tinyInterpRegistry_opcodes_lt_256 :
     ∀ b ∈ tinyInterpRegistry.flatMap (·.opcodes), b < 256 := by
-  decide
+  set_option maxRecDepth 2048 in decide
 
 -- ============================================================================
 -- 4. Jump-table targets are well-formed
@@ -101,17 +101,17 @@ theorem jumpTargetLabel_well_formed :
 -- when wiring new opcodes is a deliberate-by-design step — drift here
 -- means PROGRESS.md's coverage table is also stale.
 
-/-- Exactly 107 opcode bytes are claimed by `tinyInterpRegistry` today.
+/-- Exactly 149 opcode bytes are claimed by `tinyInterpRegistry` today.
     Update this number when wiring new opcodes (EXP, etc.). -/
 theorem tinyInterpRegistry_wired_opcode_count :
-    (tinyInterpRegistry.flatMap (·.opcodes)).length = 107 := by
-  decide
+    (tinyInterpRegistry.flatMap (·.opcodes)).length = 149 := by
+  set_option maxRecDepth 2048 in decide
 
-/-- Exactly 107 bytes in `[0, 255]` route to a registered handler;
-    the remaining 149 fall through to `h_invalid`. -/
+/-- Exactly 149 bytes in `[0, 255]` route to a registered handler;
+    the remaining 107 fall through to `h_invalid`. -/
 theorem jumpTable_non_invalid_count :
     ((List.range 256).filter
-      (fun b => jumpTargetLabel tinyInterpRegistry b ≠ "h_invalid")).length = 107 := by
+      (fun b => jumpTargetLabel tinyInterpRegistry b ≠ "h_invalid")).length = 149 := by
   set_option maxRecDepth 2048 in decide
 
 end EvmAsm.Codegen.Proofs
