@@ -56,6 +56,7 @@ import EvmAsm.Evm64.DivMod.Spec.N3DivStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.Spec.UnifiedDivisorCases
 import EvmAsm.Evm64.DivMod.Spec.DivisorLimbCaseHelpers
+import EvmAsm.Evm64.DivMod.Spec.DivisorFullDomainShape
 import EvmAsm.Evm64.DivMod.Spec.UnifiedN1Normalized
 import EvmAsm.Evm64.DivMod.Spec.UnifiedN1NormalizedRemainder
 import EvmAsm.Evm64.DivMod.Spec.UnifiedN1StepPath
@@ -107,6 +108,7 @@ import EvmAsm.Evm64.DivMod.Spec.N1ExactV4PathEvidence
 import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrow
 import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrowSelectedPath
 import EvmAsm.Evm64.DivMod.Spec.N1CallableSelectedIfBorrowShapeEvidence
+import EvmAsm.Evm64.DivMod.Spec.N1PointedEvidence
 import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrowPathWord
 import EvmAsm.Evm64.DivMod.Spec.DispatcherN1NoHdivWord
 import EvmAsm.Evm64.DivMod.Spec.DispatcherN2NoHdivWord
