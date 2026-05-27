@@ -642,6 +642,19 @@ run_fixture "chain1_invalid_nm_at_2"    1              0    ""           ""     
 # NPR -> valid=False. ELF: valid=False from x11 stub. Match.
 run_fixture "chain1_valid_three"    1                  0    ""           ""                  ""    ""           ""           ""    "VALID_THREE" || fail=1
 
+# N=8 chained valid post-merge headers. Extends K-PR
+# iteration depth past the previous N=3 ceiling:
+#   K229 performs 7 strict-increase timestamp pair comparisons
+#   K230 performs 7 parent_number + 1 == child_number checks
+#   K290 / K291 / K240 / K278 / K277 each iterate over all 8
+#   headers individually
+# parent_hash linkage via keccak256(rlp(h_i)) so spec's
+# validate_headers ALSO succeeds (contiguity holds);
+# ~4600 bytes of witness.headers section. Catches latent
+# off-by-one or loop-termination bugs that only surface
+# beyond the small-N range of existing fixtures.
+run_fixture "chain1_valid_eight"    1                  0    ""           ""                  ""    ""           ""           ""    "VALID_EIGHT" || fail=1
+
 # N=2 chained valid post-merge headers, both with the full
 # VALID_REALISTIC field cohort (every K-PR-ignored field
 # populated with realistic non-zero bytes). parent_hash chain

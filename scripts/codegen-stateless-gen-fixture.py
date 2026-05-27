@@ -114,7 +114,7 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2', 'INVALID_NM_AT_2', 'VALID_TS_HIBIT', 'VALID_REALISTIC_TWO'):
+if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2', 'INVALID_NM_AT_2', 'VALID_TS_HIBIT', 'VALID_REALISTIC_TWO', 'VALID_EIGHT'):
     # Multi-header fixtures (N=2 or N=3) exercising K229 and
     # K230 in their accept and reject branches. Each header
     # individually passes K290 / K291 / K240 / K278 / K277.
@@ -395,13 +395,33 @@ if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_
                 block_access_list_hash=Hash32(b'\x00' * 32),
                 slot_number=U64t(0),
             )
-        h0 = mk_chained(1, 1234, Hash32(b'\x00' * 32))
-        h0_bytes = rlp.encode(h0)
-        h1 = mk_chained(2, 2000, keccak256(h0_bytes))
-        h1_bytes = rlp.encode(h1)
-        h2 = mk_chained(3, 3000, keccak256(h1_bytes))
-        h2_bytes = rlp.encode(h2)
-        hdr_arg = (HeaderBL(h0_bytes), HeaderBL(h1_bytes), HeaderBL(h2_bytes))
+        if hdr_hex == 'VALID_EIGHT':
+            # N=8 chained valid post-merge headers. Extends the K-PR
+            # iteration depth from N=3 (VALID_THREE) to N=8: K229
+            # performs 7 pair comparisons, K230 performs 7
+            # parent_number + 1 == child_number checks, and each of
+            # K290 / K291 / K240 / K278 / K277 iterates over all 8
+            # headers individually. parent_hash linkage via
+            # keccak256(rlp(h_i)) so spec's validate_headers also
+            # accepts contiguity (~4600 bytes of witness.headers).
+            nums = list(range(1, 9))
+            tss = [1234 + 1000 * i for i in range(8)]
+            blobs = []
+            prev_hash = Hash32(b'\x00' * 32)
+            for i in range(8):
+                h = mk_chained(nums[i], tss[i], prev_hash)
+                h_bytes = rlp.encode(h)
+                blobs.append(HeaderBL(h_bytes))
+                prev_hash = keccak256(h_bytes)
+            hdr_arg = tuple(blobs)
+        else:  # VALID_THREE
+            h0 = mk_chained(1, 1234, Hash32(b'\x00' * 32))
+            h0_bytes = rlp.encode(h0)
+            h1 = mk_chained(2, 2000, keccak256(h0_bytes))
+            h1_bytes = rlp.encode(h1)
+            h2 = mk_chained(3, 3000, keccak256(h1_bytes))
+            h2_bytes = rlp.encode(h2)
+            hdr_arg = (HeaderBL(h0_bytes), HeaderBL(h1_bytes), HeaderBL(h2_bytes))
 elif hdr_hex in (
     'VALID_POST_MERGE',
     'INVALID_DIFF',
