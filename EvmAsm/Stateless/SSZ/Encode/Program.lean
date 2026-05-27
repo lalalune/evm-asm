@@ -223,6 +223,32 @@ def serialize_stateless_output : Program :=
   LBU .x7 .x13 57 ;; SB .x6 .x7 94 ;;
   LBU .x7 .x13 58 ;; SB .x6 .x7 95 ;;
   LBU .x7 .x13 59 ;; SB .x6 .x7 96 ;;
+  -- bytes [97..113): byte-copy active_fork[48..64) from input.
+  -- Covers the blob_schedule entry when activation is non-empty
+  -- (then activation pushes blob_schedule forward by 8/16 bytes,
+  -- so the entry's bytes land at active_fork[48..72) -- the
+  -- first 16 bytes of which fall in this range). The MAX
+  -- active_fork = 64 bytes (16 fc-header + 24 activation + 24
+  -- blob_schedule) so OUTPUT[97..113) is the tail of spec
+  -- output. For smaller active_fork shapes, the range is past
+  -- the actual section; ziskemu zero-fills and the test
+  -- framework ignores bytes past len(spec).
+  LBU .x7 .x13 60 ;; SB .x6 .x7 97 ;;
+  LBU .x7 .x13 61 ;; SB .x6 .x7 98 ;;
+  LBU .x7 .x13 62 ;; SB .x6 .x7 99 ;;
+  LBU .x7 .x13 63 ;; SB .x6 .x7 100 ;;
+  LBU .x7 .x13 64 ;; SB .x6 .x7 101 ;;
+  LBU .x7 .x13 65 ;; SB .x6 .x7 102 ;;
+  LBU .x7 .x13 66 ;; SB .x6 .x7 103 ;;
+  LBU .x7 .x13 67 ;; SB .x6 .x7 104 ;;
+  LBU .x7 .x13 68 ;; SB .x6 .x7 105 ;;
+  LBU .x7 .x13 69 ;; SB .x6 .x7 106 ;;
+  LBU .x7 .x13 70 ;; SB .x6 .x7 107 ;;
+  LBU .x7 .x13 71 ;; SB .x6 .x7 108 ;;
+  LBU .x7 .x13 72 ;; SB .x6 .x7 109 ;;
+  LBU .x7 .x13 73 ;; SB .x6 .x7 110 ;;
+  LBU .x7 .x13 74 ;; SB .x6 .x7 111 ;;
+  LBU .x7 .x13 75 ;; SB .x6 .x7 112 ;;
   -- byte 64: high byte of offset_blob_schedule (always 0 since
   -- the value fits in 1 byte).
   SB .x6 .x0 64
