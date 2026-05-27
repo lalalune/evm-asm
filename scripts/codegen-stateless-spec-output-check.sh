@@ -175,7 +175,7 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2'):
+if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2', 'INVALID_NM_AT_2'):
     # Multi-header fixtures (N=2 or N=3) exercising K229 and
     # K230 in their accept and reject branches. Each header
     # individually passes K290 / K291 / K240 / K278 / K277.
@@ -316,6 +316,16 @@ if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_
         # header[1] and header[2]. Tests K229's per-pair
         # loop body at the LAST pair index.
         h0 = mk(1, 1234); h1 = mk(2, 2000); h2 = mk(3, 2000)
+        hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)),
+                   HeaderBL(rlp.encode(h2)))
+    elif hdr_hex == 'INVALID_NM_AT_2':
+        # Three headers where the FIRST pair has consecutive
+        # numbers (1 -> 2) but the SECOND pair does not
+        # (2 -> 4 instead of 2 -> 3). Timestamps strictly
+        # increasing so K229 passes. K230 catches between
+        # header[1] and header[2]. Tests K230's per-pair
+        # loop body at the LAST pair index.
+        h0 = mk(1, 1234); h1 = mk(2, 2000); h2 = mk(4, 3000)
         hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)),
                    HeaderBL(rlp.encode(h2)))
     else:  # VALID_THREE
@@ -942,6 +952,14 @@ run_fixture "chain1_invalid_extra_at_2" 1              0    ""           ""     
 # complementing chain1_invalid_ts (#6905, N=2, fail at pair 0)
 # by checking fail-detection at the higher pair index.
 run_fixture "chain1_invalid_ts_at_2"    1              0    ""           ""                  ""    ""           ""           ""    "INVALID_TS_AT_2" || fail=1
+
+# Three headers where K230 catches at the SECOND pair. Numbers
+# 1, 2, 4 -- pair (0, 1) is consecutive (2 == 1+1) but pair
+# (1, 2) is NOT (4 != 2+1). Timestamps strictly increasing
+# so K229 passes. Tests K230's per-pair loop body at the LAST
+# pair index, complementing chain1_invalid_nm (#6908, N=2
+# fail at pair 0).
+run_fixture "chain1_invalid_nm_at_2"    1              0    ""           ""                  ""    ""           ""           ""    "INVALID_NM_AT_2" || fail=1
 
 # Three chained valid post-merge headers. parent_hash chain
 # computed via keccak256 so spec's validate_headers accepts
