@@ -1,0 +1,150 @@
+/-
+  EvmAsm.Evm64.DivMod.Spec.N4V4ShiftNzDispatcherSemanticParts
+
+  Addback semantic projections for the n=4, shift-nonzero DIV v4 dispatcher.
+-/
+
+import EvmAsm.Evm64.DivMod.Spec.N4V4ShiftNzDispatcher
+
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64 EvmWord
+
+/-- Addback semantic bridge from packaged n=4 shift-nonzero runtime evidence. -/
+theorem n4ShiftNzDispatcherRuntimeV4.semanticHoldsV4 {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeV4 a b)
+    (hadd : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
+    hb3nz hshift_nz
+    (n4ShiftNzDispatcherRuntimeV4.addbackRuntimeBounds hruntime)
+    hadd
+    (n4ShiftNzDispatcherRuntimeV4.addbackCarry2 hruntime)
+
+/-- Historical non-V4 semantic bridge from packaged n=4 shift-nonzero runtime
+    evidence. -/
+theorem n4ShiftNzDispatcherRuntimeV4.semanticHolds {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeV4 a b)
+    (hadd : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4ShiftNzDispatcherRuntimeV4.semanticHoldsV4
+      hb3nz hshift_nz hruntime hadd
+
+/-- Addback semantic bridge from branch/bounds n=4 shift-nonzero dispatcher
+    evidence. -/
+theorem n4ShiftNzDispatcherBranchBoundsV4.semanticHoldsV4 {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b)
+    (hadd : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_runtime_bounds
+    hb3nz hshift_nz
+    (n4ShiftNzDispatcherBranchBoundsV4.addbackRuntimeBounds hevidence)
+    hadd
+    (n4ShiftNzDispatcherBranchBoundsV4.addbackCarry2 hevidence)
+
+/-- Historical non-V4 addback semantic bridge from branch/bounds n=4
+    shift-nonzero dispatcher evidence. -/
+theorem n4ShiftNzDispatcherBranchBoundsV4.semanticHolds {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b)
+    (hadd : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4ShiftNzDispatcherBranchBoundsV4.semanticHoldsV4
+      hb3nz hshift_nz hevidence hadd
+
+/-- Addback semantic bridge from direct packaged high-div evidence parts at the
+    n=4 shift-nonzero dispatcher surface. -/
+theorem n4ShiftNzDispatcherBranchHighDivEvidence.semanticHoldsV4_of_addback_parts
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hadd : isAddbackBorrowN4CallV4Evm a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (hevidence : n4CallAddbackBeqShiftHighDivEvidence a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_evidence_and_borrow
+    hb3nz hshift_nz hevidence hadd hcarry2
+
+/-- Historical non-V4 addback semantic bridge from direct packaged high-div
+    evidence parts at the n=4 shift-nonzero dispatcher surface. -/
+theorem n4ShiftNzDispatcherBranchHighDivEvidence.semanticHolds_of_addback_parts
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hadd : isAddbackBorrowN4CallV4Evm a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (hevidence : n4CallAddbackBeqShiftHighDivEvidence a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4ShiftNzDispatcherBranchHighDivEvidence.semanticHoldsV4_of_addback_parts
+      hb3nz hshift_nz hadd hcarry2 hevidence
+
+/-- Addback semantic bridge from direct raw high-div evidence parts at the n=4
+    shift-nonzero dispatcher surface. -/
+theorem n4ShiftNzDispatcherBranchHighDivRawEvidence.semanticHoldsV4_of_addback_parts
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hadd : isAddbackBorrowN4CallV4Evm a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_raw_parts_and_borrow
+    hb3nz hshift_nz h_rhat_hi_zero h_qhat_le_high_div
+    h_high_div_le_norm_plus_one hadd hcarry2
+
+/-- Historical non-V4 addback semantic bridge from direct raw high-div evidence
+    parts at the n=4 shift-nonzero dispatcher surface. -/
+theorem n4ShiftNzDispatcherBranchHighDivRawEvidence.semanticHolds_of_addback_parts
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hadd : isAddbackBorrowN4CallV4Evm a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4ShiftNzDispatcherBranchHighDivRawEvidence.semanticHoldsV4_of_addback_parts
+      hb3nz hshift_nz hadd hcarry2 h_rhat_hi_zero
+      h_qhat_le_high_div h_high_div_le_norm_plus_one
+
+end EvmAsm.Evm64
