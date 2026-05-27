@@ -416,6 +416,17 @@ run_fixture "chain1_witheaders_2"   1                  0    ""           ""     
 # dimension simultaneously.
 run_fixture "chain1_kitchen_sink"   1                  0    "deadbeef"   "a1b2c3d4e5f60718"  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "5555555555" "6666666666" "1000:2000:3000"    "$(printf 'aa%.0s' {1..32})" || fail=1
 
+# All numeric slots at u64 max (0xFFFFFFFFFFFFFFFF). Tests
+# the encoder's bit-packing and byte-copy under full-width
+# values in every slot: chain_id, fork, block_number,
+# timestamp, and all three blob_schedule u64s.
+# fork=0xFFFFFFFFFFFFFFFF is out of the ProtocolFork enum
+# range but the encoder doesn't inspect the value -- it
+# just passes the raw u64 through (the SSZ-side conversion
+# in spec also doesn't validate at decode time for this
+# encoder-only test).
+run_fixture "chain_max_all_max"     0xFFFFFFFFFFFFFFFF 0    ""           ""                  ""    "0xFFFFFFFFFFFFFFFF" "0xFFFFFFFFFFFFFFFF" "0xFFFFFFFFFFFFFFFF:0xFFFFFFFFFFFFFFFF:0xFFFFFFFFFFFFFFFF" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0
