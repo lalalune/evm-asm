@@ -207,6 +207,22 @@ def serialize_stateless_output : Program :=
   LBU .x7 .x13 49 ;; SB .x6 .x7 86 ;;
   LBU .x7 .x13 50 ;; SB .x6 .x7 87 ;;
   LBU .x7 .x13 51 ;; SB .x6 .x7 88 ;;
+  -- bytes [89..97): byte-copy active_fork[40..48) from input.
+  -- When `blob_schedule = [entry]` (one SszBlobSchedule of 3 u64s
+  -- = 24 bytes) and activation is empty, the active_fork layout
+  -- places the third u64 (`base_fee_update_fraction`) at
+  -- active_fork[40..48). For other shapes (already covered by
+  -- prior cases) this range lies past the active_fork section
+  -- and ziskemu zero-fills it; the test framework only compares
+  -- the first spec.len() bytes.
+  LBU .x7 .x13 52 ;; SB .x6 .x7 89 ;;
+  LBU .x7 .x13 53 ;; SB .x6 .x7 90 ;;
+  LBU .x7 .x13 54 ;; SB .x6 .x7 91 ;;
+  LBU .x7 .x13 55 ;; SB .x6 .x7 92 ;;
+  LBU .x7 .x13 56 ;; SB .x6 .x7 93 ;;
+  LBU .x7 .x13 57 ;; SB .x6 .x7 94 ;;
+  LBU .x7 .x13 58 ;; SB .x6 .x7 95 ;;
+  LBU .x7 .x13 59 ;; SB .x6 .x7 96 ;;
   -- byte 64: high byte of offset_blob_schedule (always 0 since
   -- the value fits in 1 byte).
   SB .x6 .x0 64

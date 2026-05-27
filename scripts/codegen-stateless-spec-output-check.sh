@@ -78,6 +78,7 @@ run_fixture() {
   local public_key_hex="${6:-}"
   local block_number="${7:-}"
   local timestamp="${8:-}"
+  local blob_schedule="${9:-}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -85,7 +86,7 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty})"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty})"
   uv run --directory execution-specs --quiet python3 -c "
 import struct, sys
 from ethereum.forks.amsterdam.stateless_ssz import (
@@ -96,6 +97,7 @@ from ethereum.forks.amsterdam.stateless_ssz import (
     MAX_WITNESS_NODES,
     PUBLIC_KEY_BYTES,
     STATELESS_INPUT_SCHEMA_ID_BYTES,
+    SszBlobSchedule,
     SszChainConfig,
     SszExecutionWitness,
     SszForkActivation,
@@ -117,6 +119,7 @@ state_hex = sys.argv[6]
 pk_hex = sys.argv[7]
 bn_str = sys.argv[8]
 ts_str = sys.argv[9]
+blob_str = sys.argv[10]
 
 # Build the new-schema StatelessInput: empty new_payload_request,
 # witness whose 'state'/'codes' lists each hold zero or more
@@ -133,10 +136,20 @@ activation = SszForkActivation(
     block_number=bn_list,
     timestamp=ts_list,
 )
+blob_sched = SszOptionalBlobSchedule()
+if blob_str:
+    parts = blob_str.split(':')
+    assert len(parts) == 3, f'blob must be target:max:base_fee, got {blob_str!r}'
+    entry = SszBlobSchedule(
+        target=uint64(int(parts[0], 0)),
+        max=uint64(int(parts[1], 0)),
+        base_fee_update_fraction=uint64(int(parts[2], 0)),
+    )
+    blob_sched = SszOptionalBlobSchedule(entry)
 fork_cfg = SszForkConfig(
     fork=uint64(fork_idx),
     activation=activation,
-    blob_schedule=SszOptionalBlobSchedule(),
+    blob_schedule=blob_sched,
 )
 cc = SszChainConfig(chain_id=uint64(cid), active_fork=fork_cfg)
 
@@ -189,7 +202,7 @@ with open(sys.argv[2], 'wb') as f:
 spec_bytes = bytes(run_stateless_guest(input_bytes))
 with open(sys.argv[3], 'w') as f:
     f.write(spec_bytes.hex())
-" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp"
+" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule"
 
   echo "==> [$label] ziskemu run"
   "$ZISKEMU" -e gen-out/stateless_guest.elf -i "$input_file" \
@@ -337,6 +350,17 @@ run_fixture "chain1_actts"          1                  0    ""           ""     
 # #6793. offset_blob_schedule becomes 40 (= 0x28) -- still
 # fits in 1 byte, so the LBU+SB at OUTPUT[61] handles it.
 run_fixture "chain1_act_both"       1                  0    ""           ""                  ""    "1111111111" "2222222222" || fail=1
+
+# Non-empty `blob_schedule = [SszBlobSchedule(...)]` with one
+# fixed-size 24-byte entry (3 u64s: target, max,
+# base_fee_update_fraction). Activation stays empty, so
+# active_fork[16..24) is the empty-activation header and
+# active_fork[24..48) is the blob_schedule entry. Spec emits
+# 97 bytes = 73 (empty active_fork base) + 24 (blob_schedule).
+# offset_blob_schedule remains 24 (= 16 + 8 empty activation).
+# The encoder's byte-copy of active_fork[16..48) now covers
+# all three u64s of the entry.
+run_fixture "chain1_blob"           1                  0    ""           ""                  ""    ""           ""           "100:200:300" || fail=1
 
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
