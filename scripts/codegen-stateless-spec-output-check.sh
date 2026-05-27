@@ -175,7 +175,62 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex:
+if hdr_hex in (
+    'VALID_POST_MERGE',
+    'INVALID_DIFF',
+    'INVALID_EXTRA',
+    'INVALID_GAS',
+    'INVALID_BLOB_MISALIGN',
+):
+    # Construct a (mostly) valid post-merge header. Variants:
+    #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
+    #   INVALID_DIFF           -- difficulty=1; K290 rejects.
+    #   INVALID_EXTRA          -- extra_data length 33; K291 rejects.
+    #   INVALID_GAS            -- gas_used > gas_limit; K240 rejects.
+    #   INVALID_BLOB_MISALIGN  -- blob_gas_used=1 (not a multiple
+    #                             of GAS_PER_BLOB=131072); K278
+    #                             (chain_validate_blob_gas_used_multiple)
+    #                             rejects.
+    from ethereum.forks.amsterdam.blocks import Header
+    from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
+    from ethereum_types.bytes import Bytes32, Bytes8, Bytes
+    from ethereum_types.numeric import Uint
+    from ethereum_types.numeric import U64 as U64t
+    from ethereum_types.numeric import U256
+    from ethereum.crypto.hash import Hash32
+    from ethereum_rlp import rlp
+    diff = 1 if hdr_hex == 'INVALID_DIFF' else 0
+    extra = Bytes(b'\\xab' * 33) if hdr_hex == 'INVALID_EXTRA' else Bytes(b'')
+    gas_limit_v = 1000000
+    gas_used_v = 1000001 if hdr_hex == 'INVALID_GAS' else 0
+    blob_gas_used_v = 1 if hdr_hex == 'INVALID_BLOB_MISALIGN' else 0
+    h = Header(
+        parent_hash=Hash32(b'\\x00' * 32),
+        ommers_hash=EMPTY_OMMER_HASH,
+        coinbase=b'\\x00' * 20,
+        state_root=Hash32(b'\\x00' * 32),
+        transactions_root=Hash32(b'\\x00' * 32),
+        receipt_root=Hash32(b'\\x00' * 32),
+        bloom=b'\\x00' * 256,
+        difficulty=Uint(diff),
+        number=Uint(1),
+        gas_limit=Uint(gas_limit_v),
+        gas_used=Uint(gas_used_v),
+        timestamp=U256(1234),
+        extra_data=extra,
+        prev_randao=Bytes32(b'\\x00' * 32),
+        nonce=Bytes8(b'\\x00' * 8),
+        base_fee_per_gas=Uint(0),
+        withdrawals_root=Hash32(b'\\x00' * 32),
+        blob_gas_used=U64t(blob_gas_used_v),
+        excess_blob_gas=U64t(0),
+        parent_beacon_block_root=Hash32(b'\\x00' * 32),
+        requests_hash=Hash32(b'\\x00' * 32),
+        block_access_list_hash=Hash32(b'\\x00' * 32),
+        slot_number=U64t(0),
+    )
+    hdr_arg = (HeaderBL(rlp.encode(h)),)
+elif hdr_hex:
     hdr_entries = hdr_hex.split(':')
     hdr_arg = tuple(HeaderBL(bytes.fromhex(h)) for h in hdr_entries)
 
@@ -456,6 +511,76 @@ run_fixture "chain1_witheaders"     1                  0    ""           ""     
 # valid=False template. Stress test for the bounded byte-copy
 # under maximum-witness-headers byte-budget.
 run_fixture "chain1_witheaders_2"   1                  0    ""           ""                  ""    ""           ""           ""    "$(printf 'aa%.0s' {1..32}):$(printf 'bb%.0s' {1..32})" || fail=1
+
+# Three witness.headers entries -- exercises the validator
+# pipeline's `.Lsg_bl` loop building sg_header_lengths for
+# N=3, and the K-PR iteration over 3 headers. Since the
+# decoder is now real (PR #6878), this fixture activates the
+# pipeline with s2=3; the lengths loop runs 3 times, then the
+# first validator (chain_validate_post_merge_full) fails RLP
+# parse on the first bogus header and falls through to
+# .Lsg_hash. Spec returns valid=False with chain_config echo;
+# ELF matches.
+run_fixture "chain1_witheaders_3"   1                  0    ""           ""                  ""    ""           ""           ""    "$(printf 'aa%.0s' {1..32}):$(printf 'bb%.0s' {1..32}):$(printf 'cc%.0s' {1..32})" || fail=1
+
+# Single VALID post-merge header -- exercises the ALL-PASS
+# branch of the validator pipeline for the first time. With
+# the real `decode_header_count` from PR #6878, this fixture
+# activates the pipeline at N=1; the K-PR validators each
+# parse the RLP-encoded header (637 bytes) and pass:
+#   - difficulty=0, ommers_hash=EMPTY, nonce=8 zeros (K290)
+#   - extra_data length 0 (K291)
+#   - gas_used 0 <= gas_limit 1000000 (K240)
+#   - blob_gas_used 0, multiple of GAS_PER_BLOB and below MAX (K278/K277)
+#   - timestamp/number checks vacuous at N=1 (K229/K230)
+# Pipeline reaches `.Lsg_all_pass` -> `.Lsg_hash` -> halt.
+# Spec runs validate_headers -> succeeds -> proceeds to STF
+# with empty NPR -> exception -> valid=False. Output matches
+# byte-for-byte at 73 bytes (chain_config echo + empty NPR
+# root, both implementations write valid=False here).
+run_fixture "chain1_valid_header"   1                  0    ""           ""                  ""    ""           ""           ""    "VALID_POST_MERGE" || fail=1
+
+# Header that fails K290 (chain_validate_post_merge_full).
+# Same shape as chain1_valid_header but difficulty=1 instead
+# of 0. K290 checks the post-merge invariant difficulty==0;
+# this fixture exercises the `.Lsg_fail_pm` path through the
+# pipeline (vs `.Lsg_fail_rlp` exercised by the bogus
+# witheaders fixtures). With #6878's pipeline mod, the path
+# falls through to .Lsg_hash -> 73-byte valid=False output.
+# Spec catches the validator exception and returns the same
+# byte sequence. Match confirms K290 is actually triggered
+# AND the .Lsg_fail_pm routing reaches the cleanup path.
+run_fixture "chain1_invalid_diff"   1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_DIFF" || fail=1
+
+# Header that fails K291 (chain_validate_extra_data_length).
+# Same shape as chain1_valid_header but extra_data has 33
+# bytes instead of 0 -- exceeds the 32-byte amsterdam limit.
+# Pipeline flow:
+#   1. K290 passes (difficulty=0, ommers_hash=EMPTY, nonce=0).
+#   2. K291 reads extra_data length, finds 33 > 32, sets
+#      sg_kpr_valid=0, returns.
+#   3. Pipeline branches to .Lsg_fail_ed -> .Lsg_unimpl
+#      (= j .Lsg_hash, per PR #6878) -> halt.
+# Output 73 bytes valid=False. Spec catches and returns same.
+# Third validator-specific REJECT path exercised (after
+# .Lsg_fail_rlp and .Lsg_fail_pm).
+run_fixture "chain1_invalid_extra"  1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_EXTRA" || fail=1
+
+# Header that fails K240 (chain_validate_gas_used_under_limit).
+# Valid post-merge shape except gas_used=1,000,001 exceeds
+# gas_limit=1,000,000 by 1. K240 rejects.
+# Pipeline: K290+K291 pass, K240 fails -> .Lsg_fail_gas ->
+# .Lsg_unimpl (= j .Lsg_hash, post #6878) -> halt. Output 73
+# bytes valid=False; spec catches and returns same.
+run_fixture "chain1_invalid_gas"    1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_GAS" || fail=1
+
+# Header that fails K278 (chain_validate_blob_gas_used_multiple).
+# Valid post-merge shape except blob_gas_used=1 -- not a
+# multiple of GAS_PER_BLOB=131072. K278 rejects.
+# Pipeline: K290+K291+K240 pass, K278 fails -> .Lsg_fail_bgm
+# -> .Lsg_unimpl (= j .Lsg_hash, post #6878) -> halt.
+# Output 73 bytes valid=False; spec catches and returns same.
+run_fixture "chain1_invalid_blob_misalign" 1   0    ""           ""                  ""    ""           ""           ""    "INVALID_BLOB_MISALIGN" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
