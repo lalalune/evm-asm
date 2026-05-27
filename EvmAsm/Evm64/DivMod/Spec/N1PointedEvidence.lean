@@ -59,4 +59,24 @@ theorem N1PointedEvidence.hdivs {a b : EvmWord}
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
   N1CallableSelectedIfBorrowWordEvidence.hdivs h
 
+/-- Combined extractor: project the selected input hypotheses and the
+    quotient-limb witnesses package from a single `N1PointedEvidence`. -/
+theorem N1PointedEvidence.selectedInputAndHdivs
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a b : EvmWord)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (h : N1PointedEvidence a b) :
+    fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal ∧
+    FullDivN1CallMaxmaxmaxHdivs a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  N1CallableSelectedIfBorrowWordEvidence.selectedInputAndHdivs
+    sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal h
+
 end EvmAsm.Evm64
