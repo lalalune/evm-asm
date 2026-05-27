@@ -402,6 +402,20 @@ run_fixture "chain1_witheaders"     1                  0    ""           ""     
 # under maximum-witness-headers byte-budget.
 run_fixture "chain1_witheaders_2"   1                  0    ""           ""                  ""    ""           ""           ""    "$(printf 'aa%.0s' {1..32}):$(printf 'bb%.0s' {1..32})" || fail=1
 
+# Kitchen-sink fixture -- every input slot populated
+# simultaneously. All three inner witness fields (state +
+# codes + headers) carry one entry each; public_keys has one
+# 65-byte entry; chain_config.active_fork has bn=[N] +
+# ts=[T] + blob=[entry] = MAX active_fork (64 bytes). Spec
+# emits 113 bytes (the maximum-shape SszForkConfig echo).
+# Stress test for the bounded byte-copy under maximum input
+# byte-budget (witness ~68 bytes + chain_config 76 bytes +
+# pk 65 bytes + npr 596 bytes), validating that the
+# decoder's outer-offset chase and the encoder's bounded
+# loop work together at the upper end of every variable
+# dimension simultaneously.
+run_fixture "chain1_kitchen_sink"   1                  0    "deadbeef"   "a1b2c3d4e5f60718"  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "5555555555" "6666666666" "1000:2000:3000"    "$(printf 'aa%.0s' {1..32})" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0
