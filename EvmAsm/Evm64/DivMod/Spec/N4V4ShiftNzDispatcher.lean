@@ -14,10 +14,10 @@ open EvmAsm.Rv64 EvmWord
 
 /-- Remaining runtime evidence for the n=4, shift-nonzero DIV v4 dispatcher.
 
-    This packages the call+skip branch certificate, the addback carry2 runtime
+    This packages the call+skip runtime branch certificate, the addback carry2 runtime
     condition, and the compact addback arithmetic bounds as one predicate. -/
 def n4ShiftNzDispatcherRuntimeV4 (a b : EvmWord) : Prop :=
-  n4CallSkipBranchV4 a b ∧
+  n4CallSkipRuntimeBranchV4 a b ∧
   isAddbackCarry2NzN4CallV4Evm a b ∧
   n4CallAddbackBeqRuntimeBounds a b
 
@@ -27,21 +27,21 @@ def n4ShiftNzDispatcherRuntimeV4 (a b : EvmWord) : Prop :=
     Unlike `n4ShiftNzDispatcherRuntimeV4`, this only asks for the addback
     carry/bounds evidence on the addback-borrow branch. -/
 def n4ShiftNzDispatcherBranchRuntimeV4 (a b : EvmWord) : Prop :=
-  (isSkipBorrowN4CallV4Evm a b ∧ n4CallSkipBranchV4 a b) ∨
+  (isSkipBorrowN4CallV4Evm a b ∧ n4CallSkipRuntimeBranchV4 a b) ∨
   (isAddbackBorrowN4CallV4Evm a b ∧
    isAddbackCarry2NzN4CallV4Evm a b ∧
    n4CallAddbackBeqRuntimeBounds a b)
 
 theorem n4ShiftNzDispatcherRuntimeV4_def {a b : EvmWord} :
     n4ShiftNzDispatcherRuntimeV4 a b =
-      (n4CallSkipBranchV4 a b ∧
+      (n4CallSkipRuntimeBranchV4 a b ∧
        isAddbackCarry2NzN4CallV4Evm a b ∧
        n4CallAddbackBeqRuntimeBounds a b) :=
   rfl
 
 theorem n4ShiftNzDispatcherBranchRuntimeV4_def {a b : EvmWord} :
     n4ShiftNzDispatcherBranchRuntimeV4 a b =
-      ((isSkipBorrowN4CallV4Evm a b ∧ n4CallSkipBranchV4 a b) ∨
+      ((isSkipBorrowN4CallV4Evm a b ∧ n4CallSkipRuntimeBranchV4 a b) ∨
        (isAddbackBorrowN4CallV4Evm a b ∧
         isAddbackCarry2NzN4CallV4Evm a b ∧
         n4CallAddbackBeqRuntimeBounds a b)) :=
@@ -162,11 +162,27 @@ theorem evm_div_n4_shift_nz_stack_spec_v4_of_runtime_pred
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) := by
-  rw [n4ShiftNzDispatcherRuntimeV4_def] at hruntime
-  exact evm_div_n4_shift_nz_stack_spec_v4_of_runtime_bounds
-    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
-    hb3nz hshift_nz halign hruntime.1 hruntime.2.1 hruntime.2.2
+  have hbnz : b ≠ 0 := evmWord_ne_zero_of_getLimbN_3_ne_zero hb3nz
+  have hbltu : isCallTrialN4Evm a b :=
+    isCallTrialN4Evm_of_shift_nz a b hb3nz hshift_nz
+  have hbranchRuntime : n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+    n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_pred hruntime
+  rw [n4ShiftNzDispatcherBranchRuntimeV4_def] at hbranchRuntime
+  cases hbranchRuntime with
+  | inl hskip =>
+      exact cpsTripleWithin_mono_nSteps (by decide)
+        (evm_div_n4_call_skip_stack_spec_v4_of_runtime_branch_pred_hb3nz
+          sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+          hb3nz hshift_nz halign hskip.1 hskip.2)
+  | inr haddRuntime =>
+      have hsem : n4CallAddbackBeqSemanticHolds a b := by
+        exact n4CallAddbackBeqSemanticHolds_of_runtime_bounds
+          hb3nz hshift_nz haddRuntime.2.2 haddRuntime.1 haddRuntime.2.1
+      exact evm_div_n4_call_addback_beq_stack_spec
+        sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+        hbnz hb3nz hshift_nz halign hbltu haddRuntime.1 haddRuntime.2.1 hsem
 
 /-- n=4, shift-nonzero DIV v4 dispatcher from branch-sensitive runtime
     evidence. This surface avoids requiring addback-only arithmetic evidence
@@ -195,7 +211,7 @@ theorem evm_div_n4_shift_nz_stack_spec_v4_of_branch_runtime
   cases hruntime with
   | inl hskip =>
       exact cpsTripleWithin_mono_nSteps (by decide)
-        (evm_div_n4_call_skip_stack_spec_v4_of_branch_pred_hb3nz
+        (evm_div_n4_call_skip_stack_spec_v4_of_runtime_branch_pred_hb3nz
           sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
           hb3nz hshift_nz halign hskip.1 hskip.2)
