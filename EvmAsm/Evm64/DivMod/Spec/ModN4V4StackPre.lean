@@ -448,6 +448,7 @@ theorem evm_mod_n4_full_call_addback_beq_stack_pre_spec_within_v4 (sp base : Wor
       rw [evmWordIs_sp_limbs_eq sp a _ _ _ _ rfl rfl rfl rfl,
           evmWordIs_sp32_limbs_eq sp b _ _ _ _ rfl rfl rfl rfl,
           divScratchValuesCall_unfold, divScratchValues_unfold] at hp
+      rw [fullModN4CallAddbackBeqPreV4_unfold]
       rw [word_add_zero]
       xperm_hyp hp)
     (fun _ hq => hq)
