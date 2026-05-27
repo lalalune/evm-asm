@@ -1249,9 +1249,120 @@ cases PASS. `scripts/check-progress.sh` exits 0. Legacy
 `scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing
 scripts unchanged.
 
+### M21 — Real calldata wiring (first step on the EEST path) — **DONE (2026-05-27)**
+
+The first PR after the 100% coverage milestone, deliberately
+pivoting the track from "wire opcodes" to "run real test
+suites". M21 picks the cheapest first step on the EEST
+(Ethereum Execution Spec Tests) ladder: **real calldata**.
+CALLDATALOAD (0x35) and CALLDATACOPY (0x37) graduate from
+M18 no-ops to real semantics; CALLDATASIZE (0x36) — already
+wired in M13 against an unpopulated env cell — now reads a
+real length. All three opcodes now read bytes from the
+`ziskemu -i` input file, extending its layout to carry
+calldata alongside bytecode.
+
+**The strategic case for calldata first:** every EVM contract
+is called *with* calldata, so most pure-computation EEST
+fixtures exercise this path. Calldata is also mechanically
+trivial — extend the input format, add a dispatcher-prologue
+preamble that populates two env cells, point the existing
+verified bodies at the env cells. No new design surface
+(storage, witnesses, harness) is touched. After M21, the
+dispatcher can run any single-contract pure-computation
+bytecode given (bytecode, calldata). M22+ adds storage,
+state-witness unpacking, the post-state serializer, and the
+EEST fixture loader.
+
+**Delivered:**
+
+- **`scripts/pack-bytecode.py`** — gains a `--calldata
+  <hex-string>` flag. The packed input layout extends from
+  one length-prefixed segment to two:
+
+  ```
+  bytes 0..8       <8B LE u64 bytecode length>
+  bytes 8..        <bytecode bytes><zero pad to 8B>
+  next 8 bytes     <8B LE u64 calldata length>
+  following        <calldata bytes><zero pad to 8B>
+  ```
+
+  Calldata accepts either CSV form (`0x60, 0x42`) or a hex
+  blob (`0xdeadbeef`). Empty calldata produces a zero-length
+  calldata segment — pre-M21 callers that omit `--calldata`
+  see exactly the M17 no-op behavior (CALLDATASIZE returns 0).
+
+- **`EvmAsm/Codegen/Dispatch.lean`** — both dispatcher
+  prologues populate `env.callDataPtrOff (416)` and
+  `env.callDataLenOff (424)`:
+  - **`emitRuntimeDispatcherPrologue`** (runtime-bytecode
+    path used by the M8.5 runner): 10 new instructions
+    compute the calldata segment's start address from the
+    bytecode-length cell at `INPUT_ADDR+8`, round up to an
+    8-byte boundary, load the 8-byte calldata length, and
+    write the pointer + length into the env region.
+  - **`emitDispatcherPrologue`** (legacy .data-baked path):
+    points `callDataPtrOff` at `evm_memory` (a safe zero
+    region) and writes 0 to `callDataLenOff`. This preserves
+    pre-M21 behavior for the 7 legacy programs that don't
+    take a `-i` input file.
+
+- **`EvmAsm/Codegen/Programs/Evm.lean`** —
+  `calldataHandlers` grows from 1 to 3 entries:
+
+  | Opcode | Byte | Body | Notes |
+  |---|---|---|---|
+  | CALLDATASIZE | 0x36 | `evm_calldatasize` (M13) | env cell now populated |
+  | CALLDATALOAD | 0x35 | `evm_calldataload_window` | preBody loads `cdp` from env into x14 |
+  | CALLDATACOPY | 0x37 | `evm_calldatacopy` | reads `cdp`/`len` from env directly |
+
+  Both new bodies are verified Programs already shipped in
+  `EvmAsm/Evm64/Calldata/{LoadProgram,CopyProgram}.lean`.
+  M21 only wires them; no body changes.
+
+- **`EvmAsm/Codegen/Programs/Noop.lean`** — removes
+  CALLDATALOAD from `popPushZeroHandlers` and CALLDATACOPY
+  from `copyNoopHandlers`. Registry size unchanged (149 —
+  same opcodes, different builders).
+
+- **`EvmAsm/Codegen/Tests/Cases.lean`** —
+  `OpcodeTestCase` gains an optional `calldata : String :=
+  ""` field. 3 new cases (`calldatasize_with_input`,
+  `calldataload_basic`, `calldatacopy_basic`) confirm
+  end-to-end wiring; the 59 pre-M21 cases default to empty
+  calldata and remain green. Total cases: 59 → 62.
+
+- **`EvmAsm/Codegen/Cli.lean`** — `--list-test-cases` emits a
+  4-column TSV (`name\thex\tbytecode\tcalldata`).
+
+- **`scripts/codegen-opcodes-runtime-check.sh`** — reads the
+  4th TSV column and passes it through to
+  `pack-bytecode.py --calldata` when non-empty.
+
+**Known limitations** (documented in the handler builders):
+
+- **CALLDATALOAD** is in-bounds only. Reads past
+  `cdp + callDataLen` yield whatever's in adjacent memory
+  (typically zeros from the input region's padding, but
+  formally undefined). A future PR can wrap with an outer
+  bounds-check / zero-pad block. Trusted programs that
+  respect bounds work correctly.
+- **CALLDATACOPY** correctly zero-fills source bytes outside
+  the calldata window (handled by the verified body's
+  byte-loop bounds check). The destination side is
+  unbounded — copies into very-large memory offsets are
+  governed by the same caveats as MSTORE.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all
+**62 cases PASS** (59 pre-M21 + 3 new). The 59 pre-M21 cases
+pass empty calldata and continue to work unchanged.
+`scripts/check-progress.sh` exits 0. Build clean
+(`lake build EvmAsm.Codegen` exits 0).
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → **M20 ✅ 🎯 100%**.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → M20 ✅ 🎯 100% → **M21 ✅**.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
 emission unreadable. M11 (SHL + SAR) shipped 2026-05-26; M12
@@ -1263,17 +1374,24 @@ M16 (KECCAK256 via ECALL bridge in `hashHandlers`) shipped 2026-05-27;
 M17 (LOG0–LOG4 + SLOAD/SSTORE/TLOAD/TSTORE as no-ops) shipped
 2026-05-27; M18 (20 trivial no-ops in `Noop.lean` — 94.6%
 coverage) shipped 2026-05-27; M19 (6 child-frame opcodes as
-no-ops — 98.7% coverage) shipped 2026-05-27; **M20 (MULMOD + EXP
-no-ops — 🎯 100% coverage) shipped 2026-05-27.**
+no-ops — 98.7% coverage) shipped 2026-05-27; M20 (MULMOD + EXP
+no-ops — 🎯 100% coverage) shipped 2026-05-27; **M21 (real
+calldata wiring — CALLDATALOAD/COPY graduate from no-ops; first
+step on the EEST path) shipped 2026-05-27.**
 
-**The codegen track now pivots from "wire opcodes" to
-"spec-compliance upgrades" and "STF integration"**: M21 = real
-EXP wiring (verified body already exists); future PRs upgrade
-the other no-ops (LOG / storage / child frames / MULMOD) as
-host syscalls and verified bodies land; ultimately
-PLAN.md Phase 11 (STF integration — RLP-decoded transactions
-through the dispatcher to a state-root output) is the project's
-real end goal.
+**The codegen track now runs the "spec-compliance upgrades"
+ladder toward EEST tests**: M21 ✅ shipped real calldata
+(first cheap step). Next steps on the EEST ladder:
+**M22** = real storage (SLOAD/SSTORE — large design surface,
+in-dispatcher hash table vs witness-based stateless),
+**M23** = state-witness unpacking,
+**M24** = post-state serializer,
+**M25** = EEST fixture loader + CI integration.
+In parallel, other no-op handlers (LOG / child frames /
+MULMOD / EXP) upgrade as their verified bodies / host
+syscalls land. Ultimately PLAN.md Phase 11 (STF integration —
+RLP-decoded transactions through the dispatcher to a
+state-root output) is the project's real end goal.
 
 ## Tricky bits / open questions
 

@@ -118,7 +118,11 @@ def main (args : List String) : IO UInt32 := do
           -- as long as it uses `read -r name expected` (extra fields
           -- just get dropped).
           for tc in Tests.opcodeTestCases do
-            IO.println s!"{tc.name}\t{tc.expectedOutHex}\t{tc.bytecode}"
+            -- M21: 4-column TSV. The 4th column (calldata) is empty
+            -- for pre-M21 test cases (no calldata path exercised);
+            -- the bash runner passes it through `pack-bytecode.py
+            -- --calldata` when non-empty.
+            IO.println s!"{tc.name}\t{tc.expectedOutHex}\t{tc.bytecode}\t{tc.calldata}"
           return 0
       | .program => do
           match lookupProgram opts.target with

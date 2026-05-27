@@ -142,6 +142,15 @@ def emitDispatcherPrologue : String :=
   "  la x12, evm_stack_top\n" ++
   "  la x13, evm_memory\n" ++
   "  la x20, evm_env\n" ++
+  -- M21: .data-baked variant has no calldata input. Initialize env's
+  -- callDataPtrOff (416) to point at a safe zero region (`evm_memory`)
+  -- and callDataLenOff (424) to 0. Any CALLDATALOAD reads zeros from
+  -- evm_memory (M17 no-op-equivalent); CALLDATASIZE returns 0.
+  -- Calldata-requiring tests must use the runtime-bytecode dispatcher
+  -- (codegen-opcodes-runtime-check.sh).
+  "  la x5, evm_memory\n" ++
+  "  sd x5, 416(x20)\n" ++         -- env.callDataPtrOff = &evm_memory (zeros)
+  "  sd x0, 424(x20)\n" ++         -- env.callDataLenOff = 0
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -249,6 +258,22 @@ def emitRuntimeDispatcherPrologue : String :=
   "  la x12, evm_stack_top\n" ++
   "  la x13, evm_memory\n" ++
   "  la x20, evm_env\n" ++       -- M12: env-region base (ADDRESS, CALLER, …)
+  -- M21: populate env's callDataPtr / callDataLen from the input region.
+  -- The input file format (pack-bytecode.py) is:
+  --   [8B bytecode-length][bytecode bytes][pad to 8][8B calldata-length][calldata bytes]
+  -- bytecode-length sits at INPUT_ADDR + 8 = 0x40000008. We round it up
+  -- to 8-byte boundary, add to bytecode start (x10), and that's the
+  -- calldata-length address. Eight bytes past it is the calldata.
+  "  li x5, 0x40000008\n" ++       -- &(bytecode length)
+  "  ld x5, 0(x5)\n" ++            -- x5 = bytecode length
+  "  addi x5, x5, 7\n" ++          -- round up to 8-byte boundary
+  "  srli x5, x5, 3\n" ++
+  "  slli x5, x5, 3\n" ++          -- x5 = padded bytecode length
+  "  add x6, x10, x5\n" ++         -- x6 = &(calldata length)
+  "  ld x7, 0(x6)\n" ++            -- x7 = calldata length
+  "  addi x6, x6, 8\n" ++          -- x6 = calldata ptr
+  "  sd x6, 416(x20)\n" ++         -- env.callDataPtrOff (416) = ptr
+  "  sd x7, 424(x20)\n" ++         -- env.callDataLenOff (424) = len
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++

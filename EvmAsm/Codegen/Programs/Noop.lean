@@ -98,10 +98,10 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_GAS", opcodes := [0x5a]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (BALANCE, CALLDATALOAD,
-    EXTCODESIZE, EXTCODEHASH, BLOCKHASH, BLOBHASH). Each opcode pops
-    one 32-byte input (e.g., an address or index) and pushes a
-    32-byte zero value. Net EVM stack delta = 0.
+/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE,
+    EXTCODEHASH, BLOCKHASH, BLOBHASH). Each opcode pops one 32-byte
+    input (e.g., an address or index) and pushes a 32-byte zero
+    value. Net EVM stack delta = 0.
 
     Body (4 instructions): overwrite the popped slot with 32 zero
     bytes — same shape as M17's `SLOAD`/`TLOAD`. No `x12` movement
@@ -109,13 +109,15 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
 
     **Known limitations**:
     - BALANCE always returns 0 (no account state model).
-    - CALLDATALOAD always returns 0 (the dispatcher has no top-level
-      calldata; EVM bytecode is loaded via `ziskemu -i`, not
-      calldata).
     - EXTCODESIZE / EXTCODEHASH always return 0 (no external account
       model).
     - BLOCKHASH always returns 0 (no block history).
-    - BLOBHASH always returns 0 (no Dencun blob context). -/
+    - BLOBHASH always returns 0 (no Dencun blob context).
+
+    **M21 update**: CALLDATALOAD (0x35) was removed from this group
+    and now has a real implementation in `calldataHandlers` (see
+    `Programs/Evm.lean`). It reads real calldata bytes from the
+    `ziskemu -i` input region. -/
 def popPushZeroHandlers : List OpcodeHandlerSpec :=
   let body : Program :=
     SD .x12 .x0 0 ;;
@@ -123,8 +125,6 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
     SD .x12 .x0 16 ;;
     SD .x12 .x0 24
   [ { label := "h_BALANCE", opcodes := [0x31]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_CALLDATALOAD", opcodes := [0x35]
     , body := body, tail := .advanceAndRet 1 }
   , { label := "h_EXTCODESIZE", opcodes := [0x3b]
     , body := body, tail := .advanceAndRet 1 }
@@ -135,25 +135,27 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_BLOBHASH", opcodes := [0x49]
     , body := body, tail := .advanceAndRet 1 } ]
 
-/-- M18 copy-no-op handlers (CALLDATACOPY, CODECOPY, EXTCODECOPY,
-    RETURNDATACOPY, MCOPY). Each opcode pops 3 or 4 stack values
-    and would copy bytes into EVM memory. As no-ops we just drop the
-    stack args.
+/-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY,
+    MCOPY). Each opcode pops 3 or 4 stack values and would copy
+    bytes into EVM memory. As no-ops we just drop the stack args.
 
-    Body: a single `ADDI .x12 .x12 (popBytes)`. CALLDATACOPY /
-    CODECOPY / RETURNDATACOPY / MCOPY pop 3 words = 96 bytes;
-    EXTCODECOPY pops 4 = 128.
+    Body: a single `ADDI .x12 .x12 (popBytes)`. CODECOPY /
+    RETURNDATACOPY / MCOPY pop 3 words = 96 bytes; EXTCODECOPY pops
+    4 = 128.
 
     **Known limitations**: the copies are dropped on the floor.
     Programs that copy into EVM memory and then MLOAD see whatever
     was there before (typically zero, since `evm_memory` is
     zero-initialised by the dispatcher's data section). For trusted
-    programs that don't depend on these reads, this is correct. -/
+    programs that don't depend on these reads, this is correct.
+
+    **M21 update**: CALLDATACOPY (0x37) was removed from this group
+    and now has a real implementation in `calldataHandlers` (see
+    `Programs/Evm.lean`). It actually copies calldata bytes into EVM
+    memory from the `ziskemu -i` input region, with zero-fill for
+    source bytes outside the calldata window. -/
 def copyNoopHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_CALLDATACOPY", opcodes := [0x37]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
-    , tail := .advanceAndRet 1 }
-  , { label := "h_CODECOPY", opcodes := [0x39]
+  [ { label := "h_CODECOPY", opcodes := [0x39]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
     , tail := .advanceAndRet 1 }
   , { label := "h_EXTCODECOPY", opcodes := [0x3c]
