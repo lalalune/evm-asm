@@ -393,6 +393,15 @@ run_fixture "chain1_witboth_actbn_unbounded" 1   0    "deadbeef"   "a1b2c3d4e5f6
 # even when witness.headers is non-empty.
 run_fixture "chain1_witheaders"     1                  0    ""           ""                  ""    ""           ""           ""    "$(printf 'aa%.0s' {1..32})" || fail=1
 
+# Two witness.headers entries -- exercises the SSZ list inner
+# offset table (2 u32 offsets prefix the headers section)
+# parallel to chain1_witcode_2 / chain1_witstate_2. The decoder
+# still leaves x16=0 from the stub so the validator pipeline
+# takes the N=0 fast path; ELF output stays the 73-byte
+# valid=False template. Stress test for the bounded byte-copy
+# under maximum-witness-headers byte-budget.
+run_fixture "chain1_witheaders_2"   1                  0    ""           ""                  ""    ""           ""           ""    "$(printf 'aa%.0s' {1..32}):$(printf 'bb%.0s' {1..32})" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0
