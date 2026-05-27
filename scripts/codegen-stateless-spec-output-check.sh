@@ -175,14 +175,12 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex == 'VALID_POST_MERGE':
-    # Construct a valid post-merge header that passes ALL 7
-    # K-PR validators wired into the stateless_guest pipeline:
-    # difficulty=0, ommers_hash=EMPTY_OMMER_HASH, nonce=8 zero
-    # bytes, extra_data length 0 (<= 32), gas_used 0 (<=
-    # gas_limit), blob_gas_used 0 (multiple of GAS_PER_BLOB,
-    # <= MAX). The bytes are RLP-encoded so the K-PRs'
-    # rlp_list_nth_item helper can parse them.
+if hdr_hex.startswith('VALID_POST_MERGE') or hdr_hex.startswith('INVALID_DIFF'):
+    # Construct a (mostly) valid post-merge header. Variants:
+    #   VALID_POST_MERGE -- passes all 7 K-PR validators.
+    #   INVALID_DIFF     -- same shape but difficulty=1 instead
+    #                       of 0; K290 (chain_validate_post_merge_full)
+    #                       should reject it.
     from ethereum.forks.amsterdam.blocks import Header
     from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
     from ethereum_types.bytes import Bytes32, Bytes8, Bytes
@@ -191,6 +189,7 @@ if hdr_hex == 'VALID_POST_MERGE':
     from ethereum_types.numeric import U256
     from ethereum.crypto.hash import Hash32
     from ethereum_rlp import rlp
+    diff = 1 if hdr_hex == 'INVALID_DIFF' else 0
     h = Header(
         parent_hash=Hash32(b'\\x00' * 32),
         ommers_hash=EMPTY_OMMER_HASH,
@@ -199,7 +198,7 @@ if hdr_hex == 'VALID_POST_MERGE':
         transactions_root=Hash32(b'\\x00' * 32),
         receipt_root=Hash32(b'\\x00' * 32),
         bloom=b'\\x00' * 256,
-        difficulty=Uint(0),
+        difficulty=Uint(diff),
         number=Uint(1),
         gas_limit=Uint(1000000),
         gas_used=Uint(0),
@@ -471,6 +470,18 @@ run_fixture "chain1_witheaders_3"   1                  0    ""           ""     
 # byte-for-byte at 73 bytes (chain_config echo + empty NPR
 # root, both implementations write valid=False here).
 run_fixture "chain1_valid_header"   1                  0    ""           ""                  ""    ""           ""           ""    "VALID_POST_MERGE" || fail=1
+
+# Header that fails K290 (chain_validate_post_merge_full).
+# Same shape as chain1_valid_header but difficulty=1 instead
+# of 0. K290 checks the post-merge invariant difficulty==0;
+# this fixture exercises the `.Lsg_fail_pm` path through the
+# pipeline (vs `.Lsg_fail_rlp` exercised by the bogus
+# witheaders fixtures). With #6878's pipeline mod, the path
+# falls through to .Lsg_hash -> 73-byte valid=False output.
+# Spec catches the validator exception and returns the same
+# byte sequence. Match confirms K290 is actually triggered
+# AND the .Lsg_fail_pm routing reaches the cleanup path.
+run_fixture "chain1_invalid_diff"   1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_DIFF" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
