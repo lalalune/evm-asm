@@ -4,7 +4,7 @@
   Direct high-div evidence-part wrappers for the n=4, shift-nonzero DIV v4 dispatcher.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4V4ShiftNzDispatcher
+import EvmAsm.Evm64.DivMod.Spec.N4V4ShiftNzDispatcherSemanticParts
 
 namespace EvmAsm.Evm64
 
@@ -31,7 +31,7 @@ theorem evm_div_n4_shift_nz_stack_spec_of_runtime_high_div_parts
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_of_runtime_high_div_evidence
+  evm_div_n4_shift_nz_stack_spec_of_runtime_high_div_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
@@ -59,7 +59,7 @@ theorem evm_div_n4_shift_nz_stack_spec_noNop_of_runtime_high_div_parts
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_noNop_of_runtime_high_div_evidence
+  evm_div_n4_shift_nz_stack_spec_noNop_of_runtime_high_div_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
@@ -102,7 +102,7 @@ theorem evm_div_n4_shift_nz_stack_spec_of_runtime_high_div_raw_parts
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_of_runtime_high_div_raw
+  evm_div_n4_shift_nz_stack_spec_of_runtime_high_div_raw_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
@@ -145,7 +145,7 @@ theorem evm_div_n4_shift_nz_stack_spec_noNop_of_runtime_high_div_raw_parts
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_noNop_of_runtime_high_div_raw
+  evm_div_n4_shift_nz_stack_spec_noNop_of_runtime_high_div_raw_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
@@ -316,7 +316,7 @@ theorem evm_div_n4_shift_nz_stack_spec_of_high_div_skip_branch
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_of_high_div_evidence
+  evm_div_n4_shift_nz_stack_spec_of_branch_high_div_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
@@ -342,7 +342,7 @@ theorem evm_div_n4_shift_nz_stack_spec_noNop_of_high_div_skip_branch
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_noNop_of_high_div_evidence
+  evm_div_n4_shift_nz_stack_spec_noNop_of_branch_high_div_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
@@ -369,7 +369,7 @@ theorem evm_div_n4_shift_nz_stack_spec_of_high_div_addback_parts
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_of_high_div_evidence
+  evm_div_n4_shift_nz_stack_spec_of_branch_high_div_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
@@ -396,7 +396,7 @@ theorem evm_div_n4_shift_nz_stack_spec_noNop_of_high_div_addback_parts
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_noNop_of_high_div_evidence
+  evm_div_n4_shift_nz_stack_spec_noNop_of_branch_high_div_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
@@ -438,7 +438,7 @@ theorem evm_div_n4_shift_nz_stack_spec_of_high_div_addback_raw_parts
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_of_high_div_evidence
+  evm_div_n4_shift_nz_stack_spec_of_branch_high_div_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
@@ -481,7 +481,7 @@ theorem evm_div_n4_shift_nz_stack_spec_noNop_of_high_div_addback_raw_parts
          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) :=
-  evm_div_n4_shift_nz_stack_spec_noNop_of_high_div_evidence
+  evm_div_n4_shift_nz_stack_spec_noNop_of_branch_high_div_semantic
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
