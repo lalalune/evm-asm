@@ -91,6 +91,13 @@ theorem n4ShiftNzDispatcherBranchBoundsV4.of_runtime_pred {a b : EvmWord}
   rw [n4ShiftNzDispatcherBranchBoundsV4_def]
   exact ⟨hbranch, hruntime.2.1, hruntime.2.2⟩
 
+theorem n4ShiftNzDispatcherRuntimeV4.of_branch_bounds {a b : EvmWord}
+    (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
+    n4ShiftNzDispatcherRuntimeV4 a b := by
+  rw [n4ShiftNzDispatcherBranchBoundsV4_def] at hevidence
+  rw [n4ShiftNzDispatcherRuntimeV4_def]
+  exact ⟨n4CallSkipRuntimeBranchV4_of_branch_pred hevidence.1, hevidence.2.1, hevidence.2.2⟩
+
 theorem n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_pred {a b : EvmWord}
     (hruntime : n4ShiftNzDispatcherRuntimeV4 a b) :
     n4ShiftNzDispatcherBranchRuntimeV4 a b := by
