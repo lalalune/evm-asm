@@ -273,6 +273,36 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "keccak256_empty"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x20, 0x00"
       expectedOutHex := "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470" }
+    -- ## M17 LOG opcodes (LOG0-LOG4) — wired as stack-pop no-ops.
+    -- LOGn pops (2+n) 256-bit words and advances PC; the EVM event
+    -- is dropped (no host log syscall yet).
+  , -- PUSH1 0x11; PUSH1 0x22; LOG0; PUSH1 0x33; STOP — LOG0 pops the
+    -- two pushed words; PUSH1 0x33 lands on the now-empty stack.
+    -- Confirms byte 0xa0 routes correctly and stack delta is +64.
+    { name           := "log0_pop"
+      bytecode       := "0x60, 0x11, 0x60, 0x22, 0xa0, 0x60, 0x33, 0x00"
+      expectedOutHex := "3300000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x01..0x06; LOG4; PUSH1 0xff; STOP — LOG4 pops the six
+    -- pushed words (offset + size + 4 topics); PUSH1 0xff lands on
+    -- the now-empty stack. Confirms byte 0xa4 routes correctly and
+    -- stack delta is +192.
+    { name           := "log4_pop"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xa4, 0x60, 0xff, 0x00"
+      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M17 storage opcodes (SLOAD/SSTORE/TLOAD/TSTORE) — wired as
+    -- no-op stack ops under "empty storage" semantics. SLOAD/TLOAD
+    -- always read 0; SSTORE/TSTORE drop both inputs. Spec-incompliant
+    -- but routes the bytes correctly.
+  , -- PUSH1 0x42; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP —
+    -- SSTORE drops (key=0, value=0x42); SLOAD returns 0 (no-op).
+    -- Expected: 0x00 in low limb (NOT 0x42 — that's the limitation).
+    { name           := "sstore_sload_roundtrip"
+      bytecode       := "0x60, 0x42, 0x60, 0x00, 0x55, 0x60, 0x00, 0x54, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- Same as above but with TSTORE/TLOAD (transient storage analog).
+    { name           := "tstore_tload_roundtrip"
+      bytecode       := "0x60, 0x42, 0x60, 0x00, 0x5d, 0x60, 0x00, 0x5c, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;
