@@ -23,6 +23,17 @@ open EvmAsm.Rv64
 abbrev N1PointedEvidence (a b : EvmWord) : Prop :=
   N1CallableSelectedIfBorrowWordEvidence a b
 
+/-- Constructor mirroring `N{2,3}CanonicalPointedEvidence.of_parts`. -/
+theorem N1PointedEvidence.of_parts {a b : EvmWord}
+    (hbranches : N1CallableSelectedIfBorrowBranchFacts a b)
+    (hpath : N1SelectedIfBorrowPathEvidence a b)
+    (hword : fullDivN1CallMaxmaxmaxQuotientWordV4
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b) :
+    N1PointedEvidence a b :=
+  N1CallableSelectedIfBorrowWordEvidence.of_parts hbranches hpath hword
+
 theorem N1PointedEvidence.branchFacts {a b : EvmWord}
     (h : N1PointedEvidence a b) :
     N1CallableSelectedIfBorrowBranchFacts a b :=
@@ -47,5 +58,49 @@ theorem N1PointedEvidence.hdivs {a b : EvmWord}
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
   N1CallableSelectedIfBorrowWordEvidence.hdivs h
+
+/-- Combined extractor: project the selected input hypotheses and the
+    quotient-limb witnesses package from a single `N1PointedEvidence`. -/
+theorem N1PointedEvidence.selectedInputAndHdivs
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a b : EvmWord)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (h : N1PointedEvidence a b) :
+    fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal ∧
+    FullDivN1CallMaxmaxmaxHdivs a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
+  N1CallableSelectedIfBorrowWordEvidence.selectedInputAndHdivs
+    sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal h
+
+/-- `N1PointedEvidence` is logically equivalent to the conjunction of its
+    three parts (branch facts, selected path, quotient-word equality). -/
+theorem N1PointedEvidence_iff_parts {a b : EvmWord} :
+    N1PointedEvidence a b ↔
+      N1CallableSelectedIfBorrowBranchFacts a b ∧
+      N1SelectedIfBorrowPathEvidence a b ∧
+      fullDivN1CallMaxmaxmaxQuotientWordV4
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.div a b :=
+  ⟨fun h =>
+    ⟨N1PointedEvidence.branchFacts h,
+     N1PointedEvidence.selectedPath h,
+     N1PointedEvidence.wordEq h⟩,
+   fun ⟨hbranches, hpath, hword⟩ =>
+    N1PointedEvidence.of_parts hbranches hpath hword⟩
+
+/-- `N1PointedEvidence` is by definition `N1CallableSelectedIfBorrowWordEvidence`,
+    so the iff is `Iff.rfl`. Stated explicitly so downstream callers can use
+    it as a rewrite target without remembering the underlying abbrev. -/
+theorem N1PointedEvidence_iff_callable {a b : EvmWord} :
+    N1PointedEvidence a b ↔ N1CallableSelectedIfBorrowWordEvidence a b :=
+  Iff.rfl
 
 end EvmAsm.Evm64

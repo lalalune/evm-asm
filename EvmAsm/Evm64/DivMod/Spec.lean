@@ -56,9 +56,11 @@ import EvmAsm.Evm64.DivMod.Spec.N3DivStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.Spec.UnifiedDivisorCases
 import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
+import EvmAsm.Evm64.DivMod.Spec.DivisorLimbCaseToShape
 import EvmAsm.Evm64.DivMod.Spec.DivisorShapeDecidable
 import EvmAsm.Evm64.DivMod.Spec.DivisorLimbCaseHelpers
 import EvmAsm.Evm64.DivMod.Spec.DivisorFullDomainShape
+import EvmAsm.Evm64.DivMod.Spec.DivisorFullDomainShapeNamed
 import EvmAsm.Evm64.DivMod.Spec.UnifiedN1Normalized
 import EvmAsm.Evm64.DivMod.Spec.UnifiedN1NormalizedRemainder
 import EvmAsm.Evm64.DivMod.Spec.UnifiedN1StepPath
@@ -72,6 +74,7 @@ import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidence
 import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
 import EvmAsm.Evm64.DivMod.Spec.N3CanonicalBltuEq
 import EvmAsm.Evm64.DivMod.Spec.N3CanonicalBltu0Branches
+import EvmAsm.Evm64.DivMod.Spec.N3CanonicalBltuUnique
 import EvmAsm.Evm64.DivMod.Spec.N3CanonicalTrialWitnessAll
 import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonicalIff
 import EvmAsm.Evm64.DivMod.Spec.N3CanonicalPointedEvidence
@@ -90,6 +93,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExactSelectedEvidence
 import EvmAsm.Evm64.DivMod.Spec.N2SelectedQuotientHdivs
 import EvmAsm.Evm64.DivMod.Spec.N2CallableSelectedShapeEvidenceCanonical
 import EvmAsm.Evm64.DivMod.Spec.N2CanonicalBltuEq
+import EvmAsm.Evm64.DivMod.Spec.N2CanonicalBltuUnique
 import EvmAsm.Evm64.DivMod.Spec.N2CanonicalTrialWitnessAll
 import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExactSelectedEvidenceCanonical
 import EvmAsm.Evm64.DivMod.Spec.N2SelectedQuotientHdivsCanonical
