@@ -242,6 +242,16 @@ run_fixture "chain1_all_outer"      1                  0    "deadbeef"   "a1b2c3
 # (bytes 24..32) when present.
 run_fixture "chain1_actbn"          1                  0    ""           ""                  ""    "1234567890" || fail=1
 
+# Edge: block_number = [0] -- the VALUE zero in a non-empty
+# SszOptionalForkActivationValue list. SSZ treats this
+# distinctly from the empty-list case: 8 bytes of u64 zero
+# vs zero bytes. The encoder's byte-copy must write the
+# explicit zero u64 at OUTPUT[73..81), NOT skip those bytes.
+# Spec emits 81 bytes (same length as chain1_actbn) but
+# with the bn slot all zeros. Tests that the encoder doesn't
+# conflate "empty list" with "list containing zero".
+run_fixture "chain1_actbn_zero"     1                  0    ""           ""                  ""    "0" || fail=1
+
 # Symmetric: non-empty `activation.timestamp = [N]`, block_number
 # empty. Same active_fork size as the bn=[N] case (32 bytes), so
 # spec is also 81 bytes -- but `offset_timestamp` stays at 8 (no
