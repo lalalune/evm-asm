@@ -362,6 +362,14 @@ run_fixture "chain1_act_both"       1                  0    ""           ""     
 # all three u64s of the entry.
 run_fixture "chain1_blob"           1                  0    ""           ""                  ""    ""           ""           "100:200:300" || fail=1
 
+# Cross-product corner: bn=[B], ts=[T], blob=[entry] all
+# populated simultaneously. MAX active_fork = 64 bytes (16
+# fc-header + 24 activation body + 24 blob_schedule), so spec
+# emits 113 bytes -- the largest spec output the new-schema
+# SszForkConfig can produce. offset_blob_schedule = 40
+# (= 0x28); still fits in 1 byte.
+run_fixture "chain1_act_blob_all"   1                  0    ""           ""                  ""    "3333333333" "4444444444" "500:600:700" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0
