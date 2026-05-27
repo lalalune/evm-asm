@@ -214,4 +214,49 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
   , mkHandler "h_CREATE2"       0xf5 96
   , mkHandler "h_STATICCALL"    0xfa 160 ]
 
+/-- M20 arithmetic no-op handlers (MULMOD, EXP). The last two
+    unwired opcodes shipped as placeholders to **hit 100% opcode
+    coverage**. Same pop-N + push-zero pattern as
+    `childFrameHandlers` above, just with smaller pop counts.
+
+    | Opcode | Byte | Pops | Pushes | Net pops × 32 |
+    |---|---|---|---|---|
+    | **MULMOD** | 0x09 | 3 (a, b, N) | 1 (result) | 64 |
+    | **EXP**    | 0x0a | 2 (base, exponent) | 1 (result) | 32 |
+
+    Both within the 12-bit signed ADDI immediate range.
+
+    **Known limitations** (documented in CODEGEN.md M20 narrative):
+
+    - **MULMOD** always returns 0. The verified body is a
+      placeholder in `EvmAsm/Evm64/MulMod/Program.lean` (slice
+      evm-asm-m4wu unscheduled). A future PR will swap in the
+      real Knuth-style 512-bit + reduce-by-N body once it lands.
+    - **EXP** always returns 0. **The verified body actually
+      exists** (`evm_exp_msb_saved_bit_two_mul_fixed` in
+      `EvmAsm/Evm64/Exp/Program.lean`, x19-callee-saved cursor
+      design; ~84 instructions). The M21 PR after this one will
+      wire it via the M10-style inline-callable composition
+      pattern (~300–500 LOC: embed `mul_callable` in the
+      dispatcher epilogue, pin JAL offsets for the squaring +
+      conditional-multiply calls, use M9-style trampoline tail).
+
+    Trusted bytecode that doesn't depend on MULMOD / EXP results
+    continues to work correctly. -/
+def arithNoopHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_MULMOD", opcodes := [0x09]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64) ;;
+              SD .x12 .x0 0 ;;
+              SD .x12 .x0 8 ;;
+              SD .x12 .x0 16 ;;
+              SD .x12 .x0 24
+    , tail := .advanceAndRet 1 }
+  , { label := "h_EXP", opcodes := [0x0a]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 32) ;;
+              SD .x12 .x0 0 ;;
+              SD .x12 .x0 8 ;;
+              SD .x12 .x0 16 ;;
+              SD .x12 .x0 24
+    , tail := .advanceAndRet 1 } ]
+
 end EvmAsm.Codegen
