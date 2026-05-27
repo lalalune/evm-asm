@@ -54,6 +54,7 @@ import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
 import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
 import EvmAsm.Evm64.EvmWordArith.DivN3NormVStructure
 import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
+import EvmAsm.Evm64.EvmWordArith.DivBltBridge
 import EvmAsm.Evm64.EvmWordArith.AddbackBorrowExtract
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
