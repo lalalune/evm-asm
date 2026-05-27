@@ -363,6 +363,15 @@ run_fixture "chain1_act_blob_all"   1                  0    ""           ""     
 # chain_config_end, never reaching the unmapped page.
 run_fixture "chain1_witcode_actbn_unbounded" 1   0    "deadbeef"   ""                  ""    "1234567890" || fail=1
 
+# Stronger stress for the bounded byte-copy: BOTH witness
+# fields populated AND non-empty block_number, no PK padding.
+# Under the old unrolled encoder, chain_config_end lands close
+# enough to ziskemu's input-region boundary that the trailing
+# unconditional LBUs at chain_config + 28..76 panic with
+# "section not found". The bounded loop in PR #6843 stops at
+# chain_config_end so the combination passes.
+run_fixture "chain1_witboth_actbn_unbounded" 1   0    "deadbeef"   "a1b2c3d4e5f60718"  ""    "1234567890" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0
