@@ -79,4 +79,21 @@ theorem N1PointedEvidence.selectedInputAndHdivs
     sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
     a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal h
 
+/-- `N1PointedEvidence` is logically equivalent to the conjunction of its
+    three parts (branch facts, selected path, quotient-word equality). -/
+theorem N1PointedEvidence_iff_parts {a b : EvmWord} :
+    N1PointedEvidence a b ↔
+      N1CallableSelectedIfBorrowBranchFacts a b ∧
+      N1SelectedIfBorrowPathEvidence a b ∧
+      fullDivN1CallMaxmaxmaxQuotientWordV4
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+          EvmWord.div a b :=
+  ⟨fun h =>
+    ⟨N1PointedEvidence.branchFacts h,
+     N1PointedEvidence.selectedPath h,
+     N1PointedEvidence.wordEq h⟩,
+   fun ⟨hbranches, hpath, hword⟩ =>
+    N1PointedEvidence.of_parts hbranches hpath hword⟩
+
 end EvmAsm.Evm64
