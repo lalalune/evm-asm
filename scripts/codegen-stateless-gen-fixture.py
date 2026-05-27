@@ -417,6 +417,7 @@ elif hdr_hex in (
     'INVALID_OMMERS',
     'VALID_REALISTIC',
     'VALID_ALL_BOUNDARY',
+    'VALID_GAS_HIBIT',
 ):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
@@ -449,13 +450,25 @@ elif hdr_hex in (
         extra = Bytes(b'\\xab' * 32)
     else:
         extra = Bytes(b'')
-    gas_limit_v = 1000000
-    if hdr_hex == 'INVALID_GAS':
-        gas_used_v = 1000001
-    elif hdr_hex in ('VALID_GAS_BOUNDARY', 'VALID_ALL_BOUNDARY'):
-        gas_used_v = 1000000  # == gas_limit, boundary accept
+    if hdr_hex == 'VALID_GAS_HIBIT':
+        # Regression guard for K240's unsigned comparison.
+        # gas_used = 2^63 - 1 (max positive i64); gas_limit
+        # = 2^63 (INT64_MIN if interpreted signed).
+        # Unsigned: gas_used < gas_limit -> K240 BGTU correctly
+        # accepts. Signed: gas_used (INT64_MAX) > gas_limit
+        # (INT64_MIN) -> a buggy BGT swap would reject. The
+        # fixture locks in the unsigned-ness of the gas check
+        # before the REASON-code surface is reintroduced.
+        gas_limit_v = 1 << 63
+        gas_used_v = (1 << 63) - 1
     else:
-        gas_used_v = 0
+        gas_limit_v = 1000000
+        if hdr_hex == 'INVALID_GAS':
+            gas_used_v = 1000001
+        elif hdr_hex in ('VALID_GAS_BOUNDARY', 'VALID_ALL_BOUNDARY'):
+            gas_used_v = 1000000  # == gas_limit, boundary accept
+        else:
+            gas_used_v = 0
     if hdr_hex == 'INVALID_BLOB_MISALIGN':
         blob_gas_used_v = 1
     elif hdr_hex == 'INVALID_BLOB_OVERMAX':

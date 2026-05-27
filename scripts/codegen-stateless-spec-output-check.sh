@@ -600,6 +600,19 @@ run_fixture "chain1_invalid_nonce"  1                  0    ""           ""     
 # in-K-PR code path.
 run_fixture "chain1_invalid_ommers" 1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_OMMERS" || fail=1
 
+# Regression guard for K240's unsigned (BGTU) comparison.
+# Single header with gas_used = 2^63 - 1 = 0x7FFFFFFFFFFFFFFF
+# (max positive i64) and gas_limit = 2^63 = 0x8000000000000000
+# (INT64_MIN if interpreted signed).
+# Unsigned: gas_used < gas_limit -> K240 BGTU accepts.
+# Signed:   gas_used > gas_limit -> a buggy BGT swap rejects.
+# Today both paths land at valid=False via .Lsg_hash so the
+# output is byte-identical, but this fixture locks in the
+# unsigned-ness of the gas comparator before the REASON
+# surface is reintroduced -- sister to chain1_valid_ts_hibit
+# for the K229 timestamp comparator.
+run_fixture "chain1_valid_gas_hibit" 1                 0    ""           ""                  ""    ""           ""           ""    "VALID_GAS_HIBIT" || fail=1
+
 # Two headers: first valid, second has difficulty=1. K290
 # (chain_validate_post_merge_full) iterates: first header
 # passes, SECOND fails. Verifies the per-header iteration
