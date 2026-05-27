@@ -252,6 +252,14 @@ run_fixture "chain1_actbn"          1                  0    ""           ""     
 # conflate "empty list" with "list containing zero".
 run_fixture "chain1_actbn_zero"     1                  0    ""           ""                  ""    "0" || fail=1
 
+# Variety: max ProtocolFork (4) + non-empty block_number.
+# Cross-product not yet covered: fork-passthrough exercises
+# at the upper enum bound (PR #6996) AND the variable-length
+# encoder bn-passthrough (PR #6793) AT THE SAME TIME.
+# Spec emits 81 bytes with fork=4 in OUTPUT[49..57) and the
+# bn value in OUTPUT[73..81).
+run_fixture "chain1_fork4_actbn"    1                  4    ""           ""                  ""    "999999999" || fail=1
+
 # Symmetric: non-empty `activation.timestamp = [N]`, block_number
 # empty. Same active_fork size as the bn=[N] case (32 bytes), so
 # spec is also 81 bytes -- but `offset_timestamp` stays at 8 (no
