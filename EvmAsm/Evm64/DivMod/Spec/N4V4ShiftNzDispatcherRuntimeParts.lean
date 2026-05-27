@@ -35,9 +35,8 @@ theorem evm_div_n4_shift_nz_stack_spec_of_runtime_parts
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
-    (by
-      rw [n4ShiftNzDispatcherRuntimeV4_def]
-      exact ⟨hbranch, hcarry2, h_bounds⟩)
+    (n4ShiftNzDispatcherRuntimeV4.of_parts
+      hbranch hcarry2 h_bounds)
 
 /-- Final named no-NOP n=4, shift-nonzero DIV dispatcher surface from direct
     global runtime evidence parts. -/
@@ -64,8 +63,7 @@ theorem evm_div_n4_shift_nz_stack_spec_noNop_of_runtime_parts
     sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
     hb3nz hshift_nz halign
-    (by
-      rw [n4ShiftNzDispatcherRuntimeV4_def]
-      exact ⟨hbranch, hcarry2, h_bounds⟩)
+    (n4ShiftNzDispatcherRuntimeV4.of_parts
+      hbranch hcarry2 h_bounds)
 
 end EvmAsm.Evm64
