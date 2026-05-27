@@ -211,6 +211,98 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "calldatasize_zero"
       bytecode       := "0x36, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M14 control-flow opcode (JUMPDEST)
+    -- JUMPDEST is an EVM no-op marker. The dispatcher emits empty body
+    -- + .advanceAndRet 1, so x10 is bumped by 1 and the loop continues.
+    -- This case confirms JUMPDEST doesn't corrupt the stack and the
+    -- next opcode (PUSH1) executes correctly.
+  , -- JUMPDEST; PUSH1 0x42; STOP — JUMPDEST is a no-op; PUSH1 0x42 lands
+    -- the value on the stack; STOP halts. Expected: 0x42 in low limb.
+    { name           := "jumpdest_basic"
+      bytecode       := "0x5b, 0x60, 0x42, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M15 control-flow opcodes (PC, JUMP, JUMPI)
+    -- These use the dispatcher's preserved code-base register x21
+    -- (initialised in the prologue) to compute PC values and jump
+    -- targets. JUMP/JUMPI's "valid-target" check (code[dest] == 0x5b)
+    -- is DEFERRED; the test cases below all jump to real JUMPDEST
+    -- bytes.
+  , -- PC; STOP — PC at offset 0 = 0. Expected: 0 in low limb.
+    { name           := "pc_at_zero"
+      bytecode       := "0x58, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x42; POP; PC; STOP — PC opcode at offset 3 after the
+    -- 2-byte PUSH1 and 1-byte POP. Expected: 3 in low limb.
+    { name           := "pc_after_push"
+      bytecode       := "0x60, 0x42, 0x50, 0x58, 0x00"
+      expectedOutHex := "0300000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x04; JUMP; INVALID; JUMPDEST; PUSH1 0xff; STOP
+    -- Layout: 0=PUSH1, 1=0x04, 2=JUMP, 3=INVALID (0xfe), 4=JUMPDEST,
+    -- 5=PUSH1, 6=0xff, 7=STOP. JUMP target = 4 (the JUMPDEST byte).
+    -- Skips the INVALID at byte 3, lands on JUMPDEST, executes PUSH1
+    -- 0xff. Expected: 0xff in low limb.
+    { name           := "jump_forward"
+      bytecode       := "0x60, 0x04, 0x56, 0xfe, 0x5b, 0x60, 0xff, 0x00"
+      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x01; PUSH1 0x06; JUMPI; INVALID; JUMPDEST; PUSH1 0xff; STOP
+    -- Bytecode layout: 0=PUSH1 1=0x01(cond) 2=PUSH1 3=0x06(dest) 4=JUMPI
+    -- 5=INVALID(0xfe) 6=JUMPDEST 7=PUSH1 8=0xff 9=STOP.
+    -- Stack after both PUSHes: [0x01, 0x06] with 0x06 on top. JUMPI pops
+    -- dest=0x06 (top) then cond=0x01 (below). cond != 0 → jump to byte 6,
+    -- the JUMPDEST. Then PUSH1 0xff. Expected: 0xff in low limb.
+    { name           := "jumpi_taken"
+      bytecode       := "0x60, 0x01, 0x60, 0x06, 0x57, 0xfe, 0x5b, 0x60, 0xff, 0x00"
+      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; PUSH1 0xff; JUMPI; PUSH1 0x42; STOP
+    -- dest=0xff (top), cond=0x00 (below). cond == 0 → fall through.
+    -- Next opcode is PUSH1 0x42. Expected: 0x42 in low limb.
+    -- Confirms JUMPI advances x10 by 1 on the cond=0 branch instead
+    -- of jumping to the (out-of-bounds) dest.
+    { name           := "jumpi_not_taken"
+      bytecode       := "0x60, 0x00, 0x60, 0xff, 0x57, 0x60, 0x42, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M16 hash opcode (KECCAK256 via ECALL bridge to Zisk accelerator)
+    -- KECCAK256 pops offset (top of stack) and size (next word), hashes the
+    -- memory[offset..offset+size] region, pushes the 32-byte digest.
+    -- The handler is all-raw-asm in `.custom` tail (no verified Program).
+    -- The dispatcher epilogue ships the `zkvm_keccak256` subroutine + a
+    -- 200-byte `zk3_state:` data block.
+  , -- PUSH1 0x00; PUSH1 0x00; KECCAK256; STOP — hashes empty bytes.
+    -- Expected: standard keccak256("") =
+    -- c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+    { name           := "keccak256_empty"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x20, 0x00"
+      expectedOutHex := "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470" }
+    -- ## M17 LOG opcodes (LOG0-LOG4) — wired as stack-pop no-ops.
+    -- LOGn pops (2+n) 256-bit words and advances PC; the EVM event
+    -- is dropped (no host log syscall yet).
+  , -- PUSH1 0x11; PUSH1 0x22; LOG0; PUSH1 0x33; STOP — LOG0 pops the
+    -- two pushed words; PUSH1 0x33 lands on the now-empty stack.
+    -- Confirms byte 0xa0 routes correctly and stack delta is +64.
+    { name           := "log0_pop"
+      bytecode       := "0x60, 0x11, 0x60, 0x22, 0xa0, 0x60, 0x33, 0x00"
+      expectedOutHex := "3300000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x01..0x06; LOG4; PUSH1 0xff; STOP — LOG4 pops the six
+    -- pushed words (offset + size + 4 topics); PUSH1 0xff lands on
+    -- the now-empty stack. Confirms byte 0xa4 routes correctly and
+    -- stack delta is +192.
+    { name           := "log4_pop"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xa4, 0x60, 0xff, 0x00"
+      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M17 storage opcodes (SLOAD/SSTORE/TLOAD/TSTORE) — wired as
+    -- no-op stack ops under "empty storage" semantics. SLOAD/TLOAD
+    -- always read 0; SSTORE/TSTORE drop both inputs. Spec-incompliant
+    -- but routes the bytes correctly.
+  , -- PUSH1 0x42; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP —
+    -- SSTORE drops (key=0, value=0x42); SLOAD returns 0 (no-op).
+    -- Expected: 0x00 in low limb (NOT 0x42 — that's the limitation).
+    { name           := "sstore_sload_roundtrip"
+      bytecode       := "0x60, 0x42, 0x60, 0x00, 0x55, 0x60, 0x00, 0x54, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- Same as above but with TSTORE/TLOAD (transient storage analog).
+    { name           := "tstore_tload_roundtrip"
+      bytecode       := "0x60, 0x42, 0x60, 0x00, 0x5d, 0x60, 0x00, 0x5c, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;
