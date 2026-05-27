@@ -30,6 +30,11 @@ structure OpcodeTestCase where
   bytecode       : String
   /-- Expected first 32 bytes of `OUTPUT_ADDR` as 64 hex chars. -/
   expectedOutHex : String
+  /-- Optional EVM calldata passed alongside the bytecode (M21).
+      Accepted shapes: CSV (e.g. `"0x01, 0x02, 0x03"`) or hex blob
+      (e.g. `"0xdeadbeef"`). Empty string = no calldata (M17
+      no-op CALLDATA behavior for back-compat with pre-M21 cases). -/
+  calldata       : String := ""
 
 /-- Registry of test cases. M5a/M5b's two original bytecodes are
     migrated as `add_basic` / `add_chain`; M6b adds ~20 more — one
@@ -428,6 +433,39 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "addmod_div_zero"
       bytecode       := "0x60, 0x00, 0x60, 0x03, 0x60, 0x02, 0x08, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M21 real calldata (CALLDATASIZE / CALLDATALOAD / CALLDATACOPY)
+    -- The dispatcher prologue now populates env.callDataPtrOff (416)
+    -- and env.callDataLenOff (424) from the ziskemu `-i` input file.
+    -- These three cases confirm the wiring end-to-end:
+    --   1. CALLDATASIZE reads len from env.
+    --   2. CALLDATALOAD reads 32 BE bytes from calldata.
+    --   3. CALLDATACOPY copies calldata bytes into EVM memory; the
+    --      follow-up MLOAD round-trips them back to the stack.
+  , -- CALLDATASIZE; STOP with calldata = 0xdeadbeef (4 bytes).
+    -- Expected: size = 4 in the low limb's low byte → "04 00...00".
+    { name           := "calldatasize_with_input"
+      bytecode       := "0x36, 0x00"
+      calldata       := "0xdeadbeef"
+      expectedOutHex := "0400000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; CALLDATALOAD; STOP with calldata = 32 bytes
+    -- 0x0102…20 (same content as push32_basic). CALLDATALOAD reads
+    -- 32 BE bytes from calldata[0..32] into the EVM word, then the
+    -- OUTPUT_ADDR copy surfaces the 4 LE u64 limbs verbatim — the
+    -- byte sequence matches push32_basic exactly.
+    { name           := "calldataload_basic"
+      bytecode       := "0x60, 0x00, 0x35, 0x00"
+      calldata       := "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+      expectedOutHex := "201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201" }
+  , -- PUSH1 0x04 (size); PUSH1 0x00 (offset); PUSH1 0x00 (destOffset);
+    -- CALLDATACOPY; PUSH1 0x00; MLOAD; STOP with calldata = 0xdeadbeef.
+    -- Copies 4 bytes into memory[0..4]; MLOAD reads memory[0..32] BE
+    -- → u256 = 0xdeadbeef << 224 (high 4 BE bytes are deadbeef, rest
+    -- zero). In limbs: limb 3 = 0xdeadbeef00000000, others 0. Output
+    -- LE bytes of limb 3 = 00 00 00 00 ef be ad de.
+    { name           := "calldatacopy_basic"
+      bytecode       := "0x60, 0x04, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x51, 0x00"
+      calldata       := "0xdeadbeef"
+      expectedOutHex := "00000000000000000000000000000000000000000000000000000000efbeadde" }
   ]
 
 /-- Find a test case by name. -/
