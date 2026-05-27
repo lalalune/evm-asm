@@ -642,6 +642,19 @@ run_fixture "chain1_invalid_nm_at_2"    1              0    ""           ""     
 # NPR -> valid=False. ELF: valid=False from x11 stub. Match.
 run_fixture "chain1_valid_three"    1                  0    ""           ""                  ""    ""           ""           ""    "VALID_THREE" || fail=1
 
+# N=2 chained valid post-merge headers, both with the full
+# VALID_REALISTIC field cohort (every K-PR-ignored field
+# populated with realistic non-zero bytes). parent_hash chain
+# via keccak256(rlp(h0)) so spec's validate_headers also
+# accepts contiguity. All K-PR validators accept; both reach
+# .Lsg_all_pass. Cross-product of "realistic field cohort"
+# (was only ever N=1) and "chained 2-header all-pass" (was
+# only ever minimal-field cohort). Exercises the K-PR
+# pipeline + spec's validate_headers + the realistic
+# RLP-encoded header size (~600 bytes each, ~1200 bytes of
+# witness.headers section) simultaneously.
+run_fixture "chain1_valid_realistic_two" 1            0    ""           ""                  ""    ""           ""           ""    "VALID_REALISTIC_TWO" || fail=1
+
 # Regression guard for K229's unsigned timestamp comparison.
 # N=2 chained valid post-merge headers with timestamps that
 # straddle the u64 sign-bit boundary:
