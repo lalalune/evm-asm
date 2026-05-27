@@ -500,6 +500,58 @@ def n4CallAddbackBeqModSlotPostV4
   ((sp + 32) ↦ₘ u0') ** ((sp + 40) ↦ₘ u1') **
   ((sp + 48) ↦ₘ u2') ** ((sp + 56) ↦ₘ u3')
 
+/-- Convert the four addback MOD remainder limb equalities into the stack-slot
+    adapter consumed by `evm_mod_n4_call_addback_beq_stack_spec_within_v4_of_slot_post`. -/
+theorem n4CallAddbackBeqModSlotPostV4_eq_evmWordIs_of_getLimbN
+    (sp : Word) (a b : EvmWord)
+    (hmod :
+      let shift := (clzResult (b.getLimbN 3)).1
+      let antiShift := signExtend12 (0 : BitVec 12) - shift
+      let b3' := (b.getLimbN 3 <<< (shift.toNat % 64)) |||
+        (b.getLimbN 2 >>> (antiShift.toNat % 64))
+      let b2' := (b.getLimbN 2 <<< (shift.toNat % 64)) |||
+        (b.getLimbN 1 >>> (antiShift.toNat % 64))
+      let b1' := (b.getLimbN 1 <<< (shift.toNat % 64)) |||
+        (b.getLimbN 0 >>> (antiShift.toNat % 64))
+      let b0' := b.getLimbN 0 <<< (shift.toNat % 64)
+      let u4 := a.getLimbN 3 >>> (antiShift.toNat % 64)
+      let u3 := (a.getLimbN 3 <<< (shift.toNat % 64)) |||
+        (a.getLimbN 2 >>> (antiShift.toNat % 64))
+      let u2 := (a.getLimbN 2 <<< (shift.toNat % 64)) |||
+        (a.getLimbN 1 >>> (antiShift.toNat % 64))
+      let u1 := (a.getLimbN 1 <<< (shift.toNat % 64)) |||
+        (a.getLimbN 0 >>> (antiShift.toNat % 64))
+      let u0 := a.getLimbN 0 <<< (shift.toNat % 64)
+      let qHat := div128Quot_v4 u4 u3 b3'
+      let ms := mulsubN4 qHat b0' b1' b2' b3' u0 u1 u2 u3
+      let c3 := ms.2.2.2.2
+      let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+      let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+        (u4 - c3) b0' b1' b2' b3'
+      let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
+        ab.2.2.2.2 b0' b1' b2' b3'
+      let un0Out := if carry = 0 then ab'.1 else ab.1
+      let un1Out := if carry = 0 then ab'.2.1 else ab.2.1
+      let un2Out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
+      let un3Out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
+      let u0' := (un0Out >>> (shift.toNat % 64)) |||
+        (un1Out <<< (antiShift.toNat % 64))
+      let u1' := (un1Out >>> (shift.toNat % 64)) |||
+        (un2Out <<< (antiShift.toNat % 64))
+      let u2' := (un2Out >>> (shift.toNat % 64)) |||
+        (un3Out <<< (antiShift.toNat % 64))
+      let u3' := un3Out >>> (shift.toNat % 64)
+      (EvmWord.mod a b).getLimbN 0 = u0' ∧
+      (EvmWord.mod a b).getLimbN 1 = u1' ∧
+      (EvmWord.mod a b).getLimbN 2 = u2' ∧
+      (EvmWord.mod a b).getLimbN 3 = u3') :
+    n4CallAddbackBeqModSlotPostV4 sp a b =
+      evmWordIs (sp + 32) (EvmWord.mod a b) := by
+  delta n4CallAddbackBeqModSlotPostV4
+  obtain ⟨hmod0, hmod1, hmod2, hmod3⟩ := hmod
+  exact (evmWordIs_sp32_limbs_eq sp (EvmWord.mod a b) _ _ _ _
+    hmod0 hmod1 hmod2 hmod3).symm
+
 /-- Bundled variant of
     `evm_mod_n4_full_call_addback_beq_stack_pre_spec_within_v4`: takes the
     precondition as a single `modN4StackPreCall` atom plus the v4 scratch cell. -/
@@ -582,5 +634,74 @@ theorem evm_mod_n4_call_addback_beq_stack_spec_within_v4_of_slot_post (sp base :
   rw [divScratchValuesCall_unfold, divScratchValues_unfold]
   rw [word_add_zero] at hq
   xperm_hyp hq
+
+/-- Variant of `evm_mod_n4_call_addback_beq_stack_spec_within_v4_of_slot_post`
+    whose remaining arithmetic obligation is phrased as the four MOD getLimbN
+    equalities for the denormalized addback remainder. -/
+theorem evm_mod_n4_call_addback_beq_stack_spec_within_v4_of_getLimbN (sp base : Word)
+    (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff)
+    (hbltu : isCallTrialN4Evm a b)
+    (hcarry2_nz : isAddbackCarry2NzN4CallV4Evm a b)
+    (hborrow : isAddbackBorrowN4CallV4Evm a b)
+    (hmod :
+      let shift := (clzResult (b.getLimbN 3)).1
+      let antiShift := signExtend12 (0 : BitVec 12) - shift
+      let b3' := (b.getLimbN 3 <<< (shift.toNat % 64)) |||
+        (b.getLimbN 2 >>> (antiShift.toNat % 64))
+      let b2' := (b.getLimbN 2 <<< (shift.toNat % 64)) |||
+        (b.getLimbN 1 >>> (antiShift.toNat % 64))
+      let b1' := (b.getLimbN 1 <<< (shift.toNat % 64)) |||
+        (b.getLimbN 0 >>> (antiShift.toNat % 64))
+      let b0' := b.getLimbN 0 <<< (shift.toNat % 64)
+      let u4n := a.getLimbN 3 >>> (antiShift.toNat % 64)
+      let u3n := (a.getLimbN 3 <<< (shift.toNat % 64)) |||
+        (a.getLimbN 2 >>> (antiShift.toNat % 64))
+      let u2n := (a.getLimbN 2 <<< (shift.toNat % 64)) |||
+        (a.getLimbN 1 >>> (antiShift.toNat % 64))
+      let u1n := (a.getLimbN 1 <<< (shift.toNat % 64)) |||
+        (a.getLimbN 0 >>> (antiShift.toNat % 64))
+      let u0n := a.getLimbN 0 <<< (shift.toNat % 64)
+      let qHat := div128Quot_v4 u4n u3n b3'
+      let ms := mulsubN4 qHat b0' b1' b2' b3' u0n u1n u2n u3n
+      let c3 := ms.2.2.2.2
+      let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0' b1' b2' b3'
+      let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+        (u4n - c3) b0' b1' b2' b3'
+      let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1
+        ab.2.2.2.2 b0' b1' b2' b3'
+      let un0Out := if carry = 0 then ab'.1 else ab.1
+      let un1Out := if carry = 0 then ab'.2.1 else ab.2.1
+      let un2Out := if carry = 0 then ab'.2.2.1 else ab.2.2.1
+      let un3Out := if carry = 0 then ab'.2.2.2.1 else ab.2.2.2.1
+      let u0' := (un0Out >>> (shift.toNat % 64)) |||
+        (un1Out <<< (antiShift.toNat % 64))
+      let u1' := (un1Out >>> (shift.toNat % 64)) |||
+        (un2Out <<< (antiShift.toNat % 64))
+      let u2' := (un2Out >>> (shift.toNat % 64)) |||
+        (un3Out <<< (antiShift.toNat % 64))
+      let u3' := un3Out >>> (shift.toNat % 64)
+      (EvmWord.mod a b).getLimbN 0 = u0' ∧
+      (EvmWord.mod a b).getLimbN 1 = u1' ∧
+      (EvmWord.mod a b).getLimbN 2 = u2' ∧
+      (EvmWord.mod a b).getLimbN 3 = u3') :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 224 + 2 + 23 + 10)
+      base (base + nopOff) (modCode_v4 base)
+      (modN4StackPreCall sp a b v5 v6 v7 v10 v11
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       (sp + signExtend12 3936 ↦ₘ scratchMem))
+      (modN4CallSkipStackPost sp a b ** memOwn (sp + signExtend12 3936)) := by
+  exact evm_mod_n4_call_addback_beq_stack_spec_within_v4_of_slot_post
+    sp base a b v5 v6 v7 v10 v11 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem
+    hbnz hb3nz hshift_nz halign hbltu hcarry2_nz hborrow
+    (n4CallAddbackBeqModSlotPostV4_eq_evmWordIs_of_getLimbN sp a b hmod)
 
 end EvmAsm.Evm64
