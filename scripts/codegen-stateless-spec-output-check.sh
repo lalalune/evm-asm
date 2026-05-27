@@ -289,6 +289,7 @@ elif hdr_hex in (
     'VALID_BLOB_BOUNDARY',
     'VALID_BLOB_MAX_BOUNDARY',
     'INVALID_NONCE',
+    'INVALID_OMMERS',
 ):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
@@ -339,9 +340,10 @@ elif hdr_hex in (
     else:
         blob_gas_used_v = 0
     nonce_v = b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x01' if hdr_hex == 'INVALID_NONCE' else b'\\x00' * 8
+    ommers_v = Hash32(b'\\xff' * 32) if hdr_hex == 'INVALID_OMMERS' else EMPTY_OMMER_HASH
     h = Header(
         parent_hash=Hash32(b'\\x00' * 32),
-        ommers_hash=EMPTY_OMMER_HASH,
+        ommers_hash=ommers_v,
         coinbase=b'\\x00' * 20,
         state_root=Hash32(b'\\x00' * 32),
         transactions_root=Hash32(b'\\x00' * 32),
@@ -753,6 +755,17 @@ run_fixture "chain1_blob_max_at_boundary" 1 0  ""           ""                  
 # enforces ALL its post-merge invariants, not just difficulty.
 # Output 73 bytes valid=False; spec catches and returns same.
 run_fixture "chain1_invalid_nonce"  1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_NONCE" || fail=1
+
+# K290 third sub-check: header with difficulty=0, nonce=zeros,
+# but ommers_hash != EMPTY_OMMER_HASH (all 0xff bytes). K290
+# rejects via the ommers_hash check. Completes K290's three
+# post-merge invariant sub-checks:
+#   - difficulty=0       (chain1_invalid_diff, #6889)
+#   - nonce=zeros        (chain1_invalid_nonce, #6933)
+#   - ommers_hash=EMPTY  (this PR)
+# Same fail label (.Lsg_fail_pm) reached via the third
+# in-K-PR code path.
+run_fixture "chain1_invalid_ommers" 1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_OMMERS" || fail=1
 
 # Three chained valid post-merge headers. parent_hash chain
 # computed via keccak256 so spec's validate_headers accepts
