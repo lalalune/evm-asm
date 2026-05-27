@@ -1155,6 +1155,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/HeaderU64.lean",
     "EvmAsm/Codegen/Programs/Mpt.lean",
     "EvmAsm/Codegen/Programs/MptEncode.lean",
+    "EvmAsm/Codegen/Programs/Noop.lean",
     "EvmAsm/Codegen/Programs/MptInternal.lean",
     "EvmAsm/Codegen/Programs/MptNibbles.lean",
     "EvmAsm/Codegen/Programs/Receipt.lean",
