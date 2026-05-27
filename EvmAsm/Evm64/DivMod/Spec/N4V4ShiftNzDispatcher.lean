@@ -545,10 +545,11 @@ theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.semanticHoldsV4 {a b : EvmW
     (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b)
     (hadd : isAddbackBorrowN4CallV4Evm a b) :
     n4CallAddbackBeqSemanticHoldsV4 a b :=
-  n4ShiftNzDispatcherRuntimeHighDivEvidence.semanticHoldsV4
-    hb3nz hshift_nz
-    (n4ShiftNzDispatcherRuntimeHighDivEvidence_of_raw hruntime)
-    hadd
+by
+  rw [n4ShiftNzDispatcherRuntimeHighDivRawEvidence_def] at hruntime
+  exact n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_raw_parts
+    hb3nz hshift_nz hruntime.2.2.1 hruntime.2.2.2.1 hruntime.2.2.2.2
+    hadd hruntime.2.1
 
 theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.semanticHolds {a b : EvmWord}
     (hb3nz : b.getLimbN 3 ≠ 0)

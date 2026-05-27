@@ -607,6 +607,131 @@ theorem n4CallAddbackBeqSemanticHolds_of_shift_runtime_high_div_evidence
     n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_evidence
       hb3nz hshift_nz h_evidence h_borrow h_carry2
 
+/-- Call-path semantic bridge from raw high-div evidence parts. This names the
+    route from concrete arithmetic facts into the packaged runtime semantic
+    bridge, keeping the final runtime-only path off the compact `RuntimeBounds`
+    predicate. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_call_runtime_high_div_raw_parts
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4Evm a b)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_call_runtime_high_div_evidence
+    hb3nz hshift_nz hcall
+    (n4CallAddbackBeqShiftHighDivEvidence.of_raw_parts
+      h_rhat_hi_zero h_qhat_le_high_div h_high_div_le_norm_plus_one)
+    h_borrow h_carry2
+
+/-- Historical spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_call_runtime_high_div_raw_parts`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_call_runtime_high_div_raw_parts
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4Evm a b)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_call_runtime_high_div_raw_parts
+      hb3nz hshift_nz hcall h_rhat_hi_zero h_qhat_le_high_div
+      h_high_div_le_norm_plus_one h_borrow h_carry2
+
+/-- Shift-nonzero semantic bridge from raw high-div evidence parts, deriving
+    the call-trial premise internally. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_raw_parts
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_call_runtime_high_div_raw_parts
+    hb3nz hshift_nz (isCallTrialN4Evm_of_shift_nz a b hb3nz hshift_nz)
+    h_rhat_hi_zero h_qhat_le_high_div h_high_div_le_norm_plus_one
+    h_borrow h_carry2
+
+/-- Historical spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_raw_parts`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_shift_runtime_high_div_raw_parts
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_rhat_hi_zero :
+      divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word))
+    (h_qhat_le_high_div :
+      (n4CallAddbackBeqQHatV4 a b).toNat ≤
+        ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+            (n4CallAddbackBeqU3 a b).toNat) /
+          (n4CallAddbackBeqB3Prime b).toNat)
+    (h_high_div_le_norm_plus_one :
+      ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+          (n4CallAddbackBeqU3 a b).toNat) /
+        (n4CallAddbackBeqB3Prime b).toNat ≤
+          n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_raw_parts
+      hb3nz hshift_nz h_rhat_hi_zero h_qhat_le_high_div
+      h_high_div_le_norm_plus_one h_borrow h_carry2
+
 /-- Runtime-bounds bridge from packaged shift/high-div evidence. -/
 theorem n4CallAddbackBeqRuntimeBounds_of_shift_high_div_evidence_and_borrow
     {a b : EvmWord}
@@ -709,11 +834,9 @@ theorem n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_raw_parts_and_borrow
     (h_borrow : isAddbackBorrowN4CallV4Evm a b)
     (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
     n4CallAddbackBeqSemanticHoldsV4 a b :=
-  n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_evidence_and_borrow
-    hb3nz hshift_nz
-    (n4CallAddbackBeqShiftHighDivEvidence.of_raw_parts
-      h_rhat_hi_zero h_qhat_le_high_div h_high_div_le_norm_plus_one)
-    h_borrow h_carry2
+  n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_raw_parts
+    hb3nz hshift_nz h_rhat_hi_zero h_qhat_le_high_div
+    h_high_div_le_norm_plus_one h_borrow h_carry2
 
 /-- Historical non-`V4` spelling of
     `n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_raw_parts_and_borrow`. -/
