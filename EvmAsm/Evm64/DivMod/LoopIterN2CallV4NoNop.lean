@@ -602,4 +602,220 @@ theorem divK_loop_body_n2_call_skip_jgt0_v4_spec_within_noNop_exact_x1 (j : Word
       xperm_hyp hp)
     full
 
+/-- DIV no-NOP v4 code-surface lift of the n=2 call+skip loop-body j=0 path. -/
+theorem divK_loop_body_n2_call_skip_j0_v4_spec_within_divCode_noNop
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hborrow : loopBodyN2CallSkipJ0BorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 148 (base + loopBodyOff) (base + denormOff) (divCode_noNop_v4 base)
+      (loopBodyN2CallSkipJ0PreV4 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem)
+      (loopBodyN2CallSkipJ0PostV4 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem) :=
+  cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_divCode_noNop_v4)
+    (divK_loop_body_n2_call_skip_j0_v4_spec_within_noNop sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0
+      scratchMem base halign hbltu hborrow)
+
+/-- MOD no-NOP v4 code-surface lift of the n=2 call+skip loop-body j=0 path. -/
+theorem divK_loop_body_n2_call_skip_j0_v4_spec_within_modCode_noNop
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hborrow : loopBodyN2CallSkipJ0BorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 148 (base + loopBodyOff) (base + denormOff) (modCode_noNop_v4 base)
+      (loopBodyN2CallSkipJ0PreV4 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem)
+      (loopBodyN2CallSkipJ0PostV4 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem) :=
+  cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_modCode_noNop_v4)
+    (divK_loop_body_n2_call_skip_j0_v4_spec_within_noNop sp jOld v5Old v6Old v7Old v10Old
+      v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0
+      scratchMem base halign hbltu hborrow)
+
+/-- Full DIV v4 code-surface lift of the n=2 call+skip loop-body j=0 path. -/
+theorem divK_loop_body_n2_call_skip_j0_v4_spec_within_divCode
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hborrow : loopBodyN2CallSkipJ0BorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 148 (base + loopBodyOff) (base + denormOff) (divCode_v4 base)
+      (loopBodyN2CallSkipJ0PreV4 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem)
+      (loopBodyN2CallSkipJ0PostV4 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem) :=
+  cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_loop_body_n2_call_skip_j0_v4_spec_within_divCode_noNop sp jOld v5Old v6Old v7Old
+      v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem
+      scratchUn0 scratchMem base halign hbltu hborrow)
+
+/-- Full MOD v4 code-surface lift of the n=2 call+skip loop-body j=0 path. -/
+theorem divK_loop_body_n2_call_skip_j0_v4_spec_within_modCode
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hborrow : loopBodyN2CallSkipJ0BorrowV4 v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    cpsTripleWithin 148 (base + loopBodyOff) (base + denormOff) (modCode_v4 base)
+      (loopBodyN2CallSkipJ0PreV4 sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+        v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratchUn0 scratchMem)
+      (loopBodyN2CallSkipJ0PostV4 sp base v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem) :=
+  cpsTripleWithin_modCode_noNop_v4_to_modCode_v4
+    (divK_loop_body_n2_call_skip_j0_v4_spec_within_modCode_noNop sp jOld v5Old v6Old v7Old
+      v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem
+      scratchUn0 scratchMem base halign hbltu hborrow)
+
+/-- DIV no-NOP v4 code-surface lift of the n=2 call+skip loop-body j>0 path. -/
+theorem divK_loop_body_n2_call_skip_jgt0_v4_spec_within_divCode_noNop (j : Word)
+    (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hborrow : mulsubN4NoBorrow (divKTrialCallV4QHat u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
+    let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 148 (base + loopBodyOff) (base + loopBodyOff) (divCode_noNop_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+       ((uBase + signExtend12 4064) ↦ₘ uTop) **
+       (qAddr ↦ₘ qOld) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) ** regOwn .x1)
+      (loopBodyN2CallSkipJgt0PostV4 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem) :=
+  cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_divCode_noNop_v4)
+    (divK_loop_body_n2_call_skip_jgt0_v4_spec_within_noNop j hpos sp jOld v5Old v6Old
+      v7Old v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem
+      dloMem scratchUn0 scratchMem base halign hbltu hborrow)
+
+/-- MOD no-NOP v4 code-surface lift of the n=2 call+skip loop-body j>0 path. -/
+theorem divK_loop_body_n2_call_skip_jgt0_v4_spec_within_modCode_noNop (j : Word)
+    (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hborrow : mulsubN4NoBorrow (divKTrialCallV4QHat u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
+    let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 148 (base + loopBodyOff) (base + loopBodyOff) (modCode_noNop_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+       ((uBase + signExtend12 4064) ↦ₘ uTop) **
+       (qAddr ↦ₘ qOld) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) ** regOwn .x1)
+      (loopBodyN2CallSkipJgt0PostV4 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem) :=
+  cpsTripleWithin_extend_code
+    (hmono := sharedDivModCodeNoNop_v4_sub_modCode_noNop_v4)
+    (divK_loop_body_n2_call_skip_jgt0_v4_spec_within_noNop j hpos sp jOld v5Old v6Old
+      v7Old v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem
+      dloMem scratchUn0 scratchMem base halign hbltu hborrow)
+
+/-- Full DIV v4 code-surface lift of the n=2 call+skip loop-body j>0 path. -/
+theorem divK_loop_body_n2_call_skip_jgt0_v4_spec_within_divCode (j : Word)
+    (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hborrow : mulsubN4NoBorrow (divKTrialCallV4QHat u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
+    let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 148 (base + loopBodyOff) (base + loopBodyOff) (divCode_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+       ((uBase + signExtend12 4064) ↦ₘ uTop) **
+       (qAddr ↦ₘ qOld) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) ** regOwn .x1)
+      (loopBodyN2CallSkipJgt0PostV4 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem) :=
+  cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
+    (divK_loop_body_n2_call_skip_jgt0_v4_spec_within_divCode_noNop j hpos sp jOld v5Old
+      v6Old v7Old v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem
+      dMem dloMem scratchUn0 scratchMem base halign hbltu hborrow)
+
+/-- Full MOD v4 code-surface lift of the n=2 call+skip loop-body j>0 path. -/
+theorem divK_loop_body_n2_call_skip_jgt0_v4_spec_within_modCode (j : Word)
+    (hpos : BitVec.slt (j + signExtend12 4095) 0 = false)
+    (sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
+     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult u2 v1)
+    (hborrow : mulsubN4NoBorrow (divKTrialCallV4QHat u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3 uTop) :
+    let uBase := sp + signExtend12 4056 - j <<< (3 : BitVec 6).toNat
+    let qAddr := sp + signExtend12 4088 - j <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 148 (base + loopBodyOff) (base + loopBodyOff) (modCode_v4 base)
+      ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ (2 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+       ((uBase + signExtend12 4064) ↦ₘ uTop) **
+       (qAddr ↦ₘ qOld) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) ** regOwn .x1)
+      (loopBodyN2CallSkipJgt0PostV4 sp base j v0 v1 v2 v3 u0 u1 u2 u3 uTop scratchMem) :=
+  cpsTripleWithin_modCode_noNop_v4_to_modCode_v4
+    (divK_loop_body_n2_call_skip_jgt0_v4_spec_within_modCode_noNop j hpos sp jOld v5Old
+      v6Old v7Old v10Old v11Old v2Old v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem
+      dMem dloMem scratchUn0 scratchMem base halign hbltu hborrow)
+
 end EvmAsm.Evm64
