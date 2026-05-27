@@ -27,6 +27,7 @@ import EvmAsm.Evm64.DivMod.CallableV4DivSelected
 import EvmAsm.Evm64.DivMod.CallableV4DivShape
 import EvmAsm.Evm64.DivMod.CallableV4DivConcrete
 import EvmAsm.Evm64.DivMod.CallableV4DivConcreteSelected
+import EvmAsm.Evm64.DivMod.CallableV4DivConcreteShapeSelected
 import EvmAsm.Evm64.DivMod.CallableV4Mod
 import EvmAsm.Evm64.DivMod.N4StackSpec
 import EvmAsm.Evm64.DivMod.N4StackSpecWithin
