@@ -363,6 +363,15 @@ run_fixture "chain1_act_both"       1                  0    ""           ""     
 run_fixture "chain1_blob"           1                  0    ""           ""                  ""    ""           ""           "100:200:300" || fail=1
 
 # Cross-product: non-empty public_keys AND non-empty
+# blob_schedule. Both fields shift only `offsets[3]`
+# (public_keys_offset) and the SSZ blob total length; neither
+# affects chain_config_offset. The encoder's full byte-copy of
+# active_fork[16..64) (covering the entire blob_schedule
+# entry) must produce 97 bytes that match spec. PK padding
+# gives plenty of mem slack so the byte-copy never reads past
+# ziskemu's input section.
+run_fixture "chain1_pk_blob"        1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)"    ""           ""           "100:200:300" || fail=1
+# Cross-product: non-empty public_keys AND non-empty
 # block_number. The decoder's outer-offset chase
 # (SSZ_BASE+8 -> chain_config_addr) must land correctly under
 # input-layout drift, AND the encoder's variable-length byte-
