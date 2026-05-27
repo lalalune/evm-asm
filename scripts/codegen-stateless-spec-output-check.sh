@@ -351,6 +351,15 @@ run_fixture "chain1_actts"          1                  0    ""           ""     
 # fits in 1 byte, so the LBU+SB at OUTPUT[61] handles it.
 run_fixture "chain1_act_both"       1                  0    ""           ""                  ""    "1111111111" "2222222222" || fail=1
 
+# Cross-product: public_keys + both activation slots
+# (block_number + timestamp). Largest output for fixtures that
+# don't also drive blob_schedule -- 89 bytes -- with PK padding
+# for ziskemu input-region headroom (see the [[ziskemu-input-
+# slack]] memory note). Exercises the encoder's full
+# active_fork[16..40) byte-copy path together with PK
+# byte-budget shift.
+run_fixture "chain1_pk_act_both"    1                  0    ""           ""                  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "7777777777" "8888888888" || fail=1
+
 # Non-empty `blob_schedule = [SszBlobSchedule(...)]` with one
 # fixed-size 24-byte entry (3 u64s: target, max,
 # base_fee_update_fraction). Activation stays empty, so
