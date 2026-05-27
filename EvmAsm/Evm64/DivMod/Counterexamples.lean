@@ -9,12 +9,14 @@ import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
 import EvmAsm.Evm64.DivMod.Spec.CallAddback
+import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
 import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
 import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
+open EvmWord
 
 namespace DivModCounterexamples
 
@@ -175,6 +177,101 @@ theorem n4CallAddbackBeqSemanticHolds_counterexampleA_v4 :
     n4CallAddbackBeqSemanticHolds ceA_a ceA_b := by
   rw [n4CallAddbackBeqSemantic_unfold]
   decide
+
+/-- Counterexample A satisfies the runtime-only premise shape targeted by the
+    final n=4 call-addback semantic discharger. -/
+theorem ceA_runtime_only_premises :
+    ceA_b.getLimbN 3 ≠ 0 ∧
+    (clzResult (ceA_b.getLimbN 3)).1 ≠ 0 ∧
+    isCallTrialN4Evm ceA_a ceA_b ∧
+    isAddbackBorrowN4CallV4Evm ceA_a ceA_b ∧
+    isAddbackCarry2NzN4CallV4Evm ceA_a ceA_b := by
+  constructor
+  · native_decide
+  constructor
+  · native_decide
+  constructor
+  · rw [isCallTrialN4Evm_def]
+    unfold isCallTrialN4
+    native_decide
+  constructor
+  · rw [isAddbackBorrowN4CallV4Evm_def]
+    unfold isAddbackBorrowN4CallV4Ab loopBodyN4CallAddbackBorrowV4
+    native_decide
+  · rw [isAddbackCarry2NzN4CallV4Evm_def]
+    unfold isAddbackCarry2NzN4CallV4Ab loopBodyN4CallAddbackCarry2NzV4
+    native_decide
+
+/-- Counterexample A also satisfies the repaired semantic marker. This keeps the
+    runtime-only target honest: the remaining work is proving the semantic
+    marker directly, not routing through the stronger compact bounds package. -/
+theorem ceA_n4CallAddbackBeqSemanticHoldsV4 :
+    n4CallAddbackBeqSemanticHoldsV4 ceA_a ceA_b := by
+  rw [n4CallAddbackBeqSemanticHoldsV4]
+  native_decide
+
+/-- Counterexample A satisfies the corrected-remainder half of the compact
+    runtime-bounds package. -/
+theorem ceA_n4CallAddbackBeqIterRNormVal_lt :
+    n4CallAddbackBeqIterRNormVal ceA_a ceA_b < n4CallAddbackBeqBNormVal ceA_b := by
+  rw [n4CallAddbackBeqIterRNormVal, n4CallAddbackBeqBNormVal]
+  native_decide
+
+/-- Counterexample A fails the compact qhat upper-bound conjunct. This is the
+    precise part of the old runtime-bounds package that the repaired semantic
+    route must not assume from runtime predicates alone. -/
+theorem ceA_n4CallAddbackBeqQHat_compact_bound_false :
+    ¬ ((n4CallAddbackBeqQHatV4 ceA_a ceA_b).toNat ≤
+        n4CallAddbackBeqULoNormVal ceA_a ceA_b / n4CallAddbackBeqBNormVal ceA_b + 1) := by
+  rw [n4CallAddbackBeqULoNormVal, n4CallAddbackBeqBNormVal]
+  native_decide
+
+/-- Counterexample A does not satisfy the current compact runtime-bounds package.
+    Therefore the final runtime-only discharger cannot soundly close by deriving
+    `n4CallAddbackBeqRuntimeBounds` from only the call/addback runtime predicates. -/
+theorem ceA_n4CallAddbackBeqRuntimeBounds_false :
+    ¬ n4CallAddbackBeqRuntimeBounds ceA_a ceA_b := by
+  rw [n4CallAddbackBeqRuntimeBounds]
+  native_decide
+
+/-- The runtime-only premise shape alone is not enough to recover the compact
+    runtime-bounds package used by older semantic bridges. -/
+theorem runtime_only_premises_do_not_imply_runtime_bounds :
+    ∃ a b : EvmWord,
+      b.getLimbN 3 ≠ 0 ∧
+      (clzResult (b.getLimbN 3)).1 ≠ 0 ∧
+      isCallTrialN4Evm a b ∧
+      isAddbackBorrowN4CallV4Evm a b ∧
+      isAddbackCarry2NzN4CallV4Evm a b ∧
+      ¬ n4CallAddbackBeqRuntimeBounds a b :=
+  ⟨ceA_a, ceA_b,
+    ceA_runtime_only_premises.1,
+    ceA_runtime_only_premises.2.1,
+    ceA_runtime_only_premises.2.2.1,
+    ceA_runtime_only_premises.2.2.2.1,
+    ceA_runtime_only_premises.2.2.2.2,
+    ceA_n4CallAddbackBeqRuntimeBounds_false⟩
+
+/-- Even adding the repaired semantic marker to the runtime-only premise shape does
+    not recover the old compact runtime-bounds package. The repaired marker is
+    therefore a replacement target, not a route back through that package. -/
+theorem runtime_only_semantic_do_not_imply_runtime_bounds :
+    ∃ a b : EvmWord,
+      b.getLimbN 3 ≠ 0 ∧
+      (clzResult (b.getLimbN 3)).1 ≠ 0 ∧
+      isCallTrialN4Evm a b ∧
+      isAddbackBorrowN4CallV4Evm a b ∧
+      isAddbackCarry2NzN4CallV4Evm a b ∧
+      n4CallAddbackBeqSemanticHoldsV4 a b ∧
+      ¬ n4CallAddbackBeqRuntimeBounds a b :=
+  ⟨ceA_a, ceA_b,
+    ceA_runtime_only_premises.1,
+    ceA_runtime_only_premises.2.1,
+    ceA_runtime_only_premises.2.2.1,
+    ceA_runtime_only_premises.2.2.2.1,
+    ceA_runtime_only_premises.2.2.2.2,
+    ceA_n4CallAddbackBeqSemanticHoldsV4,
+    ceA_n4CallAddbackBeqRuntimeBounds_false⟩
 
 /-- Per-counterexample regression pin: the executable DIV body is on the v4
     path, and the normalized trial quotient for counterexample A has the v4
