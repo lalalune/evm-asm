@@ -298,6 +298,16 @@ run_fixture "chain1_pk_act_both"    1                  0    ""           ""     
 # all three u64s of the entry.
 run_fixture "chain1_blob"           1                  0    ""           ""                  ""    ""           ""           "100:200:300" || fail=1
 
+# Realistic mainnet-amsterdam blob_schedule values (vs the
+# arbitrary 100:200:300 in chain1_blob). target=14, max=21,
+# base_fee_update_fraction=11,684,671 are amsterdam's actual
+# constants (GasCosts.BLOB_SCHEDULE_TARGET/MAX/
+# BLOB_BASE_FEE_UPDATE_FRACTION in execution-specs's amsterdam
+# fork). Tests that the encoder handles realistic u64 values
+# (including base_fee_update_fraction = 0xb24d7f, multi-byte)
+# byte-for-byte against the spec.
+run_fixture "chain1_blob_realistic" 1                  0    ""           ""                  ""    ""           ""           "14:21:11684671" || fail=1
+
 # Triple cross-product: witness.codes + public_keys + block_number.
 # witness.codes shifts chain_config_addr forward, block_number
 # drives the variable-length encoder, and public_keys padding
