@@ -175,7 +175,51 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex in (
+if hdr_hex == 'INVALID_TS':
+    # Two valid post-merge headers but the second's timestamp
+    # is not strictly greater than the first's. K229
+    # (chain_validate_increasing_timestamps) rejects.
+    # Each header individually passes K290 / K291 / K240 /
+    # K278 / K277. With consecutive numbers (1, 2), K230 also
+    # passes -- but K229 runs BEFORE K230 in the pipeline, so
+    # the timestamp regression is caught first.
+    from ethereum.forks.amsterdam.blocks import Header
+    from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
+    from ethereum_types.bytes import Bytes32, Bytes8, Bytes
+    from ethereum_types.numeric import Uint
+    from ethereum_types.numeric import U64 as U64t
+    from ethereum_types.numeric import U256
+    from ethereum.crypto.hash import Hash32
+    from ethereum_rlp import rlp
+    def mk(number, timestamp):
+        return Header(
+            parent_hash=Hash32(b'\\x00' * 32),
+            ommers_hash=EMPTY_OMMER_HASH,
+            coinbase=b'\\x00' * 20,
+            state_root=Hash32(b'\\x00' * 32),
+            transactions_root=Hash32(b'\\x00' * 32),
+            receipt_root=Hash32(b'\\x00' * 32),
+            bloom=b'\\x00' * 256,
+            difficulty=Uint(0),
+            number=Uint(number),
+            gas_limit=Uint(1000000),
+            gas_used=Uint(0),
+            timestamp=U256(timestamp),
+            extra_data=Bytes(b''),
+            prev_randao=Bytes32(b'\\x00' * 32),
+            nonce=Bytes8(b'\\x00' * 8),
+            base_fee_per_gas=Uint(0),
+            withdrawals_root=Hash32(b'\\x00' * 32),
+            blob_gas_used=U64t(0),
+            excess_blob_gas=U64t(0),
+            parent_beacon_block_root=Hash32(b'\\x00' * 32),
+            requests_hash=Hash32(b'\\x00' * 32),
+            block_access_list_hash=Hash32(b'\\x00' * 32),
+            slot_number=U64t(0),
+        )
+    # Both timestamps 1234 -- K229 requires STRICT increase.
+    hdr_arg = (HeaderBL(rlp.encode(mk(1, 1234))), HeaderBL(rlp.encode(mk(2, 1234))))
+elif hdr_hex in (
     'VALID_POST_MERGE',
     'INVALID_DIFF',
     'INVALID_EXTRA',
@@ -601,6 +645,18 @@ run_fixture "chain1_invalid_blob_misalign" 1   0    ""           ""             
 # .Lsg_fail_bgum -> .Lsg_unimpl (= j .Lsg_hash, post #6878).
 # Output 73 bytes valid=False; spec catches and returns same.
 run_fixture "chain1_invalid_blob_overmax"  1   0    ""           ""                  ""    ""           ""           ""    "INVALID_BLOB_OVERMAX" || fail=1
+
+# Two valid post-merge headers but the second's timestamp is
+# not strictly greater than the first's (both 1234). K229
+# (chain_validate_increasing_timestamps) rejects. The first
+# multi-header REJECT path exercised.
+# Pipeline: K290 / K291 / K240 / K278 / K277 each pass on
+# both headers; K229 catches non-increasing -> .Lsg_fail_ts
+# -> .Lsg_unimpl (= j .Lsg_hash, post #6878). Spec's
+# validate_headers raises on contiguity (parent_hash is zero,
+# does not chain to first header's keccak); both return
+# 73 bytes valid=False.
+run_fixture "chain1_invalid_ts"     1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_TS" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
