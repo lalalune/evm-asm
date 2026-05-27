@@ -18,6 +18,7 @@
 
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.HashBridge
 
 namespace EvmAsm.Codegen
 
@@ -134,6 +135,8 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
     same way `x20` was: zero references across `EvmAsm/Evm64/*/Program.lean`
     and zero uses by any existing handler `preBody`/`tail`. -/
 def emitDispatcherPrologue : String :=
+  "  la sp, lp64_sp_top\n" ++     -- M16: LP64 stack ptr for ECALL-bridge helpers
+                                  -- (e.g. zkvm_keccak256's `addi sp, sp, -32`)
   "  la x10, evm_code\n" ++
   "  la x21, evm_code\n" ++       -- M15: preserved code base (for PC, JUMP, JUMPI)
   "  la x12, evm_stack_top\n" ++
@@ -155,6 +158,17 @@ def emitDispatcherPrologue : String :=
 def emitDispatcherEpilogue
     (registry : List OpcodeHandlerSpec) (exitBody : Program) : String :=
   String.intercalate "\n" (registry.map OpcodeHandlerSpec.emitSubroutine) ++ "\n" ++
+  -- M16: the keccak subroutine sits BETWEEN the handler subroutines
+  -- and the `h_invalid:` / `.exit_label:` blocks so it's reachable only
+  -- via `jal x1, zkvm_keccak256` (not by fall-through from exitBody).
+  -- Each handler subroutine ends with `ret` / `j .dispatch_loop`, so
+  -- they don't fall through into this label. The subroutine itself
+  -- ends with `ret`, returning to whoever JAL'd it. Provides label
+  -- `zkvm_keccak256` for `hashHandlers` (M16: KECCAK256; M17+: LOG /
+  -- precompiles). Wraps Zisk's `csrs 0x800, a0` accelerator
+  -- (`.4byte 0x80052073`) as a sponge-mode loop. Inputs via LP64
+  -- a0/a1/a2; uses the dispatcher-side `zk3_state` data label.
+  zkvmKeccak256Function ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   ".exit_label:\n" ++
@@ -198,6 +212,13 @@ def emitDispatcherDataSection
   "evm_env:\n" ++
   "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- slots up to returnDataSizeOff = 440 + 8 (M12 / M13 onward)
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
+  ".balign 16\n" ++
+  "lp64_stack:\n" ++
+  "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
+  "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
   emitJumpTable registry
 
 /-! ## Runtime-bytecode dispatcher (M8.5)
@@ -221,6 +242,8 @@ def emitDispatcherDataSection
     in-`.data` label. The hex literal `0x40000010` matches
     `INPUT_ADDR + INPUT_DATA_OFFSET` in `Programs.lean`. -/
 def emitRuntimeDispatcherPrologue : String :=
+  "  la sp, lp64_sp_top\n" ++   -- M16: LP64 stack ptr for ECALL-bridge helpers
+                                -- (e.g. zkvm_keccak256's `addi sp, sp, -32`)
   "  li x10, 0x40000010\n" ++   -- INPUT_ADDR + INPUT_DATA_OFFSET
   "  li x21, 0x40000010\n" ++   -- M15: preserved code base (mirrors x10 init)
   "  la x12, evm_stack_top\n" ++
@@ -252,6 +275,13 @@ def emitRuntimeDispatcherDataSection
   "evm_env:\n" ++
   "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- slots up to returnDataSizeOff = 440 + 8 (M12 / M13 onward)
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
+  ".balign 16\n" ++
+  "lp64_stack:\n" ++
+  "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
+  "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
   emitJumpTable registry
 
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.
