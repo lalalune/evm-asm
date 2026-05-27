@@ -261,6 +261,18 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "jumpi_not_taken"
       bytecode       := "0x60, 0x00, 0x60, 0xff, 0x57, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M16 hash opcode (KECCAK256 via ECALL bridge to Zisk accelerator)
+    -- KECCAK256 pops offset (top of stack) and size (next word), hashes the
+    -- memory[offset..offset+size] region, pushes the 32-byte digest.
+    -- The handler is all-raw-asm in `.custom` tail (no verified Program).
+    -- The dispatcher epilogue ships the `zkvm_keccak256` subroutine + a
+    -- 200-byte `zk3_state:` data block.
+  , -- PUSH1 0x00; PUSH1 0x00; KECCAK256; STOP — hashes empty bytes.
+    -- Expected: standard keccak256("") =
+    -- c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+    { name           := "keccak256_empty"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x20, 0x00"
+      expectedOutHex := "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;
