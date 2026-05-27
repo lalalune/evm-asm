@@ -175,12 +175,13 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex in ('VALID_POST_MERGE', 'INVALID_DIFF', 'INVALID_EXTRA'):
+if hdr_hex in ('VALID_POST_MERGE', 'INVALID_DIFF', 'INVALID_EXTRA', 'INVALID_GAS'):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE -- passes all 7 K-PR validators.
     #   INVALID_DIFF     -- difficulty=1; K290 rejects.
-    #   INVALID_EXTRA    -- extra_data length 33 (> 32 limit);
-    #                       K291 (chain_validate_extra_data_length)
+    #   INVALID_EXTRA    -- extra_data length 33; K291 rejects.
+    #   INVALID_GAS      -- gas_used > gas_limit; K240
+    #                       (chain_validate_gas_used_under_limit)
     #                       rejects.
     from ethereum.forks.amsterdam.blocks import Header
     from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
@@ -192,6 +193,8 @@ if hdr_hex in ('VALID_POST_MERGE', 'INVALID_DIFF', 'INVALID_EXTRA'):
     from ethereum_rlp import rlp
     diff = 1 if hdr_hex == 'INVALID_DIFF' else 0
     extra = Bytes(b'\\xab' * 33) if hdr_hex == 'INVALID_EXTRA' else Bytes(b'')
+    gas_limit_v = 1000000
+    gas_used_v = 1000001 if hdr_hex == 'INVALID_GAS' else 0
     h = Header(
         parent_hash=Hash32(b'\\x00' * 32),
         ommers_hash=EMPTY_OMMER_HASH,
@@ -202,8 +205,8 @@ if hdr_hex in ('VALID_POST_MERGE', 'INVALID_DIFF', 'INVALID_EXTRA'):
         bloom=b'\\x00' * 256,
         difficulty=Uint(diff),
         number=Uint(1),
-        gas_limit=Uint(1000000),
-        gas_used=Uint(0),
+        gas_limit=Uint(gas_limit_v),
+        gas_used=Uint(gas_used_v),
         timestamp=U256(1234),
         extra_data=extra,
         prev_randao=Bytes32(b'\\x00' * 32),
@@ -498,6 +501,14 @@ run_fixture "chain1_invalid_diff"   1                  0    ""           ""     
 # Third validator-specific REJECT path exercised (after
 # .Lsg_fail_rlp and .Lsg_fail_pm).
 run_fixture "chain1_invalid_extra"  1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_EXTRA" || fail=1
+
+# Header that fails K240 (chain_validate_gas_used_under_limit).
+# Valid post-merge shape except gas_used=1,000,001 exceeds
+# gas_limit=1,000,000 by 1. K240 rejects.
+# Pipeline: K290+K291 pass, K240 fails -> .Lsg_fail_gas ->
+# .Lsg_unimpl (= j .Lsg_hash, post #6878) -> halt. Output 73
+# bytes valid=False; spec catches and returns same.
+run_fixture "chain1_invalid_gas"    1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_GAS" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
