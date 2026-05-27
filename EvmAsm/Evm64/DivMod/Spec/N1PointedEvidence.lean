@@ -23,6 +23,17 @@ open EvmAsm.Rv64
 abbrev N1PointedEvidence (a b : EvmWord) : Prop :=
   N1CallableSelectedIfBorrowWordEvidence a b
 
+/-- Constructor mirroring `N{2,3}CanonicalPointedEvidence.of_parts`. -/
+theorem N1PointedEvidence.of_parts {a b : EvmWord}
+    (hbranches : N1CallableSelectedIfBorrowBranchFacts a b)
+    (hpath : N1SelectedIfBorrowPathEvidence a b)
+    (hword : fullDivN1CallMaxmaxmaxQuotientWordV4
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b) :
+    N1PointedEvidence a b :=
+  N1CallableSelectedIfBorrowWordEvidence.of_parts hbranches hpath hword
+
 theorem N1PointedEvidence.branchFacts {a b : EvmWord}
     (h : N1PointedEvidence a b) :
     N1CallableSelectedIfBorrowBranchFacts a b :=
