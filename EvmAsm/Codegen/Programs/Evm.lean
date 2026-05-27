@@ -15,6 +15,7 @@ import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.And.Program
 import EvmAsm.Evm64.Byte.Program
 import EvmAsm.Evm64.Calldata.SizeProgram
+import EvmAsm.Evm64.ControlFlow.Program
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
@@ -549,6 +550,98 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     , body    := EvmAsm.Evm64.Calldata.evm_calldatasize .x20 .x15
     , tail    := .advanceAndRet 1 } ]
 
+/-- M14 / M15 control-flow opcodes.
+
+    - **JUMPDEST (0x5b, M14)** — no-op marker. Empty body +
+      `.advanceAndRet 1` tail.
+    - **JUMP (0x56, M15)** — pops dest, writes `x10 := x21 + dest`.
+      Tail is `.custom "  ret"`; the body has already written `x10`,
+      so the dispatcher's next loop iteration reads the jump-target
+      byte. No `.advanceAndRet` (would over-advance by 1).
+    - **JUMPI (0x57, M15)** — pops dest + cond; if cond ≠ 0 writes
+      `x10 := x21 + dest`, else advances `x10` by 1 in the body.
+      Tail is `.custom "  ret"` — body handles both branches.
+    - **PC (0x58, M15)** — pushes `x10 - x21` as a 256-bit word
+      with the value in the low limb. Tail is `.advanceAndRet 1`.
+
+    All three M15 handlers consume the dispatcher's preserved
+    code-base register `x21` (set in the prologue via
+    `la x21, evm_code` / `li x21, 0x40000010`). The scratch
+    registers `x14`/`x15`/`x16` are caller-saved per the existing
+    convention.
+
+    **M15 known limitation**: JUMP / JUMPI do NOT validate the
+    destination is a JUMPDEST byte. A spec-compliant EVM rejects
+    invalid jumps; ours unconditionally follows them. Trusted test
+    programs only jump to real JUMPDESTs. A follow-on PR will
+    inline the `LBU + BEQ 0x5b` check. -/
+def controlFlowHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_JUMPDEST"
+    , opcodes := [0x5b]
+    , body    := []
+    , tail    := .advanceAndRet 1 }
+  , { label := "h_JUMP"
+    , opcodes := [0x56]
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jump .x21 .x14
+    , tail    := .custom "  ret" }
+  , { label := "h_JUMPI"
+    , opcodes := [0x57]
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x14 .x15 .x16
+    , tail    := .custom "  ret" }
+  , { label := "h_PC"
+    , opcodes := [0x58]
+    , body    := EvmAsm.Evm64.ControlFlow.evm_pc .x21 .x14
+    , tail    := .advanceAndRet 1 } ]
+
+/-- M16 hash / precompile-via-syscall opcodes. KECCAK256 (0x20) is the
+    first ECALL-bridge opcode wired into the dispatcher.
+
+    The handler does NOT have a verified body (`Instr` has no CSRS
+    variant; the Zisk `csrs 0x800, a0` accelerator is encoded as a
+    raw `.4byte 0x80052073` inside the `zkvm_keccak256` subroutine).
+    Like `stopHandler` and the M15 JUMP/JUMPI handlers, this uses
+    `body := []` + `tail := .custom "..."` with the full asm inline.
+
+    **Calling convention.** The handler must navigate the conflict
+    between LP64 (a0/a1/a2 = x10/x11/x12) and the dispatcher's
+    preserved state (x10 = EVM code ptr, x12 = EVM stack ptr).
+    Solution: save `x10` to `s10` and `x12` to `s11` (callee-saved
+    in LP64, preserved across the keccak call), set up a0/a1/a2 as
+    keccak args, then restore after the call.
+
+    **Stack delta**: pop 2 words (offset + size, 64 B) and push 1
+    word (32-byte digest). Net x12 advance = +32 (one word).
+
+    **Tail return mechanism**: `j .dispatch_loop` (NOT `ret`),
+    because the `jal x1, zkvm_keccak256` clobbers `x1`. Same fix as
+    M9's `signedDivModTail`.
+
+    **Endianness**: the keccak subroutine writes the 32-byte digest
+    to `a2` in standard byte order (`digest[0]` first). The
+    dispatcher's epilogue (e.g. `evmAddEpilogue`) copies x12+0..x12+31
+    verbatim to OUTPUT_ADDR. So `expectedOutHex` in test cases is
+    the standard keccak digest hex.
+
+    M17+ will extend `hashHandlers` with LOG0-4 / SLOAD / SSTORE /
+    other precompiles via the same ECALL bridge pattern. -/
+def hashHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_KECCAK256"
+    , opcodes := [0x20]
+    , body    := []
+    , tail    := .custom (
+        "  mv s10, x10\n" ++           -- save EVM code ptr
+        "  ld t0, 0(x12)\n" ++          -- t0 = offset_low (low 64 bits of top word)
+        "  ld a1, 32(x12)\n" ++         -- a1 = size_low
+        "  addi x12, x12, 32\n" ++      -- net stack delta: pop 2 (64), push 1 (-32) = +32
+        "  add a0, x13, t0\n" ++        -- a0 = evm_memory + offset (input ptr)
+        "  mv a2, x12\n" ++             -- a2 = result slot (= new EVM stack top)
+        "  mv s11, x12\n" ++            -- save EVM stack ptr across the call
+        "  jal x1, zkvm_keccak256\n" ++ -- call keccak (clobbers x1, a0, a1, a2)
+        "  mv x10, s10\n" ++            -- restore EVM code ptr
+        "  mv x12, s11\n" ++            -- restore EVM stack ptr
+        "  addi x10, x10, 1\n" ++       -- advance PC by 1
+        "  j .dispatch_loop") } ]
+
 /-- M8 unsigned division opcodes. Both `evm_div` and `evm_mod` carry
     a 75-instruction `divK_div128_v4` subroutine appended after a
     NOP "exit PC" at body index 267; the `evmDivPatched` /
@@ -727,7 +820,8 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ envHandlers ++ calldataHandlers ++ divModHandlers ++
+  memoryHandlers ++ envHandlers ++ calldataHandlers ++
+  controlFlowHandlers ++ hashHandlers ++ divModHandlers ++
   signedDivModHandlers ++ selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
