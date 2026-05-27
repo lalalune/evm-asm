@@ -126,3 +126,4 @@ import EvmAsm.Evm64.DivMod.Spec.DispatcherN2NoHdivWord
 import EvmAsm.Evm64.DivMod.Spec.DispatcherN3NoHdivWord
 import EvmAsm.Evm64.DivMod.Spec.N3MaxBranchFromInvariant
 import EvmAsm.Evm64.DivMod.Spec.N2MaxBranchFromInvariant
+import EvmAsm.Evm64.DivMod.Spec.N2MaxBranchShapeOnly
