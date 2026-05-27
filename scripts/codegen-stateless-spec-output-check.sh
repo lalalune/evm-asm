@@ -175,14 +175,22 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex in ('VALID_POST_MERGE', 'INVALID_DIFF', 'INVALID_EXTRA', 'INVALID_GAS'):
+if hdr_hex in (
+    'VALID_POST_MERGE',
+    'INVALID_DIFF',
+    'INVALID_EXTRA',
+    'INVALID_GAS',
+    'INVALID_BLOB_MISALIGN',
+):
     # Construct a (mostly) valid post-merge header. Variants:
-    #   VALID_POST_MERGE -- passes all 7 K-PR validators.
-    #   INVALID_DIFF     -- difficulty=1; K290 rejects.
-    #   INVALID_EXTRA    -- extra_data length 33; K291 rejects.
-    #   INVALID_GAS      -- gas_used > gas_limit; K240
-    #                       (chain_validate_gas_used_under_limit)
-    #                       rejects.
+    #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
+    #   INVALID_DIFF           -- difficulty=1; K290 rejects.
+    #   INVALID_EXTRA          -- extra_data length 33; K291 rejects.
+    #   INVALID_GAS            -- gas_used > gas_limit; K240 rejects.
+    #   INVALID_BLOB_MISALIGN  -- blob_gas_used=1 (not a multiple
+    #                             of GAS_PER_BLOB=131072); K278
+    #                             (chain_validate_blob_gas_used_multiple)
+    #                             rejects.
     from ethereum.forks.amsterdam.blocks import Header
     from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
     from ethereum_types.bytes import Bytes32, Bytes8, Bytes
@@ -195,6 +203,7 @@ if hdr_hex in ('VALID_POST_MERGE', 'INVALID_DIFF', 'INVALID_EXTRA', 'INVALID_GAS
     extra = Bytes(b'\\xab' * 33) if hdr_hex == 'INVALID_EXTRA' else Bytes(b'')
     gas_limit_v = 1000000
     gas_used_v = 1000001 if hdr_hex == 'INVALID_GAS' else 0
+    blob_gas_used_v = 1 if hdr_hex == 'INVALID_BLOB_MISALIGN' else 0
     h = Header(
         parent_hash=Hash32(b'\\x00' * 32),
         ommers_hash=EMPTY_OMMER_HASH,
@@ -213,7 +222,7 @@ if hdr_hex in ('VALID_POST_MERGE', 'INVALID_DIFF', 'INVALID_EXTRA', 'INVALID_GAS
         nonce=Bytes8(b'\\x00' * 8),
         base_fee_per_gas=Uint(0),
         withdrawals_root=Hash32(b'\\x00' * 32),
-        blob_gas_used=U64t(0),
+        blob_gas_used=U64t(blob_gas_used_v),
         excess_blob_gas=U64t(0),
         parent_beacon_block_root=Hash32(b'\\x00' * 32),
         requests_hash=Hash32(b'\\x00' * 32),
@@ -509,6 +518,14 @@ run_fixture "chain1_invalid_extra"  1                  0    ""           ""     
 # .Lsg_unimpl (= j .Lsg_hash, post #6878) -> halt. Output 73
 # bytes valid=False; spec catches and returns same.
 run_fixture "chain1_invalid_gas"    1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_GAS" || fail=1
+
+# Header that fails K278 (chain_validate_blob_gas_used_multiple).
+# Valid post-merge shape except blob_gas_used=1 -- not a
+# multiple of GAS_PER_BLOB=131072. K278 rejects.
+# Pipeline: K290+K291+K240 pass, K278 fails -> .Lsg_fail_bgm
+# -> .Lsg_unimpl (= j .Lsg_hash, post #6878) -> halt.
+# Output 73 bytes valid=False; spec catches and returns same.
+run_fixture "chain1_invalid_blob_misalign" 1   0    ""           ""                  ""    ""           ""           ""    "INVALID_BLOB_MISALIGN" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
