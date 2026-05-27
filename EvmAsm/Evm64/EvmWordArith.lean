@@ -65,6 +65,7 @@ import EvmAsm.Evm64.EvmWordArith.DivBltBridge
 import EvmAsm.Evm64.EvmWordArith.DivBltBridgeSpecializations
 import EvmAsm.Evm64.EvmWordArith.DivV4TrialOverestimate
 import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
+import EvmAsm.Evm64.EvmWordArith.DivKnuthAEqualWindow
 import EvmAsm.Evm64.EvmWordArith.DivC3InvariantTrivials
 import EvmAsm.Evm64.EvmWordArith.DivC3InvariantFromCarryNz
 import EvmAsm.Evm64.EvmWordArith.AddbackBorrowExtract
