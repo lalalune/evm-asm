@@ -537,6 +537,64 @@ theorem n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_high_div_raw {a b : EvmWor
     hb3nz hshift_nz
     (n4ShiftNzDispatcherBranchHighDivRawEvidence_of_runtime_raw hruntime)
 
+theorem n4ShiftNzDispatcherBranchHighDivEvidence.toBranchRuntime {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivEvidence a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+  n4ShiftNzDispatcherBranchRuntimeV4_of_high_div_evidence
+    hb3nz hshift_nz hevidence
+
+theorem n4ShiftNzDispatcherBranchHighDivRawEvidence.toHighDivEvidence {a b : EvmWord}
+    (hevidence : n4ShiftNzDispatcherBranchHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchHighDivEvidence a b :=
+  n4ShiftNzDispatcherBranchHighDivEvidence_of_raw hevidence
+
+theorem n4ShiftNzDispatcherBranchHighDivRawEvidence.toBranchRuntime {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+  n4ShiftNzDispatcherBranchRuntimeV4_of_high_div_raw_evidence
+    hb3nz hshift_nz hevidence
+
+theorem n4ShiftNzDispatcherRuntimeHighDivEvidence.toBranchHighDivEvidence {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivEvidence a b) :
+    n4ShiftNzDispatcherBranchHighDivEvidence a b :=
+  n4ShiftNzDispatcherBranchHighDivEvidence_of_runtime_high_div hruntime
+
+theorem n4ShiftNzDispatcherRuntimeHighDivEvidence.toBranchRuntime {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivEvidence a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+  n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_high_div
+    hb3nz hshift_nz hruntime
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.toHighDivEvidence {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherRuntimeHighDivEvidence a b :=
+  n4ShiftNzDispatcherRuntimeHighDivEvidence_of_raw hruntime
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.toBranchHighDivRawEvidence {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchHighDivRawEvidence a b :=
+  n4ShiftNzDispatcherBranchHighDivRawEvidence_of_runtime_raw hruntime
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.toBranchHighDivEvidence {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchHighDivEvidence a b :=
+  n4ShiftNzDispatcherBranchHighDivEvidence_of_raw
+    (n4ShiftNzDispatcherRuntimeHighDivRawEvidence.toBranchHighDivRawEvidence hruntime)
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.toBranchRuntime {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+  n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_high_div_raw
+    hb3nz hshift_nz hruntime
+
 /-- n=4, shift-nonzero DIV v4 dispatcher over the call branch.
 
     The call-trial predicate is discharged from the normalized top limb. The
