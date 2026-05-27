@@ -175,7 +175,49 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex:
+if hdr_hex == 'VALID_POST_MERGE':
+    # Construct a valid post-merge header that passes ALL 7
+    # K-PR validators wired into the stateless_guest pipeline:
+    # difficulty=0, ommers_hash=EMPTY_OMMER_HASH, nonce=8 zero
+    # bytes, extra_data length 0 (<= 32), gas_used 0 (<=
+    # gas_limit), blob_gas_used 0 (multiple of GAS_PER_BLOB,
+    # <= MAX). The bytes are RLP-encoded so the K-PRs'
+    # rlp_list_nth_item helper can parse them.
+    from ethereum.forks.amsterdam.blocks import Header
+    from ethereum.forks.amsterdam.fork import EMPTY_OMMER_HASH
+    from ethereum_types.bytes import Bytes32, Bytes8, Bytes
+    from ethereum_types.numeric import Uint
+    from ethereum_types.numeric import U64 as U64t
+    from ethereum_types.numeric import U256
+    from ethereum.crypto.hash import Hash32
+    from ethereum_rlp import rlp
+    h = Header(
+        parent_hash=Hash32(b'\\x00' * 32),
+        ommers_hash=EMPTY_OMMER_HASH,
+        coinbase=b'\\x00' * 20,
+        state_root=Hash32(b'\\x00' * 32),
+        transactions_root=Hash32(b'\\x00' * 32),
+        receipt_root=Hash32(b'\\x00' * 32),
+        bloom=b'\\x00' * 256,
+        difficulty=Uint(0),
+        number=Uint(1),
+        gas_limit=Uint(1000000),
+        gas_used=Uint(0),
+        timestamp=U256(1234),
+        extra_data=Bytes(b''),
+        prev_randao=Bytes32(b'\\x00' * 32),
+        nonce=Bytes8(b'\\x00' * 8),
+        base_fee_per_gas=Uint(0),
+        withdrawals_root=Hash32(b'\\x00' * 32),
+        blob_gas_used=U64t(0),
+        excess_blob_gas=U64t(0),
+        parent_beacon_block_root=Hash32(b'\\x00' * 32),
+        requests_hash=Hash32(b'\\x00' * 32),
+        block_access_list_hash=Hash32(b'\\x00' * 32),
+        slot_number=U64t(0),
+    )
+    hdr_arg = (HeaderBL(rlp.encode(h)),)
+elif hdr_hex:
     hdr_entries = hdr_hex.split(':')
     hdr_arg = tuple(HeaderBL(bytes.fromhex(h)) for h in hdr_entries)
 
@@ -412,6 +454,23 @@ run_fixture "chain1_witheaders_2"   1                  0    ""           ""     
 # .Lsg_hash. Spec returns valid=False with chain_config echo;
 # ELF matches.
 run_fixture "chain1_witheaders_3"   1                  0    ""           ""                  ""    ""           ""           ""    "$(printf 'aa%.0s' {1..32}):$(printf 'bb%.0s' {1..32}):$(printf 'cc%.0s' {1..32})" || fail=1
+
+# Single VALID post-merge header -- exercises the ALL-PASS
+# branch of the validator pipeline for the first time. With
+# the real `decode_header_count` from PR #6878, this fixture
+# activates the pipeline at N=1; the K-PR validators each
+# parse the RLP-encoded header (637 bytes) and pass:
+#   - difficulty=0, ommers_hash=EMPTY, nonce=8 zeros (K290)
+#   - extra_data length 0 (K291)
+#   - gas_used 0 <= gas_limit 1000000 (K240)
+#   - blob_gas_used 0, multiple of GAS_PER_BLOB and below MAX (K278/K277)
+#   - timestamp/number checks vacuous at N=1 (K229/K230)
+# Pipeline reaches `.Lsg_all_pass` -> `.Lsg_hash` -> halt.
+# Spec runs validate_headers -> succeeds -> proceeds to STF
+# with empty NPR -> exception -> valid=False. Output matches
+# byte-for-byte at 73 bytes (chain_config echo + empty NPR
+# root, both implementations write valid=False here).
+run_fixture "chain1_valid_header"   1                  0    ""           ""                  ""    ""           ""           ""    "VALID_POST_MERGE" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
