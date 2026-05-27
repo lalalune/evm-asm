@@ -9,29 +9,12 @@
   Mirrors the MAX-side reduction (PR #7042) for the v4 call-trial.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
+import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantUnifiedCase
 import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
 
 namespace EvmAsm.Evm64
 
 open EvmWord EvmAsm.Rv64
-
-/-- Frontier predicate: under the v4 call-trial, `c3 = 0` with
-    first-addback carry `= 0` does not occur on the selected BLT path. -/
-def MulsubBltC3UnreachableCarryZeroC3Zero
-    (uHi uLo vTop : Word) (v0 v1 v2 v3 u0 u1 u2 u3 : Word) : Prop :=
-  ¬ (addbackN4_carry
-        (mulsubN4 (divKTrialCallV4QHat uHi uLo vTop)
-          v0 v1 v2 v3 u0 u1 u2 u3).1
-        (mulsubN4 (divKTrialCallV4QHat uHi uLo vTop)
-          v0 v1 v2 v3 u0 u1 u2 u3).2.1
-        (mulsubN4 (divKTrialCallV4QHat uHi uLo vTop)
-          v0 v1 v2 v3 u0 u1 u2 u3).2.2.1
-        (mulsubN4 (divKTrialCallV4QHat uHi uLo vTop)
-          v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.1
-        v0 v1 v2 v3 = 0 ∧
-      (mulsubN4 (divKTrialCallV4QHat uHi uLo vTop)
-        v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2 = 0)
 
 /-- Frontier predicate: under the v4 call-trial, `c3 = 2` with
     first-addback carry `= 0` does not occur on the selected BLT path. -/
