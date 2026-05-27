@@ -642,6 +642,20 @@ run_fixture "chain1_invalid_nm_at_2"    1              0    ""           ""     
 # NPR -> valid=False. ELF: valid=False from x11 stub. Match.
 run_fixture "chain1_valid_three"    1                  0    ""           ""                  ""    ""           ""           ""    "VALID_THREE" || fail=1
 
+# Regression guard for K229's unsigned timestamp comparison.
+# N=2 chained valid post-merge headers with timestamps that
+# straddle the u64 sign-bit boundary:
+#   ts[0] = 2^63 - 1 = 0x7FFFFFFFFFFFFFFF (max positive i64)
+#   ts[1] = 2^63     = 0x8000000000000000 (INT64_MIN signed)
+# Unsigned: ts[1] > ts[0] -> K229 accepts (uses BGEU). A
+# buggy BGE swap would interpret ts[1] as a large negative,
+# reject incorrectly, and -- once the K-PR pipeline surfaces
+# REASON codes -- diverge from spec. Today both paths land at
+# valid=False via the .Lsg_hash fall-through; the fixture
+# locks in the unsigned-ness of the comparator before that
+# surface is reintroduced.
+run_fixture "chain1_valid_ts_hibit" 1                  0    ""           ""                  ""    ""           ""           ""    "VALID_TS_HIBIT" || fail=1
+
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
 # codes + headers) carry one entry each; public_keys has one
