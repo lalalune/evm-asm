@@ -288,6 +288,7 @@ elif hdr_hex in (
     'VALID_GAS_BOUNDARY',
     'VALID_BLOB_BOUNDARY',
     'VALID_BLOB_MAX_BOUNDARY',
+    'INVALID_NONCE',
 ):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
@@ -337,6 +338,7 @@ elif hdr_hex in (
         blob_gas_used_v = 6 * 131072  # 786432 = MAX_BLOB_GAS_PER_BLOCK
     else:
         blob_gas_used_v = 0
+    nonce_v = b'\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x01' if hdr_hex == 'INVALID_NONCE' else b'\\x00' * 8
     h = Header(
         parent_hash=Hash32(b'\\x00' * 32),
         ommers_hash=EMPTY_OMMER_HASH,
@@ -352,7 +354,7 @@ elif hdr_hex in (
         timestamp=U256(1234),
         extra_data=extra,
         prev_randao=Bytes32(b'\\x00' * 32),
-        nonce=Bytes8(b'\\x00' * 8),
+        nonce=Bytes8(nonce_v),
         base_fee_per_gas=Uint(0),
         withdrawals_root=Hash32(b'\\x00' * 32),
         blob_gas_used=U64t(blob_gas_used_v),
@@ -743,6 +745,14 @@ run_fixture "chain1_blob_at_boundary" 1   0    ""           ""                  
 #   K278:  131072 (accept, #6923) / 1 (reject, #6899)
 #   K277: 786432 (accept, this PR) / 917504 (reject, #6901)
 run_fixture "chain1_blob_max_at_boundary" 1 0  ""           ""                  ""    ""           ""           ""    "VALID_BLOB_MAX_BOUNDARY" || fail=1
+
+# K290 sub-check: header has difficulty=0, ommers_hash=EMPTY,
+# but nonce != b'\\x00' * 8. K290 (chain_validate_post_merge_
+# full) rejects on the nonce check (vs the difficulty check
+# tested by chain1_invalid_diff #6889). Verifies K290
+# enforces ALL its post-merge invariants, not just difficulty.
+# Output 73 bytes valid=False; spec catches and returns same.
+run_fixture "chain1_invalid_nonce"  1                  0    ""           ""                  ""    ""           ""           ""    "INVALID_NONCE" || fail=1
 
 # Three chained valid post-merge headers. parent_hash chain
 # computed via keccak256 so spec's validate_headers accepts
