@@ -114,7 +114,7 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2', 'INVALID_NM_AT_2'):
+if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2', 'INVALID_NM_AT_2', 'VALID_TS_HIBIT'):
     # Multi-header fixtures (N=2 or N=3) exercising K229 and
     # K230 in their accept and reject branches. Each header
     # individually passes K290 / K291 / K240 / K278 / K277.
@@ -267,6 +267,52 @@ if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_
         h0 = mk(1, 1234); h1 = mk(2, 2000); h2 = mk(4, 3000)
         hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)),
                    HeaderBL(rlp.encode(h2)))
+    elif hdr_hex == 'VALID_TS_HIBIT':
+        # N=2 chained valid post-merge headers with timestamps
+        # that STRADDLE the u64 sign-bit boundary:
+        #   ts[0] = 2^63 - 1 = 0x7FFFFFFFFFFFFFFF (max positive
+        #                       i64; all bits set except MSB)
+        #   ts[1] = 2^63     = 0x8000000000000000 (MSB-only;
+        #                       INT64_MIN if interpreted signed)
+        # Unsigned: ts[1] > ts[0], so K229 accepts (uses BGEU).
+        # Signed:   ts[1] < ts[0], so a buggy BGE swap would
+        # incorrectly reject. Regression-guards the timestamp
+        # comparator's unsigned-ness.
+        # Numbers 1 -> 2 (consecutive), parent_hash chained
+        # (keccak256 of RLP(h0)) so spec's validate_headers
+        # also succeeds. All other K-PRs pass on both headers.
+        from ethereum.crypto.hash import keccak256
+        def mk_hibit(number, timestamp, parent_hash):
+            return Header(
+                parent_hash=parent_hash,
+                ommers_hash=EMPTY_OMMER_HASH,
+                coinbase=b'\x00' * 20,
+                state_root=Hash32(b'\x00' * 32),
+                transactions_root=Hash32(b'\x00' * 32),
+                receipt_root=Hash32(b'\x00' * 32),
+                bloom=b'\x00' * 256,
+                difficulty=Uint(0),
+                number=Uint(number),
+                gas_limit=Uint(1000000),
+                gas_used=Uint(0),
+                timestamp=U256(timestamp),
+                extra_data=Bytes(b''),
+                prev_randao=Bytes32(b'\x00' * 32),
+                nonce=Bytes8(b'\x00' * 8),
+                base_fee_per_gas=Uint(0),
+                withdrawals_root=Hash32(b'\x00' * 32),
+                blob_gas_used=U64t(0),
+                excess_blob_gas=U64t(0),
+                parent_beacon_block_root=Hash32(b'\x00' * 32),
+                requests_hash=Hash32(b'\x00' * 32),
+                block_access_list_hash=Hash32(b'\x00' * 32),
+                slot_number=U64t(0),
+            )
+        h0 = mk_hibit(1, (1 << 63) - 1, Hash32(b'\x00' * 32))
+        h0_bytes = rlp.encode(h0)
+        h1 = mk_hibit(2, (1 << 63), keccak256(h0_bytes))
+        h1_bytes = rlp.encode(h1)
+        hdr_arg = (HeaderBL(h0_bytes), HeaderBL(h1_bytes))
     else:  # VALID_THREE
         # Three chained valid post-merge headers. parent_hash
         # chain so spec's validate_headers ALSO accepts
