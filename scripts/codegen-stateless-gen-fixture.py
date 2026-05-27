@@ -114,7 +114,7 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2', 'INVALID_NM_AT_2', 'VALID_TS_HIBIT'):
+if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2', 'INVALID_NM_AT_2', 'VALID_TS_HIBIT', 'VALID_REALISTIC_TWO'):
     # Multi-header fixtures (N=2 or N=3) exercising K229 and
     # K230 in their accept and reject branches. Each header
     # individually passes K290 / K291 / K240 / K278 / K277.
@@ -267,6 +267,56 @@ if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_
         h0 = mk(1, 1234); h1 = mk(2, 2000); h2 = mk(4, 3000)
         hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)),
                    HeaderBL(rlp.encode(h2)))
+    elif hdr_hex == 'VALID_REALISTIC_TWO':
+        # N=2 chained valid post-merge headers, BOTH with the
+        # full VALID_REALISTIC field cohort (every K-PR-ignored
+        # field populated with realistic non-zero bytes:
+        # parent_hash, coinbase, state_root, txs_root,
+        # receipt_root, bloom, prev_randao, base_fee, withdrawals
+        # root, excess_blob_gas, parent_beacon_block_root,
+        # requests_hash, block_access_list_hash, slot_number).
+        # parent_hash chained via keccak256(rlp(h0)) so spec's
+        # validate_headers ALSO accepts contiguity. All K-PR
+        # validators accept; both reach .Lsg_all_pass.
+        #
+        # Variety dimension: cross-product of "realistic field
+        # cohort" (was only ever N=1) and "chained 2-header"
+        # (was only ever minimal-field cohort). Exercises the
+        # K-PR pipeline + spec's validate_headers + the realistic
+        # RLP-encoded header size (~600 bytes each, ~1200 bytes
+        # of witness.headers section) simultaneously.
+        from ethereum.crypto.hash import keccak256
+        def mk_realistic(number, timestamp, parent_hash):
+            return Header(
+                parent_hash=parent_hash,
+                ommers_hash=EMPTY_OMMER_HASH,
+                coinbase=bytes.fromhex('11' * 20),
+                state_root=Hash32(bytes.fromhex('22' * 32)),
+                transactions_root=Hash32(bytes.fromhex('33' * 32)),
+                receipt_root=Hash32(bytes.fromhex('44' * 32)),
+                bloom=bytes.fromhex('55' * 256),
+                difficulty=Uint(0),
+                number=Uint(number),
+                gas_limit=Uint(1000000),
+                gas_used=Uint(0),
+                timestamp=U256(timestamp),
+                extra_data=Bytes(b''),
+                prev_randao=Bytes32(bytes.fromhex('66' * 32)),
+                nonce=Bytes8(b'\x00' * 8),
+                base_fee_per_gas=Uint(0x3b9aca00),  # 1 gwei
+                withdrawals_root=Hash32(bytes.fromhex('77' * 32)),
+                blob_gas_used=U64t(0),
+                excess_blob_gas=U64t(0x100000),
+                parent_beacon_block_root=Hash32(bytes.fromhex('88' * 32)),
+                requests_hash=Hash32(bytes.fromhex('99' * 32)),
+                block_access_list_hash=Hash32(bytes.fromhex('cc' * 32)),
+                slot_number=U64t(0x1234),
+            )
+        h0 = mk_realistic(1, 1234, Hash32(b'\x00' * 32))
+        h0_bytes = rlp.encode(h0)
+        h1 = mk_realistic(2, 2000, keccak256(h0_bytes))
+        h1_bytes = rlp.encode(h1)
+        hdr_arg = (HeaderBL(h0_bytes), HeaderBL(h1_bytes))
     elif hdr_hex == 'VALID_TS_HIBIT':
         # N=2 chained valid post-merge headers with timestamps
         # that STRADDLE the u64 sign-bit boundary:
