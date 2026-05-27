@@ -320,6 +320,17 @@ run_fixture "chain1_blob_realistic" 1                  0    ""           ""     
 # zero defaults. Reaches .Lsg_all_pass.
 run_fixture "chain1_valid_realistic" 1                 0    ""           ""                  ""    ""           ""           ""    "VALID_REALISTIC" || fail=1
 
+# Cross-product boundary fixture: all four numeric-bound K-PR
+# validators at their ACCEPT boundary simultaneously.
+#   * K291 extra_data length = 32        (== max)
+#   * K240 gas_used = 1000000            (== gas_limit)
+#   * K278 blob_gas_used = 786432        (== 6*131072, exact multiple)
+#   * K277 blob_gas_used = 786432        (== MAX_BLOB_GAS_PER_BLOCK)
+# If any K-PR had a subtle off-by-one in its <= vs <
+# comparator, the spec mismatch would surface here.
+# Reaches .Lsg_all_pass.
+run_fixture "chain1_valid_all_boundary" 1             0    ""           ""                  ""    ""           ""           ""    "VALID_ALL_BOUNDARY" || fail=1
+
 # Triple cross-product: witness.codes + public_keys + block_number.
 # witness.codes shifts chain_config_addr forward, block_number
 # drives the variable-length encoder, and public_keys padding
