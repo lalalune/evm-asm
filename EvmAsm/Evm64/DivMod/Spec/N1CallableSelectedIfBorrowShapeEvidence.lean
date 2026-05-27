@@ -319,4 +319,83 @@ theorem N1CallableSelectedIfBorrowShapeEvidence.ofAllTruePathSelectedIfBorrowSem
     a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
     (N1SelectedIfBorrowPathEvidence.ofAllTruePathEvidence hpath) hevidence
 
+/-- Build the bundled callable evidence from the public n=1 shape plus the
+    one-word remainder bounds that force the all-true path.
+
+    This is an intermediate public-wrapper bridge: callers no longer need to
+    expose the selected path package, while the selected-if-borrow semantic
+    evidence still carries the call/max/max/max branch facts that cannot be
+    derived from the all-true path alone. -/
+theorem N1CallableSelectedIfBorrowShapeEvidence.ofRemaindersLtSelectedIfBorrowSemanticEvidence
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a b : EvmWord)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 |||
+      b.getLimbN 3 ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0)
+    (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+    (hr3_lt :
+      EvmWord.val256
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN1R3 true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1.toNat)
+    (hr2_lt :
+      EvmWord.val256
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN1R2 true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1.toNat)
+    (hr1_lt :
+      EvmWord.val256
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN1R1 true true true
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <
+      (fullDivN1NormV
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1.toNat)
+    (hpath : N1AllTruePathCallback a b)
+    (hevidence : FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4 sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal) :
+    N1CallableSelectedIfBorrowShapeEvidence a b := by
+  exact N1CallableSelectedIfBorrowShapeEvidence.ofAllTruePathSelectedIfBorrowSemanticEvidence
+    sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+    (N1AllTruePathEvidence.ofRemaindersLt
+      a b hbnz hb3z hb2z hb1z hshift_nz hr3_lt hr2_lt hr1_lt hpath)
+    hevidence
+
 end EvmAsm.Evm64
