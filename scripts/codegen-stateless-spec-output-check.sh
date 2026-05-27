@@ -152,6 +152,15 @@ run_fixture "chain_zero"            0                       || fail=1
 run_fixture "chain_max_u32"         0xFFFFFFFF              || fail=1
 run_fixture "chain_max_u64"         0xFFFFFFFFFFFFFFFF      || fail=1
 
+# Sepolia testnet chain_id (11155111 = 0xAA36A7). Variety
+# dimension: a real-world public chain identifier with three
+# distinct non-zero low bytes (a7, 36, aa) and all-zero high
+# 5 bytes. Tests the encoder's two-SD chain_id split at
+# OUTPUT[37..40) (low 3 = a7 36 aa) and OUTPUT[40..45) (high 5
+# = 00 00 00 00 00) -- the seam at byte 39<->40 holds the
+# topmost non-zero chain_id byte.
+run_fixture "chain_sepolia"         11155111                || fail=1
+
 # Non-zero fork fixture -- exercises active_fork.fork passthrough.
 # One fixture suffices: the encoder pipes the raw u64 from x12 to
 # OUTPUT[49..57) without inspecting its value.
