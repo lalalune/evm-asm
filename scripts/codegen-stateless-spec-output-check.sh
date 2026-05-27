@@ -157,6 +157,13 @@ run_fixture "chain_max_u64"         0xFFFFFFFFFFFFFFFF      || fail=1
 # OUTPUT[49..57) without inspecting its value.
 run_fixture "chain1_fork1"          1                  1    || fail=1
 
+# Max valid ProtocolFork value -- amsterdam's ProtocolFork enum
+# has 5 entries (0..4). Only fork=1 was previously tested; this
+# adds the upper-bound case. The encoder writes the raw u64 at
+# OUTPUT[49..57) without inspecting its value; spec's
+# _ssz_to_fork_config maps the u64 to ProtocolFork(4).
+run_fixture "chain1_fork4"          1                  4    || fail=1
+
 # Non-empty witness.codes -- exercises the decoder's outer-offset
 # walk on a non-trivial input layout. The witness section grows by
 # one ByteList entry; the outer `chain_config` offset (read by
