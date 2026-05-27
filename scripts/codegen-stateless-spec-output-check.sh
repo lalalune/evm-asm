@@ -457,6 +457,17 @@ run_fixture "chain1_witheaders"     1                  0    ""           ""     
 # under maximum-witness-headers byte-budget.
 run_fixture "chain1_witheaders_2"   1                  0    ""           ""                  ""    ""           ""           ""    "$(printf 'aa%.0s' {1..32}):$(printf 'bb%.0s' {1..32})" || fail=1
 
+# Three witness.headers entries -- exercises the validator
+# pipeline's `.Lsg_bl` loop building sg_header_lengths for
+# N=3, and the K-PR iteration over 3 headers. Since the
+# decoder is now real (PR #6878), this fixture activates the
+# pipeline with s2=3; the lengths loop runs 3 times, then the
+# first validator (chain_validate_post_merge_full) fails RLP
+# parse on the first bogus header and falls through to
+# .Lsg_hash. Spec returns valid=False with chain_config echo;
+# ELF matches.
+run_fixture "chain1_witheaders_3"   1                  0    ""           ""                  ""    ""           ""           ""    "$(printf 'aa%.0s' {1..32}):$(printf 'bb%.0s' {1..32}):$(printf 'cc%.0s' {1..32})" || fail=1
+
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
 # codes + headers) carry one entry each; public_keys has one
