@@ -1,6 +1,7 @@
 import EvmAsm.Evm64.DivMod.CallableV4DivSelected
 import EvmAsm.Evm64.DivMod.CallableV4DivConcreteSelected
 import EvmAsm.Evm64.DivMod.Spec.N1CallableSelectedIfBorrowShapeEvidence
+import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidence
 
 namespace EvmAsm.Evm64
 
@@ -556,66 +557,6 @@ theorem evm_div_callable_v4_n2_stack_pre_to_callable_post_scratch_shape_selected
     hb3z hb2z hb1nz hshift_nz halign
     (N2CallableSelectedShapeEvidence.selectedCarry hevidence)
     (N2CallableSelectedShapeEvidence.arithmetic hevidence)
-
-/-- Bundled selected/reachable evidence for the N3 callable shape route.
-
-    This keeps the selected carry and arithmetic callbacks together, avoiding
-    any public dependency on the old universal `Carry2NzAll` package. -/
-abbrev N3CallableSelectedShapeEvidence (a b : EvmWord) : Prop :=
-  (∀ bltu_1 bltu_0,
-    isTrialN3V4_j1 bltu_1
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-    isTrialN3V4_j0 bltu_1 bltu_0
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-    fullDivN3SelectedCarryV4 bltu_1 bltu_0
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) ∧
-  (∀ bltu_1 bltu_0,
-    isTrialN3V4_j1 bltu_1
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-    isTrialN3V4_j0 bltu_1 bltu_0
-      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-    fullDivN3MulSubEqV4 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-      fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3))
-
-theorem N3CallableSelectedShapeEvidence.selectedCarry {a b : EvmWord}
-    (hevidence : N3CallableSelectedShapeEvidence a b) :
-    ∀ bltu_1 bltu_0,
-      isTrialN3V4_j1 bltu_1
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN3V4_j0 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      fullDivN3SelectedCarryV4 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
-  hevidence.1
-
-theorem N3CallableSelectedShapeEvidence.arithmetic {a b : EvmWord}
-    (hevidence : N3CallableSelectedShapeEvidence a b) :
-    ∀ bltu_1 bltu_0,
-      isTrialN3V4_j1 bltu_1
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      isTrialN3V4_j0 bltu_1 bltu_0
-        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) →
-      fullDivN3MulSubEqV4 bltu_1 bltu_0
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ∧
-        fullDivN3QuotientOverestimateV4 bltu_1 bltu_0
-          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
-          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) :=
-  hevidence.2
 
 /-- N3 DIV v4 callable wrapper deriving divisor nonzero from the n=3 shape
     while consuming only selected carry evidence for the actual path. -/
