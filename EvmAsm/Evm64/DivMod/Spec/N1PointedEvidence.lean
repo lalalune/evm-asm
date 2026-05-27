@@ -96,4 +96,11 @@ theorem N1PointedEvidence_iff_parts {a b : EvmWord} :
    fun ⟨hbranches, hpath, hword⟩ =>
     N1PointedEvidence.of_parts hbranches hpath hword⟩
 
+/-- `N1PointedEvidence` is by definition `N1CallableSelectedIfBorrowWordEvidence`,
+    so the iff is `Iff.rfl`. Stated explicitly so downstream callers can use
+    it as a rewrite target without remembering the underlying abbrev. -/
+theorem N1PointedEvidence_iff_callable {a b : EvmWord} :
+    N1PointedEvidence a b ↔ N1CallableSelectedIfBorrowWordEvidence a b :=
+  Iff.rfl
+
 end EvmAsm.Evm64
