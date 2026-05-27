@@ -166,7 +166,9 @@ def statelessGuestValidatorPipeline : String :=
   "  # PR-integration: header-validator pipeline\n" ++
   "  li sp, 0xa0050000\n" ++
   "  mv s2, x16                  # s2 = N\n" ++
-  "  mv s3, x17                  # s3 = section_ptr\n" ++
+  "  mv s3, x21                  # s3 = section_ptr (now from decoder's x21,\n" ++
+  "                              # which holds headers_addr; x17 is kept as\n" ++
+  "                              # SSZ_BASE for the encoder's bounded byte-copy)\n" ++
   "  mv s4, x14                  # s4 = section_len\n" ++
   "  beqz s2, .Lsg_all_pass      # N=0: skip validators\n" ++
   "  # Build sg_header_lengths[N]: convert N u32 inner-offset deltas\n" ++
@@ -255,12 +257,16 @@ def statelessGuestValidatorPipeline : String :=
   ".Lsg_fail_nm:   li a0, 0x16; j .Lsg_unimpl\n" ++
   ".Lsg_fail_rlp:  li a0, 0x17\n" ++
   ".Lsg_unimpl:\n" ++
-  "  li t0, 0xa0010000           # OUTPUT_ADDR\n" ++
-  "  li t1, 0xFEFEFEFEFEFEFEFE\n" ++
-  "  sd t1, 0(t0)\n" ++
-  "  sd a0, 8(t0)\n" ++
-  "  li t0, 0\n" ++
-  "  ecall                       # HALT (linux93 stub would also work)"
+  "  # Previously this block wrote the 0xFEFEFEFEFEFEFEFE unimplemented-\n" ++
+  "  # exit marker at OUTPUT[0..8) plus the REASON code at OUTPUT[8..16),\n" ++
+  "  # then halted with ECALL. That diverged from the spec's behaviour\n" ++
+  "  # for the same input shape (spec catches the validator exception\n" ++
+  "  # and returns valid=False with chain_config echo + empty NPR root).\n" ++
+  "  # Falling through to .Lsg_hash matches the spec: the encoder's\n" ++
+  "  # x11=0 writes valid=False to OUTPUT[32], .Lsg_hash stamps the\n" ++
+  "  # empty_npr_root constant at OUTPUT[0..32), and the codegen halt\n" ++
+  "  # stub takes over.\n" ++
+  "  j .Lsg_hash"
 
 def statelessGuestEpilogue : String :=
   statelessGuestValidatorPipeline ++ "\n" ++

@@ -205,6 +205,14 @@ theorem n4ShiftNzDispatcherBranchBoundsV4.addbackRuntimeBounds {a b : EvmWord}
   rw [n4ShiftNzDispatcherBranchBoundsV4_def] at hevidence
   exact hevidence.2.2
 
+theorem n4ShiftNzDispatcherBranchBoundsV4.of_parts {a b : EvmWord}
+    (hbranch : n4CallSkipBranchV4 a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_bounds : n4CallAddbackBeqRuntimeBounds a b) :
+    n4ShiftNzDispatcherBranchBoundsV4 a b := by
+  rw [n4ShiftNzDispatcherBranchBoundsV4_def]
+  exact ⟨hbranch, hcarry2, h_bounds⟩
+
 theorem n4ShiftNzDispatcherBranchBoundsV4.of_runtime_pred {a b : EvmWord}
     (hruntime : n4ShiftNzDispatcherRuntimeV4 a b)
     (hbranch : n4CallSkipBranchV4 a b) :
@@ -228,6 +236,32 @@ theorem n4ShiftNzDispatcherBranchRuntimeV4.addback {a b : EvmWord}
   rw [n4ShiftNzDispatcherBranchRuntimeV4_def]
   exact Or.inr ⟨hadd, hcarry2, h_bounds⟩
 
+theorem n4ShiftNzDispatcherRuntimeV4.of_parts {a b : EvmWord}
+    (hbranch : n4CallSkipRuntimeBranchV4 a b)
+    (hcarry2 : isAddbackCarry2NzN4CallV4Evm a b)
+    (h_bounds : n4CallAddbackBeqRuntimeBounds a b) :
+    n4ShiftNzDispatcherRuntimeV4 a b := by
+  rw [n4ShiftNzDispatcherRuntimeV4_def]
+  exact ⟨hbranch, hcarry2, h_bounds⟩
+
+theorem n4ShiftNzDispatcherRuntimeV4.callSkipRuntimeBranch {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeV4 a b) :
+    n4CallSkipRuntimeBranchV4 a b := by
+  rw [n4ShiftNzDispatcherRuntimeV4_def] at hruntime
+  exact hruntime.1
+
+theorem n4ShiftNzDispatcherRuntimeV4.addbackCarry2 {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeV4 a b) :
+    isAddbackCarry2NzN4CallV4Evm a b := by
+  rw [n4ShiftNzDispatcherRuntimeV4_def] at hruntime
+  exact hruntime.2.1
+
+theorem n4ShiftNzDispatcherRuntimeV4.addbackRuntimeBounds {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeV4 a b) :
+    n4CallAddbackBeqRuntimeBounds a b := by
+  rw [n4ShiftNzDispatcherRuntimeV4_def] at hruntime
+  exact hruntime.2.2
+
 theorem n4ShiftNzDispatcherRuntimeV4.of_branch_bounds {a b : EvmWord}
     (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
     n4ShiftNzDispatcherRuntimeV4 a b := by
@@ -250,6 +284,16 @@ theorem n4ShiftNzDispatcherBranchRuntimeV4_of_branch_bounds {a b : EvmWord}
     n4ShiftNzDispatcherBranchRuntimeV4 a b :=
   n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_pred
     (n4ShiftNzDispatcherRuntimeV4.of_branch_bounds hevidence)
+
+theorem n4ShiftNzDispatcherBranchBoundsV4.toRuntimeV4 {a b : EvmWord}
+    (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
+    n4ShiftNzDispatcherRuntimeV4 a b :=
+  n4ShiftNzDispatcherRuntimeV4.of_branch_bounds hevidence
+
+theorem n4ShiftNzDispatcherBranchBoundsV4.toBranchRuntime {a b : EvmWord}
+    (hevidence : n4ShiftNzDispatcherBranchBoundsV4 a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+  n4ShiftNzDispatcherBranchRuntimeV4_of_branch_bounds hevidence
 
 theorem n4ShiftNzDispatcherBranchHighDivEvidence.skip {a b : EvmWord}
     (hskip : isSkipBorrowN4CallV4Evm a b)
@@ -466,6 +510,57 @@ theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.of_parts {a b : EvmWord}
   rw [n4ShiftNzDispatcherRuntimeHighDivRawEvidence_def]
   exact ⟨hbranch, hcarry2, h_rhat_hi_zero, h_qhat_le_high_div, h_high_div_le_norm_plus_one⟩
 
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.callSkipRuntimeBranch {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4CallSkipRuntimeBranchV4 a b := by
+  rw [n4ShiftNzDispatcherRuntimeHighDivRawEvidence_def] at hruntime
+  exact hruntime.1
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.addbackCarry2 {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    isAddbackCarry2NzN4CallV4Evm a b := by
+  rw [n4ShiftNzDispatcherRuntimeHighDivRawEvidence_def] at hruntime
+  exact hruntime.2.1
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.addbackHighDivEvidence {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4CallAddbackBeqShiftHighDivEvidence a b :=
+  n4ShiftNzDispatcherRuntimeHighDivEvidence.addbackHighDivEvidence
+    (n4ShiftNzDispatcherRuntimeHighDivEvidence_of_raw hruntime)
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.addbackRuntimeBounds {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b)
+    (hadd : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqRuntimeBounds a b :=
+  n4ShiftNzDispatcherRuntimeHighDivEvidence.addbackRuntimeBounds
+    hb3nz hshift_nz
+    (n4ShiftNzDispatcherRuntimeHighDivEvidence_of_raw hruntime)
+    hadd
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.semanticHoldsV4 {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b)
+    (hadd : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4ShiftNzDispatcherRuntimeHighDivEvidence.semanticHoldsV4
+    hb3nz hshift_nz
+    (n4ShiftNzDispatcherRuntimeHighDivEvidence_of_raw hruntime)
+    hadd
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.semanticHolds {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b)
+    (hadd : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b :=
+  n4ShiftNzDispatcherRuntimeHighDivEvidence.semanticHolds
+    hb3nz hshift_nz
+    (n4ShiftNzDispatcherRuntimeHighDivEvidence_of_raw hruntime)
+    hadd
+
 theorem n4ShiftNzDispatcherBranchHighDivRawEvidence_of_runtime_raw {a b : EvmWord}
     (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
     n4ShiftNzDispatcherBranchHighDivRawEvidence a b := by
@@ -485,6 +580,64 @@ theorem n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_high_div_raw {a b : EvmWor
   n4ShiftNzDispatcherBranchRuntimeV4_of_high_div_raw_evidence
     hb3nz hshift_nz
     (n4ShiftNzDispatcherBranchHighDivRawEvidence_of_runtime_raw hruntime)
+
+theorem n4ShiftNzDispatcherBranchHighDivEvidence.toBranchRuntime {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivEvidence a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+  n4ShiftNzDispatcherBranchRuntimeV4_of_high_div_evidence
+    hb3nz hshift_nz hevidence
+
+theorem n4ShiftNzDispatcherBranchHighDivRawEvidence.toHighDivEvidence {a b : EvmWord}
+    (hevidence : n4ShiftNzDispatcherBranchHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchHighDivEvidence a b :=
+  n4ShiftNzDispatcherBranchHighDivEvidence_of_raw hevidence
+
+theorem n4ShiftNzDispatcherBranchHighDivRawEvidence.toBranchRuntime {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hevidence : n4ShiftNzDispatcherBranchHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+  n4ShiftNzDispatcherBranchRuntimeV4_of_high_div_raw_evidence
+    hb3nz hshift_nz hevidence
+
+theorem n4ShiftNzDispatcherRuntimeHighDivEvidence.toBranchHighDivEvidence {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivEvidence a b) :
+    n4ShiftNzDispatcherBranchHighDivEvidence a b :=
+  n4ShiftNzDispatcherBranchHighDivEvidence_of_runtime_high_div hruntime
+
+theorem n4ShiftNzDispatcherRuntimeHighDivEvidence.toBranchRuntime {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivEvidence a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+  n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_high_div
+    hb3nz hshift_nz hruntime
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.toHighDivEvidence {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherRuntimeHighDivEvidence a b :=
+  n4ShiftNzDispatcherRuntimeHighDivEvidence_of_raw hruntime
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.toBranchHighDivRawEvidence {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchHighDivRawEvidence a b :=
+  n4ShiftNzDispatcherBranchHighDivRawEvidence_of_runtime_raw hruntime
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.toBranchHighDivEvidence {a b : EvmWord}
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchHighDivEvidence a b :=
+  n4ShiftNzDispatcherBranchHighDivEvidence_of_raw
+    (n4ShiftNzDispatcherRuntimeHighDivRawEvidence.toBranchHighDivRawEvidence hruntime)
+
+theorem n4ShiftNzDispatcherRuntimeHighDivRawEvidence.toBranchRuntime {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hruntime : n4ShiftNzDispatcherRuntimeHighDivRawEvidence a b) :
+    n4ShiftNzDispatcherBranchRuntimeV4 a b :=
+  n4ShiftNzDispatcherBranchRuntimeV4_of_runtime_high_div_raw
+    hb3nz hshift_nz hruntime
 
 /-- n=4, shift-nonzero DIV v4 dispatcher over the call branch.
 
