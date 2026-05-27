@@ -320,6 +320,101 @@ theorem N1CallableSelectedIfBorrowShapeEvidence.selectedInputAndHdivs
       a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
       hbnz hevidence⟩
 
+/-- Word-equality variant of the selected-if-borrow N1 callable evidence.
+    This is a narrower boundary than `N1CallableSelectedIfBorrowShapeEvidence`:
+    callers carry the selected branch/path facts plus the quotient-word equality
+    used by the stack postcondition, without exposing the raw semantic-facts
+    conjunction. -/
+abbrev N1CallableSelectedIfBorrowWordEvidence (a b : EvmWord) : Prop :=
+  N1CallableSelectedIfBorrowBranchFacts a b ∧
+  N1SelectedIfBorrowPathEvidence a b ∧
+  fullDivN1CallMaxmaxmaxQuotientWordV4
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+      EvmWord.div a b
+
+theorem N1CallableSelectedIfBorrowWordEvidence.of_parts {a b : EvmWord}
+    (hbranches : N1CallableSelectedIfBorrowBranchFacts a b)
+    (hpath : N1SelectedIfBorrowPathEvidence a b)
+    (hword : fullDivN1CallMaxmaxmaxQuotientWordV4
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b) :
+    N1CallableSelectedIfBorrowWordEvidence a b :=
+  ⟨hbranches, hpath, hword⟩
+
+theorem N1CallableSelectedIfBorrowWordEvidence.branchFacts {a b : EvmWord}
+    (hevidence : N1CallableSelectedIfBorrowWordEvidence a b) :
+    N1CallableSelectedIfBorrowBranchFacts a b :=
+  hevidence.1
+
+theorem N1CallableSelectedIfBorrowWordEvidence.selectedPath {a b : EvmWord}
+    (hevidence : N1CallableSelectedIfBorrowWordEvidence a b) :
+    N1SelectedIfBorrowPathEvidence a b :=
+  hevidence.2.1
+
+theorem N1CallableSelectedIfBorrowWordEvidence.wordEq {a b : EvmWord}
+    (hevidence : N1CallableSelectedIfBorrowWordEvidence a b) :
+    fullDivN1CallMaxmaxmaxQuotientWordV4
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
+        EvmWord.div a b :=
+  hevidence.2.2
+
+theorem N1CallableSelectedIfBorrowWordEvidence.selectedInput
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a b : EvmWord)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : N1CallableSelectedIfBorrowWordEvidence a b) :
+    fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal := by
+  obtain ⟨hbltu3, hbltu2, hbltu1, hbltu0⟩ :=
+    N1CallableSelectedIfBorrowWordEvidence.branchFacts hevidence
+  exact fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses_of_bltu_selected
+    sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+    hbltu3 hbltu2 hbltu1 hbltu0
+    (N1SelectedIfBorrowPathEvidence.selectedCarryIfBorrowFacts
+      (N1CallableSelectedIfBorrowWordEvidence.selectedPath hevidence))
+
+theorem N1CallableSelectedIfBorrowWordEvidence.hdivs {a b : EvmWord}
+    (hevidence : N1CallableSelectedIfBorrowWordEvidence a b) :
+    FullDivN1CallMaxmaxmaxHdivs a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  exact fullDivN1CallMaxmaxmaxHdivs_of_word_eq
+    a b
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (N1CallableSelectedIfBorrowWordEvidence.wordEq hevidence)
+
+theorem N1CallableSelectedIfBorrowWordEvidence.selectedInputAndHdivs
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a b : EvmWord)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : N1CallableSelectedIfBorrowWordEvidence a b) :
+    fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal ∧
+    FullDivN1CallMaxmaxmaxHdivs a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  exact ⟨
+    N1CallableSelectedIfBorrowWordEvidence.selectedInput
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hevidence,
+    N1CallableSelectedIfBorrowWordEvidence.hdivs hevidence⟩
+
 theorem N1CallableSelectedIfBorrowShapeEvidence.ofAllTruePathSelectedIfBorrowSemanticEvidence
     (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
