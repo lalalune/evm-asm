@@ -427,6 +427,17 @@ run_fixture "chain1_kitchen_sink"   1                  0    "deadbeef"   "a1b2c3
 # encoder-only test).
 run_fixture "chain_max_all_max"     0xFFFFFFFFFFFFFFFF 0    ""           ""                  ""    "0xFFFFFFFFFFFFFFFF" "0xFFFFFFFFFFFFFFFF" "0xFFFFFFFFFFFFFFFF:0xFFFFFFFFFFFFFFFF:0xFFFFFFFFFFFFFFFF" || fail=1
 
+# Absolute extreme: kitchen-sink + max-values combined.
+# Every input slot is populated AND every numeric value is at
+# u64 max. Tests the encoder under simultaneous extremes:
+# maximum-shape SszForkConfig (113-byte output), maximum
+# byte-budget for chain_config_offset shift (full witness +
+# pk), and all-1 bits flowing through the bit-packed bytes
+# [32..48) and the bounded byte-copy [49..113). If any path
+# has a subtle bug with 0xFF bytes under input-layout drift,
+# this fixture catches it.
+run_fixture "chain_extreme"         0xFFFFFFFFFFFFFFFF 0    "deadbeef"   "a1b2c3d4e5f60718"  "04$(printf '%064d' 0)$(printf '%064d' 0)"    "0xFFFFFFFFFFFFFFFF" "0xFFFFFFFFFFFFFFFF" "0xFFFFFFFFFFFFFFFF:0xFFFFFFFFFFFFFFFF:0xFFFFFFFFFFFFFFFF"    "$(printf 'aa%.0s' {1..32})" || fail=1
+
 if [[ "$fail" -eq 0 ]]; then
   echo "==> PASS: all spec-output fixtures match the new SSZ schema"
   exit 0
