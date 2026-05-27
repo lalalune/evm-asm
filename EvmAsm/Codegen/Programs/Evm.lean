@@ -43,6 +43,7 @@ import EvmAsm.Evm64.Swap.Program
 import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.Noop
 
 namespace EvmAsm.Codegen
 
@@ -720,6 +721,13 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
     , tail := .advanceAndRet 1 } ]
 
+-- M18 stack-pop / push-zero / halt no-op handlers (haltHandlers,
+-- pushZeroHandlers, popPushZeroHandlers, copyNoopHandlers) live in
+-- `EvmAsm/Codegen/Programs/Noop.lean` — extracted to respect the
+-- file-size guard at the bottom of `Programs.lean`. They're brought
+-- into scope here by the `import EvmAsm.Codegen.Programs.Noop`
+-- statement near the top of this file.
+
 /-- M8 unsigned division opcodes. Both `evm_div` and `evm_mod` carry
     a 75-instruction `divK_div128_v4` subroutine appended after a
     NOP "exit PC" at body index 267; the `evmDivPatched` /
@@ -900,8 +908,9 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
   memoryHandlers ++ envHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
-  storageHandlers ++ divModHandlers ++ signedDivModHandlers ++
-  selfCallingHandlers ++ [stopHandler]
+  storageHandlers ++ haltHandlers ++ pushZeroHandlers ++
+  popPushZeroHandlers ++ copyNoopHandlers ++ divModHandlers ++
+  signedDivModHandlers ++ selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
   buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode

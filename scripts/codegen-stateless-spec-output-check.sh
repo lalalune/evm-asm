@@ -238,6 +238,7 @@ elif hdr_hex in (
     'INVALID_BLOB_OVERMAX',
     'VALID_EXTRA_BOUNDARY',
     'VALID_GAS_BOUNDARY',
+    'VALID_BLOB_BOUNDARY',
 ):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
@@ -281,6 +282,8 @@ elif hdr_hex in (
         blob_gas_used_v = 1
     elif hdr_hex == 'INVALID_BLOB_OVERMAX':
         blob_gas_used_v = 7 * 131072  # 917504
+    elif hdr_hex == 'VALID_BLOB_BOUNDARY':
+        blob_gas_used_v = 131072  # one full blob, GAS_PER_BLOB
     else:
         blob_gas_used_v = 0
     h = Header(
@@ -721,6 +724,15 @@ run_fixture "chain1_extra_at_boundary" 1   0    ""           ""                 
 # (#6897, gas_used=1,000,001 > gas_limit -> reject) to verify
 # the boundary is on the correct side: K240 accepts equality.
 run_fixture "chain1_gas_at_boundary" 1    0    ""           ""                  ""    ""           ""           ""    "VALID_GAS_BOUNDARY" || fail=1
+
+# Boundary-accept test for K278. Header has blob_gas_used =
+# GAS_PER_BLOB (131072), an exact multiple of GAS_PER_BLOB
+# AND <= MAX_BLOB_GAS_PER_BLOCK. K278 (multiple check)
+# accepts; K277 (under-max check) also accepts.
+# Pairs with chain1_invalid_blob_misalign (#6899, value=1 not
+# a multiple -> reject) to verify the K278 boundary is on
+# the correct side: K278 accepts a non-zero exact multiple.
+run_fixture "chain1_blob_at_boundary" 1   0    ""           ""                  ""    ""           ""           ""    "VALID_BLOB_BOUNDARY" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +

@@ -303,6 +303,42 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "tstore_tload_roundtrip"
       bytecode       := "0x60, 0x42, 0x60, 0x00, 0x5d, 0x60, 0x00, 0x5c, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M18 trivial no-op handlers (94.6% coverage milestone)
+    -- 20 opcodes across 4 builders: haltHandlers (4), pushZeroHandlers
+    -- (5), popPushZeroHandlers (6), copyNoopHandlers (5). One
+    -- representative test per builder + an INVALID smoke.
+  , -- PUSH1 0xff; PUSH1 0x11; PUSH1 0x22; RETURN
+    -- RETURN pops 2 (offset=0x22, size=0x11) and halts. Top of stack
+    -- after the pop = 0xff (the first PUSH). Expected: 0xff in low
+    -- limb. Confirms haltHandlers.RETURN routes 0xf3 + pops 2.
+    { name           := "return_pop2_halt"
+      bytecode       := "0x60, 0xff, 0x60, 0x11, 0x60, 0x22, 0xf3"
+      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0xff; PUSH1 0x42; INVALID — INVALID just halts; top of
+    -- stack = 0x42. Expected: 0x42 in low limb. Confirms
+    -- haltHandlers.INVALID routes 0xfe (instead of falling through to
+    -- the h_invalid catch-all unchanged).
+    { name           := "invalid_halt"
+      bytecode       := "0x60, 0xff, 0x60, 0x42, 0xfe"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+  , -- GAS; STOP — GAS pushes 0 (no gas metering); STOP halts.
+    -- Expected: 0 in low limb. Smoke test for pushZeroHandlers.
+    { name           := "gas_push_zero"
+      bytecode       := "0x5a, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0xab; BALANCE; STOP — BALANCE pops the pushed 0xab as
+    -- the address and overwrites with 0. Expected: 0 in low limb.
+    -- Smoke test for popPushZeroHandlers.
+    { name           := "balance_pop_push_zero"
+      bytecode       := "0x60, 0xab, 0x31, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x01; PUSH1 0x02; PUSH1 0x03; MCOPY; PUSH1 0x42; STOP
+    -- MCOPY pops 3 args (no-op copy); PUSH1 0x42 lands on the empty
+    -- stack. Expected: 0x42 in low limb. Smoke test for
+    -- copyNoopHandlers.
+    { name           := "mcopy_pop3"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x5e, 0x60, 0x42, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;
