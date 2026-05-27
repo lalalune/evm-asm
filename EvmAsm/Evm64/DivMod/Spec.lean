@@ -87,6 +87,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2CallableSelectedShapeEvidenceCanonicalIff
 import EvmAsm.Evm64.DivMod.Spec.N2CanonicalPointedEvidence
 import EvmAsm.Evm64.DivMod.Spec.N2SelectedQuotientHdivsExistsCanonical
 import EvmAsm.Evm64.DivMod.Spec.N2HdivsAtCanonical
+import EvmAsm.Evm64.DivMod.Spec.N2HdivsAtCanonicalPointedEvidence
 import EvmAsm.Evm64.DivMod.Spec.BzeroV4ExactCallable
 import EvmAsm.Evm64.DivMod.Spec.ModBzeroV4Callable
 import EvmAsm.Evm64.DivMod.Spec.BzeroV4ExactFrame
