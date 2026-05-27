@@ -15,6 +15,7 @@ import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.And.Program
 import EvmAsm.Evm64.Byte.Program
 import EvmAsm.Evm64.Calldata.SizeProgram
+import EvmAsm.Evm64.ControlFlow.Program
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
@@ -549,6 +550,49 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     , body    := EvmAsm.Evm64.Calldata.evm_calldatasize .x20 .x15
     , tail    := .advanceAndRet 1 } ]
 
+/-- M14 / M15 control-flow opcodes.
+
+    - **JUMPDEST (0x5b, M14)** — no-op marker. Empty body +
+      `.advanceAndRet 1` tail.
+    - **JUMP (0x56, M15)** — pops dest, writes `x10 := x21 + dest`.
+      Tail is `.custom "  ret"`; the body has already written `x10`,
+      so the dispatcher's next loop iteration reads the jump-target
+      byte. No `.advanceAndRet` (would over-advance by 1).
+    - **JUMPI (0x57, M15)** — pops dest + cond; if cond ≠ 0 writes
+      `x10 := x21 + dest`, else advances `x10` by 1 in the body.
+      Tail is `.custom "  ret"` — body handles both branches.
+    - **PC (0x58, M15)** — pushes `x10 - x21` as a 256-bit word
+      with the value in the low limb. Tail is `.advanceAndRet 1`.
+
+    All three M15 handlers consume the dispatcher's preserved
+    code-base register `x21` (set in the prologue via
+    `la x21, evm_code` / `li x21, 0x40000010`). The scratch
+    registers `x14`/`x15`/`x16` are caller-saved per the existing
+    convention.
+
+    **M15 known limitation**: JUMP / JUMPI do NOT validate the
+    destination is a JUMPDEST byte. A spec-compliant EVM rejects
+    invalid jumps; ours unconditionally follows them. Trusted test
+    programs only jump to real JUMPDESTs. A follow-on PR will
+    inline the `LBU + BEQ 0x5b` check. -/
+def controlFlowHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_JUMPDEST"
+    , opcodes := [0x5b]
+    , body    := []
+    , tail    := .advanceAndRet 1 }
+  , { label := "h_JUMP"
+    , opcodes := [0x56]
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jump .x21 .x14
+    , tail    := .custom "  ret" }
+  , { label := "h_JUMPI"
+    , opcodes := [0x57]
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x14 .x15 .x16
+    , tail    := .custom "  ret" }
+  , { label := "h_PC"
+    , opcodes := [0x58]
+    , body    := EvmAsm.Evm64.ControlFlow.evm_pc .x21 .x14
+    , tail    := .advanceAndRet 1 } ]
+
 /-- M8 unsigned division opcodes. Both `evm_div` and `evm_mod` carry
     a 75-instruction `divK_div128_v4` subroutine appended after a
     NOP "exit PC" at body index 267; the `evmDivPatched` /
@@ -727,8 +771,9 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ envHandlers ++ calldataHandlers ++ divModHandlers ++
-  signedDivModHandlers ++ selfCallingHandlers ++ [stopHandler]
+  memoryHandlers ++ envHandlers ++ calldataHandlers ++
+  controlFlowHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
   buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode

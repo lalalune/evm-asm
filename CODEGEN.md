@@ -40,9 +40,9 @@ untouched. Generated artifacts go in `gen-out/` (gitignored).
 | `EvmAsm/Codegen/Layout.lean` | `HaltConv` enum, halt stubs, `_start` preamble, `.option norvc`, `MEM_START`/`MEM_END` constants, `BuildUnit` struct + `emitBuildUnit`/`emitDataLabel` helpers. |
 | `EvmAsm/Codegen/Dispatch.lean` | M5b dispatcher scaffolding: `OpcodeHandlerSpec` (optional `preBody` for x10-clobbering handlers + optional `postBodyLabel` for M9's trampoline pattern) + `HandlerTail` types, `emitDispatcherPrologue`/`Epilogue`/`DataSection` and `buildDispatchUnit` helpers. M8.5 adds the parallel runtime-bytecode helpers (`emitRuntimeDispatcherPrologue` / `emitRuntimeDispatcherDataSection` / `buildRuntimeDispatchUnit`) that read bytecode from `INPUT_ADDR + INPUT_DATA_OFFSET` at runtime. Pure (no IO). |
 | `EvmAsm/Codegen/Programs.lean` | `BuildUnit` lookup hub: `lookupProgram`, `knownProgramNames`, plus the `statelessGuestUnit` build target. Imports every `BuildUnit` defined under `Programs/`. The actual M5b opcode-handler registry (`tinyInterpRegistry`) and the `BuildUnit`s for `evm_add` / `evm_div` / `evm_mod` / `input_echo` / `runtime_dispatcher` / `tiny_interp_*` now live in `Programs/Evm.lean` (see next row). |
-| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `envHandlers` (13 simple environment opcodes ADDRESS/CALLER/.../BASEFEE, M12), `calldataHandlers` (CALLDATASIZE, M13), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable, M10), and `stopHandler`. Total: **107 wired opcodes**. Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
+| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `envHandlers` (13 simple environment opcodes ADDRESS/CALLER/.../BASEFEE, M12), `calldataHandlers` (CALLDATASIZE, M13), `controlFlowHandlers` (JUMPDEST from M14; JUMP/JUMPI/PC added in M15), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable, M10), and `stopHandler`. Total: **111 wired opcodes**. Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
 | `EvmAsm/Codegen/Proofs/` | Codegen-proofs scaffolding (post-M10). `RegistryInvariants.lean` (Phase 1) — 6 `decide`-checked theorems about `tinyInterpRegistry`'s structural well-formedness (Nodup on opcodes/labels, byte bounds, jump-table coverage). `HandlerSpecs.lean` (Phase 4) — reusable `cleanRetHandlerSpec` template + **13 concrete handler-level `cpsTripleWithin` instances** for clean-shape singletons (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT). Phases 2, 3, 5 + the remaining Phase 4 instances are still future work. |
-| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**38 cases** as of M13). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
+| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**44 cases** as of M15). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
 | `EvmAsm/Codegen/Cli.lean` | Argument parsing (`--program`, `--test-case`, `--list-test-cases`, `--halt`, `--out`, `--asm-only`). |
 | `EvmAsm/Codegen/Driver.lean` | `IO`: shells out to `as`/`ld` if available; `--asm-only` for CI without the cross toolchain. |
 | `Main.lean` | Already exists as `import EvmAsm`; extend to call `EvmAsm.Codegen.Cli.main`. |
@@ -821,17 +821,114 @@ PASS. `scripts/check-progress.sh` exits 0. Legacy
 `scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing scripts
 unchanged.
 
+### M14 — JUMPDEST (control-flow no-op marker) — **DONE (2026-05-27)**
+
+Wires JUMPDEST (0x5b) via a new `controlFlowHandlers` builder.
+Smallest possible PR: an empty body (`body := []`) + the standard
+`.advanceAndRet 1` tail. JUMPDEST is the EVM no-op marker that
+JUMP/JUMPI use as their valid-target check; M14 makes the
+dispatcher route 0x5b correctly so it stops short-circuiting to
+`h_invalid`. M15 will extend `controlFlowHandlers` with JUMP /
+JUMPI / PC under the same umbrella.
+
+**Delivered:**
+- `EvmAsm/Codegen/Programs/Evm.lean` — new `controlFlowHandlers`
+  list with one record (`h_JUMPDEST`, opcode `0x5b`, `body := []`,
+  `tail := .advanceAndRet 1`) inserted into `tinyInterpRegistry`
+  between `calldataHandlers` and `divModHandlers`. The empty-body
+  emission path is already exercised by `stopHandler` — no
+  dispatcher changes needed.
+- `EvmAsm/Codegen/Tests/Cases.lean` — one new case
+  `jumpdest_basic` (bytecode `0x5b 0x60 0x42 0x00`: JUMPDEST; PUSH1
+  0x42; STOP). Confirms JUMPDEST advances `x10` by 1 without
+  disturbing the stack and PUSH1 lands 0x42 on the EVM stack as
+  expected. Total cases: 38 → 39.
+- `EvmAsm/Codegen/Proofs/RegistryInvariants.lean` — counts bumped
+  107 → 108.
+
+**Strategic note.** M14 by itself has no semantic effect (JUMPDEST
+is a no-op for the dispatcher), but it eliminates one of the most
+common "INVALID opcode" failures bytecode-test runners hit:
+JUMPDEST appears in every EVM contract that uses loops. M15
+(JUMP / JUMPI / PC) closes the control-flow loop.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 39 cases
+PASS. `scripts/check-progress.sh` exits 0. Legacy
+`scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing scripts
+unchanged.
+
+### M15 — JUMP / JUMPI / PC (control-flow design surface) — **DONE (2026-05-27)**
+
+Closes the control-flow loop: extends `controlFlowHandlers` with
+**JUMP (0x56), JUMPI (0x57), PC (0x58)**. With M15 the dispatcher
+can run non-trivial EVM bytecode (loops, conditionals, PC-aware
+computation). Lifts wired opcode count **108 → 111** (74.5% of the
+149-byte EVM space).
+
+**Delivered:**
+
+- **New verified file `EvmAsm/Evm64/ControlFlow/Program.lean`**
+  with three parametric Programs:
+  - `evm_pc codeBaseReg tmpReg` (6 instructions) — `pc = x10 -
+    codeBaseReg`, pushed as a 256-bit word.
+  - `evm_jump codeBaseReg destReg` (3 instructions) — `x10 :=
+    codeBaseReg + dest`. Tail is `.custom "  ret"`; no advance.
+  - `evm_jumpi codeBaseReg destReg condReg tmpReg`
+    (13 instructions) — OR-combines the 4 cond limbs to detect
+    nonzero; `BEQ +12` skips the jump path (lands at fall-through
+    `ADDI x10, x10, 1`), `JAL +8` skips the fall-through on the
+    cond-nonzero path (lands at the tail's `ret`).
+- **`EvmAsm/Codegen/Dispatch.lean`**: dispatcher prologue (both
+  `.data`-baked and runtime-bytecode variants) gains
+  `la x21, evm_code` / `li x21, 0x40000010` — the **preserved
+  code-base register**. `x21` was audited the same way `x20` was
+  for M12 (zero references in `EvmAsm/Evm64/*/Program.lean`, zero
+  uses by any existing handler `preBody`/`tail`).
+- **`EvmAsm/Codegen/Programs/Evm.lean`**: `controlFlowHandlers`
+  grows from 1 → 4 entries. JUMP/JUMPI use `.custom "  ret"`
+  tails (body has already written `x10`); PC uses
+  `.advanceAndRet 1`.
+- **`EvmAsm/Codegen/Tests/Cases.lean`**: 5 new cases —
+  `pc_at_zero`, `pc_after_push`, `jump_forward`, `jumpi_taken`,
+  `jumpi_not_taken`. Total 39 → 44.
+- **`EvmAsm/Codegen/Proofs/RegistryInvariants.lean`**: counts
+  bumped 108 → 111.
+
+**Known limitation: no JUMPDEST-validity check.** The verified
+bodies in this PR unconditionally follow the popped destination.
+A spec-compliant EVM rejects invalid jumps; ours doesn't. Trusted
+test programs all jump to real JUMPDEST bytes. A follow-on PR
+will inline the `LBU + BEQ 0x5b` check.
+
+**Other limitations** (same trust model):
+- 256-bit `dest` is truncated to its low 64 bits. EVM jumps with
+  `dest >= 2^64` are technically invalid; trusted programs never
+  go there.
+- Out-of-bounds `dest` reads beyond the bytecode region into
+  `.data` (stack, memory, env, jump table). The dispatcher's next
+  iteration would read whatever byte is there. Same trust caveat.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 44
+cases PASS. `scripts/check-progress.sh` exits 0. Legacy
+`scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing
+scripts unchanged.
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
 emission unreadable. M11 (SHL + SAR) shipped 2026-05-26; M12
 (13 simple environment opcodes via `envHandlers`) shipped 2026-05-26;
-M13 (CALLDATASIZE via `calldataHandlers`) shipped 2026-05-26. EXP
-remains deferred pending upstream callee-saved register variants;
-MSIZE deferred pending issue #99 slices 1–5; BLOBHASH/BLOBBASEFEE
-pending `EvmEnv` struct extension.
+M13 (CALLDATASIZE via `calldataHandlers`) shipped 2026-05-26;
+M14 (JUMPDEST via `controlFlowHandlers`) shipped 2026-05-27;
+M15 (JUMP/JUMPI/PC into `controlFlowHandlers`) shipped 2026-05-27.
+EXP remains deferred pending upstream callee-saved register
+variants; MSIZE deferred pending issue #99 slices 1–5;
+BLOBHASH/BLOBBASEFEE pending `EvmEnv` struct extension;
+JUMPDEST-validity check tracked as the next follow-on slice.
 
 ## Tricky bits / open questions
 
@@ -1006,6 +1103,27 @@ pending `EvmEnv` struct extension.
   **512 bytes** to cover all `Environment/Layout.lean` field offsets
   up to `returnDataSizeOff = 440` + 8 with slack. Registry-invariants
   counts bumped 106 → 107.
+- **M14.** ✅ `scripts/codegen-opcodes-runtime-check.sh` exits 0 with
+  **39 test cases** PASS (validated 2026-05-27). JUMPDEST (0x5b)
+  wired via new `controlFlowHandlers` builder. Empty-body handler
+  (`body := []`) + `.advanceAndRet 1` tail — same emission path as
+  `stopHandler`. No dispatcher changes; no new file; no new
+  `HandlerTail` variant. Registry-invariants counts bumped 107 →
+  108. M15 will extend `controlFlowHandlers` with JUMP / JUMPI / PC.
+- **M15.** ✅ `scripts/codegen-opcodes-runtime-check.sh` exits 0 with
+  **44 test cases** PASS (validated 2026-05-27). JUMP (0x56),
+  JUMPI (0x57), PC (0x58) wired via new verified Programs in
+  `EvmAsm/Evm64/ControlFlow/Program.lean` (`evm_pc` 6 instr,
+  `evm_jump` 3 instr, `evm_jumpi` 13 instr — the JUMPI body uses
+  `BEQ +12` to skip the jump path on cond=0 and `JAL +8` to skip
+  the fall-through on cond≠0). Dispatcher prologue gains
+  `la x21, evm_code` / `li x21, 0x40000010` — `x21` is the
+  preserved code-base register, audited free across all verified
+  bodies and existing handlers. JUMP/JUMPI use `.custom "  ret"`
+  tails (body writes `x10` directly); PC uses `.advanceAndRet 1`.
+  Known limitation: no JUMPDEST-validity check — invalid jumps
+  follow garbage. Tracked as the next follow-on slice.
+  Registry-invariants counts bumped 108 → 111.
 - **Codegen-proofs Phase 1.** ✅ `lake build` exits 0 (validated
   2026-05-21). New file `EvmAsm/Codegen/Proofs/RegistryInvariants.lean`
   carries 6 kernel-checked theorems about `tinyInterpRegistry`:

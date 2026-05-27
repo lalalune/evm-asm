@@ -125,9 +125,17 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
     `EvmAsm/Evm64/*/Program.lean` references it AND no existing
     handler `preBody` writes to it — the M8/M9/M10 DIV/MOD/SDIV/
     SMOD/ADDMOD handlers all save `x10` to `x14`, so `x14` is
-    NOT safe as a permanent dispatcher register. -/
+    NOT safe as a permanent dispatcher register.
+
+    `x21` is added in M15 for the control-flow opcodes
+    (PC, JUMP, JUMPI). It holds the **initial value of `x10`** at
+    `_start` — the EVM code base. PC computes `pc = x10 - x21`;
+    JUMP/JUMPI compute `target = x21 + dest`. `x21` is audited the
+    same way `x20` was: zero references across `EvmAsm/Evm64/*/Program.lean`
+    and zero uses by any existing handler `preBody`/`tail`. -/
 def emitDispatcherPrologue : String :=
   "  la x10, evm_code\n" ++
+  "  la x21, evm_code\n" ++       -- M15: preserved code base (for PC, JUMP, JUMPI)
   "  la x12, evm_stack_top\n" ++
   "  la x13, evm_memory\n" ++
   "  la x20, evm_env\n" ++
@@ -214,6 +222,7 @@ def emitDispatcherDataSection
     `INPUT_ADDR + INPUT_DATA_OFFSET` in `Programs.lean`. -/
 def emitRuntimeDispatcherPrologue : String :=
   "  li x10, 0x40000010\n" ++   -- INPUT_ADDR + INPUT_DATA_OFFSET
+  "  li x21, 0x40000010\n" ++   -- M15: preserved code base (mirrors x10 init)
   "  la x12, evm_stack_top\n" ++
   "  la x13, evm_memory\n" ++
   "  la x20, evm_env\n" ++       -- M12: env-region base (ADDRESS, CALLER, …)
