@@ -239,6 +239,7 @@ elif hdr_hex in (
     'VALID_EXTRA_BOUNDARY',
     'VALID_GAS_BOUNDARY',
     'VALID_BLOB_BOUNDARY',
+    'VALID_BLOB_MAX_BOUNDARY',
 ):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
@@ -284,6 +285,8 @@ elif hdr_hex in (
         blob_gas_used_v = 7 * 131072  # 917504
     elif hdr_hex == 'VALID_BLOB_BOUNDARY':
         blob_gas_used_v = 131072  # one full blob, GAS_PER_BLOB
+    elif hdr_hex == 'VALID_BLOB_MAX_BOUNDARY':
+        blob_gas_used_v = 6 * 131072  # 786432 = MAX_BLOB_GAS_PER_BLOCK
     else:
         blob_gas_used_v = 0
     h = Header(
@@ -733,6 +736,20 @@ run_fixture "chain1_gas_at_boundary" 1    0    ""           ""                  
 # a multiple -> reject) to verify the K278 boundary is on
 # the correct side: K278 accepts a non-zero exact multiple.
 run_fixture "chain1_blob_at_boundary" 1   0    ""           ""                  ""    ""           ""           ""    "VALID_BLOB_BOUNDARY" || fail=1
+
+# Boundary-accept test for K277. Header has blob_gas_used =
+# 6 * GAS_PER_BLOB = 786432 = MAX_BLOB_GAS_PER_BLOCK exactly.
+# K278 accepts (exact multiple of 131072); K277 accepts (==
+# max, not strictly less). Pairs with chain1_invalid_blob_
+# overmax (#6901, value = 7*131072 > max -> reject).
+#
+# Completes the accept/reject boundary coverage for all four
+# numeric-bound K-PR validators:
+#   K291: 32 (accept,  #6916) / 33 (reject, #6893)
+#   K240: == (accept,  #6920) / +1 (reject, #6897)
+#   K278:  131072 (accept, #6923) / 1 (reject, #6899)
+#   K277: 786432 (accept, this PR) / 917504 (reject, #6901)
+run_fixture "chain1_blob_max_at_boundary" 1 0  ""           ""                  ""    ""           ""           ""    "VALID_BLOB_MAX_BOUNDARY" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
