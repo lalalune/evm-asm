@@ -131,3 +131,4 @@ import EvmAsm.Evm64.DivMod.Spec.N2MaxBranchShapeOnly
 import EvmAsm.Evm64.DivMod.Spec.N3BltBranchShapeOnly
 import EvmAsm.Evm64.DivMod.Spec.N2BltBranchShapeOnly
 import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
+import EvmAsm.Evm64.DivMod.Spec.BzeroPublicPost
