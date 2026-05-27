@@ -134,3 +134,4 @@ import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
 import EvmAsm.Evm64.DivMod.Spec.BzeroPublicPost
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffold
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalCanonical
+import EvmAsm.Evm64.DivMod.Spec.UnconditionalCanonicalFramed
