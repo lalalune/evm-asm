@@ -140,36 +140,68 @@ def read_chain_id : Program :=
   ADD .x13 .x12 .x13 ;;
   LD .x10 .x13 0
 
-/-- Stub: leave `x11 = 0` (the validator pipeline downstream sets
-    OUTPUT[32] := 1 if all checks pass; for the new-schema decode
-    we don't yet walk `witness.headers`, so we set `x11 = 0` and
-    let the downstream override decide).
+/-- Walk the SSZ outer offset table + witness inner offsets to
+    locate the `witness.headers` section. Leaves three registers
+    set up for the validator-pipeline epilogue:
 
-    Also stub the headers-section pointers so the validator
-    pipeline takes the N=0 fast path:
+      x14 = headers_section_length (in bytes)
+      x21 = headers_addr (start of the headers list in memory)
+      x17 = SSZ_BASE (preserved for the encoder's bounded
+            byte-copy, which reads outer.offsets[3] there).
 
-      x14 = 0 (headers_byte_length)
-      x16 = 0 (header_count)  [set by `decode_header_count`]
-      x17 = INPUT_BASE + INPUT_DATA_OFFSET + SCHEMA_ID_SIZE
-            (harmless: validator skips when x16 == 0)
+    Also sets `x11 = 0` (the legacy validation-bit stub; the
+    pipeline downstream may overwrite OUTPUT[32] independently if
+    a validator chooses to set the success flag).
 
-    Walking the new-schema 4-offset outer table + variable witness
-    section's headers list is a follow-up. Clobbers `x11`, `x14`,
-    `x15`, `x17` (preserves `x12` so the fork value carried over
-    from `read_active_fork` survives into the encoder). -/
+    The witness section starts at `SSZ_BASE + outer.offsets[1]`
+    and ends at `SSZ_BASE + outer.offsets[2]` (= chain_config
+    start). Its first 12 bytes are the inner u32 offsets for the
+    `state`, `codes`, `headers` lists; the third (`+8`) is
+    `headers_offset_in_witness`. Headers section length is
+    therefore `witness_length - headers_offset_in_witness`. For
+    empty witness (all 3 lists empty) the headers section is
+    empty (length 0).
+
+    Clobbers `x11`, `x14`, `x15`, `x17`, `x21`, `x22`, `x23`. -/
 def decode_validation_bit : Program :=
   ADDI .x11 .x0 0 ;;
-  ADDI .x14 .x0 0 ;;
   LI .x15 INPUT_BASE ;;
-  ADDI .x17 .x15 (INPUT_DATA_OFFSET + SCHEMA_ID_SIZE)
+  ADDI .x17 .x15 (INPUT_DATA_OFFSET + SCHEMA_ID_SIZE) ;;
+  -- x22 = witness_addr = SSZ_BASE + outer.offsets[1]
+  LWU .x22 .x17 4 ;;
+  ADD .x22 .x17 .x22 ;;
+  -- x23 = witness_end_addr = SSZ_BASE + outer.offsets[2]
+  LWU .x23 .x17 8 ;;
+  ADD .x23 .x17 .x23 ;;
+  -- x14 = witness_length (temporary use)
+  SUB .x14 .x23 .x22 ;;
+  -- x21 = headers_offset_in_witness (third inner u32 of witness)
+  LWU .x21 .x22 8 ;;
+  -- x14 = headers_section_length = witness_length - headers_offset
+  SUB .x14 .x14 .x21 ;;
+  -- x21 = headers_addr = witness_addr + headers_offset_in_witness
+  ADD .x21 .x22 .x21
 
-/-- Stub: leaves `x16 = 0`. The validator pipeline downstream
-    treats N=0 as vacuous-pass.
+/-- Compute `N = number of headers` from the witness.headers
+    list and leave it in `x16`. Reads the first u32 of the
+    headers section: for a non-empty list, the first inner
+    offset equals `4 * N` (each subsequent entry's start byte
+    offset, with the first at byte 4 in a 1-element list, byte
+    8 in a 2-element list, etc.). For an empty list the section
+    is 0 bytes long, so we test `x14 == 0` first and short-
+    circuit to `N = 0`.
 
-    The real header-count walk through the new-schema variable
-    witness layout is a follow-up. -/
+    Preconditions (left by `decode_validation_bit`):
+      x14 = headers_section_length
+      x21 = headers_addr
+
+    Clobbers `x16`. -/
 def decode_header_count : Program :=
-  ADDI .x16 .x0 0
+  BEQ .x14 .x0 16 ;;           -- empty: jump to ADDI x16 0
+  LWU .x16 .x21 0 ;;           -- first inner u32 (= 4*N)
+  SRLI .x16 .x16 2 ;;          -- N = first/4
+  JAL .x0 8 ;;                 -- non-empty done: skip past empty case
+  ADDI .x16 .x0 0              -- empty case: N=0
 
 /-- Byte offset of `offset_active_fork` (u32 LE) within
     `SszChainConfig`. `SszChainConfig` is the variable-size
