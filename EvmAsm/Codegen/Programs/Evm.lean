@@ -642,6 +642,84 @@ def hashHandlers : List OpcodeHandlerSpec :=
         "  addi x10, x10, 1\n" ++       -- advance PC by 1
         "  j .dispatch_loop") } ]
 
+/-- M17 LOG opcodes (LOG0..LOG4). Wired as **stack-pop no-ops** —
+    the EVM emits a log event that affects the receipt root, but
+    NOT the OUTPUT_ADDR our dispatcher surfaces, so for codegen
+    we just consume the right number of stack words and advance.
+
+    Stack pop counts (per the EVM Yellow Paper): LOGn pops
+    `(2 + n)` 256-bit words = offset, size, and `n` topics. So
+    pop bytes = `(2 + n) × 32`: 64, 96, 128, 160, 192 for n=0..4.
+
+    All entries share the standard `.advanceAndRet 1` tail (PC
+    advances by 1 byte; ret). The body is a single
+    `ADDI .x12 .x12 popBytes` that moves the EVM stack ptr UP
+    (EVM stack grows DOWN, so increasing x12 pops).
+
+    **Known limitation**: LOG events are dropped (no receipt log
+    list). Spec-compliant emission is deferred until the host
+    gets a log syscall (Zisk's `zkvm_accelerators.h` doesn't
+    have one today). Trusted test programs that don't depend on
+    log persistence continue running correctly. -/
+def logHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_LOG0", opcodes := [0xa0]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
+    , tail := .advanceAndRet 1 }
+  , { label := "h_LOG1", opcodes := [0xa1]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
+    , tail := .advanceAndRet 1 }
+  , { label := "h_LOG2", opcodes := [0xa2]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 128)
+    , tail := .advanceAndRet 1 }
+  , { label := "h_LOG3", opcodes := [0xa3]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 160)
+    , tail := .advanceAndRet 1 }
+  , { label := "h_LOG4", opcodes := [0xa4]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
+    , tail := .advanceAndRet 1 } ]
+
+/-- M17 storage opcodes (SLOAD/SSTORE/TLOAD/TSTORE). Wired as
+    **no-op stack ops** under an "empty storage" semantic — storage
+    always reads 0; writes are dropped. Same rationale as M17's
+    LOG handlers: no Zisk storage syscall exists yet, so a
+    spec-compliant ECALL bridge has nowhere to call.
+
+    - **SLOAD (0x54)** / **TLOAD (0x5c)**: pop a 256-bit key, push
+      a 256-bit value (= 0). Net stack delta = 0; we just
+      overwrite the top word (at `[x12..x12+31]`) with 32 zero
+      bytes via 4 × `SD .x12 .x0 …`.
+    - **SSTORE (0x55)** / **TSTORE (0x5d)**: pop 2 words (key,
+      value). Net stack delta = +64; `ADDI .x12 .x12 64`.
+
+    EVM stack ordering for STORE: `μ_s[0] = key, μ_s[1] = value`
+    (key on top, value below). For our no-op implementation we
+    drop both regardless of order.
+
+    **Known limitation**: writes are dropped, reads return 0.
+    Trusted programs that don't depend on storage persistence
+    within a transaction continue running. Spec-compliant
+    storage is deferred to a future PR once the host gains
+    storage syscalls. -/
+def storageHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_SLOAD", opcodes := [0x54]
+    , body := SD .x12 .x0 0 ;;
+              SD .x12 .x0 8 ;;
+              SD .x12 .x0 16 ;;
+              SD .x12 .x0 24
+    , tail := .advanceAndRet 1 }
+  , { label := "h_SSTORE", opcodes := [0x55]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
+    , tail := .advanceAndRet 1 }
+  , { label := "h_TLOAD", opcodes := [0x5c]
+    , body := SD .x12 .x0 0 ;;
+              SD .x12 .x0 8 ;;
+              SD .x12 .x0 16 ;;
+              SD .x12 .x0 24
+    , tail := .advanceAndRet 1 }
+  , { label := "h_TSTORE", opcodes := [0x5d]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
+    , tail := .advanceAndRet 1 } ]
+
 /-- M8 unsigned division opcodes. Both `evm_div` and `evm_mod` carry
     a 75-instruction `divK_div128_v4` subroutine appended after a
     NOP "exit PC" at body index 267; the `evmDivPatched` /
@@ -821,8 +899,9 @@ def stopHandler : OpcodeHandlerSpec :=
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
   memoryHandlers ++ envHandlers ++ calldataHandlers ++
-  controlFlowHandlers ++ hashHandlers ++ divModHandlers ++
-  signedDivModHandlers ++ selfCallingHandlers ++ [stopHandler]
+  controlFlowHandlers ++ hashHandlers ++ logHandlers ++
+  storageHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
   buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode

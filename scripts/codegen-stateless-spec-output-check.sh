@@ -237,6 +237,7 @@ elif hdr_hex in (
     'INVALID_BLOB_MISALIGN',
     'INVALID_BLOB_OVERMAX',
     'VALID_EXTRA_BOUNDARY',
+    'VALID_GAS_BOUNDARY',
 ):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
@@ -270,7 +271,12 @@ elif hdr_hex in (
     else:
         extra = Bytes(b'')
     gas_limit_v = 1000000
-    gas_used_v = 1000001 if hdr_hex == 'INVALID_GAS' else 0
+    if hdr_hex == 'INVALID_GAS':
+        gas_used_v = 1000001
+    elif hdr_hex == 'VALID_GAS_BOUNDARY':
+        gas_used_v = 1000000  # == gas_limit, boundary accept
+    else:
+        gas_used_v = 0
     if hdr_hex == 'INVALID_BLOB_MISALIGN':
         blob_gas_used_v = 1
     elif hdr_hex == 'INVALID_BLOB_OVERMAX':
@@ -708,6 +714,13 @@ run_fixture "chain1_valid_two"      1                  0    ""           ""     
 # reaches .Lsg_all_pass; output 73 bytes valid=False; spec
 # matches via STF failure on empty NPR.
 run_fixture "chain1_extra_at_boundary" 1   0    ""           ""                  ""    ""           ""           ""    "VALID_EXTRA_BOUNDARY" || fail=1
+
+# Boundary-accept test for K240. Header has gas_used == gas_limit
+# (1,000,000 == 1,000,000), the upper boundary of K240's
+# gas_used <= gas_limit check. Pairs with chain1_invalid_gas
+# (#6897, gas_used=1,000,001 > gas_limit -> reject) to verify
+# the boundary is on the correct side: K240 accepts equality.
+run_fixture "chain1_gas_at_boundary" 1    0    ""           ""                  ""    ""           ""           ""    "VALID_GAS_BOUNDARY" || fail=1
 
 # Kitchen-sink fixture -- every input slot populated
 # simultaneously. All three inner witness fields (state +
