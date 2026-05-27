@@ -69,6 +69,7 @@ import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
 import EvmAsm.Evm64.DivMod.Spec.N3CanonicalTrialWitnessAll
 import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonicalIff
 import EvmAsm.Evm64.DivMod.Spec.N3CanonicalPointedEvidence
+import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExactPointedEvidence
 import EvmAsm.Evm64.DivMod.Spec.N3SelectedQuotientHdivs
 import EvmAsm.Evm64.DivMod.Spec.N3SelectedQuotientHdivsExistsCanonical
 import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExactSelectedEvidenceCanonical
