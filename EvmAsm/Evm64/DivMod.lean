@@ -3,6 +3,7 @@
 import EvmAsm.Evm64.DivMod.AddrNormSmokeTests
 import EvmAsm.Evm64.DivMod.HalignFromBaseEven
 import EvmAsm.Evm64.DivMod.N1CallableFromBaseEven
+import EvmAsm.Evm64.DivMod.N3CallableFromBaseEven
 import EvmAsm.Evm64.DivMod.N2CallableFromBaseEven
 -- Counterexamples pins the n4 call-addback inputs that motivated div128 v4.
 import EvmAsm.Evm64.DivMod.Counterexamples
