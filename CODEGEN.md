@@ -40,9 +40,9 @@ untouched. Generated artifacts go in `gen-out/` (gitignored).
 | `EvmAsm/Codegen/Layout.lean` | `HaltConv` enum, halt stubs, `_start` preamble, `.option norvc`, `MEM_START`/`MEM_END` constants, `BuildUnit` struct + `emitBuildUnit`/`emitDataLabel` helpers. |
 | `EvmAsm/Codegen/Dispatch.lean` | M5b dispatcher scaffolding: `OpcodeHandlerSpec` (optional `preBody` for x10-clobbering handlers + optional `postBodyLabel` for M9's trampoline pattern) + `HandlerTail` types, `emitDispatcherPrologue`/`Epilogue`/`DataSection` and `buildDispatchUnit` helpers. M8.5 adds the parallel runtime-bytecode helpers (`emitRuntimeDispatcherPrologue` / `emitRuntimeDispatcherDataSection` / `buildRuntimeDispatchUnit`) that read bytecode from `INPUT_ADDR + INPUT_DATA_OFFSET` at runtime. Pure (no IO). |
 | `EvmAsm/Codegen/Programs.lean` | `BuildUnit` lookup hub: `lookupProgram`, `knownProgramNames`, plus the `statelessGuestUnit` build target. Imports every `BuildUnit` defined under `Programs/`. The actual M5b opcode-handler registry (`tinyInterpRegistry`) and the `BuildUnit`s for `evm_add` / `evm_div` / `evm_mod` / `input_echo` / `runtime_dispatcher` / `tiny_interp_*` now live in `Programs/Evm.lean` (see next row). |
-| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `envHandlers` (13 simple environment opcodes ADDRESS/CALLER/.../BASEFEE, M12), `calldataHandlers` (CALLDATASIZE, M13), `controlFlowHandlers` (JUMPDEST from M14; JUMP/JUMPI/PC added in M15), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable, M10), and `stopHandler`. Total: **111 wired opcodes**. Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
+| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `envHandlers` (13 simple environment opcodes ADDRESS/CALLER/.../BASEFEE, M12), `calldataHandlers` (CALLDATASIZE, M13), `controlFlowHandlers` (JUMPDEST from M14; JUMP/JUMPI/PC added in M15), `hashHandlers` (KECCAK256 via ECALL bridge from M16; M17+ extends with LOG/SLOAD/SSTORE/precompiles), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable, M10), and `stopHandler`. Total: **112 wired opcodes**. Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
 | `EvmAsm/Codegen/Proofs/` | Codegen-proofs scaffolding (post-M10). `RegistryInvariants.lean` (Phase 1) — 6 `decide`-checked theorems about `tinyInterpRegistry`'s structural well-formedness (Nodup on opcodes/labels, byte bounds, jump-table coverage). `HandlerSpecs.lean` (Phase 4) — reusable `cleanRetHandlerSpec` template + **13 concrete handler-level `cpsTripleWithin` instances** for clean-shape singletons (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT). Phases 2, 3, 5 + the remaining Phase 4 instances are still future work. |
-| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**44 cases** as of M15). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
+| `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**45 cases** as of M16). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
 | `EvmAsm/Codegen/Cli.lean` | Argument parsing (`--program`, `--test-case`, `--list-test-cases`, `--halt`, `--out`, `--asm-only`). |
 | `EvmAsm/Codegen/Driver.lean` | `IO`: shells out to `as`/`ld` if available; `--asm-only` for CI without the cross toolchain. |
 | `Main.lean` | Already exists as `import EvmAsm`; extend to call `EvmAsm.Codegen.Cli.main`. |
@@ -915,16 +915,80 @@ cases PASS. `scripts/check-progress.sh` exits 0. Legacy
 `scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing
 scripts unchanged.
 
+### M16 — KECCAK256 via ECALL bridge (first precompile pattern) — **DONE (2026-05-27)**
+
+First opcode that uses a host syscall / accelerator bridge instead
+of an inline verified RV64 body. Wires **KECCAK256 (0x20)** through
+a new `hashHandlers` builder that pops `offset` + `size` from the
+EVM stack, calls the Zisk-accelerated keccak subroutine
+(`zkvm_keccak256` in `EvmAsm/Codegen/Programs/HashBridge.lean`),
+and pushes the 32-byte digest. Lifts wired count **111 → 112**
+(75% of the 149-byte EVM space). Establishes the ECALL bridge
+pattern that LOG0-4, SLOAD, SSTORE, and the precompile family
+(ECRECOVER, SHA256, MODEXP, etc.) will reuse.
+
+**Delivered:**
+
+- **`EvmAsm/Codegen/Dispatch.lean`** — multiple additions:
+  - Epilogue inserts `zkvmKeccak256Function` (the full ~76-line
+    sponge-mode subroutine that wraps Zisk's
+    `csrs 0x800, a0` accelerator at `.4byte 0x80052073`)
+    **between the handler subroutines and `h_invalid:`** — so
+    it's only reachable via `jal x1, zkvm_keccak256`, never via
+    fall-through from exitBody.
+  - Data section gains a 200-byte `zk3_state:` block (the 25 × u64
+    keccak permutation state buffer).
+  - Data section also gains a 512-byte `lp64_stack:` block ending
+    with `lp64_sp_top:` — the keccak subroutine does `addi sp, sp,
+    -32` to save its callee-saved regs, and the dispatcher had
+    never initialised `sp` before M16.
+  - Both prologue variants gain `la sp, lp64_sp_top` as the
+    first instruction.
+  - Imports `EvmAsm.Codegen.Programs.HashBridge`.
+- **`EvmAsm/Codegen/Programs/Evm.lean`** — new `hashHandlers`
+  list with one entry. The handler is **all raw asm** (no verified
+  body; `Instr` has no CSRS variant): `body := []`, `tail :=
+  .custom "..."`. The tail saves `x10`→`s10` and `x12`→`s11`,
+  pops `offset`/`size` from the EVM stack, allocates a result slot
+  (net stack delta +32), sets up `a0`/`a1`/`a2` as keccak args,
+  `jal x1, zkvm_keccak256`, restores `x10`/`x12`, advances PC by
+  1, `j .dispatch_loop` (NOT `ret` — `jal x1` clobbered `x1`).
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — one new case
+  `keccak256_empty` (bytecode `0x60 0x00 0x60 0x00 0x20 0x00`:
+  PUSH1 0; PUSH1 0; KECCAK256; STOP). Hash of empty bytes; expected
+  `c5d246…5a470`. Total cases 44 → 45.
+- **`EvmAsm/Codegen/Proofs/RegistryInvariants.lean`** — counts
+  bumped 111 → 112.
+
+**ECALL bridge pattern (template for M17+):**
+
+1. Promote a `zkvm_*Function : String` (raw asm) from
+   `HashBridge.lean` or a sibling file into the dispatcher epilogue
+   so the label is reachable via `jal x1, …`.
+2. Allocate any required scratch buffer in the dispatcher data
+   section (mirrors `zk3_state`).
+3. Handler tail saves dispatcher state (x10, x12) to callee-saved
+   regs (s10, s11), pops EVM stack into a0/a1/a2 (LP64 args), calls
+   the subroutine, restores state, advances PC, returns via
+   `j .dispatch_loop`.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 45
+cases PASS. `scripts/check-progress.sh` exits 0. Legacy
+`scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing
+scripts unchanged.
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M16 ✅.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
 emission unreadable. M11 (SHL + SAR) shipped 2026-05-26; M12
 (13 simple environment opcodes via `envHandlers`) shipped 2026-05-26;
 M13 (CALLDATASIZE via `calldataHandlers`) shipped 2026-05-26;
 M14 (JUMPDEST via `controlFlowHandlers`) shipped 2026-05-27;
-M15 (JUMP/JUMPI/PC into `controlFlowHandlers`) shipped 2026-05-27.
+M15 (JUMP/JUMPI/PC into `controlFlowHandlers`) shipped 2026-05-27;
+M16 (KECCAK256 via ECALL bridge in `hashHandlers`) shipped 2026-05-27.
 EXP remains deferred pending upstream callee-saved register
 variants; MSIZE deferred pending issue #99 slices 1–5;
 BLOBHASH/BLOBBASEFEE pending `EvmEnv` struct extension;
@@ -1124,6 +1188,22 @@ JUMPDEST-validity check tracked as the next follow-on slice.
   Known limitation: no JUMPDEST-validity check — invalid jumps
   follow garbage. Tracked as the next follow-on slice.
   Registry-invariants counts bumped 108 → 111.
+- **M16.** ✅ `scripts/codegen-opcodes-runtime-check.sh` exits 0 with
+  **45 test cases** PASS (validated 2026-05-27). KECCAK256 (0x20)
+  wired via new `hashHandlers` builder. All-raw-asm handler:
+  `body := []`, `tail := .custom "..."` with stack-pop / arg-marshal /
+  `jal x1, zkvm_keccak256` / stack-restore / `j .dispatch_loop`.
+  Dispatcher epilogue gained the full `zkvm_keccak256` subroutine
+  (from `EvmAsm/Codegen/Programs/HashBridge.lean`) between handler
+  subroutines and `h_invalid:`. Data section gained `zk3_state`
+  (200 B keccak state) and `lp64_stack` / `lp64_sp_top` (512 B
+  LP64 stack region; both prologues now do `la sp, lp64_sp_top`
+  first thing so the keccak subroutine's frame saves don't write
+  to a negative address). Test case `keccak256_empty` hashes
+  empty bytes; output matches the standard digest
+  `c5d246…5a470`. Establishes the ECALL bridge pattern for
+  M17+ (LOG / SLOAD / SSTORE / precompiles). Registry-invariants
+  counts bumped 111 → 112.
 - **Codegen-proofs Phase 1.** ✅ `lake build` exits 0 (validated
   2026-05-21). New file `EvmAsm/Codegen/Proofs/RegistryInvariants.lean`
   carries 6 kernel-checked theorems about `tinyInterpRegistry`:
