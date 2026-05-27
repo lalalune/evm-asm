@@ -6,6 +6,7 @@ import EvmAsm.Evm64.DivMod.N1CallableFromBaseEven
 import EvmAsm.Evm64.DivMod.N3CallableFromBaseEven
 import EvmAsm.Evm64.DivMod.N2CallableFromBaseEven
 import EvmAsm.Evm64.DivMod.N3CallablePublicPost
+import EvmAsm.Evm64.DivMod.N2CallablePublicPost
 -- Counterexamples pins the n4 call-addback inputs that motivated div128 v4.
 import EvmAsm.Evm64.DivMod.Counterexamples
 -- Spec is the public stack-spec surface and re-exports the split Spec/*
