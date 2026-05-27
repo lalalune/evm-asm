@@ -909,8 +909,9 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   memoryHandlers ++ envHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   storageHandlers ++ haltHandlers ++ pushZeroHandlers ++
-  popPushZeroHandlers ++ copyNoopHandlers ++ divModHandlers ++
-  signedDivModHandlers ++ selfCallingHandlers ++ [stopHandler]
+  popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
+  divModHandlers ++ signedDivModHandlers ++ selfCallingHandlers ++
+  [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
   buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode
