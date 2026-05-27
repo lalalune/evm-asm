@@ -52,6 +52,7 @@ import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
 import EvmAsm.Evm64.EvmWordArith.DivN2MaxOverestimate
 import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
 import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
+import EvmAsm.Evm64.EvmWordArith.DivC3InvariantUnifiedCase
 import EvmAsm.Evm64.EvmWordArith.DivN3NormVStructure
 import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
 import EvmAsm.Evm64.EvmWordArith.DivBltBridge
