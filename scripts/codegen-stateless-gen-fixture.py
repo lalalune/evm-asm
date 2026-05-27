@@ -320,6 +320,7 @@ elif hdr_hex in (
     'INVALID_NONCE',
     'INVALID_OMMERS',
     'VALID_REALISTIC',
+    'VALID_ALL_BOUNDARY',
 ):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
@@ -346,16 +347,16 @@ elif hdr_hex in (
     from ethereum.crypto.hash import Hash32
     from ethereum_rlp import rlp
     diff = 1 if hdr_hex == 'INVALID_DIFF' else 0
-    if hdr_hex == 'INVALID_EXTRA':
+    if hdr_hex in ('INVALID_EXTRA',):
         extra = Bytes(b'\\xab' * 33)
-    elif hdr_hex == 'VALID_EXTRA_BOUNDARY':
+    elif hdr_hex in ('VALID_EXTRA_BOUNDARY', 'VALID_ALL_BOUNDARY'):
         extra = Bytes(b'\\xab' * 32)
     else:
         extra = Bytes(b'')
     gas_limit_v = 1000000
     if hdr_hex == 'INVALID_GAS':
         gas_used_v = 1000001
-    elif hdr_hex == 'VALID_GAS_BOUNDARY':
+    elif hdr_hex in ('VALID_GAS_BOUNDARY', 'VALID_ALL_BOUNDARY'):
         gas_used_v = 1000000  # == gas_limit, boundary accept
     else:
         gas_used_v = 0
@@ -365,7 +366,7 @@ elif hdr_hex in (
         blob_gas_used_v = 7 * 131072  # 917504
     elif hdr_hex == 'VALID_BLOB_BOUNDARY':
         blob_gas_used_v = 131072  # one full blob, GAS_PER_BLOB
-    elif hdr_hex == 'VALID_BLOB_MAX_BOUNDARY':
+    elif hdr_hex in ('VALID_BLOB_MAX_BOUNDARY', 'VALID_ALL_BOUNDARY'):
         blob_gas_used_v = 6 * 131072  # 786432 = MAX_BLOB_GAS_PER_BLOCK
     else:
         blob_gas_used_v = 0
