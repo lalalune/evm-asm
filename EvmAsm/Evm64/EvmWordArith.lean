@@ -48,6 +48,7 @@ import EvmAsm.Evm64.EvmWordArith.ModBridgeAssemble
 import EvmAsm.Evm64.EvmWordArith.DivN4Lemmas
 import EvmAsm.Evm64.EvmWordArith.SkipBorrowExtract
 import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddback
+import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
 import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
 import EvmAsm.Evm64.EvmWordArith.DivN2MaxOverestimate
 import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
@@ -56,6 +57,8 @@ import EvmAsm.Evm64.EvmWordArith.DivC3InvariantIfBorrow
 import EvmAsm.Evm64.EvmWordArith.DivC3InvariantUnifiedCase
 import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantUnifiedCase
 import EvmAsm.Evm64.EvmWordArith.DivC3InvariantFromOverestimateUnreach
+import EvmAsm.Evm64.EvmWordArith.DivC3InvariantPlusTwoCase
+import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantPlusTwoCase
 import EvmAsm.Evm64.EvmWordArith.DivN3NormVStructure
 import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
 import EvmAsm.Evm64.EvmWordArith.DivBltBridge
