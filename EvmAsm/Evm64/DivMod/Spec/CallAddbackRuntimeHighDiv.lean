@@ -30,6 +30,27 @@ def n4CallAddbackBeqHighDivKnuthABound (a b : EvmWord) : Prop :=
   n4CallAddbackBeqHighDivVal a b ≤
     n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1
 
+/-- The `rhatdd` high-half-zero fact used by the n=4 call-addback
+    exact-floor bridge. -/
+def n4CallAddbackBeqRhatddHiZero (a b : EvmWord) : Prop :=
+  divKTrialCallV4Rhatdd
+      (n4CallAddbackBeqU4 a b)
+      (n4CallAddbackBeqU3 a b)
+      (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+    (0 : Word)
+
+/-- Packaged high-divisor evidence for the n=4, shift-nonzero call-addback
+    runtime bridge.
+
+    This is the compact dispatcher-facing evidence surface: exact-floor branch
+    evidence (`rhatdd` high half zero), qhat bounded by the high 128/64
+    quotient, and the surviving Knuth-A `+1` bridge from that quotient to the
+    normalized 256-bit quotient. -/
+def n4CallAddbackBeqShiftHighDivEvidence (a b : EvmWord) : Prop :=
+  n4CallAddbackBeqRhatddHiZero a b ∧
+    n4CallAddbackBeqQHatHighDivBound a b ∧
+    n4CallAddbackBeqHighDivKnuthABound a b
+
 theorem n4CallAddbackBeqHighDivVal_def {a b : EvmWord} :
     n4CallAddbackBeqHighDivVal a b =
       ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
@@ -48,6 +69,48 @@ theorem n4CallAddbackBeqHighDivKnuthABound_def {a b : EvmWord} :
       (n4CallAddbackBeqHighDivVal a b ≤
         n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1) :=
   rfl
+
+theorem n4CallAddbackBeqRhatddHiZero_def {a b : EvmWord} :
+    n4CallAddbackBeqRhatddHiZero a b =
+      (divKTrialCallV4Rhatdd
+          (n4CallAddbackBeqU4 a b)
+          (n4CallAddbackBeqU3 a b)
+          (n4CallAddbackBeqB3Prime b) >>> (32 : BitVec 6).toNat =
+        (0 : Word)) :=
+  rfl
+
+theorem n4CallAddbackBeqShiftHighDivEvidence_def {a b : EvmWord} :
+    n4CallAddbackBeqShiftHighDivEvidence a b =
+      (n4CallAddbackBeqRhatddHiZero a b ∧
+        n4CallAddbackBeqQHatHighDivBound a b ∧
+        n4CallAddbackBeqHighDivKnuthABound a b) :=
+  rfl
+
+theorem n4CallAddbackBeqShiftHighDivEvidence.of_parts {a b : EvmWord}
+    (h_rhat_hi_zero : n4CallAddbackBeqRhatddHiZero a b)
+    (h_qhat_high : n4CallAddbackBeqQHatHighDivBound a b)
+    (h_high_div : n4CallAddbackBeqHighDivKnuthABound a b) :
+    n4CallAddbackBeqShiftHighDivEvidence a b := by
+  rw [n4CallAddbackBeqShiftHighDivEvidence_def]
+  exact ⟨h_rhat_hi_zero, h_qhat_high, h_high_div⟩
+
+theorem n4CallAddbackBeqShiftHighDivEvidence.rhatddHiZero {a b : EvmWord}
+    (h_evidence : n4CallAddbackBeqShiftHighDivEvidence a b) :
+    n4CallAddbackBeqRhatddHiZero a b := by
+  rw [n4CallAddbackBeqShiftHighDivEvidence_def] at h_evidence
+  exact h_evidence.1
+
+theorem n4CallAddbackBeqShiftHighDivEvidence.qhatHighDiv {a b : EvmWord}
+    (h_evidence : n4CallAddbackBeqShiftHighDivEvidence a b) :
+    n4CallAddbackBeqQHatHighDivBound a b := by
+  rw [n4CallAddbackBeqShiftHighDivEvidence_def] at h_evidence
+  exact h_evidence.2.1
+
+theorem n4CallAddbackBeqShiftHighDivEvidence.knuthA {a b : EvmWord}
+    (h_evidence : n4CallAddbackBeqShiftHighDivEvidence a b) :
+    n4CallAddbackBeqHighDivKnuthABound a b := by
+  rw [n4CallAddbackBeqShiftHighDivEvidence_def] at h_evidence
+  exact h_evidence.2.2
 
 theorem n4CallAddbackBeqQHatHighDivBound.of_le {a b : EvmWord}
     (h_qhat_le_high_div :
@@ -407,6 +470,55 @@ theorem n4CallAddbackBeqSemanticHolds_of_shift_nz_high_div_bound_and_borrow
   simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
     n4CallAddbackBeqSemanticHoldsV4_of_shift_nz_high_div_bound_and_borrow
       hb3nz hshift_nz h_rhat_hi_zero h_qhat_high h_high_div h_borrow h_carry2
+
+/-- Runtime-bounds bridge from packaged shift/high-div evidence. -/
+theorem n4CallAddbackBeqRuntimeBounds_of_shift_high_div_evidence_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_evidence : n4CallAddbackBeqShiftHighDivEvidence a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b) :
+    n4CallAddbackBeqRuntimeBounds a b :=
+  n4CallAddbackBeqRuntimeBounds_of_shift_nz_high_div_bound_and_borrow
+    hb3nz hshift_nz
+    (by
+      simpa [n4CallAddbackBeqRhatddHiZero_def] using
+        n4CallAddbackBeqShiftHighDivEvidence.rhatddHiZero h_evidence)
+    (n4CallAddbackBeqShiftHighDivEvidence.qhatHighDiv h_evidence)
+    (n4CallAddbackBeqShiftHighDivEvidence.knuthA h_evidence)
+    h_borrow
+
+/-- Runtime semantic bridge from packaged shift/high-div evidence. -/
+theorem n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_evidence_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_evidence : n4CallAddbackBeqShiftHighDivEvidence a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV4 a b :=
+  n4CallAddbackBeqSemanticHoldsV4_of_shift_nz_high_div_bound_and_borrow
+    hb3nz hshift_nz
+    (by
+      simpa [n4CallAddbackBeqRhatddHiZero_def] using
+        n4CallAddbackBeqShiftHighDivEvidence.rhatddHiZero h_evidence)
+    (n4CallAddbackBeqShiftHighDivEvidence.qhatHighDiv h_evidence)
+    (n4CallAddbackBeqShiftHighDivEvidence.knuthA h_evidence)
+    h_borrow h_carry2
+
+/-- Historical non-`V4` spelling of
+    `n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_evidence_and_borrow`. -/
+theorem n4CallAddbackBeqSemanticHolds_of_shift_high_div_evidence_and_borrow
+    {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (h_evidence : n4CallAddbackBeqShiftHighDivEvidence a b)
+    (h_borrow : isAddbackBorrowN4CallV4Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV4Evm a b) :
+    n4CallAddbackBeqSemanticHolds a b := by
+  simpa [n4CallAddbackBeqSemanticHolds_eq_v4] using
+    n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_evidence_and_borrow
+      hb3nz hshift_nz h_evidence h_borrow h_carry2
 
 /-- Runtime-bounds package from a direct qhat high-divisor bound, the weakened
     Knuth-A `+1` denominator bridge, and the runtime borrow predicate. -/
