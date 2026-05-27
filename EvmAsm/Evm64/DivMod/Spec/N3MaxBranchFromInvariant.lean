@@ -96,4 +96,82 @@ theorem isAddbackCarry2NzN3Max_at_canonical_bltu1_false
   exact isAddbackCarry2NzN3Max_of_not_ult_c3_one_of_carry_zero _ _ _ _ _ _ _ _ _
     hv2_msb_norm hv3z_norm hc3 hbltu
 
+/-- N3 j=0 MAX-branch carry-2-nz at the canonical bltu_0 = false, from
+    structural normalisation facts and the named c3 invariant.
+
+    Parametrised by `bltu_1 : Bool` since the j=0 input depends on the j=1
+    iteration result `fullDivN3R1V4 bltu_1 a b`.  The `hbltu0_false`
+    hypothesis is the unfolded MAX-branch form of `n3V4CanonicalBltu0`:
+    comparing `(fullDivN3R1V4 bltu_1 …).2.2.1` (the post-j=1 third limb)
+    against `v.2.2.1`. -/
+theorem isAddbackCarry2NzN3Max_at_canonical_bltu0_false
+    (a b : EvmWord) (bltu_1 : Bool)
+    (hbltu0_false :
+      BitVec.ult
+        (fullDivN3R1V4 bltu_1
+          (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+          (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+        (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+          (b.getLimbN 2) (b.getLimbN 3)).2.2.1 = false)
+    (hv3z_norm :
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.2 = 0)
+    (hv2_msb_norm :
+      2^63 ≤ (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.1.toNat)
+    (hc3 : MulsubMaxC3OneOfCarryZero
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+      (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).1
+      (fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1) :
+    isAddbackCarry2NzN3Max
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+      (fullDivN3NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 2)).1
+      (fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+      (fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 := by
+  have hbltu : ¬ BitVec.ult
+      (fullDivN3R1V4 bltu_1
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1
+      (fullDivN3NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.1 := by
+    intro h
+    rw [h] at hbltu0_false
+    exact Bool.noConfusion hbltu0_false
+  exact isAddbackCarry2NzN3Max_of_not_ult_c3_one_of_carry_zero _ _ _ _ _ _ _ _ _
+    hv2_msb_norm hv3z_norm hc3 hbltu
+
 end EvmAsm.Evm64
