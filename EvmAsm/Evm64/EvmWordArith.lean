@@ -67,6 +67,8 @@ import EvmAsm.Evm64.EvmWordArith.DivV4TrialOverestimate
 import EvmAsm.Evm64.EvmWordArith.DivV4TrialFromExactQuotient
 import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
 import EvmAsm.Evm64.EvmWordArith.DivKnuthAEqualWindow
+import EvmAsm.Evm64.EvmWordArith.DivKnuthATopWindowFits
+import EvmAsm.Evm64.EvmWordArith.DivKnuthABTrivialComposition
 import EvmAsm.Evm64.EvmWordArith.DivKnuthABKnownConditions
 import EvmAsm.Evm64.EvmWordArith.DivC3InvariantTrivials
 import EvmAsm.Evm64.EvmWordArith.DivC3InvariantFromCarryNz
