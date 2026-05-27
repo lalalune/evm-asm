@@ -479,9 +479,25 @@ with open(sys.argv[3], 'w') as f:
     f.write(spec_bytes.hex())
 " "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex"
 
+  # Guard against silent fail: if the spec generator crashed
+  # (Python syntax error in the heredoc, missing import, etc.)
+  # both $spec_exp_file and $out_file would be missing or empty,
+  # and the later "actual == spec_expected" string compare would
+  # see "" == "" and report PASS. Bail out loudly here instead.
+  if [[ ! -s "$spec_exp_file" ]]; then
+    echo "    FAIL: spec-expected file is missing or empty -- spec generator crashed" >&2
+    return 1
+  fi
+
   echo "==> [$label] ziskemu run"
   "$ZISKEMU" -e gen-out/stateless_guest.elf -i "$input_file" \
     -o "$out_file" -n 500000 >"$log_file" 2>&1
+
+  if [[ ! -s "$out_file" ]]; then
+    echo "    FAIL: ziskemu output file is missing or empty -- emulator crashed" >&2
+    sed -n '$p' "$log_file" >&2 || true
+    return 1
+  fi
 
   local actual spec_expected spec_len
   spec_expected="$(cat "$spec_exp_file")"
