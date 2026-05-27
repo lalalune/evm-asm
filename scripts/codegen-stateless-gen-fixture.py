@@ -319,6 +319,7 @@ elif hdr_hex in (
     'VALID_BLOB_MAX_BOUNDARY',
     'INVALID_NONCE',
     'INVALID_OMMERS',
+    'VALID_REALISTIC',
 ):
     # Construct a (mostly) valid post-merge header. Variants:
     #   VALID_POST_MERGE       -- passes all 7 K-PR validators.
@@ -370,30 +371,49 @@ elif hdr_hex in (
         blob_gas_used_v = 0
     nonce_v = b'\x00\x00\x00\x00\x00\x00\x00\\x01' if hdr_hex == 'INVALID_NONCE' else b'\x00' * 8
     ommers_v = Hash32(b'\\xff' * 32) if hdr_hex == 'INVALID_OMMERS' else EMPTY_OMMER_HASH
+    # For VALID_REALISTIC: set K-PR-CHECKED fields to valid values
+    # but populate every K-PR-IGNORED field with realistic non-zero
+    # bytes. Verifies K-PRs ignore those fields rather than
+    # short-circuiting on zero defaults.
+    realistic = (hdr_hex == 'VALID_REALISTIC')
+    parent_hash_v   = Hash32(bytes.fromhex('aa' * 32))  if realistic else Hash32(b'\x00' * 32)
+    coinbase_v      = bytes.fromhex('11' * 20)          if realistic else b'\x00' * 20
+    state_root_v    = Hash32(bytes.fromhex('22' * 32))  if realistic else Hash32(b'\x00' * 32)
+    txs_root_v      = Hash32(bytes.fromhex('33' * 32))  if realistic else Hash32(b'\x00' * 32)
+    receipt_root_v  = Hash32(bytes.fromhex('44' * 32))  if realistic else Hash32(b'\x00' * 32)
+    bloom_v         = bytes.fromhex('55' * 256)         if realistic else b'\x00' * 256
+    prev_randao_v   = Bytes32(bytes.fromhex('66' * 32)) if realistic else Bytes32(b'\x00' * 32)
+    base_fee_v      = Uint(0x3b9aca00)                  if realistic else Uint(0)  # 1 gwei
+    withdrawals_v   = Hash32(bytes.fromhex('77' * 32))  if realistic else Hash32(b'\x00' * 32)
+    excess_blob_v   = U64t(0x100000)                    if realistic else U64t(0)
+    parent_beacon_v = Hash32(bytes.fromhex('88' * 32))  if realistic else Hash32(b'\x00' * 32)
+    requests_v      = Hash32(bytes.fromhex('99' * 32))  if realistic else Hash32(b'\x00' * 32)
+    bal_v           = Hash32(bytes.fromhex('cc' * 32))  if realistic else Hash32(b'\x00' * 32)
+    slot_v          = U64t(0x1234)                      if realistic else U64t(0)
     h = Header(
-        parent_hash=Hash32(b'\x00' * 32),
+        parent_hash=parent_hash_v,
         ommers_hash=ommers_v,
-        coinbase=b'\x00' * 20,
-        state_root=Hash32(b'\x00' * 32),
-        transactions_root=Hash32(b'\x00' * 32),
-        receipt_root=Hash32(b'\x00' * 32),
-        bloom=b'\x00' * 256,
+        coinbase=coinbase_v,
+        state_root=state_root_v,
+        transactions_root=txs_root_v,
+        receipt_root=receipt_root_v,
+        bloom=bloom_v,
         difficulty=Uint(diff),
         number=Uint(1),
         gas_limit=Uint(gas_limit_v),
         gas_used=Uint(gas_used_v),
         timestamp=U256(1234),
         extra_data=extra,
-        prev_randao=Bytes32(b'\x00' * 32),
+        prev_randao=prev_randao_v,
         nonce=Bytes8(nonce_v),
-        base_fee_per_gas=Uint(0),
-        withdrawals_root=Hash32(b'\x00' * 32),
+        base_fee_per_gas=base_fee_v,
+        withdrawals_root=withdrawals_v,
         blob_gas_used=U64t(blob_gas_used_v),
-        excess_blob_gas=U64t(0),
-        parent_beacon_block_root=Hash32(b'\x00' * 32),
-        requests_hash=Hash32(b'\x00' * 32),
-        block_access_list_hash=Hash32(b'\x00' * 32),
-        slot_number=U64t(0),
+        excess_blob_gas=excess_blob_v,
+        parent_beacon_block_root=parent_beacon_v,
+        requests_hash=requests_v,
+        block_access_list_hash=bal_v,
+        slot_number=slot_v,
     )
     hdr_arg = (HeaderBL(rlp.encode(h)),)
 elif hdr_hex:

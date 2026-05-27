@@ -308,6 +308,18 @@ run_fixture "chain1_blob"           1                  0    ""           ""     
 # byte-for-byte against the spec.
 run_fixture "chain1_blob_realistic" 1                  0    ""           ""                  ""    ""           ""           "14:21:11684671" || fail=1
 
+# Valid post-merge header with REALISTIC non-zero values for
+# every K-PR-IGNORED field (parent_hash, coinbase, state_root,
+# transactions_root, receipt_root, bloom, prev_randao,
+# base_fee_per_gas, withdrawals_root, excess_blob_gas,
+# parent_beacon_block_root, requests_hash, block_access_list_hash,
+# slot_number). K-PR-CHECKED fields (difficulty, ommers_hash,
+# nonce, extra_data length, gas_used/limit, blob_gas_used) stay
+# at their valid post-merge values. Verifies K-PRs correctly
+# IGNORE the unchecked fields rather than requiring them at
+# zero defaults. Reaches .Lsg_all_pass.
+run_fixture "chain1_valid_realistic" 1                 0    ""           ""                  ""    ""           ""           ""    "VALID_REALISTIC" || fail=1
+
 # Triple cross-product: witness.codes + public_keys + block_number.
 # witness.codes shifts chain_config_addr forward, block_number
 # drives the variable-length encoder, and public_keys padding
