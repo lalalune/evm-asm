@@ -174,7 +174,7 @@ theorem n4ShiftNzDispatcherBranchHighDivRawEvidence.semanticHoldsV4_of_addback_p
         (n4CallAddbackBeqB3Prime b).toNat ≤
           n4CallAddbackBeqULoNormVal a b / n4CallAddbackBeqBNormVal b + 1) :
     n4CallAddbackBeqSemanticHoldsV4 a b :=
-  n4CallAddbackBeqSemanticHoldsV4_of_shift_high_div_raw_parts_and_borrow
+  n4CallAddbackBeqSemanticHoldsV4_of_shift_runtime_high_div_raw_parts
     hb3nz hshift_nz h_rhat_hi_zero h_qhat_le_high_div
     h_high_div_le_norm_plus_one hadd hcarry2
 
