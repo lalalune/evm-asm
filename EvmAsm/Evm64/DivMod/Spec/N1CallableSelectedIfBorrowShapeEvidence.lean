@@ -78,6 +78,79 @@ abbrev N1CallableSelectedIfBorrowShapeEvidence (a b : EvmWord) : Prop :=
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
 
+/-- Branch facts carried by `N1CallableSelectedIfBorrowShapeEvidence`.
+    Keeping this shape named lets later wrappers assemble the private evidence
+    bundle without re-copying the long call/max/max/max branch predicate. -/
+abbrev N1CallableSelectedIfBorrowBranchFacts (a b : EvmWord) : Prop :=
+  isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) ∧
+  ¬BitVec.ult
+    (loopN1CallMaxmaxmaxR3
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+      0 0 0).2.1
+    (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+  ¬BitVec.ult
+    (loopN1CallMaxmaxmaxR2
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+      0 0 0
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1).2.1
+    (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)).1 ∧
+  ¬BitVec.ult
+    (loopN1CallMaxmaxmaxR1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.1
+      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+        (b.getLimbN 2) (b.getLimbN 3)).2.2.2
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
+      0 0 0
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
+      (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
+        (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1).2.1
+    (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
+      (b.getLimbN 2) (b.getLimbN 3)).1
+
+theorem N1CallableSelectedIfBorrowShapeEvidence.of_parts {a b : EvmWord}
+    (hbranches : N1CallableSelectedIfBorrowBranchFacts a b)
+    (hpath : N1SelectedIfBorrowPathEvidence a b)
+    (hfacts : FullDivN1CallMaxmaxmaxSemanticFactsV4
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)) :
+    N1CallableSelectedIfBorrowShapeEvidence a b := by
+  rcases hbranches with ⟨hbltu3, hbltu2, hbltu1, hbltu0⟩
+  exact ⟨hbltu3, hbltu2, hbltu1, hbltu0, hpath, hfacts⟩
+
 theorem N1CallableSelectedIfBorrowShapeEvidence.ofSelectedIfBorrowSemanticEvidence
     (sp base : Word)
     (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
@@ -109,64 +182,7 @@ theorem N1CallableSelectedIfBorrowShapeEvidence.ofSelectedIfBorrowSemanticEviden
 /-- Project the selected branch facts from the bundled N1 callable evidence. -/
 theorem N1CallableSelectedIfBorrowShapeEvidence.branchFacts {a b : EvmWord}
     (hevidence : N1CallableSelectedIfBorrowShapeEvidence a b) :
-    isTrialN1_j3 true (a.getLimbN 3) (b.getLimbN 0) ∧
-    ¬BitVec.ult
-      (loopN1CallMaxmaxmaxR3
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).1
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).2.1
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
-        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
-          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
-        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
-          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
-        0 0 0).2.1
-      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-        (b.getLimbN 2) (b.getLimbN 3)).1 ∧
-    ¬BitVec.ult
-      (loopN1CallMaxmaxmaxR2
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).1
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).2.1
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
-        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
-          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
-        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
-          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
-        0 0 0
-        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
-          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1).2.1
-      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-        (b.getLimbN 2) (b.getLimbN 3)).1 ∧
-    ¬BitVec.ult
-      (loopN1CallMaxmaxmaxR1
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).1
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).2.1
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).2.2.1
-        (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-          (b.getLimbN 2) (b.getLimbN 3)).2.2.2
-        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
-          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.1
-        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
-          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.2.2
-        0 0 0
-        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
-          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.2.1
-        (fullDivN1NormU (a.getLimbN 0) (a.getLimbN 1)
-          (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0)).2.1).2.1
-      (fullDivN1NormV (b.getLimbN 0) (b.getLimbN 1)
-        (b.getLimbN 2) (b.getLimbN 3)).1 := by
+    N1CallableSelectedIfBorrowBranchFacts a b := by
   rcases hevidence with ⟨hbltu3, hbltu2, hbltu1, hbltu0, _hpath, _hfacts⟩
   exact ⟨hbltu3, hbltu2, hbltu1, hbltu0⟩
 
@@ -209,6 +225,82 @@ theorem N1CallableSelectedIfBorrowShapeEvidence.selectedIfBorrowSemanticEvidence
     (N1SelectedIfBorrowPathEvidence.selectedCarryIfBorrowFacts
       (N1CallableSelectedIfBorrowShapeEvidence.selectedPath hevidence))
     (N1CallableSelectedIfBorrowShapeEvidence.semanticFacts hevidence)
+
+/-- Project the named selected-path hdiv package from the bundled N1
+    callable shape evidence. This gives later N1 public-wrapper wiring a single
+    private evidence object from which to recover the quotient-limb witnesses. -/
+theorem N1CallableSelectedIfBorrowShapeEvidence.hdivs
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a b : EvmWord)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hevidence : N1CallableSelectedIfBorrowShapeEvidence a b) :
+    FullDivN1CallMaxmaxmaxHdivs a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  exact FullDivN1CallMaxmaxmaxHdivs_of_selected_if_borrow_semantic_evidence
+    sp base a b
+    jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+    rfl rfl rfl rfl rfl rfl rfl rfl hbnz
+    (N1CallableSelectedIfBorrowShapeEvidence.selectedIfBorrowSemanticEvidence
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hevidence)
+
+/-- Project the selected-if-borrow input hypotheses from the bundled N1
+    callable shape evidence. This pairs with `hdivs` so downstream wrappers can
+    consume one private evidence object at the selected path boundary. -/
+theorem N1CallableSelectedIfBorrowShapeEvidence.selectedInput
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a b : EvmWord)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hevidence : N1CallableSelectedIfBorrowShapeEvidence a b) :
+    fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal := by
+  exact FullDivN1CallMaxmaxmaxSelectedIfBorrowSemanticEvidenceV4_selectedInput
+    sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+    (N1CallableSelectedIfBorrowShapeEvidence.selectedIfBorrowSemanticEvidence
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hevidence)
+
+/-- Recover both selected-if-borrow stack inputs and hdiv witnesses from the
+    bundled N1 callable shape evidence. -/
+theorem N1CallableSelectedIfBorrowShapeEvidence.selectedInputAndHdivs
+    (sp base : Word)
+    (jOld v5Old v6Old v7Old v10Old v11Old v2Old : Word)
+    (a b : EvmWord)
+    (q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hevidence : N1CallableSelectedIfBorrowShapeEvidence a b) :
+    fullDivN1CallMaxmaxmaxSelectedIfBorrowInputHypotheses sp base
+      jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal ∧
+    FullDivN1CallMaxmaxmaxHdivs a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) := by
+  exact ⟨
+    N1CallableSelectedIfBorrowShapeEvidence.selectedInput
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hevidence,
+    N1CallableSelectedIfBorrowShapeEvidence.hdivs
+      sp base jOld v5Old v6Old v7Old v10Old v11Old v2Old
+      a b q3Old q2Old q1Old q0Old retMem dMem dloMem scratchUn0 scratchMem raVal
+      hbnz hevidence⟩
 
 theorem N1CallableSelectedIfBorrowShapeEvidence.ofAllTruePathSelectedIfBorrowSemanticEvidence
     (sp base : Word)
