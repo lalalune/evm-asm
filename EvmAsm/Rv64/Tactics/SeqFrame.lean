@@ -355,7 +355,11 @@ partial def buildDisjointProof (cr1 cr2 : Expr) : MetaM Expr :=
       throwError "buildDisjointProof: addresses are equal: {a1}"
     -- Prove a1 ≠ a2 (fast offset-based when possible, bv_omega fallback)
     let neqProof ← proveAddrNe a1 a2
-    return ← mkAppM ``EvmAsm.Rv64.CodeReq.Disjoint.singleton #[neqProof, i1, i2]
+    -- `Disjoint.singleton` takes `{a1 a2 : Word} (h) {i1 i2 : Instr}` with i1/i2
+    -- implicit, so pass them via `mkAppOptM`'s optional slots (a fully-applied
+    -- `mkAppM #[neqProof, i1, i2]` would feed `i1` into the wrong position).
+    return ← mkAppOptM ``EvmAsm.Rv64.CodeReq.Disjoint.singleton
+      #[some a1, some a2, some neqProof, some i1, some i2]
   -- Case: cr1 = singleton, cr2 = ofProg → range check via ofProg_none_range_len + bv_omega
   if cr1.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 &&
      cr2.isAppOfArity ``EvmAsm.Rv64.CodeReq.ofProg 2 then
