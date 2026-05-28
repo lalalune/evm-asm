@@ -329,6 +329,39 @@ def statelessGuestDataSection : String :=
   "  .byte 0x37, 0xf2, 0x21, 0xdb, 0x97, 0xe9, 0x7b, 0xaa\n" ++
   ".balign 8\n" ++
   "npr_node_8_15_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- `npr_node_0_3_scratch` holds the dynamic node_0_3 = sha256(
+  --   sha256(leaf_0=parent_hash || leaf_1=ssz_zero_hash[0]) ||
+  --   ssz_zero_hash[1])
+  -- computed in two stages within the same buffer. Used to replace
+  -- the previously-static `ssz_zero_hash[2]` constant as the LEFT
+  -- input to node_0_7 = sha256(node_0_3 || node_4_7) -- this opens
+  -- up leaf_0 (parent_hash). Future PRs can extend the node_0_1
+  -- step to read fee_recipient as leaf_1 (sibling extension,
+  -- mirroring the leaf_7/gas_limit pattern).
+  ".balign 8\n" ++
+  "npr_node_0_3_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- `npr_node_2_3_scratch` holds dynamic
+  -- sha256(leaf_2=state_root || leaf_3=receipts_root). Replaces
+  -- the previously-static `ssz_zero_hash[1]` (= default
+  -- node_2_3) as the right input to
+  -- node_0_3 = sha256(node_0_1 || node_2_3). Opens up leaf_2
+  -- (state_root) and leaf_3 (receipts_root) for non-default
+  -- values.
+  ".balign 8\n" ++
+  "npr_node_2_3_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- `npr_node_10_11_scratch` holds dynamic
+  -- sha256(leaf_10=extra_data_default_root || leaf_11=base_fee_per_gas).
+  -- Replaces the previously-static `npr_node_10_11` constant when
+  -- combined with node_8_9 to form node_8_11. Opens up leaf_11
+  -- (base_fee_per_gas) for non-default values; leaf_10
+  -- (extra_data) still uses its empty-list default root
+  -- (= ssz_zero_hash[1]) loaded from the existing
+  -- ssz_zero_hashes table.
+  ".balign 8\n" ++
+  "npr_node_10_11_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen
