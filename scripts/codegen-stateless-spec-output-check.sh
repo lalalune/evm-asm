@@ -372,6 +372,34 @@ run_fixture "chain1_fork4_amsterdam_active" 1          4    ""           ""     
 # 0 < 0 check). This fixture exercises the False return.
 run_fixture "chain1_fork4_inactive_bn" 1               4    ""           ""                  ""    "1"          ""           "14:21:11684671" || fail=1
 
+# Spec "Witness headers are not contiguous" path.
+# Configuration:
+#   chain_id        = 1
+#   fork            = 4 (Amsterdam -- passes validate_chain_config)
+#   activation.bn   = [0]
+#   blob_schedule   = (14, 21, 11684671)  [amsterdam expected]
+#   witness.headers = VALID_TWO
+#     (N=2 NON-chained -- h0.parent_hash=zero, h1.parent_hash=
+#      zero; the parent_hash chain through keccak256(rlp(h0))
+#      is broken because h1.parent_hash != keccak(h0))
+# Spec flow:
+#   validate_chain_config(...) -> SUCCESS
+#   validate_headers([h0, h1]):
+#     decode h0, h1 (RLP OK)
+#     block_hashes = [keccak(h0), keccak(h1)]
+#     for i=1: headers[1].parent_hash (= zero) !=
+#              block_hashes[0] (= keccak(h0))
+#     -> raises Exception("Witness headers are not contiguous")
+#   caught at verify_stateless_new_payload -> False.
+# Variety dimension: spec error path
+# "Witness headers are not contiguous" -- distinct from the
+# validate_chain_config errors and from the empty-headers
+# IndexError. All prior fork=4 + Amsterdam fixtures either
+# had empty headers (IndexError) or chained headers (success).
+# This is the first fixture exercising the contiguity-failure
+# branch of validate_headers.
+run_fixture "chain1_fork4_noncontig"   1               4    ""           ""                  ""    "0"          ""           "14:21:11684671" "VALID_TWO" || fail=1
+
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
 # transactions_root, receipt_root, bloom, prev_randao,
