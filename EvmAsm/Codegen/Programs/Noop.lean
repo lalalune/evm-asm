@@ -32,36 +32,122 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-- M18 EVM-terminating opcodes (RETURN, REVERT, INVALID, SELFDESTRUCT).
-    All halt the dispatcher loop by jumping to `.exit_label`. They
-    differ only in stack-pop count and modelling.
+/-- M18 / M23 EVM-terminating opcodes (RETURN, REVERT, INVALID,
+    SELFDESTRUCT). All halt the dispatcher loop.
 
-    - **RETURN (0xf3)** / **REVERT (0xfd)**: pop `(offset, size)` (2
-      words = 64 B). For our top-level dispatcher there's no caller
-      to return data TO — the dispatcher's exit body
-      (`evmAddEpilogue`) simply surfaces what's at the EVM stack top
-      after the pop to OUTPUT_ADDR. Trusted test programs prefix a
-      PUSH so this is deterministic.
-    - **INVALID (0xfe)**: pop 0; just halt. Functionally identical
-      to the dispatcher's `h_invalid` catch-all, but listed
-      explicitly so the registry count and the opcode coverage table
-      mark it as deliberately wired.
-    - **SELFDESTRUCT (0xff)**: pop 1 (recipient address, 32 B). For
-      our purposes the account isn't actually destroyed; just halt.
+    **M23 update**: RETURN (0xf3) and REVERT (0xfd) graduate from
+    M18 no-ops (which just popped args and ran `evmAddEpilogue`,
+    surfacing whatever stack top happened to be left behind) to
+    real bodies that:
+      1. Read `offset_low` / `size_low` (low u64 limbs) from the
+         stack.
+      2. Zero-fill `OUTPUT_ADDR[0..32]`.
+      3. Byte-copy `min(size_low, 32)` bytes from
+         `evm_memory + offset_low` into `OUTPUT_ADDR`.
+      4. Write `halt_kind` (1 = RETURN, 2 = REVERT) at
+         `OUTPUT_ADDR + 32`.
+      5. Jump to `.exit_no_epilogue` (the M23-added label that
+         skips `evmAddEpilogue`'s clobbering stack-top copy).
 
-    All four use `body := []` and a `.custom` tail that inlines the
-    pop (when any) + `j .exit_label`. Same shape as `stopHandler`. -/
+    INVALID (0xfe) and SELFDESTRUCT (0xff) continue to flow through
+    `.exit_label` → `evmAddEpilogue`, inheriting `halt_kind = 0`.
+    A follow-up PR can tag them with distinct kinds (3 / 4).
+
+    ### EVM stack contracts (RETURN / REVERT)
+
+    Top word = `offset` (256-bit), second word = `size` (256-bit).
+    M23 reads only the low u64 of each; tests must keep
+    offset / size < 2^64 (always true if they fit in the 32 KiB
+    `evm_memory` block).
+
+    ### Inline-asm conventions
+
+    Numeric local labels (`1:`, `1b`, `1f`, …) — unique-per-use
+    across the emitted file (same convention M22 storage scan
+    loops use), so RETURN and REVERT can reuse label numbers
+    without collision.
+
+    ### Known limitations
+
+    - **Returndata clamped to 32 bytes.** Larger payloads are
+      silently truncated. A future PR can extend the OUTPUT
+      layout with a length prefix or wider region.
+    - **No INVALID/SELFDESTRUCT halt-kind tagging.** Both inherit
+      `halt_kind = 0` from `evmAddEpilogue`. Follow-up PR. -/
 def haltHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_RETURN", opcodes := [0xf3]
-    , body := []
-    , tail := .custom "  addi x12, x12, 64\n  j .exit_label" }
-  , { label := "h_REVERT", opcodes := [0xfd]
-    , body := []
-    , tail := .custom "  addi x12, x12, 64\n  j .exit_label" }
-  , { label := "h_INVALID", opcodes := [0xfe]
+  [ -- M23 real RETURN. Pops (offset, size); writes
+    -- memory[offset..offset+min(size, 32)] to OUTPUT_ADDR[0..32]
+    -- (zero-padded if size < 32); writes halt_kind = 1 at
+    -- OUTPUT_ADDR + 32; halts via .exit_no_epilogue.
+    { label   := "h_RETURN"
+    , opcodes := [0xf3]
+    , body    := []
+    , tail    := .custom <|
+        "  ld x14, 0(x12)\n" ++          -- x14 = offset_low (low u64 of offset)
+        "  ld x15, 32(x12)\n" ++         -- x15 = size_low
+        "  li x16, 0xa0010000\n" ++      -- x16 = OUTPUT_ADDR
+        "  sd x0, 0(x16)\n" ++           -- zero-fill OUTPUT[0..32]
+        "  sd x0, 8(x16)\n" ++
+        "  sd x0, 16(x16)\n" ++
+        "  sd x0, 24(x16)\n" ++
+        "  li x17, 32\n" ++              -- clamp size to 32
+        "  bgeu x17, x15, 1f\n" ++       -- if 32 >= size, keep size
+        "  mv x15, x17\n" ++             -- else size = 32
+        "1:\n" ++
+        "  la x17, evm_memory\n" ++
+        "  add x17, x17, x14\n" ++       -- source = &evm_memory[offset]
+        "2:\n" ++                        -- byte-copy loop
+        "  beqz x15, 3f\n" ++
+        "  lbu x18, 0(x17)\n" ++
+        "  sb x18, 0(x16)\n" ++
+        "  addi x17, x17, 1\n" ++
+        "  addi x16, x16, 1\n" ++
+        "  addi x15, x15, -1\n" ++
+        "  j 2b\n" ++
+        "3:\n" ++
+        "  li x16, 0xa0010000\n" ++      -- write halt_kind at OUTPUT_ADDR + 32
+        "  li x17, 1\n" ++               -- RETURN
+        "  sd x17, 32(x16)\n" ++
+        "  j .exit_no_epilogue" }
+  , -- M23 real REVERT. Identical data path to RETURN; halt_kind = 2.
+    { label   := "h_REVERT"
+    , opcodes := [0xfd]
+    , body    := []
+    , tail    := .custom <|
+        "  ld x14, 0(x12)\n" ++
+        "  ld x15, 32(x12)\n" ++
+        "  li x16, 0xa0010000\n" ++
+        "  sd x0, 0(x16)\n" ++
+        "  sd x0, 8(x16)\n" ++
+        "  sd x0, 16(x16)\n" ++
+        "  sd x0, 24(x16)\n" ++
+        "  li x17, 32\n" ++
+        "  bgeu x17, x15, 1f\n" ++
+        "  mv x15, x17\n" ++
+        "1:\n" ++
+        "  la x17, evm_memory\n" ++
+        "  add x17, x17, x14\n" ++
+        "2:\n" ++
+        "  beqz x15, 3f\n" ++
+        "  lbu x18, 0(x17)\n" ++
+        "  sb x18, 0(x16)\n" ++
+        "  addi x17, x17, 1\n" ++
+        "  addi x16, x16, 1\n" ++
+        "  addi x15, x15, -1\n" ++
+        "  j 2b\n" ++
+        "3:\n" ++
+        "  li x16, 0xa0010000\n" ++
+        "  li x17, 2\n" ++               -- REVERT
+        "  sd x17, 32(x16)\n" ++
+        "  j .exit_no_epilogue" }
+  , -- INVALID (M18 no-op, deferred halt-kind tagging). Flows through
+    -- .exit_label → evmAddEpilogue → halt_kind = 0.
+    { label := "h_INVALID", opcodes := [0xfe]
     , body := []
     , tail := .custom "  j .exit_label" }
-  , { label := "h_SELFDESTRUCT", opcodes := [0xff]
+  , -- SELFDESTRUCT (M18 no-op, deferred halt-kind tagging). Pops 1
+    -- (recipient address). Flows through .exit_label.
+    { label := "h_SELFDESTRUCT", opcodes := [0xff]
     , body := []
     , tail := .custom "  addi x12, x12, 32\n  j .exit_label" } ]
 

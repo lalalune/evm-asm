@@ -70,12 +70,14 @@ while IFS= read -r line; do
   # (tab is treated as IFS-whitespace), which silently shifts the
   # storage column into the calldata slot when calldata is empty.
   # `cut -f` preserves empty fields, so we slice each column
-  # explicitly. Order matches `--list-test-cases` 5-column TSV.
+  # explicitly. Order matches `--list-test-cases` 6-column TSV
+  # (M23 added column 6 for `expectedHaltKind`).
   name=$(printf '%s' "$line" | cut -f1)
   expected=$(printf '%s' "$line" | cut -f2)
   bytecode_csv=$(printf '%s' "$line" | cut -f3)
   calldata=$(printf '%s' "$line" | cut -f4)
   storage=$(printf '%s' "$line" | cut -f5)
+  expected_halt_kind=$(printf '%s' "$line" | cut -f6)
 
   if [[ -z "$name" || -z "$expected" || -z "$bytecode_csv" ]]; then
     echo
@@ -112,11 +114,29 @@ while IFS= read -r line; do
   echo "actual:"
   echo "  $actual"
 
-  if [[ "$actual" == "$expected" ]]; then
+  case_failed=""
+  if [[ "$actual" != "$expected" ]]; then
+    case_failed="output"
+  fi
+
+  # M23: if the case asserts on halt-kind, read OUTPUT_ADDR + 32..40
+  # (8 LE bytes) and compare. Empty field = skip (back-compat).
+  if [[ -n "${expected_halt_kind:-}" ]]; then
+    actual_halt_kind="$(xxd -p -c 64 -s 32 -l 8 "gen-out/$name.output" | tr -d '\n')"
+    echo "expected halt_kind:"
+    echo "  $expected_halt_kind"
+    echo "actual halt_kind:"
+    echo "  $actual_halt_kind"
+    if [[ "$actual_halt_kind" != "$expected_halt_kind" ]]; then
+      case_failed="${case_failed:+$case_failed,}halt_kind"
+    fi
+  fi
+
+  if [[ -z "$case_failed" ]]; then
     echo "==> PASS: $name"
   else
-    echo "==> FAIL: $name output mismatch"
-    FAILED+=("$name")
+    echo "==> FAIL: $name mismatch ($case_failed)"
+    FAILED+=("$name ($case_failed)")
   fi
 done <"$LIST_FILE"
 
