@@ -1225,5 +1225,4 @@ def ziskExtcodesizeAtHeaderStateRootProbeUnit : BuildUnit := {
   dataAsm     := ziskExtcodesizeAtHeaderStateRootDataSection
 }
 
-
 end EvmAsm.Codegen
