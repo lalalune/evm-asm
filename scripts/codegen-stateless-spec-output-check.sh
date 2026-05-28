@@ -96,6 +96,8 @@ run_fixture() {
   local npr_blob_gas_used_str="${24:-}"
   local npr_logs_bloom_chunk0_hex="${25:-}"
   local npr_logs_bloom_chunk1_hex="${26:-}"
+  local npr_logs_bloom_chunk2_hex="${27:-}"
+  local npr_logs_bloom_chunk3_hex="${28:-}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -103,8 +105,8 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty}, npr_pbr=${npr_pbr_hex:-empty}, npr_slot=${npr_slot_str:-empty}, npr_excess_blob=${npr_excess_blob_str:-empty}, npr_block_number=${npr_block_number_str:-empty}, npr_gas_limit=${npr_gas_limit_str:-empty}, npr_prev_randao=${npr_prev_randao_hex:-empty}, npr_gas_used=${npr_gas_used_str:-empty}, npr_timestamp=${npr_timestamp_str:-empty}, npr_parent_hash=${npr_parent_hash_hex:-empty}, npr_fee_recipient=${npr_fee_recipient_hex:-empty}, npr_state_root=${npr_state_root_hex:-empty}, npr_base_fee=${npr_base_fee_str:-empty}, npr_block_hash=${npr_block_hash_hex:-empty}, npr_blob_gas_used=${npr_blob_gas_used_str:-empty}, npr_logs_bloom_chunk0=${npr_logs_bloom_chunk0_hex:-empty}, npr_logs_bloom_chunk1=${npr_logs_bloom_chunk1_hex:-empty})"
-  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex" "$npr_pbr_hex" "$npr_slot_str" "$npr_excess_blob_str" "$npr_block_number_str" "$npr_gas_limit_str" "$npr_prev_randao_hex" "$npr_gas_used_str" "$npr_timestamp_str" "$npr_parent_hash_hex" "$npr_fee_recipient_hex" "$npr_state_root_hex" "$npr_base_fee_str" "$npr_block_hash_hex" "$npr_blob_gas_used_str" "$npr_logs_bloom_chunk0_hex" "$npr_logs_bloom_chunk1_hex"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty}, npr_pbr=${npr_pbr_hex:-empty}, npr_slot=${npr_slot_str:-empty}, npr_excess_blob=${npr_excess_blob_str:-empty}, npr_block_number=${npr_block_number_str:-empty}, npr_gas_limit=${npr_gas_limit_str:-empty}, npr_prev_randao=${npr_prev_randao_hex:-empty}, npr_gas_used=${npr_gas_used_str:-empty}, npr_timestamp=${npr_timestamp_str:-empty}, npr_parent_hash=${npr_parent_hash_hex:-empty}, npr_fee_recipient=${npr_fee_recipient_hex:-empty}, npr_state_root=${npr_state_root_hex:-empty}, npr_base_fee=${npr_base_fee_str:-empty}, npr_block_hash=${npr_block_hash_hex:-empty}, npr_blob_gas_used=${npr_blob_gas_used_str:-empty}, npr_logs_bloom_chunk0=${npr_logs_bloom_chunk0_hex:-empty}, npr_logs_bloom_chunk1=${npr_logs_bloom_chunk1_hex:-empty}, npr_logs_bloom_chunk2=${npr_logs_bloom_chunk2_hex:-empty}, npr_logs_bloom_chunk3=${npr_logs_bloom_chunk3_hex:-empty})"
+  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex" "$npr_pbr_hex" "$npr_slot_str" "$npr_excess_blob_str" "$npr_block_number_str" "$npr_gas_limit_str" "$npr_prev_randao_hex" "$npr_gas_used_str" "$npr_timestamp_str" "$npr_parent_hash_hex" "$npr_fee_recipient_hex" "$npr_state_root_hex" "$npr_base_fee_str" "$npr_block_hash_hex" "$npr_blob_gas_used_str" "$npr_logs_bloom_chunk0_hex" "$npr_logs_bloom_chunk1_hex" "$npr_logs_bloom_chunk2_hex" "$npr_logs_bloom_chunk3_hex"
 
   # Guard against silent fail: if the spec generator crashed
   # (Python syntax error in the heredoc, missing import, etc.)
@@ -368,6 +370,16 @@ run_fixture "chain1_npr_exec_payload_logs_bloom_chunk0_aa" 1 0 ""        ""     
 # dynamic node_0_1 = sha256(chunk_0 || chunk_1) -- pure
 # read-side, no new sha256 calls.
 run_fixture "chain1_npr_exec_payload_logs_bloom_chunk1_bb" 1 0 ""        ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    ""    ""    ""                                ""    ""    ""    ""    ""                                  ""    ""    ""    ""    "$(printf 'bb%.0s' {1..32})" || fail=1
+
+# Non-empty execution_payload: logs_bloom chunk 2 = 0xCC*32
+# (bytes [64..96) of the 256-byte ByteVector). Replaces the
+# static `ssz_zero_hash[1]` (= default node_2_3) used as the
+# right input to logs_bloom's node_0_3 with a dynamic
+#   npr_logs_bloom_node_2_3 = sha256(chunk_2 || chunk_3)
+# +1 sha256 call. Chunks 4..7 still hardcoded zero
+# (ssz_zero_hash[2] sibling at the top of the logs_bloom
+# subtree).
+run_fixture "chain1_npr_exec_payload_logs_bloom_chunk2_cc" 1 0 ""        ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    ""    ""    ""                                ""    ""    ""    ""    ""                                  ""    ""    ""    ""    ""    "$(printf 'cc%.0s' {1..32})" || fail=1
 
 # Edge: chain_id = 2^32 = 0x100000000. LE bytes
 # 00 00 00 00 01 00 00 00. The encoder's chain_id split
