@@ -47,6 +47,7 @@ import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
+import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -271,30 +272,156 @@ def statelessGuestValidatorPipeline : String :=
 def statelessGuestEpilogue : String :=
   statelessGuestValidatorPipeline ++ "\n" ++
   ".Lsg_hash:\n" ++
-  "  # Stamp `compute_new_payload_request_root(empty)` at OUTPUT[0..32).\n" ++
+  "  # Compute `compute_new_payload_request_root(stateless_input)`\n" ++
+  "  # at OUTPUT[0..32) -- the SSZ merkle root over the four NPR\n" ++
+  "  # field roots:\n" ++
+  "  #   field_root[0] = hash_tree_root(execution_payload)\n" ++
+  "  #   field_root[1] = hash_tree_root(versioned_hashes)\n" ++
+  "  #   field_root[2] = parent_beacon_block_root      (Bytes32 inline)\n" ++
+  "  #   field_root[3] = hash_tree_root(execution_requests)\n" ++
+  "  # For all current fixtures every NPR field except\n" ++
+  "  # parent_beacon_block_root is the SSZ default, so field_root[0],\n" ++
+  "  # field_root[1], and field_root[3] are static constants\n" ++
+  "  # (`npr_left_subtree` packages sha256(field_root[0] ||\n" ++
+  "  # field_root[1]); `npr_exec_requests_root` is field_root[3]).\n" ++
+  "  # field_root[2] is read from input at NPR_addr + 8 (NPR_addr\n" ++
+  "  # = SSZ_BASE + outer.offsets[0]; for this schema outer.offsets[0]\n" ++
+  "  # is always 16).\n" ++
   "  # \n" ++
-  "  # The spec's `verify_stateless_new_payload` always sets the\n" ++
-  "  # output's `new_payload_request_root` field to\n" ++
-  "  # `compute_new_payload_request_root(stateless_input)`. For an\n" ++
-  "  # *empty* SszNewPayloadRequest -- what the new-schema decoder\n" ++
-  "  # currently produces because no SSZ decode of\n" ++
-  "  # new_payload_request is wired -- this hash is the fixed\n" ++
-  "  # constant `empty_npr_root` below.\n" ++
+  "  # Computation:\n" ++
+  "  #   right_subtree = sha256(parent_beacon_block_root ||\n" ++
+  "  #                          npr_exec_requests_root)\n" ++
+  "  #   npr_root      = sha256(npr_left_subtree || right_subtree)\n" ++
   "  # \n" ++
-  "  # Generalising to non-empty new_payload_request requires\n" ++
-  "  # implementing `hash_tree_root(SszNewPayloadRequest)` (a\n" ++
-  "  # deeply-nested Container with 19-field execution_payload +\n" ++
-  "  # versioned_hashes List + execution_requests Container). That's\n" ++
-  "  # tracked as a follow-up to this PR. For now we stamp the\n" ++
-  "  # empty-input constant so the spec-diff section of the test\n" ++
-  "  # shrinks to zero for our current fixture set.\n" ++
-  "  li t0, 0xa0010000           # t0 = OUTPUT_ADDR (root field)\n" ++
-  "  la t1, empty_npr_root\n" ++
-  "  ld t2,  0(t1); sd t2,  0(t0)\n" ++
-  "  ld t2,  8(t1); sd t2,  8(t0)\n" ++
-  "  ld t2, 16(t1); sd t2, 16(t0)\n" ++
-  "  ld t2, 24(t1); sd t2, 24(t0)\n" ++
+  "  # For pbr=zero (every previously-shipped fixture) the\n" ++
+  "  # computation reproduces the precomputed `empty_npr_root`\n" ++
+  "  # constant. For non-empty pbr it produces the spec-matching\n" ++
+  "  # root.\n" ++
+  "  # \n" ++
+  "  # Generalising to non-default execution_payload /\n" ++
+  "  # versioned_hashes / execution_requests requires recomputing\n" ++
+  "  # those field roots dynamically -- deferred to subsequent PRs.\n" ++
+  "  # \n" ++
+  "  # Re-derive SSZ_BASE in s6 (callee-saved -- survives zkvm_sha256\n" ++
+  "  # calls). K-PR pipeline only saves s0-s5 in its validators, so\n" ++
+  "  # s6 is free.\n" ++
+  "  li s6, 0x40000000\n" ++
+  "  addi s6, s6, 18             # s6 = SSZ_BASE\n" ++
+  "  # \n" ++
+  "  # ===== exec_payload merkle path (leaves 16-31, leaf 18=slot_number) =====\n" ++
+  "  # leaf_18 = slot_number (u64 LE at SSZ_BASE + 16 + 44 + 532 = +592)\n" ++
+  "  #          || 24 bytes of zero padding\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  ld t2, 592(s6)              # slot_number\n" ++
+  "  sd t2,  0(t1)\n" ++
+  "  sd zero,  8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
+  "  # bytes [32..64) = ssz_zero_hash[0] = leaf_19\n" ++
+  "  sd zero, 32(t1); sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
+  "  jal ra, zkvm_sha256         # node_18_19 -> npr_sha_subtree\n" ++
+  "  # node_16_19 = sha256(node_16_17 || node_18_19)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_node_16_17\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, npr_sha_subtree\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
+  "  jal ra, zkvm_sha256         # node_16_19 -> npr_sha_subtree\n" ++
+  "  # node_16_23 = sha256(node_16_19 || ssz_zero_hash[2])\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_sha_subtree\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, ssz_zero_hashes\n" ++
+  "  addi t3, t3, 64             # ssz_zero_hash[2]\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
+  "  jal ra, zkvm_sha256         # node_16_23 -> npr_sha_subtree\n" ++
+  "  # node_16_31 = sha256(node_16_23 || ssz_zero_hash[3])\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_sha_subtree\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, ssz_zero_hashes\n" ++
+  "  addi t3, t3, 96             # ssz_zero_hash[3]\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
+  "  jal ra, zkvm_sha256         # node_16_31 -> npr_sha_subtree\n" ++
+  "  # exec_payload_root = sha256(node_0_15 || node_16_31)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_node_0_15\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, npr_sha_subtree\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_exec_payload_root\n" ++
+  "  jal ra, zkvm_sha256         # exec_payload_root -> npr_exec_payload_root\n" ++
+  "  # \n" ++
+  "  # ===== NPR top-level merkle =====\n" ++
+  "  # left_subtree = sha256(exec_payload_root || versioned_hashes_root)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_exec_payload_root\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, npr_versioned_hashes_root\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_left_subtree_scratch\n" ++
+  "  jal ra, zkvm_sha256         # left_subtree -> npr_left_subtree_scratch\n" ++
+  "  # right_subtree = sha256(parent_beacon_block_root || npr_exec_requests_root)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  ld t2, 24(s6); sd t2,  0(t1)\n" ++
+  "  ld t2, 32(s6); sd t2,  8(t1)\n" ++
+  "  ld t2, 40(s6); sd t2, 16(t1)\n" ++
+  "  ld t2, 48(s6); sd t2, 24(t1)\n" ++
+  "  la t3, npr_exec_requests_root\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
+  "  jal ra, zkvm_sha256         # right_subtree -> npr_sha_subtree\n" ++
+  "  # root = sha256(left_subtree || right_subtree) -> OUTPUT_ADDR\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_left_subtree_scratch\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, npr_sha_subtree\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; li a2, 0xa0010000\n" ++
+  "  jal ra, zkvm_sha256         # root -> OUTPUT_ADDR\n" ++
   "  j .Lsg_done\n" ++
+  zkvmSha256Function ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   chainValidatePostMergeFullFunction ++ "\n" ++
@@ -306,150 +433,10 @@ def statelessGuestEpilogue : String :=
   chainValidateConsecutiveNumbersFunction ++ "\n" ++
   ".Lsg_done:"
 
-def statelessGuestDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "sha256_w_iv:\n" ++
-  "  .quad 0xbb67ae856a09e667\n" ++
-  "  .quad 0xa54ff53a3c6ef372\n" ++
-  "  .quad 0x9b05688c510e527f\n" ++
-  "  .quad 0x5be0cd191f83d9ab\n" ++
-  ".balign 8\n" ++
-  "sha256_w_state:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "sha256_w_input:\n" ++
-  "  .zero 64\n" ++
-  ".balign 8\n" ++
-  "sha256_w_params:\n" ++
-  "  .quad sha256_w_state\n" ++
-  "  .quad sha256_w_input\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_scratch:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_padded:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_partial:\n" ++
-  "  .zero 64\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_chunks:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_partial:\n" ++
-  "  .zero 32\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_mix:\n" ++
-  "  .zero 64\n" ++
-  ".balign 32\n" ++
-  "ssz_ltb_child_roots:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_ltb_partial:\n" ++
-  "  .zero 32\n" ++
-  ".balign 32\n" ++
-  "ssz_ltb_mix:\n" ++
-  "  .zero 64\n" ++
-  ".balign 32\n" ++
-  "ssz_ew_field_roots:\n" ++
-  "  .zero 96\n" ++
-  sszZeroHashesDataSection ++ "\n" ++
-  -- Header-validator pipeline scratch:
-  ".balign 8\n" ++
-  "sg_header_lengths:\n" ++
-  "  .zero 2048\n" ++          -- MAX_WITNESS_HEADERS (256) × 8 bytes
-  "sg_kpr_valid:\n" ++
-  "  .zero 8\n" ++
-  "sg_kpr_bad_index:\n" ++
-  "  .zero 8\n" ++
-  -- Shared K-PR scratch (zk3_state / rfu_offset / rfu_length: used by
-  -- rlp_list_nth_item + rlp_field_to_u64; same labels each K-PR
-  -- declares, declared once here):
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  -- K290 chain_validate_post_merge_full scratch:
-  "cvpmf_field:\n" ++
-  "  .zero 8\n" ++
-  "cvpmf_offset:\n" ++
-  "  .zero 8\n" ++
-  "cvpmf_length:\n" ++
-  "  .zero 8\n" ++
-  "cvpmf_iter_ptr:\n" ++
-  "  .zero 8\n" ++
-  "cvpmf_iter_i:\n" ++
-  "  .zero 8\n" ++
-  "cvpmf_empty_hash:\n" ++
-  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
-  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
-  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
-  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
-  -- K291 chain_validate_extra_data_length scratch:
-  "cvedl_offset:\n" ++
-  "  .zero 8\n" ++
-  "cvedl_length:\n" ++
-  "  .zero 8\n" ++
-  "cvedl_iter_ptr:\n" ++
-  "  .zero 8\n" ++
-  "cvedl_iter_i:\n" ++
-  "  .zero 8\n" ++
-  -- K240 chain_validate_gas_used_under_limit scratch:
-  "cvgul_gas_used:\n" ++
-  "  .zero 8\n" ++
-  "cvgul_gas_limit:\n" ++
-  "  .zero 8\n" ++
-  "cvgul_iter_ptr:\n" ++
-  "  .zero 8\n" ++
-  "cvgul_iter_i:\n" ++
-  "  .zero 8\n" ++
-  -- K278 chain_validate_blob_gas_used_multiple scratch:
-  "cvbgm_field:\n" ++
-  "  .zero 8\n" ++
-  "cvbgm_iter_ptr:\n" ++
-  "  .zero 8\n" ++
-  "cvbgm_iter_i:\n" ++
-  "  .zero 8\n" ++
-  -- K277 chain_validate_blob_gas_used_under_max scratch:
-  "cvbgum_field:\n" ++
-  "  .zero 8\n" ++
-  "cvbgum_iter_ptr:\n" ++
-  "  .zero 8\n" ++
-  "cvbgum_iter_i:\n" ++
-  "  .zero 8\n" ++
-  -- K229 chain_validate_increasing_timestamps scratch:
-  "cvit_ts:\n" ++
-  "  .zero 8\n" ++
-  "cvit_iter_child:\n" ++
-  "  .zero 8\n" ++
-  "cvit_iter_i:\n" ++
-  "  .zero 8\n" ++
-  "cvit_iter_prev:\n" ++
-  "  .zero 8\n" ++
-  -- K230 chain_validate_consecutive_numbers scratch:
-  "cvcn_num:\n" ++
-  "  .zero 8\n" ++
-  "cvcn_iter_child:\n" ++
-  "  .zero 8\n" ++
-  "cvcn_iter_i:\n" ++
-  "  .zero 8\n" ++
-  "cvcn_iter_prev:\n" ++
-  "  .zero 8\n" ++
-  -- compute_new_payload_request_root(empty_input) -- the spec
-  -- hash for an empty `SszNewPayloadRequest`, independent of
-  -- chain_id. Stamped at OUTPUT[0..32) by the epilogue.
-  -- (Verified against
-  --  `execution-specs/.../stateless.compute_new_payload_request_root`
-  --  on d7fe16ab8.)
-  ".balign 8\n" ++
-  "empty_npr_root:\n" ++
-  "  .byte 0xf7, 0x83, 0x79, 0x28, 0xaf, 0x2f, 0xf9, 0x7a\n" ++
-  "  .byte 0xdd, 0x39, 0x49, 0x6e, 0x3c, 0x72, 0xbc, 0xdf\n" ++
-  "  .byte 0xba, 0xdf, 0xfc, 0x45, 0x3d, 0xee, 0x6a, 0x58\n" ++
-  "  .byte 0x2c, 0xa2, 0xa5, 0xc7, 0xcc, 0x51, 0x2f, 0x71"
+-- `statelessGuestDataSection` lives in
+-- `EvmAsm/Codegen/Programs/StatelessGuestData.lean` (carved
+-- out here to satisfy the file-size hard cap; see PR #5870
+-- and PR #5900 for the established submodule pattern).
 
 def statelessGuestUnit : BuildUnit := {
   body        := EvmAsm.Stateless.run_stateless_guest
@@ -1162,6 +1149,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/State.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
     "EvmAsm/Codegen/Programs/Ssz.lean",
+    "EvmAsm/Codegen/Programs/StatelessGuestData.lean",
     "EvmAsm/Codegen/Programs/Tx.lean",
     "EvmAsm/Codegen/Programs/TxDecode.lean",
     "EvmAsm/Codegen/Programs/TxExtract.lean",
