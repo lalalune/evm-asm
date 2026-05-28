@@ -413,6 +413,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_code_at_header_state_root" => some ziskCodeAtHeaderStateRootProbeUnit
   | "zisk_extcodesize_at_header_state_root" => some ziskExtcodesizeAtHeaderStateRootProbeUnit
   | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
+  | "zisk_sload_at_header_state_root" => some ziskSloadAtHeaderStateRootProbeUnit
   | "zisk_validate_storage_root_in_witness_storage" => some ziskValidateStorageRootInWitnessStorageProbeUnit
   | "zisk_has_code_or_nonce_at_header_state_root" => some ziskHasCodeOrNonceAtHeaderStateRootProbeUnit
   | "zisk_rlp_field_to_u64"     => some ziskRlpFieldToU64ProbeUnit
@@ -568,6 +569,7 @@ def knownProgramNames : List String :=
    "zisk_code_at_header_state_root",
    "zisk_extcodesize_at_header_state_root",
    "zisk_extcodehash_at_header_state_root",
+   "zisk_sload_at_header_state_root",
    "zisk_validate_storage_root_in_witness_storage",
    "zisk_has_code_or_nonce_at_header_state_root",
    "zisk_rlp_field_to_u64",
