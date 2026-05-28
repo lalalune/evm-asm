@@ -31,6 +31,21 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- Code requirement for the div128 v5 step-2 prefix (init + Phase-2a cap,
+    instrs [46]-[56]). -/
+def divKDiv128Step2InitCapV5Code (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 28))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x9 .x0 4095))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.SRLI .x9 .x9 32))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SUB .x7 .x5 .x9))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.MUL .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.ADD .x11 .x11 .x7))
+   (CodeReq.singleton (base + 40) (.ADDI .x5 .x9 0)))))))))))
+
 /-- div128 v5 step-2 prefix: trial division `q0` then the Phase-2a cap.
     Instrs [46]-[56]. Input: un21 in x7, dHi in x6. Output: capped `q0c`
     in x5, recomputed `rhat2c` in x11. -/
@@ -44,24 +59,14 @@ theorem divK_div128_step2_initcap_v5_spec_within
     let rhat2c := if hi = 0 then rhat2 else rhat2 + (q0 - q0cCap) * dHi
     let x9o := if hi = 0 then hi else q0cCap
     let x7o := if hi = 0 then un21 else (q0 - q0cCap) * dHi
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x11 .x7 .x9))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x9 .x0 28))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x9 .x0 4095))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.SRLI .x9 .x9 32))
-      (CodeReq.union (CodeReq.singleton (base + 28) (.SUB .x7 .x5 .x9))
-      (CodeReq.union (CodeReq.singleton (base + 32) (.MUL .x7 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 36) (.ADD .x11 .x11 .x7))
-       (CodeReq.singleton (base + 40) (.ADDI .x5 .x9 0)))))))))))
-    cpsTripleWithin 11 base (base + 44) cr
+    cpsTripleWithin 11 base (base + 44) (divKDiv128Step2InitCapV5Code base)
       ((.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
        (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ 0))
       ((.x5 ↦ᵣ q0c) ** (.x11 ↦ᵣ rhat2c) ** (.x6 ↦ᵣ dHi) **
        (.x9 ↦ᵣ x9o) ** (.x7 ↦ᵣ x7o) ** (.x0 ↦ᵣ 0)) := by
-  intro q0 rhat2 hi q0cCap q0c rhat2c x9o x7o cr
+  intro q0 rhat2 hi q0cCap q0c rhat2c x9o x7o
+  let cr := divKDiv128Step2InitCapV5Code base
+  show cpsTripleWithin 11 base (base + 44) cr _ _
   have hcr_eq : cr =
       CodeReq.union (CodeReq.singleton base (.DIVU .x5 .x7 .x6))
       (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x9 .x5 .x6))
