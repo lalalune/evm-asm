@@ -239,6 +239,25 @@ def statelessGuestDataSection : String :=
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "npr_left_subtree_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- `npr_leaf_17_bal_root` is the SSZ hash_tree_root of an
+  -- empty `block_access_list` (ByteList[MAX_BLOCK_ACCESS_LIST_BYTES]),
+  -- = leaf 17 of the default exec_payload merkle tree. Now that
+  -- the `.Lsg_hash` epilogue computes `node_16_17` dynamically
+  -- (to support non-default `excess_blob_gas` = leaf 16), only
+  -- leaf 17 needs to be precomputed as a constant; the prior
+  -- `npr_node_16_17` is no longer referenced but kept for
+  -- diff-context.
+  -- `npr_node_16_17_scratch` is the 32-byte buffer that holds
+  -- the dynamic sha256(leaf_16 || npr_leaf_17_bal_root).
+  ".balign 8\n" ++
+  "npr_leaf_17_bal_root:\n" ++
+  "  .byte 0x0e, 0x61, 0x79, 0x77, 0x4d, 0x9c, 0x1f, 0x78\n" ++
+  "  .byte 0x0c, 0x91, 0xa6, 0x89, 0x68, 0xa1, 0x43, 0xb5\n" ++
+  "  .byte 0xff, 0xd2, 0xf1, 0x8c, 0x2c, 0x01, 0xa2, 0xe8\n" ++
+  "  .byte 0x50, 0x16, 0xe1, 0x2a, 0x8c, 0x78, 0x1a, 0x0b\n" ++
+  ".balign 8\n" ++
+  "npr_node_16_17_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen
