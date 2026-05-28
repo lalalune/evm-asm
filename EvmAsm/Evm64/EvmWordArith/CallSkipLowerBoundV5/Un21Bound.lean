@@ -205,4 +205,84 @@ theorem divKTrialCallV5Un21_lt_vTop
     rw [hkB, Nat.mod_eq_of_lt hrem_lt64]
     exact hrem_lt
 
+/-- **V5 un21 = r1**: the Phase-1 remainder equals the first mathematical remainder
+    `r1 = (uHi*2^32 + un1) % vTop`. Same proof structure as `divKTrialCallV5Un21_lt_vTop`
+    ending with equality instead of strict inequality. -/
+theorem divKTrialCallV5Un21_eq_r1
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (divKTrialCallV5Un21 uHi uLo vTop).toNat =
+      (uHi.toNat * 2^32 + (divKTrialCallV5Un1 uLo).toNat) % vTop.toNat := by
+  rw [divKTrialCallV5Un21_unfold]; dsimp only
+  set Q := divKTrialCallV5Q1dd uHi uLo vTop
+  set R := divKTrialCallV5Rhatdd uHi uLo vTop
+  set dL := divKTrialCallV5DLo vTop with hdL
+  set U1 := divKTrialCallV5Un1 uLo
+  have h_Q_eq : Q.toNat = (uHi.toNat * 2^32 + U1.toNat) / vTop.toNat :=
+    divKTrialCallV5Q1dd_eq_q_true_1 uHi uLo vTop hvTop_ge huHi_lt_vTop
+  have h_post : Q.toNat * (divKTrialCallV5DHi vTop).toNat + R.toNat = uHi.toNat :=
+    divKTrialCallV5Q1dd_rhatdd_post uHi uLo vTop hvTop_ge
+  have h_QdL_nw : (Q * dL).toNat = Q.toNat * dL.toNat :=
+    divKTrialCallV5Q1dd_dLo_no_wrap uHi uLo vTop
+  have h_vTop_eq : vTop.toNat = (divKTrialCallV5DHi vTop).toNat * 2^32 + dL.toNat := by
+    rw [hdL]; unfold divKTrialCallV5DHi divKTrialCallV5DLo; exact div128Quot_vTop_decomp vTop
+  have h_U1_lt : U1.toNat < 2^32 := divKTrialCallV5Un1_lt_pow32 uLo
+  have hvTop_pos : 0 < vTop.toNat := by omega
+  have hrem_lt : (uHi.toNat * 2^32 + U1.toNat) % vTop.toNat < vTop.toNat :=
+    Nat.mod_lt _ hvTop_pos
+  have h_alg : R.toNat * 2^32 + U1.toNat =
+      Q.toNat * dL.toNat + (uHi.toNat * 2^32 + U1.toNat) % vTop.toNat := by
+    have h_Ndm : uHi.toNat * 2^32 + U1.toNat =
+        Q.toNat * vTop.toNat + (uHi.toNat * 2^32 + U1.toNat) % vTop.toNat := by
+      have hd := Nat.div_add_mod (uHi.toNat * 2^32 + U1.toNat) vTop.toNat
+      have hQV : Q.toNat * vTop.toNat =
+          vTop.toNat * ((uHi.toNat * 2^32 + U1.toNat) / vTop.toNat) := by
+        rw [h_Q_eq]; ring
+      linarith
+    have h_uHi_exp : uHi.toNat * 2^32 =
+        Q.toNat * (divKTrialCallV5DHi vTop).toNat * 2^32 + R.toNat * 2^32 := by
+      calc uHi.toNat * 2^32
+          = (Q.toNat * (divKTrialCallV5DHi vTop).toNat + R.toNat) * 2^32 := by
+            congr 1; linarith [h_post]
+        _ = Q.toNat * (divKTrialCallV5DHi vTop).toNat * 2^32 + R.toNat * 2^32 := by ring
+    have h_Q_vTop : Q.toNat * vTop.toNat =
+        Q.toNat * (divKTrialCallV5DHi vTop).toNat * 2^32 + Q.toNat * dL.toNat := by
+      rw [h_vTop_eq]; ring
+    linarith
+  have h_comb : ((R <<< (32 : BitVec 6).toNat) ||| U1).toNat =
+      (R.toNat % 2^32) * 2^32 + U1.toNat := by
+    have h32 : (32 : BitVec 6).toNat = 32 := by decide
+    rw [h32]; exact halfword_combine_truncated R U1 h_U1_lt
+  have h_un21 : ((R <<< (32 : BitVec 6).toNat ||| U1) - Q * dL).toNat =
+      ((R.toNat % 2^32) * 2^32 + U1.toNat + 2^64 - Q.toNat * dL.toNat) % 2^64 := by
+    rw [BitVec.toNat_sub, h_comb, h_QdL_nw]; congr 1; omega
+  rw [h_un21]
+  set A := (R.toNat % 2^32) * 2^32 + U1.toNat with hA
+  set B := Q.toNat * dL.toNat with hB
+  set rem := (uHi.toNat * 2^32 + U1.toNat) % vTop.toNat
+  have h_decomp : A + (R.toNat / 2^32) * 2^64 = B + rem := by
+    have hkey : R.toNat * 2^32 = (R.toNat / 2^32) * 2^64 + (R.toNat % 2^32) * 2^32 :=
+      Nat_mul_pow32_split
+    linarith [hA, hB, h_alg]
+  have h_A_lt : A < 2^64 := by
+    have := Nat.mod_lt R.toNat (show 0 < 2^32 from by norm_num); nlinarith [hA, h_U1_lt]
+  have h_B_lt : B < 2^64 := by
+    have h_Q_lt : Q.toNat < 2^32 := by
+      have h_le := divKTrialCallV5Q1dd_le_q_true_1 uHi uLo vTop hvTop_ge huHi_lt_vTop
+      have h_N_lt : uHi.toNat * 2^32 + U1.toNat < vTop.toNat * 2^32 := by nlinarith
+      have : (uHi.toNat * 2^32 + U1.toNat) / vTop.toNat < 2^32 :=
+        (Nat.div_lt_iff_lt_mul (by omega)).mpr (by linarith)
+      omega
+    have h_dL_lt : dL.toNat < 2^32 := divKTrialCallV5DLo_lt_pow32 vTop
+    nlinarith [hB]
+  have hrem_lt64 : rem < 2^64 := lt_trans hrem_lt (by have := vTop.isLt; omega)
+  have h_k_le_1 : R.toNat / 2^32 ≤ 1 := by omega
+  rcases Nat.eq_zero_or_pos (R.toNat / 2^32) with hk0 | hk1_pos
+  · have hkB : A + 2^64 - B = rem + 2^64 := by omega
+    rw [hkB, Nat.add_mod_right, Nat.mod_eq_of_lt hrem_lt64]
+  · have hk1 : R.toNat / 2^32 = 1 := Nat.le_antisymm h_k_le_1 hk1_pos
+    have hkB : A + 2^64 - B = rem := by omega
+    rw [hkB, Nat.mod_eq_of_lt hrem_lt64]
+
 end EvmAsm.Evm64
