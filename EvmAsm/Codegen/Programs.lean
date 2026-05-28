@@ -193,6 +193,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_extract_basefee_range" => some ziskChainExtractBasefeeRangeProbeUnit
   | "zisk_chain_block_hashes_commitment" => some ziskChainBlockHashesCommitmentProbeUnit
   | "zisk_header_extract_state_root" => some ziskHeaderExtractStateRootProbeUnit
+  | "zisk_validate_state_root_against_witness_node" => some ziskValidateStateRootAgainstWitnessNodeProbeUnit
   | "zisk_header_extract_parent_hash" => some ziskHeaderExtractParentHashProbeUnit
   | "zisk_header_extract_receipts_root" => some ziskHeaderExtractReceiptsRootProbeUnit
   | "zisk_header_extract_transactions_root" => some ziskHeaderExtractTransactionsRootProbeUnit
@@ -663,6 +664,7 @@ def knownProgramNames : List String :=
    "zisk_chain_extract_basefee_range",
    "zisk_chain_block_hashes_commitment",
    "zisk_header_extract_state_root",
+   "zisk_validate_state_root_against_witness_node",
    "zisk_header_extract_parent_hash",
    "zisk_header_extract_receipts_root",
    "zisk_header_extract_transactions_root",
