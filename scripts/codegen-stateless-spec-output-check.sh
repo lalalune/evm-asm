@@ -330,6 +330,33 @@ run_fixture "chain1_blob"           1                  0    ""           ""     
 # byte-for-byte against the spec.
 run_fixture "chain1_blob_realistic" 1                  0    ""           ""                  ""    ""           ""           "14:21:11684671" || fail=1
 
+# First fixture where spec's validate_chain_config() reaches
+# the SUCCESS branch (returns active_fork) rather than
+# raising an exception. Configuration:
+#   chain_id = 1 (mainnet)
+#   fork     = 4 (ProtocolFork.Amsterdam, the latest enum)
+#   activation.block_number = [0] (set, so _is_activation_active
+#     finds activation.block_number is not None; checking
+#     execution_payload.block_number (0) < 0 is False --
+#     activation is active for the empty execution_payload)
+#   blob_schedule = (14, 21, 11684671)
+#     -- exactly _expected_amsterdam_blob_schedule()
+#        (BLOB_SCHEDULE_TARGET, BLOB_SCHEDULE_MAX,
+#         BLOB_BASE_FEE_UPDATE_FRACTION in
+#         execution-specs/amsterdam/vm/gas.py)
+# Spec walks all three validate_chain_config checks
+# successfully, then falls into validate_headers([]) which
+# raises IndexError -- caught at the verify_stateless_new_payload
+# level, successful_validation=False. Output: empty_npr_root
+# + valid=False + chain_config echo.
+# Variety dimension: SPEC code path that PASSES
+# validate_chain_config. Until this fixture, every fixture's
+# spec ran into UnsupportedForkConfigError /
+# InactiveForkConfigError / InvalidForkActivationError. This
+# fixture exercises the success-path arm of every check inside
+# validate_chain_config.
+run_fixture "chain1_fork4_amsterdam_active" 1          4    ""           ""                  ""    "0"          ""           "14:21:11684671" || fail=1
+
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
 # transactions_root, receipt_root, bloom, prev_randao,
