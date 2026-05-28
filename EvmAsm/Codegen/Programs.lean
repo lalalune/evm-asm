@@ -408,6 +408,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_at_header_state_root" => some ziskAccountAtHeaderStateRootProbeUnit
   | "zisk_slot_at_header_state_root" => some ziskSlotAtHeaderStateRootProbeUnit
   | "zisk_code_at_header_state_root" => some ziskCodeAtHeaderStateRootProbeUnit
+  | "zisk_extcodesize_at_header_state_root" => some ziskExtcodesizeAtHeaderStateRootProbeUnit
   | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
   | "zisk_rlp_field_to_u64"     => some ziskRlpFieldToU64ProbeUnit
   | "zisk_rlp_field_to_u256_be" => some ziskRlpFieldToU256BeProbeUnit
@@ -560,6 +561,7 @@ def knownProgramNames : List String :=
    "zisk_account_at_header_state_root",
    "zisk_slot_at_header_state_root",
    "zisk_code_at_header_state_root",
+   "zisk_extcodesize_at_header_state_root",
    "zisk_extcodehash_at_header_state_root",
    "zisk_rlp_field_to_u64",
    "zisk_rlp_field_to_u256_be",
