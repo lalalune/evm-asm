@@ -89,6 +89,7 @@ import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
+import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
@@ -868,6 +869,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/MptNibbles.lean",
     "EvmAsm/Codegen/Programs/Receipt.lean",
     "EvmAsm/Codegen/Programs/State.lean",
+    "EvmAsm/Codegen/Programs/StateCompose.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
     "EvmAsm/Codegen/Programs/Ssz.lean",
     "EvmAsm/Codegen/Programs/StatelessGuestData.lean",

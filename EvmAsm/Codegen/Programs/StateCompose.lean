@@ -1,0 +1,480 @@
+/-
+  EvmAsm.Codegen.Programs.StateCompose
+
+  Composite state-proof programs carved out of `State.lean` to
+  keep that file under the hard-cap line limit. Imports `State`
+  so it can reference the string-constant helpers defined there.
+-/
+import EvmAsm.Codegen.Programs.State
+
+namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
+open EvmAsm.Rv64.Program
+/-! ## validate_witness_state_contains_root
+
+    Compose `header_extract_state_root` (K201) and
+    `witness_lookup_by_hash` (K19) into a single composite:
+    given a parent header RLP and an SSZ `witness.state` list
+    section, find the node in the section whose `keccak256`
+    matches the header's `state_root` field.
+
+    Second step in the storage-proof top-down walk: a previous
+    composite verified a caller-supplied root node directly;
+    THIS one searches the whole witness for it. On the spec
+    side this is what `run_stateless_guest` does between the
+    header walk and `apply_body` -- it can only descend the
+    trie once the root node has been located in
+    `witness.state`.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp_len
+      a2 (input)  : SSZ list section ptr (witness.state shape)
+      a3 (input)  : section_len
+      a4 (input)  : u64 out ptr (matched entry offset within
+                    section; meaningful only on hit)
+      a5 (input)  : u64 out ptr (matched entry length;
+                    meaningful only on hit)
+      ra (input)  : return
+      a0 (output) : 0 on hit, 1 on miss,
+                    2 on header parse/size fail
+-/
+def validateWitnessStateContainsRootFunction : String :=
+  "validate_witness_state_contains_root:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_rlp_len\n" ++
+  "  mv s2, a2                  # section ptr\n" ++
+  "  mv s3, a3                  # section_len\n" ++
+  "  mv s4, a4                  # out_offset ptr\n" ++
+  "  mv s5, a5                  # out_length ptr\n" ++
+  "  # Step 1: header.state_root -> vwsc_state_root.\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  la a2, vwsc_state_root\n" ++
+  "  jal ra, header_extract_state_root\n" ++
+  "  beqz a0, .Lvwsc_step2\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lvwsc_ret\n" ++
+  ".Lvwsc_step2:\n" ++
+  "  # Step 2: witness_lookup_by_hash(section, target=state_root).\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a1, s3\n" ++
+  "  la a2, vwsc_state_root\n" ++
+  "  mv a3, s4\n" ++
+  "  mv a4, s5\n" ++
+  "  jal ra, witness_lookup_by_hash\n" ++
+  "  # a0 already holds 0 (hit) or 1 (miss).\n" ++
+  ".Lvwsc_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_validate_witness_state_contains_root`: probe BuildUnit.
+
+    Input layout (at INPUT_ADDR):
+      bytes  0.. 8 : (ziskemu metadata)
+      bytes  8..16 : header_rlp_len (u64)
+      bytes 16..24 : state_section_len (u64)
+      bytes 24..24+H            : header_rlp
+      bytes 24+H..24+H+S        : witness.state SSZ list bytes
+    Output layout:
+      bytes  0.. 8 : status (0 hit / 1 miss / 2 parse_fail)
+      bytes  8..16 : matched entry offset (u64; on hit)
+      bytes 16..24 : matched entry length (u64; on hit) -/
+def ziskValidateWitnessStateContainsRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_rlp_len\n" ++
+  "  ld a3, 16(a7)               # state_section_len\n" ++
+  "  addi a0, a7, 24             # header_rlp ptr\n" ++
+  "  add a2, a0, a1              # section ptr = header_end\n" ++
+  "  li a4, 0xa0010008           # out_offset (OUTPUT + 8)\n" ++
+  "  li a5, 0xa0010010           # out_length (OUTPUT + 16)\n" ++
+  "  # Pre-zero so non-hits surface as zeros.\n" ++
+  "  sd zero, 0(a4)\n" ++
+  "  sd zero, 0(a5)\n" ++
+  "  jal ra, validate_witness_state_contains_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status at OUTPUT + 0\n" ++
+  "  j .Lvwsc_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  validateWitnessStateContainsRootFunction ++ "\n" ++
+  ".Lvwsc_pdone:"
+
+def ziskValidateWitnessStateContainsRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "hesr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hesr_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "wlh_scratch_hash:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "vwsc_state_root:\n" ++
+  "  .zero 32"
+
+def ziskValidateWitnessStateContainsRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateWitnessStateContainsRootPrologue
+  dataAsm     := ziskValidateWitnessStateContainsRootDataSection
+}
+
+/-! ## validate_state_root_against_witness_node
+
+    First-step storage-proof verification: confirm that the
+    keccak256 of a witness state-trie root node matches the
+    `state_root` field of a parent header.
+
+    Composes two existing primitives:
+      - `header_extract_state_root` (K201): pulls `state_root`
+        (field 3, Bytes32) from an RLP-encoded amsterdam Header.
+      - `zkvm_keccak256`: computes the keccak256 of the witness
+        state-trie root node bytes.
+
+    Then byte-compares the two 32-byte digests.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp byte length
+      a2 (input)  : state_node_ptr (raw witness MPT-node bytes)
+      a3 (input)  : state_node byte length
+      ra (input)  : return
+      a0 (output) :
+        0 : match -- keccak256(state_node) == header.state_root
+        1 : mismatch
+        2 : header parse failure / wrong state_root field length
+
+    Scratch: `vsraw_state_root` (32 B), `vsraw_keccak` (32 B). -/
+def validateStateRootAgainstWitnessNodeFunction : String :=
+  "validate_state_root_against_witness_node:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                  # s0 = header_rlp ptr\n" ++
+  "  mv s1, a1                  # s1 = header_rlp len\n" ++
+  "  mv s2, a2                  # s2 = state_node ptr\n" ++
+  "  mv s3, a3                  # s3 = state_node len\n" ++
+  "  # Step 1: extract header.state_root -> vsraw_state_root.\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  la a2, vsraw_state_root\n" ++
+  "  jal ra, header_extract_state_root\n" ++
+  "  beqz a0, .Lvsraw_step2\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lvsraw_ret\n" ++
+  ".Lvsraw_step2:\n" ++
+  "  # Step 2: keccak256(state_node) -> vsraw_keccak.\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a1, s3\n" ++
+  "  la a2, vsraw_keccak\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  # Step 3: byte-compare the two 32-byte digests.\n" ++
+  "  la t0, vsraw_state_root\n" ++
+  "  la t1, vsraw_keccak\n" ++
+  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lvsraw_mismatch\n" ++
+  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lvsraw_mismatch\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lvsraw_mismatch\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lvsraw_mismatch\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lvsraw_ret\n" ++
+  ".Lvsraw_mismatch:\n" ++
+  "  li a0, 1\n" ++
+  ".Lvsraw_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_validate_state_root_against_witness_node`: probe
+    BuildUnit. Input layout:
+      INPUT[0..8)        : ziskemu metadata (zero)
+      INPUT[8..16)       : header_len (u64 LE)
+      INPUT[16..24)      : state_node_len (u64 LE)
+      INPUT[24..24+H)    : header_rlp bytes (H = header_len)
+      INPUT[24+H..)      : state_node bytes (length state_node_len)
+    Output:
+      OUTPUT[0..8)       : status (0=match, 1=mismatch, 2=parse fail). -/
+def ziskValidateStateRootAgainstWitnessNodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld a1, 8(a7)                # header_len\n" ++
+  "  ld a3, 16(a7)               # state_node_len\n" ++
+  "  addi a0, a7, 24             # header_ptr = INPUT + 24\n" ++
+  "  add a2, a0, a1              # state_node_ptr = header_ptr + header_len\n" ++
+  "  jal ra, validate_state_root_against_witness_node\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lvsraw_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  validateStateRootAgainstWitnessNodeFunction ++ "\n" ++
+  ".Lvsraw_pdone:"
+
+def ziskValidateStateRootAgainstWitnessNodeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "hesr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hesr_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "vsraw_state_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "vsraw_keccak:\n" ++
+  "  .zero 32"
+
+def ziskValidateStateRootAgainstWitnessNodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskValidateStateRootAgainstWitnessNodePrologue
+  dataAsm     := ziskValidateStateRootAgainstWitnessNodeDataSection
+}
+
+
+/-! ## account_at_header_state_root
+
+    Compose `header_extract_state_root` (K201) and
+    `account_at_address` (K28) into a single composite: given
+    a parent header RLP, an address, and an SSZ `witness.state`
+    section, extract the header's `state_root`, then look up
+    and decode the account at the given address.
+
+    Third top-down storage-proof step: the prior probes
+    handled "verify root node by hash" and "locate root node
+    in witness"; this one walks the trie all the way down to
+    the account record, the natural unit of state being
+    queried in `apply_body`.
+
+    Calling convention:
+      a0 (input)  : header_rlp ptr
+      a1 (input)  : header_rlp_len
+      a2 (input)  : address bytes ptr
+      a3 (input)  : address byte length (typically 20)
+      a4 (input)  : witness section ptr
+      a5 (input)  : witness section_len
+      a6 (input)  : output struct ptr (104 bytes)
+      ra (input)  : return
+      a0 (output) :
+        0 = found and decoded
+        1 = not found in trie     (output zeroed)
+        2 = mpt_walk parse error  (output zeroed)
+        3 = account_decode failure (output zeroed)
+        4 = header parse / state_root size fail (output zeroed)
+
+    The 104-byte output struct layout is identical to
+    `account_at_address`:
+      offset  0..  8 : nonce (u64 LE)
+      offset  8.. 40 : balance (u256 BE, left-zero-padded)
+      offset 40.. 72 : storage_root (32 B)
+      offset 72..104 : code_hash (32 B)
+-/
+def accountAtHeaderStateRootFunction : String :=
+  "account_at_header_state_root:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0                  # header_rlp ptr\n" ++
+  "  mv s1, a1                  # header_rlp_len\n" ++
+  "  mv s2, a2                  # address ptr\n" ++
+  "  mv s3, a3                  # address_len\n" ++
+  "  mv s4, a4                  # witness ptr\n" ++
+  "  mv s5, a5                  # witness_len\n" ++
+  "  mv s6, a6                  # output struct ptr\n" ++
+  "  # Step 1: extract header.state_root -> aahsr_state_root.\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  la a2, aahsr_state_root\n" ++
+  "  jal ra, header_extract_state_root\n" ++
+  "  beqz a0, .Laahsr_step2\n" ++
+  "  # Header parse / size fail: zero output struct, return 4.\n" ++
+  "  sd zero,  0(s6); sd zero,  8(s6); sd zero, 16(s6); sd zero, 24(s6)\n" ++
+  "  sd zero, 32(s6); sd zero, 40(s6); sd zero, 48(s6); sd zero, 56(s6)\n" ++
+  "  sd zero, 64(s6); sd zero, 72(s6); sd zero, 80(s6); sd zero, 88(s6)\n" ++
+  "  sd zero, 96(s6)\n" ++
+  "  li a0, 4\n" ++
+  "  j .Laahsr_ret\n" ++
+  ".Laahsr_step2:\n" ++
+  "  # Step 2: account_at_address(addr, len, &state_root, witness, len, out).\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a1, s3\n" ++
+  "  la a2, aahsr_state_root\n" ++
+  "  mv a3, s4\n" ++
+  "  mv a4, s5\n" ++
+  "  mv a5, s6\n" ++
+  "  jal ra, account_at_address\n" ++
+  "  # a0 already holds account_at_address's status (0/1/2/3).\n" ++
+  ".Laahsr_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
+/-- `zisk_account_at_header_state_root`: probe BuildUnit.
+
+    Input layout (at INPUT_ADDR):
+      bytes  0.. 8 : (ziskemu metadata)
+      bytes  8..16 : header_rlp_len (u64)
+      bytes 16..24 : witness_len (u64)
+      bytes 24..32 : addr_len (u64)
+      bytes 32..32+H              : header_rlp
+      bytes 32+H..32+H+addr_len   : address bytes
+      bytes 32+H+addr_len..       : witness section
+    Output layout:
+      bytes  0.. 8 : status (0/1/2/3/4)
+      bytes  8.. 16: nonce
+      bytes 16..48 : balance
+      bytes 48..80 : storage_root
+      bytes 80..112: code_hash -/
+def ziskAccountAtHeaderStateRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a7, 0x40000000\n" ++
+  "  ld t6, 8(a7)                # header_rlp_len\n" ++
+  "  ld t5, 16(a7)               # witness_len\n" ++
+  "  ld t4, 24(a7)               # addr_len\n" ++
+  "  addi a0, a7, 32             # header_rlp ptr\n" ++
+  "  mv a1, t6                   # header_rlp_len\n" ++
+  "  add a2, a0, t6              # address ptr = header_end\n" ++
+  "  mv a3, t4                   # addr_len\n" ++
+  "  add a4, a2, t4              # witness ptr = addr_end\n" ++
+  "  mv a5, t5                   # witness_len\n" ++
+  "  li a6, 0xa0010008           # output struct at OUTPUT + 8\n" ++
+  "  # Pre-zero 104 bytes so a failure surfaces as zeros.\n" ++
+  "  sd zero, 0(a6); sd zero, 8(a6); sd zero, 16(a6); sd zero, 24(a6)\n" ++
+  "  sd zero, 32(a6); sd zero, 40(a6); sd zero, 48(a6); sd zero, 56(a6)\n" ++
+  "  sd zero, 64(a6); sd zero, 72(a6); sd zero, 80(a6); sd zero, 88(a6)\n" ++
+  "  sd zero, 96(a6)\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status at OUTPUT + 0\n" ++
+  "  j .Laahsr_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  mptBranchChildFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
+  mptLookupByKeyFunction ++ "\n" ++
+  accountDecodeFunction ++ "\n" ++
+  accountAtAddressFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  accountAtHeaderStateRootFunction ++ "\n" ++
+  ".Laahsr_pdone:"
+
+def ziskAccountAtHeaderStateRootDataSection : String :=
+  ".section .data\n" ++
+  ".balign 32\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 32\n" ++
+  "wlh_scratch_hash:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mnk_dummy_offset:\n" ++
+  "  .zero 8\n" ++
+  "mnk_dummy_length:\n" ++
+  "  .zero 8\n" ++
+  "mnk_path_offset:\n" ++
+  "  .zero 8\n" ++
+  "mnk_path_length:\n" ++
+  "  .zero 8\n" ++
+  "mbc_offset:\n" ++
+  "  .zero 8\n" ++
+  "mbc_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "mw_lookup_hash:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mw_lookup_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_lookup_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "mw_child_buf:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mw_path_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_path_length:\n" ++
+  "  .zero 8\n" ++
+  "mw_child_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_child_length:\n" ++
+  "  .zero 8\n" ++
+  "mw_value_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_value_length:\n" ++
+  "  .zero 8\n" ++
+  "mw_nibble_count:\n" ++
+  "  .zero 8\n" ++
+  "mw_is_leaf:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "mw_nibble_buf:\n" ++
+  "  .zero 128\n" ++
+  ".balign 32\n" ++
+  "mlk_keccak_buf:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "mlk_nibble_buf:\n" ++
+  "  .zero 64\n" ++
+  ".balign 8\n" ++
+  "ad_offset:\n" ++
+  "  .zero 8\n" ++
+  "ad_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "aa_value_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "aa_value_scratch:\n" ++
+  "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "hesr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hesr_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "aahsr_state_root:\n" ++
+  "  .zero 32"
+
+def ziskAccountAtHeaderStateRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountAtHeaderStateRootPrologue
+  dataAsm     := ziskAccountAtHeaderStateRootDataSection
+}
+
+
+
+end EvmAsm.Codegen
