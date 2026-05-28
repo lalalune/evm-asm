@@ -330,6 +330,95 @@ run_fixture "chain1_blob"           1                  0    ""           ""     
 # byte-for-byte against the spec.
 run_fixture "chain1_blob_realistic" 1                  0    ""           ""                  ""    ""           ""           "14:21:11684671" || fail=1
 
+# First fixture where spec's validate_chain_config() reaches
+# the SUCCESS branch (returns active_fork) rather than
+# raising an exception. Configuration:
+#   chain_id = 1 (mainnet)
+#   fork     = 4 (ProtocolFork.Amsterdam, the latest enum)
+#   activation.block_number = [0] (set, so _is_activation_active
+#     finds activation.block_number is not None; checking
+#     execution_payload.block_number (0) < 0 is False --
+#     activation is active for the empty execution_payload)
+#   blob_schedule = (14, 21, 11684671)
+#     -- exactly _expected_amsterdam_blob_schedule()
+#        (BLOB_SCHEDULE_TARGET, BLOB_SCHEDULE_MAX,
+#         BLOB_BASE_FEE_UPDATE_FRACTION in
+#         execution-specs/amsterdam/vm/gas.py)
+# Spec walks all three validate_chain_config checks
+# successfully, then falls into validate_headers([]) which
+# raises IndexError -- caught at the verify_stateless_new_payload
+# level, successful_validation=False. Output: empty_npr_root
+# + valid=False + chain_config echo.
+# Variety dimension: SPEC code path that PASSES
+# validate_chain_config. Until this fixture, every fixture's
+# spec ran into UnsupportedForkConfigError /
+# InactiveForkConfigError / InvalidForkActivationError. This
+# fixture exercises the success-path arm of every check inside
+# validate_chain_config.
+run_fixture "chain1_fork4_amsterdam_active" 1          4    ""           ""                  ""    "0"          ""           "14:21:11684671" || fail=1
+
+# Spec InactiveForkConfigError path. Identical to the
+# fork=4 + Amsterdam-blob fixture except activation.bn=[1]
+# (instead of [0]). _is_activation_active gets:
+#   activation.block_number = Uint(1) (not None)
+#   execution_payload.block_number = 0 (empty default)
+#   0 < 1 -> True -> returns False -> spec raises
+#   InactiveForkConfigError. The exception is caught at
+#   verify_stateless_new_payload, successful_validation=False.
+# Variety dimension: SPEC code path = InactiveForkConfigError
+# inside validate_chain_config. Until this fixture, every
+# fork=4 + Amsterdam-blob input hit
+# _is_activation_active's success branch (bn=[0] passes the
+# 0 < 0 check). This fixture exercises the False return.
+run_fixture "chain1_fork4_inactive_bn" 1               4    ""           ""                  ""    "1"          ""           "14:21:11684671" || fail=1
+
+# Spec "Witness headers are not contiguous" path.
+# Configuration:
+#   chain_id        = 1
+#   fork            = 4 (Amsterdam -- passes validate_chain_config)
+#   activation.bn   = [0]
+#   blob_schedule   = (14, 21, 11684671)  [amsterdam expected]
+#   witness.headers = VALID_TWO
+#     (N=2 NON-chained -- h0.parent_hash=zero, h1.parent_hash=
+#      zero; the parent_hash chain through keccak256(rlp(h0))
+#      is broken because h1.parent_hash != keccak(h0))
+# Spec flow:
+#   validate_chain_config(...) -> SUCCESS
+#   validate_headers([h0, h1]):
+#     decode h0, h1 (RLP OK)
+#     block_hashes = [keccak(h0), keccak(h1)]
+#     for i=1: headers[1].parent_hash (= zero) !=
+#              block_hashes[0] (= keccak(h0))
+#     -> raises Exception("Witness headers are not contiguous")
+#   caught at verify_stateless_new_payload -> False.
+# Variety dimension: spec error path
+# "Witness headers are not contiguous" -- distinct from the
+# validate_chain_config errors and from the empty-headers
+# IndexError. All prior fork=4 + Amsterdam fixtures either
+# had empty headers (IndexError) or chained headers (success).
+# This is the first fixture exercising the contiguity-failure
+# branch of validate_headers.
+run_fixture "chain1_fork4_noncontig"   1               4    ""           ""                  ""    "0"          ""           "14:21:11684671" "VALID_TWO" || fail=1
+
+# UnsupportedForkConfigError via blob_schedule mismatch.
+# Configuration:
+#   chain_id      = 1
+#   fork          = 4 (Amsterdam -- passes the fork check)
+#   activation.bn = [0] (passes _is_activation_active)
+#   blob_schedule = (15, 21, 11684671)  <-- target off by 1
+#                                           (Amsterdam expects 14)
+# Spec flow:
+#   _is_activation_active(...)      -> True
+#   active_fork.fork == Amsterdam   -> True
+#   blob_schedule != amsterdam exp  -> raises
+#     UnsupportedForkConfigError("...blob_schedule does not
+#     match Amsterdam"). Caught -> successful_validation=False.
+# Distinct sub-branch of UnsupportedForkConfigError. The
+# OTHER UnsupportedForkConfigError ("Amsterdam stateless guest
+# cannot execute X") is exercised by every fork=0/1 fixture;
+# the blob-mismatch sub-branch was uncovered until now.
+run_fixture "chain1_fork4_wrong_blob"  1               4    ""           ""                  ""    "0"          ""           "15:21:11684671" || fail=1
+
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
 # transactions_root, receipt_root, bloom, prev_randao,
@@ -634,6 +723,18 @@ run_fixture "chain1_invalid_diff_at_1" 1               0    ""           ""     
 # beyond the first iteration.
 run_fixture "chain1_invalid_gas_at_1"  1               0    ""           ""                  ""    ""           ""           ""    "INVALID_GAS_AT_1" || fail=1
 
+# Two headers: first valid (blob_gas_used=0), second has
+# blob_gas_used = 7 * 131072 = 917504. The value is a
+# multiple of GAS_PER_BLOB so K278 passes, but exceeds
+# MAX_BLOB_GAS_PER_BLOCK = 6 * 131072 = 786432 so K277
+# rejects. K290 / K291 / K240 / K278 iterate twice (all
+# pass); K277 iterates twice -- passes on header 0
+# (0 <= 786432), FAILS on header 1 (917504 > 786432).
+# Closes the K277 iteration coverage gap and (together with
+# the sister K240/K278 AT_1 fixtures) completes the per-K-PR
+# iteration matrix at the non-zero index.
+run_fixture "chain1_invalid_blob_overmax_at_1" 1       0    ""           ""                  ""    ""           ""           ""    "INVALID_BLOB_OVERMAX_AT_1" || fail=1
+
 # Three headers: 0 and 1 valid, header[2] has extra_data
 # length 33. K290 iterates 3 times (all pass); K291 iterates
 # 3 times -- passes on 0 and 1, FAILS on 2. Tests K-PR
@@ -667,6 +768,32 @@ run_fixture "chain1_invalid_nm_at_2"    1              0    ""           ""     
 # Spec's validate_headers succeeds, then STF fails on empty
 # NPR -> valid=False. ELF: valid=False from x11 stub. Match.
 run_fixture "chain1_valid_three"    1                  0    ""           ""                  ""    ""           ""           ""    "VALID_THREE" || fail=1
+
+# Deepest spec path so far -- BOTH validate_chain_config AND
+# validate_headers reach their success branches:
+#   chain_id      = 1
+#   fork          = 4 (Amsterdam)
+#   activation.bn = [0]
+#   blob_schedule = (14, 21, 11684671)  [== amsterdam expected]
+#   witness.headers = VALID_THREE
+#     (3 chained valid post-merge headers, parent_hash linked
+#      via keccak256(rlp(h_i)))
+# Spec flow:
+#   validate_chain_config(...) -> RETURNS active_fork
+#   validate_headers([h0,h1,h2]) -> returns (decoded, hashes)
+#                                   [contiguity OK]
+#   parent_header = h2
+#   chain_context, pre_state built
+#   execute_new_payload_request(EMPTY_NPR, ...) -> raises
+#     (execution_payload has zero block_hash etc.; doesn't
+#      match the parent_hash chain we just built) -> caught
+#     at verify_stateless_new_payload -> False.
+# All earlier fixtures bailed at validate_chain_config OR
+# validate_headers; this fixture is the first to drive the
+# spec past both checks into execute_new_payload_request.
+# Variety dimension: spec code path coverage at the deepest
+# pre-execution layer.
+run_fixture "chain1_fork4_valid_chain" 1               4    ""           ""                  ""    "0"          ""           "14:21:11684671" "VALID_THREE" || fail=1
 
 # N=8 chained valid post-merge headers. Extends K-PR
 # iteration depth past the previous N=3 ceiling:
