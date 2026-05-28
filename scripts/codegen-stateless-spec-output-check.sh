@@ -452,6 +452,28 @@ run_fixture "chain1_fork4_wrong_blob"  1               4    ""           ""     
 # walks past validate_headers.
 run_fixture "chain1_fork4_realistic_header" 1          4    ""           ""                  ""    "0"          ""           "14:21:11684671" "VALID_REALISTIC" || fail=1
 
+# Spec rlp.DecodingError path inside validate_headers.
+# Configuration:
+#   chain_id        = 1
+#   fork            = 4 (Amsterdam, passes validate_chain_config)
+#   activation.bn   = [0]
+#   blob_schedule   = (14, 21, 11684671)  [amsterdam expected]
+#   witness.headers = single 32-byte 0xAA blob (not RLP-valid)
+# Spec flow:
+#   validate_chain_config(...) -> SUCCESS
+#   validate_headers([0xAA * 32]):
+#     _decode_header tries rlp.decode_to(Header, ...) -> fails
+#       (the blob doesn't have the Header RLP shape)
+#     tries rlp.decode_to(PreviousForkHeader, ...) -> also fails
+#     -> raises rlp.DecodingError
+#   caught at verify_stateless_new_payload -> False.
+# Variety dimension: spec error path = rlp.DecodingError
+# inside _decode_header (validate_headers's RLP-parse step).
+# Distinct from the "not contiguous" path (PR #7071) which
+# exercises VALID RLP that fails parent_hash linkage, and
+# from the IndexError path (empty headers).
+run_fixture "chain1_fork4_bad_rlp_header" 1            4    ""           ""                  ""    "0"          ""           "14:21:11684671" "$(printf 'aa%.0s' {1..32})" || fail=1
+
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
 # transactions_root, receipt_root, bloom, prev_randao,
