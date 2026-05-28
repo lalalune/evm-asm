@@ -4,3 +4,4 @@ import EvmAsm.EL
 import EvmAsm.Codegen
 import EvmAsm.Stateless
 import EvmAsm.Progress
+import EvmAsm.Tests
