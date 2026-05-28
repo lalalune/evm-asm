@@ -89,11 +89,15 @@ def callDataLenOff : Nat := 424
 def returnDataPtrOff : Nat := 432
 /-- Byte offset of `returnDataSize` within the env block. -/
 def returnDataSizeOff : Nat := 440
+/-- M22 — byte offset of `slotTableCount` (u64) within the env block.
+    The slot-table base is a `.data` label (`evm_slot_table`), not an
+    env field; only the count lives in env because SSTORE may grow it. -/
+def slotTableCountOff : Nat := 448
 
 /-- Total byte size of an EVM environment context block.
 
-    `envSize = 13 * 32 + 4 * 8 = 416 + 32 = 448`. -/
-def envSize : Nat := 448
+    `envSize = 13 * 32 + 5 * 8 = 416 + 40 = 456` (M22). -/
+def envSize : Nat := 456
 
 /-! ## Layout sanity facts
 
@@ -137,9 +141,11 @@ theorem callDataLenOff_align : callDataLenOff % 8 = 0 := by decide
 theorem returnDataPtrOff_align : returnDataPtrOff % 8 = 0 := by decide
 /-- `returnDataSizeOff` is 8-byte aligned. -/
 theorem returnDataSizeOff_align : returnDataSizeOff % 8 = 0 := by decide
+/-- `slotTableCountOff` is 8-byte aligned. -/
+theorem slotTableCountOff_align : slotTableCountOff % 8 = 0 := by decide
 
-/-- `envSize` matches `13 * 32 + 4 * 8`. -/
-theorem envSize_eq : envSize = 13 * 32 + 4 * 8 := by decide
+/-- `envSize` matches `13 * 32 + 5 * 8` (M22 added `slotTableCount`). -/
+theorem envSize_eq : envSize = 13 * 32 + 5 * 8 := by decide
 
 /-- Every 32-byte field's slot ends at the next 32-byte field's start;
     all 8-byte fields then tail without gap up to `envSize`.  This is
@@ -162,7 +168,8 @@ theorem envSize_covers :
     callDataPtrOff + 8 = callDataLenOff ∧
     callDataLenOff + 8 = returnDataPtrOff ∧
     returnDataPtrOff + 8 = returnDataSizeOff ∧
-    returnDataSizeOff + 8 = envSize := by decide
+    returnDataSizeOff + 8 = slotTableCountOff ∧
+    slotTableCountOff + 8 = envSize := by decide
 
 end EvmEnv
 end EvmAsm.Evm64

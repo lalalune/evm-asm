@@ -35,6 +35,13 @@ structure OpcodeTestCase where
       (e.g. `"0xdeadbeef"`). Empty string = no calldata (M17
       no-op CALLDATA behavior for back-compat with pre-M21 cases). -/
   calldata       : String := ""
+  /-- Optional pre-loaded EVM storage slots (M22). Format:
+      parenthesized hex pairs `"(0x00, 0xdead) (0x01, 0xbeef)"`.
+      Each key / value is interpreted as a u256 integer; the
+      packer serializes them in EVM-stack byte order. Empty
+      string = no preload (table starts empty; SSTORE may grow
+      it; SLOAD against an unset key returns zero). -/
+  storage        : String := ""
 
 /-- Registry of test cases. M5a/M5b's two original bytecodes are
     migrated as `add_basic` / `add_chain`; M6b adds ~20 more — one
@@ -294,17 +301,13 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "log4_pop"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xa4, 0x60, 0xff, 0x00"
       expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
-    -- ## M17 storage opcodes (SLOAD/SSTORE/TLOAD/TSTORE) — wired as
-    -- no-op stack ops under "empty storage" semantics. SLOAD/TLOAD
-    -- always read 0; SSTORE/TSTORE drop both inputs. Spec-incompliant
-    -- but routes the bytes correctly.
-  , -- PUSH1 0x42; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP —
-    -- SSTORE drops (key=0, value=0x42); SLOAD returns 0 (no-op).
-    -- Expected: 0x00 in low limb (NOT 0x42 — that's the limitation).
-    { name           := "sstore_sload_roundtrip"
-      bytecode       := "0x60, 0x42, 0x60, 0x00, 0x55, 0x60, 0x00, 0x54, 0x00"
-      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
-  , -- Same as above but with TSTORE/TLOAD (transient storage analog).
+    -- ## M17 / M22 transient storage (TLOAD/TSTORE)
+    -- TLOAD/TSTORE remain M17 no-ops in M22 — transient storage gets
+    -- its own per-tx-scoped table in a later PR. SLOAD/SSTORE
+    -- (graduated to real storage in M22) are covered by the M22
+    -- test block at the end of `opcodeTestCases`.
+  , -- PUSH1 0x42; PUSH1 0x00; TSTORE; PUSH1 0x00; TLOAD; STOP —
+    -- TSTORE drops (key=0, value=0x42); TLOAD returns 0 (no-op).
     { name           := "tstore_tload_roundtrip"
       bytecode       := "0x60, 0x42, 0x60, 0x00, 0x5d, 0x60, 0x00, 0x5c, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
@@ -466,6 +469,41 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x04, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x51, 0x00"
       calldata       := "0xdeadbeef"
       expectedOutHex := "00000000000000000000000000000000000000000000000000000000efbeadde" }
+    -- ## M22 real storage (SLOAD / SSTORE via pre-loaded slot table)
+    -- The dispatcher prologue copies the input file's storage segment
+    -- into a writable `evm_slot_table` (16 KiB, 256 slots × 64 B) and
+    -- records the count in `env.slotTableCountOff = 448`. SLOAD /
+    -- SSTORE inline-asm bodies scan the table linearly:
+    --   1. round_trip      — SSTORE then SLOAD with empty preload.
+    --   2. preloaded_match — SLOAD against a preloaded key.
+    --   3. preloaded_no_match — SLOAD against an absent key → 0.
+    --   4. overwrites_preload — SSTORE replaces a preloaded value.
+  , -- PUSH1 0x42; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP
+    -- SSTORE pops key=0x00 (top) then value=0x42; appends slot.
+    -- SLOAD pops key=0x00; reads value=0x42 back.
+    { name           := "sstore_then_sload_round_trip"
+      bytecode       := "0x60, 0x42, 0x60, 0x00, 0x55, 0x60, 0x00, 0x54, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; SLOAD; STOP with preload [(0x00, 0xdead)].
+    -- 0xdead in limb 0 LE = ad de 00 00 00 00 00 00.
+    { name           := "sload_preloaded_match"
+      bytecode       := "0x60, 0x00, 0x54, 0x00"
+      storage        := "(0x00, 0xdead)"
+      expectedOutHex := "adde000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0xff; SLOAD; STOP with preload [(0x00, 0xdead)].
+    -- key 0xff doesn't match preloaded 0x00 → SLOAD pushes zero.
+    { name           := "sload_preloaded_no_match"
+      bytecode       := "0x60, 0xff, 0x54, 0x00"
+      storage        := "(0x00, 0xdead)"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH2 0xbeef; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP with
+    -- preload [(0x00, 0xdead)]. SSTORE finds a matching key and
+    -- overwrites the value in place (does NOT append). SLOAD reads
+    -- back 0xbeef. 0xbeef in limb 0 LE = ef be 00 00 00 00 00 00.
+    { name           := "sstore_overwrites_preload"
+      bytecode       := "0x61, 0xbe, 0xef, 0x60, 0x00, 0x55, 0x60, 0x00, 0x54, 0x00"
+      storage        := "(0x00, 0xdead)"
+      expectedOutHex := "efbe000000000000000000000000000000000000000000000000000000000000" }
   ]
 
 /-- Find a test case by name. -/

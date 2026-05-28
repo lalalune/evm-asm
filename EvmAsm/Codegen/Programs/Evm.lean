@@ -46,6 +46,7 @@ import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.Noop
+import EvmAsm.Codegen.Programs.Storage
 
 namespace EvmAsm.Codegen
 
@@ -720,47 +721,12 @@ def logHandlers : List OpcodeHandlerSpec :=
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
     , tail := .advanceAndRet 1 } ]
 
-/-- M17 storage opcodes (SLOAD/SSTORE/TLOAD/TSTORE). Wired as
-    **no-op stack ops** under an "empty storage" semantic — storage
-    always reads 0; writes are dropped. Same rationale as M17's
-    LOG handlers: no Zisk storage syscall exists yet, so a
-    spec-compliant ECALL bridge has nowhere to call.
-
-    - **SLOAD (0x54)** / **TLOAD (0x5c)**: pop a 256-bit key, push
-      a 256-bit value (= 0). Net stack delta = 0; we just
-      overwrite the top word (at `[x12..x12+31]`) with 32 zero
-      bytes via 4 × `SD .x12 .x0 …`.
-    - **SSTORE (0x55)** / **TSTORE (0x5d)**: pop 2 words (key,
-      value). Net stack delta = +64; `ADDI .x12 .x12 64`.
-
-    EVM stack ordering for STORE: `μ_s[0] = key, μ_s[1] = value`
-    (key on top, value below). For our no-op implementation we
-    drop both regardless of order.
-
-    **Known limitation**: writes are dropped, reads return 0.
-    Trusted programs that don't depend on storage persistence
-    within a transaction continue running. Spec-compliant
-    storage is deferred to a future PR once the host gains
-    storage syscalls. -/
-def storageHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_SLOAD", opcodes := [0x54]
-    , body := SD .x12 .x0 0 ;;
-              SD .x12 .x0 8 ;;
-              SD .x12 .x0 16 ;;
-              SD .x12 .x0 24
-    , tail := .advanceAndRet 1 }
-  , { label := "h_SSTORE", opcodes := [0x55]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
-    , tail := .advanceAndRet 1 }
-  , { label := "h_TLOAD", opcodes := [0x5c]
-    , body := SD .x12 .x0 0 ;;
-              SD .x12 .x0 8 ;;
-              SD .x12 .x0 16 ;;
-              SD .x12 .x0 24
-    , tail := .advanceAndRet 1 }
-  , { label := "h_TSTORE", opcodes := [0x5d]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
-    , tail := .advanceAndRet 1 } ]
+-- M17 / M22 storage handlers (SLOAD, SSTORE, TLOAD, TSTORE) live in
+-- `EvmAsm/Codegen/Programs/Storage.lean` — extracted at M22 (when
+-- the inline-asm scan loops pushed this file past the per-file size
+-- cap) following the same pattern as `Programs/Noop.lean` (M18).
+-- The `storageHandlers` builder is brought into scope by the
+-- `import EvmAsm.Codegen.Programs.Storage` near the top of this file.
 
 -- M18 stack-pop / push-zero / halt no-op handlers (haltHandlers,
 -- pushZeroHandlers, popPushZeroHandlers, copyNoopHandlers) live in
