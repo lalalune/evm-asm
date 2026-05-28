@@ -330,6 +330,21 @@ run_fixture "chain1_blob"           1                  0    ""           ""     
 # byte-for-byte against the spec.
 run_fixture "chain1_blob_realistic" 1                  0    ""           ""                  ""    ""           ""           "14:21:11684671" || fail=1
 
+# _is_activation_active TIMESTAMP-only FAIL branch. Sister to
+# the bn-only fail-branch fixture: same outer config (fork=4
+# Amsterdam, expected blob) but activation has timestamp=[1]
+# (no bn). _is_activation_active gets:
+#   activation.block_number is None              -> skip first if
+#   activation.timestamp = Uint(1) (not None)
+#   execution_payload.timestamp = 0
+#   0 < 1 is True -> returns False -> spec raises
+#   InactiveForkConfigError. Caught -> False.
+# Variety dimension: completes the _is_activation_active 2x2
+# coverage matrix (bn/ts X pass/fail). All four branches now
+# have a fixture. Mirror of chain1_fork4_inactive_bn across
+# the block_number/timestamp axis.
+run_fixture "chain1_fork4_inactive_ts" 1               4    ""           ""                  ""    ""           "1"          "14:21:11684671" || fail=1
+
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
 # transactions_root, receipt_root, bloom, prev_randao,
