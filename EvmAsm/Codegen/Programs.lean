@@ -310,6 +310,62 @@ def statelessGuestEpilogue : String :=
   "  # \n" ++
   "  # ===== exec_payload merkle path (leaves 0-15) =====\n" ++
   "  # Path leaf_6 -> node_6_7 -> node_4_7 -> node_0_7 -> node_0_15\n" ++
+  "  # First: dynamically compute node_4_5 = sha256(leaf_4 || leaf_5)\n" ++
+  "  # where leaf_4 = npr_leaf_4_logs_bloom_root (constant, default\n" ++
+  "  # logs_bloom merkle root) and leaf_5 = prev_randao (Bytes32 @\n" ++
+  "  # SSZ_BASE + 16 + 44 + 372 = +432).\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_leaf_4_logs_bloom_root\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  ld t2, 432(s6); sd t2, 32(t1)\n" ++
+  "  ld t2, 440(s6); sd t2, 40(t1)\n" ++
+  "  ld t2, 448(s6); sd t2, 48(t1)\n" ++
+  "  ld t2, 456(s6); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_4_5_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_4_5 -> npr_node_4_5_scratch\n" ++
+  "  # \n" ++
+  "  # Dynamic node_8_15 path (supports leaf_8 = gas_used):\n" ++
+  "  #   leaf_8 = gas_used (u64 LE @ SSZ_BASE + 16 + 44 + 420 = +480)\n" ++
+  "  #            || 24 bytes of zero padding\n" ++
+  "  #   leaf_9 = ssz_zero_hash[0] (timestamp default = u64 zero)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  ld t2, 480(s6)              # gas_used\n" ++
+  "  sd t2,  0(t1)\n" ++
+  "  sd zero,  8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
+  "  sd zero, 32(t1); sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
+  "  jal ra, zkvm_sha256         # node_8_9 -> npr_sha_subtree\n" ++
+  "  # node_8_11 = sha256(node_8_9 || npr_node_10_11)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_sha_subtree\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, npr_node_10_11\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
+  "  jal ra, zkvm_sha256         # node_8_11 -> npr_sha_subtree\n" ++
+  "  # node_8_15 = sha256(node_8_11 || npr_node_12_15) -> npr_node_8_15_scratch\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_sha_subtree\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, npr_node_12_15\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_8_15_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_8_15 -> npr_node_8_15_scratch\n" ++
   "  # leaf_6 = block_number (u64 LE @ SSZ_BASE + 16 + 44 + 404 = +464)\n" ++
   "  #          || 24 bytes of zero padding\n" ++
   "  # leaf_7 = gas_limit    (u64 LE @ SSZ_BASE + 16 + 44 + 412 = +472)\n" ++
@@ -323,9 +379,9 @@ def statelessGuestEpilogue : String :=
   "  sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
   "  jal ra, zkvm_sha256         # node_6_7 -> npr_sha_subtree\n" ++
-  "  # node_4_7 = sha256(npr_node_4_5 || node_6_7)\n" ++
+  "  # node_4_7 = sha256(npr_node_4_5_scratch || node_6_7)\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  la t3, npr_node_4_5\n" ++
+  "  la t3, npr_node_4_5_scratch\n" ++
   "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
@@ -359,7 +415,7 @@ def statelessGuestEpilogue : String :=
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
   "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
-  "  la t3, npr_node_8_15\n" ++
+  "  la t3, npr_node_8_15_scratch\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
