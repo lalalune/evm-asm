@@ -89,4 +89,26 @@ theorem divKTrialCallV5Q1dd_ge_q_true_1
     rw [h_q1dd_eq]
     exact h_q1d_ge
 
+/-- **V5 Knuth-A pin**: the Phase-1b 2-correction quotient digit equals
+    the abstract first 128/64 quotient digit EXACTLY:
+
+      Q1dd.toNat = (uHi * 2^32 + un1) / vTop
+
+    Direct `le_antisymm` of V5.4.2 (UB) and V5.5.1 (LB). Unconditional —
+    no `uHi < 2^63` exclusion. Mirror of v4's
+    `divKTrialCallV4Q1dd_eq_q_true_1_of_uHi_lt_pow63`
+    (`Phase1bBound.lean:1309`) but STRONGER.
+
+    Bead `evm-asm-wbc4i.5.9` (V5.5.0.6). Useful corollary for V5.4.3 /
+    V5.5.2 / V5.6 chain. -/
+theorem divKTrialCallV5Q1dd_eq_q_true_1
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (divKTrialCallV5Q1dd uHi uLo vTop).toNat =
+      (uHi.toNat * 2^32 + (divKTrialCallV5Un1 uLo).toNat) / vTop.toNat := by
+  apply le_antisymm
+  · exact divKTrialCallV5Q1dd_le_q_true_1 uHi uLo vTop hvTop_ge huHi_lt_vTop
+  · exact divKTrialCallV5Q1dd_ge_q_true_1 uHi uLo vTop hvTop_ge huHi_lt_vTop
+
 end EvmAsm.Evm64
