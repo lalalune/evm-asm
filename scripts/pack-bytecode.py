@@ -13,9 +13,15 @@ M21 extension: optionally append a calldata segment, length-prefixed,
 so the dispatcher's prologue can populate `env.callDataPtr` /
 `env.callDataLen` and CALLDATALOAD / CALLDATACOPY can read real bytes.
 
+M22 extension: optionally append a third segment carrying a list of
+(storage-key, storage-value) pairs. The dispatcher prologue copies
+them into a writable in-`.data` slot table; SLOAD / SSTORE read /
+mutate the table via linear scan.
+
 Usage:
     pack-bytecode.py "0x60, 0x02, 0x60, 0x0a, 0x04, 0x00" output.bin
     pack-bytecode.py --calldata "0xdeadbeef" "0x36, 0x00" output.bin
+    pack-bytecode.py --storage "(0x00, 0xdead)" "0x60, 0x00, 0x54, 0x00" output.bin
     echo "0x60, 0x00" | pack-bytecode.py - output.bin
 
 Output layout:
@@ -26,17 +32,23 @@ Output layout:
     next 8 bytes       <8-byte LE u64 length of calldata>
     following          <calldata bytes>
                        <zero pad to 8-byte boundary>
+    next 8 bytes       <8-byte LE u64 slot_count>            (M22)
+    following          <slot_count × 64-byte (key, value)>   (M22)
+                       <zero pad to 8-byte boundary>
 
 ziskemu prepends 8 more bytes of its own metadata when loading,
 landing the bytecode-length prefix at INPUT_ADDR+8 and the bytecode
 at INPUT_ADDR+16 — which is where the runtime-bytecode dispatcher's
 `li x10, 0x40000010` points. The calldata-length prefix lands at
 the first 8-byte boundary past the bytecode bytes; the dispatcher
-prologue computes that address at startup.
+prologue computes those addresses at startup, then chains to the
+slot-count prefix at the first 8-byte boundary past the calldata.
 
 Backwards-compatible: pre-M21 callers that don't pass --calldata get
 a zero-length calldata segment appended, which preserves the M17
 "CALLDATA opcodes are no-op" behavior for existing test cases.
+Pre-M22 callers that don't pass --storage get a zero-length storage
+segment appended (SLOAD returns 0, SSTORE appends to an empty table).
 """
 import argparse
 import re
@@ -77,6 +89,53 @@ def pad_to_8(buf: bytes) -> bytes:
     return buf
 
 
+def parse_storage(storage_arg: str) -> list[tuple[bytes, bytes]]:
+    """Parse a --storage arg into a list of (key, value) byte pairs,
+    each in EVM-stack representation (4 little-endian u64 limbs, low
+    limb first).
+
+    Supported forms:
+    - Empty: returns [].
+    - Parenthesized pairs: "(0xKEY, 0xVAL) (0xKEY2, 0xVAL2)" where
+      each KEY / VAL is a hex blob (with optional 0x prefix)
+      interpreted as a u256 integer. The serialized bytes are the
+      reverse of the natural 32-byte big-endian encoding — that is
+      the layout PUSH32 + SSTORE would deposit on the EVM stack
+      (see push32_basic in Tests/Cases.lean).
+    """
+    s = storage_arg.strip()
+    if not s:
+        return []
+    pairs = re.findall(
+        r"\(\s*(0[xX][0-9a-fA-F]+|[0-9a-fA-F]+)\s*,"
+        r"\s*(0[xX][0-9a-fA-F]+|[0-9a-fA-F]+)\s*\)",
+        s,
+    )
+    if not pairs:
+        raise ValueError(f"no `(key, value)` pairs in --storage: {storage_arg!r}")
+    out: list[tuple[bytes, bytes]] = []
+    for raw_key, raw_val in pairs:
+        out.append((_to_stack_bytes(raw_key), _to_stack_bytes(raw_val)))
+    return out
+
+
+def _to_stack_bytes(hex_blob: str) -> bytes:
+    """Decode a hex blob (with optional 0x prefix) as a u256 integer
+    and serialize as 32 bytes in EVM-stack representation: 4 LE u64
+    limbs, low limb first. Equivalent to reversing the BE 32-byte
+    encoding the user would naturally write."""
+    s = hex_blob.strip()
+    if s.startswith(("0x", "0X")):
+        s = s[2:]
+    if len(s) % 2 != 0:
+        s = "0" + s  # nibble alignment
+    raw_be = bytes.fromhex(s)
+    if len(raw_be) > 32:
+        raise ValueError(f"storage key/value > 32 bytes: {hex_blob!r}")
+    raw_be = b"\x00" * (32 - len(raw_be)) + raw_be
+    return raw_be[::-1]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Pack a bytecode (and optional calldata) into a "
@@ -97,11 +156,20 @@ def main() -> int:
         help="Optional calldata, as either CSV ('0x60, 0x42') or a "
              "hex blob ('0xdeadbeef'). Defaults to empty (back-compat).",
     )
+    parser.add_argument(
+        "--storage",
+        default="",
+        help="Optional storage preload: parenthesized hex pairs like "
+             "'(0x00, 0xdead) (0x01, 0xbeef)'. Each key / value is "
+             "interpreted as a u256 integer and serialized in EVM-stack "
+             "byte order. Defaults to empty (no preload).",
+    )
     args = parser.parse_args()
 
     csv = sys.stdin.read() if args.bytecode == "-" else args.bytecode
     bytecode = parse_csv(csv)
     calldata = parse_calldata(args.calldata)
+    storage_pairs = parse_storage(args.storage)
 
     # Bytecode segment: 8B LE length prefix + bytes, padded to 8-byte boundary
     # so the calldata-length cell that follows is aligned.
@@ -109,8 +177,16 @@ def main() -> int:
     packed = pad_to_8(packed)
 
     # Calldata segment: 8B LE length prefix + bytes, padded to 8-byte boundary
-    # so the entire input file size is a multiple of 8 (ziskemu requires this).
+    # so the storage-count cell that follows is aligned.
     packed += struct.pack("<Q", len(calldata)) + calldata
+    packed = pad_to_8(packed)
+
+    # M22 storage segment: 8B LE slot count + slot_count × 64-byte
+    # (key, value) pairs, padded to 8-byte boundary so the entire
+    # input file size is a multiple of 8 (ziskemu requires this).
+    packed += struct.pack("<Q", len(storage_pairs))
+    for key, value in storage_pairs:
+        packed += key + value
     packed = pad_to_8(packed)
 
     if args.output == "-":
