@@ -418,6 +418,13 @@ def statelessGuestDataSection : String :=
   -- constant becomes unreferenced (kept for diff-context).
   ".balign 8\n" ++
   "npr_leaf_4_logs_bloom_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- Scratch for the dynamic node_2_3 of the logs_bloom subtree
+  -- (chunks 2 and 3 paired). Replaces the prior static
+  -- `ssz_zero_hash[1]` constant used at level 1 of the
+  -- logs_bloom merkle (under node_0_3).
+  ".balign 8\n" ++
+  "npr_logs_bloom_node_2_3_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen

@@ -79,6 +79,8 @@ npr_block_hash_hex = sys.argv[24] if len(sys.argv) > 24 else ''
 npr_blob_gas_used_str = sys.argv[25] if len(sys.argv) > 25 else ''
 npr_logs_bloom_chunk0_hex = sys.argv[26] if len(sys.argv) > 26 else ''
 npr_logs_bloom_chunk1_hex = sys.argv[27] if len(sys.argv) > 27 else ''
+npr_logs_bloom_chunk2_hex = sys.argv[28] if len(sys.argv) > 28 else ''
+npr_logs_bloom_chunk3_hex = sys.argv[29] if len(sys.argv) > 29 else ''
 
 # Build the new-schema StatelessInput: empty new_payload_request,
 # witness whose 'state'/'codes' lists each hold zero or more
@@ -754,7 +756,8 @@ if (npr_slot_str or npr_excess_blob_str or npr_block_number_str or
     npr_timestamp_str or npr_parent_hash_hex or npr_fee_recipient_hex or
     npr_state_root_hex or npr_base_fee_str or npr_block_hash_hex or
     npr_blob_gas_used_str or npr_logs_bloom_chunk0_hex or
-    npr_logs_bloom_chunk1_hex):
+    npr_logs_bloom_chunk1_hex or npr_logs_bloom_chunk2_hex or
+    npr_logs_bloom_chunk3_hex):
     from ethereum.forks.amsterdam.stateless_ssz import SszExecutionPayload
     from remerkleable.basic import uint64 as Uint64SSZ
     from remerkleable.byte_arrays import Bytes32 as Bytes32SSZ
@@ -787,13 +790,18 @@ if (npr_slot_str or npr_excess_blob_str or npr_block_number_str or
         ep_kwargs['block_hash'] = Bytes32SSZ(bytes.fromhex(npr_block_hash_hex))
     if npr_blob_gas_used_str:
         ep_kwargs['blob_gas_used'] = Uint64SSZ(int(npr_blob_gas_used_str, 0))
-    if npr_logs_bloom_chunk0_hex or npr_logs_bloom_chunk1_hex:
+    if (npr_logs_bloom_chunk0_hex or npr_logs_bloom_chunk1_hex or
+        npr_logs_bloom_chunk2_hex or npr_logs_bloom_chunk3_hex):
         from remerkleable.byte_arrays import ByteVector as ByteVecSSZ
         chunk0 = bytes.fromhex(npr_logs_bloom_chunk0_hex) if npr_logs_bloom_chunk0_hex else b'\x00' * 32
         chunk1 = bytes.fromhex(npr_logs_bloom_chunk1_hex) if npr_logs_bloom_chunk1_hex else b'\x00' * 32
-        # logs_bloom is ByteVector[256]: chunks 0 and 1 from input
-        # (each 32 bytes), then 192 zero bytes for chunks 2..7.
-        ep_kwargs['logs_bloom'] = ByteVecSSZ[256](chunk0 + chunk1 + b'\x00' * 192)
+        chunk2 = bytes.fromhex(npr_logs_bloom_chunk2_hex) if npr_logs_bloom_chunk2_hex else b'\x00' * 32
+        chunk3 = bytes.fromhex(npr_logs_bloom_chunk3_hex) if npr_logs_bloom_chunk3_hex else b'\x00' * 32
+        # logs_bloom is ByteVector[256]: chunks 0..3 from input (each
+        # 32 bytes), then 128 zero bytes for chunks 4..7.
+        ep_kwargs['logs_bloom'] = ByteVecSSZ[256](
+            chunk0 + chunk1 + chunk2 + chunk3 + b'\x00' * 128
+        )
     npr_kwargs['execution_payload'] = SszExecutionPayload(**ep_kwargs)
 npr = SszNewPayloadRequest(**npr_kwargs)
 
