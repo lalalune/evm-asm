@@ -161,6 +161,22 @@ run_fixture "chain_max_u64"         0xFFFFFFFFFFFFFFFF      || fail=1
 # topmost non-zero chain_id byte.
 run_fixture "chain_sepolia"         11155111                || fail=1
 
+# Sepolia (11155111) running Amsterdam fork. Combines the
+# real-world chain_id seam-byte pattern from chain_sepolia
+# (low 3 bytes a7 36 aa straddling the chain_id SD seam)
+# with the real-world fork config from
+# chain1_fork4_amsterdam_active (fork=4 + activation.bn=[0]
+# + Amsterdam blob_schedule). Variety dimension: realistic
+# chain_id + realistic fork config simultaneously. The
+# encoder echoes a max-shape SszForkConfig under a non-trivial
+# chain_id, exercising both the two-SD chain_id pack
+# (OUTPUT[37..45)) and the bounded byte-copy of
+# active_fork[16..L) on the same fixture for the first time.
+# Spec: validate_chain_config succeeds (Sepolia chain_id
+# isn't checked against any specific value), then
+# validate_headers([]) -> IndexError -> False.
+run_fixture "chain_sepolia_amsterdam" 11155111         4    ""           ""                  ""    "0"          ""           "14:21:11684671" || fail=1
+
 # Edge: chain_id = 2^32 = 0x100000000. LE bytes
 # 00 00 00 00 01 00 00 00. The encoder's chain_id split
 # places the LOW 3 bytes at OUTPUT[37..40) and the HIGH 5 at
