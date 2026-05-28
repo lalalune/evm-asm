@@ -416,6 +416,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
   | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit
   | "zisk_sload_at_header_state_root" => some ziskSloadAtHeaderStateRootProbeUnit
+  | "zisk_extcodecopy_at_header_state_root" => some ziskExtcodecopyAtHeaderStateRootProbeUnit
   | "zisk_account_exists_at_header_state_root" => some ziskAccountExistsAtHeaderStateRootProbeUnit
   | "zisk_account_is_empty_at_header_state_root" => some ziskAccountIsEmptyAtHeaderStateRootProbeUnit
   | "zisk_validate_storage_root_in_witness_storage" => some ziskValidateStorageRootInWitnessStorageProbeUnit
@@ -575,6 +576,7 @@ def knownProgramNames : List String :=
    "zisk_extcodehash_at_header_state_root",
    "zisk_balance_at_header_state_root",
    "zisk_sload_at_header_state_root",
+   "zisk_extcodecopy_at_header_state_root",
    "zisk_account_exists_at_header_state_root",
    "zisk_account_is_empty_at_header_state_root",
    "zisk_validate_storage_root_in_witness_storage",
