@@ -161,6 +161,22 @@ run_fixture "chain_max_u64"         0xFFFFFFFFFFFFFFFF      || fail=1
 # topmost non-zero chain_id byte.
 run_fixture "chain_sepolia"         11155111                || fail=1
 
+# Sepolia (11155111) running Amsterdam fork. Combines the
+# real-world chain_id seam-byte pattern from chain_sepolia
+# (low 3 bytes a7 36 aa straddling the chain_id SD seam)
+# with the real-world fork config from
+# chain1_fork4_amsterdam_active (fork=4 + activation.bn=[0]
+# + Amsterdam blob_schedule). Variety dimension: realistic
+# chain_id + realistic fork config simultaneously. The
+# encoder echoes a max-shape SszForkConfig under a non-trivial
+# chain_id, exercising both the two-SD chain_id pack
+# (OUTPUT[37..45)) and the bounded byte-copy of
+# active_fork[16..L) on the same fixture for the first time.
+# Spec: validate_chain_config succeeds (Sepolia chain_id
+# isn't checked against any specific value), then
+# validate_headers([]) -> IndexError -> False.
+run_fixture "chain_sepolia_amsterdam" 11155111         4    ""           ""                  ""    "0"          ""           "14:21:11684671" || fail=1
+
 # Edge: chain_id = 2^32 = 0x100000000. LE bytes
 # 00 00 00 00 01 00 00 00. The encoder's chain_id split
 # places the LOW 3 bytes at OUTPUT[37..40) and the HIGH 5 at
@@ -418,6 +434,23 @@ run_fixture "chain1_fork4_noncontig"   1               4    ""           ""     
 # cannot execute X") is exercised by every fork=0/1 fixture;
 # the blob-mismatch sub-branch was uncovered until now.
 run_fixture "chain1_fork4_wrong_blob"  1               4    ""           ""                  ""    "0"          ""           "15:21:11684671" || fail=1
+
+# fork=4 Amsterdam + activation.bn=[0] + Amsterdam blob +
+# VALID_REALISTIC header (N=1, every K-PR-ignored field
+# populated with realistic non-zero bytes). Cross-product of
+# variety dimensions:
+#   * spec walks past validate_chain_config success (#7067)
+#   * spec walks past validate_headers success at N=1 (new)
+#   * spec uses _decode_header's PRIMARY amsterdam branch
+#     (distinct from PR #7075's PreviousForkHeader fallback)
+#   * ASM K-PR pipeline parses a REALISTIC-shape RLP header
+#     (with 32-byte non-zero parent_hash, coinbase, state_root,
+#      etc.) and all K-PRs accept -> .Lsg_all_pass
+# Previous fork=4 chained fixtures (PR #7068) used VALID_THREE
+# headers with minimal-field cohorts; this is the first
+# realistic-field-cohort fixture that the spec actually
+# walks past validate_headers.
+run_fixture "chain1_fork4_realistic_header" 1          4    ""           ""                  ""    "0"          ""           "14:21:11684671" "VALID_REALISTIC" || fail=1
 
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
@@ -734,6 +767,17 @@ run_fixture "chain1_invalid_gas_at_1"  1               0    ""           ""     
 # the sister K240/K278 AT_1 fixtures) completes the per-K-PR
 # iteration matrix at the non-zero index.
 run_fixture "chain1_invalid_blob_overmax_at_1" 1       0    ""           ""                  ""    ""           ""           ""    "INVALID_BLOB_OVERMAX_AT_1" || fail=1
+
+# Two headers: first valid (blob_gas_used=0, trivially a
+# multiple of GAS_PER_BLOB=131072), second has blob_gas_used=1
+# (NOT a multiple). K290 / K291 / K240 iterate 2 times each
+# (all pass); K278 iterates 2 times -- passes on header 0,
+# FAILS on header 1. Closes the K278 iteration coverage gap.
+# Sister to chain1_invalid_diff_at_1 (K290) /
+# chain1_invalid_extra_at_2 (K291) / chain1_invalid_ts_at_2
+# (K229) / chain1_invalid_nm_at_2 (K230) / etc. -- verifies
+# K278's per-header loop body actually checks every header.
+run_fixture "chain1_invalid_blob_misalign_at_1" 1      0    ""           ""                  ""    ""           ""           ""    "INVALID_BLOB_MISALIGN_AT_1" || fail=1
 
 # Three headers: 0 and 1 valid, header[2] has extra_data
 # length 33. K290 iterates 3 times (all pass); K291 iterates
