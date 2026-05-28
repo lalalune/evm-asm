@@ -102,6 +102,7 @@ theorem divK_div128_step2_initcap_v5_spec_within
     (by pcFree) h1
   -- Block 2: Phase-2a cap [49..56].
   have h2_raw := divK_div128_cap_q0_v5_merged_spec_within q0 rhat2 dHi (q0 * dHi) un21 (base + 12)
+  unfold divKDiv128CapQ0V5Code at h2_raw
   have hb4 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
   have hb8 : (base + 12 : Word) + 8 = base + 20 := by bv_addr
   have hb12 : (base + 12 : Word) + 12 = base + 24 := by bv_addr
