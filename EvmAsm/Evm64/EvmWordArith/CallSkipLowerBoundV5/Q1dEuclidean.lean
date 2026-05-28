@@ -116,4 +116,21 @@ theorem algorithmQ1dV5_rhatd_post
         algorithmRhatdV5_eq_rhatc_of_phase1b_no_fire uHi uLo vTop h_fire]
     exact h_pre
 
+/-- The product `Q1d * dLo` does not wrap mod 2^64 under the V5 cap.
+    Trivial consequence of `Q1d < 2^32` (V5.4.0.6) and `dLo < 2^32`
+    (V5.4.0.5). Used by V5.4.1 when bridging the Phase-1b 2nd
+    correction's word-level BLTU to the Nat-level dLo bound. -/
+theorem algorithmQ1dV5_dLo_no_wrap (uHi uLo vTop : Word) :
+    (algorithmQ1dV5 uHi uLo vTop * divKTrialCallV5DLo vTop).toNat =
+      (algorithmQ1dV5 uHi uLo vTop).toNat * (divKTrialCallV5DLo vTop).toNat := by
+  rw [BitVec.toNat_mul]
+  apply Nat.mod_eq_of_lt
+  have h_q := algorithmQ1dV5_lt_pow32 uHi uLo vTop
+  have h_d := divKTrialCallV5DLo_lt_pow32 vTop
+  have : (algorithmQ1dV5 uHi uLo vTop).toNat * (divKTrialCallV5DLo vTop).toNat <
+      2^32 * 2^32 := Nat.mul_lt_mul'' h_q h_d
+  calc (algorithmQ1dV5 uHi uLo vTop).toNat * (divKTrialCallV5DLo vTop).toNat
+      < 2^32 * 2^32 := this
+    _ = 2^64 := by norm_num
+
 end EvmAsm.Evm64
