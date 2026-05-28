@@ -546,6 +546,50 @@ elif hdr_hex in (
         slot_number=slot_v,
     )
     hdr_arg = (HeaderBL(rlp.encode(h)),)
+elif hdr_hex == 'BPO5_HEADER':
+    # bpo5-fork-shape RLP header. Drives the spec's
+    # _decode_header through its PreviousForkHeader fallback
+    # branch: rlp.decode_to(amsterdam Header, ...) raises
+    # because the list has 21 elements instead of 23 (amsterdam
+    # added block_access_list_hash + slot_number); then
+    # rlp.decode_to(PreviousForkHeader = bpo5 Header, ...)
+    # succeeds. All K-PR-checked fields are at the same
+    # positions in bpo5 as in amsterdam (the K-PR pipeline
+    # reads via field index, not name), so the ASM K-PR
+    # pipeline reads valid values and accepts -- ends up at
+    # .Lsg_all_pass falling through to .Lsg_hash.
+    from ethereum.forks.bpo5.blocks import Header as Bpo5Header
+    from ethereum.forks.bpo5.fork import EMPTY_OMMER_HASH as BPO5_EMPTY_OMMER_HASH
+    from ethereum_types.bytes import Bytes32, Bytes8, Bytes
+    from ethereum_types.numeric import Uint
+    from ethereum_types.numeric import U64 as U64t
+    from ethereum_types.numeric import U256
+    from ethereum.crypto.hash import Hash32
+    from ethereum_rlp import rlp
+    h = Bpo5Header(
+        parent_hash=Hash32(b'\x00' * 32),
+        ommers_hash=BPO5_EMPTY_OMMER_HASH,
+        coinbase=b'\x00' * 20,
+        state_root=Hash32(b'\x00' * 32),
+        transactions_root=Hash32(b'\x00' * 32),
+        receipt_root=Hash32(b'\x00' * 32),
+        bloom=b'\x00' * 256,
+        difficulty=Uint(0),
+        number=Uint(1),
+        gas_limit=Uint(1000000),
+        gas_used=Uint(0),
+        timestamp=U256(1234),
+        extra_data=Bytes(b''),
+        prev_randao=Bytes32(b'\x00' * 32),
+        nonce=Bytes8(b'\x00' * 8),
+        base_fee_per_gas=Uint(0),
+        withdrawals_root=Hash32(b'\x00' * 32),
+        blob_gas_used=U64t(0),
+        excess_blob_gas=U64t(0),
+        parent_beacon_block_root=Hash32(b'\x00' * 32),
+        requests_hash=Hash32(b'\x00' * 32),
+    )
+    hdr_arg = (HeaderBL(rlp.encode(h)),)
 elif hdr_hex:
     hdr_entries = hdr_hex.split(':')
     hdr_arg = tuple(HeaderBL(bytes.fromhex(h)) for h in hdr_entries)

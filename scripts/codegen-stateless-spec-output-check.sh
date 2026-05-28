@@ -330,6 +330,27 @@ run_fixture "chain1_blob"           1                  0    ""           ""     
 # byte-for-byte against the spec.
 run_fixture "chain1_blob_realistic" 1                  0    ""           ""                  ""    ""           ""           "14:21:11684671" || fail=1
 
+# bpo5-fork-shape RLP header. Drives the spec's
+# _decode_header through its PreviousForkHeader fallback:
+#   rlp.decode_to(amsterdam Header, ...) raises -- list has
+#     21 elements but amsterdam Header expects 23
+#     (amsterdam added block_access_list_hash + slot_number).
+#   rlp.decode_to(bpo5 Header, ...) succeeds.
+# Spec configuration: fork=4 + Amsterdam blob_schedule +
+# activation.bn=[0] so validate_chain_config succeeds, then
+# validate_headers reaches _decode_header which exercises
+# the fallback branch.
+#
+# Variety dimension: spec _decode_header's
+# PreviousForkHeader fallback path -- previously unexercised.
+# All K-PR-relevant fields (parent_hash, ommers_hash,
+# difficulty, nonce, gas, blob_gas_used, ...) sit at the
+# same field indices in both Header types because amsterdam
+# is a strict extension of bpo5, so the ASM K-PR pipeline
+# parses successfully and accepts. Output byte-identical to
+# spec.
+run_fixture "chain1_fork4_bpo5_header" 1               4    ""           ""                  ""    "0"          ""           "14:21:11684671" "BPO5_HEADER" || fail=1
+
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
 # transactions_root, receipt_root, bloom, prev_randao,
