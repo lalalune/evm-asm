@@ -29,6 +29,21 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- Code requirement for the div128 v5 step-1 prefix (init + Phase-1a cap,
+    instrs [10]-[20]). -/
+def divKDiv128Step1InitCapV5Code (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x7 .x7 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x5 .x10 32))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x5 .x0 28))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x0 4095))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.SRLI .x5 .x5 32))
+  (CodeReq.union (CodeReq.singleton (base + 28) (.SUB .x9 .x10 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 32) (.MUL .x9 .x9 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 36) (.ADD .x7 .x7 .x9))
+   (CodeReq.singleton (base + 40) (.ADDI .x10 .x5 0)))))))))))
+
 /-- div128 v5 step-1 prefix: trial division `q1` then the Phase-1a cap.
     Instrs [10]-[20]. Input: uHi in x7, dHi in x6. Output: capped `q1c`
     in x10, recomputed `rhatc` in x7. -/
@@ -42,24 +57,14 @@ theorem divK_div128_step1_initcap_v5_spec_within
     let rhatc := if hi = 0 then rhat else rhat + (q1 - q1cCap) * dHi
     let x5o := if hi = 0 then hi else q1cCap
     let x9o := if hi = 0 then v9Old else (q1 - q1cCap) * dHi
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x7 .x7 .x5))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x5 .x10 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x5 .x0 28))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x0 4095))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.SRLI .x5 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 28) (.SUB .x9 .x10 .x5))
-      (CodeReq.union (CodeReq.singleton (base + 32) (.MUL .x9 .x9 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 36) (.ADD .x7 .x7 .x9))
-       (CodeReq.singleton (base + 40) (.ADDI .x10 .x5 0)))))))))))
-    cpsTripleWithin 11 base (base + 44) cr
+    cpsTripleWithin 11 base (base + 44) (divKDiv128Step1InitCapV5Code base)
       ((.x7 ↦ᵣ uHi) ** (.x6 ↦ᵣ dHi) ** (.x10 ↦ᵣ v10Old) **
        (.x5 ↦ᵣ v5Old) ** (.x9 ↦ᵣ v9Old) ** (.x0 ↦ᵣ 0))
       ((.x10 ↦ᵣ q1c) ** (.x7 ↦ᵣ rhatc) ** (.x6 ↦ᵣ dHi) **
        (.x5 ↦ᵣ x5o) ** (.x9 ↦ᵣ x9o) ** (.x0 ↦ᵣ 0)) := by
-  intro q1 rhat hi q1cCap q1c rhatc x5o x9o cr
+  intro q1 rhat hi q1cCap q1c rhatc x5o x9o
+  let cr := divKDiv128Step1InitCapV5Code base
+  show cpsTripleWithin 11 base (base + 44) cr _ _
   have hcr_eq : cr =
       CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
       (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
@@ -92,6 +97,7 @@ theorem divK_div128_step1_initcap_v5_spec_within
     (by pcFree) h1
   -- Block 2: Phase-1a cap [13..20].
   have h2_raw := divK_div128_cap_q1_v5_merged_spec_within q1 rhat dHi (q1 * dHi) v9Old (base + 12)
+  unfold divKDiv128CapQ1V5Code at h2_raw
   have hb4 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
   have hb8 : (base + 12 : Word) + 8 = base + 20 := by bv_addr
   have hb12 : (base + 12 : Word) + 12 = base + 24 := by bv_addr
@@ -129,6 +135,14 @@ theorem divK_div128_step1_initcap_v5_spec_within
     (fun h hp => by xperm_hyp hp)
     h12
 
+/-- Code requirement for the div128 v5 step-1 prefix + Phase-1b leading
+    guard (instrs [10]-[22]): the init+cap code disjoint-unioned with the
+    guard `SRLI;BNE` ([21]-[22]). -/
+def divKDiv128Step1InitCapGuardV5Code (base : Word) : CodeReq :=
+  (divKDiv128Step1InitCapV5Code base).union
+  (CodeReq.union (CodeReq.singleton (base + 44) (.SRLI .x9 .x7 32))
+   (CodeReq.singleton (base + 48) (.BNE .x9 .x0 76)))
+
 /-- v5 div128 step-1 prefix + Phase-1b leading guard (instrs [10]-[22]).
     Runs init+cap (→ q1c/rhatc) then the Phase-1b guard `SRLI;BNE`: when
     `rhatc ≥ 2^32` the guard is taken and jumps past both D3 corrections to
@@ -144,21 +158,7 @@ theorem divK_div128_step1_initcapguard_v5_spec_within
     let q1c := if hi = 0 then q1 else q1cCap
     let rhatc := if hi = 0 then rhat else rhat + (q1 - q1cCap) * dHi
     let x5o := if hi = 0 then hi else q1cCap
-    let cr :=
-      (CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x7 .x7 .x5))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x5 .x10 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x5 .x0 28))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x5 .x0 4095))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.SRLI .x5 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 28) (.SUB .x9 .x10 .x5))
-      (CodeReq.union (CodeReq.singleton (base + 32) (.MUL .x9 .x9 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 36) (.ADD .x7 .x7 .x9))
-       (CodeReq.singleton (base + 40) (.ADDI .x10 .x5 0)))))))))))).union
-      (CodeReq.union (CodeReq.singleton (base + 44) (.SRLI .x9 .x7 32))
-       (CodeReq.singleton (base + 48) (.BNE .x9 .x0 76)))
-    cpsBranchWithin 13 base cr
+    cpsBranchWithin 13 base (divKDiv128Step1InitCapGuardV5Code base)
       ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ uHi) ** (.x6 ↦ᵣ dHi) ** (.x10 ↦ᵣ v10Old) **
        (.x5 ↦ᵣ v5Old) ** (.x9 ↦ᵣ v9Old) ** (.x0 ↦ᵣ 0))
       (base + 124)
@@ -169,7 +169,8 @@ theorem divK_div128_step1_initcapguard_v5_spec_within
         ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ rhatc) ** (.x9 ↦ᵣ rhatc >>> (32 : BitVec 6).toNat) **
          (.x0 ↦ᵣ 0) ** ⌜rhatc >>> (32 : BitVec 6).toNat = 0⌝ **
          (.x10 ↦ᵣ q1c) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ x5o)) := by
-  intro q1 rhat hi q1cCap q1c rhatc x5o cr
+  intro q1 rhat hi q1cCap q1c rhatc x5o
+  unfold divKDiv128Step1InitCapGuardV5Code
   -- Prefix [10..20]: init + cap → q1c/rhatc, framed with x12 = sp.
   have hpre := divK_div128_step1_initcap_v5_spec_within uHi dHi v10Old v5Old v9Old base
   have hpref := cpsTripleWithin_frameR (.x12 ↦ᵣ sp) (by pcFree) hpre
@@ -185,7 +186,7 @@ theorem divK_div128_step1_initcapguard_v5_spec_within
     ((.x10 ↦ᵣ q1c) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ x5o))
     (by pcFree) hg
   have composed := cpsTripleWithin_seq_cpsBranchWithin_with_perm
-    (by crDisjoint)
+    (by unfold divKDiv128Step1InitCapV5Code; crDisjoint)
     (fun h hp => by xperm_hyp hp) hpref hgf
   exact cpsBranchWithin_weaken
     (fun h hp => by xperm_hyp hp)
