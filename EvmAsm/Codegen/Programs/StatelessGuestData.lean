@@ -390,6 +390,23 @@ def statelessGuestDataSection : String :=
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "npr_node_12_15_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- New constant + scratch for the dynamic node_14_15 path
+  -- supporting leaf_15 = blob_gas_used:
+  --   `npr_leaf_14_withdrawals_root` = SSZ hash_tree_root of
+  --     the default empty `withdrawals` list.
+  --   `npr_node_14_15_scratch` holds dynamic
+  --     sha256(npr_leaf_14_withdrawals_root || blob_gas_used).
+  -- The prior static `npr_node_14_15` constant becomes
+  -- unreferenced (kept for diff-context).
+  ".balign 8\n" ++
+  "npr_leaf_14_withdrawals_root:\n" ++
+  "  .byte 0x79, 0x29, 0x30, 0xbb, 0xd5, 0xba, 0xac, 0x43\n" ++
+  "  .byte 0xbc, 0xc7, 0x98, 0xee, 0x49, 0xaa, 0x81, 0x85\n" ++
+  "  .byte 0xef, 0x76, 0xbb, 0x3b, 0x44, 0xba, 0x62, 0xb9\n" ++
+  "  .byte 0x1d, 0x86, 0xae, 0x56, 0x9e, 0x4b, 0xb5, 0x35\n" ++
+  ".balign 8\n" ++
+  "npr_node_14_15_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen
