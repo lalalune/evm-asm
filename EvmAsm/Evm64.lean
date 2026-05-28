@@ -63,6 +63,7 @@ import EvmAsm.Evm64.Exp
 import EvmAsm.Evm64.DivMod
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.CallableBzeroV4
+import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1FullV5
 
 -- SDIV / SMOD skeletons (GH #90, signed division/modulo)
 import EvmAsm.Evm64.SDiv
