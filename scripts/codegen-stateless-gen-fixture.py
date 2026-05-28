@@ -114,7 +114,7 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2', 'INVALID_NM_AT_2', 'VALID_TS_HIBIT', 'VALID_REALISTIC_TWO', 'VALID_EIGHT', 'INVALID_GAS_AT_1', 'INVALID_BLOB_MISALIGN_AT_1'):
+if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2', 'INVALID_NM_AT_2', 'VALID_TS_HIBIT', 'VALID_REALISTIC_TWO', 'VALID_EIGHT', 'INVALID_GAS_AT_1', 'INVALID_BLOB_OVERMAX_AT_1', 'INVALID_BLOB_MISALIGN_AT_1'):
     # Multi-header fixtures (N=2 or N=3) exercising K229 and
     # K230 in their accept and reject branches. Each header
     # individually passes K290 / K291 / K240 / K278 / K277.
@@ -250,6 +250,48 @@ if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_
         h0 = mk_gas(1, 1234, gas_used=0,       gas_limit=1000000)
         h1 = mk_gas(2, 2000, gas_used=1000001, gas_limit=1000000)
         hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)))
+    elif hdr_hex == 'INVALID_BLOB_OVERMAX_AT_1':
+        # First header valid (blob_gas_used=0), second has
+        # blob_gas_used = 7 * 131072 = 917504. The value is a
+        # multiple of GAS_PER_BLOB=131072 (so K278 passes) but
+        # exceeds MAX_BLOB_GAS_PER_BLOCK = 6 * 131072 = 786432
+        # (so K277 rejects). K290 / K291 / K240 / K278 pass on
+        # both headers; K277 iterates -- passes on header 0
+        # (0 <= 786432), FAILS on header 1 (917504 > 786432).
+        # Closes the K277 iteration coverage gap, completing
+        # the per-K-PR iteration matrix begun by
+        # INVALID_DIFF_AT_1 (K290), INVALID_EXTRA_AT_2 (K291),
+        # INVALID_GAS_AT_1 (K240),
+        # INVALID_BLOB_MISALIGN_AT_1 (K278), INVALID_TS_AT_2
+        # (K229), INVALID_NM_AT_2 (K230).
+        def mk_blob_max(number, timestamp, blob_gas_used):
+            return Header(
+                parent_hash=Hash32(b'\x00' * 32),
+                ommers_hash=EMPTY_OMMER_HASH,
+                coinbase=b'\x00' * 20,
+                state_root=Hash32(b'\x00' * 32),
+                transactions_root=Hash32(b'\x00' * 32),
+                receipt_root=Hash32(b'\x00' * 32),
+                bloom=b'\x00' * 256,
+                difficulty=Uint(0),
+                number=Uint(number),
+                gas_limit=Uint(1000000),
+                gas_used=Uint(0),
+                timestamp=U256(timestamp),
+                extra_data=Bytes(b''),
+                prev_randao=Bytes32(b'\x00' * 32),
+                nonce=Bytes8(b'\x00' * 8),
+                base_fee_per_gas=Uint(0),
+                withdrawals_root=Hash32(b'\x00' * 32),
+                blob_gas_used=U64t(blob_gas_used),
+                excess_blob_gas=U64t(0),
+                parent_beacon_block_root=Hash32(b'\x00' * 32),
+                requests_hash=Hash32(b'\x00' * 32),
+                block_access_list_hash=Hash32(b'\x00' * 32),
+                slot_number=U64t(0),
+            )
+        h0 = mk_blob_max(1, 1234, blob_gas_used=0)
+        h1 = mk_blob_max(2, 2000, blob_gas_used=7 * 131072)  # 917504 > MAX
     elif hdr_hex == 'INVALID_BLOB_MISALIGN_AT_1':
         # First header valid (blob_gas_used=0, trivially a
         # multiple of GAS_PER_BLOB=131072), second header has
