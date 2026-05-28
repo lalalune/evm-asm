@@ -92,6 +92,7 @@ run_fixture() {
   local npr_fee_recipient_hex="${20:-}"
   local npr_state_root_hex="${21:-}"
   local npr_base_fee_str="${22:-}"
+  local npr_block_hash_hex="${23:-}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -99,8 +100,8 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty}, npr_pbr=${npr_pbr_hex:-empty}, npr_slot=${npr_slot_str:-empty}, npr_excess_blob=${npr_excess_blob_str:-empty}, npr_block_number=${npr_block_number_str:-empty}, npr_gas_limit=${npr_gas_limit_str:-empty}, npr_prev_randao=${npr_prev_randao_hex:-empty}, npr_gas_used=${npr_gas_used_str:-empty}, npr_timestamp=${npr_timestamp_str:-empty}, npr_parent_hash=${npr_parent_hash_hex:-empty}, npr_fee_recipient=${npr_fee_recipient_hex:-empty}, npr_state_root=${npr_state_root_hex:-empty}, npr_base_fee=${npr_base_fee_str:-empty})"
-  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex" "$npr_pbr_hex" "$npr_slot_str" "$npr_excess_blob_str" "$npr_block_number_str" "$npr_gas_limit_str" "$npr_prev_randao_hex" "$npr_gas_used_str" "$npr_timestamp_str" "$npr_parent_hash_hex" "$npr_fee_recipient_hex" "$npr_state_root_hex" "$npr_base_fee_str"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty}, npr_pbr=${npr_pbr_hex:-empty}, npr_slot=${npr_slot_str:-empty}, npr_excess_blob=${npr_excess_blob_str:-empty}, npr_block_number=${npr_block_number_str:-empty}, npr_gas_limit=${npr_gas_limit_str:-empty}, npr_prev_randao=${npr_prev_randao_hex:-empty}, npr_gas_used=${npr_gas_used_str:-empty}, npr_timestamp=${npr_timestamp_str:-empty}, npr_parent_hash=${npr_parent_hash_hex:-empty}, npr_fee_recipient=${npr_fee_recipient_hex:-empty}, npr_state_root=${npr_state_root_hex:-empty}, npr_base_fee=${npr_base_fee_str:-empty}, npr_block_hash=${npr_block_hash_hex:-empty})"
+  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex" "$npr_pbr_hex" "$npr_slot_str" "$npr_excess_blob_str" "$npr_block_number_str" "$npr_gas_limit_str" "$npr_prev_randao_hex" "$npr_gas_used_str" "$npr_timestamp_str" "$npr_parent_hash_hex" "$npr_fee_recipient_hex" "$npr_state_root_hex" "$npr_base_fee_str" "$npr_block_hash_hex"
 
   # Guard against silent fail: if the spec generator crashed
   # (Python syntax error in the heredoc, missing import, etc.)
@@ -325,6 +326,17 @@ run_fixture "chain1_npr_exec_payload_state_root_22" 1    0   ""           ""    
 # `ssz_zero_hashes[1]` (extra_data default empty ByteList
 # root happens to equal ssz_zero_hash[1]). +1 sha256 call.
 run_fixture "chain1_npr_exec_payload_base_fee_12345" 1   0   ""           ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    ""    ""    ""                                ""    ""    ""    ""    ""                                  "0x12345" || fail=1
+
+# Non-empty execution_payload: block_hash = 0x33*32 (leaf 12,
+# Bytes32 inline). Replaces the static `npr_node_12_15`
+# constant with 2 dynamic sha256 calls:
+#   node_12_13 = sha256(leaf_12=block_hash || npr_leaf_13_transactions_root)
+#   node_12_15 = sha256(node_12_13 || npr_node_14_15)
+# Two new constants (`npr_leaf_13_transactions_root` for
+# the empty transactions list root, `npr_node_14_15` for
+# the default withdrawals + blob_gas_used subtree) plus two
+# scratch buffers.
+run_fixture "chain1_npr_exec_payload_block_hash_33" 1    0   ""           ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    ""    ""    ""                                ""    ""    ""    ""    ""                                  ""    "$(printf '33%.0s' {1..32})" || fail=1
 
 # Edge: chain_id = 2^32 = 0x100000000. LE bytes
 # 00 00 00 00 01 00 00 00. The encoder's chain_id split

@@ -227,6 +227,41 @@ def statelessGuestEpilogue : String :=
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_10_11_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_10_11 -> npr_node_10_11_scratch\n" ++
   "  # \n" ++
+  "  # Dynamic node_12_15 (supports leaf_12 = block_hash):\n" ++
+  "  # node_12_13 = sha256(leaf_12=block_hash || leaf_13=transactions_root)\n" ++
+  "  # leaf_13 (transactions default empty list root) is a static\n" ++
+  "  # `npr_leaf_13_transactions_root` constant.\n" ++
+  "  # block_hash (Bytes32 @ SSZ_BASE + 16 + 44 + 472 = +532)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  ld t2, 532(s6); sd t2,  0(t1)\n" ++
+  "  ld t2, 540(s6); sd t2,  8(t1)\n" ++
+  "  ld t2, 548(s6); sd t2, 16(t1)\n" ++
+  "  ld t2, 556(s6); sd t2, 24(t1)\n" ++
+  "  la t3, npr_leaf_13_transactions_root\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_12_13_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_12_13 -> npr_node_12_13_scratch\n" ++
+  "  # node_12_15 = sha256(node_12_13 || npr_node_14_15)\n" ++
+  "  # leaf_14 (withdrawals default) and leaf_15 (blob_gas_used\n" ++
+  "  # default = 0) are still folded into the static `npr_node_14_15`\n" ++
+  "  # constant.\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_node_12_13_scratch\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, npr_node_14_15\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_12_15_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_12_15 -> npr_node_12_15_scratch\n" ++
+  "  # \n" ++
   "  # Dynamic node_8_15 path (supports leaf_8 = gas_used and\n" ++
   "  # leaf_9 = timestamp):\n" ++
   "  #   leaf_8 = gas_used  (u64 LE @ SSZ_BASE + 16 + 44 + 420 = +480)\n" ++
@@ -256,14 +291,14 @@ def statelessGuestEpilogue : String :=
   "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
   "  jal ra, zkvm_sha256         # node_8_11 -> npr_sha_subtree\n" ++
-  "  # node_8_15 = sha256(node_8_11 || npr_node_12_15) -> npr_node_8_15_scratch\n" ++
+  "  # node_8_15 = sha256(node_8_11 || npr_node_12_15_scratch) -> npr_node_8_15_scratch\n" ++
   "  la t1, npr_sha_input\n" ++
   "  la t3, npr_sha_subtree\n" ++
   "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
   "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
-  "  la t3, npr_node_12_15\n" ++
+  "  la t3, npr_node_12_15_scratch\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
