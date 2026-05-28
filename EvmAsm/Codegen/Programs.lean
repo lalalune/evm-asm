@@ -311,12 +311,16 @@ def statelessGuestEpilogue : String :=
   "  # ===== exec_payload merkle path (leaves 0-15) =====\n" ++
   "  # Path leaf_6 -> node_6_7 -> node_4_7 -> node_0_7 -> node_0_15\n" ++
   "  # leaf_6 = block_number (u64 LE @ SSZ_BASE + 16 + 44 + 404 = +464)\n" ++
-  "  #          || 24 bytes of zero padding; sibling leaf_7 = ssz_zero_hash[0]\n" ++
+  "  #          || 24 bytes of zero padding\n" ++
+  "  # leaf_7 = gas_limit    (u64 LE @ SSZ_BASE + 16 + 44 + 412 = +472)\n" ++
+  "  #          || 24 bytes of zero padding\n" ++
   "  la t1, npr_sha_input\n" ++
   "  ld t2, 464(s6)              # block_number\n" ++
   "  sd t2,  0(t1)\n" ++
   "  sd zero,  8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
-  "  sd zero, 32(t1); sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
+  "  ld t2, 472(s6)              # gas_limit\n" ++
+  "  sd t2, 32(t1)\n" ++
+  "  sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
   "  jal ra, zkvm_sha256         # node_6_7 -> npr_sha_subtree\n" ++
   "  # node_4_7 = sha256(npr_node_4_5 || node_6_7)\n" ++
