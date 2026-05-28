@@ -91,6 +91,8 @@ import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.StorageCompose
+import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
@@ -411,6 +413,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_code_at_header_state_root" => some ziskCodeAtHeaderStateRootProbeUnit
   | "zisk_extcodesize_at_header_state_root" => some ziskExtcodesizeAtHeaderStateRootProbeUnit
   | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
+  | "zisk_validate_storage_root_in_witness_storage" => some ziskValidateStorageRootInWitnessStorageProbeUnit
+  | "zisk_has_code_or_nonce_at_header_state_root" => some ziskHasCodeOrNonceAtHeaderStateRootProbeUnit
   | "zisk_rlp_field_to_u64"     => some ziskRlpFieldToU64ProbeUnit
   | "zisk_rlp_field_to_u256_be" => some ziskRlpFieldToU256BeProbeUnit
   | "zisk_tx_legacy_decode"     => some ziskTxLegacyDecodeProbeUnit
@@ -564,6 +568,8 @@ def knownProgramNames : List String :=
    "zisk_code_at_header_state_root",
    "zisk_extcodesize_at_header_state_root",
    "zisk_extcodehash_at_header_state_root",
+   "zisk_validate_storage_root_in_witness_storage",
+   "zisk_has_code_or_nonce_at_header_state_root",
    "zisk_rlp_field_to_u64",
    "zisk_rlp_field_to_u256_be",
    "zisk_tx_legacy_decode",
@@ -884,6 +890,8 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/State.lean",
     "EvmAsm/Codegen/Programs/StateCompose.lean",
     "EvmAsm/Codegen/Programs/EvmOpcodes.lean",
+    "EvmAsm/Codegen/Programs/StorageCompose.lean",
+    "EvmAsm/Codegen/Programs/EvmCodes.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
     "EvmAsm/Codegen/Programs/Ssz.lean",
     "EvmAsm/Codegen/Programs/StatelessGuestData.lean",
