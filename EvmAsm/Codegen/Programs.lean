@@ -89,6 +89,7 @@ import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
+import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
@@ -401,6 +402,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
+  | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
   | "zisk_rlp_field_to_u64"     => some ziskRlpFieldToU64ProbeUnit
   | "zisk_rlp_field_to_u256_be" => some ziskRlpFieldToU256BeProbeUnit
   | "zisk_tx_legacy_decode"     => some ziskTxLegacyDecodeProbeUnit
@@ -548,6 +550,7 @@ def knownProgramNames : List String :=
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
    "zisk_state_root_single_account",
+   "zisk_extcodehash_at_header_state_root",
    "zisk_rlp_field_to_u64",
    "zisk_rlp_field_to_u256_be",
    "zisk_tx_legacy_decode",
