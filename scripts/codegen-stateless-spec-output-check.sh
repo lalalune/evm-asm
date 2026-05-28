@@ -485,6 +485,84 @@ run_fixture "chain1_fork4_wrong_blob"  1               4    ""           ""     
 # walks past validate_headers.
 run_fixture "chain1_fork4_realistic_header" 1          4    ""           ""                  ""    "0"          ""           "14:21:11684671" "VALID_REALISTIC" || fail=1
 
+# Spec rlp.DecodingError path inside validate_headers.
+# Configuration:
+#   chain_id        = 1
+#   fork            = 4 (Amsterdam, passes validate_chain_config)
+#   activation.bn   = [0]
+#   blob_schedule   = (14, 21, 11684671)  [amsterdam expected]
+#   witness.headers = single 32-byte 0xAA blob (not RLP-valid)
+# Spec flow:
+#   validate_chain_config(...) -> SUCCESS
+#   validate_headers([0xAA * 32]):
+#     _decode_header tries rlp.decode_to(Header, ...) -> fails
+#       (the blob doesn't have the Header RLP shape)
+#     tries rlp.decode_to(PreviousForkHeader, ...) -> also fails
+#     -> raises rlp.DecodingError
+#   caught at verify_stateless_new_payload -> False.
+# Variety dimension: spec error path = rlp.DecodingError
+# inside _decode_header (validate_headers's RLP-parse step).
+# Distinct from the "not contiguous" path (PR #7071) which
+# exercises VALID RLP that fails parent_hash linkage, and
+# from the IndexError path (empty headers).
+run_fixture "chain1_fork4_bad_rlp_header" 1            4    ""           ""                  ""    "0"          ""           "14:21:11684671" "$(printf 'aa%.0s' {1..32})" || fail=1
+
+# _is_activation_active TIMESTAMP-only success branch.
+# Sister to the bn-only success-branch fixture: same outer
+# configuration (fork=4 Amsterdam, expected blob_schedule)
+# but activation has timestamp=[0] instead of bn=[0].
+# Spec flow:
+#   _is_activation_active:
+#     activation.block_number is None  (no bn entry)
+#     activation.timestamp is Uint(0)  (not None)
+#     execution_payload.timestamp = 0
+#     0 < 0 is False -> falls through -> returns True
+#   active_fork.fork == Amsterdam   -> True
+#   blob_schedule == expected       -> True
+#   validate_chain_config returns successfully
+#   validate_headers([]) -> IndexError -> caught -> False.
+# Variety dimension: distinct branch of _is_activation_active.
+# Previously the bn-set branch was exercised (active_fork bn=[0]
+# passes; active_fork bn=[1] fails via InactiveForkConfigError);
+# the ts-only branch is the third path through that helper.
+run_fixture "chain1_fork4_ts_active"   1               4    ""           ""                  ""    ""           "0"          "14:21:11684671" || fail=1
+
+# _is_activation_active TIMESTAMP-only FAIL branch. Sister to
+# the bn-only fail-branch fixture: same outer config (fork=4
+# Amsterdam, expected blob) but activation has timestamp=[1]
+# (no bn). _is_activation_active gets:
+#   activation.block_number is None              -> skip first if
+#   activation.timestamp = Uint(1) (not None)
+#   execution_payload.timestamp = 0
+#   0 < 1 is True -> returns False -> spec raises
+#   InactiveForkConfigError. Caught -> False.
+# Variety dimension: completes the _is_activation_active 2x2
+# coverage matrix (bn/ts X pass/fail). All four branches now
+# have a fixture. Mirror of chain1_fork4_inactive_bn across
+# the block_number/timestamp axis.
+run_fixture "chain1_fork4_inactive_ts" 1               4    ""           ""                  ""    ""           "1"          "14:21:11684671" || fail=1
+
+# bpo5-fork-shape RLP header. Drives the spec's
+# _decode_header through its PreviousForkHeader fallback:
+#   rlp.decode_to(amsterdam Header, ...) raises -- list has
+#     21 elements but amsterdam Header expects 23
+#     (amsterdam added block_access_list_hash + slot_number).
+#   rlp.decode_to(bpo5 Header, ...) succeeds.
+# Spec configuration: fork=4 + Amsterdam blob_schedule +
+# activation.bn=[0] so validate_chain_config succeeds, then
+# validate_headers reaches _decode_header which exercises
+# the fallback branch.
+#
+# Variety dimension: spec _decode_header's
+# PreviousForkHeader fallback path -- previously unexercised.
+# All K-PR-relevant fields (parent_hash, ommers_hash,
+# difficulty, nonce, gas, blob_gas_used, ...) sit at the
+# same field indices in both Header types because amsterdam
+# is a strict extension of bpo5, so the ASM K-PR pipeline
+# parses successfully and accepts. Output byte-identical to
+# spec.
+run_fixture "chain1_fork4_bpo5_header" 1               4    ""           ""                  ""    "0"          ""           "14:21:11684671" "BPO5_HEADER" || fail=1
+
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
 # transactions_root, receipt_root, bloom, prev_randao,
