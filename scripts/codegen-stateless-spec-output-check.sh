@@ -80,6 +80,7 @@ run_fixture() {
   local timestamp="${8:-}"
   local blob_schedule="${9:-}"
   local witness_headers_hex="${10:-}"
+  local npr_pbr_hex="${11:-}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -87,8 +88,8 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty})"
-  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty}, npr_pbr=${npr_pbr_hex:-empty})"
+  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex" "$npr_pbr_hex"
 
   # Guard against silent fail: if the spec generator crashed
   # (Python syntax error in the heredoc, missing import, etc.)
@@ -176,6 +177,26 @@ run_fixture "chain_sepolia"         11155111                || fail=1
 # isn't checked against any specific value), then
 # validate_headers([]) -> IndexError -> False.
 run_fixture "chain_sepolia_amsterdam" 11155111         4    ""           ""                  ""    "0"          ""           "14:21:11684671" || fail=1
+
+# Non-empty new_payload_request: parent_beacon_block_root set
+# to 0xff*32, all other NPR fields default (empty execution
+# payload, no versioned hashes, no execution requests).
+# Spec's compute_new_payload_request_root(...) computes a
+# different 32-byte hash than the empty-NPR constant -- the
+# OUTPUT[0..32) bytes are determined by the SSZ merkle tree
+# over the NPR's four field roots.
+#
+# Drives the smallest possible RISC-V implementation step:
+# previously the encoder STAMPED `empty_npr_root` (a static
+# 32-byte .data constant); after this PR the encoder reads
+# parent_beacon_block_root from input and computes
+#   right_subtree = sha256(pbr || exec_requests_root)
+#   root          = sha256(left_subtree || right_subtree)
+# with `left_subtree` and `exec_requests_root` as new .data
+# constants (precomputed from empty subtrees). For all
+# previously-shipped fixtures (pbr=zero), the computation
+# reproduces the empty_npr_root constant exactly.
+run_fixture "chain1_npr_pbr_ff" 1                      0    ""           ""                  ""    ""           ""           ""    ""                       "$(printf 'ff%.0s' {1..32})" || fail=1
 
 # Edge: chain_id = 2^32 = 0x100000000. LE bytes
 # 00 00 00 00 01 00 00 00. The encoder's chain_id split
@@ -508,6 +529,27 @@ run_fixture "chain1_fork4_ts_active"   1               4    ""           ""     
 # have a fixture. Mirror of chain1_fork4_inactive_bn across
 # the block_number/timestamp axis.
 run_fixture "chain1_fork4_inactive_ts" 1               4    ""           ""                  ""    ""           "1"          "14:21:11684671" || fail=1
+
+# bpo5-fork-shape RLP header. Drives the spec's
+# _decode_header through its PreviousForkHeader fallback:
+#   rlp.decode_to(amsterdam Header, ...) raises -- list has
+#     21 elements but amsterdam Header expects 23
+#     (amsterdam added block_access_list_hash + slot_number).
+#   rlp.decode_to(bpo5 Header, ...) succeeds.
+# Spec configuration: fork=4 + Amsterdam blob_schedule +
+# activation.bn=[0] so validate_chain_config succeeds, then
+# validate_headers reaches _decode_header which exercises
+# the fallback branch.
+#
+# Variety dimension: spec _decode_header's
+# PreviousForkHeader fallback path -- previously unexercised.
+# All K-PR-relevant fields (parent_hash, ommers_hash,
+# difficulty, nonce, gas, blob_gas_used, ...) sit at the
+# same field indices in both Header types because amsterdam
+# is a strict extension of bpo5, so the ASM K-PR pipeline
+# parses successfully and accepts. Output byte-identical to
+# spec.
+run_fixture "chain1_fork4_bpo5_header" 1               4    ""           ""                  ""    "0"          ""           "14:21:11684671" "BPO5_HEADER" || fail=1
 
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
