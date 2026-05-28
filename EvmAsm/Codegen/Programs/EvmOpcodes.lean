@@ -984,8 +984,6 @@ def ziskNonceAtHeaderStateRootProbeUnit : BuildUnit := {
   dataAsm     := ziskNonceAtHeaderStateRootDataSection
 }
 
-end EvmAsm.Codegen
-
 def ziskExtcodecopyAtHeaderStateRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t1, 0x40000000\n" ++
