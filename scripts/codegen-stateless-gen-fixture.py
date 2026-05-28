@@ -114,7 +114,7 @@ if state_hex:
 HeaderBL = ByteList[MAX_BYTES_PER_HEADER]
 HeadersList = SszList[HeaderBL, MAX_WITNESS_HEADERS]
 hdr_arg = ()
-if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2', 'INVALID_NM_AT_2', 'VALID_TS_HIBIT', 'VALID_REALISTIC_TWO', 'VALID_EIGHT', 'INVALID_BLOB_OVERMAX_AT_1'):
+if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_DIFF_AT_1', 'INVALID_EXTRA_AT_2', 'INVALID_TS_AT_2', 'INVALID_NM_AT_2', 'VALID_TS_HIBIT', 'VALID_REALISTIC_TWO', 'VALID_EIGHT', 'INVALID_GAS_AT_1', 'INVALID_BLOB_OVERMAX_AT_1'):
     # Multi-header fixtures (N=2 or N=3) exercising K229 and
     # K230 in their accept and reject branches. Each header
     # individually passes K290 / K291 / K240 / K278 / K277.
@@ -210,6 +210,45 @@ if hdr_hex in ('INVALID_TS', 'INVALID_NM', 'VALID_TWO', 'VALID_THREE', 'INVALID_
             )
         h0 = mk_diff(1, 1234, 0)
         h1 = mk_diff(2, 2000, 1)  # difficulty != 0 at index 1
+        hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)))
+    elif hdr_hex == 'INVALID_GAS_AT_1':
+        # First header valid (gas_used <= gas_limit), second
+        # header has gas_used > gas_limit. K240 iterates: first
+        # header passes the BGTU check, SECOND fails. Tests
+        # K240's per-header iteration loop body actually checks
+        # every header (closes the iteration-coverage gap for
+        # K240 that INVALID_DIFF_AT_1 covers for K290 and
+        # INVALID_EXTRA_AT_2 covers for K291). Earlier K-PRs
+        # (K290, K291) pass on both headers; the failure is
+        # only at K240 on index 1.
+        def mk_gas(number, timestamp, gas_used, gas_limit):
+            return Header(
+                parent_hash=Hash32(b'\x00' * 32),
+                ommers_hash=EMPTY_OMMER_HASH,
+                coinbase=b'\x00' * 20,
+                state_root=Hash32(b'\x00' * 32),
+                transactions_root=Hash32(b'\x00' * 32),
+                receipt_root=Hash32(b'\x00' * 32),
+                bloom=b'\x00' * 256,
+                difficulty=Uint(0),
+                number=Uint(number),
+                gas_limit=Uint(gas_limit),
+                gas_used=Uint(gas_used),
+                timestamp=U256(timestamp),
+                extra_data=Bytes(b''),
+                prev_randao=Bytes32(b'\x00' * 32),
+                nonce=Bytes8(b'\x00' * 8),
+                base_fee_per_gas=Uint(0),
+                withdrawals_root=Hash32(b'\x00' * 32),
+                blob_gas_used=U64t(0),
+                excess_blob_gas=U64t(0),
+                parent_beacon_block_root=Hash32(b'\x00' * 32),
+                requests_hash=Hash32(b'\x00' * 32),
+                block_access_list_hash=Hash32(b'\x00' * 32),
+                slot_number=U64t(0),
+            )
+        h0 = mk_gas(1, 1234, gas_used=0,       gas_limit=1000000)
+        h1 = mk_gas(2, 2000, gas_used=1000001, gas_limit=1000000)
         hdr_arg = (HeaderBL(rlp.encode(h0)), HeaderBL(rlp.encode(h1)))
     elif hdr_hex == 'INVALID_BLOB_OVERMAX_AT_1':
         # First header valid (blob_gas_used=0), second has
