@@ -169,4 +169,135 @@ theorem divK_div128_cap_q1_v5_merged_spec_within
       (fun h hp => hp)
       (fun h hp => by xperm_hyp hp) full
 
+/-- div128 v5 Phase-2a cap on `q0`: test `q0 ≥ 2^32`; when set, cap
+    `q0c := 0xFFFFFFFF` and recompute `rhat2c := rhat2 + (q0 - q0cCap) * dHi`.
+    Instrs [47]-[54]. Register-renamed mirror of
+    `divK_div128_cap_q1_v5_merged_spec_within`: the trial quotient lives in
+    `x5` (was `x10`), the remainder in `x11` (was `x7`), the cap scratch in
+    `x9` (was `x5`), and the diff scratch in `x7` (was `x9`). Both BEQ paths
+    merge at base+32. Outputs match the Phase-2a portion of `div128Quot_v5`. -/
+theorem divK_div128_cap_q0_v5_merged_spec_within
+    (q0 rhat2 dHi v9Old v7Old : Word) (base : Word) :
+    let hi := q0 >>> (32 : BitVec 6).toNat
+    let q0cCap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+    let q0c := if hi = 0 then q0 else q0cCap
+    let rhat2c := if hi = 0 then rhat2 else rhat2 + (q0 - q0cCap) * dHi
+    let x9o := if hi = 0 then hi else q0cCap
+    let x7o := if hi = 0 then v7Old else (q0 - q0cCap) * dHi
+    let cr :=
+      CodeReq.union (CodeReq.singleton base (.SRLI .x9 .x5 32))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x9 .x0 28))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x9 .x0 4095))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x9 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.SUB .x7 .x5 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.MUL .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x7))
+       (CodeReq.singleton (base + 28) (.ADDI .x5 .x9 0))))))))
+    cpsTripleWithin 8 base (base + 32) cr
+      ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
+       (.x9 ↦ᵣ v9Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ 0))
+      ((.x5 ↦ᵣ q0c) ** (.x11 ↦ᵣ rhat2c) ** (.x6 ↦ᵣ dHi) **
+       (.x9 ↦ᵣ x9o) ** (.x7 ↦ᵣ x7o) ** (.x0 ↦ᵣ 0)) := by
+  intro hi q0cCap q0c rhat2c x9o x7o cr
+  -- Block prefix: [47] SRLI → x9 = hi.
+  have I0 := srli_spec_gen_within .x9 .x5 v9Old q0 32 base (by nofun)
+  have hbody : cpsTripleWithin 1 base (base + 4) cr
+      ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
+       (.x9 ↦ᵣ v9Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ 0))
+      ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
+       (.x9 ↦ᵣ hi) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ 0)) := by
+    runBlock I0
+  -- BEQ [48]: taken (hi = 0) → base+32, fall-through (hi ≠ 0) → base+8.
+  have hbeq_raw := beq_spec_gen_within .x9 .x0 (28 : BitVec 13) hi (0 : Word) (base + 4)
+  have ha_t : (base + 4) + signExtend13 (28 : BitVec 13) = base + 32 := by rv64_addr
+  have ha_f : (base + 4 : Word) + 4 = base + 8 := by bv_addr
+  rw [ha_t, ha_f] at hbeq_raw
+  have hbeq_framed := cpsBranchWithin_frameR
+    ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ v7Old))
+    (by pcFree) hbeq_raw
+  have hbeq_ext : cpsBranchWithin 1 (base + 4) cr
+      (((.x9 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word))) **
+       ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ v7Old)))
+      (base + 32)
+        (((.x9 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜hi = 0⌝) **
+         ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ v7Old)))
+      (base + 8)
+        (((.x9 ↦ᵣ hi) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜hi ≠ 0⌝) **
+         ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ v7Old))) :=
+    fun R hR s hcr hPR hpc =>
+      hbeq_framed R hR s (CodeReq.singleton_satisfiedBy.mpr (hcr _ _ (by
+        show cr (base + 4) = _
+        simp only [cr, CodeReq.union, CodeReq.singleton]
+        have h0 : ¬(base + 4 = base) := by bv_omega
+        simp only [beq_iff_eq, h0, ↓reduceIte]))) hPR hpc
+  have composed := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hbody hbeq_ext
+  by_cases hcond : hi = 0
+  · -- Taken: cap skipped; outputs unchanged.
+    have hq : q0c = q0 := if_pos hcond
+    have hr : rhat2c = rhat2 := if_pos hcond
+    have h9 : x9o = hi := if_pos hcond
+    have h7 : x7o = v7Old := if_pos hcond
+    rw [hq, hr, h9, h7]
+    have taken := cpsBranchWithin_takenPath composed (fun hp hQf => by
+      obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQf
+      exact ((sepConj_pure_right _).1 h_x0p).2 hcond)
+    exact cpsTripleWithin_mono_nSteps (by decide)
+      (cpsTripleWithin_weaken
+        (fun h hp => hp)
+        (fun h hp => by
+          have hp' := sepConj_mono_left (sepConj_mono_right
+            (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+          xperm_hyp hp') taken)
+  · -- Fall-through: cap fires.
+    have hq : q0c = q0cCap := if_neg hcond
+    have hr : rhat2c = rhat2 + (q0 - q0cCap) * dHi := if_neg hcond
+    have h9 : x9o = q0cCap := if_neg hcond
+    have h7 : x7o = (q0 - q0cCap) * dHi := if_neg hcond
+    rw [hq, hr, h9, h7]
+    have ntaken := cpsBranchWithin_ntakenPath composed (fun hp hQt => by
+      obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_x0p⟩, _⟩ := hQt
+      exact hcond ((sepConj_pure_right _).1 h_x0p).2)
+    -- Correction body [49]-[54]: raw register expressions.
+    have I1 := addi_spec_gen_within .x9 .x0 hi (0 : Word) 4095 (base + 8) (by nofun)
+    have I2 := srli_spec_gen_same_within .x9 ((0 : Word) + signExtend12 4095) 32
+      (base + 12) (by nofun)
+    have I3 := sub_spec_gen_within .x7 .x5 .x9 q0
+      (((0 : Word) + signExtend12 4095) >>> (32 : BitVec 6).toNat) v7Old (base + 16) (by nofun)
+    have I4 := mul_spec_gen_rd_eq_rs1_within .x7 .x6
+      (q0 - ((0 : Word) + signExtend12 4095) >>> (32 : BitVec 6).toNat) dHi (base + 20) (by nofun)
+    have I5 := add_spec_gen_rd_eq_rs1_within .x11 .x7 rhat2
+      ((q0 - ((0 : Word) + signExtend12 4095) >>> (32 : BitVec 6).toNat) * dHi)
+      (base + 24) (by nofun)
+    have I6 := addi_spec_gen_within .x5 .x9 q0
+      (((0 : Word) + signExtend12 4095) >>> (32 : BitVec 6).toNat) 0 (base + 28) (by nofun)
+    have hcorr : cpsTripleWithin 6 (base + 8) (base + 32) cr
+        ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
+         (.x9 ↦ᵣ hi) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ 0))
+        ((.x5 ↦ᵣ (((0 : Word) + signExtend12 4095) >>> (32 : BitVec 6).toNat + signExtend12 0)) **
+         (.x11 ↦ᵣ (rhat2 + (q0 - ((0 : Word) + signExtend12 4095) >>> (32 : BitVec 6).toNat) * dHi)) **
+         (.x6 ↦ᵣ dHi) **
+         (.x9 ↦ᵣ (((0 : Word) + signExtend12 4095) >>> (32 : BitVec 6).toNat)) **
+         (.x7 ↦ᵣ ((q0 - ((0 : Word) + signExtend12 4095) >>> (32 : BitVec 6).toNat) * dHi)) **
+         (.x0 ↦ᵣ 0)) := by
+      runBlock I1 I2 I3 I4 I5 I6
+    have full := cpsTripleWithin_seq_perm_same_cr
+      (fun h hp => by
+        have hp' := sepConj_mono_left (sepConj_mono_right
+          (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+        xperm_hyp hp') ntaken hcorr
+    have hCAP : ((0 : Word) + signExtend12 4095) >>> (32 : BitVec 6).toNat = q0cCap := by
+      show ((0 : Word) + signExtend12 4095) >>> (32 : BitVec 6).toNat
+        = (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+      decide
+    have hMV : q0cCap + signExtend12 0 = q0cCap := by
+      show (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat + signExtend12 0
+        = (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+      decide
+    rw [hCAP] at full
+    rw [hMV] at full
+    exact cpsTripleWithin_weaken
+      (fun h hp => hp)
+      (fun h hp => by xperm_hyp hp) full
+
 end EvmAsm.Evm64
