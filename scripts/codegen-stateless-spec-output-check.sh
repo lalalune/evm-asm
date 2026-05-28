@@ -435,6 +435,23 @@ run_fixture "chain1_fork4_noncontig"   1               4    ""           ""     
 # the blob-mismatch sub-branch was uncovered until now.
 run_fixture "chain1_fork4_wrong_blob"  1               4    ""           ""                  ""    "0"          ""           "15:21:11684671" || fail=1
 
+# fork=4 Amsterdam + activation.bn=[0] + Amsterdam blob +
+# VALID_REALISTIC header (N=1, every K-PR-ignored field
+# populated with realistic non-zero bytes). Cross-product of
+# variety dimensions:
+#   * spec walks past validate_chain_config success (#7067)
+#   * spec walks past validate_headers success at N=1 (new)
+#   * spec uses _decode_header's PRIMARY amsterdam branch
+#     (distinct from PR #7075's PreviousForkHeader fallback)
+#   * ASM K-PR pipeline parses a REALISTIC-shape RLP header
+#     (with 32-byte non-zero parent_hash, coinbase, state_root,
+#      etc.) and all K-PRs accept -> .Lsg_all_pass
+# Previous fork=4 chained fixtures (PR #7068) used VALID_THREE
+# headers with minimal-field cohorts; this is the first
+# realistic-field-cohort fixture that the spec actually
+# walks past validate_headers.
+run_fixture "chain1_fork4_realistic_header" 1          4    ""           ""                  ""    "0"          ""           "14:21:11684671" "VALID_REALISTIC" || fail=1
+
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
 # transactions_root, receipt_root, bloom, prev_randao,
