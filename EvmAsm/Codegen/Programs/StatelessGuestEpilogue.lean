@@ -276,13 +276,13 @@ def statelessGuestEpilogue : String :=
   "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
   "  jal ra, zkvm_sha256         # node_4_7 -> npr_sha_subtree\n" ++
-  "  # Dynamic node_0_3 path (supports leaf_0 = parent_hash):\n" ++
-  "  #   leaf_0 = parent_hash (Bytes32 @ SSZ_BASE + 16 + 44 + 0 = +60)\n" ++
-  "  #   leaf_1 = ssz_zero_hash[0] (fee_recipient default = 20 zero bytes,\n" ++
-  "  #            padded to 32 zero bytes)\n" ++
+  "  # Dynamic node_0_3 path (supports leaf_0 = parent_hash and\n" ++
+  "  # leaf_1 = fee_recipient):\n" ++
+  "  #   leaf_0 = parent_hash    (Bytes32 @ SSZ_BASE + 16 + 44 + 0 = +60)\n" ++
+  "  #   leaf_1 = fee_recipient  (ByteVector[20] @ SSZ_BASE + 16 + 44 + 32\n" ++
+  "  #            = +92), packed into 32 bytes via 20 bytes from input\n" ++
+  "  #            + 12 zero padding (SSZ ByteVector[20].hash_tree_root).\n" ++
   "  # node_0_1 = sha256(leaf_0 || leaf_1) -> npr_node_0_3_scratch (temp)\n" ++
-  "  # Save node_4_7 first since the dynamic node_0_3 path uses\n" ++
-  "  # npr_sha_subtree for its first sha256, which would clobber it.\n" ++
   "  # We use npr_node_0_3_scratch as both temp (for node_0_1) and final\n" ++
   "  # (for node_0_3) since sha256 reads input then writes output.\n" ++
   "  la t1, npr_sha_input\n" ++
@@ -290,7 +290,10 @@ def statelessGuestEpilogue : String :=
   "  ld t2,  68(s6); sd t2,  8(t1)\n" ++
   "  ld t2,  76(s6); sd t2, 16(t1)\n" ++
   "  ld t2,  84(s6); sd t2, 24(t1)\n" ++
-  "  sd zero, 32(t1); sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
+  "  ld t2,  92(s6); sd t2, 32(t1)\n" ++
+  "  ld t2, 100(s6); sd t2, 40(t1)\n" ++
+  "  lwu t2, 108(s6); sd t2, 48(t1)\n" ++
+  "  sd zero, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_0_3_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_0_1 -> npr_node_0_3_scratch\n" ++
   "  # node_0_3 = sha256(node_0_1 || ssz_zero_hash[1])\n" ++
