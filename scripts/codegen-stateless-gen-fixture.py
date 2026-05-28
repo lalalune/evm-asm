@@ -63,6 +63,7 @@ bn_str = sys.argv[8]
 ts_str = sys.argv[9]
 blob_str = sys.argv[10]
 hdr_hex = sys.argv[11]
+npr_pbr_hex = sys.argv[12] if len(sys.argv) > 12 else ''
 
 # Build the new-schema StatelessInput: empty new_payload_request,
 # witness whose 'state'/'codes' lists each hold zero or more
@@ -685,8 +686,16 @@ if pk_hex:
     pk_entries = pk_hex.split(':')
     pk_args = tuple(PkBV(bytes.fromhex(p)) for p in pk_entries)
 
+if npr_pbr_hex:
+    from remerkleable.byte_arrays import Bytes32 as Bytes32SSZ
+    npr = SszNewPayloadRequest(
+        parent_beacon_block_root=Bytes32SSZ(bytes.fromhex(npr_pbr_hex)),
+    )
+else:
+    npr = SszNewPayloadRequest()
+
 ssz_input = SszStatelessInput(
-    new_payload_request=SszNewPayloadRequest(),
+    new_payload_request=npr,
     witness=witness,
     chain_config=cc,
     public_keys=PkList(*pk_args),
