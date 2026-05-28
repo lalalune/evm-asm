@@ -45,6 +45,7 @@ import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 
 import EvmAsm.Codegen.Programs.Evm
+import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
 import EvmAsm.Codegen.Programs.StatelessGuestData
@@ -705,6 +706,7 @@ def lookupProgram : String → Option BuildUnit
   | "evm_smod_v4"               => some evmSmodV4Unit
   | "evm_smod_v4_from_input"    => some evmSmodV4FromInputUnit
   | "input_echo"                => some inputEchoUnit
+  | "evm_exp_from_input"        => some evmExpFromInputUnit
   | "evm_add_from_input"        => some evmAddFromInputUnit
   | "tiny_interp_add"           => some tinyInterpAddUnit
   | "tiny_interp_add2"          => some tinyInterpAdd2Unit
@@ -850,6 +852,7 @@ def lookupProgram : String → Option BuildUnit
 /-- List of known program names, for use in CLI usage strings. -/
 def knownProgramNames : List String :=
   ["smoke", "evm_add", "evm_div", "evm_mod", "evm_sdiv", "evm_sdiv_v4", "input_echo",
+   "evm_exp_from_input",
    "evm_add_from_input", "evm_div_from_input", "evm_mod_from_input",
    "evm_sdiv_from_input", "evm_sdiv_v4_from_input",
    "evm_smod", "evm_smod_from_input",
@@ -1204,6 +1207,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean",
     "EvmAsm/Codegen/Programs/Bloom.lean",
     "EvmAsm/Codegen/Programs/Evm.lean",
+    "EvmAsm/Codegen/Programs/ExpProperty.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
     "EvmAsm/Codegen/Programs/HashProbes.lean",
     "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
