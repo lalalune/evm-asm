@@ -94,7 +94,7 @@ theorem algorithmQ1dV5_phase1b_dLo_bound
     branch, V5.2's symbolic `q1c` reference inside `rhatc` reduces to the
     same concrete value as `algorithmRhatcV5_unfold`'s direct `q1cCap`
     substitution. Bead `evm-asm-wbc4i.4.1.1` (V5.4.1.1). -/
-private theorem divKTrialCallV5Q1dd_eq_alg (uHi uLo vTop : Word) :
+theorem divKTrialCallV5Q1dd_eq_alg (uHi uLo vTop : Word) :
     divKTrialCallV5Q1dd uHi uLo vTop =
       div128Quot_phase2b_q0'
         (algorithmQ1dV5 uHi uLo vTop)
@@ -111,7 +111,7 @@ private theorem divKTrialCallV5Q1dd_eq_alg (uHi uLo vTop : Word) :
 
 /-- Bridge for `divKTrialCallV5Rhatdd` — NESTED form to match V5.2's
     eq_phase2b RHS exactly. -/
-private theorem divKTrialCallV5Rhatdd_eq_alg (uHi uLo vTop : Word) :
+theorem divKTrialCallV5Rhatdd_eq_alg (uHi uLo vTop : Word) :
     divKTrialCallV5Rhatdd uHi uLo vTop =
       (if algorithmRhatdV5 uHi uLo vTop >>> (32 : BitVec 6).toNat = (0 : Word) then
         let qDlo2 := algorithmQ1dV5 uHi uLo vTop * divKTrialCallV5DLo vTop
