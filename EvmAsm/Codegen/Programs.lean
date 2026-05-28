@@ -89,6 +89,7 @@ import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
+import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
@@ -193,6 +194,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_extract_basefee_range" => some ziskChainExtractBasefeeRangeProbeUnit
   | "zisk_chain_block_hashes_commitment" => some ziskChainBlockHashesCommitmentProbeUnit
   | "zisk_header_extract_state_root" => some ziskHeaderExtractStateRootProbeUnit
+  | "zisk_validate_state_root_against_witness_node" => some ziskValidateStateRootAgainstWitnessNodeProbeUnit
   | "zisk_header_extract_parent_hash" => some ziskHeaderExtractParentHashProbeUnit
   | "zisk_header_extract_receipts_root" => some ziskHeaderExtractReceiptsRootProbeUnit
   | "zisk_header_extract_transactions_root" => some ziskHeaderExtractTransactionsRootProbeUnit
@@ -401,6 +403,10 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
+  | "zisk_validate_witness_state_contains_root" => some ziskValidateWitnessStateContainsRootProbeUnit
+  | "zisk_account_at_header_state_root" => some ziskAccountAtHeaderStateRootProbeUnit
+  | "zisk_slot_at_header_state_root" => some ziskSlotAtHeaderStateRootProbeUnit
+  | "zisk_code_at_header_state_root" => some ziskCodeAtHeaderStateRootProbeUnit
   | "zisk_rlp_field_to_u64"     => some ziskRlpFieldToU64ProbeUnit
   | "zisk_rlp_field_to_u256_be" => some ziskRlpFieldToU256BeProbeUnit
   | "zisk_tx_legacy_decode"     => some ziskTxLegacyDecodeProbeUnit
@@ -548,6 +554,10 @@ def knownProgramNames : List String :=
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
    "zisk_state_root_single_account",
+   "zisk_validate_witness_state_contains_root",
+   "zisk_account_at_header_state_root",
+   "zisk_slot_at_header_state_root",
+   "zisk_code_at_header_state_root",
    "zisk_rlp_field_to_u64",
    "zisk_rlp_field_to_u256_be",
    "zisk_tx_legacy_decode",
@@ -662,6 +672,7 @@ def knownProgramNames : List String :=
    "zisk_chain_extract_basefee_range",
    "zisk_chain_block_hashes_commitment",
    "zisk_header_extract_state_root",
+   "zisk_validate_state_root_against_witness_node",
    "zisk_header_extract_parent_hash",
    "zisk_header_extract_receipts_root",
    "zisk_header_extract_transactions_root",
@@ -864,6 +875,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/MptNibbles.lean",
     "EvmAsm/Codegen/Programs/Receipt.lean",
     "EvmAsm/Codegen/Programs/State.lean",
+    "EvmAsm/Codegen/Programs/StateCompose.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
     "EvmAsm/Codegen/Programs/Ssz.lean",
     "EvmAsm/Codegen/Programs/StatelessGuestData.lean",
