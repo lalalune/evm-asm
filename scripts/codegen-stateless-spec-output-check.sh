@@ -357,6 +357,21 @@ run_fixture "chain1_blob_realistic" 1                  0    ""           ""     
 # validate_chain_config.
 run_fixture "chain1_fork4_amsterdam_active" 1          4    ""           ""                  ""    "0"          ""           "14:21:11684671" || fail=1
 
+# Spec InactiveForkConfigError path. Identical to the
+# fork=4 + Amsterdam-blob fixture except activation.bn=[1]
+# (instead of [0]). _is_activation_active gets:
+#   activation.block_number = Uint(1) (not None)
+#   execution_payload.block_number = 0 (empty default)
+#   0 < 1 -> True -> returns False -> spec raises
+#   InactiveForkConfigError. The exception is caught at
+#   verify_stateless_new_payload, successful_validation=False.
+# Variety dimension: SPEC code path = InactiveForkConfigError
+# inside validate_chain_config. Until this fixture, every
+# fork=4 + Amsterdam-blob input hit
+# _is_activation_active's success branch (bn=[0] passes the
+# 0 < 0 check). This fixture exercises the False return.
+run_fixture "chain1_fork4_inactive_bn" 1               4    ""           ""                  ""    "1"          ""           "14:21:11684671" || fail=1
+
 # Spec "Witness headers are not contiguous" path.
 # Configuration:
 #   chain_id        = 1
