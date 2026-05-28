@@ -172,4 +172,87 @@ theorem divKTrialCallV5QHat_unfold (uHi uLo vTop : Word) :
         divKTrialCallV5Q0dd uHi uLo vTop) := by
   delta divKTrialCallV5QHat; rfl
 
+-- ============================================================================
+-- Phase-1a + Phase-1b-fire-guard algorithm bundles for V5.
+-- Bead `evm-asm-wbc4i.4.6.1` (V5.4.0.2).
+--
+-- v5 vs v4 differences here:
+-- * `algorithmQ1cV5` uses the cap `q1cCap = 0xFFFFFFFF` (vs v4's
+--   `q1 - 1`).
+-- * `algorithmRhatcV5` is recomputed as `uHi - q1c * dHi` (vs v4's
+--   `rhat + dHi`).
+-- * `algorithmPhase1bFireV5` adds the `rhatc >>> 32 = 0` guard
+--   (matching the existing 2nd-correction and Phase-2-helper guards).
+-- ============================================================================
+
+/-- The V5 Phase-1a-corrected quotient (before the first Phase-1b dLo
+    check). Uses the cap `0xFFFFFFFF` when `hi1 ≠ 0`. -/
+@[irreducible]
+def algorithmQ1cV5 (uHi vTop : Word) : Word :=
+  let dHi := divKTrialCallV5DHi vTop
+  let q1 := rv64_divu uHi dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1cCap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+  if hi1 = 0 then q1 else q1cCap
+
+/-- The V5 Phase-1a-corrected remainder. Recomputed from `uHi - q1c*dHi`
+    (not `rhat + dHi` as in v4). -/
+@[irreducible]
+def algorithmRhatcV5 (uHi vTop : Word) : Word :=
+  let dHi := divKTrialCallV5DHi vTop
+  let q1 := rv64_divu uHi dHi
+  let rhat := uHi - q1 * dHi
+  let hi1 := q1 >>> (32 : BitVec 6).toNat
+  let q1cCap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+  if hi1 = 0 then rhat else uHi - q1cCap * dHi
+
+/-- The low 64-bit comparison word for the V5 first Phase-1b dLo check. -/
+@[irreducible]
+def algorithmRhatUn1cV5 (uHi uLo vTop : Word) : Word :=
+  (algorithmRhatcV5 uHi vTop <<< (32 : BitVec 6).toNat) ||| divKTrialCallV5Un1 uLo
+
+/-- The V5 first Phase-1b dLo correction guard. Differs from v4 by the
+    additional `rhatc >>> 32 = 0` precondition that gates the BLTU. -/
+@[irreducible]
+def algorithmPhase1bFireV5 (uHi uLo vTop : Word) : Prop :=
+  algorithmRhatcV5 uHi vTop >>> (32 : BitVec 6).toNat = 0 ∧
+    BitVec.ult (algorithmRhatUn1cV5 uHi uLo vTop)
+      (algorithmQ1cV5 uHi vTop * divKTrialCallV5DLo vTop)
+
+/-- Named unfold for `algorithmQ1cV5`. -/
+theorem algorithmQ1cV5_unfold (uHi vTop : Word) :
+    algorithmQ1cV5 uHi vTop =
+      (let dHi := divKTrialCallV5DHi vTop
+       let q1 := rv64_divu uHi dHi
+       let hi1 := q1 >>> (32 : BitVec 6).toNat
+       let q1cCap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+       if hi1 = 0 then q1 else q1cCap) := by
+  delta algorithmQ1cV5; rfl
+
+/-- Named unfold for `algorithmRhatcV5`. -/
+theorem algorithmRhatcV5_unfold (uHi vTop : Word) :
+    algorithmRhatcV5 uHi vTop =
+      (let dHi := divKTrialCallV5DHi vTop
+       let q1 := rv64_divu uHi dHi
+       let rhat := uHi - q1 * dHi
+       let hi1 := q1 >>> (32 : BitVec 6).toNat
+       let q1cCap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+       if hi1 = 0 then rhat else uHi - q1cCap * dHi) := by
+  delta algorithmRhatcV5; rfl
+
+/-- Named unfold for `algorithmRhatUn1cV5`. -/
+theorem algorithmRhatUn1cV5_unfold (uHi uLo vTop : Word) :
+    algorithmRhatUn1cV5 uHi uLo vTop =
+      ((algorithmRhatcV5 uHi vTop <<< (32 : BitVec 6).toNat) |||
+        divKTrialCallV5Un1 uLo) := by
+  delta algorithmRhatUn1cV5; rfl
+
+/-- Named unfold for `algorithmPhase1bFireV5`. -/
+theorem algorithmPhase1bFireV5_unfold (uHi uLo vTop : Word) :
+    algorithmPhase1bFireV5 uHi uLo vTop ↔
+      algorithmRhatcV5 uHi vTop >>> (32 : BitVec 6).toNat = 0 ∧
+        BitVec.ult (algorithmRhatUn1cV5 uHi uLo vTop)
+          (algorithmQ1cV5 uHi vTop * divKTrialCallV5DLo vTop) := by
+  delta algorithmPhase1bFireV5; rfl
+
 end EvmAsm.Evm64
