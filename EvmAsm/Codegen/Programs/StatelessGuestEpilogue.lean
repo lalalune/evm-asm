@@ -189,12 +189,60 @@ def statelessGuestEpilogue : String :=
   "  # \n" ++
   "  # ===== exec_payload merkle path (leaves 0-15) =====\n" ++
   "  # Path leaf_6 -> node_6_7 -> node_4_7 -> node_0_7 -> node_0_15\n" ++
-  "  # First: dynamically compute node_4_5 = sha256(leaf_4 || leaf_5)\n" ++
-  "  # where leaf_4 = npr_leaf_4_logs_bloom_root (constant, default\n" ++
-  "  # logs_bloom merkle root) and leaf_5 = prev_randao (Bytes32 @\n" ++
-  "  # SSZ_BASE + 16 + 44 + 372 = +432).\n" ++
+  "  # \n" ++
+  "  # Dynamic leaf_4 = hash_tree_root(logs_bloom) supporting CHUNK 0\n" ++
+  "  # variation. logs_bloom is ByteVector[256], merkleized over 8\n" ++
+  "  # 32-byte chunks (3 levels). For NOW we only read chunk 0 from\n" ++
+  "  # input; chunks 1..7 stay at their default zero (ssz_zero_hash[0]).\n" ++
+  "  # Path leaf_4_chunk_0 -> node_0_1 -> node_0_3 -> node_0_7 (= leaf_4):\n" ++
+  "  #   node_0_1   = sha256(chunk_0 || ssz_zero_hash[0])\n" ++
+  "  #   node_0_3   = sha256(node_0_1 || ssz_zero_hash[1])\n" ++
+  "  #   leaf_4     = sha256(node_0_3 || ssz_zero_hash[2])\n" ++
+  "  # chunk_0 lives at SSZ_BASE + 16 + 44 + 116 = +176.\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  la t3, npr_leaf_4_logs_bloom_root\n" ++
+  "  ld t2, 176(s6); sd t2,  0(t1)\n" ++
+  "  ld t2, 184(s6); sd t2,  8(t1)\n" ++
+  "  ld t2, 192(s6); sd t2, 16(t1)\n" ++
+  "  ld t2, 200(s6); sd t2, 24(t1)\n" ++
+  "  sd zero, 32(t1); sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_leaf_4_logs_bloom_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_0_1 -> npr_leaf_4_logs_bloom_scratch\n" ++
+  "  # node_0_3 = sha256(node_0_1 || ssz_zero_hash[1])\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_leaf_4_logs_bloom_scratch\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, ssz_zero_hashes\n" ++
+  "  addi t3, t3, 32             # ssz_zero_hash[1]\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_leaf_4_logs_bloom_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_0_3 -> npr_leaf_4_logs_bloom_scratch\n" ++
+  "  # leaf_4 (logs_bloom root) = sha256(node_0_3 || ssz_zero_hash[2])\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_leaf_4_logs_bloom_scratch\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, ssz_zero_hashes\n" ++
+  "  addi t3, t3, 64             # ssz_zero_hash[2]\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_leaf_4_logs_bloom_scratch\n" ++
+  "  jal ra, zkvm_sha256         # leaf_4 (logs_bloom root) -> npr_leaf_4_logs_bloom_scratch\n" ++
+  "  # \n" ++
+  "  # Dynamic node_4_5 = sha256(leaf_4 || leaf_5)\n" ++
+  "  # where leaf_4 is the dynamic logs_bloom root (above) and\n" ++
+  "  # leaf_5 = prev_randao (Bytes32 @ SSZ_BASE + 16 + 44 + 372 = +432).\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_leaf_4_logs_bloom_scratch\n" ++
   "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
