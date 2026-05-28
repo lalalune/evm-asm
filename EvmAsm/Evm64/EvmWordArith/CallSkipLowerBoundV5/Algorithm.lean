@@ -255,4 +255,67 @@ theorem algorithmPhase1bFireV5_unfold (uHi uLo vTop : Word) :
           (algorithmQ1cV5 uHi vTop * divKTrialCallV5DLo vTop) := by
   delta algorithmPhase1bFireV5; rfl
 
+-- ============================================================================
+-- Phase-2a algorithm bundles for V5. Bead `evm-asm-wbc4i.4.6.2` (V5.4.0.3).
+--
+-- v5 vs v4 differences (same shape as Phase-1a):
+-- * `algorithmQ0cV5` uses cap `0xFFFFFFFF` (vs v4's `q0 - 1`).
+-- * `algorithmRhat2cV5` recomputed as `un21 - q0c*dHi` (vs v4's `rhat2 + dHi`).
+-- ============================================================================
+
+/-- The V5 Phase-2a-corrected quotient (before any Phase-2b correction). -/
+@[irreducible]
+def algorithmQ0cV5 (uHi uLo vTop : Word) : Word :=
+  let dHi := divKTrialCallV5DHi vTop
+  let un21 := divKTrialCallV5Un21 uHi uLo vTop
+  let q0 := rv64_divu un21 dHi
+  let hi2 := q0 >>> (32 : BitVec 6).toNat
+  let q0cCap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+  if hi2 = 0 then q0 else q0cCap
+
+/-- The V5 Phase-2a-corrected remainder. Recomputed from `un21 - q0c*dHi`. -/
+@[irreducible]
+def algorithmRhat2cV5 (uHi uLo vTop : Word) : Word :=
+  let dHi := divKTrialCallV5DHi vTop
+  let un21 := divKTrialCallV5Un21 uHi uLo vTop
+  let q0 := rv64_divu un21 dHi
+  let rhat2 := un21 - q0 * dHi
+  let hi2 := q0 >>> (32 : BitVec 6).toNat
+  let q0cCap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+  if hi2 = 0 then rhat2 else un21 - q0cCap * dHi
+
+/-- Named unfold for `algorithmQ0cV5`. -/
+theorem algorithmQ0cV5_unfold (uHi uLo vTop : Word) :
+    algorithmQ0cV5 uHi uLo vTop =
+      (let dHi := divKTrialCallV5DHi vTop
+       let un21 := divKTrialCallV5Un21 uHi uLo vTop
+       let q0 := rv64_divu un21 dHi
+       let hi2 := q0 >>> (32 : BitVec 6).toNat
+       let q0cCap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+       if hi2 = 0 then q0 else q0cCap) := by
+  delta algorithmQ0cV5; rfl
+
+/-- Named unfold for `algorithmRhat2cV5`. -/
+theorem algorithmRhat2cV5_unfold (uHi uLo vTop : Word) :
+    algorithmRhat2cV5 uHi uLo vTop =
+      (let dHi := divKTrialCallV5DHi vTop
+       let un21 := divKTrialCallV5Un21 uHi uLo vTop
+       let q0 := rv64_divu un21 dHi
+       let rhat2 := un21 - q0 * dHi
+       let hi2 := q0 >>> (32 : BitVec 6).toNat
+       let q0cCap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+       if hi2 = 0 then rhat2 else un21 - q0cCap * dHi) := by
+  delta algorithmRhat2cV5; rfl
+
+/-- The V5 `Q0c` irreducible coincides with the algorithm bundle
+    (sanity check; bodies are definitionally equal). -/
+theorem divKTrialCallV5Q0c_eq_algorithm (uHi uLo vTop : Word) :
+    divKTrialCallV5Q0c uHi uLo vTop = algorithmQ0cV5 uHi uLo vTop := by
+  delta divKTrialCallV5Q0c algorithmQ0cV5; rfl
+
+/-- The V5 `Rhat2c` irreducible coincides with the algorithm bundle. -/
+theorem divKTrialCallV5Rhat2c_eq_algorithm (uHi uLo vTop : Word) :
+    divKTrialCallV5Rhat2c uHi uLo vTop = algorithmRhat2cV5 uHi uLo vTop := by
+  delta divKTrialCallV5Rhat2c algorithmRhat2cV5; rfl
+
 end EvmAsm.Evm64
