@@ -102,15 +102,8 @@ theorem divK_div128_step2_initcap_v5_spec_within
     (by pcFree) h1
   -- Block 2: Phase-2a cap [49..56].
   have h2_raw := divK_div128_cap_q0_v5_merged_spec_within q0 rhat2 dHi (q0 * dHi) un21 (base + 12)
-  have hb4 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
-  have hb8 : (base + 12 : Word) + 8 = base + 20 := by bv_addr
-  have hb12 : (base + 12 : Word) + 12 = base + 24 := by bv_addr
-  have hb16 : (base + 12 : Word) + 16 = base + 28 := by bv_addr
-  have hb20 : (base + 12 : Word) + 20 = base + 32 := by bv_addr
-  have hb24 : (base + 12 : Word) + 24 = base + 36 := by bv_addr
-  have hb28 : (base + 12 : Word) + 28 = base + 40 := by bv_addr
   have hb32 : (base + 12 : Word) + 32 = base + 44 := by bv_addr
-  simp only [hb4, hb8, hb12, hb16, hb20, hb24, hb28, hb32] at h2_raw
+  simp only [hb32] at h2_raw
   have h2 : cpsTripleWithin 8 (base + 12) (base + 44) cr _ _ :=
     cpsTripleWithin_extend_code (h := h2_raw) (hmono := by
       rw [hcr_eq]; intro a i
