@@ -362,6 +362,34 @@ def statelessGuestDataSection : String :=
   -- ssz_zero_hashes table.
   ".balign 8\n" ++
   "npr_node_10_11_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- Constants for the dynamic node_12_15 path supporting
+  -- leaf_12 = block_hash:
+  --   `npr_leaf_13_transactions_root` = SSZ hash_tree_root of
+  --     the default empty `transactions` list.
+  --   `npr_node_14_15` = sha256(leaf_14=withdrawals_default_root
+  --     || leaf_15=blob_gas_used_default=zero). Stays static
+  --     until leaf 14 or 15 is opened up in a follow-up PR.
+  -- Scratch buffers `npr_node_12_13_scratch` and
+  -- `npr_node_12_15_scratch` hold the intermediate and final
+  -- merkle nodes for the dynamic computation.
+  ".balign 8\n" ++
+  "npr_leaf_13_transactions_root:\n" ++
+  "  .byte 0x7f, 0xfe, 0x24, 0x1e, 0xa6, 0x01, 0x87, 0xfd\n" ++
+  "  .byte 0xb0, 0x18, 0x7b, 0xfa, 0x22, 0xde, 0x35, 0xd1\n" ++
+  "  .byte 0xf9, 0xbe, 0xd7, 0xab, 0x06, 0x1d, 0x94, 0x01\n" ++
+  "  .byte 0xfd, 0x47, 0xe3, 0x4a, 0x54, 0xfb, 0xed, 0xe1\n" ++
+  ".balign 8\n" ++
+  "npr_node_14_15:\n" ++
+  "  .byte 0x33, 0x64, 0x88, 0x03, 0x3f, 0xe5, 0xf3, 0xef\n" ++
+  "  .byte 0x4c, 0xcc, 0x12, 0xaf, 0x07, 0xb9, 0x37, 0x0b\n" ++
+  "  .byte 0x92, 0xe5, 0x53, 0xe3, 0x5e, 0xcb, 0x4a, 0x33\n" ++
+  "  .byte 0x7a, 0x1b, 0x1c, 0x0e, 0x4a, 0xfe, 0x1e, 0x0e\n" ++
+  ".balign 8\n" ++
+  "npr_node_12_13_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "npr_node_12_15_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen
