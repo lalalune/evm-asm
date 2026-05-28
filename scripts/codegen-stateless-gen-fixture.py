@@ -72,6 +72,7 @@ npr_prev_randao_hex = sys.argv[17] if len(sys.argv) > 17 else ''
 npr_gas_used_str = sys.argv[18] if len(sys.argv) > 18 else ''
 npr_timestamp_str = sys.argv[19] if len(sys.argv) > 19 else ''
 npr_parent_hash_hex = sys.argv[20] if len(sys.argv) > 20 else ''
+npr_fee_recipient_hex = sys.argv[21] if len(sys.argv) > 21 else ''
 
 # Build the new-schema StatelessInput: empty new_payload_request,
 # witness whose 'state'/'codes' lists each hold zero or more
@@ -744,7 +745,7 @@ if npr_pbr_hex:
     npr_kwargs['parent_beacon_block_root'] = Bytes32SSZ(bytes.fromhex(npr_pbr_hex))
 if (npr_slot_str or npr_excess_blob_str or npr_block_number_str or
     npr_gas_limit_str or npr_prev_randao_hex or npr_gas_used_str or
-    npr_timestamp_str or npr_parent_hash_hex):
+    npr_timestamp_str or npr_parent_hash_hex or npr_fee_recipient_hex):
     from ethereum.forks.amsterdam.stateless_ssz import SszExecutionPayload
     from remerkleable.basic import uint64 as Uint64SSZ
     from remerkleable.byte_arrays import Bytes32 as Bytes32SSZ
@@ -765,6 +766,9 @@ if (npr_slot_str or npr_excess_blob_str or npr_block_number_str or
         ep_kwargs['timestamp'] = Uint64SSZ(int(npr_timestamp_str, 0))
     if npr_parent_hash_hex:
         ep_kwargs['parent_hash'] = Bytes32SSZ(bytes.fromhex(npr_parent_hash_hex))
+    if npr_fee_recipient_hex:
+        from remerkleable.byte_arrays import ByteVector as ByteVecSSZ
+        ep_kwargs['fee_recipient'] = ByteVecSSZ[20](bytes.fromhex(npr_fee_recipient_hex))
     npr_kwargs['execution_payload'] = SszExecutionPayload(**ep_kwargs)
 npr = SszNewPayloadRequest(**npr_kwargs)
 
