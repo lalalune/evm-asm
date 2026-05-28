@@ -88,4 +88,79 @@ theorem algorithmQ1dV5_phase1b_dLo_bound
     rw [h_qeq, if_neg h_guard]
     exact h_bound
 
+/-- Bridge: `divKTrialCallV5Q1dd` = `phase2b_q0'` on `(algorithmQ1d, algorithmRhatd)`.
+
+    Sidesteps the let-factoring mismatch via case-split on `hi1`: in each
+    branch, V5.2's symbolic `q1c` reference inside `rhatc` reduces to the
+    same concrete value as `algorithmRhatcV5_unfold`'s direct `q1cCap`
+    substitution. Bead `evm-asm-wbc4i.4.1.1` (V5.4.1.1). -/
+private theorem divKTrialCallV5Q1dd_eq_alg (uHi uLo vTop : Word) :
+    divKTrialCallV5Q1dd uHi uLo vTop =
+      div128Quot_phase2b_q0'
+        (algorithmQ1dV5 uHi uLo vTop)
+        (algorithmRhatdV5 uHi uLo vTop)
+        (divKTrialCallV5DLo vTop)
+        (divKTrialCallV5Un1 uLo) := by
+  rw [divKTrialCallV5Q1dd_eq_phase2b]
+  rw [algorithmQ1dV5_unfold, algorithmRhatdV5_unfold]
+  rw [algorithmQ1cV5_unfold, algorithmRhatcV5_unfold]
+  by_cases h : rv64_divu uHi (divKTrialCallV5DHi vTop) >>>
+      (32 : BitVec 6).toNat = (0 : Word)
+  · simp only [h, ↓reduceIte]
+  · simp only [h, ↓reduceIte]
+
+/-- Bridge for `divKTrialCallV5Rhatdd` — NESTED form to match V5.2's
+    eq_phase2b RHS exactly. -/
+private theorem divKTrialCallV5Rhatdd_eq_alg (uHi uLo vTop : Word) :
+    divKTrialCallV5Rhatdd uHi uLo vTop =
+      (if algorithmRhatdV5 uHi uLo vTop >>> (32 : BitVec 6).toNat = (0 : Word) then
+        let qDlo2 := algorithmQ1dV5 uHi uLo vTop * divKTrialCallV5DLo vTop
+        let rhatUn1' :=
+          (algorithmRhatdV5 uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+            divKTrialCallV5Un1 uLo
+        if BitVec.ult rhatUn1' qDlo2 then
+          algorithmRhatdV5 uHi uLo vTop + divKTrialCallV5DHi vTop
+        else algorithmRhatdV5 uHi uLo vTop
+      else algorithmRhatdV5 uHi uLo vTop) := by
+  rw [divKTrialCallV5Rhatdd_eq_phase2b]
+  rw [algorithmQ1dV5_unfold, algorithmRhatdV5_unfold]
+  rw [algorithmQ1cV5_unfold, algorithmRhatcV5_unfold]
+  by_cases h : rv64_divu uHi (divKTrialCallV5DHi vTop) >>>
+      (32 : BitVec 6).toNat = (0 : Word)
+  · simp only [h, ↓reduceIte]
+  · simp only [h, ↓reduceIte]
+
+/-- **V5.4.1 irreducible-form**: Phase-1b 2nd-correction dLo bound for V5
+    on the literal `divKTrialCallV5Q1dd` / `divKTrialCallV5Rhatdd`
+    irreducibles. Wraps the algorithm-level version via the two
+    case-split bridges. Closes the V5.4.1 bead's literal statement. -/
+theorem divKTrialCallV5_phase1b_dLo_bound
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (divKTrialCallV5Q1dd uHi uLo vTop).toNat *
+        (divKTrialCallV5DLo vTop).toNat ≤
+      (divKTrialCallV5Rhatdd uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV5Un1 uLo).toNat := by
+  rw [divKTrialCallV5Q1dd_eq_alg, divKTrialCallV5Rhatdd_eq_alg]
+  -- Convert nested if (from Rhatdd bridge) to flat-AND if (algorithm-level statement).
+  have h_alg := algorithmQ1dV5_phase1b_dLo_bound uHi uLo vTop hvTop_ge huHi_lt_vTop
+  dsimp only at h_alg ⊢
+  by_cases h_outer : algorithmRhatdV5 uHi uLo vTop >>> (32 : BitVec 6).toNat = (0 : Word)
+  · rw [if_pos h_outer]
+    by_cases h_inner :
+        BitVec.ult
+          ((algorithmRhatdV5 uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+            divKTrialCallV5Un1 uLo)
+          (algorithmQ1dV5 uHi uLo vTop * divKTrialCallV5DLo vTop)
+    · rw [if_pos h_inner]
+      rw [if_pos ⟨h_outer, h_inner⟩] at h_alg
+      exact h_alg
+    · rw [if_neg h_inner]
+      rw [if_neg (fun h => h_inner h.2)] at h_alg
+      exact h_alg
+  · rw [if_neg h_outer]
+    rw [if_neg (fun h => h_outer h.1)] at h_alg
+    exact h_alg
+
 end EvmAsm.Evm64
