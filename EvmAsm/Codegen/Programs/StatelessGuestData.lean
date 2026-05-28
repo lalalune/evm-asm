@@ -286,6 +286,23 @@ def statelessGuestDataSection : String :=
   "  .byte 0xb6, 0x76, 0xd2, 0x91, 0x3b, 0xac, 0x8d, 0x4e\n" ++
   ".balign 8\n" ++
   "npr_node_0_15_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- `npr_leaf_4_logs_bloom_root` is the SSZ hash_tree_root of
+  -- an empty `logs_bloom` (ByteVector[256], all zeros), = leaf 4
+  -- of the default exec_payload merkle. Now that the
+  -- `.Lsg_hash` epilogue computes `node_4_5` dynamically to
+  -- support non-default `prev_randao` (= leaf 5), only the
+  -- logs_bloom-side leaf needs to be precomputed as a constant.
+  -- `npr_node_4_5_scratch` holds the dynamic
+  -- sha256(npr_leaf_4_logs_bloom_root || prev_randao).
+  ".balign 8\n" ++
+  "npr_leaf_4_logs_bloom_root:\n" ++
+  "  .byte 0xc7, 0x80, 0x09, 0xfd, 0xf0, 0x7f, 0xc5, 0x6a\n" ++
+  "  .byte 0x11, 0xf1, 0x22, 0x37, 0x06, 0x58, 0xa3, 0x53\n" ++
+  "  .byte 0xaa, 0xa5, 0x42, 0xed, 0x63, 0xe4, 0x4c, 0x4b\n" ++
+  "  .byte 0xc1, 0x5f, 0xf4, 0xcd, 0x10, 0x5a, 0xb3, 0x3c\n" ++
+  ".balign 8\n" ++
+  "npr_node_4_5_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen
