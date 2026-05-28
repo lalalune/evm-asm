@@ -308,7 +308,23 @@ def statelessGuestEpilogue : String :=
   "  li s6, 0x40000000\n" ++
   "  addi s6, s6, 18             # s6 = SSZ_BASE\n" ++
   "  # \n" ++
-  "  # ===== exec_payload merkle path (leaves 16-31, leaf 18=slot_number) =====\n" ++
+  "  # ===== exec_payload merkle path (leaves 16-31) =====\n" ++
+  "  # node_16_17 = sha256(leaf_16 || leaf_17) where\n" ++
+  "  #   leaf_16 = excess_blob_gas (u64 LE @ SSZ_BASE + 16 + 44 + 520\n" ++
+  "  #             = +580) || 24 bytes zero padding\n" ++
+  "  #   leaf_17 = npr_leaf_17_bal_root (block_access_list_root for\n" ++
+  "  #             the empty/default ByteList -- constant)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  ld t2, 580(s6)              # excess_blob_gas\n" ++
+  "  sd t2,  0(t1)\n" ++
+  "  sd zero,  8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
+  "  la t3, npr_leaf_17_bal_root\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_16_17_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_16_17 -> npr_node_16_17_scratch\n" ++
   "  # leaf_18 = slot_number (u64 LE at SSZ_BASE + 16 + 44 + 532 = +592)\n" ++
   "  #          || 24 bytes of zero padding\n" ++
   "  la t1, npr_sha_input\n" ++
@@ -319,9 +335,9 @@ def statelessGuestEpilogue : String :=
   "  sd zero, 32(t1); sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
   "  jal ra, zkvm_sha256         # node_18_19 -> npr_sha_subtree\n" ++
-  "  # node_16_19 = sha256(node_16_17 || node_18_19)\n" ++
+  "  # node_16_19 = sha256(node_16_17_scratch || node_18_19)\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  la t3, npr_node_16_17\n" ++
+  "  la t3, npr_node_16_17_scratch\n" ++
   "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
