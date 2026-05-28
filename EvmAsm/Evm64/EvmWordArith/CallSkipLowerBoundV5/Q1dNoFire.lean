@@ -63,4 +63,26 @@ theorem algorithmRhatdV5_eq_rhatc_of_phase1b_no_fire
     exact ⟨h_hi, h_ult⟩
   simp only [h_fire_false, Bool.false_eq_true, if_false]
 
+/-- When Phase-1b 1st correction doesn't fire, the Q1d/Rhatd pair
+    satisfies the "overshoot ≤ vTop" bound — the algorithm-level
+    precondition required by the generic
+    `div128Quot_phase2b_q0'_dLo_bound_fire_case`.
+
+    Combines V5.4.0.8 (Q1c bound) with V5.4.0.9 (Q1d = Q1c when no-fire)
+    and trivially weakens to the overshoot form. Mirror of v4's
+    `algorithmQ1dV4_dLo_overshoot_le_vTop_of_phase1b_no_fire`
+    (`Phase1bBound.lean:838`). -/
+theorem algorithmQ1dV5_dLo_overshoot_le_vTop_of_phase1b_no_fire
+    (uHi uLo vTop : Word)
+    (h_no_fire : ¬ algorithmPhase1bFireV5 uHi uLo vTop) :
+    (algorithmQ1dV5 uHi uLo vTop).toNat * (divKTrialCallV5DLo vTop).toNat ≤
+      (algorithmRhatdV5 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV5Un1 uLo).toNat +
+        (divKTrialCallV5DHi vTop).toNat * 2^32 +
+        (divKTrialCallV5DLo vTop).toNat := by
+  have h_bound := algorithmQ1cV5_dLo_bound_of_phase1b_no_fire uHi uLo vTop h_no_fire
+  rw [algorithmQ1dV5_eq_q1c_of_phase1b_no_fire uHi uLo vTop h_no_fire,
+      algorithmRhatdV5_eq_rhatc_of_phase1b_no_fire uHi uLo vTop h_no_fire]
+  exact le_trans h_bound (Nat.le_add_right _ _ |>.trans (Nat.le_add_right _ _))
+
 end EvmAsm.Evm64
