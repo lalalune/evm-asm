@@ -435,6 +435,65 @@ run_fixture "chain1_fork4_noncontig"   1               4    ""           ""     
 # the blob-mismatch sub-branch was uncovered until now.
 run_fixture "chain1_fork4_wrong_blob"  1               4    ""           ""                  ""    "0"          ""           "15:21:11684671" || fail=1
 
+# fork=4 Amsterdam + activation.bn=[0] + Amsterdam blob +
+# VALID_REALISTIC header (N=1, every K-PR-ignored field
+# populated with realistic non-zero bytes). Cross-product of
+# variety dimensions:
+#   * spec walks past validate_chain_config success (#7067)
+#   * spec walks past validate_headers success at N=1 (new)
+#   * spec uses _decode_header's PRIMARY amsterdam branch
+#     (distinct from PR #7075's PreviousForkHeader fallback)
+#   * ASM K-PR pipeline parses a REALISTIC-shape RLP header
+#     (with 32-byte non-zero parent_hash, coinbase, state_root,
+#      etc.) and all K-PRs accept -> .Lsg_all_pass
+# Previous fork=4 chained fixtures (PR #7068) used VALID_THREE
+# headers with minimal-field cohorts; this is the first
+# realistic-field-cohort fixture that the spec actually
+# walks past validate_headers.
+run_fixture "chain1_fork4_realistic_header" 1          4    ""           ""                  ""    "0"          ""           "14:21:11684671" "VALID_REALISTIC" || fail=1
+
+# Spec rlp.DecodingError path inside validate_headers.
+# Configuration:
+#   chain_id        = 1
+#   fork            = 4 (Amsterdam, passes validate_chain_config)
+#   activation.bn   = [0]
+#   blob_schedule   = (14, 21, 11684671)  [amsterdam expected]
+#   witness.headers = single 32-byte 0xAA blob (not RLP-valid)
+# Spec flow:
+#   validate_chain_config(...) -> SUCCESS
+#   validate_headers([0xAA * 32]):
+#     _decode_header tries rlp.decode_to(Header, ...) -> fails
+#       (the blob doesn't have the Header RLP shape)
+#     tries rlp.decode_to(PreviousForkHeader, ...) -> also fails
+#     -> raises rlp.DecodingError
+#   caught at verify_stateless_new_payload -> False.
+# Variety dimension: spec error path = rlp.DecodingError
+# inside _decode_header (validate_headers's RLP-parse step).
+# Distinct from the "not contiguous" path (PR #7071) which
+# exercises VALID RLP that fails parent_hash linkage, and
+# from the IndexError path (empty headers).
+run_fixture "chain1_fork4_bad_rlp_header" 1            4    ""           ""                  ""    "0"          ""           "14:21:11684671" "$(printf 'aa%.0s' {1..32})" || fail=1
+
+# _is_activation_active TIMESTAMP-only success branch.
+# Sister to the bn-only success-branch fixture: same outer
+# configuration (fork=4 Amsterdam, expected blob_schedule)
+# but activation has timestamp=[0] instead of bn=[0].
+# Spec flow:
+#   _is_activation_active:
+#     activation.block_number is None  (no bn entry)
+#     activation.timestamp is Uint(0)  (not None)
+#     execution_payload.timestamp = 0
+#     0 < 0 is False -> falls through -> returns True
+#   active_fork.fork == Amsterdam   -> True
+#   blob_schedule == expected       -> True
+#   validate_chain_config returns successfully
+#   validate_headers([]) -> IndexError -> caught -> False.
+# Variety dimension: distinct branch of _is_activation_active.
+# Previously the bn-set branch was exercised (active_fork bn=[0]
+# passes; active_fork bn=[1] fails via InactiveForkConfigError);
+# the ts-only branch is the third path through that helper.
+run_fixture "chain1_fork4_ts_active"   1               4    ""           ""                  ""    ""           "0"          "14:21:11684671" || fail=1
+
 # bpo5-fork-shape RLP header. Drives the spec's
 # _decode_header through its PreviousForkHeader fallback:
 #   rlp.decode_to(amsterdam Header, ...) raises -- list has
