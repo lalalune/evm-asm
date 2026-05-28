@@ -25,3 +25,8 @@ supportInterpreter = true
 name = "progress-report"
 root = "MainProgress"
 supportInterpreter = true
+
+[[lean_exe]]
+name = "div128-v5-check"
+root = "MainDiv128V5Check"
+supportInterpreter = true
