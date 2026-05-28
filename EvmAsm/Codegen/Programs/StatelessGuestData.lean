@@ -407,6 +407,17 @@ def statelessGuestDataSection : String :=
   "  .byte 0x1d, 0x86, 0xae, 0x56, 0x9e, 0x4b, 0xb5, 0x35\n" ++
   ".balign 8\n" ++
   "npr_node_14_15_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- `npr_leaf_4_logs_bloom_scratch` holds the dynamic
+  -- hash_tree_root of logs_bloom (= leaf 4 in the exec_payload
+  -- merkle). logs_bloom is ByteVector[256] merkleized over 8
+  -- chunks (3 levels of sha256). Currently we only read chunk 0
+  -- from input; chunks 1..7 stay at their default zero and the
+  -- siblings on the path collapse to existing ssz_zero_hashes
+  -- entries. The prior static `npr_leaf_4_logs_bloom_root`
+  -- constant becomes unreferenced (kept for diff-context).
+  ".balign 8\n" ++
+  "npr_leaf_4_logs_bloom_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen
