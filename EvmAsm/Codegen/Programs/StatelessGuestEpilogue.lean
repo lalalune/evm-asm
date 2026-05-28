@@ -227,6 +227,20 @@ def statelessGuestEpilogue : String :=
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_10_11_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_10_11 -> npr_node_10_11_scratch\n" ++
   "  # \n" ++
+  "  # Dynamic node_14_15 (supports leaf_15 = blob_gas_used):\n" ++
+  "  #   node_14_15 = sha256(npr_leaf_14_withdrawals_root ||\n" ++
+  "  #                       leaf_15=blob_gas_used)\n" ++
+  "  # blob_gas_used (u64 LE @ SSZ_BASE + 16 + 44 + 512 = +572)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_leaf_14_withdrawals_root\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  ld t2, 572(s6); sd t2, 32(t1)\n" ++
+  "  sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_14_15_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_14_15 -> npr_node_14_15_scratch\n" ++
   "  # Dynamic node_12_15 (supports leaf_12 = block_hash):\n" ++
   "  # node_12_13 = sha256(leaf_12=block_hash || leaf_13=transactions_root)\n" ++
   "  # leaf_13 (transactions default empty list root) is a static\n" ++
@@ -244,17 +258,14 @@ def statelessGuestEpilogue : String :=
   "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_12_13_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_12_13 -> npr_node_12_13_scratch\n" ++
-  "  # node_12_15 = sha256(node_12_13 || npr_node_14_15)\n" ++
-  "  # leaf_14 (withdrawals default) and leaf_15 (blob_gas_used\n" ++
-  "  # default = 0) are still folded into the static `npr_node_14_15`\n" ++
-  "  # constant.\n" ++
+  "  # node_12_15 = sha256(node_12_13 || npr_node_14_15_scratch)\n" ++
   "  la t1, npr_sha_input\n" ++
   "  la t3, npr_node_12_13_scratch\n" ++
   "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
   "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
-  "  la t3, npr_node_14_15\n" ++
+  "  la t3, npr_node_14_15_scratch\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
