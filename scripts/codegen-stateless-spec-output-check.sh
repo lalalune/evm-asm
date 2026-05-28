@@ -85,6 +85,9 @@ run_fixture() {
   local npr_excess_blob_str="${13:-}"
   local npr_block_number_str="${14:-}"
   local npr_gas_limit_str="${15:-}"
+  local npr_prev_randao_hex="${16:-}"
+  local npr_gas_used_str="${17:-}"
+  local npr_timestamp_str="${18:-}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -92,8 +95,8 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty}, npr_pbr=${npr_pbr_hex:-empty}, npr_slot=${npr_slot_str:-empty}, npr_excess_blob=${npr_excess_blob_str:-empty}, npr_block_number=${npr_block_number_str:-empty}, npr_gas_limit=${npr_gas_limit_str:-empty})"
-  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex" "$npr_pbr_hex" "$npr_slot_str" "$npr_excess_blob_str" "$npr_block_number_str" "$npr_gas_limit_str"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty}, npr_pbr=${npr_pbr_hex:-empty}, npr_slot=${npr_slot_str:-empty}, npr_excess_blob=${npr_excess_blob_str:-empty}, npr_block_number=${npr_block_number_str:-empty}, npr_gas_limit=${npr_gas_limit_str:-empty}, npr_prev_randao=${npr_prev_randao_hex:-empty}, npr_gas_used=${npr_gas_used_str:-empty}, npr_timestamp=${npr_timestamp_str:-empty})"
+  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex" "$npr_pbr_hex" "$npr_slot_str" "$npr_excess_blob_str" "$npr_block_number_str" "$npr_gas_limit_str" "$npr_prev_randao_hex" "$npr_gas_used_str" "$npr_timestamp_str"
 
   # Guard against silent fail: if the spec generator crashed
   # (Python syntax error in the heredoc, missing import, etc.)
@@ -245,6 +248,33 @@ run_fixture "chain1_npr_exec_payload_block_number_abcdef" 1 0 ""        ""      
 # the asm to read gas_limit from input and use it as the
 # right input to node_6_7 = sha256(leaf_6 || leaf_7).
 run_fixture "chain1_npr_exec_payload_gas_limit_coffee" 1 0  ""           ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    ""    "12648430" || fail=1
+
+# Non-empty execution_payload: prev_randao = 0xAA*32 (leaf
+# 5, Bytes32 inline). The current implementation uses
+# `npr_node_4_5` as a precomputed constant; this PR replaces
+# it with a dynamic sha256(npr_leaf_4_logs_bloom_root ||
+# prev_randao_from_input). One extra sha256 call; one new
+# 32-byte constant `npr_leaf_4_logs_bloom_root` (the default
+# logs_bloom merkle root).
+run_fixture "chain1_npr_exec_payload_prev_randao_aa" 1   0   ""           ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    ""    ""    "$(printf 'aa%.0s' {1..32})" || fail=1
+
+# Non-empty execution_payload: gas_used = 0x1234 (leaf 8 in
+# the exec_payload Container's 32-leaf merkle). Drives the
+# implementation past the existing `npr_node_8_15` constant
+# by computing the leaf_8 -> node_8_15 path dynamically (3
+# extra sha256 calls). Two new sibling constants
+# (`npr_node_10_11`, `npr_node_12_15`) cover the default
+# subtrees that branch off the path; the leaf_9 (timestamp)
+# sibling stays hardcoded zero for now.
+run_fixture "chain1_npr_exec_payload_gas_used_1234" 1    0   ""           ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    ""    ""    ""                                "4660" || fail=1
+
+# Non-empty execution_payload: timestamp = 0xDEAD (leaf 9,
+# sibling of gas_used in the dynamic node_8_9 pair). The
+# current node_8_9 computation hardcodes leaf_9 = ssz_zero_hash[0];
+# this fixture forces the asm to read timestamp from input and
+# use it as the right input to sha256(leaf_8 || leaf_9).
+# Pure read-side extension -- no new sha256 calls.
+run_fixture "chain1_npr_exec_payload_timestamp_dead" 1   0   ""           ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    ""    ""    ""                                ""    "57005" || fail=1
 
 # Edge: chain_id = 2^32 = 0x100000000. LE bytes
 # 00 00 00 00 01 00 00 00. The encoder's chain_id split
