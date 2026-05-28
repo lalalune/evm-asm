@@ -271,30 +271,80 @@ def statelessGuestValidatorPipeline : String :=
 def statelessGuestEpilogue : String :=
   statelessGuestValidatorPipeline ++ "\n" ++
   ".Lsg_hash:\n" ++
-  "  # Stamp `compute_new_payload_request_root(empty)` at OUTPUT[0..32).\n" ++
+  "  # Compute `compute_new_payload_request_root(stateless_input)`\n" ++
+  "  # at OUTPUT[0..32) -- the SSZ merkle root over the four NPR\n" ++
+  "  # field roots:\n" ++
+  "  #   field_root[0] = hash_tree_root(execution_payload)\n" ++
+  "  #   field_root[1] = hash_tree_root(versioned_hashes)\n" ++
+  "  #   field_root[2] = parent_beacon_block_root      (Bytes32 inline)\n" ++
+  "  #   field_root[3] = hash_tree_root(execution_requests)\n" ++
+  "  # For all current fixtures every NPR field except\n" ++
+  "  # parent_beacon_block_root is the SSZ default, so field_root[0],\n" ++
+  "  # field_root[1], and field_root[3] are static constants\n" ++
+  "  # (`npr_left_subtree` packages sha256(field_root[0] ||\n" ++
+  "  # field_root[1]); `npr_exec_requests_root` is field_root[3]).\n" ++
+  "  # field_root[2] is read from input at NPR_addr + 8 (NPR_addr\n" ++
+  "  # = SSZ_BASE + outer.offsets[0]; for this schema outer.offsets[0]\n" ++
+  "  # is always 16).\n" ++
   "  # \n" ++
-  "  # The spec's `verify_stateless_new_payload` always sets the\n" ++
-  "  # output's `new_payload_request_root` field to\n" ++
-  "  # `compute_new_payload_request_root(stateless_input)`. For an\n" ++
-  "  # *empty* SszNewPayloadRequest -- what the new-schema decoder\n" ++
-  "  # currently produces because no SSZ decode of\n" ++
-  "  # new_payload_request is wired -- this hash is the fixed\n" ++
-  "  # constant `empty_npr_root` below.\n" ++
+  "  # Computation:\n" ++
+  "  #   right_subtree = sha256(parent_beacon_block_root ||\n" ++
+  "  #                          npr_exec_requests_root)\n" ++
+  "  #   npr_root      = sha256(npr_left_subtree || right_subtree)\n" ++
   "  # \n" ++
-  "  # Generalising to non-empty new_payload_request requires\n" ++
-  "  # implementing `hash_tree_root(SszNewPayloadRequest)` (a\n" ++
-  "  # deeply-nested Container with 19-field execution_payload +\n" ++
-  "  # versioned_hashes List + execution_requests Container). That's\n" ++
-  "  # tracked as a follow-up to this PR. For now we stamp the\n" ++
-  "  # empty-input constant so the spec-diff section of the test\n" ++
-  "  # shrinks to zero for our current fixture set.\n" ++
-  "  li t0, 0xa0010000           # t0 = OUTPUT_ADDR (root field)\n" ++
-  "  la t1, empty_npr_root\n" ++
-  "  ld t2,  0(t1); sd t2,  0(t0)\n" ++
-  "  ld t2,  8(t1); sd t2,  8(t0)\n" ++
-  "  ld t2, 16(t1); sd t2, 16(t0)\n" ++
-  "  ld t2, 24(t1); sd t2, 24(t0)\n" ++
+  "  # For pbr=zero (every previously-shipped fixture) the\n" ++
+  "  # computation reproduces the precomputed `empty_npr_root`\n" ++
+  "  # constant. For non-empty pbr it produces the spec-matching\n" ++
+  "  # root.\n" ++
+  "  # \n" ++
+  "  # Generalising to non-default execution_payload /\n" ++
+  "  # versioned_hashes / execution_requests requires recomputing\n" ++
+  "  # those field roots dynamically -- deferred to subsequent PRs.\n" ++
+  "  # \n" ++
+  "  # Re-derive SSZ_BASE; the K-PR pipeline may have clobbered\n" ++
+  "  # the decoder's x17 via the validator a-register churn.\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  addi t0, t0, 18             # t0 = SSZ_BASE\n" ++
+  "  # Build sha256 input for right_subtree at npr_sha_input[0..64).\n" ++
+  "  # bytes [0..32) = parent_beacon_block_root from input (SSZ_BASE +\n" ++
+  "  # 16 + 8 = SSZ_BASE + 24).\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  ld t2, 24(t0); sd t2,  0(t1)\n" ++
+  "  ld t2, 32(t0); sd t2,  8(t1)\n" ++
+  "  ld t2, 40(t0); sd t2, 16(t1)\n" ++
+  "  ld t2, 48(t0); sd t2, 24(t1)\n" ++
+  "  # bytes [32..64) = npr_exec_requests_root.\n" ++
+  "  la t3, npr_exec_requests_root\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  # right_subtree = sha256(input[0..64)) -> npr_sha_subtree.\n" ++
+  "  la a0, npr_sha_input\n" ++
+  "  li a1, 64\n" ++
+  "  la a2, npr_sha_subtree\n" ++
+  "  jal ra, zkvm_sha256\n" ++
+  "  # Build sha256 input for the root at npr_sha_input[0..64).\n" ++
+  "  # bytes [0..32) = npr_left_subtree.\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_left_subtree\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  # bytes [32..64) = npr_sha_subtree (right_subtree from prior call).\n" ++
+  "  la t3, npr_sha_subtree\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  # root = sha256(input[0..64)) -> OUTPUT_ADDR.\n" ++
+  "  la a0, npr_sha_input\n" ++
+  "  li a1, 64\n" ++
+  "  li a2, 0xa0010000\n" ++
+  "  jal ra, zkvm_sha256\n" ++
   "  j .Lsg_done\n" ++
+  zkvmSha256Function ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   chainValidatePostMergeFullFunction ++ "\n" ++
@@ -449,7 +499,35 @@ def statelessGuestDataSection : String :=
   "  .byte 0xf7, 0x83, 0x79, 0x28, 0xaf, 0x2f, 0xf9, 0x7a\n" ++
   "  .byte 0xdd, 0x39, 0x49, 0x6e, 0x3c, 0x72, 0xbc, 0xdf\n" ++
   "  .byte 0xba, 0xdf, 0xfc, 0x45, 0x3d, 0xee, 0x6a, 0x58\n" ++
-  "  .byte 0x2c, 0xa2, 0xa5, 0xc7, 0xcc, 0x51, 0x2f, 0x71"
+  "  .byte 0x2c, 0xa2, 0xa5, 0xc7, 0xcc, 0x51, 0x2f, 0x71\n" ++
+  -- SSZ field roots for the NPR sub-tree, used by the
+  -- epilogue's `compute_new_payload_request_root` computation.
+  -- `npr_left_subtree` is sha256(field_root[execution_payload] ||
+  -- field_root[versioned_hashes]) for the default (empty)
+  -- execution_payload + versioned_hashes lists. These three
+  -- sub-trees are constant for the input class currently
+  -- supported (NPR with default execution_payload /
+  -- versioned_hashes / execution_requests; only
+  -- parent_beacon_block_root may be non-zero); they collapse to
+  -- `empty_npr_root` when parent_beacon_block_root is zero.
+  ".balign 8\n" ++
+  "npr_left_subtree:\n" ++
+  "  .byte 0x50, 0x57, 0xc2, 0x29, 0xce, 0xf7, 0x0b, 0x3d\n" ++
+  "  .byte 0x2f, 0xe3, 0x46, 0xe2, 0xd6, 0x19, 0x8f, 0x3d\n" ++
+  "  .byte 0xd5, 0x36, 0x5b, 0xd9, 0x65, 0x13, 0x22, 0xe8\n" ++
+  "  .byte 0x81, 0xa0, 0x99, 0x4c, 0xbd, 0x34, 0x30, 0x57\n" ++
+  ".balign 8\n" ++
+  "npr_exec_requests_root:\n" ++
+  "  .byte 0x85, 0xe2, 0x53, 0xb4, 0x05, 0x99, 0xd0, 0xdf\n" ++
+  "  .byte 0x75, 0x6b, 0xe0, 0x43, 0xea, 0x69, 0x49, 0xe4\n" ++
+  "  .byte 0x9a, 0x07, 0xe7, 0x56, 0xde, 0xef, 0x72, 0xb3\n" ++
+  "  .byte 0x58, 0x8a, 0x4b, 0x05, 0x36, 0x22, 0x06, 0xb5\n" ++
+  ".balign 8\n" ++
+  "npr_sha_input:\n" ++
+  "  .zero 64\n" ++
+  ".balign 8\n" ++
+  "npr_sha_subtree:\n" ++
+  "  .zero 32"
 
 def statelessGuestUnit : BuildUnit := {
   body        := EvmAsm.Stateless.run_stateless_guest
