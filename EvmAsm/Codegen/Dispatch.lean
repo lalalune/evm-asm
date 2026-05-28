@@ -151,6 +151,9 @@ def emitDispatcherPrologue : String :=
   "  la x5, evm_memory\n" ++
   "  sd x5, 416(x20)\n" ++         -- env.callDataPtrOff = &evm_memory (zeros)
   "  sd x0, 424(x20)\n" ++         -- env.callDataLenOff = 0
+  -- M22: .data-baked variant has no slot-table input. The `.zero`
+  -- block at `evm_slot_table` starts empty; SSTORE may grow it.
+  "  sd x0, 448(x20)\n" ++         -- env.slotTableCountOff = 0
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -163,7 +166,15 @@ def emitDispatcherPrologue : String :=
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
-    to the halt stub appended by `emitBuildUnit`. -/
+    to the halt stub appended by `emitBuildUnit`.
+
+    **M23 addition**: the `.exit_no_epilogue` label is emitted
+    *after* `exitBody` and *before* the halt stub. Handlers that
+    surface their own output bytes to `OUTPUT_ADDR` (e.g. real
+    RETURN / REVERT) jump there to skip the default exit body
+    (which would otherwise clobber their writes with the EVM
+    stack-top copy). STOP and the other halts continue to flow
+    through `.exit_label` → `exitBody` → halt stub. -/
 def emitDispatcherEpilogue
     (registry : List OpcodeHandlerSpec) (exitBody : Program) : String :=
   String.intercalate "\n" (registry.map OpcodeHandlerSpec.emitSubroutine) ++ "\n" ++
@@ -181,7 +192,8 @@ def emitDispatcherEpilogue
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   ".exit_label:\n" ++
-  emitProgram exitBody
+  emitProgram exitBody ++ "\n" ++
+  ".exit_no_epilogue:"
 
 /-- `.data` section layout (starts at `0xa0000000` per
     `Driver.lean`'s `-Tdata=...`):
@@ -220,7 +232,10 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
-                          -- slots up to returnDataSizeOff = 440 + 8 (M12 / M13 onward)
+                          -- + M22 slotTableCount at offset 448 (envSize = 456)
+  ".balign 32\n" ++
+  "evm_slot_table:\n" ++
+  "  .zero 0x4000\n" ++   -- M22: 16 KiB = 256 storage slots × 64 B (key + value)
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
@@ -274,6 +289,30 @@ def emitRuntimeDispatcherPrologue : String :=
   "  addi x6, x6, 8\n" ++          -- x6 = calldata ptr
   "  sd x6, 416(x20)\n" ++         -- env.callDataPtrOff (416) = ptr
   "  sd x7, 424(x20)\n" ++         -- env.callDataLenOff (424) = len
+  -- M22: locate the storage segment past the calldata pad and
+  -- copy the preloaded slot table into the writable `evm_slot_table`
+  -- region. Layout (post-M22 pack-bytecode.py): immediately past
+  -- `round_up(calldata_ptr + calldata_len, 8)` the next 8 bytes are
+  -- the slot count, followed by slot_count * 64 bytes of (key, value)
+  -- pairs (each pre-encoded in EVM-stack byte order by the packer).
+  "  add x5, x6, x7\n" ++          -- x5 = end of calldata bytes
+  "  addi x5, x5, 7\n" ++          -- round up to 8-byte boundary
+  "  srli x5, x5, 3\n" ++
+  "  slli x5, x5, 3\n" ++          -- x5 = &(slot count)
+  "  ld x6, 0(x5)\n" ++            -- x6 = slot_count
+  "  sd x6, 448(x20)\n" ++         -- env.slotTableCountOff (448) = count
+  "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first slot)
+  "  la x7, evm_slot_table\n" ++   -- x7 = dst ptr
+  "  slli x6, x6, 6\n" ++          -- x6 = slot_count * 64 = byte count
+  ".slot_copy_loop:\n" ++
+  "  beqz x6, .slot_copy_done\n" ++
+  "  ld x8, 0(x5)\n" ++            -- 8-byte aligned dword copy (each
+  "  sd x8, 0(x7)\n" ++            -- slot is 64 B → byte count is a
+  "  addi x5, x5, 8\n" ++          -- multiple of 8)
+  "  addi x7, x7, 8\n" ++
+  "  addi x6, x6, -8\n" ++
+  "  j .slot_copy_loop\n" ++
+  ".slot_copy_done:\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -299,7 +338,10 @@ def emitRuntimeDispatcherDataSection
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
-                          -- slots up to returnDataSizeOff = 440 + 8 (M12 / M13 onward)
+                          -- + M22 slotTableCount at offset 448 (envSize = 456)
+  ".balign 32\n" ++
+  "evm_slot_table:\n" ++
+  "  .zero 0x4000\n" ++   -- M22: 16 KiB = 256 storage slots × 64 B (key + value)
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
