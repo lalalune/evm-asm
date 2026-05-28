@@ -258,6 +258,34 @@ def statelessGuestDataSection : String :=
   "  .byte 0x50, 0x16, 0xe1, 0x2a, 0x8c, 0x78, 0x1a, 0x0b\n" ++
   ".balign 8\n" ++
   "npr_node_16_17_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- Two new sibling constants for the leaf_6 (block_number)
+  -- merkle path through node_0_15:
+  --   npr_node_4_5 = sha256(leaf_4=logs_bloom_default ||
+  --                         leaf_5=prev_randao_default)
+  --   npr_node_8_15 = the subtree root of default leaves 8..15
+  --     (sha256 over leaves 8..15 for the default exec_payload).
+  -- The remaining two siblings on the path are
+  -- `ssz_zero_hash[0]` (leaf_7 default = u64 zero) and
+  -- `ssz_zero_hash[2]` (node_0_3 = sha256(zero || zero) at
+  -- depth 2). The prior `npr_node_0_15` constant is now
+  -- unreferenced (dynamic recompute via these siblings).
+  -- `npr_node_0_15_scratch` is the 32-byte buffer that holds
+  -- the dynamic computation result.
+  ".balign 8\n" ++
+  "npr_node_4_5:\n" ++
+  "  .byte 0xe8, 0xe5, 0x27, 0xe8, 0x4f, 0x66, 0x61, 0x63\n" ++
+  "  .byte 0xa9, 0x0e, 0xf9, 0x00, 0xe0, 0x13, 0xf5, 0x6b\n" ++
+  "  .byte 0x0a, 0x4d, 0x02, 0x01, 0x48, 0xb2, 0x22, 0x40\n" ++
+  "  .byte 0x57, 0xb7, 0x19, 0xf3, 0x51, 0xb0, 0x03, 0xa6\n" ++
+  ".balign 8\n" ++
+  "npr_node_8_15:\n" ++
+  "  .byte 0x9c, 0xd6, 0x13, 0x23, 0x26, 0x94, 0x9e, 0x18\n" ++
+  "  .byte 0x79, 0x4d, 0xb8, 0x5d, 0x0b, 0xed, 0x67, 0xe6\n" ++
+  "  .byte 0xff, 0x8d, 0x84, 0x02, 0x0c, 0x0b, 0x18, 0x89\n" ++
+  "  .byte 0xb6, 0x76, 0xd2, 0x91, 0x3b, 0xac, 0x8d, 0x4e\n" ++
+  ".balign 8\n" ++
+  "npr_node_0_15_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen
