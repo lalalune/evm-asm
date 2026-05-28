@@ -109,4 +109,23 @@ theorem algorithmQ1dV5_dLo_overshoot_le_vTop_of_phase1b_fire
   -- Goal: Q * L ≤ R * 2^32 + U1 + D * 2^32 + L.
   linarith [h_q1d_vTop, h_expand, h_QD, h_R_pow32]
 
+/-- Unconditional Phase-1b overshoot bound for V5's Q1d. Combines the
+    no-fire (V5.4.0.10) and fire (V5.4.0.11) branches via a single
+    case-split on `algorithmPhase1bFireV5`. Bead `evm-asm-wbc4i.4.6.16`
+    (V5.4.0.17). Prerequisite for V5.4.1. -/
+theorem algorithmQ1dV5_dLo_overshoot_le_vTop_closed
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (algorithmQ1dV5 uHi uLo vTop).toNat * (divKTrialCallV5DLo vTop).toNat ≤
+      (algorithmRhatdV5 uHi uLo vTop).toNat * 2^32 +
+        (divKTrialCallV5Un1 uLo).toNat +
+        (divKTrialCallV5DHi vTop).toNat * 2^32 +
+        (divKTrialCallV5DLo vTop).toNat := by
+  by_cases h_fire : algorithmPhase1bFireV5 uHi uLo vTop
+  · exact algorithmQ1dV5_dLo_overshoot_le_vTop_of_phase1b_fire
+      uHi uLo vTop hvTop_ge huHi_lt_vTop h_fire
+  · exact algorithmQ1dV5_dLo_overshoot_le_vTop_of_phase1b_no_fire
+      uHi uLo vTop h_fire
+
 end EvmAsm.Evm64
