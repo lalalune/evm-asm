@@ -142,7 +142,19 @@ theorem divK_div128_step1_v5_spec_within
     h2
     -- ht1: guard-taken post (framed) → Post (outer if_pos via ⌜rhatcHi≠0⌝)
     (fun h hp => by
-      sorry)
+      show divKDiv128Step1FullV5Post sp uHi dHi un1 dlo h
+      unfold divKDiv128Step1FullV5Post
+      have hpc := hp
+      obtain ⟨_, _, _, _, hL, _⟩ := hpc
+      obtain ⟨_, _, _, _, _, hL⟩ := hL
+      obtain ⟨_, _, _, _, _, hL⟩ := hL
+      obtain ⟨_, _, _, _, _, hL⟩ := hL
+      obtain ⟨_, _, _, _, _, hL⟩ := hL
+      obtain ⟨_, _, _, _, ⟨_, hpure⟩, _⟩ := hL
+      simp only [if_pos hpure]
+      set sh : Nat := (32 : BitVec 6).toNat with hsh
+      drop_pure hp
+      xperm_hyp hp)
     -- ht2: body-taken post (framed ⌜rhatcHi=0⌝) → Post
     (fun h hp => by
       sorry)
