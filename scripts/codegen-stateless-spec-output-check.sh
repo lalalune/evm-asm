@@ -473,6 +473,48 @@ run_fixture "chain1_fork4_wrong_blob"  1               4    ""           ""     
 # walks past validate_headers.
 run_fixture "chain1_fork4_realistic_header" 1          4    ""           ""                  ""    "0"          ""           "14:21:11684671" "VALID_REALISTIC" || fail=1
 
+# Spec rlp.DecodingError path inside validate_headers.
+# Configuration:
+#   chain_id        = 1
+#   fork            = 4 (Amsterdam, passes validate_chain_config)
+#   activation.bn   = [0]
+#   blob_schedule   = (14, 21, 11684671)  [amsterdam expected]
+#   witness.headers = single 32-byte 0xAA blob (not RLP-valid)
+# Spec flow:
+#   validate_chain_config(...) -> SUCCESS
+#   validate_headers([0xAA * 32]):
+#     _decode_header tries rlp.decode_to(Header, ...) -> fails
+#       (the blob doesn't have the Header RLP shape)
+#     tries rlp.decode_to(PreviousForkHeader, ...) -> also fails
+#     -> raises rlp.DecodingError
+#   caught at verify_stateless_new_payload -> False.
+# Variety dimension: spec error path = rlp.DecodingError
+# inside _decode_header (validate_headers's RLP-parse step).
+# Distinct from the "not contiguous" path (PR #7071) which
+# exercises VALID RLP that fails parent_hash linkage, and
+# from the IndexError path (empty headers).
+run_fixture "chain1_fork4_bad_rlp_header" 1            4    ""           ""                  ""    "0"          ""           "14:21:11684671" "$(printf 'aa%.0s' {1..32})" || fail=1
+
+# _is_activation_active TIMESTAMP-only success branch.
+# Sister to the bn-only success-branch fixture: same outer
+# configuration (fork=4 Amsterdam, expected blob_schedule)
+# but activation has timestamp=[0] instead of bn=[0].
+# Spec flow:
+#   _is_activation_active:
+#     activation.block_number is None  (no bn entry)
+#     activation.timestamp is Uint(0)  (not None)
+#     execution_payload.timestamp = 0
+#     0 < 0 is False -> falls through -> returns True
+#   active_fork.fork == Amsterdam   -> True
+#   blob_schedule == expected       -> True
+#   validate_chain_config returns successfully
+#   validate_headers([]) -> IndexError -> caught -> False.
+# Variety dimension: distinct branch of _is_activation_active.
+# Previously the bn-set branch was exercised (active_fork bn=[0]
+# passes; active_fork bn=[1] fails via InactiveForkConfigError);
+# the ts-only branch is the third path through that helper.
+run_fixture "chain1_fork4_ts_active"   1               4    ""           ""                  ""    ""           "0"          "14:21:11684671" || fail=1
+
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
 # transactions_root, receipt_root, bloom, prev_randao,
