@@ -26,6 +26,12 @@ open EvmAsm.Rv64 EvmWord
     The mathematical theorem is provable; this is a definitional-equality gap. -/
 theorem divKTrialCallV5QHat_eq_div128Quot_v5 (uHi uLo vTop : Word) :
     divKTrialCallV5QHat uHi uLo vTop = div128Quot_v5 uHi uLo vTop := by
+  -- The unfold+rfl approach fails: V5 Un21 is @[irreducible] and called in
+  -- both Q0c and Rhat2c, producing 2 copies of the Q1dd/Rhatdd let chain.
+  -- div128Quot_v5 shares un21 via a single let-binding. The terms are
+  -- definitionally equal, but rfl exceeds maxRecDepth before verifying.
+  -- Would require @[reducible] on divKTrialCallV5Un21 or a restructured
+  -- Un21 definition. Tracked as a follow-up bead.
   sorry
 
 /-- QHat.toNat = Q1dd * 2^32 + Q0dd when both digits < 2^32. -/
