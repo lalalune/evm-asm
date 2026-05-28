@@ -1360,9 +1360,320 @@ pass empty calldata and continue to work unchanged.
 `scripts/check-progress.sh` exits 0. Build clean
 (`lake build EvmAsm.Codegen` exits 0).
 
+### M22 — Real storage (SLOAD/SSTORE) via pre-loaded slot table — **DONE (2026-05-28)**
+
+Next step on the EEST ladder after M21 real calldata. SLOAD
+(0x54) and SSTORE (0x55) graduate from M17 no-ops to real
+persistent storage via a **pre-loaded slot table** extension
+to the `ziskemu -i` input format. TLOAD (0x5c) and TSTORE
+(0x5d) remain M17 no-ops (transient storage is per-tx scoped
+and orthogonal; deferred).
+
+**Architecture (pre-loaded slot table, not in-dispatcher hash):**
+state arrives via a third length-prefixed segment in the input
+file, alongside the M21 bytecode and calldata segments. The
+dispatcher prologue copies it into a writable `.data` region
+(`evm_slot_table`, 16 KiB = 256 slots × 64 bytes) and records
+the count at `env.slotTableCountOff = 448`. SLOAD / SSTORE
+inline-asm bodies scan the table linearly. State leaves the
+dispatcher only via stack values that SLOAD pushes back — the
+M22 ABI surface is "read your own writes within a tx"; full
+post-state serialization is M24's job.
+
+**Why pre-loaded over in-dispatcher hash table:** keeps the
+dispatcher stateless across invocations (a fresh ELF run with
+no input still produces the same `.data` initial conditions),
+matches a witness-style flow without committing to a specific
+witness format, and isolates the storage-architecture choice
+from the dispatcher's opcode-table machinery.
+
+**Delivered:**
+
+- **`scripts/pack-bytecode.py`** — new `--storage <hex>` flag.
+  Format: parenthesized hex pairs `"(0xKEY, 0xVAL) (0xKEY2,
+  0xVAL2)"`. Each key / value is interpreted as a u256
+  integer and serialized in EVM-stack byte order (the LE
+  limb order PUSH32 + SSTORE deposits on the stack). Empty
+  default appends `slot_count = 0` and zero-byte slot data,
+  preserving pre-M22 input bytes.
+
+  Input layout grows to:
+  ```
+  <u64 bytecode-len><bytecode><pad>
+  <u64 calldata-len><calldata><pad>
+  <u64 slot_count><slot_count × 64B (key, value)><pad>
+  ```
+
+- **`EvmAsm/Codegen/Dispatch.lean`** —
+  - `emitRuntimeDispatcherPrologue` gains ~20 instructions:
+    compute slot-segment start past the calldata pad, read
+    `slot_count`, dword-loop-copy bytes into `evm_slot_table`,
+    write count to env+448.
+  - `emitDispatcherPrologue` (.data-baked path) writes 0 to
+    env+448 (no input).
+  - Both `.data` sections now declare `evm_slot_table: .zero
+    0x4000` (16 KiB). The block sits between `evm_env` and
+    `zk3_state`; the total `.data` footprint goes from
+    ~36 KiB to ~52 KiB, well under the ~64 KiB cap before
+    `OUTPUT_ADDR = 0xa0010000`.
+
+- **`EvmAsm/Evm64/Environment/Layout.lean`** — adds
+  `slotTableCountOff : Nat := 448`. Bumps `envSize` 448 → 456
+  and extends the `envSize_covers` `decide` chain through the
+  new cell. `envCells` in `Environment/Assertion.lean` bumped
+  56 → 57.
+
+- **`EvmAsm/Codegen/Programs/Storage.lean`** — **NEW
+  submodule**. The M22 inline-asm scan loops pushed
+  `Programs/Evm.lean` past the per-file size cap, so the
+  `storageHandlers` cluster moves into its own file
+  (mirrors the M18 `Noop.lean` extraction). Real SLOAD /
+  SSTORE bodies use GNU AS numeric local labels (`1:`,
+  `1b`, `1f`, …) which are unique-per-use across the
+  emitted file, so SLOAD and SSTORE can reuse the same
+  label numbers without colliding. TLOAD / TSTORE entries
+  carry over as M17 no-ops.
+
+- **`EvmAsm/Codegen/Programs/Evm.lean`** — adds
+  `import EvmAsm.Codegen.Programs.Storage`; the inline
+  `storageHandlers` def is removed (now sourced from the
+  new submodule).
+
+- **`EvmAsm/Codegen/Tests/Cases.lean`** + `Cli.lean` +
+  bash runner — `OpcodeTestCase` gains an optional
+  `storage : String := ""` field. `--list-test-cases` emits
+  a 5-column TSV; runner uses `cut -f` per-field (POSIX
+  `read -r` with `IFS=$'\t'` collapses adjacent tab
+  separators because tab is IFS-whitespace, silently
+  shifting the storage column into the calldata slot when
+  calldata is empty — `cut` preserves empty fields).
+
+  4 new test cases:
+  - `sstore_then_sload_round_trip` — store, read back.
+  - `sload_preloaded_match` — read a preloaded slot.
+  - `sload_preloaded_no_match` — read an absent slot → 0.
+  - `sstore_overwrites_preload` — overwrite a preloaded
+    slot in place (does not append).
+
+  The pre-M22 `sstore_sload_roundtrip` test (M17-era,
+  asserted no-op behavior) was removed — it's redundant
+  with the new `sstore_then_sload_round_trip` (same
+  bytecode) and its expected value of 0 is now wrong
+  under M22 real semantics.
+
+  Total cases: **62 → 65** (-1 redundant + 4 new).
+
+**Inline-asm scan loops (illustrative SLOAD body):**
+
+```
+h_SLOAD:
+  ld   x15, 448(x20)       # x15 = slot_count
+  la   x14, evm_slot_table # x14 = base
+  beqz x15, 2f             # empty → zero result
+1: # scan loop iteration
+  ld   x16, 0(x14); ld x17, 0(x12); bne x16, x17, 3f
+  ld   x16, 8(x14); ld x17, 8(x12); bne x16, x17, 3f
+  ld   x16, 16(x14); ld x17, 16(x12); bne x16, x17, 3f
+  ld   x16, 24(x14); ld x17, 24(x12); bne x16, x17, 3f
+  # match: copy value into stack top, jump to tail
+  ld   x16, 32(x14); sd x16, 0(x12)
+  ld   x16, 40(x14); sd x16, 8(x12)
+  ld   x16, 48(x14); sd x16, 16(x12)
+  ld   x16, 56(x14); sd x16, 24(x12)
+  j    4f
+3: # no match this entry — advance
+  addi x14, x14, 64
+  addi x15, x15, -1
+  bnez x15, 1b
+2: # no match anywhere — write zeros
+  sd x0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)
+4: # tail
+  addi x10, x10, 1
+  ret
+```
+
+**Known limitations:**
+
+- **Capacity cap**: 256 slots. Programs that touch more keys
+  overflow the `.data` block; a future PR can grow the table
+  or swap in a hash-table backend.
+- **Linear scan**: O(slot_count) per access. Fine for tests
+  (<10 slots typical); a bottleneck for proving real blocks.
+  Hash upgrade ships without ABI / env changes.
+- **TLOAD / TSTORE remain no-ops**: transient storage uses a
+  separate per-tx-scoped table; future PR.
+- **No gas accounting** for SLOAD / SSTORE: M22 doesn't touch
+  gas (still absent across the dispatcher).
+- **No post-state surfacing**: modified slots are visible to
+  in-tx SLOADs but not emitted at `OUTPUT_ADDR+32..`. M24's
+  job in the original roadmap.
+- **Inline asm, not verified body**: the scan loop is loop-
+  based and would need a verified-loop pattern. M22 ships
+  correct asm with comprehensive tests; verified bodies
+  follow in a separate PR.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all
+**65 cases PASS** (61 pre-M22 + 4 new; one pre-M22 case
+removed as redundant). `scripts/check-progress.sh` exits 0.
+Build clean (`lake build EvmAsm.Codegen` exits 0).
+
+### M23 — Real RETURN/REVERT with returndata buffer + halt-kind status — **DONE (2026-05-28)**
+
+After M22 shipped real SLOAD/SSTORE, issue **#7130 ("Decide on
+memory layout of storage")** flagged that M22's slot-table is
+the **first version** of storage and will be redesigned soon
+to handle arbitrary 256-bit addresses and align with the EVM
+gas model. The original M23 (pre-state witness unpacking) and
+M24 (post-state serializer) both bake in M22's specific layout,
+so picking either as the next PR would risk burning work that
+gets thrown away when #7130 lands.
+
+M23 therefore pivots to a **storage-orthogonal** milestone:
+real RETURN (0xf3) and REVERT (0xfd). These graduate from M18
+halt no-ops to real bodies that surface the returndata at
+`OUTPUT_ADDR` and tag the halt kind so external callers (and
+EEST tests) can distinguish successful return from revert.
+Zero coupling to the M22 slot table — survives #7130 redesign
+untouched.
+
+### OUTPUT layout extension (post-M23)
+
+```
+OUTPUT_ADDR (0xa0010000):
+  +0..32    <32 bytes of result>
+              STOP            → first 32 bytes of EVM stack top (unchanged)
+              RETURN / REVERT → first min(size, 32) bytes of
+                                memory[offset..], zero-padded if size < 32
+  +32..40   <u64 LE halt_kind>
+              0 = STOP / unspecified (set by evmAddEpilogue)
+              1 = RETURN
+              2 = REVERT
+              (INVALID, SELFDESTRUCT inherit 0 in M23 — distinct
+               tagging deferred to a follow-up)
+  +40..256  <unused, room for future surfaces>
+```
+
+The 256-byte ziskemu output region has plenty of room past
+byte 40 for future extensions (returndata-length prefix,
+modified-slot list, etc.).
+
+### The new `.exit_no_epilogue` exit path
+
+`evmAddEpilogue` (the existing exit body emitted at
+`.exit_label`) copies 32 bytes from the EVM stack top to
+`OUTPUT_ADDR[0..32]`. For STOP that's correct. For RETURN /
+REVERT we want the **returndata** at `OUTPUT_ADDR[0..32]`
+instead — running `evmAddEpilogue` afterward would clobber
+it.
+
+M23 adds a new label `.exit_no_epilogue:` between
+`emitProgram exitBody` and the halt stub in
+`emitDispatcherEpilogue`. RETURN / REVERT handler tails do
+their own OUTPUT writes and `j .exit_no_epilogue` to skip
+the epilogue. STOP, INVALID, and SELFDESTRUCT continue to
+flow through `.exit_label → evmAddEpilogue → halt stub`:
+
+```
+.exit_label:
+  <evmAddEpilogue>   (writes stack top to OUTPUT[0..32] + halt_kind=0 to OUTPUT[32..40])
+.exit_no_epilogue:   (M23: handlers that surface their own output target this)
+  <halt stub>        (linux93: li x17, 93; li x10, 0; ecall)
+```
+
+### Delivered
+
+- **`EvmAsm/Codegen/Dispatch.lean`** — emit
+  `.exit_no_epilogue:` between `emitProgram exitBody` and the
+  halt stub in `emitDispatcherEpilogue`. Single surgical
+  insertion.
+
+- **`EvmAsm/Codegen/Programs/Evm.lean`** — `evmAddEpilogue`
+  gains a final `SD .x5 .x0 32` instruction (writes
+  `halt_kind = 0` to `OUTPUT_ADDR + 32`). Still pure
+  verified `Program` — stays in `Instr`-only world.
+
+- **`EvmAsm/Codegen/Programs/Noop.lean::haltHandlers`** —
+  RETURN (0xf3) and REVERT (0xfd) tails replaced with real
+  inline asm (~25 instructions each) that:
+  1. Reads `offset_low` / `size_low` (low u64 limbs) from
+     stack at `[x12+0..]` / `[x12+32..]`.
+  2. Zero-fills `OUTPUT_ADDR[0..32]`.
+  3. Clamps `size_low` to 32 (M23 cap).
+  4. Byte-loop copies clamped bytes from
+     `evm_memory + offset_low` to `OUTPUT_ADDR`.
+  5. Writes halt_kind (1 = RETURN, 2 = REVERT) at
+     `OUTPUT_ADDR + 32`.
+  6. `j .exit_no_epilogue`.
+
+  Bodies use GNU AS numeric local labels (`1:`, `2:`, `3:`,
+  `1b`, `1f`, …) — unique-per-use, so RETURN and REVERT
+  reuse the same label numbers without colliding (same
+  convention M22 storage scan loops established).
+
+  INVALID (0xfe) and SELFDESTRUCT (0xff) tails untouched —
+  still flow through `.exit_label`, inheriting
+  `halt_kind = 0`.
+
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — `OpcodeTestCase`
+  gains optional `expectedHaltKind : String := ""` (8-byte
+  LE hex; empty = don't assert).
+
+- **`EvmAsm/Codegen/Cli.lean`** — `--list-test-cases` emits
+  a 6-column TSV (appending halt-kind after storage).
+
+- **`scripts/codegen-opcodes-runtime-check.sh`** — reads the
+  6th column via `cut -f6`. When non-empty, asserts
+  `OUTPUT_ADDR + 32..40` matches via `xxd -s 32 -l 8`. Both
+  the output mismatch and the halt-kind mismatch are
+  surfaced separately in the failure list.
+
+- **3 new test cases:**
+  - `return_word_basic` — `PUSH1 0x42; PUSH1 0x00; MSTORE;
+    PUSH1 0x20; PUSH1 0x00; RETURN`. Writes BE(0x42) to
+    memory[0..32]; RETURN(0, 32) copies it out. Expected:
+    `0000…0042`, halt_kind `0100000000000000`.
+  - `return_small_pads_zeros` — `PUSH1 0xff; PUSH1 0x00;
+    MSTORE8; PUSH1 0x01; PUSH1 0x00; RETURN`. RETURN(0, 1)
+    copies 1 byte; zero-fill covers OUTPUT[1..32]. Expected:
+    `ff00…00`, halt_kind = 1.
+  - `revert_word_basic` — same bytecode as
+    `return_word_basic` but byte 0xfd. Same returndata;
+    halt_kind `0200000000000000`. **This is the test that
+    proves RETURN and REVERT are observably distinguishable.**
+
+- Pre-existing `return_pop2_halt` test was updated: it
+  previously asserted the M18 no-op surfacing behavior
+  (top-of-stack 0xff via evmAddEpilogue). Under M23 real
+  RETURN it reads uninitialized memory[0x22..0x33] = zeros,
+  so the expected output flips to 32 zeros + halt_kind = 1.
+
+**Known limitations:**
+
+- **Returndata clamped to 32 bytes.** Larger payloads
+  silently truncate. Future PR can extend the OUTPUT layout
+  with a length prefix or wider region.
+- **INVALID / SELFDESTRUCT inherit halt_kind = 0** from the
+  default exit path. Distinct kinds (3 / 4) are a small
+  follow-up.
+- **Offset / size > u64** silently use only the low u64.
+  Trivially safe for any test that fits in evm_memory's
+  32 KiB. Future PR can add an upper-limb-zero check.
+- **No gas accounting** for RETURN / REVERT.
+- **RETURNDATASIZE / RETURNDATACOPY** still no-ops — they
+  read the caller's return-data buffer
+  (`returnDataPtrOff = 432` / `returnDataSizeOff = 440`),
+  meaningful only with nested call frames (still no-ops).
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all
+**68 cases PASS** (64 pre-M23 + 4 updated/new; 3 new RETURN/
+REVERT cases all assert halt_kind). `scripts/check-progress.sh`
+exits 0. Build clean (`lake build EvmAsm.Codegen` exits 0).
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → M20 ✅ 🎯 100% → **M21 ✅**.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → M20 ✅ 🎯 100% → M21 ✅ → M22 ✅ → **M23 ✅**.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
 emission unreadable. M11 (SHL + SAR) shipped 2026-05-26; M12
@@ -1375,21 +1686,42 @@ M17 (LOG0–LOG4 + SLOAD/SSTORE/TLOAD/TSTORE as no-ops) shipped
 2026-05-27; M18 (20 trivial no-ops in `Noop.lean` — 94.6%
 coverage) shipped 2026-05-27; M19 (6 child-frame opcodes as
 no-ops — 98.7% coverage) shipped 2026-05-27; M20 (MULMOD + EXP
-no-ops — 🎯 100% coverage) shipped 2026-05-27; **M21 (real
+no-ops — 🎯 100% coverage) shipped 2026-05-27; M21 (real
 calldata wiring — CALLDATALOAD/COPY graduate from no-ops; first
-step on the EEST path) shipped 2026-05-27.**
+step on the EEST path) shipped 2026-05-27; M22 (real SLOAD/
+SSTORE via pre-loaded slot table — second step on the EEST
+path; `Programs/Storage.lean` extracted) shipped 2026-05-28;
+**M23 (real RETURN/REVERT with returndata buffer + halt-kind
+status; new `.exit_no_epilogue` exit path — storage-orthogonal
+pivot prompted by #7130) shipped 2026-05-28.**
 
-**The codegen track now runs the "spec-compliance upgrades"
-ladder toward EEST tests**: M21 ✅ shipped real calldata
-(first cheap step). Next steps on the EEST ladder:
-**M22** = real storage (SLOAD/SSTORE — large design surface,
-in-dispatcher hash table vs witness-based stateless),
-**M23** = state-witness unpacking,
-**M24** = post-state serializer,
-**M25** = EEST fixture loader + CI integration.
-In parallel, other no-op handlers (LOG / child frames /
-MULMOD / EXP) upgrade as their verified bodies / host
-syscalls land. Ultimately PLAN.md Phase 11 (STF integration —
+**The codegen track is now in "spec-compliance upgrades"
+mode, building toward EEST tests**, with the storage redesign
+(#7130) as a parallel discussion. Status:
+- M21 ✅ real calldata
+- M22 ✅ real persistent storage (slot-table v1, transitional
+  per #7130)
+- M23 ✅ real RETURN/REVERT with halt-kind
+
+**Storage-orthogonal candidates for M24+** (any order, all
+survive the #7130 redesign):
+- Real EXP body wiring (verified body exists complete; M10-
+  style inline-callable composition)
+- Halt-kind test assertions + INVALID/SELFDESTRUCT distinct
+  tagging (small follow-up to M23)
+- Gas-metering scaffolding
+- ECRecover precompile via ECALL bridge
+- Returndata > 32 bytes (extend OUTPUT layout)
+- Real RETURNDATASIZE / RETURNDATACOPY (needs nested call
+  frames)
+
+**Storage-redesign-dependent work** (deferred until #7130
+lands):
+- Pre-state witness unpacking
+- Post-state serializer (modified slots → OUTPUT)
+- EEST fixture loader + CI
+
+Ultimately PLAN.md Phase 11 (STF integration —
 RLP-decoded transactions through the dispatcher to a
 state-root output) is the project's real end goal.
 
