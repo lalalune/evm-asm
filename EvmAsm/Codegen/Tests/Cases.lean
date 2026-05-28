@@ -42,6 +42,13 @@ structure OpcodeTestCase where
       string = no preload (table starts empty; SSTORE may grow
       it; SLOAD against an unset key returns zero). -/
   storage        : String := ""
+  /-- Optional expected halt-kind at `OUTPUT_ADDR + 32` (M23).
+      16 hex chars = 8-byte LE u64 (e.g. `"0100000000000000"` for
+      RETURN = 1, `"0200000000000000"` for REVERT = 2). Empty
+      string = don't assert (back-compat for pre-M23 cases). The
+      bash runner reads `OUTPUT_ADDR + 32..40` and compares only
+      when this field is non-empty. -/
+  expectedHaltKind : String := ""
 
 /-- Registry of test cases. M5a/M5b's two original bytecodes are
     migrated as `add_basic` / `add_chain`; M6b adds ~20 more — one
@@ -316,12 +323,19 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- (5), popPushZeroHandlers (6), copyNoopHandlers (5). One
     -- representative test per builder + an INVALID smoke.
   , -- PUSH1 0xff; PUSH1 0x11; PUSH1 0x22; RETURN
-    -- RETURN pops 2 (offset=0x22, size=0x11) and halts. Top of stack
-    -- after the pop = 0xff (the first PUSH). Expected: 0xff in low
-    -- limb. Confirms haltHandlers.RETURN routes 0xf3 + pops 2.
-    { name           := "return_pop2_halt"
-      bytecode       := "0x60, 0xff, 0x60, 0x11, 0x60, 0x22, 0xf3"
-      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+    -- RETURN(offset=0x22, size=0x11) reads 0x11 bytes from
+    -- memory[0x22..0x33]. Memory hasn't been written, so all bytes
+    -- are zero; OUTPUT[0..0x11] = 0, OUTPUT[0x11..32] zero-filled.
+    -- Confirms RETURN's data path with no prior MSTORE + the size <
+    -- 32 zero-fill. halt_kind = 1.
+    --
+    -- (Pre-M23 this test asserted the M18 no-op behavior: the
+    -- remaining stack top 0xff surfaced via evmAddEpilogue. Updated
+    -- in M23 to reflect the new real-RETURN semantics.)
+    { name             := "return_pop2_halt"
+      bytecode         := "0x60, 0xff, 0x60, 0x11, 0x60, 0x22, 0xf3"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000" }
   , -- PUSH1 0xff; PUSH1 0x42; INVALID — INVALID just halts; top of
     -- stack = 0x42. Expected: 0x42 in low limb. Confirms
     -- haltHandlers.INVALID routes 0xfe (instead of falling through to
@@ -504,6 +518,38 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x61, 0xbe, 0xef, 0x60, 0x00, 0x55, 0x60, 0x00, 0x54, 0x00"
       storage        := "(0x00, 0xdead)"
       expectedOutHex := "efbe000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M23 real RETURN / REVERT with returndata buffer + halt-kind
+    -- Both opcodes graduate from M18 halt no-ops to real bodies that:
+    --   - pop (offset, size)
+    --   - copy memory[offset..offset+min(size,32)] to OUTPUT_ADDR[0..32]
+    --     (zero-padded if size < 32; clamped at 32 in M23)
+    --   - write halt_kind (1 = RETURN, 2 = REVERT) to OUTPUT_ADDR + 32
+    --   - halt via .exit_no_epilogue (skipping evmAddEpilogue's stack-top copy)
+    -- The 32-byte returndata cap and the deferred INVALID/SELFDESTRUCT
+    -- halt-kind tagging are documented in CODEGEN.md M23.
+  , -- PUSH1 0x42; PUSH1 0x00; MSTORE; PUSH1 0x20; PUSH1 0x00; RETURN.
+    -- MSTORE writes BE(0x42) to memory[0..32] (= 31 zero bytes then 0x42).
+    -- RETURN(offset=0, size=32) copies that to OUTPUT[0..32].
+    { name             := "return_word_basic"
+      bytecode         := "0x60, 0x42, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000042"
+      expectedHaltKind := "0100000000000000" }
+  , -- PUSH1 0xff; PUSH1 0x00; MSTORE8; PUSH1 0x01; PUSH1 0x00; RETURN.
+    -- MSTORE8 writes 1 byte (0xff) at memory[0]; rest of memory zero.
+    -- RETURN(offset=0, size=1) copies 1 byte; OUTPUT[1..32] is zero-filled
+    -- by the body's pre-copy SD pass. Exercises the size < 32 path.
+    { name             := "return_small_pads_zeros"
+      bytecode         := "0x60, 0xff, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0xf3"
+      expectedOutHex   := "ff00000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000" }
+  , -- PUSH1 0x42; PUSH1 0x00; MSTORE; PUSH1 0x20; PUSH1 0x00; REVERT.
+    -- Same data path as return_word_basic but byte 0xfd (REVERT) instead
+    -- of 0xf3 (RETURN). Returndata bytes identical; halt_kind differs.
+    -- This is the test that proves RETURN and REVERT are distinguishable.
+    { name             := "revert_word_basic"
+      bytecode         := "0x60, 0x42, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xfd"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000042"
+      expectedHaltKind := "0200000000000000" }
   ]
 
 /-- Find a test case by name. -/

@@ -166,7 +166,15 @@ def emitDispatcherPrologue : String :=
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
-    to the halt stub appended by `emitBuildUnit`. -/
+    to the halt stub appended by `emitBuildUnit`.
+
+    **M23 addition**: the `.exit_no_epilogue` label is emitted
+    *after* `exitBody` and *before* the halt stub. Handlers that
+    surface their own output bytes to `OUTPUT_ADDR` (e.g. real
+    RETURN / REVERT) jump there to skip the default exit body
+    (which would otherwise clobber their writes with the EVM
+    stack-top copy). STOP and the other halts continue to flow
+    through `.exit_label` → `exitBody` → halt stub. -/
 def emitDispatcherEpilogue
     (registry : List OpcodeHandlerSpec) (exitBody : Program) : String :=
   String.intercalate "\n" (registry.map OpcodeHandlerSpec.emitSubroutine) ++ "\n" ++
@@ -184,7 +192,8 @@ def emitDispatcherEpilogue
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   ".exit_label:\n" ++
-  emitProgram exitBody
+  emitProgram exitBody ++ "\n" ++
+  ".exit_no_epilogue:"
 
 /-- `.data` section layout (starts at `0xa0000000` per
     `Driver.lean`'s `-Tdata=...`):

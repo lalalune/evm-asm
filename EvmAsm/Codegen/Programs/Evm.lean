@@ -150,6 +150,12 @@ def evmAddPrologue : String :=
     output region (`OUTPUT_ADDR .. OUTPUT_ADDR+32`). Plain 64-bit
     stores; no syscall (ZisK output is memory-mapped, not ecall-based).
 
+    **M23 addition**: also writes `halt_kind = 0` to
+    `OUTPUT_ADDR + 32`. RETURN / REVERT handlers overwrite this
+    cell with their own kind code (1 / 2) on their own exit path
+    via `.exit_no_epilogue`, bypassing this epilogue. STOP and the
+    other halts that flow through `.exit_label` inherit kind 0.
+
     Lives in the verified Program world: every instruction is in
     `Instr`, so it benefits from `emitInstr` totality and the round-trip
     tests. -/
@@ -158,7 +164,8 @@ def evmAddEpilogue : Program :=
   LD .x6 .x12 0  ;; SD .x5 .x6 0  ;;
   LD .x6 .x12 8  ;; SD .x5 .x6 8  ;;
   LD .x6 .x12 16 ;; SD .x5 .x6 16 ;;
-  LD .x6 .x12 24 ;; SD .x5 .x6 24
+  LD .x6 .x12 24 ;; SD .x5 .x6 24 ;;
+  SD .x5 .x0 32   -- M23: halt_kind = 0 (STOP / unspecified)
 
 /-- `.data` section seeded with A and B back-to-back, eight LE doublewords. -/
 def evmAddDataSection : String :=

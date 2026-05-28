@@ -362,6 +362,69 @@ def statelessGuestDataSection : String :=
   -- ssz_zero_hashes table.
   ".balign 8\n" ++
   "npr_node_10_11_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- Constants for the dynamic node_12_15 path supporting
+  -- leaf_12 = block_hash:
+  --   `npr_leaf_13_transactions_root` = SSZ hash_tree_root of
+  --     the default empty `transactions` list.
+  --   `npr_node_14_15` = sha256(leaf_14=withdrawals_default_root
+  --     || leaf_15=blob_gas_used_default=zero). Stays static
+  --     until leaf 14 or 15 is opened up in a follow-up PR.
+  -- Scratch buffers `npr_node_12_13_scratch` and
+  -- `npr_node_12_15_scratch` hold the intermediate and final
+  -- merkle nodes for the dynamic computation.
+  ".balign 8\n" ++
+  "npr_leaf_13_transactions_root:\n" ++
+  "  .byte 0x7f, 0xfe, 0x24, 0x1e, 0xa6, 0x01, 0x87, 0xfd\n" ++
+  "  .byte 0xb0, 0x18, 0x7b, 0xfa, 0x22, 0xde, 0x35, 0xd1\n" ++
+  "  .byte 0xf9, 0xbe, 0xd7, 0xab, 0x06, 0x1d, 0x94, 0x01\n" ++
+  "  .byte 0xfd, 0x47, 0xe3, 0x4a, 0x54, 0xfb, 0xed, 0xe1\n" ++
+  ".balign 8\n" ++
+  "npr_node_14_15:\n" ++
+  "  .byte 0x33, 0x64, 0x88, 0x03, 0x3f, 0xe5, 0xf3, 0xef\n" ++
+  "  .byte 0x4c, 0xcc, 0x12, 0xaf, 0x07, 0xb9, 0x37, 0x0b\n" ++
+  "  .byte 0x92, 0xe5, 0x53, 0xe3, 0x5e, 0xcb, 0x4a, 0x33\n" ++
+  "  .byte 0x7a, 0x1b, 0x1c, 0x0e, 0x4a, 0xfe, 0x1e, 0x0e\n" ++
+  ".balign 8\n" ++
+  "npr_node_12_13_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "npr_node_12_15_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- New constant + scratch for the dynamic node_14_15 path
+  -- supporting leaf_15 = blob_gas_used:
+  --   `npr_leaf_14_withdrawals_root` = SSZ hash_tree_root of
+  --     the default empty `withdrawals` list.
+  --   `npr_node_14_15_scratch` holds dynamic
+  --     sha256(npr_leaf_14_withdrawals_root || blob_gas_used).
+  -- The prior static `npr_node_14_15` constant becomes
+  -- unreferenced (kept for diff-context).
+  ".balign 8\n" ++
+  "npr_leaf_14_withdrawals_root:\n" ++
+  "  .byte 0x79, 0x29, 0x30, 0xbb, 0xd5, 0xba, 0xac, 0x43\n" ++
+  "  .byte 0xbc, 0xc7, 0x98, 0xee, 0x49, 0xaa, 0x81, 0x85\n" ++
+  "  .byte 0xef, 0x76, 0xbb, 0x3b, 0x44, 0xba, 0x62, 0xb9\n" ++
+  "  .byte 0x1d, 0x86, 0xae, 0x56, 0x9e, 0x4b, 0xb5, 0x35\n" ++
+  ".balign 8\n" ++
+  "npr_node_14_15_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- `npr_leaf_4_logs_bloom_scratch` holds the dynamic
+  -- hash_tree_root of logs_bloom (= leaf 4 in the exec_payload
+  -- merkle). logs_bloom is ByteVector[256] merkleized over 8
+  -- chunks (3 levels of sha256). Currently we only read chunk 0
+  -- from input; chunks 1..7 stay at their default zero and the
+  -- siblings on the path collapse to existing ssz_zero_hashes
+  -- entries. The prior static `npr_leaf_4_logs_bloom_root`
+  -- constant becomes unreferenced (kept for diff-context).
+  ".balign 8\n" ++
+  "npr_leaf_4_logs_bloom_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- Scratch for the dynamic node_2_3 of the logs_bloom subtree
+  -- (chunks 2 and 3 paired). Replaces the prior static
+  -- `ssz_zero_hash[1]` constant used at level 1 of the
+  -- logs_bloom merkle (under node_0_3).
+  ".balign 8\n" ++
+  "npr_logs_bloom_node_2_3_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen
