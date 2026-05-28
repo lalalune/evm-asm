@@ -357,6 +357,21 @@ run_fixture "chain1_blob_realistic" 1                  0    ""           ""     
 # validate_chain_config.
 run_fixture "chain1_fork4_amsterdam_active" 1          4    ""           ""                  ""    "0"          ""           "14:21:11684671" || fail=1
 
+# Spec InactiveForkConfigError path. Identical to the
+# fork=4 + Amsterdam-blob fixture except activation.bn=[1]
+# (instead of [0]). _is_activation_active gets:
+#   activation.block_number = Uint(1) (not None)
+#   execution_payload.block_number = 0 (empty default)
+#   0 < 1 -> True -> returns False -> spec raises
+#   InactiveForkConfigError. The exception is caught at
+#   verify_stateless_new_payload, successful_validation=False.
+# Variety dimension: SPEC code path = InactiveForkConfigError
+# inside validate_chain_config. Until this fixture, every
+# fork=4 + Amsterdam-blob input hit
+# _is_activation_active's success branch (bn=[0] passes the
+# 0 < 0 check). This fixture exercises the False return.
+run_fixture "chain1_fork4_inactive_bn" 1               4    ""           ""                  ""    "1"          ""           "14:21:11684671" || fail=1
+
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
 # transactions_root, receipt_root, bloom, prev_randao,
@@ -706,6 +721,32 @@ run_fixture "chain1_invalid_nm_at_2"    1              0    ""           ""     
 # Spec's validate_headers succeeds, then STF fails on empty
 # NPR -> valid=False. ELF: valid=False from x11 stub. Match.
 run_fixture "chain1_valid_three"    1                  0    ""           ""                  ""    ""           ""           ""    "VALID_THREE" || fail=1
+
+# Deepest spec path so far -- BOTH validate_chain_config AND
+# validate_headers reach their success branches:
+#   chain_id      = 1
+#   fork          = 4 (Amsterdam)
+#   activation.bn = [0]
+#   blob_schedule = (14, 21, 11684671)  [== amsterdam expected]
+#   witness.headers = VALID_THREE
+#     (3 chained valid post-merge headers, parent_hash linked
+#      via keccak256(rlp(h_i)))
+# Spec flow:
+#   validate_chain_config(...) -> RETURNS active_fork
+#   validate_headers([h0,h1,h2]) -> returns (decoded, hashes)
+#                                   [contiguity OK]
+#   parent_header = h2
+#   chain_context, pre_state built
+#   execute_new_payload_request(EMPTY_NPR, ...) -> raises
+#     (execution_payload has zero block_hash etc.; doesn't
+#      match the parent_hash chain we just built) -> caught
+#     at verify_stateless_new_payload -> False.
+# All earlier fixtures bailed at validate_chain_config OR
+# validate_headers; this fixture is the first to drive the
+# spec past both checks into execute_new_payload_request.
+# Variety dimension: spec code path coverage at the deepest
+# pre-execution layer.
+run_fixture "chain1_fork4_valid_chain" 1               4    ""           ""                  ""    "0"          ""           "14:21:11684671" "VALID_THREE" || fail=1
 
 # N=8 chained valid post-merge headers. Extends K-PR
 # iteration depth past the previous N=3 ceiling:
