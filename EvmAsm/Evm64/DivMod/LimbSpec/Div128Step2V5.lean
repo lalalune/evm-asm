@@ -24,6 +24,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128CapV5
+import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
 
 open EvmAsm.Rv64.Tactics
 
@@ -137,5 +138,65 @@ theorem divK_div128_step2_initcap_v5_spec_within
     (fun h hp => by xperm_hyp hp)
     (fun h hp => by xperm_hyp hp)
     h12
+
+/-- Code requirement for the div128 v5 step-2 prefix + Phase-2b leading
+    guard (instrs [46]-[58]): the init+cap code disjoint-unioned with the
+    guard `SRLI;BNE` ([57]-[58]). -/
+def divKDiv128Step2InitCapGuardV5Code (base : Word) : CodeReq :=
+  (divKDiv128Step2InitCapV5Code base).union
+  (CodeReq.union (CodeReq.singleton (base + 44) (.SRLI .x9 .x11 32))
+   (CodeReq.singleton (base + 48) (.BNE .x9 .x0 92)))
+
+/-- v5 div128 step-2 prefix + Phase-2b leading guard (instrs [46]-[58]).
+    Runs init+cap (→ q0c/rhat2c) then the Phase-2b guard `SRLI;BNE`: when
+    `rhat2c ≥ 2^32` the guard is taken and jumps past both D3 corrections to
+    `base+140` ([81], the combine boundary); otherwise it falls through to
+    `base+52` ([59], the Phase-2b body). `cpsBranchWithin` over the disjoint
+    union of the prefix and guard code requirements. Register-renamed mirror
+    of `divK_div128_step1_initcapguard_v5_spec_within`. -/
+theorem divK_div128_step2_initcapguard_v5_spec_within
+    (sp un21 dHi v5Old v9Old v11Old : Word) (base : Word) :
+    let q0 := rv64_divu un21 dHi
+    let rhat2 := un21 - q0 * dHi
+    let hi := q0 >>> (32 : BitVec 6).toNat
+    let q0cCap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+    let q0c := if hi = 0 then q0 else q0cCap
+    let rhat2c := if hi = 0 then rhat2 else rhat2 + (q0 - q0cCap) * dHi
+    let x7o := if hi = 0 then un21 else (q0 - q0cCap) * dHi
+    cpsBranchWithin 13 base (divKDiv128Step2InitCapGuardV5Code base)
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ un21) ** (.x6 ↦ᵣ dHi) ** (.x5 ↦ᵣ v5Old) **
+       (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ 0))
+      (base + 140)
+        ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x9 ↦ᵣ rhat2c >>> (32 : BitVec 6).toNat) **
+         (.x0 ↦ᵣ 0) ** ⌜rhat2c >>> (32 : BitVec 6).toNat ≠ 0⌝ **
+         (.x5 ↦ᵣ q0c) ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ x7o))
+      (base + 52)
+        ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ rhat2c) ** (.x9 ↦ᵣ rhat2c >>> (32 : BitVec 6).toNat) **
+         (.x0 ↦ᵣ 0) ** ⌜rhat2c >>> (32 : BitVec 6).toNat = 0⌝ **
+         (.x5 ↦ᵣ q0c) ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ x7o)) := by
+  intro q0 rhat2 hi q0cCap q0c rhat2c x7o
+  unfold divKDiv128Step2InitCapGuardV5Code
+  -- Prefix [46..56]: init + cap → q0c/rhat2c, framed with x12 = sp.
+  have hpre := divK_div128_step2_initcap_v5_spec_within un21 dHi v5Old v9Old v11Old base
+  have hpref := cpsTripleWithin_frameR (.x12 ↦ᵣ sp) (by pcFree) hpre
+  -- Guard [57..58] at base+44.
+  have hg := divK_div128_phase2b_guard_spec_within sp rhat2c
+    (if hi = 0 then hi else q0cCap) (base + 44) (92 : BitVec 13)
+  have hba : (base + 44 : Word) + 4 = base + 48 := by bv_addr
+  have hfe : (base + 44 : Word) + 8 = base + 52 := by bv_addr
+  simp only [hba, hfe] at hg
+  have hte : (base + 48 : Word) + signExtend13 (92 : BitVec 13) = base + 140 := by rv64_addr
+  rw [hte] at hg
+  have hgf := cpsBranchWithin_frameR
+    ((.x5 ↦ᵣ q0c) ** (.x6 ↦ᵣ dHi) ** (.x7 ↦ᵣ x7o))
+    (by pcFree) hg
+  have composed := cpsTripleWithin_seq_cpsBranchWithin_with_perm
+    (by unfold divKDiv128Step2InitCapV5Code; crDisjoint)
+    (fun h hp => by xperm_hyp hp) hpref hgf
+  exact cpsBranchWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    composed
 
 end EvmAsm.Evm64
