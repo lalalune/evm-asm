@@ -373,4 +373,88 @@ theorem divK_div128_prodcheck2_spill_merged_spec_within
           ntaken_clean hld_f)
         hjal_f)
 
+/-- Disjointness of the spill block's CodeReq [59..70] and the 2nd-D3 block's
+    CodeReq [71..80] (at base+48). Top-level (fresh heartbeat budget): the
+    120 singleton pairs would overflow `crDisjoint`'s inline simp. -/
+theorem divKDiv128Phase2bBody_spill_prodcheck2b_disjoint (base : Word) :
+    CodeReq.Disjoint
+      (CodeReq.union (CodeReq.singleton base (.LD .x9 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x7 .x5 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x9 .x11 32))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x11 3936))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.LD .x11 .x12 3944))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.OR .x9 .x9 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.BLTU .x9 .x7 12))
+      (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x11 .x12 3936))
+      (CodeReq.union (CodeReq.singleton (base + 32) (.JAL .x0 16))
+      (CodeReq.union (CodeReq.singleton (base + 36) (.ADDI .x5 .x5 4095))
+      (CodeReq.union (CodeReq.singleton (base + 40) (.LD .x11 .x12 3936))
+       (CodeReq.singleton (base + 44) (.ADD .x11 .x11 .x6)))))))))))))
+      (divKDiv128Prodcheck2bV5MergedCode (base + 48)) := by
+  unfold divKDiv128Prodcheck2bV5MergedCode
+  repeat' apply CodeReq.Disjoint.union_left
+  all_goals (repeat' apply CodeReq.Disjoint.union_right)
+  all_goals exact CodeReq.Disjoint.singleton (by bv_omega)
+
+/-- div128 v5 Phase-2b body (instrs [59]-[80]): the 1st-D3 spill correction
+    then the guarded 2nd-D3 correction. Composes `spill ;; prodcheck2b` via the
+    disjoint-union sequencing lemma. `cpsBranchWithin 20`, both legs at
+    `base + 88` ([81], the combine boundary): the 2nd-D3 guard taken leg
+    (`rhat2'Hi ≠ 0`) keeps `q0'`; the fall-through leg runs the 2nd mul-check.
+
+    Reached when the Phase-2b outer guard ([57..58]) falls through. Phase-2b
+    analogue of `divK_div128_phase1b_body_v5_spec_within`. -/
+theorem divK_div128_phase2b_body_v5_spec_within
+    (sp q0c rhat2c dHi v7Old v9Old dlo un0 vScratchOld : Word) (base : Word) :
+    let q0Dlo1 := q0c * dlo
+    let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0
+    let q0' := if BitVec.ult rhat2Un0 q0Dlo1 then q0c + signExtend12 4095 else q0c
+    let rhat2' := if BitVec.ult rhat2Un0 q0Dlo1 then rhat2c + dHi else rhat2c
+    let cr :=
+      (CodeReq.union (CodeReq.singleton base (.LD .x9 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x7 .x5 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SLLI .x9 .x11 32))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SD .x12 .x11 3936))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.LD .x11 .x12 3944))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.OR .x9 .x9 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.BLTU .x9 .x7 12))
+      (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x11 .x12 3936))
+      (CodeReq.union (CodeReq.singleton (base + 32) (.JAL .x0 16))
+      (CodeReq.union (CodeReq.singleton (base + 36) (.ADDI .x5 .x5 4095))
+      (CodeReq.union (CodeReq.singleton (base + 40) (.LD .x11 .x12 3936))
+       (CodeReq.singleton (base + 44) (.ADD .x11 .x11 .x6))))))))))))).union
+      (divKDiv128Prodcheck2bV5MergedCode (base + 48))
+    cpsBranchWithin 20 base cr
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ q0c) ** (.x11 ↦ᵣ rhat2c) ** (.x6 ↦ᵣ dHi) **
+       (.x7 ↦ᵣ v7Old) ** (.x9 ↦ᵣ v9Old) ** (.x0 ↦ᵣ 0) **
+       (sp + signExtend12 3952 ↦ₘ dlo) ** (sp + signExtend12 3944 ↦ₘ un0) **
+       (sp + signExtend12 3936 ↦ₘ vScratchOld))
+      (base + 88)
+        ((divKDiv128Prodcheck2bV5MergedTakenPost sp q0' rhat2' q0Dlo1 dlo un0) **
+         ((.x6 ↦ᵣ dHi) ** (sp + signExtend12 3936 ↦ₘ rhat2c)))
+      (base + 88)
+        ((divKDiv128Prodcheck2bV5MergedFTPost sp q0' rhat2' dlo un0) **
+         ((.x6 ↦ᵣ dHi) ** (sp + signExtend12 3936 ↦ₘ rhat2c))) := by
+  intro q0Dlo1 rhat2Un0 q0' rhat2' cr
+  -- Block 1: spill 1st-D3 [59..70] (cpsTriple base → base+48).
+  have h1 := divK_div128_prodcheck2_spill_merged_spec_within
+    sp q0c rhat2c dHi v7Old v9Old dlo un0 vScratchOld base
+  -- Block 2: 2nd-D3 prodcheck2b [71..80] at base+48, framed with x6/mem3936.
+  have h2_raw := divK_div128_prodcheck2b_v5_merged_spec_within
+    sp q0' rhat2' q0Dlo1 rhat2Un0 dlo un0 (base + 48)
+  have he : (base + 48 : Word) + 40 = base + 88 := by bv_addr
+  rw [he] at h2_raw
+  unfold divKDiv128Prodcheck2bV5MergedPre at h2_raw
+  have h2f := cpsBranchWithin_frameR
+    ((.x6 ↦ᵣ dHi) ** (sp + signExtend12 3936 ↦ₘ rhat2c))
+    (by pcFree) h2_raw
+  have composed := cpsTripleWithin_seq_cpsBranchWithin_with_perm
+    (divKDiv128Phase2bBody_spill_prodcheck2b_disjoint base)
+    (fun h hp => by xperm_hyp hp) h1 h2f
+  exact cpsBranchWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => hp)
+    (fun h hp => hp)
+    composed
+
 end EvmAsm.Evm64
