@@ -621,6 +621,19 @@ run_fixture "chain1_valid_gas_hibit" 1                 0    ""           ""     
 # reached on the second loop iteration rather than the first.
 run_fixture "chain1_invalid_diff_at_1" 1               0    ""           ""                  ""    ""           ""           ""    "INVALID_DIFF_AT_1" || fail=1
 
+# Two headers: first valid (gas_used=0 <= gas_limit=1e6),
+# second has gas_used > gas_limit. K290 and K291 iterate
+# 2 times each (both pass on both headers); K240 iterates
+# 2 times -- passes on header 0 (0 <= 1e6), FAILS on
+# header 1 (1000001 > 1000000). Closes the K240 iteration
+# coverage gap: existing INVALID_DIFF_AT_1 covers K290's
+# per-header loop body at the LAST index, and
+# INVALID_EXTRA_AT_2 covers K291's, but K240's per-header
+# iteration was only ever exercised at index 0 via
+# INVALID_GAS. This fixture exercises K240's loop body
+# beyond the first iteration.
+run_fixture "chain1_invalid_gas_at_1"  1               0    ""           ""                  ""    ""           ""           ""    "INVALID_GAS_AT_1" || fail=1
+
 # Two headers: first valid (blob_gas_used=0, trivially a
 # multiple of GAS_PER_BLOB=131072), second has blob_gas_used=1
 # (NOT a multiple). K290 / K291 / K240 iterate 2 times each
