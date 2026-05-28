@@ -69,6 +69,7 @@ npr_excess_blob_str = sys.argv[14] if len(sys.argv) > 14 else ''
 npr_block_number_str = sys.argv[15] if len(sys.argv) > 15 else ''
 npr_gas_limit_str = sys.argv[16] if len(sys.argv) > 16 else ''
 npr_prev_randao_hex = sys.argv[17] if len(sys.argv) > 17 else ''
+npr_gas_used_str = sys.argv[18] if len(sys.argv) > 18 else ''
 
 # Build the new-schema StatelessInput: empty new_payload_request,
 # witness whose 'state'/'codes' lists each hold zero or more
@@ -740,7 +741,7 @@ if npr_pbr_hex:
     from remerkleable.byte_arrays import Bytes32 as Bytes32SSZ
     npr_kwargs['parent_beacon_block_root'] = Bytes32SSZ(bytes.fromhex(npr_pbr_hex))
 if (npr_slot_str or npr_excess_blob_str or npr_block_number_str or
-    npr_gas_limit_str or npr_prev_randao_hex):
+    npr_gas_limit_str or npr_prev_randao_hex or npr_gas_used_str):
     from ethereum.forks.amsterdam.stateless_ssz import SszExecutionPayload
     from remerkleable.basic import uint64 as Uint64SSZ
     from remerkleable.byte_arrays import Bytes32 as Bytes32SSZ
@@ -755,6 +756,8 @@ if (npr_slot_str or npr_excess_blob_str or npr_block_number_str or
         ep_kwargs['gas_limit'] = Uint64SSZ(int(npr_gas_limit_str, 0))
     if npr_prev_randao_hex:
         ep_kwargs['prev_randao'] = Bytes32SSZ(bytes.fromhex(npr_prev_randao_hex))
+    if npr_gas_used_str:
+        ep_kwargs['gas_used'] = Uint64SSZ(int(npr_gas_used_str, 0))
     npr_kwargs['execution_payload'] = SszExecutionPayload(**ep_kwargs)
 npr = SszNewPayloadRequest(**npr_kwargs)
 
