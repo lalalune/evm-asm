@@ -286,6 +286,49 @@ def statelessGuestDataSection : String :=
   "  .byte 0xb6, 0x76, 0xd2, 0x91, 0x3b, 0xac, 0x8d, 0x4e\n" ++
   ".balign 8\n" ++
   "npr_node_0_15_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- `npr_leaf_4_logs_bloom_root` is the SSZ hash_tree_root of
+  -- an empty `logs_bloom` (ByteVector[256], all zeros), = leaf 4
+  -- of the default exec_payload merkle. Now that the
+  -- `.Lsg_hash` epilogue computes `node_4_5` dynamically to
+  -- support non-default `prev_randao` (= leaf 5), only the
+  -- logs_bloom-side leaf needs to be precomputed as a constant.
+  -- `npr_node_4_5_scratch` holds the dynamic
+  -- sha256(npr_leaf_4_logs_bloom_root || prev_randao).
+  ".balign 8\n" ++
+  "npr_leaf_4_logs_bloom_root:\n" ++
+  "  .byte 0xc7, 0x80, 0x09, 0xfd, 0xf0, 0x7f, 0xc5, 0x6a\n" ++
+  "  .byte 0x11, 0xf1, 0x22, 0x37, 0x06, 0x58, 0xa3, 0x53\n" ++
+  "  .byte 0xaa, 0xa5, 0x42, 0xed, 0x63, 0xe4, 0x4c, 0x4b\n" ++
+  "  .byte 0xc1, 0x5f, 0xf4, 0xcd, 0x10, 0x5a, 0xb3, 0x3c\n" ++
+  ".balign 8\n" ++
+  "npr_node_4_5_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- Sibling constants for the dynamic node_8_15 path supporting
+  -- leaf_8 = gas_used. Both are subtree roots over default
+  -- exec_payload fields and remain static until those leaves
+  -- are opened up in follow-up PRs:
+  --   npr_node_10_11 = sha256(leaf_10=extra_data_root_default ||
+  --                           leaf_11=base_fee_per_gas_default)
+  --   npr_node_12_15 = subtree over default leaves 12..15
+  --                    (block_hash, transactions, withdrawals,
+  --                    blob_gas_used).
+  -- `npr_node_8_15_scratch` is the 32-byte buffer that holds
+  -- the dynamic node_8_15.
+  ".balign 8\n" ++
+  "npr_node_10_11:\n" ++
+  "  .byte 0x7a, 0x05, 0x01, 0xf5, 0x95, 0x7b, 0xdf, 0x9c\n" ++
+  "  .byte 0xb3, 0xa8, 0xff, 0x49, 0x66, 0xf0, 0x22, 0x65\n" ++
+  "  .byte 0xf9, 0x68, 0x65, 0x8b, 0x7a, 0x9c, 0x62, 0x64\n" ++
+  "  .byte 0x2c, 0xba, 0x11, 0x65, 0xe8, 0x66, 0x42, 0xf5\n" ++
+  ".balign 8\n" ++
+  "npr_node_12_15:\n" ++
+  "  .byte 0x88, 0x4f, 0x54, 0x7a, 0xad, 0x3a, 0x48, 0x73\n" ++
+  "  .byte 0xe7, 0x79, 0xe0, 0x4f, 0x8d, 0xdd, 0xb8, 0x8f\n" ++
+  "  .byte 0xd4, 0xe8, 0x22, 0x22, 0xa4, 0x4a, 0xb8, 0xa0\n" ++
+  "  .byte 0x37, 0xf2, 0x21, 0xdb, 0x97, 0xe9, 0x7b, 0xaa\n" ++
+  ".balign 8\n" ++
+  "npr_node_8_15_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen
