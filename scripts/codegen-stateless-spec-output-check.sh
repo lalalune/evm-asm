@@ -81,6 +81,10 @@ run_fixture() {
   local blob_schedule="${9:-}"
   local witness_headers_hex="${10:-}"
   local npr_pbr_hex="${11:-}"
+  local npr_slot_str="${12:-}"
+  local npr_excess_blob_str="${13:-}"
+  local npr_block_number_str="${14:-}"
+  local npr_gas_limit_str="${15:-}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -88,8 +92,8 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty}, npr_pbr=${npr_pbr_hex:-empty})"
-  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex" "$npr_pbr_hex"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty}, npr_pbr=${npr_pbr_hex:-empty}, npr_slot=${npr_slot_str:-empty}, npr_excess_blob=${npr_excess_blob_str:-empty}, npr_block_number=${npr_block_number_str:-empty}, npr_gas_limit=${npr_gas_limit_str:-empty})"
+  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex" "$npr_pbr_hex" "$npr_slot_str" "$npr_excess_blob_str" "$npr_block_number_str" "$npr_gas_limit_str"
 
   # Guard against silent fail: if the spec generator crashed
   # (Python syntax error in the heredoc, missing import, etc.)
@@ -197,6 +201,50 @@ run_fixture "chain_sepolia_amsterdam" 11155111         4    ""           ""     
 # previously-shipped fixtures (pbr=zero), the computation
 # reproduces the empty_npr_root constant exactly.
 run_fixture "chain1_npr_pbr_ff" 1                      0    ""           ""                  ""    ""           ""           ""    ""                       "$(printf 'ff%.0s' {1..32})" || fail=1
+
+# Non-empty execution_payload: slot_number = 0x1234, all other
+# execution_payload fields default. The 19-field SSZ Container
+# merkleization tree changes at leaf 18 (slot_number's field
+# index), which propagates up 5 levels to a new
+# exec_payload_root, then through the NPR merkle to a new
+# top-level root. Drives the encoder past its current
+# pbr-only computation by adding the exec_payload merkle path
+# (5 extra sha256 calls + 2 new sibling constants `node_0_15`
+# and `node_16_17`).
+run_fixture "chain1_npr_exec_payload_slot_1234" 1      0    ""           ""                  ""    ""           ""           ""    ""                       ""                                "4660" || fail=1
+
+# Non-empty execution_payload: excess_blob_gas = 0x2A
+# (leaf 16 in the exec_payload Container's 32-leaf merkle).
+# Until now `npr_node_16_17` was a precomputed constant in
+# `.data`; this PR replaces it with a dynamic
+#   sha256(leaf_16 || npr_leaf_17_block_access_list_root)
+# computation -- one extra sha256 call in `.Lsg_hash`.
+# For pre-existing fixtures (excess_blob_gas=0), the dynamic
+# computation reproduces the old constant byte-for-byte
+# because leaf_16 = ssz_zero_hash[0].
+run_fixture "chain1_npr_exec_payload_excess_blob_42" 1 0    ""           ""                  ""    ""           ""           ""    ""                       ""                                ""    "42" || fail=1
+
+# Non-empty execution_payload: block_number = 0xABCDEF (leaf
+# 6 in the exec_payload Container's 32-leaf merkle tree).
+# Drives the implementation past the existing
+# `npr_node_0_15` constant: previously this constant was
+# used directly as the LEFT input to `exec_payload_root`;
+# now leaf 6's merkle path is computed dynamically:
+#   node_6_7  = sha256(leaf_6 || ssz_zero_hash[0])
+#   node_4_7  = sha256(npr_node_4_5_constant || node_6_7)
+#   node_0_7  = sha256(ssz_zero_hash[2] || node_4_7)
+#   node_0_15 = sha256(node_0_7 || npr_node_8_15_constant)
+# Two new sibling constants (`npr_node_4_5`,
+# `npr_node_8_15`) replace one (`npr_node_0_15`).
+run_fixture "chain1_npr_exec_payload_block_number_abcdef" 1 0 ""        ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    "11259375" || fail=1
+
+# Non-empty execution_payload: gas_limit = 0xC0FFEE (leaf 7,
+# sibling of block_number in the exec_payload merkle tree's
+# node_6_7 pair). The current dynamic node_6_7 computation
+# hardcodes leaf_7 = ssz_zero_hash[0]; this fixture forces
+# the asm to read gas_limit from input and use it as the
+# right input to node_6_7 = sha256(leaf_6 || leaf_7).
+run_fixture "chain1_npr_exec_payload_gas_limit_coffee" 1 0  ""           ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    ""    "12648430" || fail=1
 
 # Edge: chain_id = 2^32 = 0x100000000. LE bytes
 # 00 00 00 00 01 00 00 00. The encoder's chain_id split
