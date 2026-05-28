@@ -351,6 +351,17 @@ def statelessGuestDataSection : String :=
   -- values.
   ".balign 8\n" ++
   "npr_node_2_3_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- `npr_node_10_11_scratch` holds dynamic
+  -- sha256(leaf_10=extra_data_default_root || leaf_11=base_fee_per_gas).
+  -- Replaces the previously-static `npr_node_10_11` constant when
+  -- combined with node_8_9 to form node_8_11. Opens up leaf_11
+  -- (base_fee_per_gas) for non-default values; leaf_10
+  -- (extra_data) still uses its empty-list default root
+  -- (= ssz_zero_hash[1]) loaded from the existing
+  -- ssz_zero_hashes table.
+  ".balign 8\n" ++
+  "npr_node_10_11_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen
