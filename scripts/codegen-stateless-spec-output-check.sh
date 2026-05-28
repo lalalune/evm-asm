@@ -400,6 +400,25 @@ run_fixture "chain1_fork4_inactive_bn" 1               4    ""           ""     
 # branch of validate_headers.
 run_fixture "chain1_fork4_noncontig"   1               4    ""           ""                  ""    "0"          ""           "14:21:11684671" "VALID_TWO" || fail=1
 
+# UnsupportedForkConfigError via blob_schedule mismatch.
+# Configuration:
+#   chain_id      = 1
+#   fork          = 4 (Amsterdam -- passes the fork check)
+#   activation.bn = [0] (passes _is_activation_active)
+#   blob_schedule = (15, 21, 11684671)  <-- target off by 1
+#                                           (Amsterdam expects 14)
+# Spec flow:
+#   _is_activation_active(...)      -> True
+#   active_fork.fork == Amsterdam   -> True
+#   blob_schedule != amsterdam exp  -> raises
+#     UnsupportedForkConfigError("...blob_schedule does not
+#     match Amsterdam"). Caught -> successful_validation=False.
+# Distinct sub-branch of UnsupportedForkConfigError. The
+# OTHER UnsupportedForkConfigError ("Amsterdam stateless guest
+# cannot execute X") is exercised by every fork=0/1 fixture;
+# the blob-mismatch sub-branch was uncovered until now.
+run_fixture "chain1_fork4_wrong_blob"  1               4    ""           ""                  ""    "0"          ""           "15:21:11684671" || fail=1
+
 # Valid post-merge header with REALISTIC non-zero values for
 # every K-PR-IGNORED field (parent_hash, coinbase, state_root,
 # transactions_root, receipt_root, bloom, prev_randao,
