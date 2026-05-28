@@ -296,15 +296,28 @@ def statelessGuestEpilogue : String :=
   "  sd zero, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_0_3_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_0_1 -> npr_node_0_3_scratch\n" ++
-  "  # node_0_3 = sha256(node_0_1 || ssz_zero_hash[1])\n" ++
+  "  # node_2_3 = sha256(leaf_2=state_root || leaf_3=receipts_root):\n" ++
+  "  #   state_root    (Bytes32 @ SSZ_BASE + 16 + 44 + 52  = +112)\n" ++
+  "  #   receipts_root (Bytes32 @ SSZ_BASE + 16 + 44 + 84  = +144)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  ld t2, 112(s6); sd t2,  0(t1)\n" ++
+  "  ld t2, 120(s6); sd t2,  8(t1)\n" ++
+  "  ld t2, 128(s6); sd t2, 16(t1)\n" ++
+  "  ld t2, 136(s6); sd t2, 24(t1)\n" ++
+  "  ld t2, 144(s6); sd t2, 32(t1)\n" ++
+  "  ld t2, 152(s6); sd t2, 40(t1)\n" ++
+  "  ld t2, 160(s6); sd t2, 48(t1)\n" ++
+  "  ld t2, 168(s6); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_2_3_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_2_3 -> npr_node_2_3_scratch\n" ++
+  "  # node_0_3 = sha256(node_0_1 || node_2_3)\n" ++
   "  la t1, npr_sha_input\n" ++
   "  la t3, npr_node_0_3_scratch\n" ++
   "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
   "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
-  "  la t3, ssz_zero_hashes\n" ++
-  "  addi t3, t3, 32             # ssz_zero_hash[1]\n" ++
+  "  la t3, npr_node_2_3_scratch\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
