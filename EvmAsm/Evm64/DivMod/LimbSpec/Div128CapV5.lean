@@ -41,6 +41,17 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- Code requirement for the div128 v5 Phase-1a `q1` cap (instrs [13]-[20]). -/
+def divKDiv128CapQ1V5Code (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.SRLI .x5 .x10 32))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x5 .x0 28))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x5 .x0 4095))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x5 .x5 32))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.SUB .x9 .x10 .x5))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.MUL .x9 .x9 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x7 .x7 .x9))
+   (CodeReq.singleton (base + 28) (.ADDI .x10 .x5 0))))))))
+
 /-- div128 v5 Phase-1a cap on `q1`: test `q1 ≥ 2^32`; when set, cap
     `q1c := 0xFFFFFFFF` and recompute `rhatc := rhat + (q1 - q1cCap) * dHi`.
     Instrs [13]-[20]. Both BEQ paths merge at base+32. -/
@@ -52,21 +63,24 @@ theorem divK_div128_cap_q1_v5_merged_spec_within
     let rhatc := if hi = 0 then rhat else rhat + (q1 - q1cCap) * dHi
     let x5o := if hi = 0 then hi else q1cCap
     let x9o := if hi = 0 then v9Old else (q1 - q1cCap) * dHi
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.SRLI .x5 .x10 32))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x5 .x0 28))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x5 .x0 4095))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x5 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.SUB .x9 .x10 .x5))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.MUL .x9 .x9 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x7 .x7 .x9))
-       (CodeReq.singleton (base + 28) (.ADDI .x10 .x5 0))))))))
-    cpsTripleWithin 8 base (base + 32) cr
+    cpsTripleWithin 8 base (base + 32) (divKDiv128CapQ1V5Code base)
       ((.x10 ↦ᵣ q1) ** (.x7 ↦ᵣ rhat) ** (.x6 ↦ᵣ dHi) **
        (.x5 ↦ᵣ v5Old) ** (.x9 ↦ᵣ v9Old) ** (.x0 ↦ᵣ 0))
       ((.x10 ↦ᵣ q1c) ** (.x7 ↦ᵣ rhatc) ** (.x6 ↦ᵣ dHi) **
        (.x5 ↦ᵣ x5o) ** (.x9 ↦ᵣ x9o) ** (.x0 ↦ᵣ 0)) := by
-  intro hi q1cCap q1c rhatc x5o x9o cr
+  intro hi q1cCap q1c rhatc x5o x9o
+  -- Proof-local `cr` bound to the union literal (so `runBlock` can resolve
+  -- instruction addresses); the statement uses `divKDiv128CapQ1V5Code`.
+  let cr :=
+    CodeReq.union (CodeReq.singleton base (.SRLI .x5 .x10 32))
+    (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x5 .x0 28))
+    (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x5 .x0 4095))
+    (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x5 .x5 32))
+    (CodeReq.union (CodeReq.singleton (base + 16) (.SUB .x9 .x10 .x5))
+    (CodeReq.union (CodeReq.singleton (base + 20) (.MUL .x9 .x9 .x6))
+    (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x7 .x7 .x9))
+     (CodeReq.singleton (base + 28) (.ADDI .x10 .x5 0))))))))
+  show cpsTripleWithin 8 base (base + 32) cr _ _
   -- Block prefix: [13] SRLI → x5 = hi.
   have I0 := srli_spec_gen_within .x5 .x10 v5Old q1 32 base (by nofun)
   have hbody : cpsTripleWithin 1 base (base + 4) cr
@@ -169,6 +183,17 @@ theorem divK_div128_cap_q1_v5_merged_spec_within
       (fun h hp => hp)
       (fun h hp => by xperm_hyp hp) full
 
+/-- Code requirement for the div128 v5 Phase-2a `q0` cap (instrs [47]-[54]). -/
+def divKDiv128CapQ0V5Code (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.SRLI .x9 .x5 32))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x9 .x0 28))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x9 .x0 4095))
+  (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x9 32))
+  (CodeReq.union (CodeReq.singleton (base + 16) (.SUB .x7 .x5 .x9))
+  (CodeReq.union (CodeReq.singleton (base + 20) (.MUL .x7 .x7 .x6))
+  (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x7))
+   (CodeReq.singleton (base + 28) (.ADDI .x5 .x9 0))))))))
+
 /-- div128 v5 Phase-2a cap on `q0`: test `q0 ≥ 2^32`; when set, cap
     `q0c := 0xFFFFFFFF` and recompute `rhat2c := rhat2 + (q0 - q0cCap) * dHi`.
     Instrs [47]-[54]. Register-renamed mirror of
@@ -184,21 +209,24 @@ theorem divK_div128_cap_q0_v5_merged_spec_within
     let rhat2c := if hi = 0 then rhat2 else rhat2 + (q0 - q0cCap) * dHi
     let x9o := if hi = 0 then hi else q0cCap
     let x7o := if hi = 0 then v7Old else (q0 - q0cCap) * dHi
-    let cr :=
-      CodeReq.union (CodeReq.singleton base (.SRLI .x9 .x5 32))
-      (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x9 .x0 28))
-      (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x9 .x0 4095))
-      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x9 32))
-      (CodeReq.union (CodeReq.singleton (base + 16) (.SUB .x7 .x5 .x9))
-      (CodeReq.union (CodeReq.singleton (base + 20) (.MUL .x7 .x7 .x6))
-      (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x7))
-       (CodeReq.singleton (base + 28) (.ADDI .x5 .x9 0))))))))
-    cpsTripleWithin 8 base (base + 32) cr
+    cpsTripleWithin 8 base (base + 32) (divKDiv128CapQ0V5Code base)
       ((.x5 ↦ᵣ q0) ** (.x11 ↦ᵣ rhat2) ** (.x6 ↦ᵣ dHi) **
        (.x9 ↦ᵣ v9Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ 0))
       ((.x5 ↦ᵣ q0c) ** (.x11 ↦ᵣ rhat2c) ** (.x6 ↦ᵣ dHi) **
        (.x9 ↦ᵣ x9o) ** (.x7 ↦ᵣ x7o) ** (.x0 ↦ᵣ 0)) := by
-  intro hi q0cCap q0c rhat2c x9o x7o cr
+  intro hi q0cCap q0c rhat2c x9o x7o
+  -- Proof-local `cr` bound to the union literal (so `runBlock` can resolve
+  -- instruction addresses); the statement uses `divKDiv128CapQ0V5Code`.
+  let cr :=
+    CodeReq.union (CodeReq.singleton base (.SRLI .x9 .x5 32))
+    (CodeReq.union (CodeReq.singleton (base + 4) (.BEQ .x9 .x0 28))
+    (CodeReq.union (CodeReq.singleton (base + 8) (.ADDI .x9 .x0 4095))
+    (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x9 .x9 32))
+    (CodeReq.union (CodeReq.singleton (base + 16) (.SUB .x7 .x5 .x9))
+    (CodeReq.union (CodeReq.singleton (base + 20) (.MUL .x7 .x7 .x6))
+    (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x11 .x11 .x7))
+     (CodeReq.singleton (base + 28) (.ADDI .x5 .x9 0))))))))
+  show cpsTripleWithin 8 base (base + 32) cr _ _
   -- Block prefix: [47] SRLI → x9 = hi.
   have I0 := srli_spec_gen_within .x9 .x5 v9Old q0 32 base (by nofun)
   have hbody : cpsTripleWithin 1 base (base + 4) cr
