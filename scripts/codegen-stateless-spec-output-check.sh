@@ -723,6 +723,18 @@ run_fixture "chain1_invalid_diff_at_1" 1               0    ""           ""     
 # beyond the first iteration.
 run_fixture "chain1_invalid_gas_at_1"  1               0    ""           ""                  ""    ""           ""           ""    "INVALID_GAS_AT_1" || fail=1
 
+# Two headers: first valid (blob_gas_used=0), second has
+# blob_gas_used = 7 * 131072 = 917504. The value is a
+# multiple of GAS_PER_BLOB so K278 passes, but exceeds
+# MAX_BLOB_GAS_PER_BLOCK = 6 * 131072 = 786432 so K277
+# rejects. K290 / K291 / K240 / K278 iterate twice (all
+# pass); K277 iterates twice -- passes on header 0
+# (0 <= 786432), FAILS on header 1 (917504 > 786432).
+# Closes the K277 iteration coverage gap and (together with
+# the sister K240/K278 AT_1 fixtures) completes the per-K-PR
+# iteration matrix at the non-zero index.
+run_fixture "chain1_invalid_blob_overmax_at_1" 1       0    ""           ""                  ""    ""           ""           ""    "INVALID_BLOB_OVERMAX_AT_1" || fail=1
+
 # Three headers: 0 and 1 valid, header[2] has extra_data
 # length 33. K290 iterates 3 times (all pass); K291 iterates
 # 3 times -- passes on 0 and 1, FAILS on 2. Tests K-PR
