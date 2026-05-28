@@ -341,6 +341,16 @@ def statelessGuestDataSection : String :=
   -- mirroring the leaf_7/gas_limit pattern).
   ".balign 8\n" ++
   "npr_node_0_3_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- `npr_node_2_3_scratch` holds dynamic
+  -- sha256(leaf_2=state_root || leaf_3=receipts_root). Replaces
+  -- the previously-static `ssz_zero_hash[1]` (= default
+  -- node_2_3) as the right input to
+  -- node_0_3 = sha256(node_0_1 || node_2_3). Opens up leaf_2
+  -- (state_root) and leaf_3 (receipts_root) for non-default
+  -- values.
+  ".balign 8\n" ++
+  "npr_node_2_3_scratch:\n" ++
   "  .zero 32"
 
 end EvmAsm.Codegen

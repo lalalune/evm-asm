@@ -90,6 +90,7 @@ run_fixture() {
   local npr_timestamp_str="${18:-}"
   local npr_parent_hash_hex="${19:-}"
   local npr_fee_recipient_hex="${20:-}"
+  local npr_state_root_hex="${21:-}"
 
   local safe="${label//[^0-9A-Za-z_]/_}"
   local input_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.input"
@@ -97,8 +98,8 @@ run_fixture() {
   local spec_exp_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.spec-expected"
   local log_file="$REPO_ROOT/gen-out/stateless_guest-spec-${safe}.emu.log"
 
-  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty}, npr_pbr=${npr_pbr_hex:-empty}, npr_slot=${npr_slot_str:-empty}, npr_excess_blob=${npr_excess_blob_str:-empty}, npr_block_number=${npr_block_number_str:-empty}, npr_gas_limit=${npr_gas_limit_str:-empty}, npr_prev_randao=${npr_prev_randao_hex:-empty}, npr_gas_used=${npr_gas_used_str:-empty}, npr_timestamp=${npr_timestamp_str:-empty}, npr_parent_hash=${npr_parent_hash_hex:-empty}, npr_fee_recipient=${npr_fee_recipient_hex:-empty})"
-  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex" "$npr_pbr_hex" "$npr_slot_str" "$npr_excess_blob_str" "$npr_block_number_str" "$npr_gas_limit_str" "$npr_prev_randao_hex" "$npr_gas_used_str" "$npr_timestamp_str" "$npr_parent_hash_hex" "$npr_fee_recipient_hex"
+  echo "==> [$label] gen new-schema SSZ input + spec expected (chain_id=$cid, fork=$fork, code=${witness_code_hex:-empty}, state=${witness_state_hex:-empty}, pk=${public_key_hex:-empty}, bn=${block_number:-empty}, ts=${timestamp:-empty}, blob=${blob_schedule:-empty}, hdr=${witness_headers_hex:-empty}, npr_pbr=${npr_pbr_hex:-empty}, npr_slot=${npr_slot_str:-empty}, npr_excess_blob=${npr_excess_blob_str:-empty}, npr_block_number=${npr_block_number_str:-empty}, npr_gas_limit=${npr_gas_limit_str:-empty}, npr_prev_randao=${npr_prev_randao_hex:-empty}, npr_gas_used=${npr_gas_used_str:-empty}, npr_timestamp=${npr_timestamp_str:-empty}, npr_parent_hash=${npr_parent_hash_hex:-empty}, npr_fee_recipient=${npr_fee_recipient_hex:-empty}, npr_state_root=${npr_state_root_hex:-empty})"
+  uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/codegen-stateless-gen-fixture.py" "$cid" "$input_file" "$spec_exp_file" "$fork" "$witness_code_hex" "$witness_state_hex" "$public_key_hex" "$block_number" "$timestamp" "$blob_schedule" "$witness_headers_hex" "$npr_pbr_hex" "$npr_slot_str" "$npr_excess_blob_str" "$npr_block_number_str" "$npr_gas_limit_str" "$npr_prev_randao_hex" "$npr_gas_used_str" "$npr_timestamp_str" "$npr_parent_hash_hex" "$npr_fee_recipient_hex" "$npr_state_root_hex"
 
   # Guard against silent fail: if the spec generator crashed
   # (Python syntax error in the heredoc, missing import, etc.)
@@ -303,6 +304,16 @@ run_fixture "chain1_npr_exec_payload_parent_hash_aa" 1   0   ""           ""    
 #   sd zero (bytes 24..32 padding)
 # Pure read-side extension -- no new sha256 calls.
 run_fixture "chain1_npr_exec_payload_fee_recipient_11" 1 0   ""           ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    ""    ""    ""                                ""    ""    ""    "$(printf '11%.0s' {1..20})" || fail=1
+
+# Non-empty execution_payload: state_root = 0x22*32 (leaf 2,
+# Bytes32 inline). The current implementation hardcodes
+# `node_2_3 = ssz_zero_hash[1]` as the right input to the
+# dynamic `node_0_3 = sha256(node_0_1 || ssz_zero_hash[1])`.
+# This PR replaces that lookup with a dynamic
+#   node_2_3 = sha256(leaf_2=state_root || leaf_3=receipts_root)
+# One extra sha256 call. Opens up BOTH state_root (leaf 2)
+# and receipts_root (leaf 3) -- this fixture exercises leaf 2.
+run_fixture "chain1_npr_exec_payload_state_root_22" 1    0   ""           ""                  ""    ""           ""           ""    ""                       ""                                ""    ""    ""    ""    ""                                ""    ""    ""    ""    "$(printf '22%.0s' {1..32})" || fail=1
 
 # Edge: chain_id = 2^32 = 0x100000000. LE bytes
 # 00 00 00 00 01 00 00 00. The encoder's chain_id split
