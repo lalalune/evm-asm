@@ -46,8 +46,10 @@ lake build codegen
 echo "==> emit + link runtime_dispatcher.elf (once)"
 lake exe codegen --program runtime_dispatcher --halt linux93 -o gen-out/runtime_dispatcher
 
-# `--list-test-cases` is a 4-column TSV: <name> <expected_hex> <bytecode_csv> <calldata>.
-# (M21: optional 4th column. Empty 4th column = no calldata, preserves pre-M21 behavior.)
+# `--list-test-cases` is a 5-column TSV:
+#   <name> <expected_hex> <bytecode_csv> <calldata> <storage>
+# (M21: 4th column = calldata, empty = no calldata, back-compat.)
+# (M22: 5th column = storage preload, empty = no preload.)
 # Single source of truth lives in `EvmAsm/Codegen/Tests/Cases.lean`.
 LIST_FILE="gen-out/.opcodes-list"
 lake exe codegen --list-test-cases >"$LIST_FILE"
@@ -63,7 +65,18 @@ fi
 echo "==> running $TOTAL test case(s) through runtime_dispatcher.elf"
 
 FAILED=()
-while IFS=$'\t' read -r name expected bytecode_csv calldata; do
+while IFS= read -r line; do
+  # POSIX `read -r` with IFS=$'\t' collapses adjacent tab separators
+  # (tab is treated as IFS-whitespace), which silently shifts the
+  # storage column into the calldata slot when calldata is empty.
+  # `cut -f` preserves empty fields, so we slice each column
+  # explicitly. Order matches `--list-test-cases` 5-column TSV.
+  name=$(printf '%s' "$line" | cut -f1)
+  expected=$(printf '%s' "$line" | cut -f2)
+  bytecode_csv=$(printf '%s' "$line" | cut -f3)
+  calldata=$(printf '%s' "$line" | cut -f4)
+  storage=$(printf '%s' "$line" | cut -f5)
+
   if [[ -z "$name" || -z "$expected" || -z "$bytecode_csv" ]]; then
     echo
     echo "==> SKIP: malformed --list-test-cases line (missing 1+ columns)"
@@ -73,14 +86,19 @@ while IFS=$'\t' read -r name expected bytecode_csv calldata; do
 
   echo
   echo "==> pack $name"
-  # M21: pass --calldata only when non-empty so pre-M21 invocations
-  # produce identical input bytes (zero-length calldata segment still
-  # gets appended by pack-bytecode.py for both paths).
-  if [[ -n "$calldata" ]]; then
-    "$PYTHON" scripts/pack-bytecode.py --calldata "$calldata" "$bytecode_csv" "gen-out/$name.input"
-  else
-    "$PYTHON" scripts/pack-bytecode.py "$bytecode_csv" "gen-out/$name.input"
+  # M21/M22: pass --calldata / --storage only when non-empty so pre-M21
+  # / pre-M22 invocations produce identical input bytes downstream
+  # (zero-length segments still get appended by pack-bytecode.py).
+  # `${arr[@]+...}` guards against `set -u` complaining about an
+  # empty-array expansion on macOS bash 3.2.
+  pack_args=()
+  if [[ -n "${calldata:-}" ]]; then
+    pack_args+=(--calldata "$calldata")
   fi
+  if [[ -n "${storage:-}" ]]; then
+    pack_args+=(--storage "$storage")
+  fi
+  "$PYTHON" scripts/pack-bytecode.py ${pack_args[@]+"${pack_args[@]}"} "$bytecode_csv" "gen-out/$name.input"
 
   echo "==> ziskemu -e runtime_dispatcher.elf -i gen-out/$name.input"
   "$ZISKEMU" -e gen-out/runtime_dispatcher.elf -i "gen-out/$name.input" \
