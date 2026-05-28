@@ -343,6 +343,138 @@ def divK_div128_v4 : Program :=
   JALR .x0 .x2 0                              -- [74] return
   -- Total: 75 instructions (61 v2 + 14 for Phase 2b 2nd D3 + save/restore)
 
+/-- **v5** 128/64-bit unsigned division subroutine — repairs the two
+    buggy ULTs in `divK_div128_v4` (PR #7077, PR #7080). This bead
+    `evm-asm-wbc4i.3.1` introduces the def with the **Phase-1a cap**
+    only; Phase-2a is still the v4-style `q0 - 1` and will be replaced
+    in bead `evm-asm-wbc4i.3.2`. Matches the math model `div128Quot_v5`
+    in `LoopDefs/IterV5.lean` once Phase-2a lands.
+
+    **Phase-1a cap (this bead, v5 change)**: when `hi1 = q1 >> 32 ≠ 0`,
+    cap `q1c := 0xFFFFFFFF` (instead of `q1 - 1`) and recompute
+    `rhatc := rhat + (q1 - q1c) * dHi` (algebraically equal to
+    `uHi - q1c * dHi` since `rhat = uHi - q1 * dHi`). This guarantees
+    `q1c < 2^32` unconditionally so the downstream `q1c * dLo` cannot
+    wrap mod 2^64.
+
+    **Layout** (79 instructions = 75 v4 + 4 for Phase-1a cap expansion):
+    - [0..12]: identical to v4 (setup + DIVU + rhat).
+    - [13..20]: v5 Phase-1a cap block (8 inst, vs v4's 4 at [13..16]).
+    - [21..78]: v4 instructions [17..74] shifted by +4 indices.
+
+    All forward branches in v4 either target instructions in the same
+    segment (relative offset preserved when both endpoints shift) or
+    are the [14] Phase-1a BEQ which is re-targeted from `12` to `28`
+    bytes to skip the 6-instruction taken branch. -/
+def divK_div128_v5 : Program :=
+  -- Save return addr and d
+  SD .x12 .x2 3968 ;;                         -- [0]  save return addr
+  SD .x12 .x10 3960 ;;                        -- [1]  save d
+  -- Split d: dHi = d >> 32, dLo = (d << 32) >> 32
+  SRLI .x6 .x10 32 ;;                         -- [2]  x6 = dHi (>= 2^31)
+  SLLI .x9 .x10 32 ;; SRLI .x9 .x9 32 ;;     -- [3,4] x9 = dLo
+  SD .x12 .x9 3952 ;;                         -- [5]  save dLo
+  -- Split uLo: un1 = uLo >> 32, un0 = (uLo << 32) >> 32
+  SRLI .x11 .x5 32 ;;                         -- [6]  x11 = un1
+  SLLI .x5 .x5 32 ;; SRLI .x5 .x5 32 ;;      -- [7,8] x5 = un0
+  SD .x12 .x5 3944 ;;                         -- [9]  save un0
+  -- Step 1: q1 = DIVU(uHi, dHi), rhat = uHi - q1*dHi
+  single (.DIVU .x10 .x7 .x6) ;;             -- [10] x10 = q1
+  single (.MUL .x5 .x10 .x6) ;;              -- [11] x5 = q1 * dHi
+  single (.SUB .x7 .x7 .x5) ;;               -- [12] x7 = rhat
+  -- [13] v5 Phase-1a cap: clamp q1c at 2^32 - 1, recompute rhatc.
+  SRLI .x5 .x10 32 ;;                         -- [13] x5 = hi1 = q1 >> 32
+  single (.BEQ .x5 .x0 28) ;;                -- [14] skip if hi1 == 0 → [21]
+  ADDI .x5 .x0 4095 ;;                        -- [15] x5 = -1 = 0xFFFFFFFFFFFFFFFF
+  SRLI .x5 .x5 32 ;;                          -- [16] x5 = 0xFFFFFFFF (q1cCap)
+  single (.SUB .x9 .x10 .x5) ;;              -- [17] x9 = q1 - q1cCap (= q1 - 0xFFFFFFFF)
+  single (.MUL .x9 .x9 .x6) ;;               -- [18] x9 = (q1 - q1cCap) * dHi
+  single (.ADD .x7 .x7 .x9) ;;               -- [19] x7 = rhat + (q1 - q1cCap) * dHi = rhatc
+  ADDI .x10 .x5 0 ;;                          -- [20] x10 = q1c = q1cCap (MV via ADDI 0)
+  -- [21] Phase 1b 1st D3 correction (= v4 [17])
+  LD .x9 .x12 3952 ;;                         -- [21] x9 = dLo
+  single (.MUL .x5 .x10 .x9) ;;              -- [22] x5 = q1c * dLo
+  SLLI .x9 .x7 32 ;;                          -- [23] x9 = rhatc << 32
+  single (.OR .x9 .x9 .x11) ;;               -- [24] x9 = rhatc*2^32 + un1
+  single (.BLTU .x9 .x5 8) ;;                -- [25] if rhs < lhs → correct [27]
+  JAL .x0 12 ;;                                -- [26] skip → [29]
+  ADDI .x10 .x10 4095 ;;                      -- [27] q1c--
+  single (.ADD .x7 .x7 .x6) ;;               -- [28] rhatc += dHi
+  -- [29] Phase 1b 2nd D3 correction (= v4 [25])
+  SRLI .x9 .x7 32 ;;                          -- [29] x9 = rhatc >> 32
+  single (.BNE .x9 .x0 36) ;;                -- [30] if nonzero → skip to [39]
+  LD .x9 .x12 3952 ;;                         -- [31] dLo
+  single (.MUL .x5 .x10 .x9) ;;              -- [32] x5 = q1c * dLo
+  SLLI .x9 .x7 32 ;;                          -- [33] x9 = rhatc << 32
+  single (.OR .x9 .x9 .x11) ;;               -- [34] x9 = rhatc*2^32 + un1
+  single (.BLTU .x9 .x5 8) ;;                -- [35] if rhs < lhs → correct [37]
+  JAL .x0 12 ;;                                -- [36] skip → [39]
+  ADDI .x10 .x10 4095 ;;                      -- [37] q1c--
+  single (.ADD .x7 .x7 .x6) ;;               -- [38] rhatc += dHi
+  -- [39] Compute un21 = rhatc*2^32 + un1 - q1c*dLo (= v4 [35])
+  LD .x9 .x12 3952 ;;                         -- [39] dLo
+  SLLI .x5 .x7 32 ;;                          -- [40] rhatc << 32
+  single (.OR .x5 .x5 .x11) ;;               -- [41] x5 = rhatc*2^32 + un1
+  single (.MUL .x9 .x10 .x9) ;;              -- [42] x9 = q1c * dLo
+  single (.SUB .x7 .x5 .x9) ;;               -- [43] x7 = un21
+  -- Step 2: q0 = DIVU(un21, dHi), rhat2 = un21 - q0*dHi (= v4 [40])
+  single (.DIVU .x5 .x7 .x6) ;;              -- [44] x5 = q0
+  single (.MUL .x9 .x5 .x6) ;;               -- [45]
+  single (.SUB .x11 .x7 .x9) ;;              -- [46] x11 = rhat2
+  -- [47] Phase-2a v4-style refine (q0 := q0 - 1 when hi2 ≠ 0).
+  -- TODO(bead evm-asm-wbc4i.3.2): replace with v5 cap (analogous to
+  -- Phase-1a [13..20] above). Until that bead lands, `divK_div128_v5`
+  -- still has the Phase-2 wrap bug from PR #7080.
+  SRLI .x9 .x5 32 ;;                          -- [47]
+  single (.BEQ .x9 .x0 12) ;;                -- [48] skip if q0 < 2^32 → [51]
+  ADDI .x5 .x5 4095 ;;                        -- [49] q0--
+  single (.ADD .x11 .x11 .x6) ;;             -- [50] rhat2 += dHi
+  -- [51] Phase 2b guard (= v4 [47])
+  SRLI .x9 .x11 32 ;;                         -- [51] x9 = rhat2c >> 32
+  single (.BNE .x9 .x0 92) ;;                -- [52] if nonzero → skip to [75] (combine)
+  -- [53] Phase 2b 1st D3 mul-check (= v4 [49])
+  LD .x9 .x12 3952 ;;                         -- [53] dLo
+  single (.MUL .x7 .x5 .x9) ;;               -- [54] x7 = q0c * dLo
+  SLLI .x9 .x11 32 ;;                         -- [55] rhat2c << 32
+  SD .x12 .x11 3936 ;;                        -- [56] save rhat2c (NEW in v4)
+  LD .x11 .x12 3944 ;;                        -- [57] x11 = un0 (clobbers rhat2c)
+  single (.OR .x9 .x9 .x11) ;;               -- [58] x9 = rhat2c*2^32 + un0
+  single (.BLTU .x9 .x7 12) ;;               -- [59] if BLTU fires → correction [62]
+  -- [60] No-correction path
+  LD .x11 .x12 3936 ;;                        -- [60] restore rhat2c
+  JAL .x0 16 ;;                                -- [61] skip correction → [65] (2nd D3 entry)
+  -- [62] Correction path
+  ADDI .x5 .x5 4095 ;;                        -- [62] q0c--
+  LD .x11 .x12 3936 ;;                        -- [63] restore rhat2c
+  single (.ADD .x11 .x11 .x6) ;;             -- [64] rhat2c += dHi
+  -- [65] Phase 2b 2nd D3 guarded mul-check (= v4 [61])
+  SRLI .x9 .x11 32 ;;                         -- [65] x9 = rhat2c >> 32 (post-1st-correction)
+  single (.BNE .x9 .x0 36) ;;                -- [66] if nonzero → skip to [75] (combine)
+  LD .x9 .x12 3952 ;;                         -- [67] dLo
+  single (.MUL .x7 .x5 .x9) ;;               -- [68] x7 = q0c * dLo
+  SLLI .x9 .x11 32 ;;                         -- [69] rhat2c << 32
+  LD .x11 .x12 3944 ;;                        -- [70] x11 = un0
+  single (.OR .x9 .x9 .x11) ;;               -- [71] x9 = rhat2c*2^32 + un0
+  single (.BLTU .x9 .x7 8) ;;                -- [72] if BLTU fires → 2nd correction [74]
+  JAL .x0 8 ;;                                 -- [73] skip → [75]
+  ADDI .x5 .x5 4095 ;;                        -- [74] 2nd correction: q0c--
+  -- [75] Combine: q = q1c*2^32 + q0c (= v4 [71])
+  SLLI .x11 .x10 32 ;;                        -- [75] q1c << 32
+  single (.OR .x11 .x11 .x5) ;;              -- [76] x11 = q
+  -- Restore and return
+  LD .x2 .x12 3968 ;;                         -- [77] restore return addr
+  JALR .x0 .x2 0                              -- [78] return
+  -- Total: 79 instructions (v4's 75 + 4 for Phase-1a cap expansion).
+  -- Phase-2a still v4-style — bead evm-asm-wbc4i.3.2 will add +4 more.
+
+/-- Phase-1a v5 cap sanity check: at the structural level, the cap
+    immediate is `0xFFFFFFFF`. Constructed as `(0xFF...FF) >>> 32`
+    via `ADDI .x5 .x0 4095 ;; SRLI .x5 .x5 32`. -/
+theorem divK_div128_v5_phase_1a_cap_eq :
+    ((BitVec.allOnes 64) >>> (32 : BitVec 6).toNat : BitVec 64) =
+      (0xFFFFFFFF : BitVec 64) := by
+  decide
+
 -- ============================================================================
 -- Main division program phases
 -- ============================================================================
