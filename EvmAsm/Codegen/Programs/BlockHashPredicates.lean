@@ -26,6 +26,7 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderFields
+import EvmAsm.Codegen.Programs.HeaderU64
 
 namespace EvmAsm.Codegen
 
@@ -541,5 +542,161 @@ def ziskHeaderComputeSummaryStructProbeUnit : BuildUnit := {
   dataAsm     := ziskHeaderComputeSummaryStructDataSection
 }
 
+/-! ## blockhash_from_witness_headers
+
+    BLOCKHASH-opcode semantics over a stateless witness: given a
+    target block number and the `witness.headers` SSZ list
+    section, find the header whose `block.number` field matches
+    the target, then return `keccak256(header_rlp)`.
+
+    The witness layout is the same as `witness.state` /
+    `witness.codes` -- `[N x u32 inner offsets][concat header
+    bytes]` -- so the iteration pattern mirrors K19
+    `witness_lookup_by_hash`, but with the match criterion
+    swapped from a hash compare to a `header_extract_number`
+    call.
+
+    Calling convention:
+      a0 (input)  : target block number (u64)
+      a1 (input)  : witness.headers section ptr
+      a2 (input)  : section_len (0 ⇒ guaranteed miss)
+      a3 (input)  : 32-byte output buffer (block hash; written on hit only)
+      a4 (input)  : u64 out ptr (matched element offset within section; on hit only)
+      a5 (input)  : u64 out ptr (matched element length; on hit only)
+      ra (input)  : return
+      a0 (output) :
+        0 hit (output buffer filled, offset/length written)
+        1 miss
+        2 RLP parse failure on some header along the way
+-/
+def blockhashFromWitnessHeadersFunction : String :=
+  "blockhash_from_witness_headers:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s7, a0                  # target block number\n" ++
+  "  mv s0, a1                  # section ptr\n" ++
+  "  mv s1, a2                  # section_len\n" ++
+  "  mv s2, a3                  # block hash output ptr\n" ++
+  "  mv s3, a4                  # offset out ptr\n" ++
+  "  mv s4, a5                  # length out ptr\n" ++
+  "  beqz s1, .Lbhfwh_miss      # empty section ⇒ miss\n" ++
+  "  lwu t0, 0(s0)              # first inner offset = 4 * N\n" ++
+  "  srli s5, t0, 2             # s5 = N\n" ++
+  "  li s6, 0                   # s6 = i\n" ++
+  ".Lbhfwh_loop:\n" ++
+  "  beq s6, s5, .Lbhfwh_miss\n" ++
+  "  # Compute element i bounds.\n" ++
+  "  slli t0, s6, 2             # 4*i\n" ++
+  "  add t1, s0, t0\n" ++
+  "  lwu t2, 0(t1)              # inner_off_i\n" ++
+  "  add a0, s0, t2             # el_i_start\n" ++
+  "  addi t3, s6, 1\n" ++
+  "  beq t3, s5, .Lbhfwh_use_end\n" ++
+  "  slli t3, t3, 2             # 4*(i+1)\n" ++
+  "  add t3, s0, t3\n" ++
+  "  lwu t4, 0(t3)\n" ++
+  "  add t4, s0, t4             # el_i_end\n" ++
+  "  j .Lbhfwh_have_end\n" ++
+  ".Lbhfwh_use_end:\n" ++
+  "  add t4, s0, s1             # el_i_end = section_end\n" ++
+  ".Lbhfwh_have_end:\n" ++
+  "  sub a1, t4, a0             # el_i_len\n" ++
+  "  la a2, bhfwh_number_buf\n" ++
+  "  jal ra, header_extract_number\n" ++
+  "  beqz a0, .Lbhfwh_compare\n" ++
+  "  li a0, 2                   # any header that fails to parse number ⇒ status 2\n" ++
+  "  j .Lbhfwh_ret\n" ++
+  ".Lbhfwh_compare:\n" ++
+  "  la t0, bhfwh_number_buf; ld t1, 0(t0)\n" ++
+  "  beq t1, s7, .Lbhfwh_match\n" ++
+  "  addi s6, s6, 1\n" ++
+  "  j .Lbhfwh_loop\n" ++
+  ".Lbhfwh_match:\n" ++
+  "  # Recompute (offset, length) since they were clobbered.\n" ++
+  "  slli t0, s6, 2\n" ++
+  "  add t1, s0, t0\n" ++
+  "  lwu t2, 0(t1)\n" ++
+  "  add a0, s0, t2             # el_start\n" ++
+  "  sd t2, 0(s3)               # *out_offset\n" ++
+  "  addi t3, s6, 1\n" ++
+  "  beq t3, s5, .Lbhfwh_last\n" ++
+  "  slli t3, t3, 2\n" ++
+  "  add t3, s0, t3\n" ++
+  "  lwu t4, 0(t3)\n" ++
+  "  sub t4, t4, t2             # length\n" ++
+  "  j .Lbhfwh_store_len\n" ++
+  ".Lbhfwh_last:\n" ++
+  "  sub t4, s1, t2\n" ++
+  ".Lbhfwh_store_len:\n" ++
+  "  sd t4, 0(s4)               # *out_length\n" ++
+  "  mv a1, t4                  # length argument for keccak\n" ++
+  "  mv a2, s2                  # block hash out ptr\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbhfwh_ret\n" ++
+  ".Lbhfwh_miss:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbhfwh_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
+/-- `zisk_blockhash_from_witness_headers`: probe BuildUnit.
+    Input layout (at INPUT_ADDR):
+      bytes  0.. 8 : (ziskemu metadata)
+      bytes  8..16 : target_block_number (u64 LE)
+      bytes 16..24 : section_len (u64 LE)
+      bytes 24..   : witness.headers section
+    Output layout:
+      bytes  0.. 8 : status (0 hit / 1 miss / 2 parse_fail)
+      bytes  8..16 : matched offset within section (on hit)
+      bytes 16..24 : matched length within section (on hit)
+      bytes 24..56 : block hash (on hit; zeros otherwise) -/
+def ziskBlockhashFromWitnessHeadersPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a6, 0x40000000\n" ++
+  "  ld a0, 8(a6)                # target block number\n" ++
+  "  ld a2, 16(a6)               # section_len\n" ++
+  "  addi a1, a6, 24             # section ptr\n" ++
+  "  li a3, 0xa0010018           # block hash out (OUTPUT + 24)\n" ++
+  "  li a4, 0xa0010008           # offset out  (OUTPUT + 8)\n" ++
+  "  li a5, 0xa0010010           # length out  (OUTPUT + 16)\n" ++
+  "  # Pre-zero outputs so non-hit cases surface as zeros.\n" ++
+  "  sd zero, 0(a4); sd zero, 0(a5)\n" ++
+  "  sd zero, 0(a3); sd zero, 8(a3); sd zero, 16(a3); sd zero, 24(a3)\n" ++
+  "  jal ra, blockhash_from_witness_headers\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status at OUTPUT + 0\n" ++
+  "  j .Lbhfwh_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractNumberFunction ++ "\n" ++
+  blockhashFromWitnessHeadersFunction ++ "\n" ++
+  ".Lbhfwh_pdone:"
+
+def ziskBlockhashFromWitnessHeadersDataSection : String :=
+  ".section .data\n" ++
+  ".balign 32\n" ++
+  "zk3_state:\n" ++
+  "  .zero 200\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bhfwh_number_buf:\n" ++
+  "  .zero 8"
+
+def ziskBlockhashFromWitnessHeadersProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockhashFromWitnessHeadersPrologue
+  dataAsm     := ziskBlockhashFromWitnessHeadersDataSection
+}
 
 end EvmAsm.Codegen

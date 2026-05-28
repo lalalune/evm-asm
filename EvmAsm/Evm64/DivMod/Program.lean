@@ -360,17 +360,26 @@ def divK_div128_v4 : Program :=
     `cePlus2_*` and `ceUnd_*` inputs no longer violate the Knuth-A `+1`
     bound under this program (to be proven in beads `.4` and `.5`).
 
-    **Layout** (83 instructions = 75 v4 + 4 Phase-1a + 4 Phase-2a):
+    **Phase-1b guard** (Knuth D3): after the Phase-1a cap sets `q1c := b-1`,
+    the recomputed `rhatc = uHi - q1c*dHi` can be `≥ 2^32`. Knuth's D3 step
+    repeats the product-test correction only while `r̂ < b`, so both Phase-1b
+    corrections must be skipped when `rhatc ≥ 2^32`. v5 adds a leading guard
+    (`SRLI; BNE` at [21..22]) mirroring the Phase-2b guard at [57..58]. Without
+    it the 1st-correction ULT misfires on wide `rhatc` (the PR #7077 / #7080
+    bug). This matches the `rhatc >>> 32 = 0` guard in `div128Quot_v5`.
+
+    **Layout** (85 instructions = 75 v4 + 4 Phase-1a + 4 Phase-2a + 2 Phase-1b guard):
     - [0..12]: identical to v4 (setup + DIVU + rhat).
     - [13..20]: v5 Phase-1a cap block (8 inst, vs v4's 4 at [13..16]).
-    - [21..46]: v4 instructions [17..42] shifted by +4 indices.
-    - [47..54]: v5 Phase-2a cap block (8 inst, vs v4's 4 at [43..46]).
-    - [55..82]: v4 instructions [47..74] shifted by +8 indices.
+    - [21..22]: v5 Phase-1b leading guard (skip both corrections when rhatc ≥ 2^32).
+    - [23..48]: v4 instructions [17..42] shifted by +6 indices.
+    - [49..56]: v5 Phase-2a cap block (8 inst, vs v4's 4 at [43..46]).
+    - [57..84]: v4 instructions [47..74] shifted by +10 indices.
 
-    Forward branches in the original v4 either jump within a single
-    shifted segment (relative offset preserved) or are the [14] / [48]
-    cap BEQs which are re-targeted from `12` to `28` bytes to skip
-    each 6-instruction taken branch. -/
+    Forward branches either jump within a single shifted segment (relative
+    offset preserved), are the [14] / [50] cap BEQs (offset 28, skip the
+    6-inst cap body), or are the phase guards: [22] (offset 76 → compute_un21
+    at [41]) and [58] (offset 92 → combine at [81]). -/
 def divK_div128_v5 : Program :=
   -- Save return addr and d
   SD .x12 .x2 3968 ;;                         -- [0]  save return addr
@@ -396,83 +405,90 @@ def divK_div128_v5 : Program :=
   single (.MUL .x9 .x9 .x6) ;;               -- [18] x9 = (q1 - q1cCap) * dHi
   single (.ADD .x7 .x7 .x9) ;;               -- [19] x7 = rhat + (q1 - q1cCap) * dHi = rhatc
   ADDI .x10 .x5 0 ;;                          -- [20] x10 = q1c = q1cCap (MV via ADDI 0)
-  -- [21] Phase 1b 1st D3 correction (= v4 [17])
-  LD .x9 .x12 3952 ;;                         -- [21] x9 = dLo
-  single (.MUL .x5 .x10 .x9) ;;              -- [22] x5 = q1c * dLo
-  SLLI .x9 .x7 32 ;;                          -- [23] x9 = rhatc << 32
-  single (.OR .x9 .x9 .x11) ;;               -- [24] x9 = rhatc*2^32 + un1
-  single (.BLTU .x9 .x5 8) ;;                -- [25] if rhs < lhs → correct [27]
-  JAL .x0 12 ;;                                -- [26] skip → [29]
-  ADDI .x10 .x10 4095 ;;                      -- [27] q1c--
-  single (.ADD .x7 .x7 .x6) ;;               -- [28] rhatc += dHi
-  -- [29] Phase 1b 2nd D3 correction (= v4 [25])
-  SRLI .x9 .x7 32 ;;                          -- [29] x9 = rhatc >> 32
-  single (.BNE .x9 .x0 36) ;;                -- [30] if nonzero → skip to [39]
-  LD .x9 .x12 3952 ;;                         -- [31] dLo
-  single (.MUL .x5 .x10 .x9) ;;              -- [32] x5 = q1c * dLo
-  SLLI .x9 .x7 32 ;;                          -- [33] x9 = rhatc << 32
-  single (.OR .x9 .x9 .x11) ;;               -- [34] x9 = rhatc*2^32 + un1
-  single (.BLTU .x9 .x5 8) ;;                -- [35] if rhs < lhs → correct [37]
-  JAL .x0 12 ;;                                -- [36] skip → [39]
-  ADDI .x10 .x10 4095 ;;                      -- [37] q1c--
-  single (.ADD .x7 .x7 .x6) ;;               -- [38] rhatc += dHi
-  -- [39] Compute un21 = rhatc*2^32 + un1 - q1c*dLo (= v4 [35])
-  LD .x9 .x12 3952 ;;                         -- [39] dLo
-  SLLI .x5 .x7 32 ;;                          -- [40] rhatc << 32
-  single (.OR .x5 .x5 .x11) ;;               -- [41] x5 = rhatc*2^32 + un1
-  single (.MUL .x9 .x10 .x9) ;;              -- [42] x9 = q1c * dLo
-  single (.SUB .x7 .x5 .x9) ;;               -- [43] x7 = un21
+  -- [21] v5 fix: Phase-1b leading guard. Knuth D3 repeats the product-test
+  -- correction only while r̂ < b; after the cap, rhatc can be ≥ 2^32, so
+  -- both corrections must be skipped in that regime (mirror of the Phase-2b
+  -- guard at [57]). Without this guard the 1st-correction ULT misfires on
+  -- wide rhatc (the PR #7077 / #7080 bug) — matches div128Quot_v5 (IterV5).
+  SRLI .x9 .x7 32 ;;                          -- [21] x9 = rhatc >> 32
+  single (.BNE .x9 .x0 76) ;;                -- [22] if rhatc ≥ 2^32 → skip both → [41]
+  -- [23] Phase 1b 1st D3 correction (= v4 [17])
+  LD .x9 .x12 3952 ;;                         -- [23] x9 = dLo
+  single (.MUL .x5 .x10 .x9) ;;              -- [24] x5 = q1c * dLo
+  SLLI .x9 .x7 32 ;;                          -- [25] x9 = rhatc << 32
+  single (.OR .x9 .x9 .x11) ;;               -- [26] x9 = rhatc*2^32 + un1
+  single (.BLTU .x9 .x5 8) ;;                -- [27] if rhs < lhs → correct [29]
+  JAL .x0 12 ;;                                -- [28] skip → [31]
+  ADDI .x10 .x10 4095 ;;                      -- [29] q1c--
+  single (.ADD .x7 .x7 .x6) ;;               -- [30] rhatc += dHi
+  -- [31] Phase 1b 2nd D3 correction (= v4 [25])
+  SRLI .x9 .x7 32 ;;                          -- [31] x9 = rhatc >> 32
+  single (.BNE .x9 .x0 36) ;;                -- [32] if nonzero → skip to [41]
+  LD .x9 .x12 3952 ;;                         -- [33] dLo
+  single (.MUL .x5 .x10 .x9) ;;              -- [34] x5 = q1c * dLo
+  SLLI .x9 .x7 32 ;;                          -- [35] x9 = rhatc << 32
+  single (.OR .x9 .x9 .x11) ;;               -- [36] x9 = rhatc*2^32 + un1
+  single (.BLTU .x9 .x5 8) ;;                -- [37] if rhs < lhs → correct [39]
+  JAL .x0 12 ;;                                -- [38] skip → [41]
+  ADDI .x10 .x10 4095 ;;                      -- [39] q1c--
+  single (.ADD .x7 .x7 .x6) ;;               -- [40] rhatc += dHi
+  -- [41] Compute un21 = rhatc*2^32 + un1 - q1c*dLo (= v4 [35])
+  LD .x9 .x12 3952 ;;                         -- [41] dLo
+  SLLI .x5 .x7 32 ;;                          -- [42] rhatc << 32
+  single (.OR .x5 .x5 .x11) ;;               -- [43] x5 = rhatc*2^32 + un1
+  single (.MUL .x9 .x10 .x9) ;;              -- [44] x9 = q1c * dLo
+  single (.SUB .x7 .x5 .x9) ;;               -- [45] x7 = un21
   -- Step 2: q0 = DIVU(un21, dHi), rhat2 = un21 - q0*dHi (= v4 [40])
-  single (.DIVU .x5 .x7 .x6) ;;              -- [44] x5 = q0
-  single (.MUL .x9 .x5 .x6) ;;               -- [45]
-  single (.SUB .x11 .x7 .x9) ;;              -- [46] x11 = rhat2
-  -- [47] v5 Phase-2a cap: clamp q0c at 2^32 - 1, recompute rhat2c.
+  single (.DIVU .x5 .x7 .x6) ;;              -- [46] x5 = q0
+  single (.MUL .x9 .x5 .x6) ;;               -- [47]
+  single (.SUB .x11 .x7 .x9) ;;              -- [48] x11 = rhat2
+  -- [49] v5 Phase-2a cap: clamp q0c at 2^32 - 1, recompute rhat2c.
   -- Mirror of Phase-1a above. Reuses x7 (= un21, dead from here on
-  -- until [54] writes it) as the diff scratch.
-  SRLI .x9 .x5 32 ;;                          -- [47] x9 = hi2 = q0 >> 32
-  single (.BEQ .x9 .x0 28) ;;                -- [48] skip if hi2 == 0 → [55]
-  ADDI .x9 .x0 4095 ;;                        -- [49] x9 = -1 = 0xFFFFFFFFFFFFFFFF
-  SRLI .x9 .x9 32 ;;                          -- [50] x9 = 0xFFFFFFFF (q0cCap)
-  single (.SUB .x7 .x5 .x9) ;;               -- [51] x7 = q0 - q0cCap
-  single (.MUL .x7 .x7 .x6) ;;               -- [52] x7 = (q0 - q0cCap) * dHi
-  single (.ADD .x11 .x11 .x7) ;;             -- [53] x11 = rhat2 + diff*dHi = rhat2c
-  ADDI .x5 .x9 0 ;;                           -- [54] x5 = q0c = q0cCap (MV via ADDI 0)
-  -- [55] Phase 2b guard (= v4 [47])
-  SRLI .x9 .x11 32 ;;                         -- [55] x9 = rhat2c >> 32
-  single (.BNE .x9 .x0 92) ;;                -- [56] if nonzero → skip to [79] (combine)
-  -- [57] Phase 2b 1st D3 mul-check (= v4 [49])
-  LD .x9 .x12 3952 ;;                         -- [57] dLo
-  single (.MUL .x7 .x5 .x9) ;;               -- [58] x7 = q0c * dLo
-  SLLI .x9 .x11 32 ;;                         -- [59] rhat2c << 32
-  SD .x12 .x11 3936 ;;                        -- [60] save rhat2c
-  LD .x11 .x12 3944 ;;                        -- [61] x11 = un0 (clobbers rhat2c)
-  single (.OR .x9 .x9 .x11) ;;               -- [62] x9 = rhat2c*2^32 + un0
-  single (.BLTU .x9 .x7 12) ;;               -- [63] if BLTU fires → correction [66]
-  -- [64] No-correction path
-  LD .x11 .x12 3936 ;;                        -- [64] restore rhat2c
-  JAL .x0 16 ;;                                -- [65] skip correction → [69] (2nd D3 entry)
-  -- [66] Correction path
-  ADDI .x5 .x5 4095 ;;                        -- [66] q0c--
-  LD .x11 .x12 3936 ;;                        -- [67] restore rhat2c
-  single (.ADD .x11 .x11 .x6) ;;             -- [68] rhat2c += dHi
-  -- [69] Phase 2b 2nd D3 guarded mul-check (= v4 [61])
-  SRLI .x9 .x11 32 ;;                         -- [69] x9 = rhat2c >> 32 (post-1st-correction)
-  single (.BNE .x9 .x0 36) ;;                -- [70] if nonzero → skip to [79] (combine)
-  LD .x9 .x12 3952 ;;                         -- [71] dLo
-  single (.MUL .x7 .x5 .x9) ;;               -- [72] x7 = q0c * dLo
-  SLLI .x9 .x11 32 ;;                         -- [73] rhat2c << 32
-  LD .x11 .x12 3944 ;;                        -- [74] x11 = un0
-  single (.OR .x9 .x9 .x11) ;;               -- [75] x9 = rhat2c*2^32 + un0
-  single (.BLTU .x9 .x7 8) ;;                -- [76] if BLTU fires → 2nd correction [78]
-  JAL .x0 8 ;;                                 -- [77] skip → [79]
-  ADDI .x5 .x5 4095 ;;                        -- [78] 2nd correction: q0c--
-  -- [79] Combine: q = q1c*2^32 + q0c (= v4 [71])
-  SLLI .x11 .x10 32 ;;                        -- [79] q1c << 32
-  single (.OR .x11 .x11 .x5) ;;              -- [80] x11 = q
+  -- until [56] writes it) as the diff scratch.
+  SRLI .x9 .x5 32 ;;                          -- [49] x9 = hi2 = q0 >> 32
+  single (.BEQ .x9 .x0 28) ;;                -- [50] skip if hi2 == 0 → [57]
+  ADDI .x9 .x0 4095 ;;                        -- [51] x9 = -1 = 0xFFFFFFFFFFFFFFFF
+  SRLI .x9 .x9 32 ;;                          -- [52] x9 = 0xFFFFFFFF (q0cCap)
+  single (.SUB .x7 .x5 .x9) ;;               -- [53] x7 = q0 - q0cCap
+  single (.MUL .x7 .x7 .x6) ;;               -- [54] x7 = (q0 - q0cCap) * dHi
+  single (.ADD .x11 .x11 .x7) ;;             -- [55] x11 = rhat2 + diff*dHi = rhat2c
+  ADDI .x5 .x9 0 ;;                           -- [56] x5 = q0c = q0cCap (MV via ADDI 0)
+  -- [57] Phase 2b guard (= v4 [47])
+  SRLI .x9 .x11 32 ;;                         -- [57] x9 = rhat2c >> 32
+  single (.BNE .x9 .x0 92) ;;                -- [58] if nonzero → skip to [81] (combine)
+  -- [59] Phase 2b 1st D3 mul-check (= v4 [49])
+  LD .x9 .x12 3952 ;;                         -- [59] dLo
+  single (.MUL .x7 .x5 .x9) ;;               -- [60] x7 = q0c * dLo
+  SLLI .x9 .x11 32 ;;                         -- [61] rhat2c << 32
+  SD .x12 .x11 3936 ;;                        -- [62] save rhat2c
+  LD .x11 .x12 3944 ;;                        -- [63] x11 = un0 (clobbers rhat2c)
+  single (.OR .x9 .x9 .x11) ;;               -- [64] x9 = rhat2c*2^32 + un0
+  single (.BLTU .x9 .x7 12) ;;               -- [65] if BLTU fires → correction [68]
+  -- [66] No-correction path
+  LD .x11 .x12 3936 ;;                        -- [66] restore rhat2c
+  JAL .x0 16 ;;                                -- [67] skip correction → [71] (2nd D3 entry)
+  -- [68] Correction path
+  ADDI .x5 .x5 4095 ;;                        -- [68] q0c--
+  LD .x11 .x12 3936 ;;                        -- [69] restore rhat2c
+  single (.ADD .x11 .x11 .x6) ;;             -- [70] rhat2c += dHi
+  -- [71] Phase 2b 2nd D3 guarded mul-check (= v4 [61])
+  SRLI .x9 .x11 32 ;;                         -- [71] x9 = rhat2c >> 32 (post-1st-correction)
+  single (.BNE .x9 .x0 36) ;;                -- [72] if nonzero → skip to [81] (combine)
+  LD .x9 .x12 3952 ;;                         -- [73] dLo
+  single (.MUL .x7 .x5 .x9) ;;               -- [74] x7 = q0c * dLo
+  SLLI .x9 .x11 32 ;;                         -- [75] rhat2c << 32
+  LD .x11 .x12 3944 ;;                        -- [76] x11 = un0
+  single (.OR .x9 .x9 .x11) ;;               -- [77] x9 = rhat2c*2^32 + un0
+  single (.BLTU .x9 .x7 8) ;;                -- [78] if BLTU fires → 2nd correction [80]
+  JAL .x0 8 ;;                                 -- [79] skip → [81]
+  ADDI .x5 .x5 4095 ;;                        -- [80] 2nd correction: q0c--
+  -- [81] Combine: q = q1c*2^32 + q0c (= v4 [71])
+  SLLI .x11 .x10 32 ;;                        -- [81] q1c << 32
+  single (.OR .x11 .x11 .x5) ;;              -- [82] x11 = q
   -- Restore and return
-  LD .x2 .x12 3968 ;;                         -- [81] restore return addr
-  JALR .x0 .x2 0                              -- [82] return
-  -- Total: 83 instructions (v4's 75 + 4 Phase-1a + 4 Phase-2a).
+  LD .x2 .x12 3968 ;;                         -- [83] restore return addr
+  JALR .x0 .x2 0                              -- [84] return
+  -- Total: 85 instructions (v4's 75 + 4 Phase-1a + 4 Phase-2a + 2 Phase-1b guard).
 
 /-- Cap sanity check (Phase-1a and Phase-2a both): at the structural
     level, the cap immediate is `0xFFFFFFFF`. Constructed in-program

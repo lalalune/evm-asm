@@ -38,7 +38,7 @@ theorem divK_nop_len : (ADDI .x0 .x0 0 : Program).length = 1 := by decide
 theorem divK_div128_len : divK_div128.length = 51 := by decide
 theorem divK_div128_v2_len : divK_div128_v2.length = 61 := by decide
 theorem divK_div128_v4_len : divK_div128_v4.length = 75 := by decide
-theorem divK_div128_v5_len : divK_div128_v5.length = 83 := by decide
+theorem divK_div128_v5_len : divK_div128_v5.length = 85 := by decide
 theorem divK_modEpilogue_len : (divK_mod_epilogue 24).length = 10 := by decide
 
 /-- Skip one ofProg block in a right-nested union via range disjointness.
