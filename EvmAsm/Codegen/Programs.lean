@@ -95,6 +95,7 @@ import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.WitnessHeadersBlockHashAtIndex
 import EvmAsm.Codegen.Programs.StateProof
 import EvmAsm.Codegen.Programs.StateStorageProof
+import EvmAsm.Codegen.Programs.StateCodeHashProof
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
@@ -421,6 +422,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_at_address"   => some ziskAccountAtAddressProbeUnit
   | "zisk_state_account_inclusion_proof_verify" => some ziskStateAccountInclusionProofVerifyProbeUnit
   | "zisk_state_slot_inclusion_proof_verify" => some ziskStateSlotInclusionProofVerifyProbeUnit
+  | "zisk_state_code_hash_inclusion_proof_verify" => some ziskStateCodeHashInclusionProofVerifyProbeUnit
   | "zisk_witness_headers_block_hash_at_index" => some ziskWitnessHeadersBlockHashAtIndexProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
@@ -595,6 +597,7 @@ def knownProgramNames : List String :=
    "zisk_account_at_address",
    "zisk_state_account_inclusion_proof_verify",
    "zisk_state_slot_inclusion_proof_verify",
+   "zisk_state_code_hash_inclusion_proof_verify",
    "zisk_witness_headers_block_hash_at_index",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
