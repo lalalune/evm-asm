@@ -84,4 +84,58 @@ theorem div128V5_phase1b_select_eq
       Bool.false_and, Bool.false_eq_true, if_false]
     simp
 
+/-- **Phase-1b/2b code = model remainder selection.**  Companion to
+    `div128V5_phase1b_select_eq` for the *remainder* `rhatFinal`/`rhat''` (needed
+    for `un21 = (rhatFinal << 32 ||| un) - q1Final * dLo`).  Same case analysis,
+    via `div128Quot_phase2b_rhat_and_form`. -/
+theorem div128V5_phase1b_rhat_select_eq
+    (q rhatc dHi dLo un : Word) :
+    (if rhatc >>> (32 : BitVec 6).toNat ≠ 0 then rhatc
+     else
+      (if ((if BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+              then rhatc + dHi else rhatc) >>> (32 : BitVec 6).toNat = 0)
+       then
+        (if BitVec.ult
+              (((if BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+                  then rhatc + dHi else rhatc) <<< (32 : BitVec 6).toNat) ||| un)
+              ((if BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+                  then q + signExtend12 4095 else q) * dLo)
+          then (if BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+                  then rhatc + dHi else rhatc) + dHi
+          else (if BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+                  then rhatc + dHi else rhatc))
+       else (if BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+               then rhatc + dHi else rhatc)))
+    =
+    (if (if decide (rhatc >>> (32 : BitVec 6).toNat = 0) &&
+            BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+         then rhatc + dHi else rhatc) >>> (32 : BitVec 6).toNat = 0 then
+      let qDlo2 := (if decide (rhatc >>> (32 : BitVec 6).toNat = 0) &&
+                       BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+                    then q + signExtend12 4095 else q) * dLo
+      let rhatUn := ((if decide (rhatc >>> (32 : BitVec 6).toNat = 0) &&
+                         BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+                      then rhatc + dHi else rhatc) <<< (32 : BitVec 6).toNat) ||| un
+      if BitVec.ult rhatUn qDlo2 then
+        (if decide (rhatc >>> (32 : BitVec 6).toNat = 0) &&
+            BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+         then rhatc + dHi else rhatc) + dHi
+      else (if decide (rhatc >>> (32 : BitVec 6).toNat = 0) &&
+              BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+            then rhatc + dHi else rhatc)
+     else (if decide (rhatc >>> (32 : BitVec 6).toNat = 0) &&
+              BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+            then rhatc + dHi else rhatc)) := by
+  rw [← div128Quot_phase2b_rhat_and_form]
+  by_cases hHi : rhatc >>> (32 : BitVec 6).toNat = (0 : Word)
+  · by_cases hUlt : BitVec.ult ((rhatc <<< (32 : BitVec 6).toNat) ||| un) (q * dLo)
+    · simp only [hHi, hUlt, ne_eq, not_true_eq_false, if_false, if_true,
+        decide_true, Bool.true_and]
+      rw [ite_and_nest]
+    · simp only [hHi, hUlt, ne_eq, not_true_eq_false, if_false,
+        decide_true, Bool.and_false, Bool.false_eq_true]
+      simp
+  · simp only [hHi, ne_eq, not_false_eq_true, if_true, decide_false,
+      Bool.false_and, Bool.false_eq_true, if_false]
+
 end EvmAsm.Evm64
