@@ -21,6 +21,7 @@
 
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
 import EvmAsm.Evm64.DivMod.Compose.V5Code
+import EvmAsm.Evm64.DivMod.Compose.Div128V5
 
 namespace EvmAsm.Evm64
 
@@ -83,5 +84,107 @@ theorem divK_save_trial_load_v5_spec_within_noNop
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     SJfTLe
+
+/-- v5 trial-quotient call full post.  Unlike `divKTrialCallFullPostV4` (which
+    names the exit register values via reducible `divKTrialCallV4*` defs), the v5
+    trial defs are `@[irreducible]` and the `div128_v5` post (`div128V5SpecPost`)
+    is stated with raw `let`-bindings — so we reuse `div128V5SpecPost` directly
+    and add the trial-load frame.  The bridge to `divKTrialCallV5QHat` /
+    `div128Quot_v5` is supplied separately by the existing v5 trial-bound
+    lemmas. -/
+def divKTrialCallFullPostV5 (sp j n uHi uLo vTop base scratchMem : Word) : Assertion :=
+  let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+  let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+  div128V5SpecPost sp (base + div128CallRetOff) vTop uLo uHi scratchMem **
+  regOwn .x1 **
+  (sp + signExtend12 3976 ↦ₘ j) ** (sp + signExtend12 3984 ↦ₘ n) **
+  (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+  (vtopBase + signExtend12 32 ↦ₘ vTop)
+
+/-- v5 trial-quotient call full path over `sharedDivModCodeNoNop_v5`: save-j +
+    trial-load + BLTU taken + JAL + `divK_div128_v5`.  Mirror of
+    `divK_trial_call_full_v4_spec_within_noNop`, composing the v5 save-trial-load
+    (above) with the existing v5 trial-call-path (#7210).  Brick 3 of the v5 n=1
+    loop-body execution layer (bead `evm-asm-wbc4i.7.2`). -/
+theorem divK_trial_call_full_v5_spec_within_noNop
+    (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
+    (retMem dMem dloMem un0Mem scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult uHi vTop) :
+    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 98 (base + loopBodyOff) (base + div128CallRetOff) (sharedDivModCodeNoNop_v5 base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem)) ** regOwn .x1)
+      (divKTrialCallFullPostV5 sp j n uHi uLo vTop base scratchMem) := by
+  intro uAddr vtopBase
+  apply cpsTripleWithin_of_forall_regIs_to_regOwn
+  intro v1Old
+  have STL := divK_save_trial_load_v5_spec_within_noNop
+    sp j n jOld v5Old v6Old v7Old v10Old uHi uLo vTop base
+  dsimp only [] at STL
+  have hbltu_raw := bltu_spec_gen_within .x7 .x10 (12 : BitVec 13) uHi vTop (base + trialCallOff)
+  rw [lb_bltu_taken, lb_bltu_ntaken] at hbltu_raw
+  have hbltu_ext := cpsBranchWithin_extend_code (hmono :=
+    lb_sub_noNop_v5 13 _ _ (by decide) (by bv_addr) (by decide)) hbltu_raw
+  have taken := cpsBranchWithin_takenPath hbltu_ext (fun hp hQf => by
+    obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, hpure⟩⟩⟩ := hQf
+    exact hpure hbltu)
+  have taken_clean := cpsTripleWithin_weaken
+    (fun h hp => hp)
+    (fun h hp => sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp) taken
+  have TCP := divK_trial_call_path_v5_spec_within_noNop_exact_x1
+    sp j uLo uHi vTop vtopBase base v1Old v2Old v11Old
+    retMem dMem dloMem un0Mem scratchMem halign
+  have STLf := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ v1Old) ** (.x11 ↦ᵣ v11Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp + signExtend12 3968 ↦ₘ retMem) **
+     (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) **
+     (sp + signExtend12 3944 ↦ₘ un0Mem))
+    (by pcFree) STL
+  have taken_framed := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) ** (.x1 ↦ᵣ v1Old) **
+     (.x5 ↦ᵣ uLo) ** (.x6 ↦ᵣ vtopBase) **
+     (.x11 ↦ᵣ v11Old) ** (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp + signExtend12 3976 ↦ₘ j) **
+     (sp + signExtend12 3984 ↦ₘ n) **
+     (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+     (vtopBase + signExtend12 32 ↦ₘ vTop) **
+     (sp + signExtend12 3968 ↦ₘ retMem) **
+     (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) **
+     (sp + signExtend12 3944 ↦ₘ un0Mem))
+    (by pcFree) taken_clean
+  have TCPf := cpsTripleWithin_frameR
+    ((sp + signExtend12 3976 ↦ₘ j) **
+     (sp + signExtend12 3984 ↦ₘ n) **
+     (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+     (vtopBase + signExtend12 32 ↦ₘ vTop))
+    (by pcFree) TCP
+  have STLf_taken_clean := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) STLf taken_framed
+  have STLf_taken_scratch := cpsTripleWithin_frameR
+    (sp + signExtend12 3936 ↦ₘ scratchMem)
+    (by pcFree) STLf_taken_clean
+  have full := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) STLf_taken_scratch TCPf
+  unfold divKTrialCallFullPostV5
+  exact cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    full
 
 end EvmAsm.Evm64
