@@ -23,6 +23,7 @@
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.UpperBound
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.LowerBound
+import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
 
 namespace EvmAsm.Evm64
 
@@ -74,5 +75,39 @@ theorem divKTrialCallV5QHat_ge_floor
       (divKTrialCallV5QHat uHi uLo vTop).toNat := by
   rw [divKTrialCallV5QHat_eq_div128Quot_v5]
   exact div128Quot_v5_ge_q_true uHi uLo vTop hvTop_ge huHi_lt_vTop
+
+/-- **v5 val256 composition** (mirror of `divKTrialCallV4QHat_le_val256_div_plus_two`):
+    from the v5 frontier `+1` bound and the version-agnostic Knuth Theorem A
+    top-window bridge `Knuth128_64TopWindowLeVal256DivPlusOne`, derive the
+    val256-level `+2` overestimate consumed by the BLT-path bridges
+    (`loopBodyN{2,3}CallAddbackCarry2Nz*_of_overestimate_c3`).
+
+    The `Knuth128_64TopWindowLeVal256DivPlusOne` bridge is version-agnostic
+    (a pure floor-division fact), so it is reused directly from the v4 file. -/
+theorem divKTrialCallV5QHat_le_val256_div_plus_two
+    (uHi uLo vTop : Word) (v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+    (h_v5 : DivKTrialCallV5QHatLeFloorPlusOne uHi uLo vTop)
+    (h_knuth : Knuth128_64TopWindowLeVal256DivPlusOne uHi uLo vTop
+      v0 v1 v2 v3 u0 u1 u2 u3) :
+    (divKTrialCallV5QHat uHi uLo vTop).toNat ≤
+      val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 2 := by
+  unfold DivKTrialCallV5QHatLeFloorPlusOne at h_v5
+  unfold Knuth128_64TopWindowLeVal256DivPlusOne at h_knuth
+  omega
+
+/-- The val256 `+2` overestimate discharged under the call regime +
+    normalisation (the v5 frontier is unconditional), leaving only the
+    version-agnostic Knuth top-window bridge as a hypothesis. -/
+theorem divKTrialCallV5QHat_le_val256_div_plus_two_of_norm
+    (uHi uLo vTop : Word) (v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (h_knuth : Knuth128_64TopWindowLeVal256DivPlusOne uHi uLo vTop
+      v0 v1 v2 v3 u0 u1 u2 u3) :
+    (divKTrialCallV5QHat uHi uLo vTop).toNat ≤
+      val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 2 :=
+  divKTrialCallV5QHat_le_val256_div_plus_two uHi uLo vTop v0 v1 v2 v3 u0 u1 u2 u3
+    (DivKTrialCallV5QHatLeFloorPlusOne_of_norm uHi uLo vTop hvTop_ge huHi_lt_vTop)
+    h_knuth
 
 end EvmAsm.Evm64
