@@ -92,6 +92,8 @@ import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
+import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.StorageCompose
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.TxRoot
@@ -860,7 +862,7 @@ end EvmAsm.Codegen
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 1328
+  let hardCap := 1000
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
     "EvmAsm/Codegen/Programs/Account.lean",
@@ -905,6 +907,8 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/State.lean",
     "EvmAsm/Codegen/Programs/StateCompose.lean",
     "EvmAsm/Codegen/Programs/EvmOpcodes.lean",
+    "EvmAsm/Codegen/Programs/EvmOpcodesStorageRoot.lean",
+    "EvmAsm/Codegen/Programs/EvmOpcodesExtcodecopy.lean",
     "EvmAsm/Codegen/Programs/StorageCompose.lean",
     "EvmAsm/Codegen/Programs/EvmCodes.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
