@@ -98,6 +98,7 @@ import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.WitnessValidation
 import EvmAsm.Codegen.Programs.StorageProof
 import EvmAsm.Codegen.Programs.Eip4788
+import EvmAsm.Codegen.Programs.CodeVerify
 import EvmAsm.Codegen.Programs.StorageCompose
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.TxRoot
@@ -426,6 +427,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_slot_at_header_state_root" => some ziskSlotAtHeaderStateRootProbeUnit
   | "zisk_storage_slot_inclusion_proof_verify" => some ziskStorageSlotInclusionProofVerifyProbeUnit
   | "zisk_code_at_header_state_root" => some ziskCodeAtHeaderStateRootProbeUnit
+  | "zisk_verify_code_hash_matches" => some ziskVerifyCodeHashMatchesProbeUnit
   | "zisk_extcodesize_at_header_state_root" => some ziskExtcodesizeAtHeaderStateRootProbeUnit
   | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
   | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit
@@ -592,6 +594,7 @@ def knownProgramNames : List String :=
    "zisk_account_at_header_state_root",
    "zisk_slot_at_header_state_root",
    "zisk_code_at_header_state_root",
+   "zisk_verify_code_hash_matches",
    "zisk_extcodesize_at_header_state_root",
    "zisk_extcodehash_at_header_state_root",
    "zisk_balance_at_header_state_root",
