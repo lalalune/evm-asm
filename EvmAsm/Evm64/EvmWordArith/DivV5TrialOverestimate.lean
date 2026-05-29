@@ -137,4 +137,77 @@ theorem divKTrialCallV5QHat_le_val256_div_plus_two_of_norm_and_top_window_fits_v
     (Knuth128_64TopWindowLeVal256DivPlusOne_of_top_window_fits_val256_and_v_eq_vTop
       uHi uLo vTop v0 v1 v2 v3 u0 u1 u2 u3 h_v_eq h_u_fits)
 
+/-- **Honest GENERAL multi-limb n4 trial bound** (no single-limb / top-window-fits
+    restriction): from `isCallTrialN4` alone, `divKTrialCallV5QHat ≤
+    val256(a)/val256(b) + 3`, on the actual clz-normalized algorithm limbs
+    (`U4 = a3>>>(64-shift)`, `U3' / B3'` the funnel-shifted top limbs).
+
+    Composes the v5 frontier `div128Quot_v5 ≤ floor + 1` (V5.4.5, via
+    `divKTrialCallV5QHat_le_floor_plus_one`) with the version-agnostic
+    multi-limb Knuth-B `(U4·2^64+U3')/B3' ≤ val256(a)/val256(b) + 2`
+    (`knuth_theorem_b_from_clz`, KnuthTheoremB.lean).
+
+    NOTE: this is `+3`, not `+2`. The consumable `+2` form
+    (`divKTrialCallV5QHat_le_val256_div_plus_two`) requires the **+1**
+    top-window bridge `Knuth128_64TopWindowLeVal256DivPlusOne`, which holds
+    only when the divisor is single-limb-dominated (`val256(v) = vTop`). For a
+    genuinely multi-limb divisor, Knuth-B yields only `floor ≤ +2`, so the
+    naive `floor+1` chain gives `+3`. Closing the gap to `+2` for multi-limb n4
+    requires `div128Quot_v5 = floor` EXACTLY (dropping the `+1` of V5.4.5),
+    which ties into the mulsub/addback-level correction analysis rather than
+    the trial bound. This lemma records the honest available bound. Bead
+    `evm-asm-wbc4i.8.2.2.3`. -/
+theorem divKTrialCallV5QHat_le_val256_div_plus_three_of_call
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    (divKTrialCallV5QHat
+        (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))
+        ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+          (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+        ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+          (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))).toNat ≤
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 3 := by
+  have hb3prime := b3_prime_ge_pow63 b3 b2 hb3nz
+    (signExtend12 (0 : BitVec 12) - (clzResult b3).1)
+  have hu4_lt := isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have h_v5 := divKTrialCallV5QHat_le_floor_plus_one
+    (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))
+    ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+      (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+      (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+    hb3prime hu4_lt
+  have h_knuth := knuth_theorem_b_from_clz a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hshift_nz hcall
+  omega
+
+/-- **The v5 trial is within 1 of the exact floor**: `divKTrialCallV5QHat ∈
+    {floor, floor+1}` under the call regime + normalisation. Combines the `+1`
+    upper bound (V5.4.5, `divKTrialCallV5QHat_le_floor_plus_one`) with the
+    `≥ floor` lower bound (V5.5.3, `divKTrialCallV5QHat_ge_floor`).
+
+    This is the precise input to the loop-body mulsub/addback correction: the
+    per-digit trial overshoots the true digit by at most 1, so a single
+    add-back suffices to correct it.
+
+    NOTE: whether `div128Quot_v5 = floor` EXACTLY — which would tighten the
+    val256 bound from `+3` (`…_plus_three_of_call`) to `+2` purely at the trial
+    level — is NOT established. `div128Quot_phase2b_q0'` does at most one
+    decrement while the pre-correction half-quotient `Q0c` can be `q_true_0+2`,
+    so the residual `+1` is corrected at the LOOP level (the iteration applies a
+    second phase-2b pass), not inside the subroutine. (Empirically `= floor`
+    over 1600+ scanned cases incl. targeted Knuth max-overshoot, but unproven.) -/
+theorem divKTrialCallV5QHat_eq_floor_or_succ
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (divKTrialCallV5QHat uHi uLo vTop).toNat
+        = (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat ∨
+      (divKTrialCallV5QHat uHi uLo vTop).toNat
+        = (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 1 := by
+  have hle := divKTrialCallV5QHat_le_floor_plus_one uHi uLo vTop hvTop_ge huHi_lt_vTop
+  have hge := divKTrialCallV5QHat_ge_floor uHi uLo vTop hvTop_ge huHi_lt_vTop
+  omega
+
 end EvmAsm.Evm64
