@@ -115,7 +115,7 @@ theorem divK_div128_step2_initcap_v5_spec_within
   have h2 : cpsTripleWithin 8 (base + 12) (base + 44) cr _ _ :=
     cpsTripleWithin_extend_code (h := h2_raw) (hmono := by
       rw [hcr_eq]; intro a i
-      simp only [divKDiv128CapQ0V5Code, CodeReq.union_singleton_apply, CodeReq.singleton]; intro h
+      simp only [CodeReq.union_singleton_apply, CodeReq.singleton]; intro h
       split at h
       · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
       · split at h
