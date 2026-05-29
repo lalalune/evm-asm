@@ -53,6 +53,7 @@ import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
 import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
 import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.MaxSkipV5
+import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
 import EvmAsm.Evm64.DivMod.Compose.SharedLoopPost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Defs
@@ -62,6 +63,7 @@ import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
 import EvmAsm.Evm64.DivMod.Spec.N1V5NoBorrow
 import EvmAsm.Evm64.DivMod.Spec.N1V5LaneBltu
 import EvmAsm.Evm64.DivMod.Spec.N1V5LaneHborrow
+import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge

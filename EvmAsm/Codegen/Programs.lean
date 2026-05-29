@@ -96,6 +96,11 @@ import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.WitnessValidation
+import EvmAsm.Codegen.Programs.StorageProof
+import EvmAsm.Codegen.Programs.Eip4788
+import EvmAsm.Codegen.Programs.CodeVerify
+import EvmAsm.Codegen.Programs.AccountVerify
+import EvmAsm.Codegen.Programs.StorageVerify
 import EvmAsm.Codegen.Programs.StorageCompose
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.TxRoot
@@ -216,7 +221,11 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_block_hash_pair" => some ziskBlockValidateBlockHashPairProbeUnit
   | "zisk_block_hash_and_extract_number" => some ziskBlockHashAndExtractNumberProbeUnit
   | "zisk_blockhash_from_witness_headers" => some ziskBlockhashFromWitnessHeadersProbeUnit
+  | "zisk_eip4788_beacon_root_lookup" => some ziskEip4788BeaconRootLookupProbeUnit
   | "zisk_witness_headers_chain_validate" => some ziskWitnessHeadersChainValidateProbeUnit
+  | "zisk_witness_headers_min_block_number" => some ziskWitnessHeadersMinBlockNumberProbeUnit
+  | "zisk_witness_headers_max_block_number" => some ziskWitnessHeadersMaxBlockNumberProbeUnit
+  | "zisk_blockhash_opcode_windowed" => some ziskBlockhashOpcodeWindowedProbeUnit
   | "zisk_header_compute_summary_struct" => some ziskHeaderComputeSummaryStructProbeUnit
   | "zisk_header_extract_difficulty" => some ziskHeaderExtractDifficultyProbeUnit
   | "zisk_header_extract_extra_data" => some ziskHeaderExtractExtraDataProbeUnit
@@ -415,9 +424,14 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_validate_witness_state_contains_root" => some ziskValidateWitnessStateContainsRootProbeUnit
   | "zisk_witness_state_validate_node_kinds" => some ziskWitnessStateValidateNodeKindsProbeUnit
   | "zisk_witness_codes_validate_lengths" => some ziskWitnessCodesValidateLengthsProbeUnit
+  | "zisk_witness_storage_validate_node_kinds" => some ziskWitnessStorageValidateNodeKindsProbeUnit
   | "zisk_account_at_header_state_root" => some ziskAccountAtHeaderStateRootProbeUnit
+  | "zisk_verify_account_struct_matches" => some ziskVerifyAccountStructMatchesProbeUnit
   | "zisk_slot_at_header_state_root" => some ziskSlotAtHeaderStateRootProbeUnit
+  | "zisk_verify_slot_value_matches" => some ziskVerifySlotValueMatchesProbeUnit
+  | "zisk_storage_slot_inclusion_proof_verify" => some ziskStorageSlotInclusionProofVerifyProbeUnit
   | "zisk_code_at_header_state_root" => some ziskCodeAtHeaderStateRootProbeUnit
+  | "zisk_verify_code_hash_matches" => some ziskVerifyCodeHashMatchesProbeUnit
   | "zisk_extcodesize_at_header_state_root" => some ziskExtcodesizeAtHeaderStateRootProbeUnit
   | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
   | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit
@@ -580,9 +594,13 @@ def knownProgramNames : List String :=
    "zisk_validate_witness_state_contains_root",
    "zisk_witness_state_validate_node_kinds",
    "zisk_witness_codes_validate_lengths",
+   "zisk_witness_storage_validate_node_kinds",
    "zisk_account_at_header_state_root",
+   "zisk_verify_account_struct_matches",
    "zisk_slot_at_header_state_root",
+   "zisk_verify_slot_value_matches",
    "zisk_code_at_header_state_root",
+   "zisk_verify_code_hash_matches",
    "zisk_extcodesize_at_header_state_root",
    "zisk_extcodehash_at_header_state_root",
    "zisk_balance_at_header_state_root",
@@ -723,7 +741,11 @@ def knownProgramNames : List String :=
    "zisk_block_validate_block_hash_pair",
    "zisk_block_hash_and_extract_number",
    "zisk_blockhash_from_witness_headers",
+   "zisk_eip4788_beacon_root_lookup",
    "zisk_witness_headers_chain_validate",
+   "zisk_witness_headers_min_block_number",
+   "zisk_witness_headers_max_block_number",
+   "zisk_blockhash_opcode_windowed",
    "zisk_header_compute_summary_struct",
    "zisk_header_extract_difficulty",
    "zisk_header_extract_extra_data",
