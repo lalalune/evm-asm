@@ -182,4 +182,32 @@ theorem divKTrialCallV5QHat_le_val256_div_plus_three_of_call
   have h_knuth := knuth_theorem_b_from_clz a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hshift_nz hcall
   omega
 
+/-- **The v5 trial is within 1 of the exact floor**: `divKTrialCallV5QHat ∈
+    {floor, floor+1}` under the call regime + normalisation. Combines the `+1`
+    upper bound (V5.4.5, `divKTrialCallV5QHat_le_floor_plus_one`) with the
+    `≥ floor` lower bound (V5.5.3, `divKTrialCallV5QHat_ge_floor`).
+
+    This is the precise input to the loop-body mulsub/addback correction: the
+    per-digit trial overshoots the true digit by at most 1, so a single
+    add-back suffices to correct it.
+
+    NOTE: whether `div128Quot_v5 = floor` EXACTLY — which would tighten the
+    val256 bound from `+3` (`…_plus_three_of_call`) to `+2` purely at the trial
+    level — is NOT established. `div128Quot_phase2b_q0'` does at most one
+    decrement while the pre-correction half-quotient `Q0c` can be `q_true_0+2`,
+    so the residual `+1` is corrected at the LOOP level (the iteration applies a
+    second phase-2b pass), not inside the subroutine. (Empirically `= floor`
+    over 1600+ scanned cases incl. targeted Knuth max-overshoot, but unproven.) -/
+theorem divKTrialCallV5QHat_eq_floor_or_succ
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (divKTrialCallV5QHat uHi uLo vTop).toNat
+        = (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat ∨
+      (divKTrialCallV5QHat uHi uLo vTop).toNat
+        = (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat + 1 := by
+  have hle := divKTrialCallV5QHat_le_floor_plus_one uHi uLo vTop hvTop_ge huHi_lt_vTop
+  have hge := divKTrialCallV5QHat_ge_floor uHi uLo vTop hvTop_ge huHi_lt_vTop
+  omega
+
 end EvmAsm.Evm64
