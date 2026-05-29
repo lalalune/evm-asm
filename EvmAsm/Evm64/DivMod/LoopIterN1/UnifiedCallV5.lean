@@ -22,12 +22,12 @@ private theorem iterN1Call_v5_unfoldU (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
   rfl
 
 /-- j=2-entry iteration state (after the j=3 digit). -/
-private def fullN1S2 (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 : Word) :=
+def fullN1S2 (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 : Word) :=
   let s3 := iterN1Call_v5 v0 v1 v2 v3 u0 u1 u2 u3 uTop
   iterN1Call_v5 v0 v1 v2 v3 u0_orig_2 s3.2.1 s3.2.2.1 s3.2.2.2.1 s3.2.2.2.2.1
 
 /-- j=1-entry iteration state (after the j=3, j=2 digits). -/
-private def fullN1S1 (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 : Word) :=
+def fullN1S1 (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 : Word) :=
   let s2 := fullN1S2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2
   iterN1Call_v5 v0 v1 v2 v3 u0_orig_1 s2.2.1 s2.2.2.1 s2.2.2.2.1 s2.2.2.2.2.1
 
