@@ -104,4 +104,41 @@ theorem val256_normalize_divisor (b0 b1 b2 b3 : Word) (s : Nat)
   rw [← e0, ← e1, ← e2, ← e3]
   ring
 
+/-- **val256-normalize identity (dividend / overflow case).** Same per-limb
+    shift-OR normalization as `val256_normalize_divisor`, but the top limb's
+    high `s` bits overflow into a 5th "limb" `U4 = a3 >>> (64-s)`:
+    `U4 · 2^256 + val256 U' = val256 a · 2^s`. No `htop` hypothesis — the top
+    carry `a3 / 2^(64-s)` is exactly `U4` and contributes the `2^256` term. -/
+theorem val256_normalize_dividend (a0 a1 a2 a3 : Word) (s : Nat)
+    (hs : 0 < s) (hs64 : s < 64) :
+    (a3 >>> (64-s)).toNat * 2^256
+    + EvmWord.val256 (a0 <<< s) ((a1 <<< s) ||| (a0 >>> (64-s)))
+        ((a2 <<< s) ||| (a1 >>> (64-s))) ((a3 <<< s) ||| (a2 >>> (64-s)))
+      = EvmWord.val256 a0 a1 a2 a3 * 2^s := by
+  have hsle : 64 - s + s = 64 := by omega
+  have hpow : (2:Nat)^64 = 2^(64-s) * 2^s := by rw [← Nat.pow_add, hsle]
+  have hb0 : (a0 <<< s).toNat = (a0.toNat % 2^(64-s)) * 2^s := by
+    rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, hpow, Nat.mul_mod_mul_right]
+  rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+  unfold EvmWord.val256
+  rw [hb0, shiftOr_disjoint_toNat a1 a0 s hs hs64,
+      shiftOr_disjoint_toNat a2 a1 s hs hs64, shiftOr_disjoint_toNat a3 a2 s hs hs64]
+  have e0 := Nat.div_add_mod a0.toNat (2^(64-s))
+  have e1 := Nat.div_add_mod a1.toNat (2^(64-s))
+  have e2 := Nat.div_add_mod a2.toNat (2^(64-s))
+  have e3 := Nat.div_add_mod a3.toNat (2^(64-s))
+  have h128 : (2:Nat)^128 = 2^64 * 2^64 := by rw [← Nat.pow_add]
+  have h192 : (2:Nat)^192 = 2^64 * 2^64 * 2^64 := by rw [← Nat.pow_add, ← Nat.pow_add]
+  have h256 : (2:Nat)^256 = 2^64 * 2^64 * 2^64 * 2^64 := by
+    rw [← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add]
+  rw [h128, h192, h256, hpow]
+  set M := 2^(64-s)
+  set T := 2^s
+  set p0 := a0.toNat % M; set q0 := a0.toNat / M
+  set p1 := a1.toNat % M; set q1 := a1.toNat / M
+  set p2 := a2.toNat % M; set q2 := a2.toNat / M
+  set p3 := a3.toNat % M; set q3 := a3.toNat / M
+  rw [← e0, ← e1, ← e2, ← e3]
+  ring
+
 end EvmAsm.Evm64
