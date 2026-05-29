@@ -67,4 +67,38 @@ theorem divKTrialCallFullPostV5_imp_named
     divKTrialCallV5Un0 divKTrialCallV5Un1
   xperm_hyp hq
 
+/-- v5 trial-quotient call full path with the **compact NAMED post**
+    (`divKTrialCallFullPostV5Named`).  Same statement as
+    `divK_trial_call_full_v5_spec_within_noNop` but with the post weakened via
+    `divKTrialCallFullPostV5_imp_named`, so downstream composition (brick 6) sees
+    compact named registers instead of the raw Knuth-D quotient terms. -/
+theorem divK_trial_call_full_v5_named_spec_within_noNop
+    (sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop : Word)
+    (retMem dMem dloMem un0Mem scratchMem : Word)
+    (base : Word)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : BitVec.ult uHi vTop) :
+    let uAddr := sp + signExtend12 4056 - (j + n) <<< (3 : BitVec 6).toNat
+    let vtopBase := sp + (n + signExtend12 4095) <<< (3 : BitVec 6).toNat
+    cpsTripleWithin 98 (base + loopBodyOff) (base + div128CallRetOff) (sharedDivModCodeNoNop_v5 base)
+      (((.x12 ↦ᵣ sp) ** (.x9 ↦ᵣ j) **
+       (.x5 ↦ᵣ v5Old) ** (.x6 ↦ᵣ v6Old) **
+       (.x7 ↦ᵣ v7Old) ** (.x10 ↦ᵣ v10Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x2 ↦ᵣ v2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3976 ↦ₘ jOld) ** (sp + signExtend12 3984 ↦ₘ n) **
+       (uAddr ↦ₘ uHi) ** ((uAddr + 8) ↦ₘ uLo) **
+       (vtopBase + signExtend12 32 ↦ₘ vTop) **
+       (sp + signExtend12 3968 ↦ₘ retMem) **
+       (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) **
+       (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem)) ** regOwn .x1)
+      (divKTrialCallFullPostV5Named sp j n uHi uLo vTop base scratchMem) := by
+  intro uAddr vtopBase
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (divKTrialCallFullPostV5_imp_named sp j n uHi uLo vTop base scratchMem)
+    (divK_trial_call_full_v5_spec_within_noNop
+      sp j n jOld v5Old v6Old v7Old v10Old v11Old v2Old uHi uLo vTop
+      retMem dMem dloMem un0Mem scratchMem base halign hbltu)
+
 end EvmAsm.Evm64
