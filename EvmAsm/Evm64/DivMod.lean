@@ -75,6 +75,7 @@ import EvmAsm.Evm64.DivMod.LoopIterN1.IterBodyV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.IterBodyMaxV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.IterPostDispatchV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.Iter10DefsV5
+import EvmAsm.Evm64.DivMod.LoopIterN1.Iter10CallV5
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.LoopUnifiedN1.CallIter210NoNop
 import EvmAsm.Evm64.DivMod.LoopUnifiedN1.UnifiedNoNop
