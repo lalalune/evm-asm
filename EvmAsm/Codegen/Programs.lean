@@ -97,6 +97,7 @@ import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.WitnessValidation
 import EvmAsm.Codegen.Programs.StorageProof
+import EvmAsm.Codegen.Programs.Eip4788
 import EvmAsm.Codegen.Programs.Eip2935
 import EvmAsm.Codegen.Programs.StorageCompose
 import EvmAsm.Codegen.Programs.EvmCodes
@@ -218,7 +219,11 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_block_hash_pair" => some ziskBlockValidateBlockHashPairProbeUnit
   | "zisk_block_hash_and_extract_number" => some ziskBlockHashAndExtractNumberProbeUnit
   | "zisk_blockhash_from_witness_headers" => some ziskBlockhashFromWitnessHeadersProbeUnit
+<<<<<<< HEAD
   | "zisk_eip2935_blockhash_lookup" => some ziskEip2935BlockhashLookupProbeUnit
+=======
+  | "zisk_eip4788_beacon_root_lookup" => some ziskEip4788BeaconRootLookupProbeUnit
+>>>>>>> origin/main
   | "zisk_witness_headers_chain_validate" => some ziskWitnessHeadersChainValidateProbeUnit
   | "zisk_witness_headers_min_block_number" => some ziskWitnessHeadersMinBlockNumberProbeUnit
   | "zisk_witness_headers_max_block_number" => some ziskWitnessHeadersMaxBlockNumberProbeUnit
@@ -732,7 +737,11 @@ def knownProgramNames : List String :=
    "zisk_block_validate_block_hash_pair",
    "zisk_block_hash_and_extract_number",
    "zisk_blockhash_from_witness_headers",
+<<<<<<< HEAD
    "zisk_eip2935_blockhash_lookup",
+=======
+   "zisk_eip4788_beacon_root_lookup",
+>>>>>>> origin/main
    "zisk_witness_headers_chain_validate",
    "zisk_witness_headers_min_block_number",
    "zisk_witness_headers_max_block_number",
