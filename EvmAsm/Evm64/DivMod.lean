@@ -64,6 +64,7 @@ import EvmAsm.Evm64.DivMod.Compose.SharedLoopPost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Defs
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5DenormPre
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Digits
 import EvmAsm.Evm64.DivMod.Spec.N1V5CarryZero
 import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
 import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
