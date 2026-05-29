@@ -542,6 +542,33 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   6. Stack-level spec: case-split b=0/≠0, then on n, compose full-path + semantic bridge
   7. Factor shared DIV/MOD loop (Issue #266) to derive MOD specs from DIV proofs
 
+  **V5 track — `divK_div128_v5` migration (in progress, bead `evm-asm-wbc4i.6`):**
+  The executable `evm_div`/`evm_mod` were switched to `divK_div128_v4` on
+  2026-05-19 (PR #4992). The **v5** track replaces the inner div128 subroutine
+  with `divK_div128_v5` — the *capped* Knuth Algorithm D variant that repairs
+  v4's two buggy ULTs by clamping the trial quotients `q1c`/`q0c` at `2^32 − 1`
+  — and rebuilds the spec layer against it for full-domain (n=4) correctness.
+  Files under `Evm64/DivMod/`:
+  - **Shared code surfaces** (`Compose/V5Code.lean`): `sharedDivModCode_v5`
+    and `sharedDivModCodeNoNop_v5` mirror the v4 surfaces (`Compose/Base.lean`,
+    `Compose/V4NoNop.lean`), swapping in `divK_div128_v5` at block 12. These are
+    the `CodeReq`s for `div128_v5_spec_shared` / `div128_v5_spec_shared_noNop`.
+    Kept in a dedicated file because `Base.lean` is at its size cap.
+  - **Block specs** (`LimbSpec/Div128*V5.lean`): `Div128CapV5` (cap clamp),
+    `Div128Phase1bV5` (prodcheck1;;prodcheck1b body), `Div128Phase2bV5`
+    (phase2b body + the two D3 spill blocks), `Div128Step1V5` / `Div128Step1FullV5`
+    (step1 prefix+guard+full block spec), `Div128Step2V5` / `Div128Step2FullV5`
+    (step2 prefix init+cap_q0+guard+full block spec). Built up over the
+    V5.6.5–V5.6.12 commit series.
+  - **n=4 dispatcher predicates + runtime chain** (`Spec/CallAddbackV5.lean`,
+    `Spec/CallAddbackRuntimeV5.lean`, `LoopBody/TrialCallV5.lean`,
+    `LoopDefs/IterV5.lean`): mirror the v4 `CallAddback` dispatcher predicates
+    and the `hq_over`-assuming n4 runtime chain to v5.
+  - **Proof-scaling discipline**: V5 follows the fold-before-`xperm` guidance in
+    `AGENTS.md` — `@[irreducible]` `…PostCore` / `…PostFromBody` helpers behind
+    the postcondition spine, refold via `change` in branch bridges, named lemmas
+    for fresh heartbeat budgets. See `GRIND.md` for the simp/grind conventions.
+
 Before starting **any** of the remaining arithmetic opcodes below (SDIV,
 SMOD, ADDMOD, MULMOD, EXP), read
 [`EvmAsm/Evm64/OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md) —
@@ -1048,6 +1075,23 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   [`execution-specs`](execution-specs/) Python; see
   `scripts/codegen-stateless-*-check.sh` for the per-helper round-
   trip scripts.
+- ✅ **State-trie / MPT read family (2026-05-)**: a new tranche of
+  `*_at_header_state_root` helpers walks the witness state trie from a
+  header's `state_root` to read account and storage data, mirroring EVM
+  account-accessing opcodes. Storage-proof scaffolding first
+  (`zisk_validate_state_root_against_witness_node`,
+  `zisk_validate_witness_state_contains_root`,
+  `zisk_validate_storage_root_in_witness_storage`), then the account walk
+  (`zisk_account_at_header_state_root`, `zisk_account_exists_at_header_state_root`)
+  and the opcode-level getters built on it:
+  `zisk_balance` (BALANCE), `zisk_nonce`, `zisk_code` / `zisk_code_size`
+  (EXTCODESIZE) / `zisk_extcodehash` (EIP-1052) / `zisk_extcodecopy`
+  (EXTCODECOPY), `zisk_slot` / `zisk_sload` (SLOAD storage-slot lookup),
+  `zisk_account_is_empty` (EIP-161 emptiness), and
+  `zisk_has_code_or_nonce` (EIP-684 CREATE-collision check) — all
+  `_at_header_state_root`. Plus `zisk_blockhash_from_witness_headers`
+  (BLOCKHASH) and `zisk_witness_headers_chain_validate` (chain continuity).
+  Same fixture/round-trip discipline against `execution-specs` Python.
 
 ### Cross-references
 
@@ -1080,11 +1124,16 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
    `evm_div_stack_spec_unconditional` / `evm_mod_stack_spec_unconditional`
    (the n=4 path) — is tracked under bead `evm-asm-9iqmw` and reopened
    [GitHub issue #61](https://github.com/Verified-zkEVM/evm-asm/issues/61).
-   In flight as of 2026-05-26: a long series of `feat/div-n1-*`,
-   `feat/div-n2-n3-selected-*`, and `feat/div-double-addback-*` PRs
-   (n=1 ifborrow path closure, selected-input conditional carry,
-   double-addback overestimate bridge, n=2/n=3 selected path conditions
-   and counterexamples). SDIV (`evm_sdiv_stack_spec_within`) and
+   In flight as of 2026-05-29: the **v5 div128 migration** (bead
+   `evm-asm-wbc4i.6`) — `divK_div128_v5` caps the trial quotients to repair
+   v4's two buggy ULTs, and the spec layer is being rebuilt against it
+   (shared code surfaces `Compose/V5Code.lean`; step1/step2/phase1b/phase2b
+   block specs in `LimbSpec/Div128*V5.lean`; n=4 dispatcher predicates and
+   the `hq_over`-assuming runtime chain in `Spec/CallAddback{,Runtime}V5.lean`).
+   See Phase 4.2 "V5 track" above for the file map. The earlier v4 series
+   (`feat/div-n1-*`, `feat/div-n2-n3-selected-*`, `feat/div-double-addback-*`)
+   landed the partial-domain conditional-carry and overestimate bridges.
+   SDIV (`evm_sdiv_stack_spec_within`) and
    the SDIV/SMOD epilog wrappers are conditional on the same v4
    migration and unblock automatically when `evm-asm-9iqmw.5` lands.
 6. Phase 5: MLOAD, MSTORE, EVM memory model

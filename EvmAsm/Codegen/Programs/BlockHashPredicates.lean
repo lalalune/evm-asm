@@ -877,6 +877,146 @@ def ziskWitnessHeadersChainValidateProbeUnit : BuildUnit := {
   dataAsm     := ziskWitnessHeadersChainValidateDataSection
 }
 
+/-! ## witness_headers_min_block_number
+
+    Walk an SSZ `witness.headers` list section and compute the
+    minimum `block.number` across all entries. Returns the
+    minimum as a u64, or 0xFFFFFFFFFFFFFFFF on an empty section
+    (the "no value" sentinel convention).
+
+    Spec-side rationale: EVM's `BLOCKHASH(n)` is only defined
+    for the most-recent 256 ancestors of the executing block
+    (or the EIP-2935 window in Amsterdam+). A stateless guest
+    needs to know the oldest block it can resolve via
+    `witness.headers`. That bound is `min(headers[i].number)`.
+    Reporting it up-front (rather than discovering it
+    mid-`BLOCKHASH`) lets the guest reject out-of-window
+    queries cleanly.
+
+    Companion to:
+      * PR #7147 `blockhash_from_witness_headers` -- lookup by
+        number, doesn't iterate to find min.
+      * PR #7158 `witness_headers_chain_validate` -- validates
+        parent-hash linkage.
+      * K233 `header_extract_number` -- per-header extractor
+        used internally.
+
+    Calling convention:
+      a0 (input)  : witness.headers section ptr
+      a1 (input)  : section_len (0 ⇒ empty)
+      a2 (input)  : u64 out ptr (min block number; on empty
+                    section the value is MAX_U64)
+      a3 (input)  : u64 out ptr (n_processed; total header
+                    count on success, or the index of the
+                    failing header on a parse fail)
+      ra (input)  : return
+      a0 (output) :
+        0 = success
+        2 = some header failed `header_extract_number`
+-/
+def witnessHeadersMinBlockNumberFunction : String :=
+  "witness_headers_min_block_number:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0                  # section ptr\n" ++
+  "  mv s1, a1                  # section_len\n" ++
+  "  mv s2, a2                  # min_out ptr\n" ++
+  "  mv s3, a3                  # n_processed out ptr\n" ++
+  "  li s7, -1                  # s7 = running min (init to MAX_U64)\n" ++
+  "  sd s7, 0(s2)\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  beqz s1, .Lwhmbn_ok          # empty section ⇒ min = MAX_U64\n" ++
+  "  lwu t0, 0(s0)\n" ++
+  "  srli s4, t0, 2               # s4 = N\n" ++
+  "  li s5, 0                     # s5 = i\n" ++
+  ".Lwhmbn_loop:\n" ++
+  "  beq s5, s4, .Lwhmbn_ok\n" ++
+  "  slli t0, s5, 2\n" ++
+  "  add t1, s0, t0\n" ++
+  "  lwu t2, 0(t1)\n" ++
+  "  add a0, s0, t2               # el_i_start\n" ++
+  "  addi t3, s5, 1\n" ++
+  "  beq t3, s4, .Lwhmbn_use_end\n" ++
+  "  slli t3, t3, 2\n" ++
+  "  add t3, s0, t3\n" ++
+  "  lwu t4, 0(t3)\n" ++
+  "  add t4, s0, t4\n" ++
+  "  j .Lwhmbn_have_end\n" ++
+  ".Lwhmbn_use_end:\n" ++
+  "  add t4, s0, s1\n" ++
+  ".Lwhmbn_have_end:\n" ++
+  "  sub a1, t4, a0               # el_i_len\n" ++
+  "  la a2, whmbn_num_buf\n" ++
+  "  jal ra, header_extract_number\n" ++
+  "  bnez a0, .Lwhmbn_parse_fail\n" ++
+  "  la t0, whmbn_num_buf\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  bgeu t1, s7, .Lwhmbn_skip   # current >= running min\n" ++
+  "  mv s7, t1\n" ++
+  ".Lwhmbn_skip:\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lwhmbn_loop\n" ++
+  ".Lwhmbn_parse_fail:\n" ++
+  "  sd s5, 0(s3)\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lwhmbn_ret\n" ++
+  ".Lwhmbn_ok:\n" ++
+  "  sd s7, 0(s2)                 # write min\n" ++
+  "  sd s4, 0(s3)                 # n_processed = N (= 0 for empty)\n" ++
+  "  li a0, 0\n" ++
+  ".Lwhmbn_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
+/-- `zisk_witness_headers_min_block_number`: probe BuildUnit.
+    Input layout (at INPUT_ADDR):
+      bytes  0.. 8 : (ziskemu metadata)
+      bytes  8..16 : section_len (u64 LE)
+      bytes 16..   : witness.headers section
+    Output layout:
+      bytes  0.. 8 : status (0 ok / 2 parse fail)
+      bytes  8..16 : min_block_number (MAX_U64 on empty section)
+      bytes 16..24 : n_processed (= N on success;
+                     failing index on fail) -/
+def ziskWitnessHeadersMinBlockNumberPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # section_len\n" ++
+  "  addi a0, a5, 16             # section ptr\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  li a3, 0xa0010010\n" ++
+  "  jal ra, witness_headers_min_block_number\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lwhmbn_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractNumberFunction ++ "\n" ++
+  witnessHeadersMinBlockNumberFunction ++ "\n" ++
+  ".Lwhmbn_pdone:"
+
+def ziskWitnessHeadersMinBlockNumberDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "whmbn_num_buf:\n" ++
+  "  .zero 8"
+
+def ziskWitnessHeadersMinBlockNumberProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskWitnessHeadersMinBlockNumberPrologue
+  dataAsm     := ziskWitnessHeadersMinBlockNumberDataSection
+}
+
 /-! ## witness_headers_max_block_number
 
     Walk an SSZ `witness.headers` list section and compute the
