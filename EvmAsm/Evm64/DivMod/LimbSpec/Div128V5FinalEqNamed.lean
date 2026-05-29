@@ -109,4 +109,37 @@ theorem div128V5_un21_eq (u1 u0 v0 : Word) :
   unfold divKTrialCallV5Un21
   rfl
 
+/-- The div128 code's Phase-2a capped remainder `rhat2c` (incremental form, over
+    the named `un21`) equals `divKTrialCallV5Rhat2c`.  The `hi2=0` branch is refl;
+    the capped branch is `div128V5_rhatc_correction_eq` (#7243) at `uHi := un21`. -/
+theorem div128V5_rhat2c_eq (u1 u0 v0 : Word) :
+    (let dHi := divKTrialCallV5DHi v0
+     let un21 := divKTrialCallV5Un21 u1 u0 v0
+     let q0 := rv64_divu un21 dHi
+     let rhat2 := un21 - q0 * dHi
+     let hi2 := q0 >>> (32 : BitVec 6).toNat
+     let cap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+     if hi2 = 0 then rhat2 else rhat2 + (q0 - cap) * dHi)
+    = divKTrialCallV5Rhat2c u1 u0 v0 := by
+  unfold divKTrialCallV5Rhat2c
+  dsimp only
+  split
+  · rfl
+  · exact div128V5_rhatc_correction_eq (divKTrialCallV5Un21 u1 u0 v0)
+      (rv64_divu (divKTrialCallV5Un21 u1 u0 v0) (divKTrialCallV5DHi v0))
+      ((BitVec.allOnes 64) >>> (32 : BitVec 6).toNat) (divKTrialCallV5DHi v0)
+
+/-- The div128 code's Phase-2a capped quotient `q0c` (over the named `un21`)
+    equals `divKTrialCallV5Q0c` — both are `if hi2 = 0 then q0 else cap`. -/
+theorem div128V5_q0c_eq (u1 u0 v0 : Word) :
+    (let dHi := divKTrialCallV5DHi v0
+     let un21 := divKTrialCallV5Un21 u1 u0 v0
+     let q0 := rv64_divu un21 dHi
+     let hi2 := q0 >>> (32 : BitVec 6).toNat
+     let cap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+     if hi2 = 0 then q0 else cap)
+    = divKTrialCallV5Q0c u1 u0 v0 := by
+  unfold divKTrialCallV5Q0c
+  rfl
+
 end EvmAsm.Evm64
