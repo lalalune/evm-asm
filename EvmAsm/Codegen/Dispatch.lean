@@ -151,9 +151,13 @@ def emitDispatcherPrologue : String :=
   "  la x5, evm_memory\n" ++
   "  sd x5, 416(x20)\n" ++         -- env.callDataPtrOff = &evm_memory (zeros)
   "  sd x0, 424(x20)\n" ++         -- env.callDataLenOff = 0
-  -- M22: .data-baked variant has no slot-table input. The `.zero`
-  -- block at `evm_slot_table` starts empty; SSTORE may grow it.
-  "  sd x0, 448(x20)\n" ++         -- env.slotTableCountOff = 0
+  -- M24: .data-baked variant has no storage input. Initialize all
+  -- three log-state env cells to 0. Persistent + transient logs live
+  -- at STATE_TRACKER_AREA (0xa0630000 / 0xa0830000) outside `.data`;
+  -- the regions are byte-accessed directly by the storage handlers.
+  "  sd x0, 448(x20)\n" ++         -- env.persistentLogLengthOff = 0
+  "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
+  "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -193,7 +197,89 @@ def emitDispatcherEpilogue
   "  j .exit_label\n" ++
   ".exit_label:\n" ++
   emitProgram exitBody ++ "\n" ++
-  ".exit_no_epilogue:"
+  ".exit_no_epilogue:\n" ++
+  -- M24: surface final log lengths at OUTPUT_ADDR + 40 / + 48.
+  -- This runs for EVERY halt path: STOP / RETURN / REVERT /
+  -- INVALID / SELFDESTRUCT. REVERT's body has already restored
+  -- the persistent log length to the checkpoint (and zeroed the
+  -- transient length) by the time we get here, so the surfaced
+  -- values reflect the post-rollback state for reverted txs and
+  -- the live committed state for successful ones.
+  "  li x16, 0xa0010000\n" ++       -- x16 = OUTPUT_ADDR
+  "  ld x17, 448(x20)\n" ++         -- persistent log length
+  "  sd x17, 40(x16)\n" ++          -- OUTPUT[40..48]
+  "  ld x17, 464(x20)\n" ++         -- transient log length
+  "  sd x17, 48(x16)\n" ++          -- OUTPUT[48..56]
+  -- M25: dedup-and-emit modified persistent slots at OUTPUT+56..
+  -- Walks the persistent log from end (last-write-wins); for each
+  -- entry, checks if its slotKey has already been emitted at
+  -- OUTPUT[64..64+count*64]; if not, emits (slotKey, current) and
+  -- bumps the count cell at OUTPUT+56. Capped at 3 entries (192 B
+  -- of slot data fits in the 200-byte slack after byte 56).
+  -- All halt paths (STOP / RETURN / REVERT / INVALID / SELFDESTRUCT)
+  -- run this; REVERT has already truncated the log to the checkpoint,
+  -- so the surfaced slots reflect the post-rollback state.
+  "  ld x15, 448(x20)\n" ++         -- x15 = persistent log_length
+  "  li x17, 0\n" ++                -- x17 = emitted count
+  "  sd x17, 56(x16)\n" ++          -- init OUTPUT+56 = 0
+  "  beqz x15, 4f\n" ++             -- empty log → done
+  "  li x14, 0xa0630000\n" ++       -- x14 = log base
+  "  slli x18, x15, 7\n" ++         -- x18 = log_length * 128
+  "  add x14, x14, x18\n" ++        -- x14 = past last entry
+  "1:\n" ++                         -- scan iter (work backward)
+  "  addi x14, x14, -128\n" ++      -- x14 = current entry
+  -- Dedup: scan output[OUTPUT+64 .. OUTPUT+64+x17*64] for slotKey
+  "  li x18, 0xa0010040\n" ++       -- x18 = OUTPUT + 64
+  "  mv x19, x17\n" ++              -- x19 = emitted count to check
+  "2:\n" ++                         -- dedup loop
+  "  beqz x19, 3f\n" ++             -- exhausted → not duplicate, emit
+  "  ld x21, 0(x18)\n" ++
+  "  ld x22, 32(x14)\n" ++
+  "  bne x21, x22, 5f\n" ++
+  "  ld x21, 8(x18)\n" ++
+  "  ld x22, 40(x14)\n" ++
+  "  bne x21, x22, 5f\n" ++
+  "  ld x21, 16(x18)\n" ++
+  "  ld x22, 48(x14)\n" ++
+  "  bne x21, x22, 5f\n" ++
+  "  ld x21, 24(x18)\n" ++
+  "  ld x22, 56(x14)\n" ++
+  "  bne x21, x22, 5f\n" ++
+  "  j 6f\n" ++                     -- match → already emitted, skip
+  "5:\n" ++                         -- not match this output entry
+  "  addi x18, x18, 64\n" ++
+  "  addi x19, x19, -1\n" ++
+  "  j 2b\n" ++
+  "3:\n" ++                         -- emit (slotKey, current)
+  "  li x19, 3\n" ++
+  "  bgeu x17, x19, 4f\n" ++        -- cap reached
+  "  slli x18, x17, 6\n" ++         -- x18 = emitted count * 64
+  "  li x19, 0xa0010040\n" ++       -- x19 = OUTPUT + 64
+  "  add x18, x19, x18\n" ++        -- x18 = write target
+  -- Copy slotKey: log[+32..+64] → out[+0..+32]
+  "  ld x21, 32(x14)\n" ++
+  "  sd x21, 0(x18)\n" ++
+  "  ld x21, 40(x14)\n" ++
+  "  sd x21, 8(x18)\n" ++
+  "  ld x21, 48(x14)\n" ++
+  "  sd x21, 16(x18)\n" ++
+  "  ld x21, 56(x14)\n" ++
+  "  sd x21, 24(x18)\n" ++
+  -- Copy current: log[+96..+128] → out[+32..+64]
+  "  ld x21, 96(x14)\n" ++
+  "  sd x21, 32(x18)\n" ++
+  "  ld x21, 104(x14)\n" ++
+  "  sd x21, 40(x18)\n" ++
+  "  ld x21, 112(x14)\n" ++
+  "  sd x21, 48(x18)\n" ++
+  "  ld x21, 120(x14)\n" ++
+  "  sd x21, 56(x18)\n" ++
+  "  addi x17, x17, 1\n" ++
+  "  sd x17, 56(x16)\n" ++          -- update count cell
+  "6:\n" ++                         -- loop step
+  "  addi x15, x15, -1\n" ++
+  "  bnez x15, 1b\n" ++
+  "4:\n"                            -- done — fall through to halt stub
 
 /-- `.data` section layout (starts at `0xa0000000` per
     `Driver.lean`'s `-Tdata=...`):
@@ -232,10 +318,7 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
-                          -- + M22 slotTableCount at offset 448 (envSize = 456)
-  ".balign 32\n" ++
-  "evm_slot_table:\n" ++
-  "  .zero 0x4000\n" ++   -- M22: 16 KiB = 256 storage slots × 64 B (key + value)
+                          -- + M22/M24 log-state cells up to env+472 (envSize = 472)
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
@@ -289,30 +372,63 @@ def emitRuntimeDispatcherPrologue : String :=
   "  addi x6, x6, 8\n" ++          -- x6 = calldata ptr
   "  sd x6, 416(x20)\n" ++         -- env.callDataPtrOff (416) = ptr
   "  sd x7, 424(x20)\n" ++         -- env.callDataLenOff (424) = len
-  -- M22: locate the storage segment past the calldata pad and
-  -- copy the preloaded slot table into the writable `evm_slot_table`
-  -- region. Layout (post-M22 pack-bytecode.py): immediately past
-  -- `round_up(calldata_ptr + calldata_len, 8)` the next 8 bytes are
-  -- the slot count, followed by slot_count * 64 bytes of (key, value)
-  -- pairs (each pre-encoded in EVM-stack byte order by the packer).
+  -- M24: locate the storage preload segment past the calldata pad and
+  -- expand each 64-byte (key, value) input entry into a 128-byte
+  -- Option A entry (addrHash=0, slotKey=key, original=value,
+  -- current=value) at STATE_TRACKER_AREA = 0xa0630000. Save the
+  -- preload count to both the live persistent log length AND the
+  -- checkpoint (so REVERT rolls back to post-preload). Init
+  -- transient log length to 0 (transient storage starts empty).
+  --
+  -- Input layout (unchanged from M22 `pack-bytecode.py --storage`):
+  --   <u64 slot_count> followed by slot_count × (key:32, value:32)
+  -- Output layout (Option A):
+  --   STATE_TRACKER_AREA + i*128 = (addrHash=0:32, slotKey:32,
+  --                                 original=value:32, current=value:32)
   "  add x5, x6, x7\n" ++          -- x5 = end of calldata bytes
   "  addi x5, x5, 7\n" ++          -- round up to 8-byte boundary
   "  srli x5, x5, 3\n" ++
   "  slli x5, x5, 3\n" ++          -- x5 = &(slot count)
-  "  ld x6, 0(x5)\n" ++            -- x6 = slot_count
-  "  sd x6, 448(x20)\n" ++         -- env.slotTableCountOff (448) = count
-  "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first slot)
-  "  la x7, evm_slot_table\n" ++   -- x7 = dst ptr
-  "  slli x6, x6, 6\n" ++          -- x6 = slot_count * 64 = byte count
-  ".slot_copy_loop:\n" ++
-  "  beqz x6, .slot_copy_done\n" ++
-  "  ld x8, 0(x5)\n" ++            -- 8-byte aligned dword copy (each
-  "  sd x8, 0(x7)\n" ++            -- slot is 64 B → byte count is a
-  "  addi x5, x5, 8\n" ++          -- multiple of 8)
-  "  addi x7, x7, 8\n" ++
-  "  addi x6, x6, -8\n" ++
-  "  j .slot_copy_loop\n" ++
-  ".slot_copy_done:\n" ++
+  "  ld x6, 0(x5)\n" ++            -- x6 = slot_count (= preload count)
+  "  sd x6, 448(x20)\n" ++         -- env.persistentLogLengthOff = preload count
+  "  sd x6, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = preload count
+  "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
+  "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
+  "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
+  ".preload_expand_loop:\n" ++
+  "  beqz x6, .preload_expand_done\n" ++
+  -- addrHash = 0 (32 bytes)
+  "  sd x0, 0(x7)\n" ++
+  "  sd x0, 8(x7)\n" ++
+  "  sd x0, 16(x7)\n" ++
+  "  sd x0, 24(x7)\n" ++
+  -- slotKey = src[0..32] → dst[32..64]
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 32(x7)\n" ++
+  "  ld x8, 8(x5)\n" ++
+  "  sd x8, 40(x7)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 48(x7)\n" ++
+  "  ld x8, 24(x5)\n" ++
+  "  sd x8, 56(x7)\n" ++
+  -- value (src[32..64]) → original (dst[64..96]) AND current (dst[96..128])
+  "  ld x8, 32(x5)\n" ++
+  "  sd x8, 64(x7)\n" ++
+  "  sd x8, 96(x7)\n" ++
+  "  ld x8, 40(x5)\n" ++
+  "  sd x8, 72(x7)\n" ++
+  "  sd x8, 104(x7)\n" ++
+  "  ld x8, 48(x5)\n" ++
+  "  sd x8, 80(x7)\n" ++
+  "  sd x8, 112(x7)\n" ++
+  "  ld x8, 56(x5)\n" ++
+  "  sd x8, 88(x7)\n" ++
+  "  sd x8, 120(x7)\n" ++
+  "  addi x5, x5, 64\n" ++         -- next input entry (64 B)
+  "  addi x7, x7, 128\n" ++        -- next output entry (128 B)
+  "  addi x6, x6, -1\n" ++
+  "  j .preload_expand_loop\n" ++
+  ".preload_expand_done:\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -338,10 +454,7 @@ def emitRuntimeDispatcherDataSection
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
-                          -- + M22 slotTableCount at offset 448 (envSize = 456)
-  ".balign 32\n" ++
-  "evm_slot_table:\n" ++
-  "  .zero 0x4000\n" ++   -- M22: 16 KiB = 256 storage slots × 64 B (key + value)
+                          -- + M22/M24 log-state cells up to env+472 (envSize = 472)
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
