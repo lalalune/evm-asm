@@ -160,4 +160,41 @@ theorem fullDivN1R0V5_remainder_lt_of_shape
   exact iterN1V5_true_remainder_lt_of_v0_norm_call _ _ _
     (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr1lt
 
+-- ============================================================================
+-- Per-step Euclidean conservation (building block for the 4-digit accumulation)
+-- ============================================================================
+
+/-- **Abstract per-step v5 Euclidean conservation.** For a normalized one-limb
+    divisor in the call regime, `val256(window) = qHat·v0 + val256(remainder)`,
+    where `qHat = R.1` is the iteration's quotient digit. From carry=0
+    (no-borrow) + `mulsubN4_val256_eq` — NO `Carry2NzAll`. The per-step input to
+    the version-agnostic 4-digit accumulation
+    (`fullDivN1_four_step_conservation_nat`) yielding the full normalized
+    Euclidean equation `fullDivN1NormalizedConservation`. -/
+theorem iterN1V5_true_conservation_of_v0_norm_call
+    (v0 u0 u1 : Word)
+    (hv0_norm : v0.toNat ≥ 2^63)
+    (hcall : u1.toNat < v0.toNat) :
+    EvmWord.val256 u0 u1 0 0 =
+      (iterN1V5 true v0 0 0 0 u0 u1 0 0 0).1.toNat * v0.toNat +
+      EvmWord.val256
+        (iterN1V5 true v0 0 0 0 u0 u1 0 0 0).2.1
+        (iterN1V5 true v0 0 0 0 u0 u1 0 0 0).2.2.1
+        (iterN1V5 true v0 0 0 0 u0 u1 0 0 0).2.2.2.1
+        (iterN1V5 true v0 0 0 0 u0 u1 0 0 0).2.2.2.2.1 := by
+  have hc3 : (mulsubN4 (div128Quot_v5 u1 u0 v0) v0 0 0 0 u0 u1 0 0).2.2.2.2 = 0 := by
+    apply c3_un_zero_of_qHat_mul_le
+    have h_prod : (div128Quot_v5 u1 u0 v0).toNat * v0.toNat ≤ u1.toNat * 2^64 + u0.toNat :=
+      le_trans (Nat.mul_le_mul_right v0.toNat
+        (div128Quot_v5_le_q_true u1 u0 v0 hv0_norm hcall)) (Nat.div_mul_le_self _ _)
+    simp [EvmWord.val256]; omega
+  rw [iterN1V5_true]
+  unfold iterN1Call_v5
+  rw [iterWithDoubleAddback_no_borrow (by rw [hc3]; simp [BitVec.ult])]
+  dsimp only
+  have hval := mulsubN4_val256_eq (div128Quot_v5 u1 u0 v0) v0 0 0 0 u0 u1 0 0
+  simp only [hc3] at hval
+  simp [EvmWord.val256] at hval ⊢
+  omega
+
 end EvmAsm.Evm64
