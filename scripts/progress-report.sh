@@ -96,7 +96,7 @@ codegen_milestones() {
   # order therefore reads naturally.
   local seq
   seq="$(grep -A2 '^### Sequencing' CODEGEN.md | tr -d '\n' || true)"
-  for m in M0 M1 M2 M3 M4 M5a M5b M6a M6b M7 M8 M8.5 M9 M10 M11 M12 M13 M14 M15 M16 M17 M18 M19 M20 M21 M22 M23; do
+  for m in M0 M1 M2 M3 M4 M5a M5b M6a M6b M7 M8 M8.5 M9 M10 M11 M12 M13 M14 M15 M16 M17 M18 M19 M20 M21 M22 M23 M24; do
     # Escape regex metachars in $m (e.g. the `.` in M8.5).
     local m_esc
     m_esc="$(printf '%s' "$m" | sed 's/[.[\*^$()+?{|]/\\&/g')"
