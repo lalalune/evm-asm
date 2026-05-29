@@ -259,9 +259,11 @@ theorem n1_dispatchPre_to_pathEntry_v5 (sp : Word) (a b : EvmWord)
        ((sp + signExtend12 3960) ↦ₘ dMem) **
        ((sp + signExtend12 3952) ↦ₘ dloMem) **
        ((sp + signExtend12 3944) ↦ₘ scratch_un0) **
-       ((sp + signExtend12 3936) ↦ₘ scratchMem) ** (.x1 ↦ᵣ x1Val)) h := by
+       ((sp + signExtend12 3936) ↦ₘ scratchMem) ** regOwn .x1) h := by
   intro h hp
   delta divModStackDispatchPreNoX1 at hp
+  replace hp := sepConj_mono_left
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x1)))) h hp
   rw [evmWordIs_sp_limbs_eq sp a a0 a1 a2 a3 ha0 ha1 ha2 ha3,
       evmWordIs_sp32_limbs_eq sp b b0 b1 b2 b3 hb0 hb1 hb2 hb3,
       divScratchValuesCallNoX1_unfold, divScratchValues_unfold] at hp
