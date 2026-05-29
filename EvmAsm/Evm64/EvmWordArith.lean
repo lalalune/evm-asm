@@ -64,6 +64,7 @@ import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
 import EvmAsm.Evm64.EvmWordArith.DivBltBridge
 import EvmAsm.Evm64.EvmWordArith.DivBltBridgeSpecializations
 import EvmAsm.Evm64.EvmWordArith.DivV4TrialOverestimate
+import EvmAsm.Evm64.EvmWordArith.DivV5TrialOverestimate
 import EvmAsm.Evm64.EvmWordArith.DivV4TrialFromExactQuotient
 import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
 import EvmAsm.Evm64.EvmWordArith.DivKnuthAEqualWindow
