@@ -419,6 +419,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_validate_witness_state_contains_root" => some ziskValidateWitnessStateContainsRootProbeUnit
   | "zisk_witness_state_validate_node_kinds" => some ziskWitnessStateValidateNodeKindsProbeUnit
   | "zisk_witness_codes_validate_lengths" => some ziskWitnessCodesValidateLengthsProbeUnit
+  | "zisk_witness_storage_validate_node_kinds" => some ziskWitnessStorageValidateNodeKindsProbeUnit
   | "zisk_account_at_header_state_root" => some ziskAccountAtHeaderStateRootProbeUnit
   | "zisk_slot_at_header_state_root" => some ziskSlotAtHeaderStateRootProbeUnit
   | "zisk_code_at_header_state_root" => some ziskCodeAtHeaderStateRootProbeUnit
@@ -584,6 +585,7 @@ def knownProgramNames : List String :=
    "zisk_validate_witness_state_contains_root",
    "zisk_witness_state_validate_node_kinds",
    "zisk_witness_codes_validate_lengths",
+   "zisk_witness_storage_validate_node_kinds",
    "zisk_account_at_header_state_root",
    "zisk_slot_at_header_state_root",
    "zisk_code_at_header_state_root",
