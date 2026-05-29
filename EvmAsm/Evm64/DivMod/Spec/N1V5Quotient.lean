@@ -136,4 +136,26 @@ theorem fullDivN1QuotientWordV5_eq_div_of_shape
   unfold fullDivN1QuotientWordV5
   exact hdiv
 
+/-- **v5 dispatch-post bridge.** Decompose the v5 n=1 quotient-word equality
+    `fullDivN1QuotientWordV5 = EvmWord.div a b` into the four per-limb
+    `getLimbN`/digit equalities that the n=1 lane wrapper feeds to
+    `divStackDispatchPost`.  Pure `fromLimbs` projection — the v5 analog of
+    `fullDivN1_hdivs_of_word_eq`.  Bead `evm-asm-wbc4i.9.1.4`. -/
+theorem fullDivN1V5_hdivs_of_word_eq
+    (a b : EvmWord) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hdiv : fullDivN1QuotientWordV5 a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.div a b) :
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 2 =
+      (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 3 =
+      (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).1 := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [← hdiv]; delta fullDivN1QuotientWordV5; exact EvmWord.getLimbN_fromLimbs_0
+  · rw [← hdiv]; delta fullDivN1QuotientWordV5; exact EvmWord.getLimbN_fromLimbs_1
+  · rw [← hdiv]; delta fullDivN1QuotientWordV5; exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hdiv]; delta fullDivN1QuotientWordV5; exact EvmWord.getLimbN_fromLimbs_3
+
 end EvmAsm.Evm64
