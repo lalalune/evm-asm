@@ -209,7 +209,77 @@ def emitDispatcherEpilogue
   "  ld x17, 448(x20)\n" ++         -- persistent log length
   "  sd x17, 40(x16)\n" ++          -- OUTPUT[40..48]
   "  ld x17, 464(x20)\n" ++         -- transient log length
-  "  sd x17, 48(x16)\n"             -- OUTPUT[48..56]
+  "  sd x17, 48(x16)\n" ++          -- OUTPUT[48..56]
+  -- M25: dedup-and-emit modified persistent slots at OUTPUT+56..
+  -- Walks the persistent log from end (last-write-wins); for each
+  -- entry, checks if its slotKey has already been emitted at
+  -- OUTPUT[64..64+count*64]; if not, emits (slotKey, current) and
+  -- bumps the count cell at OUTPUT+56. Capped at 3 entries (192 B
+  -- of slot data fits in the 200-byte slack after byte 56).
+  -- All halt paths (STOP / RETURN / REVERT / INVALID / SELFDESTRUCT)
+  -- run this; REVERT has already truncated the log to the checkpoint,
+  -- so the surfaced slots reflect the post-rollback state.
+  "  ld x15, 448(x20)\n" ++         -- x15 = persistent log_length
+  "  li x17, 0\n" ++                -- x17 = emitted count
+  "  sd x17, 56(x16)\n" ++          -- init OUTPUT+56 = 0
+  "  beqz x15, 4f\n" ++             -- empty log → done
+  "  li x14, 0xa0630000\n" ++       -- x14 = log base
+  "  slli x18, x15, 7\n" ++         -- x18 = log_length * 128
+  "  add x14, x14, x18\n" ++        -- x14 = past last entry
+  "1:\n" ++                         -- scan iter (work backward)
+  "  addi x14, x14, -128\n" ++      -- x14 = current entry
+  -- Dedup: scan output[OUTPUT+64 .. OUTPUT+64+x17*64] for slotKey
+  "  li x18, 0xa0010040\n" ++       -- x18 = OUTPUT + 64
+  "  mv x19, x17\n" ++              -- x19 = emitted count to check
+  "2:\n" ++                         -- dedup loop
+  "  beqz x19, 3f\n" ++             -- exhausted → not duplicate, emit
+  "  ld x21, 0(x18)\n" ++
+  "  ld x22, 32(x14)\n" ++
+  "  bne x21, x22, 5f\n" ++
+  "  ld x21, 8(x18)\n" ++
+  "  ld x22, 40(x14)\n" ++
+  "  bne x21, x22, 5f\n" ++
+  "  ld x21, 16(x18)\n" ++
+  "  ld x22, 48(x14)\n" ++
+  "  bne x21, x22, 5f\n" ++
+  "  ld x21, 24(x18)\n" ++
+  "  ld x22, 56(x14)\n" ++
+  "  bne x21, x22, 5f\n" ++
+  "  j 6f\n" ++                     -- match → already emitted, skip
+  "5:\n" ++                         -- not match this output entry
+  "  addi x18, x18, 64\n" ++
+  "  addi x19, x19, -1\n" ++
+  "  j 2b\n" ++
+  "3:\n" ++                         -- emit (slotKey, current)
+  "  li x19, 3\n" ++
+  "  bgeu x17, x19, 4f\n" ++        -- cap reached
+  "  slli x18, x17, 6\n" ++         -- x18 = emitted count * 64
+  "  li x19, 0xa0010040\n" ++       -- x19 = OUTPUT + 64
+  "  add x18, x19, x18\n" ++        -- x18 = write target
+  -- Copy slotKey: log[+32..+64] → out[+0..+32]
+  "  ld x21, 32(x14)\n" ++
+  "  sd x21, 0(x18)\n" ++
+  "  ld x21, 40(x14)\n" ++
+  "  sd x21, 8(x18)\n" ++
+  "  ld x21, 48(x14)\n" ++
+  "  sd x21, 16(x18)\n" ++
+  "  ld x21, 56(x14)\n" ++
+  "  sd x21, 24(x18)\n" ++
+  -- Copy current: log[+96..+128] → out[+32..+64]
+  "  ld x21, 96(x14)\n" ++
+  "  sd x21, 32(x18)\n" ++
+  "  ld x21, 104(x14)\n" ++
+  "  sd x21, 40(x18)\n" ++
+  "  ld x21, 112(x14)\n" ++
+  "  sd x21, 48(x18)\n" ++
+  "  ld x21, 120(x14)\n" ++
+  "  sd x21, 56(x18)\n" ++
+  "  addi x17, x17, 1\n" ++
+  "  sd x17, 56(x16)\n" ++          -- update count cell
+  "6:\n" ++                         -- loop step
+  "  addi x15, x15, -1\n" ++
+  "  bnez x15, 1b\n" ++
+  "4:\n"                            -- done — fall through to halt stub
 
 /-- `.data` section layout (starts at `0xa0000000` per
     `Driver.lean`'s `-Tdata=...`):
