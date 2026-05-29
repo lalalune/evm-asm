@@ -12,6 +12,10 @@
 -/
 
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5
+import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5FinalEqNamed
+import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5X7X9Eq
+import EvmAsm.Evm64.DivMod.Spec.N1V5CodeQuotNoBorrow
 
 namespace EvmAsm.Evm64
 
@@ -42,5 +46,25 @@ def divKTrialCallFullPostV5Named (sp j n uHi uLo vTop base scratchMem : Word) : 
   (sp + signExtend12 3952 ↦ₘ dLo) **
   (sp + signExtend12 3944 ↦ₘ un0Div) **
   (sp + signExtend12 3936 ↦ₘ divKTrialCallV5ScratchOut uHi uLo vTop scratchMem)
+
+/-- Weaken the raw v5 trial-call-full post (`div128V5SpecPost ** trial-frame`,
+    huge Knuth-D quotient terms) to the compact NAMED post. -/
+theorem divKTrialCallFullPostV5_imp_named
+    (sp j n uHi uLo vTop base scratchMem : Word) :
+    ∀ h, divKTrialCallFullPostV5 sp j n uHi uLo vTop base scratchMem h →
+      divKTrialCallFullPostV5Named sp j n uHi uLo vTop base scratchMem h := by
+  intro h hq
+  unfold divKTrialCallFullPostV5 div128V5SpecPost at hq
+  unfold divKTrialCallFullPostV5Named
+  rw [← div128V5_q1Final_eq_Q1dd uHi uLo vTop,
+      ← div128V5_q0Final_eq_Q0dd uHi uLo vTop,
+      div128V5_x7Exit_eq uHi uLo vTop,
+      div128V5_x9Exit_eq uHi uLo vTop,
+      ← div128V5CodeQuot_eq_divKTrialCallV5QHat uHi uLo vTop]
+  unfold divKTrialCallV5ScratchOut
+  rw [← div128V5_rhat2c_eq uHi uLo vTop, ← div128V5_un21_eq uHi uLo vTop]
+  unfold div128V5CodeQuot divKTrialCallV5DHi divKTrialCallV5DLo
+    divKTrialCallV5Un0 divKTrialCallV5Un1
+  xperm_hyp hq
 
 end EvmAsm.Evm64
