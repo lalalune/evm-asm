@@ -111,11 +111,11 @@ theorem divK_div128_step2_initcap_v5_spec_within
   have hb24 : (base + 12 : Word) + 24 = base + 36 := by bv_addr
   have hb28 : (base + 12 : Word) + 28 = base + 40 := by bv_addr
   have hb32 : (base + 12 : Word) + 32 = base + 44 := by bv_addr
-  simp only [hb4, hb8, hb12, hb16, hb20, hb24, hb28, hb32] at h2_raw
+  simp only [hb32] at h2_raw
   have h2 : cpsTripleWithin 8 (base + 12) (base + 44) cr _ _ :=
     cpsTripleWithin_extend_code (h := h2_raw) (hmono := by
       rw [hcr_eq]; intro a i
-      simp only [CodeReq.union_singleton_apply, CodeReq.singleton]; intro h
+      simp only [divKDiv128CapQ0V5Code, CodeReq.union_singleton_apply, CodeReq.singleton]; intro h
       split at h
       · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
       · split at h
