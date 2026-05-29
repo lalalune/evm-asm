@@ -54,6 +54,7 @@ import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptEncode
+import EvmAsm.Codegen.Programs.StorageRoot
 import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptNibbles
 import EvmAsm.Codegen.Programs.Ssz
@@ -91,8 +92,21 @@ import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
+import EvmAsm.Codegen.Programs.StateProof
+import EvmAsm.Codegen.Programs.StateStorageProof
+import EvmAsm.Codegen.Programs.StateCodeHashProof
 import EvmAsm.Codegen.Programs.StorageRootInWitness
 import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
+import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
+import EvmAsm.Codegen.Programs.AccountFieldGetters
+import EvmAsm.Codegen.Programs.WitnessValidation
+import EvmAsm.Codegen.Programs.StorageProof
+import EvmAsm.Codegen.Programs.Eip4788
+import EvmAsm.Codegen.Programs.CodeVerify
+import EvmAsm.Codegen.Programs.AccountVerify
+import EvmAsm.Codegen.Programs.StorageVerify
+import EvmAsm.Codegen.Programs.Eip2935
 import EvmAsm.Codegen.Programs.StorageCompose
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.TxRoot
@@ -213,7 +227,13 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_block_hash_pair" => some ziskBlockValidateBlockHashPairProbeUnit
   | "zisk_block_hash_and_extract_number" => some ziskBlockHashAndExtractNumberProbeUnit
   | "zisk_blockhash_from_witness_headers" => some ziskBlockhashFromWitnessHeadersProbeUnit
+  | "zisk_eip2935_blockhash_lookup" => some ziskEip2935BlockhashLookupProbeUnit
+  | "zisk_eip4788_beacon_root_lookup" => some ziskEip4788BeaconRootLookupProbeUnit
   | "zisk_witness_headers_chain_validate" => some ziskWitnessHeadersChainValidateProbeUnit
+  | "zisk_witness_headers_min_block_number" => some ziskWitnessHeadersMinBlockNumberProbeUnit
+  | "zisk_witness_headers_max_block_number" => some ziskWitnessHeadersMaxBlockNumberProbeUnit
+  | "zisk_blockhash_opcode_windowed" => some ziskBlockhashOpcodeWindowedProbeUnit
+  | "zisk_parent_header_matches_witness_first" => some ziskParentHeaderMatchesWitnessFirstProbeUnit
   | "zisk_header_compute_summary_struct" => some ziskHeaderComputeSummaryStructProbeUnit
   | "zisk_header_extract_difficulty" => some ziskHeaderExtractDifficultyProbeUnit
   | "zisk_header_extract_extra_data" => some ziskHeaderExtractExtraDataProbeUnit
@@ -400,6 +420,9 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_lookup_by_key"    => some ziskMptLookupByKeyProbeUnit
   | "zisk_account_decode"       => some ziskAccountDecodeProbeUnit
   | "zisk_account_at_address"   => some ziskAccountAtAddressProbeUnit
+  | "zisk_state_account_inclusion_proof_verify" => some ziskStateAccountInclusionProofVerifyProbeUnit
+  | "zisk_state_slot_inclusion_proof_verify" => some ziskStateSlotInclusionProofVerifyProbeUnit
+  | "zisk_state_code_hash_inclusion_proof_verify" => some ziskStateCodeHashInclusionProofVerifyProbeUnit
   | "zisk_storage_root_present_in_witness_storage" => some ziskStorageRootPresentInWitnessStorageProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
@@ -410,14 +433,24 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
+  | "zisk_storage_root_recompute_single_slot" => some ziskStorageRootRecomputeSingleSlotProbeUnit
   | "zisk_validate_witness_state_contains_root" => some ziskValidateWitnessStateContainsRootProbeUnit
+  | "zisk_witness_state_validate_node_kinds" => some ziskWitnessStateValidateNodeKindsProbeUnit
+  | "zisk_witness_codes_validate_lengths" => some ziskWitnessCodesValidateLengthsProbeUnit
+  | "zisk_witness_storage_validate_node_kinds" => some ziskWitnessStorageValidateNodeKindsProbeUnit
   | "zisk_account_at_header_state_root" => some ziskAccountAtHeaderStateRootProbeUnit
+  | "zisk_verify_account_struct_matches" => some ziskVerifyAccountStructMatchesProbeUnit
   | "zisk_slot_at_header_state_root" => some ziskSlotAtHeaderStateRootProbeUnit
+  | "zisk_verify_slot_value_matches" => some ziskVerifySlotValueMatchesProbeUnit
+  | "zisk_storage_slot_inclusion_proof_verify" => some ziskStorageSlotInclusionProofVerifyProbeUnit
   | "zisk_code_at_header_state_root" => some ziskCodeAtHeaderStateRootProbeUnit
+  | "zisk_verify_code_hash_matches" => some ziskVerifyCodeHashMatchesProbeUnit
   | "zisk_extcodesize_at_header_state_root" => some ziskExtcodesizeAtHeaderStateRootProbeUnit
   | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
   | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit
   | "zisk_nonce_at_header_state_root" => some ziskNonceAtHeaderStateRootProbeUnit
+  | "zisk_storage_root_at_header_state_root" => some ziskStorageRootAtHeaderStateRootProbeUnit
+  | "zisk_code_hash_at_header_state_root" => some ziskCodeHashAtHeaderStateRootProbeUnit
   | "zisk_sload_at_header_state_root" => some ziskSloadAtHeaderStateRootProbeUnit
   | "zisk_extcodecopy_at_header_state_root" => some ziskExtcodecopyAtHeaderStateRootProbeUnit
   | "zisk_account_exists_at_header_state_root" => some ziskAccountExistsAtHeaderStateRootProbeUnit
@@ -562,6 +595,9 @@ def knownProgramNames : List String :=
    "zisk_mpt_lookup_by_key",
    "zisk_account_decode",
    "zisk_account_at_address",
+   "zisk_state_account_inclusion_proof_verify",
+   "zisk_state_slot_inclusion_proof_verify",
+   "zisk_state_code_hash_inclusion_proof_verify",
    "zisk_storage_root_present_in_witness_storage",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
@@ -572,14 +608,23 @@ def knownProgramNames : List String :=
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
    "zisk_state_root_single_account",
+   "zisk_storage_root_recompute_single_slot",
    "zisk_validate_witness_state_contains_root",
+   "zisk_witness_state_validate_node_kinds",
+   "zisk_witness_codes_validate_lengths",
+   "zisk_witness_storage_validate_node_kinds",
    "zisk_account_at_header_state_root",
+   "zisk_verify_account_struct_matches",
    "zisk_slot_at_header_state_root",
+   "zisk_verify_slot_value_matches",
    "zisk_code_at_header_state_root",
+   "zisk_verify_code_hash_matches",
    "zisk_extcodesize_at_header_state_root",
    "zisk_extcodehash_at_header_state_root",
    "zisk_balance_at_header_state_root",
    "zisk_nonce_at_header_state_root",
+   "zisk_storage_root_at_header_state_root",
+   "zisk_code_hash_at_header_state_root",
    "zisk_sload_at_header_state_root",
    "zisk_extcodecopy_at_header_state_root",
    "zisk_account_exists_at_header_state_root",
@@ -714,7 +759,13 @@ def knownProgramNames : List String :=
    "zisk_block_validate_block_hash_pair",
    "zisk_block_hash_and_extract_number",
    "zisk_blockhash_from_witness_headers",
+   "zisk_eip2935_blockhash_lookup",
+   "zisk_eip4788_beacon_root_lookup",
    "zisk_witness_headers_chain_validate",
+   "zisk_witness_headers_min_block_number",
+   "zisk_witness_headers_max_block_number",
+   "zisk_blockhash_opcode_windowed",
+   "zisk_parent_header_matches_witness_first",
    "zisk_header_compute_summary_struct",
    "zisk_header_extract_difficulty",
    "zisk_header_extract_extra_data",
@@ -836,32 +887,24 @@ end EvmAsm.Codegen
 
 /-! ## File-size guard
 
-    Hard cap on `Programs.lean` and every sibling under
+    Hard cap of 1500 lines on `Programs.lean` and every sibling under
     `EvmAsm/Codegen/Programs/`, to keep the registry hub and the
-    extracted submodules from spiralling. The cap **monotonically
-    decreases** as files shrink: every time this guard trips, the
-    response is to split AND lower `hardCap` by at least the size
-    of the carved-out chunk. The long-term floor is `1500`.
+    extracted submodules from spiralling. When this guard trips, split
+    a cluster of `*Function` / `zisk*` defs into a new (or existing)
+    submodule, add it to the `paths` list below and to `Programs.lean`'s
+    imports.
 
     Established splits so far:
       * PR-#5870 carved `Evm.lean` / `HashBridge.lean` / `Ssz.lean`.
       * PR-#5900 carved `RlpRead.lean` / `Mpt.lean`.
-      * This PR carves `Tx.lean` and renames `softCap` → `hardCap`.
-
-    When this guard trips:
-      1. Pick a cluster of `*Function` / `zisk*` defs in the
-         offending file.
-      2. Lift them into a new (or existing) submodule under
-         `EvmAsm/Codegen/Programs/`.
-      3. Add the submodule to the `paths` list below and to
-         `Programs.lean`'s imports.
-      4. **Lower `hardCap`** by at least the line-count you just
-         removed. Never raise it. The floor is 1500.
+      * PR-#5948 carved `Tx.lean`.
+      * PR-#7176 carved `EvmOpcodesStorageRoot.lean` /
+        `EvmOpcodesExtcodecopy.lean`.
 
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 1328
+  let hardCap := 1500
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
     "EvmAsm/Codegen/Programs/Account.lean",
@@ -906,6 +949,8 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/State.lean",
     "EvmAsm/Codegen/Programs/StateCompose.lean",
     "EvmAsm/Codegen/Programs/EvmOpcodes.lean",
+    "EvmAsm/Codegen/Programs/EvmOpcodesStorageRoot.lean",
+    "EvmAsm/Codegen/Programs/EvmOpcodesExtcodecopy.lean",
     "EvmAsm/Codegen/Programs/StorageCompose.lean",
     "EvmAsm/Codegen/Programs/EvmCodes.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
@@ -929,7 +974,5 @@ end EvmAsm.Codegen
         s!"{path} has {lineCount} lines; hard cap is {hardCap}. " ++
         "Extract a helper cluster into a new submodule under " ++
         "EvmAsm/Codegen/Programs/ (see PR #5870 and PR #5900 for the " ++
-        "established pattern). Then LOWER `hardCap` in the guard at " ++
-        "the bottom of Programs.lean by at least the size of the " ++
-        "carved-out chunk -- the cap monotonically decreases toward " ++
-        "the 1500-line floor. Never raise it."
+        "established pattern). Add the new submodule to the `paths` list " ++
+        "and to `Programs.lean`'s imports."

@@ -1,23 +1,58 @@
 /-
   EvmAsm.Codegen.Programs.Storage
 
-  M22 persistent-storage handlers (SLOAD/SSTORE) plus the carried-over
-  M17 no-op TLOAD/TSTORE entries. Lifted out of `Programs/Evm.lean`
-  per the file-size guard at the bottom of
-  `EvmAsm/Codegen/Programs.lean`: the M22 inline-asm scan loops grew
-  the storage section past the per-file cap, so the cluster moves
-  into its own submodule following the same pattern as
-  `Programs/Noop.lean` (M18).
+  M24 Option A storage handlers (SLOAD, SSTORE, TLOAD, TSTORE).
+  Supersedes M22's `(slotKey, value)` 64-byte-entry slot-table
+  approach with the Option A spec from issue #7130: a 128-byte
+  per-entry append-only log keyed by `(addrHash, slotKey)` with
+  separate `original` and `current` value cells.
 
-  Exports one builder:
-  - `storageHandlers` — SLOAD (0x54), SSTORE (0x55), TLOAD (0x5c),
-    TSTORE (0x5d).
+  Two logs live in `STATE_TRACKER_AREA`:
+    0xa0630000  persistent storage log (SLOAD / SSTORE)
+    0xa0830000  transient  storage log (TLOAD / TSTORE)
 
-  SLOAD / SSTORE are wired against the pre-loaded slot table (see
-  `EvmAsm/Codegen/Dispatch.lean` for the prologue plumbing and
-  `scripts/pack-bytecode.py --storage` for the input format).
-  TLOAD / TSTORE remain M17-style stack no-ops; a later PR adds a
-  per-tx-scoped transient table.
+  Each entry is 128 bytes, 8-byte aligned:
+    +0..32   addrHash   (M24: always 0 — single-contract; multi-contract is M25)
+    +32..64  slotKey    (EVM-stack byte order: 4 LE u64 limbs, low first)
+    +64..96  original   (slot's pre-tx value; 0 for cold non-preloaded)
+    +96..128 current    (most recent committed value during this tx)
+
+  Log lengths live in env:
+    env+448  persistentLogLengthOff  (live counter; SSTORE increments)
+    env+456  persistentLogCheckpointOff  (set at prologue end; restored on REVERT)
+    env+464  transientLogLengthOff  (live counter; TSTORE increments; reset on REVERT)
+
+  ## Semantics
+
+  **SLOAD (0x54)** — scan persistent log from end (last-write-
+  wins); copy matching `current` to the stack-top slot; default
+  zero on miss. Net stack delta = 0.
+
+  **SSTORE (0x55)** — scan from end; append a new entry preserving
+  the prior `original` on match (or 0 on miss). **Always appends**
+  (never mutates existing entries) — this is what makes REVERT a
+  single log-length truncation instead of a journal replay.
+  Net stack delta = +64 (pops key + value).
+
+  **TLOAD (0x5c)** — same shape as SLOAD against the transient log.
+
+  **TSTORE (0x5d)** — append-only (no scan; transient storage has
+  no gas refund logic, so we never need to read the prior
+  `original`). Net stack delta = +64.
+
+  ## Inline asm conventions
+
+  Numeric local labels (`1:`, `1b`, `1f`, …) — unique-per-use,
+  reusable across handlers without collision. Scratch registers
+  x14–x19 are caller-saved per the dispatcher convention.
+
+  ## Known limitations (documented in CODEGEN.md M24)
+
+  - Single-contract only (`addrHash = 0`); multi-contract is M25.
+  - Cold reads of non-preloaded slots return `original = 0`; real
+    EVM reads from the witness MPT (M27).
+  - 4 MiB per log = ~32K entries each — well past any test workload.
+  - Inline asm, not verified bodies. Verified-loop bodies follow later.
 -/
 
 import EvmAsm.Codegen.Dispatch
@@ -27,163 +62,230 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-- M17 / M22 storage opcodes (SLOAD/SSTORE/TLOAD/TSTORE).
-
-    **M22 update**: SLOAD (0x54) and SSTORE (0x55) graduate from M17
-    no-ops to real persistent storage via the pre-loaded slot table
-    extension to the `ziskemu -i` input format. The dispatcher
-    prologue copies the input's slot segment into a writable
-    `.data` region (`evm_slot_table`, 16 KiB = 256 slots × 64 bytes)
-    and records the count at `env.slotTableCountOff = 448`.
-    SLOAD / SSTORE inline-asm bodies scan the table linearly.
-
-    TLOAD (0x5c) and TSTORE (0x5d) **remain M17 no-ops** — transient
-    storage is per-tx scoped and orthogonal; a later PR adds a
-    second table for it.
-
-    ### EVM stack contracts
-
-    - **SLOAD**: pops key (at `[x12..x12+31]`), pushes value to the
-      same slot. Net stack delta = 0.
-    - **SSTORE**: pops key (at `[x12..x12+31]`) then value (at
-      `[x12+32..x12+63]`). Net stack delta = +64 (= -2 words).
-
-    ### Inline-asm conventions
-
-    Both bodies use GNU AS **numeric local labels** (`1:`, `1b`,
-    `1f`, …) which are unique-per-use across the emitted file, so
-    the same numeric labels appear in both SLOAD and SSTORE
-    subroutines without colliding. Scratch registers x14–x17 are
-    caller-saved in our dispatcher convention and freely
-    overwritten by each handler invocation.
-
-    ### Known limitations
-
-    - **Capacity cap**: 256 slots. Programs that touch more keys
-      will overflow the `.data` block. Future PR can grow the
-      table or swap in a hash-table backend.
-    - **Linear scan**: O(slot_count) per access. Fine for tests
-      (<10 slots typical); will be a bottleneck for proving real
-      blocks. Hash upgrade ships without ABI / env changes. -/
+/-- M24 Option A storage handlers. -/
 def storageHandlers : List OpcodeHandlerSpec :=
-  [ -- M22 real SLOAD. Scan `evm_slot_table` for a key matching the
-    -- stack top; on match, overwrite the stack top with the slot's
-    -- value (32 bytes); on no match, write 32 zero bytes (the
-    -- default Ethereum SLOAD result for an unset slot).
+  [ -- M24 real SLOAD. Scan persistent log from end (last-write-
+    -- wins); copy matching current to stack top; default 0 on miss.
     { label   := "h_SLOAD"
     , opcodes := [0x54]
     , preBody :=
-        "  ld x15, 448(x20)\n" ++         -- x15 = slot_count
-        "  la x14, evm_slot_table\n" ++   -- x14 = base
-        "  beqz x15, 2f\n" ++             -- empty table → zero result
-        "1:\n" ++                         -- scan loop
-        "  ld x16, 0(x14)\n" ++           -- compare 32-byte key vs [x12..x12+31]
+        "  ld x15, 448(x20)\n" ++         -- x15 = persistent log_length
+        "  beqz x15, 4f\n" ++             -- empty log → return 0
+        "  li x14, 0xa0630000\n" ++       -- x14 = log base
+        "  slli x16, x15, 7\n" ++         -- x16 = log_length * 128
+        "  add x14, x14, x16\n" ++        -- x14 = past last entry
+        "1:\n" ++                         -- scan loop iter
+        "  addi x14, x14, -128\n" ++      -- x14 = &entry[i]
+        -- Compare slotKey [x14+32..x14+64] vs stack key [x12+0..x12+32]
+        "  ld x16, 32(x14)\n" ++
         "  ld x17, 0(x12)\n" ++
         "  bne x16, x17, 3f\n" ++
-        "  ld x16, 8(x14)\n" ++
+        "  ld x16, 40(x14)\n" ++
         "  ld x17, 8(x12)\n" ++
         "  bne x16, x17, 3f\n" ++
-        "  ld x16, 16(x14)\n" ++
+        "  ld x16, 48(x14)\n" ++
         "  ld x17, 16(x12)\n" ++
         "  bne x16, x17, 3f\n" ++
-        "  ld x16, 24(x14)\n" ++
+        "  ld x16, 56(x14)\n" ++
         "  ld x17, 24(x12)\n" ++
         "  bne x16, x17, 3f\n" ++
-        "  ld x16, 32(x14)\n" ++          -- match: copy value into stack top
+        -- Match: copy current [x14+96..x14+128] → [x12..x12+32]
+        "  ld x16, 96(x14)\n" ++
         "  sd x16, 0(x12)\n" ++
-        "  ld x16, 40(x14)\n" ++
+        "  ld x16, 104(x14)\n" ++
         "  sd x16, 8(x12)\n" ++
-        "  ld x16, 48(x14)\n" ++
+        "  ld x16, 112(x14)\n" ++
         "  sd x16, 16(x12)\n" ++
-        "  ld x16, 56(x14)\n" ++
+        "  ld x16, 120(x14)\n" ++
         "  sd x16, 24(x12)\n" ++
-        "  j 4f\n" ++
-        "3:\n" ++                         -- no match for this entry — advance
-        "  addi x14, x14, 64\n" ++
+        "  j 5f\n" ++
+        "3:\n" ++                         -- no match this entry — advance
         "  addi x15, x15, -1\n" ++
         "  bnez x15, 1b\n" ++
-        "2:\n" ++                         -- no match anywhere — write zeros
+        "4:\n" ++                         -- not found — write zeros
         "  sd x0, 0(x12)\n" ++
         "  sd x0, 8(x12)\n" ++
         "  sd x0, 16(x12)\n" ++
         "  sd x0, 24(x12)\n" ++
-        "4:"
+        "5:"
     , body    := []
     , tail    := .advanceAndRet 1 }
-  , -- M22 real SSTORE. Scan `evm_slot_table` for a key matching the
-    -- stack top; on match, overwrite that slot's value with
-    -- [x12+32..x12+63]; on no match, append a new (key, value) at
-    -- table[slot_count] and increment env.slotTableCountOff. The
-    -- net -2 stack pop happens via `ADDI x12, x12, 64` in `body`.
+  , -- M24 real SSTORE. Scan persistent log from end; if found, save
+    -- &found.original for the append step. Then ALWAYS append a new
+    -- 128-byte entry at log[log_length] with (addrHash=0,
+    -- slotKey=stack[0..32], original=found_or_zero,
+    -- current=stack[32..64]). Increment log_length. Body's
+    -- `ADDI x12, x12, 64` does the net -2 stack pop.
+    --
+    -- Append-only is load-bearing: REVERT rolls back via log-length
+    -- truncation, which requires existing entries to be immutable.
     { label   := "h_SSTORE"
     , opcodes := [0x55]
     , preBody :=
-        "  ld x15, 448(x20)\n" ++         -- x15 = slot_count
-        "  la x14, evm_slot_table\n" ++   -- x14 = base
-        "  beqz x15, 2f\n" ++             -- empty table → append
-        "1:\n" ++                         -- scan loop
-        "  ld x16, 0(x14)\n" ++
+        "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
+        "  ld x15, 448(x20)\n" ++         -- x15 = log_length
+        "  beqz x15, 2f\n" ++             -- empty log → skip scan, append with original=0
+        "  li x14, 0xa0630000\n" ++       -- x14 = log base
+        "  slli x16, x15, 7\n" ++
+        "  add x14, x14, x16\n" ++        -- x14 = past last entry
+        "1:\n" ++                         -- scan loop iter
+        "  addi x14, x14, -128\n" ++
+        "  ld x16, 32(x14)\n" ++
         "  ld x17, 0(x12)\n" ++
         "  bne x16, x17, 3f\n" ++
-        "  ld x16, 8(x14)\n" ++
+        "  ld x16, 40(x14)\n" ++
         "  ld x17, 8(x12)\n" ++
         "  bne x16, x17, 3f\n" ++
-        "  ld x16, 16(x14)\n" ++
+        "  ld x16, 48(x14)\n" ++
         "  ld x17, 16(x12)\n" ++
         "  bne x16, x17, 3f\n" ++
-        "  ld x16, 24(x14)\n" ++
+        "  ld x16, 56(x14)\n" ++
         "  ld x17, 24(x12)\n" ++
         "  bne x16, x17, 3f\n" ++
-        "  ld x16, 32(x12)\n" ++          -- match: overwrite value
-        "  sd x16, 32(x14)\n" ++
-        "  ld x16, 40(x12)\n" ++
-        "  sd x16, 40(x14)\n" ++
-        "  ld x16, 48(x12)\n" ++
-        "  sd x16, 48(x14)\n" ++
-        "  ld x16, 56(x12)\n" ++
-        "  sd x16, 56(x14)\n" ++
-        "  j 4f\n" ++
-        "3:\n" ++                         -- no match for this entry — advance
-        "  addi x14, x14, 64\n" ++
+        -- Match: x18 = &found.original (= x14 + 64), break to append
+        "  addi x18, x14, 64\n" ++
+        "  j 2f\n" ++
+        "3:\n" ++                         -- no match this entry — advance
         "  addi x15, x15, -1\n" ++
         "  bnez x15, 1b\n" ++
-        "2:\n" ++                         -- append (key, value) at end
-        "  ld x15, 448(x20)\n" ++         -- reload count
-        "  slli x16, x15, 6\n" ++         -- offset = count * 64
-        "  la x14, evm_slot_table\n" ++
-        "  add x14, x14, x16\n" ++        -- x14 = &table[count]
-        "  ld x16, 0(x12)\n" ++           -- write key
-        "  sd x16, 0(x14)\n" ++
-        "  ld x16, 8(x12)\n" ++
-        "  sd x16, 8(x14)\n" ++
-        "  ld x16, 16(x12)\n" ++
-        "  sd x16, 16(x14)\n" ++
-        "  ld x16, 24(x12)\n" ++
-        "  sd x16, 24(x14)\n" ++
-        "  ld x16, 32(x12)\n" ++          -- write value
+        "2:\n" ++                         -- append step
+        "  ld x15, 448(x20)\n" ++         -- reload current log_length
+        "  li x14, 0xa0630000\n" ++
+        "  slli x16, x15, 7\n" ++
+        "  add x14, x14, x16\n" ++        -- x14 = &log[log_length] (append target)
+        -- addrHash = 0 (32 bytes)
+        "  sd x0, 0(x14)\n" ++
+        "  sd x0, 8(x14)\n" ++
+        "  sd x0, 16(x14)\n" ++
+        "  sd x0, 24(x14)\n" ++
+        -- slotKey from stack [x12+0..x12+32] → [x14+32..x14+64]
+        "  ld x16, 0(x12)\n" ++
         "  sd x16, 32(x14)\n" ++
-        "  ld x16, 40(x12)\n" ++
+        "  ld x16, 8(x12)\n" ++
         "  sd x16, 40(x14)\n" ++
-        "  ld x16, 48(x12)\n" ++
+        "  ld x16, 16(x12)\n" ++
         "  sd x16, 48(x14)\n" ++
-        "  ld x16, 56(x12)\n" ++
+        "  ld x16, 24(x12)\n" ++
         "  sd x16, 56(x14)\n" ++
-        "  addi x15, x15, 1\n" ++         -- count += 1
-        "  sd x15, 448(x20)\n" ++
-        "4:"
+        -- original: copy from x18 if found; else write zeros
+        "  beqz x18, 6f\n" ++
+        "  ld x16, 0(x18)\n" ++
+        "  sd x16, 64(x14)\n" ++
+        "  ld x16, 8(x18)\n" ++
+        "  sd x16, 72(x14)\n" ++
+        "  ld x16, 16(x18)\n" ++
+        "  sd x16, 80(x14)\n" ++
+        "  ld x16, 24(x18)\n" ++
+        "  sd x16, 88(x14)\n" ++
+        "  j 7f\n" ++
+        "6:\n" ++
+        "  sd x0, 64(x14)\n" ++
+        "  sd x0, 72(x14)\n" ++
+        "  sd x0, 80(x14)\n" ++
+        "  sd x0, 88(x14)\n" ++
+        "7:\n" ++
+        -- current from stack [x12+32..x12+64] → [x14+96..x14+128]
+        "  ld x16, 32(x12)\n" ++
+        "  sd x16, 96(x14)\n" ++
+        "  ld x16, 40(x12)\n" ++
+        "  sd x16, 104(x14)\n" ++
+        "  ld x16, 48(x12)\n" ++
+        "  sd x16, 112(x14)\n" ++
+        "  ld x16, 56(x12)\n" ++
+        "  sd x16, 120(x14)\n" ++
+        -- increment log_length
+        "  addi x15, x15, 1\n" ++
+        "  sd x15, 448(x20)"
     , body    := ADDI .x12 .x12 (BitVec.ofNat 12 64)
     , tail    := .advanceAndRet 1 }
-  , -- TLOAD (M17 no-op, deferred — transient storage uses a separate
-    -- per-tx-scoped table; future PR).
-    { label := "h_TLOAD", opcodes := [0x5c]
-    , body := SD .x12 .x0 0 ;;
-              SD .x12 .x0 8 ;;
-              SD .x12 .x0 16 ;;
-              SD .x12 .x0 24
-    , tail := .advanceAndRet 1 }
-  , -- TSTORE (M17 no-op, deferred).
-    { label := "h_TSTORE", opcodes := [0x5d]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
-    , tail := .advanceAndRet 1 } ]
+  , -- M24 real TLOAD. Scan transient log from end; copy matching
+    -- current to stack top; default 0 on miss. Same shape as SLOAD
+    -- but base 0xa0830000 and length env+464.
+    { label   := "h_TLOAD"
+    , opcodes := [0x5c]
+    , preBody :=
+        "  ld x15, 464(x20)\n" ++         -- x15 = transient log_length
+        "  beqz x15, 4f\n" ++
+        "  li x14, 0xa0830000\n" ++       -- x14 = transient log base
+        "  slli x16, x15, 7\n" ++
+        "  add x14, x14, x16\n" ++
+        "1:\n" ++
+        "  addi x14, x14, -128\n" ++
+        "  ld x16, 32(x14)\n" ++
+        "  ld x17, 0(x12)\n" ++
+        "  bne x16, x17, 3f\n" ++
+        "  ld x16, 40(x14)\n" ++
+        "  ld x17, 8(x12)\n" ++
+        "  bne x16, x17, 3f\n" ++
+        "  ld x16, 48(x14)\n" ++
+        "  ld x17, 16(x12)\n" ++
+        "  bne x16, x17, 3f\n" ++
+        "  ld x16, 56(x14)\n" ++
+        "  ld x17, 24(x12)\n" ++
+        "  bne x16, x17, 3f\n" ++
+        "  ld x16, 96(x14)\n" ++
+        "  sd x16, 0(x12)\n" ++
+        "  ld x16, 104(x14)\n" ++
+        "  sd x16, 8(x12)\n" ++
+        "  ld x16, 112(x14)\n" ++
+        "  sd x16, 16(x12)\n" ++
+        "  ld x16, 120(x14)\n" ++
+        "  sd x16, 24(x12)\n" ++
+        "  j 5f\n" ++
+        "3:\n" ++
+        "  addi x15, x15, -1\n" ++
+        "  bnez x15, 1b\n" ++
+        "4:\n" ++
+        "  sd x0, 0(x12)\n" ++
+        "  sd x0, 8(x12)\n" ++
+        "  sd x0, 16(x12)\n" ++
+        "  sd x0, 24(x12)\n" ++
+        "5:"
+    , body    := []
+    , tail    := .advanceAndRet 1 }
+  , -- M24 real TSTORE. Append-only (no scan). Transient storage has
+    -- no gas refund logic, so we never need to track / preserve
+    -- `original` — every TSTORE just appends a fresh entry. Subsequent
+    -- TLOADs scan from end and find the most-recent (correct) value.
+    { label   := "h_TSTORE"
+    , opcodes := [0x5d]
+    , preBody :=
+        "  ld x15, 464(x20)\n" ++         -- x15 = transient log_length
+        "  li x14, 0xa0830000\n" ++
+        "  slli x16, x15, 7\n" ++
+        "  add x14, x14, x16\n" ++        -- x14 = append target
+        -- addrHash = 0
+        "  sd x0, 0(x14)\n" ++
+        "  sd x0, 8(x14)\n" ++
+        "  sd x0, 16(x14)\n" ++
+        "  sd x0, 24(x14)\n" ++
+        -- slotKey from stack
+        "  ld x16, 0(x12)\n" ++
+        "  sd x16, 32(x14)\n" ++
+        "  ld x16, 8(x12)\n" ++
+        "  sd x16, 40(x14)\n" ++
+        "  ld x16, 16(x12)\n" ++
+        "  sd x16, 48(x14)\n" ++
+        "  ld x16, 24(x12)\n" ++
+        "  sd x16, 56(x14)\n" ++
+        -- original = 0 (unused for transient)
+        "  sd x0, 64(x14)\n" ++
+        "  sd x0, 72(x14)\n" ++
+        "  sd x0, 80(x14)\n" ++
+        "  sd x0, 88(x14)\n" ++
+        -- current from stack [x12+32..x12+64]
+        "  ld x16, 32(x12)\n" ++
+        "  sd x16, 96(x14)\n" ++
+        "  ld x16, 40(x12)\n" ++
+        "  sd x16, 104(x14)\n" ++
+        "  ld x16, 48(x12)\n" ++
+        "  sd x16, 112(x14)\n" ++
+        "  ld x16, 56(x12)\n" ++
+        "  sd x16, 120(x14)\n" ++
+        -- increment transient log_length
+        "  addi x15, x15, 1\n" ++
+        "  sd x15, 464(x20)"
+    , body    := ADDI .x12 .x12 (BitVec.ofNat 12 64)
+    , tail    := .advanceAndRet 1 } ]
 
 end EvmAsm.Codegen
