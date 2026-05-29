@@ -213,6 +213,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_hash_and_extract_number" => some ziskBlockHashAndExtractNumberProbeUnit
   | "zisk_blockhash_from_witness_headers" => some ziskBlockhashFromWitnessHeadersProbeUnit
   | "zisk_witness_headers_chain_validate" => some ziskWitnessHeadersChainValidateProbeUnit
+  | "zisk_witness_headers_max_block_number" => some ziskWitnessHeadersMaxBlockNumberProbeUnit
   | "zisk_header_compute_summary_struct" => some ziskHeaderComputeSummaryStructProbeUnit
   | "zisk_header_extract_difficulty" => some ziskHeaderExtractDifficultyProbeUnit
   | "zisk_header_extract_extra_data" => some ziskHeaderExtractExtraDataProbeUnit
@@ -712,6 +713,7 @@ def knownProgramNames : List String :=
    "zisk_block_hash_and_extract_number",
    "zisk_blockhash_from_witness_headers",
    "zisk_witness_headers_chain_validate",
+   "zisk_witness_headers_max_block_number",
    "zisk_header_compute_summary_struct",
    "zisk_header_extract_difficulty",
    "zisk_header_extract_extra_data",
