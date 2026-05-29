@@ -54,6 +54,7 @@ import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptEncode
+import EvmAsm.Codegen.Programs.StorageRoot
 import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptNibbles
 import EvmAsm.Codegen.Programs.Ssz
@@ -91,6 +92,9 @@ import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
+import EvmAsm.Codegen.Programs.StateProof
+import EvmAsm.Codegen.Programs.StateStorageProof
+import EvmAsm.Codegen.Programs.StateCodeHashProof
 import EvmAsm.Codegen.Programs.StateRootPresentInWitnessState
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
@@ -102,6 +106,7 @@ import EvmAsm.Codegen.Programs.Eip4788
 import EvmAsm.Codegen.Programs.CodeVerify
 import EvmAsm.Codegen.Programs.AccountVerify
 import EvmAsm.Codegen.Programs.StorageVerify
+import EvmAsm.Codegen.Programs.Eip2935
 import EvmAsm.Codegen.Programs.StorageCompose
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.TxRoot
@@ -222,11 +227,13 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_block_hash_pair" => some ziskBlockValidateBlockHashPairProbeUnit
   | "zisk_block_hash_and_extract_number" => some ziskBlockHashAndExtractNumberProbeUnit
   | "zisk_blockhash_from_witness_headers" => some ziskBlockhashFromWitnessHeadersProbeUnit
+  | "zisk_eip2935_blockhash_lookup" => some ziskEip2935BlockhashLookupProbeUnit
   | "zisk_eip4788_beacon_root_lookup" => some ziskEip4788BeaconRootLookupProbeUnit
   | "zisk_witness_headers_chain_validate" => some ziskWitnessHeadersChainValidateProbeUnit
   | "zisk_witness_headers_min_block_number" => some ziskWitnessHeadersMinBlockNumberProbeUnit
   | "zisk_witness_headers_max_block_number" => some ziskWitnessHeadersMaxBlockNumberProbeUnit
   | "zisk_blockhash_opcode_windowed" => some ziskBlockhashOpcodeWindowedProbeUnit
+  | "zisk_parent_header_matches_witness_first" => some ziskParentHeaderMatchesWitnessFirstProbeUnit
   | "zisk_header_compute_summary_struct" => some ziskHeaderComputeSummaryStructProbeUnit
   | "zisk_header_extract_difficulty" => some ziskHeaderExtractDifficultyProbeUnit
   | "zisk_header_extract_extra_data" => some ziskHeaderExtractExtraDataProbeUnit
@@ -413,6 +420,9 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_lookup_by_key"    => some ziskMptLookupByKeyProbeUnit
   | "zisk_account_decode"       => some ziskAccountDecodeProbeUnit
   | "zisk_account_at_address"   => some ziskAccountAtAddressProbeUnit
+  | "zisk_state_account_inclusion_proof_verify" => some ziskStateAccountInclusionProofVerifyProbeUnit
+  | "zisk_state_slot_inclusion_proof_verify" => some ziskStateSlotInclusionProofVerifyProbeUnit
+  | "zisk_state_code_hash_inclusion_proof_verify" => some ziskStateCodeHashInclusionProofVerifyProbeUnit
   | "zisk_state_root_present_in_witness_state" => some ziskStateRootPresentInWitnessStateProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
@@ -423,6 +433,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
+  | "zisk_storage_root_recompute_single_slot" => some ziskStorageRootRecomputeSingleSlotProbeUnit
   | "zisk_validate_witness_state_contains_root" => some ziskValidateWitnessStateContainsRootProbeUnit
   | "zisk_witness_state_validate_node_kinds" => some ziskWitnessStateValidateNodeKindsProbeUnit
   | "zisk_witness_codes_validate_lengths" => some ziskWitnessCodesValidateLengthsProbeUnit
@@ -584,6 +595,9 @@ def knownProgramNames : List String :=
    "zisk_mpt_lookup_by_key",
    "zisk_account_decode",
    "zisk_account_at_address",
+   "zisk_state_account_inclusion_proof_verify",
+   "zisk_state_slot_inclusion_proof_verify",
+   "zisk_state_code_hash_inclusion_proof_verify",
    "zisk_state_root_present_in_witness_state",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
@@ -594,6 +608,7 @@ def knownProgramNames : List String :=
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
    "zisk_state_root_single_account",
+   "zisk_storage_root_recompute_single_slot",
    "zisk_validate_witness_state_contains_root",
    "zisk_witness_state_validate_node_kinds",
    "zisk_witness_codes_validate_lengths",
@@ -744,11 +759,13 @@ def knownProgramNames : List String :=
    "zisk_block_validate_block_hash_pair",
    "zisk_block_hash_and_extract_number",
    "zisk_blockhash_from_witness_headers",
+   "zisk_eip2935_blockhash_lookup",
    "zisk_eip4788_beacon_root_lookup",
    "zisk_witness_headers_chain_validate",
    "zisk_witness_headers_min_block_number",
    "zisk_witness_headers_max_block_number",
    "zisk_blockhash_opcode_windowed",
+   "zisk_parent_header_matches_witness_first",
    "zisk_header_compute_summary_struct",
    "zisk_header_extract_difficulty",
    "zisk_header_extract_extra_data",
