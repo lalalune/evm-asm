@@ -139,6 +139,15 @@ def haltHandlers : List OpcodeHandlerSpec :=
         "  li x16, 0xa0010000\n" ++
         "  li x17, 2\n" ++               -- REVERT
         "  sd x17, 32(x16)\n" ++
+        -- M24: roll back storage logs. Persistent log truncates to
+        -- the checkpoint captured at the end of the dispatcher
+        -- prologue (post-preload); transient log resets to 0
+        -- (transient storage starts empty at tx start). RETURN /
+        -- STOP / INVALID / SELFDESTRUCT do NOT roll back — they
+        -- commit successfully.
+        "  ld x17, 456(x20)\n" ++         -- persistentLogCheckpointOff
+        "  sd x17, 448(x20)\n" ++         -- persistentLogLengthOff = checkpoint
+        "  sd x0, 464(x20)\n" ++          -- transientLogLengthOff = 0
         "  j .exit_no_epilogue" }
   , -- INVALID (M18 no-op, deferred halt-kind tagging). Flows through
     -- .exit_label → evmAddEpilogue → halt_kind = 0.
