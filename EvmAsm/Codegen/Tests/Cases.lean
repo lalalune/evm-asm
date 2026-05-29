@@ -49,6 +49,18 @@ structure OpcodeTestCase where
       bash runner reads `OUTPUT_ADDR + 32..40` and compares only
       when this field is non-empty. -/
   expectedHaltKind : String := ""
+  /-- Optional expected persistent log length at
+      `OUTPUT_ADDR + 40` (M24). 16 hex chars = 8-byte LE u64.
+      The dispatcher epilogue surfaces the FINAL persistent log
+      length (post-revert if REVERT ran) here for every exit
+      path. Test SSTORE commit / REVERT rollback via this. Empty
+      string = don't assert. -/
+  expectedPersistentLogLength : String := ""
+  /-- Optional expected transient log length at
+      `OUTPUT_ADDR + 48` (M24). 16 hex chars = 8-byte LE u64.
+      Reset to 0 by REVERT. Test TSTORE commits / REVERT
+      clears via this. Empty string = don't assert. -/
+  expectedTransientLogLength : String := ""
 
 /-- Registry of test cases. M5a/M5b's two original bytecodes are
     migrated as `add_basic` / `add_chain`; M6b adds ~20 more — one
@@ -308,16 +320,12 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "log4_pop"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xa4, 0x60, 0xff, 0x00"
       expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
-    -- ## M17 / M22 transient storage (TLOAD/TSTORE)
-    -- TLOAD/TSTORE remain M17 no-ops in M22 — transient storage gets
-    -- its own per-tx-scoped table in a later PR. SLOAD/SSTORE
-    -- (graduated to real storage in M22) are covered by the M22
-    -- test block at the end of `opcodeTestCases`.
-  , -- PUSH1 0x42; PUSH1 0x00; TSTORE; PUSH1 0x00; TLOAD; STOP —
-    -- TSTORE drops (key=0, value=0x42); TLOAD returns 0 (no-op).
-    { name           := "tstore_tload_roundtrip"
-      bytecode       := "0x60, 0x42, 0x60, 0x00, 0x5d, 0x60, 0x00, 0x5c, 0x00"
-      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M17 / M22 / M24 transient storage (TLOAD/TSTORE)
+    -- M24 graduated TLOAD/TSTORE from M17 no-ops to real Option A
+    -- transient storage: a separate append-log at 0xa0830000.
+    -- Coverage is in the M24 test block at the end of
+    -- `opcodeTestCases` (test `tstore_tload_round_trip`, which
+    -- additionally asserts the transient log_length surface).
     -- ## M18 trivial no-op handlers (94.6% coverage milestone)
     -- 20 opcodes across 4 builders: haltHandlers (4), pushZeroHandlers
     -- (5), popPushZeroHandlers (6), copyNoopHandlers (5). One
@@ -550,6 +558,42 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x42, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xfd"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000042"
       expectedHaltKind := "0200000000000000" }
+    -- ## M24 storage on Option A — append-log + journal + real TLOAD/TSTORE
+    -- Three tests exercise the new machinery via the OUTPUT[40..48]
+    -- (persistent log length) and OUTPUT[48..56] (transient log
+    -- length) surfaces written by `.exit_no_epilogue`:
+    --   1. SSTORE then REVERT → persistent log rolls back to checkpoint=0
+    --   2. SSTORE then STOP   → persistent log commits at length=1
+    --   3. TSTORE + TLOAD     → real round-trip + transient length=1
+  , -- PUSH1 0x42; PUSH1 0x00; SSTORE; PUSH1 0x00; PUSH1 0x00; REVERT.
+    -- SSTORE appends entry (log_length 0→1). REVERT body restores
+    -- persistent log_length from checkpoint (= 0). Returndata is
+    -- empty (size=0); halt_kind=2. Persistent log_length back to 0.
+    { name                        := "sstore_revert_rolls_back"
+      bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x60, 0x00, 0x60, 0x00, 0xfd"
+      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind            := "0200000000000000"
+      expectedPersistentLogLength := "0000000000000000" }
+  , -- PUSH1 0x42; PUSH1 0x00; SSTORE; STOP.
+    -- SSTORE appends entry (log_length 0→1). STOP commits — no
+    -- rollback. Result is the post-SSTORE stack top (stack empty,
+    -- evm_stack_top region is .zero-initialised so the 32 bytes
+    -- read are all zero). Halt_kind=0. Persistent log_length=1.
+    { name                        := "sstore_no_revert_commits"
+      bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x00"
+      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind            := "0000000000000000"
+      expectedPersistentLogLength := "0100000000000000" }
+  , -- PUSH1 0x42; PUSH1 0x00; TSTORE; PUSH1 0x00; TLOAD; STOP.
+    -- TSTORE appends transient entry (transient_log_length 0→1).
+    -- TLOAD scans transient log, finds entry, pushes 0x42 onto stack.
+    -- STOP surfaces stack top = 0x42. **Proves TLOAD/TSTORE moved
+    -- off the M17 no-op into real Option A semantics.**
+    { name                       := "tstore_tload_round_trip"
+      bytecode                   := "0x60, 0x42, 0x60, 0x00, 0x5d, 0x60, 0x00, 0x5c, 0x00"
+      expectedOutHex             := "4200000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind           := "0000000000000000"
+      expectedTransientLogLength := "0100000000000000" }
   ]
 
 /-- Find a test case by name. -/
