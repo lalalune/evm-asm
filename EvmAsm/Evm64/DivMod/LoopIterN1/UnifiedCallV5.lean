@@ -15,19 +15,23 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Evm64.DivMod.AddrNorm (jpred_3 slt_jpos_3)
 
-private theorem iterN1Call_v5_unfoldU (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+/-- Unfold `iterN1Call_v5` to its `iterWithDoubleAddback (div128Quot_v5 …)` body.
+    Public: the loop-post → denorm-epilogue bridge uses this to fold the j=0
+    iteration (which the loop post expresses via `iterWithDoubleAddback`) back to
+    `iterN1Call_v5` so it matches the schoolbook digit form. -/
+theorem iterN1Call_v5_unfoldU (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
     iterN1Call_v5 v0 v1 v2 v3 u0 u1 u2 u3 uTop
     = iterWithDoubleAddback (div128Quot_v5 u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   unfold iterN1Call_v5
   rfl
 
 /-- j=2-entry iteration state (after the j=3 digit). -/
-private def fullN1S2 (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 : Word) :=
+def fullN1S2 (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 : Word) :=
   let s3 := iterN1Call_v5 v0 v1 v2 v3 u0 u1 u2 u3 uTop
   iterN1Call_v5 v0 v1 v2 v3 u0_orig_2 s3.2.1 s3.2.2.1 s3.2.2.2.1 s3.2.2.2.2.1
 
 /-- j=1-entry iteration state (after the j=3, j=2 digits). -/
-private def fullN1S1 (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 : Word) :=
+def fullN1S1 (v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2 u0_orig_1 : Word) :=
   let s2 := fullN1S2 v0 v1 v2 v3 u0 u1 u2 u3 uTop u0_orig_2
   iterN1Call_v5 v0 v1 v2 v3 u0_orig_1 s2.2.1 s2.2.2.1 s2.2.2.2.1 s2.2.2.2.2.1
 
