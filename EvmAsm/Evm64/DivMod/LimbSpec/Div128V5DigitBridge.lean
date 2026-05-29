@@ -163,4 +163,62 @@ theorem div128V5_rhatFinal_eq_model (uHi dHi dLo un1 : Word) :
     ((BitVec.allOnes 64) >>> (32 : BitVec 6).toNat) dHi]
   exact div128V5_phase1b_rhat_select_eq _ _ dHi dLo un1
 
+/-- Phase-2 of the q-bridge: the code's corrected Phase-2 trial quotient digit
+    `q0Final` equals the model's `q0''`.  The code's `q0Final` has the same
+    selection shape as `q1Final` (dividend `un21`, low half `un0`), so this
+    reuses `div128V5_q1Final_eq_model` at `un21/un0`; the model's Phase-2 1st
+    correction `q0'` uses the `div128Quot_phase2b_q0'` *primitive* (vs Phase-1's
+    explicit form), reconciled by `div128Quot_phase2b_q0'_and_form` /
+    `_rhat_and_form` after Bool→Prop normalization of the `decide … && …`. -/
+theorem div128V5_q0Final_eq_model (un21 dHi dLo un0 : Word) :
+    (let cap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+     let q0 := rv64_divu un21 dHi
+     let rhat2 := un21 - q0 * dHi
+     let hi2 := q0 >>> (32 : BitVec 6).toNat
+     let q0c := if hi2 = 0 then q0 else cap
+     let rhat2c := if hi2 = 0 then rhat2 else rhat2 + (q0 - cap) * dHi
+     let rhat2cHi := rhat2c >>> (32 : BitVec 6).toNat
+     let qDlo1 := q0c * dLo
+     let rhat2Un0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0
+     let bq0' := if BitVec.ult rhat2Un0 qDlo1 then q0c + signExtend12 4095 else q0c
+     let brhat2' := if BitVec.ult rhat2Un0 qDlo1 then rhat2c + dHi else rhat2c
+     let brhat2'Hi := brhat2' >>> (32 : BitVec 6).toNat
+     let qDlo2 := bq0' * dLo
+     let rhat2'Un0 := (brhat2' <<< (32 : BitVec 6).toNat) ||| un0
+     let q0'' := if BitVec.ult rhat2'Un0 qDlo2 then bq0' + signExtend12 4095 else bq0'
+     if rhat2cHi ≠ 0 then q0c else (if brhat2'Hi = 0 then q0'' else bq0'))
+    =
+    (let cap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+     let q0 := rv64_divu un21 dHi
+     let rhat2 := un21 - q0 * dHi
+     let hi2 := q0 >>> (32 : BitVec 6).toNat
+     let q0c := if hi2 = 0 then q0 else cap
+     let rhat2c := if hi2 = 0 then rhat2 else un21 - q0c * dHi
+     let q0' := div128Quot_phase2b_q0' q0c rhat2c dLo un0
+     let rhat2' :=
+       if rhat2c >>> (32 : BitVec 6).toNat = 0 then
+         let qDlo2 := q0c * dLo
+         let rhatUn0 := (rhat2c <<< (32 : BitVec 6).toNat) ||| un0
+         if BitVec.ult rhatUn0 qDlo2 then rhat2c + dHi else rhat2c
+       else rhat2c
+     div128Quot_phase2b_q0' q0' rhat2' dLo un0) := by
+  rw [div128V5_q1Final_eq_model un21 dHi dLo un0]
+  simp only [Bool.and_eq_true, decide_eq_true_eq,
+    div128Quot_phase2b_q0'_and_form, div128Quot_phase2b_rhat_and_form]
+
+/-- **The v5 div128 q-bridge.**  The code quotient (`div128V5CodeQuot`, i.e.
+    `div128V5SpecPost`'s `x11`) equals the model `div128Quot_v5`.  Assembled by
+    rewriting the three per-digit bridges (`div128V5_q1Final_eq_model`,
+    `div128V5_rhatFinal_eq_model`, `div128V5_q0Final_eq_model`); `un21` then
+    agrees on both sides, and the `(q1''<<32)|q0''` combine is refl.  Bead
+    `evm-asm-wbc4i.9.1`. -/
+theorem div128V5CodeQuot_eq_div128Quot_v5 (uHi uLo vTop : Word) :
+    div128V5CodeQuot uHi uLo vTop = div128Quot_v5 uHi uLo vTop := by
+  unfold div128V5CodeQuot div128Quot_v5
+  -- Phase-1 first (uHi-fixed so these do not also rewrite the same-shaped
+  -- `q0Final`), turning `q1Final`/`rhatFinal` into the model forms (which makes
+  -- `un21` agree); then Phase-2 rewrites the remaining `q0Final`.
+  simp only [div128V5_q1Final_eq_model uHi, div128V5_rhatFinal_eq_model uHi]
+  simp only [div128V5_q0Final_eq_model]
+
 end EvmAsm.Evm64
