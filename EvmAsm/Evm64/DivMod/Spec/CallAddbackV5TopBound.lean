@@ -19,6 +19,7 @@
 
 import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.UpperBound
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.LowerBound
 
 namespace EvmAsm.Evm64
 
@@ -42,6 +43,28 @@ theorem n4CallAddbackBeqQHatV5_le_128_div_plus_one_of_call {a b : EvmWord}
     rw [div128Quot_vTop_decomp (n4CallAddbackBeqB3Prime b)]
     simpa [divKTrialCallV4DHi, divKTrialCallV4DLo] using h_decomp
   exact div128Quot_v5_le_q_true_plus_one
+    (n4CallAddbackBeqU4 a b) (n4CallAddbackBeqU3 a b) (n4CallAddbackBeqB3Prime b)
+    (n4CallAddbackBeqB3Prime_ge_pow63 hb3nz) hu4_lt_b3prime
+
+/-- Top-limb (128÷64) lower bound for the v5 marker trial quotient on the call
+    path: `(u4·2^64 + u3) / b3' ≤ qHatV5`. Companion to the `+1` upper bound;
+    uses V5.5.3 (`div128Quot_v5_ge_q_true`). Together they pin `qHatV5` to
+    `{(u4·2^64+u3)/b3', that + 1}` — the input to the val256 `hq_over` bridge
+    (bead `evm-asm-wbc4i.8.2.2`). -/
+theorem n4CallAddbackBeqQHatV5_ge_128_div_of_call {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3)) :
+    ((n4CallAddbackBeqU4 a b).toNat * 2^64 +
+        (n4CallAddbackBeqU3 a b).toNat) /
+      (n4CallAddbackBeqB3Prime b).toNat ≤
+      (n4CallAddbackBeqQHatV5 a b).toNat := by
+  rw [n4CallAddbackBeqQHatV5_eq_normalized]
+  have hu4_lt_b3prime :
+      (n4CallAddbackBeqU4 a b).toNat < (n4CallAddbackBeqB3Prime b).toNat := by
+    have h_decomp := n4CallAddbackBeqU4_lt_vTop_of_call hcall
+    rw [div128Quot_vTop_decomp (n4CallAddbackBeqB3Prime b)]
+    simpa [divKTrialCallV4DHi, divKTrialCallV4DLo] using h_decomp
+  exact div128Quot_v5_ge_q_true
     (n4CallAddbackBeqU4 a b) (n4CallAddbackBeqU3 a b) (n4CallAddbackBeqB3Prime b)
     (n4CallAddbackBeqB3Prime_ge_pow63 hb3nz) hu4_lt_b3prime
 
