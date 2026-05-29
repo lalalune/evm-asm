@@ -100,6 +100,7 @@ import EvmAsm.Codegen.Programs.StorageProof
 import EvmAsm.Codegen.Programs.Eip4788
 import EvmAsm.Codegen.Programs.CodeVerify
 import EvmAsm.Codegen.Programs.AccountVerify
+import EvmAsm.Codegen.Programs.StorageVerify
 import EvmAsm.Codegen.Programs.Eip2935
 import EvmAsm.Codegen.Programs.StorageCompose
 import EvmAsm.Codegen.Programs.EvmCodes
@@ -221,11 +222,8 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_block_hash_pair" => some ziskBlockValidateBlockHashPairProbeUnit
   | "zisk_block_hash_and_extract_number" => some ziskBlockHashAndExtractNumberProbeUnit
   | "zisk_blockhash_from_witness_headers" => some ziskBlockhashFromWitnessHeadersProbeUnit
-<<<<<<< HEAD
   | "zisk_eip2935_blockhash_lookup" => some ziskEip2935BlockhashLookupProbeUnit
-=======
   | "zisk_eip4788_beacon_root_lookup" => some ziskEip4788BeaconRootLookupProbeUnit
->>>>>>> origin/main
   | "zisk_witness_headers_chain_validate" => some ziskWitnessHeadersChainValidateProbeUnit
   | "zisk_witness_headers_min_block_number" => some ziskWitnessHeadersMinBlockNumberProbeUnit
   | "zisk_witness_headers_max_block_number" => some ziskWitnessHeadersMaxBlockNumberProbeUnit
@@ -432,6 +430,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_at_header_state_root" => some ziskAccountAtHeaderStateRootProbeUnit
   | "zisk_verify_account_struct_matches" => some ziskVerifyAccountStructMatchesProbeUnit
   | "zisk_slot_at_header_state_root" => some ziskSlotAtHeaderStateRootProbeUnit
+  | "zisk_verify_slot_value_matches" => some ziskVerifySlotValueMatchesProbeUnit
   | "zisk_storage_slot_inclusion_proof_verify" => some ziskStorageSlotInclusionProofVerifyProbeUnit
   | "zisk_code_at_header_state_root" => some ziskCodeAtHeaderStateRootProbeUnit
   | "zisk_verify_code_hash_matches" => some ziskVerifyCodeHashMatchesProbeUnit
@@ -601,6 +600,7 @@ def knownProgramNames : List String :=
    "zisk_account_at_header_state_root",
    "zisk_verify_account_struct_matches",
    "zisk_slot_at_header_state_root",
+   "zisk_verify_slot_value_matches",
    "zisk_code_at_header_state_root",
    "zisk_verify_code_hash_matches",
    "zisk_extcodesize_at_header_state_root",
@@ -743,11 +743,8 @@ def knownProgramNames : List String :=
    "zisk_block_validate_block_hash_pair",
    "zisk_block_hash_and_extract_number",
    "zisk_blockhash_from_witness_headers",
-<<<<<<< HEAD
    "zisk_eip2935_blockhash_lookup",
-=======
    "zisk_eip4788_beacon_root_lookup",
->>>>>>> origin/main
    "zisk_witness_headers_chain_validate",
    "zisk_witness_headers_min_block_number",
    "zisk_witness_headers_max_block_number",
