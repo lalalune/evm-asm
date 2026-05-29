@@ -70,6 +70,7 @@ import EvmAsm.Evm64.DivMod.Spec.N1V5CarryZero
 import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
 import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
 import EvmAsm.Evm64.DivMod.Spec.N1V5QuotientLimbs
+import EvmAsm.Evm64.DivMod.Spec.N1V5QuotientWordLane
 import EvmAsm.Evm64.DivMod.Spec.N1V5NoBorrow
 import EvmAsm.Evm64.DivMod.Spec.N1V5LaneBltu
 import EvmAsm.Evm64.DivMod.Spec.N1V5LaneHborrow
