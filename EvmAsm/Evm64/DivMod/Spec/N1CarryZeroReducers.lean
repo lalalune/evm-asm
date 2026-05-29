@@ -671,6 +671,21 @@ theorem fullDivN1NormV_limb0_dHi_ge_pow31_of_shape
   exact fullDivN1NormV_limb0_dHi_ge_pow31_of_b0_ne_zero b0 b1 b2 b3
     (fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
 
+/-- The n=1 normalized divisor top limb is at least `2^63` — the full-strength
+    normalization invariant (the `…_dHi_ge_pow31` lemma above is its high-half
+    corollary). This is the `vTop ≥ 2^63` precondition of `div128Quot_v5_eq_q_true`
+    when specialized to the n=1 first trial call, so the v5 n=1 trial computes the
+    exact floor — discharging the n=1 carry-zero (via the
+    `…_of_shape_div128Quot_floor` pattern) from shape alone. -/
+theorem fullDivN1NormV_limb0_ge_pow63_of_shape
+    (b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0) :
+    (fullDivN1NormV b0 b1 b2 b3).1.toNat ≥ 2^63 := by
+  have hb0nz := fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z
+  have h := b3_shifted_ge_pow63 hb0nz
+  simpa [fullDivN1NormV, fullDivN1Shift] using h
+
 /-- The high half of any normalized n=1 divisor limb is a 32-bit quantity. -/
 theorem fullDivN1NormV_limb0_dHi_lt_pow32 (b0 b1 b2 b3 : Word) :
     ((fullDivN1NormV b0 b1 b2 b3).1 >>> (32 : BitVec 6).toNat).toNat <
