@@ -877,6 +877,134 @@ def ziskWitnessHeadersChainValidateProbeUnit : BuildUnit := {
   dataAsm     := ziskWitnessHeadersChainValidateDataSection
 }
 
+/-! ## parent_header_matches_witness_first
+
+    Cross-input consistency check: verify that a caller-supplied
+    `parent_header_rlp` matches `witness.headers[0]` byte-for-byte.
+    Returns `is_match = 1` iff they agree.
+
+    Spec-side rationale: most stateless-guest entry points take
+    a `parent_header` argument AND a `witness.headers` SSZ list.
+    By convention, `witness.headers[0]` is supposed to be the
+    SAME parent header. A mismatch is an input inconsistency
+    that should be caught up-front rather than discovered later
+    via diverging state_root extractions.
+
+    The check is a byte-equality compare rather than a
+    double-keccak: equal byte spans trivially have equal hashes
+    AND any non-equality is detected without paying for two
+    keccak calls.
+
+    Calling convention:
+      a0 (input)  : parent_header_rlp ptr
+      a1 (input)  : parent_header_rlp_len
+      a2 (input)  : witness.headers section ptr
+      a3 (input)  : witness.headers section_len
+      a4 (input)  : u64 out (is_match: 1 if first entry equals
+                    parent_header_rlp byte-for-byte, else 0)
+      ra (input)  : return
+      a0 (output) :
+        0 = success (is_match holds 0 or 1)
+        1 = witness.headers section is empty (is_match = 0)
+-/
+def parentHeaderMatchesWitnessFirstFunction : String :=
+  "parent_header_matches_witness_first:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                  # parent_header_rlp ptr\n" ++
+  "  mv s1, a1                  # parent_header_rlp_len\n" ++
+  "  mv s2, a2                  # section ptr\n" ++
+  "  mv s3, a3                  # section_len\n" ++
+  "  mv s4, a4                  # is_match out ptr\n" ++
+  "  sd zero, 0(s4)\n" ++
+  "  beqz s3, .Lphmw_empty       # empty section -> status 1\n" ++
+  "  # Compute element 0 bounds (SSZ list).\n" ++
+  "  lwu t0, 0(s2)\n" ++
+  "  srli t0, t0, 2              # N = first_offset / 4\n" ++
+  "  beqz t0, .Lphmw_empty      # zero entries\n" ++
+  "  lwu t1, 0(s2)               # el_0 inner offset (= 4 * N)\n" ++
+  "  add s5, s2, t1              # el_0 start\n" ++
+  "  # el_0 end: if N > 1, read offset[1] (4 bytes at offset 4); else use section_end.\n" ++
+  "  li t2, 1\n" ++
+  "  bgtu t0, t2, .Lphmw_have_next\n" ++
+  "  add s6, s2, s3              # el_0_end = section_end\n" ++
+  "  j .Lphmw_compare\n" ++
+  ".Lphmw_have_next:\n" ++
+  "  lwu t2, 4(s2)\n" ++
+  "  add s6, s2, t2              # el_0_end = section + inner_off[1]\n" ++
+  ".Lphmw_compare:\n" ++
+  "  sub t0, s6, s5              # el_0 length\n" ++
+  "  # Length must match parent_header_rlp_len.\n" ++
+  "  bne t0, s1, .Lphmw_no_match_success\n" ++
+  "  # Byte-compare s0..s0+s1 against s5..s6.\n" ++
+  "  mv t1, s0\n" ++
+  "  mv t2, s5\n" ++
+  "  mv t3, s1\n" ++
+  ".Lphmw_loop:\n" ++
+  "  beqz t3, .Lphmw_match\n" ++
+  "  lbu t4, 0(t1)\n" ++
+  "  lbu t5, 0(t2)\n" ++
+  "  bne t4, t5, .Lphmw_no_match_success\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lphmw_loop\n" ++
+  ".Lphmw_match:\n" ++
+  "  li t1, 1\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lphmw_ret\n" ++
+  ".Lphmw_no_match_success:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lphmw_ret\n" ++
+  ".Lphmw_empty:\n" ++
+  "  li a0, 1\n" ++
+  ".Lphmw_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_parent_header_matches_witness_first`: probe BuildUnit.
+    Input layout (at INPUT_ADDR):
+      bytes  0.. 8 : (ziskemu metadata)
+      bytes  8..16 : parent_header_rlp_len (u64 LE)
+      bytes 16..24 : section_len (u64 LE)
+      bytes 24..24+H            : parent_header_rlp
+      bytes 24+H..24+H+S        : witness.headers section
+    Output layout:
+      bytes  0.. 8 : status (0 / 1)
+      bytes  8..16 : is_match (u64; 0 or 1) -/
+def ziskParentHeaderMatchesWitnessFirstPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # parent_header_rlp_len\n" ++
+  "  ld a3, 16(a5)               # section_len\n" ++
+  "  addi a0, a5, 24             # parent_header_rlp ptr\n" ++
+  "  add a2, a0, a1              # section ptr\n" ++
+  "  li a4, 0xa0010008           # is_match out\n" ++
+  "  jal ra, parent_header_matches_witness_first\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lphmw_pdone\n" ++
+  parentHeaderMatchesWitnessFirstFunction ++ "\n" ++
+  ".Lphmw_pdone:"
+
+def ziskParentHeaderMatchesWitnessFirstDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "phmw_pad:\n" ++
+  "  .zero 8"
+
+def ziskParentHeaderMatchesWitnessFirstProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskParentHeaderMatchesWitnessFirstPrologue
+  dataAsm     := ziskParentHeaderMatchesWitnessFirstDataSection
+}
+
 /-! ## witness_headers_min_block_number
 
     Walk an SSZ `witness.headers` list section and compute the
