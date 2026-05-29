@@ -81,4 +81,50 @@ theorem sharedNoNop_b11_div128_v5_sub {b : Word} :
   skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
   exact CodeReq.union_mono_left
 
+/-- v5 mirror of `divK_loopBody_ofProg_sub_sharedCode_v4`: the loopBody ofProg
+    (block 8) is subsumed by `sharedDivModCode_v5`. -/
+private theorem divK_loopBody_ofProg_sub_sharedCode_v5 {base : Word} :
+    ∀ a i, (CodeReq.ofProg (base + loopBodyOff) (divK_loopBody 560 7736)) a = some i →
+      (sharedDivModCode_v5 base) a = some i := by
+  unfold sharedDivModCode_v5; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock
+  exact CodeReq.union_mono_left
+
+/-- v5 mirror of `lb_sub_v4`: singleton at index k of `divK_loopBody` is
+    subsumed by `sharedDivModCode_v5 base`. -/
+theorem lb_sub_v5 {base : Word} (k : Nat) (addr : Word) (instr : Instr)
+    (hk : k < (divK_loopBody 560 7736).length)
+    (h_addr : addr = (base + loopBodyOff) + BitVec.ofNat 64 (4 * k))
+    (h_instr : (divK_loopBody 560 7736).get ⟨k, hk⟩ = instr) :
+    ∀ a i, CodeReq.singleton addr instr a = some i →
+      (sharedDivModCode_v5 base) a = some i := by
+  subst h_addr; subst h_instr
+  exact fun a i h => divK_loopBody_ofProg_sub_sharedCode_v5 a i
+    (CodeReq.singleton_mono
+      (CodeReq.ofProg_lookup (base + loopBodyOff) (divK_loopBody 560 7736) k hk (by decide)) a i h)
+
+/-- v5 mirror of `divK_loopBody_ofProg_sub_sharedCodeNoNop_v4`: the loopBody
+    ofProg (block 8) is subsumed by `sharedDivModCodeNoNop_v5`. -/
+private theorem divK_loopBody_ofProg_sub_sharedCodeNoNop_v5 {base : Word} :
+    ∀ a i, (CodeReq.ofProg (base + loopBodyOff) (divK_loopBody 560 7736)) a = some i →
+      (sharedDivModCodeNoNop_v5 base) a = some i := by
+  unfold sharedDivModCodeNoNop_v5; simp only [CodeReq.unionAll_cons]
+  skipBlock; skipBlock; skipBlock; skipBlock; skipBlock; skipBlock
+  skipBlock; skipBlock
+  exact CodeReq.union_mono_left
+
+/-- v5 mirror of `lb_sub_noNop_v4`: singleton at index k of `divK_loopBody` is
+    subsumed by `sharedDivModCodeNoNop_v5 base`. -/
+theorem lb_sub_noNop_v5 {base : Word} (k : Nat) (addr : Word) (instr : Instr)
+    (hk : k < (divK_loopBody 560 7736).length)
+    (h_addr : addr = (base + loopBodyOff) + BitVec.ofNat 64 (4 * k))
+    (h_instr : (divK_loopBody 560 7736).get ⟨k, hk⟩ = instr) :
+    ∀ a i, CodeReq.singleton addr instr a = some i →
+      (sharedDivModCodeNoNop_v5 base) a = some i := by
+  subst h_addr; subst h_instr
+  exact fun a i h => divK_loopBody_ofProg_sub_sharedCodeNoNop_v5 a i
+    (CodeReq.singleton_mono
+      (CodeReq.ofProg_lookup (base + loopBodyOff) (divK_loopBody 560 7736) k hk (by decide)) a i h)
+
 end EvmAsm.Evm64
