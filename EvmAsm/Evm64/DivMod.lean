@@ -48,6 +48,7 @@ import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeqV4NoNop
 import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeqNamed
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5
 import EvmAsm.Evm64.DivMod.Compose.SharedLoopPost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Defs
