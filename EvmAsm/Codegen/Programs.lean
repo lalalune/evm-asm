@@ -54,6 +54,7 @@ import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptEncode
+import EvmAsm.Codegen.Programs.StorageRoot
 import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptNibbles
 import EvmAsm.Codegen.Programs.Ssz
@@ -423,6 +424,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
+  | "zisk_storage_root_recompute_single_slot" => some ziskStorageRootRecomputeSingleSlotProbeUnit
   | "zisk_validate_witness_state_contains_root" => some ziskValidateWitnessStateContainsRootProbeUnit
   | "zisk_witness_state_validate_node_kinds" => some ziskWitnessStateValidateNodeKindsProbeUnit
   | "zisk_witness_codes_validate_lengths" => some ziskWitnessCodesValidateLengthsProbeUnit
@@ -593,6 +595,7 @@ def knownProgramNames : List String :=
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
    "zisk_state_root_single_account",
+   "zisk_storage_root_recompute_single_slot",
    "zisk_validate_witness_state_contains_root",
    "zisk_witness_state_validate_node_kinds",
    "zisk_witness_codes_validate_lengths",
