@@ -14,6 +14,7 @@
 -/
 
 import EvmAsm.Evm64.Basic
+import EvmAsm.Evm64.EvmWordArith.MultiLimb
 
 namespace EvmAsm.Evm64
 
@@ -64,5 +65,43 @@ theorem shiftOr_disjoint_toNat (x y : Word) (s : Nat) (hs : 0 < s) (hs64 : s < 6
     have h := Nat.mul_le_mul_right (2^s) hmod
     rwa [Nat.sub_mul, Nat.one_mul, ← Nat.pow_add, hsle] at h
   rw [Nat.mod_eq_of_lt (by omega)]
+
+/-- **val256-normalize identity (divisor / no-overflow case).** Left-shifting
+    a 4-limb value by `0 < s < 64` via the per-limb shift-OR limbs
+    `Bi' = (bi <<< s) ||| (b(i-1) >>> (64-s))` (with `B0' = b0 <<< s`) gives
+    `val256 B' = val256 b · 2^s`, provided the top limb does not overflow
+    (`b3.toNat / 2^(64-s) = 0`, which holds when `s = clz(b3)` for `b3 ≠ 0`).
+
+    Telescopes `shiftOr_disjoint_toNat` across the 4 limbs: each `bi`'s top
+    `s` bits carry into the next limb, the carries cancel via `2^(64-s)·2^s
+    = 2^64`, and the top carry vanishes by hypothesis. -/
+theorem val256_normalize_divisor (b0 b1 b2 b3 : Word) (s : Nat)
+    (hs : 0 < s) (hs64 : s < 64) (htop : b3.toNat / 2^(64-s) = 0) :
+    EvmWord.val256 (b0 <<< s) ((b1 <<< s) ||| (b0 >>> (64-s)))
+      ((b2 <<< s) ||| (b1 >>> (64-s))) ((b3 <<< s) ||| (b2 >>> (64-s)))
+      = EvmWord.val256 b0 b1 b2 b3 * 2^s := by
+  have hsle : 64 - s + s = 64 := by omega
+  have hpow : (2:Nat)^64 = 2^(64-s) * 2^s := by rw [← Nat.pow_add, hsle]
+  have hb0 : (b0 <<< s).toNat = (b0.toNat % 2^(64-s)) * 2^s := by
+    rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, hpow, Nat.mul_mod_mul_right]
+  unfold EvmWord.val256
+  rw [hb0, shiftOr_disjoint_toNat b1 b0 s hs hs64,
+      shiftOr_disjoint_toNat b2 b1 s hs hs64, shiftOr_disjoint_toNat b3 b2 s hs hs64]
+  have e0 := Nat.div_add_mod b0.toNat (2^(64-s))
+  have e1 := Nat.div_add_mod b1.toNat (2^(64-s))
+  have e2 := Nat.div_add_mod b2.toNat (2^(64-s))
+  have e3 := Nat.div_add_mod b3.toNat (2^(64-s))
+  have h128 : (2:Nat)^128 = 2^64 * 2^64 := by rw [← Nat.pow_add]
+  have h192 : (2:Nat)^192 = 2^64 * 2^64 * 2^64 := by rw [← Nat.pow_add, ← Nat.pow_add]
+  rw [h128, h192, hpow]
+  set M := 2^(64-s)
+  set T := 2^s
+  set p0 := b0.toNat % M; set q0 := b0.toNat / M
+  set p1 := b1.toNat % M; set q1 := b1.toNat / M
+  set p2 := b2.toNat % M; set q2 := b2.toNat / M
+  set p3 := b3.toNat % M; set q3 := b3.toNat / M
+  rw [htop] at e3
+  rw [← e0, ← e1, ← e2, ← e3]
+  ring
 
 end EvmAsm.Evm64
