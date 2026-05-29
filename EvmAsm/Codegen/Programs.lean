@@ -95,6 +95,7 @@ import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.AccountFieldGetters
+import EvmAsm.Codegen.Programs.WitnessValidation
 import EvmAsm.Codegen.Programs.StorageCompose
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.TxRoot
@@ -412,6 +413,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
   | "zisk_state_root_single_account" => some ziskStateRootSingleAccountProbeUnit
   | "zisk_validate_witness_state_contains_root" => some ziskValidateWitnessStateContainsRootProbeUnit
+  | "zisk_witness_state_validate_node_kinds" => some ziskWitnessStateValidateNodeKindsProbeUnit
   | "zisk_account_at_header_state_root" => some ziskAccountAtHeaderStateRootProbeUnit
   | "zisk_slot_at_header_state_root" => some ziskSlotAtHeaderStateRootProbeUnit
   | "zisk_code_at_header_state_root" => some ziskCodeAtHeaderStateRootProbeUnit
@@ -575,6 +577,7 @@ def knownProgramNames : List String :=
    "zisk_hp_encode_nibbles",
    "zisk_state_root_single_account",
    "zisk_validate_witness_state_contains_root",
+   "zisk_witness_state_validate_node_kinds",
    "zisk_account_at_header_state_root",
    "zisk_slot_at_header_state_root",
    "zisk_code_at_header_state_root",
