@@ -15,6 +15,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Un21Bound
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Q0ddBound
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bFireBound
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bNoFireBound
 
@@ -335,5 +336,97 @@ theorem divKTrialCallV5Q0dd_ge_q_true_0
           (divKTrialCallV5Rhat2d uHi uLo vTop) (divKTrialCallV5DLo vTop)
           (divKTrialCallV5Un0 uLo) := by delta divKTrialCallV5Q0dd; rfl
     rw [h_q0dd_def, h_q0dd_eq]; exact h_q0d_ge
+
+-- ============================================================================
+-- Q0dd ≤ q_true_0  (second-stage exactness — the n4 +2 linchpin)
+-- ============================================================================
+
+/-- **Second-stage exactness**: `Q0dd ≤ q_true_0`. With the companion
+    `divKTrialCallV5Q0dd_ge_q_true_0` this pins `Q0dd = q_true_0` exactly,
+    hence (with `q1 = q_true_1` pinned and `un21 = r1` exact) `div128Quot_v5 =
+    floor` — the exact 128/64 quotient.
+
+    The *second* Phase-2b correction (`Q0d → Q0dd`, guarded by `Rhat2d`) is what
+    tightens the first-stage `+1` bound (`divKTrialCallV5Q0d_le_q_true_0_plus_one`)
+    to exact: when it fires, `Q0dd = Q0d - 1 ≤ q_true_0`; when it does not, the
+    dLo-check together with the Euclidean post `Q0d·dHi + Rhat2d = un21` pins
+    `Q0d·vTop ≤ un21·2^32 + un0`, i.e. `Q0d ≤ q_true_0`.
+
+    This yields the n4 `+2` overestimate (compose with `knuth_theorem_b_from_clz`:
+    `floor ≤ val256(a)/val256(b) + 2`) consumed by the addback carry bridge
+    `isAddbackCarry2Nz_of_overestimate_c3_one_of_carry_zero`. Bead
+    `wbc4i.8.2.2.7`. -/
+theorem divKTrialCallV5Q0dd_le_q_true_0
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (divKTrialCallV5Q0dd uHi uLo vTop).toNat ≤
+      ((divKTrialCallV5Un21 uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV5Un0 uLo).toNat) / vTop.toNat := by
+  have h_q0d_ub := divKTrialCallV5Q0d_le_q_true_0_plus_one uHi uLo vTop hvTop_ge huHi_lt_vTop
+  have h_eucl := divKTrialCallV5Q0d_rhat2d_post uHi uLo vTop hvTop_ge
+  have h_dLo_lt : (divKTrialCallV5DLo vTop).toNat < 2^32 := divKTrialCallV5DLo_lt_pow32 vTop
+  have h_un0_lt : (divKTrialCallV5Un0 uLo).toNat < 2^32 := divKTrialCallV5Un0_lt_pow32 uLo
+  have h_vTop_eq : vTop.toNat = (divKTrialCallV5DHi vTop).toNat * 2^32 +
+      (divKTrialCallV5DLo vTop).toNat := by
+    unfold divKTrialCallV5DHi divKTrialCallV5DLo; exact div128Quot_vTop_decomp vTop
+  have h_q0d_lt : (divKTrialCallV5Q0d uHi uLo vTop).toNat < 2^32 :=
+    lt_of_le_of_lt
+      (show _ ≤ (divKTrialCallV5Q0c uHi uLo vTop).toNat from by
+        unfold divKTrialCallV5Q0d; exact div128Quot_phase2b_q0'_le_self _ _ _ _)
+      (by rw [divKTrialCallV5Q0c_eq_algorithm]; exact algorithmQ0cV5_lt_pow32 uHi uLo vTop)
+  have h_q0d_nw : (divKTrialCallV5Q0d uHi uLo vTop * divKTrialCallV5DLo vTop).toNat =
+      (divKTrialCallV5Q0d uHi uLo vTop).toNat * (divKTrialCallV5DLo vTop).toNat := by
+    rw [BitVec.toNat_mul]; apply Nat.mod_eq_of_lt; nlinarith [h_q0d_lt, h_dLo_lt]
+  have h_q0dd_def : divKTrialCallV5Q0dd uHi uLo vTop =
+      div128Quot_phase2b_q0' (divKTrialCallV5Q0d uHi uLo vTop)
+        (divKTrialCallV5Rhat2d uHi uLo vTop) (divKTrialCallV5DLo vTop)
+        (divKTrialCallV5Un0 uLo) := by delta divKTrialCallV5Q0dd; rfl
+  set q_true_0 := ((divKTrialCallV5Un21 uHi uLo vTop).toNat * 2^32 +
+      (divKTrialCallV5Un0 uLo).toNat) / vTop.toNat with hqt
+  by_cases h_guard2 :
+      divKTrialCallV5Rhat2d uHi uLo vTop >>> (32 : BitVec 6).toNat = (0 : Word) ∧
+      BitVec.ult ((divKTrialCallV5Rhat2d uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+            divKTrialCallV5Un0 uLo)
+        (divKTrialCallV5Q0d uHi uLo vTop * divKTrialCallV5DLo vTop)
+  · -- Fire: Q0dd = Q0d - 1 ≤ (q_true_0 + 1) - 1 = q_true_0.
+    have h_q_pos : 1 ≤ (divKTrialCallV5Q0d uHi uLo vTop).toNat :=
+      phase2b_q_pos_of_fire_ult (divKTrialCallV5Q0d uHi uLo vTop)
+        (divKTrialCallV5DLo vTop)
+        ((divKTrialCallV5Rhat2d uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
+          divKTrialCallV5Un0 uLo) h_guard2.2
+    have h_dec : divKTrialCallV5Q0dd uHi uLo vTop =
+        divKTrialCallV5Q0d uHi uLo vTop + signExtend12 4095 := by
+      rw [h_q0dd_def]
+      exact div128Quot_phase2b_q0'_eq_q_dec_of_fire _ _ _ _ h_guard2.1 h_guard2.2
+    have h_q0dd_nat : (divKTrialCallV5Q0dd uHi uLo vTop).toNat =
+        (divKTrialCallV5Q0d uHi uLo vTop).toNat - 1 := by
+      rw [h_dec, BitVec.toNat_add,
+          show (signExtend12 4095 : Word).toNat = 2^64 - 1 from by decide]; omega
+    omega
+  · -- No fire: Q0dd = Q0d, and dLo-check + Euclidean give Q0d ≤ q_true_0.
+    obtain ⟨h_q0dd_eq, h_dlo⟩ :=
+      div128Quot_phase2b_q0'_dLo_bound_no_fire
+        (divKTrialCallV5Q0d uHi uLo vTop) (divKTrialCallV5Rhat2d uHi uLo vTop)
+        (divKTrialCallV5DLo vTop) (divKTrialCallV5Un0 uLo)
+        (by omega) h_dLo_lt h_un0_lt h_q0d_nw h_guard2
+    have h_q0d_vTop : (divKTrialCallV5Q0d uHi uLo vTop).toNat * vTop.toNat ≤
+        (divKTrialCallV5Un21 uHi uLo vTop).toNat * 2^32 +
+          (divKTrialCallV5Un0 uLo).toNat := by
+      calc (divKTrialCallV5Q0d uHi uLo vTop).toNat * vTop.toNat
+          = (divKTrialCallV5Q0d uHi uLo vTop).toNat * (divKTrialCallV5DHi vTop).toNat * 2^32 +
+            (divKTrialCallV5Q0d uHi uLo vTop).toNat * (divKTrialCallV5DLo vTop).toNat := by
+            rw [h_vTop_eq]; ring
+        _ ≤ (divKTrialCallV5Q0d uHi uLo vTop).toNat * (divKTrialCallV5DHi vTop).toNat * 2^32 +
+            ((divKTrialCallV5Rhat2d uHi uLo vTop).toNat * 2^32 +
+              (divKTrialCallV5Un0 uLo).toNat) := by omega
+        _ = ((divKTrialCallV5Q0d uHi uLo vTop).toNat * (divKTrialCallV5DHi vTop).toNat +
+            (divKTrialCallV5Rhat2d uHi uLo vTop).toNat) * 2^32 +
+            (divKTrialCallV5Un0 uLo).toNat := by ring
+        _ = (divKTrialCallV5Un21 uHi uLo vTop).toNat * 2^32 +
+            (divKTrialCallV5Un0 uLo).toNat := by rw [h_eucl]
+    have h_q0d_le : (divKTrialCallV5Q0d uHi uLo vTop).toNat ≤ q_true_0 :=
+      (Nat.le_div_iff_mul_le (by omega)).mpr h_q0d_vTop
+    rw [h_q0dd_def, h_q0dd_eq]; exact h_q0d_le
 
 end EvmAsm.Evm64
