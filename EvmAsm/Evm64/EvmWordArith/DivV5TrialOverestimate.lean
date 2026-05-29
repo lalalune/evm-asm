@@ -179,4 +179,19 @@ theorem divKTrialCallV5QHat_le_val256_div_plus_two_of_call
   rw [h_eq]
   exact knuth_theorem_b_from_clz a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hshift_nz hcall
 
+/-- **The v5 trial is the exact floor**: `divKTrialCallV5QHat = (uHi·2^64+uLo)/vTop`
+    under the call regime + normalisation. The QHat-level statement of
+    `div128Quot_v5_eq_q_true` (via `divKTrialCallV5QHat_eq_div128Quot_v5`);
+    strengthens `divKTrialCallV5QHat_eq_floor_or_succ` (`∈ {floor, floor+1}`) to
+    exact equality. Downstream dispatcher reasoning can treat the trial as the
+    exact 128/64 quotient. -/
+theorem divKTrialCallV5QHat_eq_floor
+    (uHi uLo vTop : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat) :
+    (divKTrialCallV5QHat uHi uLo vTop).toNat =
+      (uHi.toNat * 2^64 + uLo.toNat) / vTop.toNat := by
+  rw [divKTrialCallV5QHat_eq_div128Quot_v5]
+  exact div128Quot_v5_eq_q_true uHi uLo vTop hvTop_ge huHi_lt_vTop
+
 end EvmAsm.Evm64
