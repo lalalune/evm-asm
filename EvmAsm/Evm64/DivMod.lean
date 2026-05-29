@@ -148,3 +148,5 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
 import EvmAsm.Evm64.DivMod.Compose.ModShift0Epilogue
 import EvmAsm.Evm64.DivMod.LoopIterN4MaxV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN4CallAddbackV4NoNop
+
+import EvmAsm.Evm64.DivMod.Compose.PhaseBV5
