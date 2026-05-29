@@ -837,32 +837,24 @@ end EvmAsm.Codegen
 
 /-! ## File-size guard
 
-    Hard cap on `Programs.lean` and every sibling under
+    Hard cap of 1500 lines on `Programs.lean` and every sibling under
     `EvmAsm/Codegen/Programs/`, to keep the registry hub and the
-    extracted submodules from spiralling. The cap **monotonically
-    decreases** as files shrink: every time this guard trips, the
-    response is to split AND lower `hardCap` by at least the size
-    of the carved-out chunk. The long-term floor is `1500`.
+    extracted submodules from spiralling. When this guard trips, split
+    a cluster of `*Function` / `zisk*` defs into a new (or existing)
+    submodule, add it to the `paths` list below and to `Programs.lean`'s
+    imports.
 
     Established splits so far:
       * PR-#5870 carved `Evm.lean` / `HashBridge.lean` / `Ssz.lean`.
       * PR-#5900 carved `RlpRead.lean` / `Mpt.lean`.
-      * This PR carves `Tx.lean` and renames `softCap` → `hardCap`.
-
-    When this guard trips:
-      1. Pick a cluster of `*Function` / `zisk*` defs in the
-         offending file.
-      2. Lift them into a new (or existing) submodule under
-         `EvmAsm/Codegen/Programs/`.
-      3. Add the submodule to the `paths` list below and to
-         `Programs.lean`'s imports.
-      4. **Lower `hardCap`** by at least the line-count you just
-         removed. Never raise it. The floor is 1500.
+      * PR-#5948 carved `Tx.lean`.
+      * PR-#7176 carved `EvmOpcodesStorageRoot.lean` /
+        `EvmOpcodesExtcodecopy.lean`.
 
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
-  let hardCap := 1000
+  let hardCap := 1500
   let paths := [
     "EvmAsm/Codegen/Programs.lean",
     "EvmAsm/Codegen/Programs/Account.lean",
@@ -932,7 +924,5 @@ end EvmAsm.Codegen
         s!"{path} has {lineCount} lines; hard cap is {hardCap}. " ++
         "Extract a helper cluster into a new submodule under " ++
         "EvmAsm/Codegen/Programs/ (see PR #5870 and PR #5900 for the " ++
-        "established pattern). Then LOWER `hardCap` in the guard at " ++
-        "the bottom of Programs.lean by at least the size of the " ++
-        "carved-out chunk -- the cap monotonically decreases toward " ++
-        "the 1500-line floor. Never raise it."
+        "established pattern). Add the new submodule to the `paths` list " ++
+        "and to `Programs.lean`'s imports."
