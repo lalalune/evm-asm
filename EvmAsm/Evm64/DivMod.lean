@@ -57,6 +57,7 @@ import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
 import EvmAsm.Evm64.DivMod.Compose.NormBV5
 import EvmAsm.Evm64.DivMod.Compose.NormAV5
 import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
+import EvmAsm.Evm64.DivMod.Compose.PhaseAV5
 import EvmAsm.Evm64.DivMod.Compose.CLZV5
 import EvmAsm.Evm64.DivMod.Compose.SharedLoopPost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
