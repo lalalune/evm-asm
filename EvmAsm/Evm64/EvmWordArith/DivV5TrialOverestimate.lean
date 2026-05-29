@@ -24,6 +24,7 @@
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.UpperBound
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.LowerBound
 import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
+import EvmAsm.Evm64.EvmWordArith.DivKnuthATopWindowFits
 
 namespace EvmAsm.Evm64
 
@@ -109,5 +110,31 @@ theorem divKTrialCallV5QHat_le_val256_div_plus_two_of_norm
   divKTrialCallV5QHat_le_val256_div_plus_two uHi uLo vTop v0 v1 v2 v3 u0 u1 u2 u3
     (DivKTrialCallV5QHatLeFloorPlusOne_of_norm uHi uLo vTop hvTop_ge huHi_lt_vTop)
     h_knuth
+
+/-- **End-to-end v5 `+2` val256 overestimate** under purely structural
+    conditions — the v5 analog of
+    `divKTrialCallV4QHat_le_val256_div_plus_two_of_exact_and_top_window_fits_v_eq_vTop`,
+    but STRICTLY WEAKER PREMISES: the v4 version needs `h_exact`
+    (`divKTrialCallV4QHat = exact floor`, hard to establish); the v5 version
+    needs only normalisation (`vTop ≥ 2^63`, `uHi < vTop`) because the v5
+    frontier is unconditional. The remaining conditions
+    (`val256(v) = vTop`, top-window-fits-`val256(u)`) are the version-agnostic
+    Knuth-A structural conditions, discharged by
+    `Knuth128_64TopWindowLeVal256DivPlusOne_of_top_window_fits_val256_and_v_eq_vTop`.
+
+    This is the val256 overestimate consumed by the BLT-path
+    `loopBodyN{2,3}CallAddbackCarry2Nz*_of_overestimate_c3` bridges. -/
+theorem divKTrialCallV5QHat_le_val256_div_plus_two_of_norm_and_top_window_fits_v_eq_vTop
+    (uHi uLo vTop : Word) (v0 v1 v2 v3 u0 u1 u2 u3 : Word)
+    (hvTop_ge : vTop.toNat ≥ 2^63)
+    (huHi_lt_vTop : uHi.toNat < vTop.toNat)
+    (h_v_eq : val256 v0 v1 v2 v3 = vTop.toNat)
+    (h_u_fits : (uHi.toNat * 2^64 + uLo.toNat) * 2^128 ≤ val256 u0 u1 u2 u3) :
+    (divKTrialCallV5QHat uHi uLo vTop).toNat ≤
+      val256 u0 u1 u2 u3 / val256 v0 v1 v2 v3 + 2 :=
+  divKTrialCallV5QHat_le_val256_div_plus_two_of_norm uHi uLo vTop
+    v0 v1 v2 v3 u0 u1 u2 u3 hvTop_ge huHi_lt_vTop
+    (Knuth128_64TopWindowLeVal256DivPlusOne_of_top_window_fits_val256_and_v_eq_vTop
+      uHi uLo vTop v0 v1 v2 v3 u0 u1 u2 u3 h_v_eq h_u_fits)
 
 end EvmAsm.Evm64
