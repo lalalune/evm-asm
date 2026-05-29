@@ -129,8 +129,9 @@ instance (base : Word) (env : EvmEnv) : Assertion.PCFree (envIs base env) :=
 -/
 
 /-- Number of doubleword cells that a single env block occupies.
-    `envSize = 456` bytes (M22, added slotTableCount) ⇒ `envCells = 57`. -/
-def envCells : Nat := 57
+    `envSize = 472` bytes (M24 added persistentLogCheckpoint +
+    transientLogLength) ⇒ `envCells = 59`. -/
+def envCells : Nat := 59
 
 theorem envCells_eq : envCells * 8 = envSize := by decide
 

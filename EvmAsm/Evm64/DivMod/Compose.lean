@@ -22,6 +22,10 @@ import EvmAsm.Evm64.DivMod.Compose.Div128
 import EvmAsm.Evm64.DivMod.Compose.Div128V4
 import EvmAsm.Evm64.DivMod.Compose.V4Code
 import EvmAsm.Evm64.DivMod.Compose.V5Code
+import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+import EvmAsm.Evm64.DivMod.Compose.V5Code2
+import EvmAsm.Evm64.DivMod.Compose.Div128V5CodeBridge
+import EvmAsm.Evm64.DivMod.Compose.Div128V5
 import EvmAsm.Evm64.DivMod.Compose.FullPath
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2
