@@ -541,6 +541,37 @@ theorem evm_div_ceN1Shape_v4_semantic_regression_pin :
   · exact ceN1Shape_semantic_div_eq_one
   · exact ceN1Shape_fullDivN1QuotientWord_eq_semantic_div
 
+-- ============================================================================
+-- V4 div128Quot is NOT exact even in the normalized call regime
+--
+-- Pins that the v4 `div128Quot` overshoots the exact 128/64 floor on a
+-- concrete input satisfying BOTH `vTop ≥ 2^63` (normalized) AND `uHi < vTop`
+-- (call regime). So there is no "v4 is exact in the call regime" shortcut for
+-- the n=1 lane: the v5 capped quotient (`div128Quot_v5 = floor`, proven in
+-- `div128Quot_v5_eq_q_true`) is genuinely required. Kernel-checked (`decide`,
+-- no `native_decide`).
+-- ============================================================================
+
+/-- Call-regime witness for the v4 `div128Quot` inexactness. -/
+abbrev ceV4Div128CallUHi : Word := BitVec.ofNat 64 9570702615907497163
+/-- Low limb of the v4 `div128Quot` call-regime witness. -/
+abbrev ceV4Div128CallULo : Word := BitVec.ofNat 64 3560909652333379602
+/-- Normalized divisor of the v4 `div128Quot` call-regime witness. -/
+abbrev ceV4Div128CallVTop : Word := BitVec.ofNat 64 14276325073769090779
+
+theorem ceV4Div128Call_vTop_normalized :
+    ceV4Div128CallVTop.toNat ≥ 2^63 := by decide
+
+theorem ceV4Div128Call_call_regime :
+    ceV4Div128CallUHi.toNat < ceV4Div128CallVTop.toNat := by decide
+
+/-- The v4 `div128Quot` is NOT the exact floor in the normalized call regime —
+    motivating the v5 migration for the n=1 lane. -/
+theorem ceV4Div128Call_div128Quot_ne_floor :
+    (div128Quot ceV4Div128CallUHi ceV4Div128CallULo ceV4Div128CallVTop).toNat ≠
+      (ceV4Div128CallUHi.toNat * 2^64 + ceV4Div128CallULo.toNat) /
+        ceV4Div128CallVTop.toNat := by decide
+
 end DivModCounterexamples
 
 end EvmAsm.Evm64
