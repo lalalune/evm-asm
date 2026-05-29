@@ -16,6 +16,7 @@ import EvmAsm.Evm64.DivMod.Spec.CallAddbackPureNat
 import EvmAsm.Evm64.DivMod.Spec.CallAddback
 import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
 import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
+import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntimeV5
 import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntimeHighDiv
 import EvmAsm.Evm64.DivMod.Spec.N4V4StackPre
 import EvmAsm.Evm64.DivMod.Spec.N4V4ShiftNzDispatcher
