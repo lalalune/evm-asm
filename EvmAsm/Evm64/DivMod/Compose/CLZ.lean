@@ -184,17 +184,17 @@ def clzResult (val : Word) : Word × Word :=
   (c5, v4)
 
 -- Address lemmas for CLZ stages
-private theorem clz_addr1 {base : Word} : (base + clzOff + 4 : Word) + 16 = base + clzOff + 20 := by bv_addr
-private theorem clz_addr2 {base : Word} : (base + clzOff + 20 : Word) + 16 = base + clzOff + 36 := by bv_addr
-private theorem clz_addr3 {base : Word} : (base + clzOff + 36 : Word) + 16 = base + clzOff + 52 := by bv_addr
-private theorem clz_addr4 {base : Word} : (base + clzOff + 52 : Word) + 16 = base + clzOff + 68 := by bv_addr
-private theorem clz_addr5 {base : Word} : (base + clzOff + 68 : Word) + 16 = base + clzOff + 84 := by bv_addr
-private theorem clz_addr6 {base : Word} : (base + clzOff + 84 : Word) + 12 = base + phaseC2Off := by bv_addr
+theorem clz_addr1 {base : Word} : (base + clzOff + 4 : Word) + 16 = base + clzOff + 20 := by bv_addr
+theorem clz_addr2 {base : Word} : (base + clzOff + 20 : Word) + 16 = base + clzOff + 36 := by bv_addr
+theorem clz_addr3 {base : Word} : (base + clzOff + 36 : Word) + 16 = base + clzOff + 52 := by bv_addr
+theorem clz_addr4 {base : Word} : (base + clzOff + 52 : Word) + 16 = base + clzOff + 68 := by bv_addr
+theorem clz_addr5 {base : Word} : (base + clzOff + 68 : Word) + 16 = base + clzOff + 84 := by bv_addr
+theorem clz_addr6 {base : Word} : (base + clzOff + 84 : Word) + 12 = base + phaseC2Off := by bv_addr
 
 /-- Combined CLZ stage: handles both taken and ntaken with conditional postcondition.
     After stage: val' = if (val>>>K≠0) then val else val<<<M_s,
     count' = if (val>>>K≠0) then count else count+M_a. -/
-private theorem divK_clz_stage_combined_within
+theorem divK_clz_stage_combined_within
     (K M_s : BitVec 6) (M_a : BitVec 12) (val count v7 : Word) (base : Word) :
     let cr := divK_clz_stage_code K M_s M_a base
     let val' := if val >>> K.toNat ≠ 0 then val else val <<< M_s.toNat
@@ -215,7 +215,7 @@ private theorem divK_clz_stage_combined_within
       (fun _ hp => hp)
       (fun _ hp => by rw [show (val >>> K.toNat : Word) = 0 from h]; exact hp) hs
 
-private theorem divK_clz_last_combined_within (val count v7 : Word) (base : Word) :
+theorem divK_clz_last_combined_within (val count v7 : Word) (base : Word) :
     let cr := divK_clz_last_code base
     let count' := if val >>> (63 : Nat) ≠ 0 then count else count + signExtend12 (1 : BitVec 12)
     cpsTripleWithin 3 base (base + 12) cr

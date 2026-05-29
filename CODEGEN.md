@@ -1671,9 +1671,299 @@ flow through `.exit_label → evmAddEpilogue → halt stub`:
 REVERT cases all assert halt_kind). `scripts/check-progress.sh`
 exits 0. Build clean (`lake build EvmAsm.Codegen` exits 0).
 
+### M24 — Storage on Option A: append-log + journal + real TLOAD/TSTORE — **DONE (2026-05-29)**
+
+The storage memory-layout decision (issue **#7130**) landed
+with consensus to **start with Option A** — an append-only
+`(addrHash, slotKey, original, current)` log in
+`STATE_TRACKER_AREA = 0xa0630000` (4 MiB), with revert = log-
+length truncation (the log *is* the journal). Possible upgrade
+to **C** (direct-mapped hint index over the same log) later.
+
+M24 brings M22's transitional storage into alignment with the
+Option A spec, and extends the same architecture to **real
+TLOAD/TSTORE** (graduated from M17 no-ops). It also adds
+**REVERT rollback** (REVERT now truncates the log to a
+checkpoint captured at the dispatcher prologue's end).
+
+**What M22 had that M24 changes:**
+
+| Concern | M22 | M24 |
+|---|---|---|
+| Entry shape | `(slotKey:32, value:32)` = 64 B | `(addrHash:32, slotKey:32, original:32, current:32)` = 128 B |
+| Semantics | In-place update on key match | Always append; scan from end (last-write-wins) |
+| Location | Dispatcher `.data` `evm_slot_table` (16 KiB) | `STATE_TRACKER_AREA = 0xa0630000` (4 MiB) |
+| Revert | None — SSTORE-then-REVERT committed | Log-length truncation to checkpoint |
+| Transient (TLOAD/TSTORE) | M17 no-ops | Same Option A structure at `0xa0830000` |
+| Original-value tracking | Absent | Captured on first-touch; preserved across SSTOREs |
+
+**OUTPUT layout (post-M24):**
+
+```
+OUTPUT_ADDR (0xa0010000):
+  +0..32    <result>                       (M21/M23: stack top or returndata)
+  +32..40   <u64 LE halt_kind>             (M23)
+  +40..48   <u64 LE persistentLogLength>   (NEW M24)
+  +48..56   <u64 LE transientLogLength>    (NEW M24)
+  +56..256  <unused>
+```
+
+Surfaced by 6 instructions appended to `.exit_no_epilogue:`
+in `emitDispatcherEpilogue` — runs for **every** halt path.
+
+**Delivered:**
+
+- **`EvmAsm/Evm64/Environment/Layout.lean`** — `slotTableCountOff`
+  renamed to `persistentLogLengthOff` (same offset 448; semantic
+  shift from count-of-64B-entries to count-of-128B-entries). Two
+  new cells: `persistentLogCheckpointOff = 456`,
+  `transientLogLengthOff = 464`. `envSize` 456 → 472.
+  `envSize_covers` chain extended; `Assertion.lean`'s `envCells`
+  bumped 57 → 59.
+
+- **`EvmAsm/Codegen/Dispatch.lean`** —
+  - Removed `evm_slot_table: .zero 0x4000` from both `.data`
+    sections (~16 KiB reclaimed). Storage now lives in
+    `STATE_TRACKER_AREA`, accessed directly via
+    `li xN, 0xa0630000` / `0xa0830000`.
+  - **Runtime prologue:** the M22 slot-table copy loop became
+    an **expansion loop** that turns each 64-byte input entry
+    `(key, value)` into a 128-byte Option A entry
+    `(addrHash=0, slotKey=key, original=value, current=value)`
+    at `0xa0630000 + i*128`. Writes preload count to both
+    `env+448` (live length) and `env+456` (checkpoint).
+    Initializes `env+464` (transient length) to 0.
+  - **`.data`-baked prologue:** initializes all three log-state
+    cells (448, 456, 464) to 0.
+  - **Epilogue:** appends 6 instructions after
+    `.exit_no_epilogue:` to copy `env+448`/`env+464` to
+    `OUTPUT+40`/`OUTPUT+48`. Universal exit join — works for
+    STOP / RETURN / REVERT / INVALID / SELFDESTRUCT.
+
+- **`EvmAsm/Codegen/Programs/Storage.lean`** — complete
+  rewrite. Four real handler bodies, all using GNU AS numeric
+  local labels for scan loops (idioms unchanged from M22):
+  - **SLOAD (0x54):** scan persistent log from end (last-write-
+    wins); copy `current` to stack top; zero on miss.
+  - **SSTORE (0x55):** scan from end, save `&found.original`
+    in x18 if matched; then **always append** a new 128-byte
+    entry preserving `original` (or 0 on miss). Increment
+    `env+448`.
+  - **TLOAD (0x5c):** same as SLOAD against `env+464` /
+    `0xa0830000`.
+  - **TSTORE (0x5d):** skip scan; append `(addrHash=0,
+    slotKey, original=0, current=new)` to transient log.
+
+- **`EvmAsm/Codegen/Programs/Noop.lean::haltHandlers`** —
+  REVERT body gains 3 instructions before `j .exit_no_epilogue`:
+  ```
+  ld  x17, 456(x20)      # persistentLogCheckpointOff
+  sd  x17, 448(x20)      # restore persistent log_length
+  sd  x0,  464(x20)      # transient log_length = 0
+  ```
+  RETURN / STOP / INVALID / SELFDESTRUCT untouched (commit
+  semantics).
+
+- **`EvmAsm/Codegen/Tests/Cases.lean`** + `Cli.lean` + bash
+  runner — two new optional `OpcodeTestCase` fields:
+  `expectedPersistentLogLength` and `expectedTransientLogLength`
+  (16 hex chars = 8-byte LE u64). `--list-test-cases` emits an
+  8-column TSV; runner asserts `OUTPUT[40..48]` / `OUTPUT[48..56]`
+  via `xxd -s 40 -l 8` / `-s 48 -l 8` when the corresponding
+  field is non-empty.
+
+- **3 new M24 test cases:**
+  - **`sstore_revert_rolls_back`** — `PUSH1 0x42; PUSH1 0x00;
+    SSTORE; PUSH1 0x00; PUSH1 0x00; REVERT`. SSTORE appends
+    (length 0→1); REVERT truncates back to checkpoint = 0.
+    Expected persistent log_length = 0. **Proves the journal
+    rollback works.**
+  - **`sstore_no_revert_commits`** — same SSTORE then STOP.
+    No rollback; persistent log_length stays at 1.
+  - **`tstore_tload_round_trip`** — TSTORE + TLOAD + STOP.
+    Returns stored value via TLOAD; transient log_length = 1.
+    **Proves TLOAD/TSTORE moved off the M17 no-op.**
+
+- **Pre-existing `tstore_tload_roundtrip` test** (M17-era,
+  asserted TLOAD returned 0 as no-op): removed as redundant
+  with the new `tstore_tload_round_trip`. Same bytecode,
+  different naming (`round_trip` matches the M22 convention).
+
+- **`scripts/codegen-opcodes-runtime-check.sh`** — gains
+  `cut -f7` and `cut -f8` for the new columns + two more
+  conditional `xxd` reads. Pre-M24 tests unaffected (empty
+  fields → no assertion).
+
+**Inline-asm conventions** (unchanged from M22/M23): GNU AS
+numeric local labels (`1:`, `1b`, `1f`, …) — unique-per-use,
+reusable across handlers. Scratch registers x14–x18 are
+caller-saved.
+
+**Known limitations** (documented in `Programs/Storage.lean`
+docstring):
+
+- **Single-contract only** — `addrHash = 0` for every entry.
+  Multi-contract is M25.
+- **Cold reads of non-preloaded slots return `original = 0`**.
+  Real EVM reads the slot's pre-tx value from the trie; we
+  don't have a witness MPT yet (deferred). For preloaded
+  slots, `original` is correctly captured at preload.
+- **4 MiB / log cap** = ~32K entries each. Well past any
+  realistic test workload; no observable limit today.
+- **Single-frame journal.** Checkpoint captured once at
+  prologue end; REVERT restores. No CALL/CREATE frames yet
+  (those would need push/pop journaling — future PR).
+- **No gas accounting.** The `original` cell is tracked for
+  forward-compatibility but never consulted yet.
+- **Inline asm, not verified bodies.** Verified-loop bodies
+  follow later.
+
+**Migration cost preview:**
+
+The post-M24 path to **C** (direct-mapped index over the same
+log) is **low** (~1 PR additive — log structure and semantics
+don't change; the index is a non-authoritative hint). The
+path to **D + flat overlay** (sparse trie as authoritative)
+is significant (~3–5 PRs replacing the storage architecture),
+but ~30–40% of M24 carries over (handler EVM contracts, test
+infra). User is doing independent analysis on the C vs D-flat
+choice; M24 is the foundation either way.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all
+**70 cases PASS** (67 pre-M24 + 3 new; one pre-M24
+`tstore_tload_roundtrip` removed as redundant under M24's
+real semantics). `scripts/check-progress.sh` exits 0. Build
+clean (`lake build EvmAsm.Codegen` exits 0).
+
+### M25 — Post-state slot serializer: modified slots → OUTPUT — **DONE (2026-05-29)**
+
+M24 surfaced storage log **lengths** at `OUTPUT[40..56]` but
+not the actual slot data. Tests could only assert "the
+persistent log has N entries" — they couldn't ask "which
+slots changed, and to what values". M25 closes that gap by
+walking the persistent log from end (last-write-wins),
+deduping, and emitting up to 3 `(slotKey, current)` pairs at
+`OUTPUT[64..256]` with a count cell at `OUTPUT[56..64]`.
+
+After M25, an EEST-style post-state assertion ("after this
+bytecode + preload, slot K has value V") is directly
+expressible via the new `expectedPostStorage` test field —
+the load-bearing piece for running real EEST fixtures.
+
+The OUTPUT contract is layout-agnostic: the dedup+emit
+mechanism produces a flat list of modified slots regardless
+of which storage architecture sits behind it. If/when
+storage migrates from Option A to D+flat overlay, the inner
+walk changes but the OUTPUT layout stays stable.
+
+### OUTPUT layout (post-M25)
+
+```
+OUTPUT_ADDR (0xa0010000):
+  +0..32    <result>                              (M21/M23)
+  +32..40   <u64 LE halt_kind>                    (M23)
+  +40..48   <u64 LE persistentLogLength>          (M24 — raw count, with duplicates)
+  +48..56   <u64 LE transientLogLength>           (M24)
+  +56..64   <u64 LE numModifiedPersistentSlots>   (NEW M25 — deduped count, ≤ 3)
+  +64..(64 + N*64)
+            <modified slots: (slotKey:32, current:32) × N>  (NEW M25)
+  +...      <zero-padded to 256 B by ziskemu init>
+```
+
+The 3-slot cap follows from the 256-byte ziskemu OUTPUT
+region: `256 - 64 = 192 = 3 × 64`. Sufficient for pure-
+computation EEST tests that modify ≤ 3 slots. Larger
+workloads need a future PR to extend OUTPUT or switch to a
+hash digest.
+
+### Why dedup (and why reverse-write order)
+
+Under Option A, SSTORE always appends, so the log can hold
+multiple entries for the same slotKey. For an EEST-style
+post-state assertion, what matters is the **final** value
+per unique key. The dedup walks the log from end (newest
+entries first), checks each slotKey against the
+already-emitted output list, and emits only on first sight.
+Result: slots appear in **reverse write order** (most-
+recently-modified first). Documented; test authors construct
+expected strings accordingly.
+
+### Delivered
+
+- **`EvmAsm/Codegen/Dispatch.lean`** —
+  `emitDispatcherEpilogue` gains ~60 instructions after the
+  M24 log-length writes. Walks `evm_persistent_log` (base
+  `0xa0630000`, length `env+448`) from end, dedups in an
+  inner O(N²) scan against the already-emitted slot list,
+  emits `(slotKey, current)` pairs at `OUTPUT[64 +
+  i*64..]`, updates the count cell. Numeric local labels
+  `1:`–`6:` reused within the block; no collision with
+  handler bodies (unique-per-use across the file).
+
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — `OpcodeTestCase`
+  gains an optional `expectedPostStorage : String := ""`
+  field. Hex string starts at `OUTPUT[56]`; runner reads
+  exactly `len/2` bytes.
+
+- **`EvmAsm/Codegen/Cli.lean`** — `--list-test-cases` emits
+  9-column TSV (append `expectedPostStorage` after
+  `expectedTransientLogLength`).
+
+- **`scripts/codegen-opcodes-runtime-check.sh`** — reads
+  column 9 via `cut -f9`. When non-empty, computes
+  `post_len_bytes = ${#expected_post_storage}/2` and reads
+  via `xxd -p -c 256 -s 56 -l <bytes>`. Mismatch added to
+  the per-test failure list separately from output /
+  halt-kind / log-length failures.
+
+- **4 new test cases** exercising the new surface:
+  - `sstore_post_state_single_slot` — basic single-slot
+    emission (count=1, slotKey=0, value=0x42).
+  - `sstore_revert_post_state_empty` — after REVERT, the
+    rollback truncates the log, so dedup-and-emit produces
+    just count=0. **Proves rollback also clears the
+    surfaced slot data.**
+  - `sstore_two_slots_post_state` — two distinct slots
+    SSTORE'd; output entries appear in reverse write order
+    (slot 0x02 first, then 0x01). **Asserts the ordering
+    convention.**
+  - `sstore_dup_keeps_latest` — same slotKey written twice;
+    dedup picks the most-recent value. **Proves dedup.**
+
+**Known limitations** (documented in CODEGEN.md / dispatcher
+asm comments):
+
+- **3-slot cap** from the 256-byte OUTPUT region. Silent
+  truncation: when > 3 unique slots are modified, only the
+  3 most-recently-written keys appear. Future PR can extend
+  OUTPUT or use a hash digest.
+- **Persistent only.** Transient post-state isn't surfaced
+  (would need another OUTPUT region; observability via
+  `OUTPUT[48..56]` transient log length is what we have).
+- **Reverse write order.** Test authors must know this.
+- **Layout-dependent asm.** The dispatcher asm hard-codes
+  the 128-byte Option A entry shape (offset 32 = slotKey,
+  offset 96 = current). If layout changes to D+flat, the
+  asm needs updating. The OUTPUT contract (count + entries
+  at +56) stays.
+- **Dedup is O(N²).** For each scanned log entry, the inner
+  dedup loop iterates the emitted-so-far list (≤ 3
+  entries). With raw log length L, that's ≤ 3L compares.
+  Negligible for tests; future PR can address at scale.
+- **Inline asm**, not a verified body.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all
+**74 cases PASS** (70 pre-M25 + 4 new; existing tests
+unchanged — they don't assert on `OUTPUT[56..]` and the
+dedup-and-emit only writes within that previously-unused
+range). `scripts/check-progress.sh` exits 0. Build clean
+(`lake build EvmAsm.Codegen` exits 0).
+
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → M20 ✅ 🎯 100% → M21 ✅ → M22 ✅ → **M23 ✅**.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → M20 ✅ 🎯 100% → M21 ✅ → M22 ✅ → M23 ✅ → M24 ✅ → **M25 ✅**.
 M3 is deferred; revisit only if a future milestone (full opcode
 coverage, JUMP/JUMPI, or the binary encoder) makes label-free
 emission unreadable. M11 (SHL + SAR) shipped 2026-05-26; M12
@@ -1691,24 +1981,38 @@ calldata wiring — CALLDATALOAD/COPY graduate from no-ops; first
 step on the EEST path) shipped 2026-05-27; M22 (real SLOAD/
 SSTORE via pre-loaded slot table — second step on the EEST
 path; `Programs/Storage.lean` extracted) shipped 2026-05-28;
-**M23 (real RETURN/REVERT with returndata buffer + halt-kind
+M23 (real RETURN/REVERT with returndata buffer + halt-kind
 status; new `.exit_no_epilogue` exit path — storage-orthogonal
-pivot prompted by #7130) shipped 2026-05-28.**
+pivot prompted by #7130) shipped 2026-05-28;
+M24 (storage on Option A — append-log + journal + real
+TLOAD/TSTORE; supersedes M22's slot-table v1) shipped
+2026-05-29; **M25 (post-state slot serializer — modified
+slots at OUTPUT+56; unlocks EEST-style post-state
+assertions) shipped 2026-05-29.**
 
-**The codegen track is now in "spec-compliance upgrades"
-mode, building toward EEST tests**, with the storage redesign
-(#7130) as a parallel discussion. Status:
+**The codegen track is in "spec-compliance upgrades" mode,
+building toward EEST tests.** Storage architecture is now
+locked at Option A v1 (#7130 consensus); design re-evaluation
+of C vs D-flat overlay is ongoing in parallel. Status:
 - M21 ✅ real calldata
-- M22 ✅ real persistent storage (slot-table v1, transitional
-  per #7130)
+- M22 ✅ real persistent storage (slot-table v1, superseded by M24)
 - M23 ✅ real RETURN/REVERT with halt-kind
+- M24 ✅ storage on Option A + real TLOAD/TSTORE + REVERT rollback
+- M25 ✅ post-state slot serializer (modified slots at OUTPUT+56)
 
-**Storage-orthogonal candidates for M24+** (any order, all
-survive the #7130 redesign):
+**Storage-coupled candidates for M26+** (all build on M24's
+Option A layout; each will need rework if/when #7130's design
+re-evaluation lands on D+flat overlay — but ~30-40% of work
+carries over):
+- M26 — `addrHash` dimension (multi-contract storage keying)
+- M27 — Nested call frames + multi-frame journal push/pop
+- M28 — Witness MPT integration (cold reads + commit sweep)
+- M29 — EEST fixture harness + CI
+
+**Storage-orthogonal candidates** (any order, interleave anywhere):
 - Real EXP body wiring (verified body exists complete; M10-
   style inline-callable composition)
-- Halt-kind test assertions + INVALID/SELFDESTRUCT distinct
-  tagging (small follow-up to M23)
+- INVALID/SELFDESTRUCT distinct halt-kind tagging
 - Gas-metering scaffolding
 - ECRecover precompile via ECALL bridge
 - Returndata > 32 bytes (extend OUTPUT layout)

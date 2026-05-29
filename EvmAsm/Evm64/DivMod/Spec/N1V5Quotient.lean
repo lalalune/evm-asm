@@ -136,4 +136,89 @@ theorem fullDivN1QuotientWordV5_eq_div_of_shape
   unfold fullDivN1QuotientWordV5
   exact hdiv
 
+/-- **v5 dispatch-post bridge.** Decompose the v5 n=1 quotient-word equality
+    `fullDivN1QuotientWordV5 = EvmWord.div a b` into the four per-limb
+    `getLimbN`/digit equalities that the n=1 lane wrapper feeds to
+    `divStackDispatchPost`.  Pure `fromLimbs` projection — the v5 analog of
+    `fullDivN1_hdivs_of_word_eq`.  Bead `evm-asm-wbc4i.9.1.4`. -/
+theorem fullDivN1V5_hdivs_of_word_eq
+    (a b : EvmWord) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hdiv : fullDivN1QuotientWordV5 a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.div a b) :
+    (EvmWord.div a b).getLimbN 0 =
+      (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 1 =
+      (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 2 =
+      (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div a b).getLimbN 3 =
+      (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).1 := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [← hdiv]; delta fullDivN1QuotientWordV5; exact EvmWord.getLimbN_fromLimbs_0
+  · rw [← hdiv]; delta fullDivN1QuotientWordV5; exact EvmWord.getLimbN_fromLimbs_1
+  · rw [← hdiv]; delta fullDivN1QuotientWordV5; exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hdiv]; delta fullDivN1QuotientWordV5; exact EvmWord.getLimbN_fromLimbs_3
+
+open EvmWord in
+/-- **v5 n=1 remainder correctness, from shape.** The final normalized remainder
+    `(fullDivN1R0V5 …).2.1`, shifted down by the normalization shift `s`,
+    equals `EvmWord.mod a b`.  Same Euclidean accumulation as the quotient, then
+    `mod_remainder_of_normalized` (`r_norm / 2^s = a % b`) + `mod_of_val256_eq_mod`.
+    The MOD analog of `fullDivN1QuotientWordV5_eq_div_of_shape`.  Bead
+    `evm-asm-wbc4i.9.1`. -/
+theorem fullDivN1V5_remainder_eq_mod_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    EvmWord.fromLimbs (fun i : Fin 4 => match i with
+      | 0 => (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1 >>>
+               (fullDivN1Shift b0).toNat
+      | 1 => 0 | 2 => 0 | 3 => 0)
+    = EvmWord.mod
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3) := by
+  set s := (fullDivN1Shift b0).toNat with hs
+  have hu := fullDivN1NormU_val256_eq_scaled a0 a1 a2 a3 b0 hshift_nz
+  have hc3 := fullDivN1R3V5_conservation_of_shape a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz
+  have hc2 := fullDivN1R2V5_conservation_of_shape a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz
+  have hc1 := fullDivN1R1V5_conservation_of_shape a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz
+  have hc0 := fullDivN1R0V5_conservation_of_shape a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz
+  have hr3 := rem_val_eq_limb0 (fullDivN1R3V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)
+  have hr2 := rem_val_eq_limb0 (fullDivN1R2V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)
+  have hr1 := rem_val_eq_limb0 (fullDivN1R1V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)
+  have hr0lt := fullDivN1R0V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz
+  have hr0 := rem_val_eq_limb0 hr0lt
+  have hvb : (fullDivN1NormV b0 b1 b2 b3).1.toNat = val256 b0 b1 b2 b3 * 2 ^ s := by
+    rw [hs]; exact normV1_eq_scaled_of_shape b0 b1 b2 b3 hb1z hb2z hb3z hshift_nz
+  have hacc := fullDivN1V5_four_step_nat
+    (a := val256 a0 a1 a2 a3 * 2 ^ s) (b := (fullDivN1NormV b0 b1 b2 b3).1.toNat)
+    (q3 := (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).1.toNat)
+    (q2 := (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).1.toNat)
+    (q1 := (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).1.toNat)
+    (q0 := (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).1.toNat)
+    (u0 := (fullDivN1NormU a0 a1 a2 a3 b0).1.toNat)
+    (u1 := (fullDivN1NormU a0 a1 a2 a3 b0).2.1.toNat)
+    (u2 := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1.toNat)
+    (u3 := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat)
+    (u4 := (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat)
+    (r3 := (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat)
+    (r2 := (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat)
+    (r1 := (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat)
+    (r0 := (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat)
+    (by rw [← hu]; simp [val256]; ring)
+    (by have h := hc3; rw [hr3] at h; simp [val256] at h; omega)
+    (by have h := hc2; rw [hr2] at h; simp [val256] at h; omega)
+    (by have h := hc1; rw [hr1] at h; simp [val256] at h; omega)
+    (by have h := hc0; rw [hr0] at h; simp [val256] at h; omega)
+  rw [hvb] at hacc
+  have hlt : (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat <
+      val256 b0 b1 b2 b3 * 2 ^ s := by rw [← hr0, ← hvb]; exact hr0lt
+  have hmod := mod_remainder_of_normalized (s := s) hacc hlt
+  have hrval : val256
+      ((fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1 >>> s) 0 0 0 =
+      val256 a0 a1 a2 a3 % val256 b0 b1 b2 b3 := by
+    simp only [val256, BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+    simpa using hmod
+  exact mod_of_val256_eq_mod hbnz hrval
+
 end EvmAsm.Evm64
