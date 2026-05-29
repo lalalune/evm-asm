@@ -359,6 +359,214 @@ macro "skipBlockCC" : tactic =>
           divK_div128_v4_len, divK_modEpilogue_len, cc_ret_len] at hk1 hk2
         bv_omega)))
 
+-- ============================================================================
+-- v5 callable program variants (over `divK_div128_v5`)
+--
+-- Mirror of the v4 callable surfaces, swapping the appended div128 subroutine
+-- to `divK_div128_v5` (the capped Knuth-D variant). `divK_div128_v5` is 85
+-- instructions (vs v4's 75), so the callable length grows 343 → 353 and the
+-- byte length 1372 → 1412. Every other block / branch offset is unchanged
+-- (div128 sits last, after `cc_ret`). Bead evm-asm-wbc4i.7.3 (V5.7c).
+-- ============================================================================
+
+/-- v5 LP64-callable wrapper for `evm_div`, using the capped `divK_div128_v5`
+    subroutine. -/
+def evm_div_callable_v5 : Program :=
+  divK_phaseA 1020 ;;
+  divK_phaseB ;;
+  divK_clz ;;
+  divK_phaseC2 172 ;;
+  divK_normB ;;
+  divK_normA 40 ;;
+  divK_copyAU ;;
+  divK_loopSetup 464 ;;
+  divK_loopBody 560 7736 ;;
+  divK_denorm ;;
+  divK_div_epilogue 24 ;;
+  divK_zeroPath ;;
+  cc_ret ;;
+  divK_div128_v5
+
+/-- v5 LP64-callable wrapper for `evm_mod`, using the capped `divK_div128_v5`
+    subroutine. -/
+def evm_mod_callable_v5 : Program :=
+  divK_phaseA 1020 ;;
+  divK_phaseB ;;
+  divK_clz ;;
+  divK_phaseC2 172 ;;
+  divK_normB ;;
+  divK_normA 40 ;;
+  divK_copyAU ;;
+  divK_loopSetup 464 ;;
+  divK_loopBody 560 7736 ;;
+  divK_denorm ;;
+  divK_mod_epilogue 24 ;;
+  divK_zeroPath ;;
+  cc_ret ;;
+  divK_div128_v5
+
+theorem evm_div_callable_v5_length : evm_div_callable_v5.length = 353 := by
+  unfold evm_div_callable_v5
+  simp only [seq, Program.length_append, divK_phaseA_len, divK_phaseB_len, divK_clz_len,
+    divK_phaseC2_len,
+    divK_normB_len, divK_normA_len, divK_copyAU_len, divK_loopSetup_len,
+    divK_loopBody_len, divK_denorm_len, divK_divEpilogue_len, divK_zeroPath_len,
+    cc_ret_len, divK_div128_v5_len]
+
+theorem evm_mod_callable_v5_length : evm_mod_callable_v5.length = 353 := by
+  unfold evm_mod_callable_v5
+  simp only [seq, Program.length_append, divK_phaseA_len, divK_phaseB_len, divK_clz_len,
+    divK_phaseC2_len,
+    divK_normB_len, divK_normA_len, divK_copyAU_len, divK_loopSetup_len,
+    divK_loopBody_len, divK_denorm_len, divK_modEpilogue_len, divK_zeroPath_len,
+    cc_ret_len, divK_div128_v5_len]
+
+theorem evm_div_callable_v5_byte_length :
+    4 * evm_div_callable_v5.length = 1412 := by
+  rw [evm_div_callable_v5_length]
+
+theorem evm_mod_callable_v5_byte_length :
+    4 * evm_mod_callable_v5.length = 1412 := by
+  rw [evm_mod_callable_v5_length]
+
+/-- 14-block CodeReq layout for `evm_div_callable_v5`. -/
+abbrev evm_div_callable_code_v5 (base : Word) : CodeReq :=
+  CodeReq.unionAll [
+    CodeReq.ofProg  base                  (divK_phaseA 1020),
+    CodeReq.ofProg (base + phaseBOff)     divK_phaseB,
+    CodeReq.ofProg (base + clzOff)        divK_clz,
+    CodeReq.ofProg (base + phaseC2Off)    (divK_phaseC2 172),
+    CodeReq.ofProg (base + normBOff)      divK_normB,
+    CodeReq.ofProg (base + normAOff)      (divK_normA 40),
+    CodeReq.ofProg (base + copyAUOff)     divK_copyAU,
+    CodeReq.ofProg (base + loopSetupOff)  (divK_loopSetup 464),
+    CodeReq.ofProg (base + loopBodyOff)   (divK_loopBody 560 7736),
+    CodeReq.ofProg (base + denormOff)     divK_denorm,
+    CodeReq.ofProg (base + epilogueOff)   (divK_div_epilogue 24),
+    CodeReq.ofProg (base + zeroPathOff)   divK_zeroPath,
+    cc_ret_code   (base + nopOff),
+    CodeReq.ofProg (base + div128Off)     divK_div128_v5
+  ]
+
+/-- 14-block CodeReq layout for `evm_mod_callable_v5`. -/
+abbrev evm_mod_callable_code_v5 (base : Word) : CodeReq :=
+  CodeReq.unionAll [
+    CodeReq.ofProg  base                  (divK_phaseA 1020),
+    CodeReq.ofProg (base + phaseBOff)     divK_phaseB,
+    CodeReq.ofProg (base + clzOff)        divK_clz,
+    CodeReq.ofProg (base + phaseC2Off)    (divK_phaseC2 172),
+    CodeReq.ofProg (base + normBOff)      divK_normB,
+    CodeReq.ofProg (base + normAOff)      (divK_normA 40),
+    CodeReq.ofProg (base + copyAUOff)     divK_copyAU,
+    CodeReq.ofProg (base + loopSetupOff)  (divK_loopSetup 464),
+    CodeReq.ofProg (base + loopBodyOff)   (divK_loopBody 560 7736),
+    CodeReq.ofProg (base + denormOff)     divK_denorm,
+    CodeReq.ofProg (base + epilogueOff)   (divK_mod_epilogue 24),
+    CodeReq.ofProg (base + zeroPathOff)   divK_zeroPath,
+    cc_ret_code   (base + nopOff),
+    CodeReq.ofProg (base + div128Off)     divK_div128_v5
+  ]
+
+open EvmAsm.Rv64.CodeReq in
+theorem evm_div_callable_code_v5_eq_ofProg (base : Word) :
+    evm_div_callable_code_v5 base = CodeReq.ofProg base evm_div_callable_v5 := by
+  unfold evm_div_callable_code_v5 evm_div_callable_v5 cc_ret_code
+  simp only [unionAll_cons, unionAll_nil, union_empty_right]
+  unfold seq
+  unfold Program
+  symm
+  rw [ofProg_append]
+  rw [show base + BitVec.ofNat 64 (4 * (divK_phaseA 1020).length) =
+        base + phaseBOff by rw [divK_phaseA_len]; rfl]
+  rw [ofProg_append]
+  rw [show (base + phaseBOff) + BitVec.ofNat 64 (4 * divK_phaseB.length) =
+        base + clzOff by rw [divK_phaseB_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + clzOff) + BitVec.ofNat 64 (4 * divK_clz.length) =
+        base + phaseC2Off by rw [divK_clz_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + phaseC2Off) + BitVec.ofNat 64 (4 * (divK_phaseC2 172).length) =
+        base + normBOff by rw [divK_phaseC2_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + normBOff) + BitVec.ofNat 64 (4 * divK_normB.length) =
+        base + normAOff by rw [divK_normB_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + normAOff) + BitVec.ofNat 64 (4 * (divK_normA 40).length) =
+        base + copyAUOff by rw [divK_normA_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + copyAUOff) + BitVec.ofNat 64 (4 * divK_copyAU.length) =
+        base + loopSetupOff by rw [divK_copyAU_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + loopSetupOff) + BitVec.ofNat 64 (4 * (divK_loopSetup 464).length) =
+        base + loopBodyOff by rw [divK_loopSetup_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + loopBodyOff) + BitVec.ofNat 64 (4 * (divK_loopBody 560 7736).length) =
+        base + denormOff by rw [divK_loopBody_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + denormOff) + BitVec.ofNat 64 (4 * divK_denorm.length) =
+        base + epilogueOff by rw [divK_denorm_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + epilogueOff) + BitVec.ofNat 64 (4 * (divK_div_epilogue 24).length) =
+        base + zeroPathOff by rw [divK_divEpilogue_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + zeroPathOff) + BitVec.ofNat 64 (4 * divK_zeroPath.length) =
+        base + nopOff by rw [divK_zeroPath_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + nopOff) + BitVec.ofNat 64 (4 * cc_ret.length) =
+        base + div128Off by
+    show (base + nopOff) + BitVec.ofNat 64 (4 * 1) = base + div128Off
+    bv_omega]
+
+open EvmAsm.Rv64.CodeReq in
+theorem evm_mod_callable_code_v5_eq_ofProg (base : Word) :
+    evm_mod_callable_code_v5 base = CodeReq.ofProg base evm_mod_callable_v5 := by
+  unfold evm_mod_callable_code_v5 evm_mod_callable_v5 cc_ret_code
+  simp only [unionAll_cons, unionAll_nil, union_empty_right]
+  unfold seq
+  unfold Program
+  symm
+  rw [ofProg_append]
+  rw [show base + BitVec.ofNat 64 (4 * (divK_phaseA 1020).length) =
+        base + phaseBOff by rw [divK_phaseA_len]; rfl]
+  rw [ofProg_append]
+  rw [show (base + phaseBOff) + BitVec.ofNat 64 (4 * divK_phaseB.length) =
+        base + clzOff by rw [divK_phaseB_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + clzOff) + BitVec.ofNat 64 (4 * divK_clz.length) =
+        base + phaseC2Off by rw [divK_clz_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + phaseC2Off) + BitVec.ofNat 64 (4 * (divK_phaseC2 172).length) =
+        base + normBOff by rw [divK_phaseC2_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + normBOff) + BitVec.ofNat 64 (4 * divK_normB.length) =
+        base + normAOff by rw [divK_normB_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + normAOff) + BitVec.ofNat 64 (4 * (divK_normA 40).length) =
+        base + copyAUOff by rw [divK_normA_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + copyAUOff) + BitVec.ofNat 64 (4 * divK_copyAU.length) =
+        base + loopSetupOff by rw [divK_copyAU_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + loopSetupOff) + BitVec.ofNat 64 (4 * (divK_loopSetup 464).length) =
+        base + loopBodyOff by rw [divK_loopSetup_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + loopBodyOff) + BitVec.ofNat 64 (4 * (divK_loopBody 560 7736).length) =
+        base + denormOff by rw [divK_loopBody_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + denormOff) + BitVec.ofNat 64 (4 * divK_denorm.length) =
+        base + epilogueOff by rw [divK_denorm_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + epilogueOff) + BitVec.ofNat 64 (4 * (divK_mod_epilogue 24).length) =
+        base + zeroPathOff by rw [divK_modEpilogue_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + zeroPathOff) + BitVec.ofNat 64 (4 * divK_zeroPath.length) =
+        base + nopOff by rw [divK_zeroPath_len]; bv_omega]
+  rw [ofProg_append]
+  rw [show (base + nopOff) + BitVec.ofNat 64 (4 * cc_ret.length) =
+        base + div128Off by
+    show (base + nopOff) + BitVec.ofNat 64 (4 * 1) = base + div128Off
+    bv_omega]
+
 -- Canonical callable specs live in the split files:
 -- * CallableV1Legacy.lean keeps the legacy v1 surfaces for existing callers.
 -- * CallableV4Div.lean and CallableV4Mod.lean carry the v4 proof surfaces.
