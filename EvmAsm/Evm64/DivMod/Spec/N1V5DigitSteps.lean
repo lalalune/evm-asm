@@ -1,0 +1,163 @@
+/-
+  EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
+
+  The remaining v5 n=1 schoolbook digit steps (R2, R1, R0): carry-zero and
+  remainder `< v0`, each discharged from shape with NO `Carry2NzAll` / NO
+  `Div128AllPhasesNoWrapInv`.
+
+  Every step is a mechanical instantiation of the abstract helpers
+  `iterN1V5_true_{carry_zero,remainder_lt}_of_v0_norm_call`
+  (`N1V5CarryZero.lean`): the previous digit's remainder-lt zeroes the incoming
+  high limbs (`val256_high_limbs_zero_of_lt_word`) and pins the next digit's
+  call regime (`uHi < v0`), so the v5-exact (`div128Quot_v5 = floor`) single-limb
+  mulsub neither borrows (carry = 0) nor overflows the remainder (`< v0`).
+  Bead evm-asm-wbc4i.9.1.
+-/
+
+import EvmAsm.Evm64.DivMod.Spec.N1V5CarryZero
+
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
+
+/-- Shared reduction: from a digit's remainder-lt, extract the high-limb-zero
+    facts and the `uHi < v0` call regime for the next digit. -/
+private theorem n1v5_step_facts
+    {x0 x1 x2 x3 v0 : Word}
+    (hrem : EvmWord.val256 x0 x1 x2 x3 < v0.toNat) :
+    x1 = 0 ∧ x2 = 0 ∧ x3 = 0 ∧ x0.toNat < v0.toNat := by
+  obtain ⟨h1, h2, h3⟩ := val256_high_limbs_zero_of_lt_word x0 x1 x2 x3 v0 hrem
+  refine ⟨h1, h2, h3, ?_⟩
+  rw [h1, h2, h3] at hrem
+  simpa [EvmWord.val256] using hrem
+
+-- ============================================================================
+-- R2
+-- ============================================================================
+
+theorem fullDivN1R2V5_carry_zero_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2 = 0 := by
+  obtain ⟨h1, h2, h3, hr3lt⟩ := n1v5_step_facts
+    (fullDivN1R3V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R2V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_carry_zero_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr3lt
+
+theorem fullDivN1R2V5_remainder_lt_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    EvmWord.val256
+      (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+      (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat := by
+  obtain ⟨h1, h2, h3, hr3lt⟩ := n1v5_step_facts
+    (fullDivN1R3V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R2V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_remainder_lt_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr3lt
+
+-- ============================================================================
+-- R1
+-- ============================================================================
+
+theorem fullDivN1R1V5_carry_zero_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2 = 0 := by
+  obtain ⟨h1, h2, h3, hr2lt⟩ := n1v5_step_facts
+    (fullDivN1R2V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R1V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_carry_zero_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr2lt
+
+theorem fullDivN1R1V5_remainder_lt_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    EvmWord.val256
+      (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+      (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat := by
+  obtain ⟨h1, h2, h3, hr2lt⟩ := n1v5_step_facts
+    (fullDivN1R2V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R1V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_remainder_lt_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr2lt
+
+-- ============================================================================
+-- R0
+-- ============================================================================
+
+theorem fullDivN1R0V5_carry_zero_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.2 = 0 := by
+  obtain ⟨h1, h2, h3, hr1lt⟩ := n1v5_step_facts
+    (fullDivN1R1V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R0V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_carry_zero_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr1lt
+
+theorem fullDivN1R0V5_remainder_lt_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    EvmWord.val256
+      (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+      (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+      (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <
+      (fullDivN1NormV b0 b1 b2 b3).1.toNat := by
+  obtain ⟨h1, h2, h3, hr1lt⟩ := n1v5_step_facts
+    (fullDivN1R1V5_remainder_lt_of_shape a0 a1 a2 a3 b0 b1 b2 b3
+      hbnz hb1z hb2z hb3z hshift_nz)
+  unfold fullDivN1R0V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z, h1, h2, h3]
+  exact iterN1V5_true_remainder_lt_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z) hr1lt
+
+end EvmAsm.Evm64
