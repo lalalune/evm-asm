@@ -118,13 +118,16 @@ def main (args : List String) : IO UInt32 := do
           -- as long as it uses `read -r name expected` (extra fields
           -- just get dropped).
           for tc in Tests.opcodeTestCases do
-            -- M21/M22/M23: 6-column TSV. Columns 4 (calldata),
-            -- 5 (storage), and 6 (expectedHaltKind) are empty for
-            -- pre-feature test cases; the bash runner passes the
-            -- non-empty ones through to `pack-bytecode.py
-            -- --calldata` / `--storage`, and asserts the
-            -- expectedHaltKind against `OUTPUT_ADDR + 32..40`.
-            IO.println s!"{tc.name}\t{tc.expectedOutHex}\t{tc.bytecode}\t{tc.calldata}\t{tc.storage}\t{tc.expectedHaltKind}"
+            -- M21..M25: 9-column TSV. Columns:
+            --   1 name, 2 expectedOutHex, 3 bytecode, 4 calldata,
+            --   5 storage, 6 expectedHaltKind,
+            --   7 expectedPersistentLogLength (M24),
+            --   8 expectedTransientLogLength (M24),
+            --   9 expectedPostStorage (M25 — slot data at OUTPUT+56).
+            -- All cols beyond 3 are optional; the bash runner asserts
+            -- only the ones with non-empty values.
+            IO.println
+              s!"{tc.name}\t{tc.expectedOutHex}\t{tc.bytecode}\t{tc.calldata}\t{tc.storage}\t{tc.expectedHaltKind}\t{tc.expectedPersistentLogLength}\t{tc.expectedTransientLogLength}\t{tc.expectedPostStorage}"
           return 0
       | .program => do
           match lookupProgram opts.target with
