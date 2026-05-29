@@ -10,6 +10,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
+import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 
 namespace EvmAsm.Evm64
 
