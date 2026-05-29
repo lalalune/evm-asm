@@ -1017,4 +1017,152 @@ def ziskWitnessHeadersMinBlockNumberProbeUnit : BuildUnit := {
   dataAsm     := ziskWitnessHeadersMinBlockNumberDataSection
 }
 
+/-! ## witness_headers_max_block_number
+
+    Walk an SSZ `witness.headers` list section and compute the
+    maximum `block.number` across all entries. Returns the
+    maximum as a u64, or 0 on an empty section.
+
+    Companion to `witness_headers_min_block_number` (BLOCKHASH
+    window lower bound): the max tells stateless guests the
+    most-recent block in the witness, typically the parent of
+    the executing block.
+
+    Spec-side rationale: a stateless guest verifying a
+    `BLOCKHASH(n)` opcode needs to know two things:
+      * The lower bound `min(headers[i].number)` -- the oldest
+        block resolvable through the witness (see PR sibling).
+      * The upper bound `max(headers[i].number)` (this PR) --
+        often `parent_header.number`, which is the largest
+        block number any BLOCKHASH(n) inside the current frame
+        can target (BLOCKHASH(current) is undefined).
+
+    Together those two values define the resolvable window
+    `[min, max]` of block heights; any BLOCKHASH(n) outside it
+    must return 0 by spec.
+
+    Sentinel choice contrasts with the min variant. For the min
+    primitive an empty section returns MAX_U64 (the "no value"
+    sentinel mathematically meaningful as an identity for `min`);
+    for max we return 0, the identity for `max`. Callers should
+    rely on the n_processed output to disambiguate "max is 0
+    because section was empty" from "max is 0 because the only
+    header is genesis".
+
+    Calling convention:
+      a0 (input)  : witness.headers section ptr
+      a1 (input)  : section_len (0 ⇒ empty)
+      a2 (input)  : u64 out ptr (max block number; 0 on empty
+                    section or parse fail)
+      a3 (input)  : u64 out ptr (n_processed; total header
+                    count on success, or the index of the
+                    failing header on a parse fail)
+      ra (input)  : return
+      a0 (output) :
+        0 = success
+        2 = some header failed `header_extract_number`
+-/
+def witnessHeadersMaxBlockNumberFunction : String :=
+  "witness_headers_max_block_number:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0                  # section ptr\n" ++
+  "  mv s1, a1                  # section_len\n" ++
+  "  mv s2, a2                  # max_out ptr\n" ++
+  "  mv s3, a3                  # n_processed out ptr\n" ++
+  "  li s7, 0                   # s7 = running max (init to 0)\n" ++
+  "  sd s7, 0(s2)\n" ++
+  "  sd zero, 0(s3)\n" ++
+  "  beqz s1, .Lwhmax_ok          # empty section ⇒ max = 0\n" ++
+  "  lwu t0, 0(s0)\n" ++
+  "  srli s4, t0, 2               # s4 = N\n" ++
+  "  li s5, 0                     # s5 = i\n" ++
+  ".Lwhmax_loop:\n" ++
+  "  beq s5, s4, .Lwhmax_ok\n" ++
+  "  slli t0, s5, 2\n" ++
+  "  add t1, s0, t0\n" ++
+  "  lwu t2, 0(t1)\n" ++
+  "  add a0, s0, t2               # el_i_start\n" ++
+  "  addi t3, s5, 1\n" ++
+  "  beq t3, s4, .Lwhmax_use_end\n" ++
+  "  slli t3, t3, 2\n" ++
+  "  add t3, s0, t3\n" ++
+  "  lwu t4, 0(t3)\n" ++
+  "  add t4, s0, t4\n" ++
+  "  j .Lwhmax_have_end\n" ++
+  ".Lwhmax_use_end:\n" ++
+  "  add t4, s0, s1\n" ++
+  ".Lwhmax_have_end:\n" ++
+  "  sub a1, t4, a0               # el_i_len\n" ++
+  "  la a2, whmax_num_buf\n" ++
+  "  jal ra, header_extract_number\n" ++
+  "  bnez a0, .Lwhmax_parse_fail\n" ++
+  "  la t0, whmax_num_buf\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  bleu t1, s7, .Lwhmax_skip   # current <= running max\n" ++
+  "  mv s7, t1\n" ++
+  ".Lwhmax_skip:\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lwhmax_loop\n" ++
+  ".Lwhmax_parse_fail:\n" ++
+  "  sd s5, 0(s3)\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lwhmax_ret\n" ++
+  ".Lwhmax_ok:\n" ++
+  "  sd s7, 0(s2)                 # write max\n" ++
+  "  sd s4, 0(s3)                 # n_processed = N (= 0 for empty)\n" ++
+  "  li a0, 0\n" ++
+  ".Lwhmax_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
+/-- `zisk_witness_headers_max_block_number`: probe BuildUnit.
+    Input layout (at INPUT_ADDR):
+      bytes  0.. 8 : (ziskemu metadata)
+      bytes  8..16 : section_len (u64 LE)
+      bytes 16..   : witness.headers section
+    Output layout:
+      bytes  0.. 8 : status (0 ok / 2 parse fail)
+      bytes  8..16 : max_block_number (0 on empty section)
+      bytes 16..24 : n_processed (= N on success;
+                     failing index on fail) -/
+def ziskWitnessHeadersMaxBlockNumberPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # section_len\n" ++
+  "  addi a0, a5, 16             # section ptr\n" ++
+  "  li a2, 0xa0010008\n" ++
+  "  li a3, 0xa0010010\n" ++
+  "  jal ra, witness_headers_max_block_number\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lwhmax_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  headerExtractNumberFunction ++ "\n" ++
+  witnessHeadersMaxBlockNumberFunction ++ "\n" ++
+  ".Lwhmax_pdone:"
+
+def ziskWitnessHeadersMaxBlockNumberDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "whmax_num_buf:\n" ++
+  "  .zero 8"
+
+def ziskWitnessHeadersMaxBlockNumberProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskWitnessHeadersMaxBlockNumberPrologue
+  dataAsm     := ziskWitnessHeadersMaxBlockNumberDataSection
+}
+
 end EvmAsm.Codegen
