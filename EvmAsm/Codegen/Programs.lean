@@ -92,6 +92,9 @@ import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
+import EvmAsm.Codegen.Programs.StateProof
+import EvmAsm.Codegen.Programs.StateStorageProof
+import EvmAsm.Codegen.Programs.StateCodeHashProof
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
@@ -416,6 +419,9 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_lookup_by_key"    => some ziskMptLookupByKeyProbeUnit
   | "zisk_account_decode"       => some ziskAccountDecodeProbeUnit
   | "zisk_account_at_address"   => some ziskAccountAtAddressProbeUnit
+  | "zisk_state_account_inclusion_proof_verify" => some ziskStateAccountInclusionProofVerifyProbeUnit
+  | "zisk_state_slot_inclusion_proof_verify" => some ziskStateSlotInclusionProofVerifyProbeUnit
+  | "zisk_state_code_hash_inclusion_proof_verify" => some ziskStateCodeHashInclusionProofVerifyProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
@@ -587,6 +593,9 @@ def knownProgramNames : List String :=
    "zisk_mpt_lookup_by_key",
    "zisk_account_decode",
    "zisk_account_at_address",
+   "zisk_state_account_inclusion_proof_verify",
+   "zisk_state_slot_inclusion_proof_verify",
+   "zisk_state_code_hash_inclusion_proof_verify",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
