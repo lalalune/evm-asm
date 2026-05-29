@@ -3,6 +3,7 @@ import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
 import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
 import EvmAsm.Evm64.EvmWordArith.Div128KB6Composition
 import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
+import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.LowerBound
 
 namespace EvmAsm.Evm64
 
@@ -685,6 +686,36 @@ theorem fullDivN1NormV_limb0_ge_pow63_of_shape
   have hb0nz := fullDivN1_b0_ne_zero_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z
   have h := b3_shifted_ge_pow63 hb0nz
   simpa [fullDivN1NormV, fullDivN1Shift] using h
+
+/-- **The v5 trial for the n=1 first call is the exact 128/64 floor, from shape.**
+    Composes `div128Quot_v5_eq_q_true` (the v5 capped quotient is exact under
+    `vTop ≥ 2^63` ∧ `uHi < vTop`) with the n=1 normalization invariants
+    `fullDivN1NormV_limb0_ge_pow63_of_shape` and
+    `fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz`.
+
+    This is the v5 provider for the `h_qHat_eq` hypothesis of
+    `fullDivN1R3CarryZero_true_of_shape_div128Quot_floor`: it discharges the
+    n=1 first-trial `div128Quot = floor` UNCONDITIONALLY from shape (which is
+    FALSE for v4 `div128Quot` even in the call regime — see
+    `ceV4Div128Call_div128Quot_ne_floor`). The exact floor is the true quotient
+    digit (single-limb divisor), so the mulsub leaves no borrow → carry-zero
+    from shape, sidestepping the false-universal `Carry2NzAll`. -/
+theorem fullDivN1R3_div128Quot_v5_eq_floor_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (div128Quot_v5
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+        (fullDivN1NormV b0 b1 b2 b3).1).toNat =
+      ((fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2.toNat * 2^64 +
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1.toNat) /
+        (fullDivN1NormV b0 b1 b2 b3).1.toNat := by
+  apply div128Quot_v5_eq_q_true
+  · exact fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z
+  · exact fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz
+      a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz
 
 /-- The high half of any normalized n=1 divisor limb is a 32-bit quantity. -/
 theorem fullDivN1NormV_limb0_dHi_lt_pow32 (b0 b1 b2 b3 : Word) :
