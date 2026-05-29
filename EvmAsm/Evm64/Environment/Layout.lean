@@ -89,15 +89,32 @@ def callDataLenOff : Nat := 424
 def returnDataPtrOff : Nat := 432
 /-- Byte offset of `returnDataSize` within the env block. -/
 def returnDataSizeOff : Nat := 440
-/-- M22 — byte offset of `slotTableCount` (u64) within the env block.
-    The slot-table base is a `.data` label (`evm_slot_table`), not an
-    env field; only the count lives in env because SSTORE may grow it. -/
-def slotTableCountOff : Nat := 448
+/-- M24 — byte offset of `persistentLogLength` (u64) within the env
+    block. Live counter of entries in the persistent storage log at
+    `STATE_TRACKER_AREA = 0xa0630000`. Each entry is 128 B
+    `(addrHash:32, slotKey:32, original:32, current:32)`. Renamed from
+    M22's `slotTableCountOff` (semantic shift: was a count of M22's
+    64-B (key, value) entries in the dispatcher `.data` block; now a
+    count of M24's 128-B Option A entries in `STATE_TRACKER_AREA`). -/
+def persistentLogLengthOff : Nat := 448
+/-- M24 — byte offset of `persistentLogCheckpoint` (u64). Saved log
+    length captured at the end of the dispatcher prologue (post-
+    preload). REVERT restores `persistentLogLengthOff` to this value
+    to roll back any SSTORE entries appended during execution. The
+    log itself is the journal — no inverse-replay needed. -/
+def persistentLogCheckpointOff : Nat := 456
+/-- M24 — byte offset of `transientLogLength` (u64). Live counter of
+    entries in the transient storage log at `0xa0830000` (EIP-1153
+    TLOAD/TSTORE backing store). REVERT resets this to 0 (transient
+    storage starts empty at tx start; we have no preload mechanism
+    for it). -/
+def transientLogLengthOff : Nat := 464
 
 /-- Total byte size of an EVM environment context block.
 
-    `envSize = 13 * 32 + 5 * 8 = 416 + 40 = 456` (M22). -/
-def envSize : Nat := 456
+    `envSize = 13 * 32 + 7 * 8 = 416 + 56 = 472` (M24 added
+    `persistentLogCheckpoint` and `transientLogLength`). -/
+def envSize : Nat := 472
 
 /-! ## Layout sanity facts
 
@@ -141,11 +158,15 @@ theorem callDataLenOff_align : callDataLenOff % 8 = 0 := by decide
 theorem returnDataPtrOff_align : returnDataPtrOff % 8 = 0 := by decide
 /-- `returnDataSizeOff` is 8-byte aligned. -/
 theorem returnDataSizeOff_align : returnDataSizeOff % 8 = 0 := by decide
-/-- `slotTableCountOff` is 8-byte aligned. -/
-theorem slotTableCountOff_align : slotTableCountOff % 8 = 0 := by decide
+/-- `persistentLogLengthOff` is 8-byte aligned. -/
+theorem persistentLogLengthOff_align : persistentLogLengthOff % 8 = 0 := by decide
+/-- `persistentLogCheckpointOff` is 8-byte aligned. -/
+theorem persistentLogCheckpointOff_align : persistentLogCheckpointOff % 8 = 0 := by decide
+/-- `transientLogLengthOff` is 8-byte aligned. -/
+theorem transientLogLengthOff_align : transientLogLengthOff % 8 = 0 := by decide
 
-/-- `envSize` matches `13 * 32 + 5 * 8` (M22 added `slotTableCount`). -/
-theorem envSize_eq : envSize = 13 * 32 + 5 * 8 := by decide
+/-- `envSize` matches `13 * 32 + 7 * 8` (M24 added 2 more 8-byte cells). -/
+theorem envSize_eq : envSize = 13 * 32 + 7 * 8 := by decide
 
 /-- Every 32-byte field's slot ends at the next 32-byte field's start;
     all 8-byte fields then tail without gap up to `envSize`.  This is
@@ -168,8 +189,10 @@ theorem envSize_covers :
     callDataPtrOff + 8 = callDataLenOff ∧
     callDataLenOff + 8 = returnDataPtrOff ∧
     returnDataPtrOff + 8 = returnDataSizeOff ∧
-    returnDataSizeOff + 8 = slotTableCountOff ∧
-    slotTableCountOff + 8 = envSize := by decide
+    returnDataSizeOff + 8 = persistentLogLengthOff ∧
+    persistentLogLengthOff + 8 = persistentLogCheckpointOff ∧
+    persistentLogCheckpointOff + 8 = transientLogLengthOff ∧
+    transientLogLengthOff + 8 = envSize := by decide
 
 end EvmEnv
 end EvmAsm.Evm64
