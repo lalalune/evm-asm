@@ -92,6 +92,7 @@ import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.StorageCompose
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.TxRoot
@@ -416,6 +417,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
   | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit
   | "zisk_nonce_at_header_state_root" => some ziskNonceAtHeaderStateRootProbeUnit
+  | "zisk_code_hash_at_header_state_root" => some ziskCodeHashAtHeaderStateRootProbeUnit
   | "zisk_sload_at_header_state_root" => some ziskSloadAtHeaderStateRootProbeUnit
   | "zisk_extcodecopy_at_header_state_root" => some ziskExtcodecopyAtHeaderStateRootProbeUnit
   | "zisk_account_exists_at_header_state_root" => some ziskAccountExistsAtHeaderStateRootProbeUnit
@@ -577,6 +579,7 @@ def knownProgramNames : List String :=
    "zisk_extcodehash_at_header_state_root",
    "zisk_balance_at_header_state_root",
    "zisk_nonce_at_header_state_root",
+   "zisk_code_hash_at_header_state_root",
    "zisk_sload_at_header_state_root",
    "zisk_extcodecopy_at_header_state_root",
    "zisk_account_exists_at_header_state_root",
