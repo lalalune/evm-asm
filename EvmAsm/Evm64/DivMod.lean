@@ -54,6 +54,7 @@ import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
 import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.MaxSkipV5
 import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
+import EvmAsm.Evm64.DivMod.Compose.NormAV5
 import EvmAsm.Evm64.DivMod.Compose.SharedLoopPost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Defs
