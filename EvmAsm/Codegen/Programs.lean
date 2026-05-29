@@ -103,6 +103,7 @@ import EvmAsm.Codegen.Programs.StateExtractStorageRoot
 import EvmAsm.Codegen.Programs.ChainLinkExtract
 import EvmAsm.Codegen.Programs.StateRootInWitness
 import EvmAsm.Codegen.Programs.StateExtractBalance
+import EvmAsm.Codegen.Programs.StateWalkExtractSlot
 import EvmAsm.Codegen.Programs.WitnessHeadersAccountAtIndex
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
@@ -439,6 +440,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_chain_link_verify_and_extract_parent_state_root" => some ziskChainLinkVerifyAndExtractParentStateRootProbeUnit
   | "zisk_parent_state_root_present_in_witness_state" => some ziskParentStateRootPresentInWitnessStateProbeUnit
   | "zisk_state_extract_balance_for_address" => some ziskStateExtractBalanceForAddressProbeUnit
+  | "zisk_state_walk_extract_slot_value" => some ziskStateWalkExtractSlotValueProbeUnit
   | "zisk_witness_headers_account_at_index_address" => some ziskWitnessHeadersAccountAtIndexAddressProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
@@ -622,6 +624,7 @@ def knownProgramNames : List String :=
    "zisk_chain_link_verify_and_extract_parent_state_root",
    "zisk_parent_state_root_present_in_witness_state",
    "zisk_state_extract_balance_for_address",
+   "zisk_state_walk_extract_slot_value",
    "zisk_witness_headers_account_at_index_address",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
