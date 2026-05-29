@@ -18,7 +18,7 @@ import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeBridgeR0V5
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64 EvmAsm.Rv64.Tactics
-open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
+open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56 word_add_zero)
 
 /-- The scratch/carry frame left untouched at `denormOff` by the v5 n=1 loop:
     the loop-exit register residue (x9/x11), the j-counter/n cells, the four
@@ -179,5 +179,42 @@ theorem evm_div_n1_full_spec_v5_noNop (sp base : Word)
     (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq)
     hFull
+
+open EvmAsm.Rv64 in
+/-- The v5 n=1 full-path post (`denormDivPost`-form + frame) implies the
+    stack-dispatch DIV post, given the per-limb `div` facts (supplied by the lane
+    from the quotient theorem) and the dividend limbs. -/
+theorem n1_denormPost_to_divStackDispatchPost_v5
+    (sp base : Word) (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 scratchMem : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hdiv0 : (EvmWord.div a b).getLimbN 0 = (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).1)
+    (hdiv1 : (EvmWord.div a b).getLimbN 1 = (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).1)
+    (hdiv2 : (EvmWord.div a b).getLimbN 2 = (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).1)
+    (hdiv3 : (EvmWord.div a b).getLimbN 3 = (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).1) :
+    ∀ h,
+      ((denormDivPost sp (fullDivN1Shift b0)
+          (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+          (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+          (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+          (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+          (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).1
+          (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).1
+          (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).1
+          (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).1 **
+        ((sp + signExtend12 3992) ↦ₘ fullDivN1Shift b0)) **
+       fullDivN1FrameV5 sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem) h →
+      (divStackDispatchPost sp a b ** memOwn (sp + signExtend12 3936)) h := by
+  intro h hp
+  delta denormDivPost fullDivN1FrameV5 at hp
+  rw [word_add_zero] at hp
+  apply sepConj_mono_right (P := divStackDispatchPost sp a b) memIs_implies_memOwn h
+  apply sepConj_mono_left (divStackDispatchPost_weaken sp a b) h
+  rw [evmWordIs_sp_limbs_eq sp a a0 a1 a2 a3 ha0 ha1 ha2 ha3,
+      evmWordIs_sp32_limbs_eq sp (EvmWord.div a b) _ _ _ _ hdiv0 hdiv1 hdiv2 hdiv3,
+      divScratchValuesCall_unfold, divScratchValues_unfold]
+  xperm_hyp hp
+
 
 end EvmAsm.Evm64
