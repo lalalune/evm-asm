@@ -137,4 +137,46 @@ theorem divKTrialCallV5QHat_le_val256_div_plus_two_of_norm_and_top_window_fits_v
     (Knuth128_64TopWindowLeVal256DivPlusOne_of_top_window_fits_val256_and_v_eq_vTop
       uHi uLo vTop v0 v1 v2 v3 u0 u1 u2 u3 h_v_eq h_u_fits)
 
+/-- **GENERAL multi-limb n4 `+2` overestimate** (no single-limb / top-window-fits
+    restriction): from `isCallTrialN4` alone, `divKTrialCallV5QHat ≤
+    val256(a)/val256(b) + 2`, on the actual clz-normalized algorithm limbs.
+
+    This is the bound the n4 addback carry bridge
+    (`isAddbackCarry2Nz_of_overestimate_c3_one_of_carry_zero`) consumes — and
+    the genuine `+2` (not the `+3` of `…_plus_three_of_call`), now achievable
+    because `div128Quot_v5 = floor` EXACTLY (`div128Quot_v5_eq_q_true`): the v5
+    trial equals the raw 128/64 floor, so it inherits the floor's `+2` Knuth-B
+    bound (`knuth_theorem_b_from_clz`) directly with no `+1` correction slack. -/
+theorem divKTrialCallV5QHat_le_val256_div_plus_two_of_call
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (hcall : isCallTrialN4 a3 b2 b3) :
+    (divKTrialCallV5QHat
+        (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))
+        ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+          (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+        ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+          (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))).toNat ≤
+      val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 + 2 := by
+  have hb3prime := b3_prime_ge_pow63 b3 b2 hb3nz
+    (signExtend12 (0 : BitVec 12) - (clzResult b3).1)
+  have hu4_lt := isCallTrialN4_toNat_lt a3 b2 b3 hcall
+  have h_eq :
+      (divKTrialCallV5QHat
+        (a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))
+        ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+          (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))
+        ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+          (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)))).toNat =
+      ((a3 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64)).toNat * 2^64 +
+        ((a3 <<< ((clzResult b3).1.toNat % 64)) |||
+          (a2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))).toNat) /
+      ((b3 <<< ((clzResult b3).1.toNat % 64)) |||
+        (b2 >>> ((signExtend12 (0 : BitVec 12) - (clzResult b3).1).toNat % 64))).toNat := by
+    rw [divKTrialCallV5QHat_eq_div128Quot_v5]
+    exact div128Quot_v5_eq_q_true _ _ _ hb3prime hu4_lt
+  rw [h_eq]
+  exact knuth_theorem_b_from_clz a0 a1 a2 a3 b0 b1 b2 b3 hb3nz hshift_nz hcall
+
 end EvmAsm.Evm64
