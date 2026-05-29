@@ -1,0 +1,68 @@
+/-
+  EvmAsm.Evm64.DivMod.LimbSpec.Div128V5FinalEqNamed
+
+  Connect the code-vs-model digit bridges to the **named irreducible** trial
+  defs `divKTrialCallV5Q1dd` / `Rhatdd`: the div128 code's Phase-1 corrected
+  quotient `q1Final` / remainder `rhatFinal` equal `divKTrialCallV5Q1dd` /
+  `divKTrialCallV5Rhatdd` (compact).  Each is `div128V5_q1Final_eq_model` /
+  `div128V5_rhatFinal_eq_model` (#7248/#7249, code → model phase2b form)
+  composed with `divKTrialCallV5Q1dd_eq_phase2b` / `_Rhatdd_eq_phase2b`
+  (named → same phase2b form).  These feed the `un21 = divKTrialCallV5Un21`
+  bridge and the x7/x9 exit bridges needed to give `divK_trial_call_full_v5` a
+  compact NAMED post (brick 6, bead `evm-asm-wbc4i.9.1`).
+-/
+
+import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
+
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
+
+/-- Code Phase-1 quotient `q1Final` equals the named `divKTrialCallV5Q1dd`. -/
+theorem div128V5_q1Final_eq_Q1dd (u1 u0 v0 : Word) :
+    (let cap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+     let q1 := rv64_divu u1 (divKTrialCallV5DHi v0)
+     let rhat := u1 - q1 * divKTrialCallV5DHi v0
+     let hi1 := q1 >>> (32 : BitVec 6).toNat
+     let q1c := if hi1 = 0 then q1 else cap
+     let rhatc := if hi1 = 0 then rhat else rhat + (q1 - cap) * divKTrialCallV5DHi v0
+     let rhatcHi := rhatc >>> (32 : BitVec 6).toNat
+     let qDlo1 := q1c * divKTrialCallV5DLo v0
+     let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| divKTrialCallV5Un1 u0
+     let bq1' := if BitVec.ult rhatUn1 qDlo1 then q1c + signExtend12 4095 else q1c
+     let brhat' := if BitVec.ult rhatUn1 qDlo1 then rhatc + divKTrialCallV5DHi v0 else rhatc
+     let brhat'Hi := brhat' >>> (32 : BitVec 6).toNat
+     let qDlo2 := bq1' * divKTrialCallV5DLo v0
+     let rhatUn1' := (brhat' <<< (32 : BitVec 6).toNat) ||| divKTrialCallV5Un1 u0
+     let q1'' := if BitVec.ult rhatUn1' qDlo2 then bq1' + signExtend12 4095 else bq1'
+     if rhatcHi ≠ 0 then q1c else (if brhat'Hi = 0 then q1'' else bq1'))
+    = divKTrialCallV5Q1dd u1 u0 v0 := by
+  rw [div128V5_q1Final_eq_model u1 (divKTrialCallV5DHi v0) (divKTrialCallV5DLo v0)
+    (divKTrialCallV5Un1 u0)]
+  exact (divKTrialCallV5Q1dd_eq_phase2b u1 u0 v0).symm
+
+/-- Code Phase-1 remainder `rhatFinal` equals the named `divKTrialCallV5Rhatdd`. -/
+theorem div128V5_rhatFinal_eq_Rhatdd (u1 u0 v0 : Word) :
+    (let cap : Word := (BitVec.allOnes 64) >>> (32 : BitVec 6).toNat
+     let q1 := rv64_divu u1 (divKTrialCallV5DHi v0)
+     let rhat := u1 - q1 * divKTrialCallV5DHi v0
+     let hi1 := q1 >>> (32 : BitVec 6).toNat
+     let q1c := if hi1 = 0 then q1 else cap
+     let rhatc := if hi1 = 0 then rhat else rhat + (q1 - cap) * divKTrialCallV5DHi v0
+     let rhatcHi := rhatc >>> (32 : BitVec 6).toNat
+     let qDlo1 := q1c * divKTrialCallV5DLo v0
+     let rhatUn1 := (rhatc <<< (32 : BitVec 6).toNat) ||| divKTrialCallV5Un1 u0
+     let bq1' := if BitVec.ult rhatUn1 qDlo1 then q1c + signExtend12 4095 else q1c
+     let brhat' := if BitVec.ult rhatUn1 qDlo1 then rhatc + divKTrialCallV5DHi v0 else rhatc
+     let brhat'Hi := brhat' >>> (32 : BitVec 6).toNat
+     let qDlo2 := bq1' * divKTrialCallV5DLo v0
+     let rhatUn1' := (brhat' <<< (32 : BitVec 6).toNat) ||| divKTrialCallV5Un1 u0
+     let rhat'' := if BitVec.ult rhatUn1' qDlo2 then brhat' + divKTrialCallV5DHi v0 else brhat'
+     if rhatcHi ≠ 0 then rhatc else (if brhat'Hi = 0 then rhat'' else brhat'))
+    = divKTrialCallV5Rhatdd u1 u0 v0 := by
+  rw [div128V5_rhatFinal_eq_model u1 (divKTrialCallV5DHi v0) (divKTrialCallV5DLo v0)
+    (divKTrialCallV5Un1 u0)]
+  exact (divKTrialCallV5Rhatdd_eq_phase2b u1 u0 v0).symm
+
+end EvmAsm.Evm64
