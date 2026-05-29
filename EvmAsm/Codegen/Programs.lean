@@ -230,6 +230,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_witness_headers_min_block_number" => some ziskWitnessHeadersMinBlockNumberProbeUnit
   | "zisk_witness_headers_max_block_number" => some ziskWitnessHeadersMaxBlockNumberProbeUnit
   | "zisk_blockhash_opcode_windowed" => some ziskBlockhashOpcodeWindowedProbeUnit
+  | "zisk_parent_header_matches_witness_first" => some ziskParentHeaderMatchesWitnessFirstProbeUnit
   | "zisk_header_compute_summary_struct" => some ziskHeaderComputeSummaryStructProbeUnit
   | "zisk_header_extract_difficulty" => some ziskHeaderExtractDifficultyProbeUnit
   | "zisk_header_extract_extra_data" => some ziskHeaderExtractExtraDataProbeUnit
@@ -755,6 +756,7 @@ def knownProgramNames : List String :=
    "zisk_witness_headers_min_block_number",
    "zisk_witness_headers_max_block_number",
    "zisk_blockhash_opcode_windowed",
+   "zisk_parent_header_matches_witness_first",
    "zisk_header_compute_summary_struct",
    "zisk_header_extract_difficulty",
    "zisk_header_extract_extra_data",
