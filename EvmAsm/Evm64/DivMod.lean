@@ -91,6 +91,7 @@ import EvmAsm.Evm64.DivMod.LoopIterN1.UnifiedDefsV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.UnifiedCallV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeBridgeV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeV5
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenorm
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.LoopUnifiedN1.CallIter210NoNop
 import EvmAsm.Evm64.DivMod.LoopUnifiedN1.UnifiedNoNop
