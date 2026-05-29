@@ -102,6 +102,7 @@ theorem divK_div128_step2_initcap_v5_spec_within
     (by pcFree) h1
   -- Block 2: Phase-2a cap [49..56].
   have h2_raw := divK_div128_cap_q0_v5_merged_spec_within q0 rhat2 dHi (q0 * dHi) un21 (base + 12)
+  unfold divKDiv128CapQ0V5Code at h2_raw
   have hb4 : (base + 12 : Word) + 4 = base + 16 := by bv_addr
   have hb8 : (base + 12 : Word) + 8 = base + 20 := by bv_addr
   have hb12 : (base + 12 : Word) + 12 = base + 24 := by bv_addr
@@ -114,7 +115,7 @@ theorem divK_div128_step2_initcap_v5_spec_within
   have h2 : cpsTripleWithin 8 (base + 12) (base + 44) cr _ _ :=
     cpsTripleWithin_extend_code (h := h2_raw) (hmono := by
       rw [hcr_eq]; intro a i
-      simp only [divKDiv128CapQ0V5Code, CodeReq.union_singleton_apply, CodeReq.singleton]; intro h
+      simp only [CodeReq.union_singleton_apply, CodeReq.singleton]; intro h
       split at h
       · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
       · split at h

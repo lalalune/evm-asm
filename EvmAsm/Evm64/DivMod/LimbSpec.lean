@@ -21,6 +21,8 @@ import EvmAsm.Evm64.DivMod.LimbSpec.Div128Phase2bV5
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128CapV5
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1V5
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2V5
+import EvmAsm.Evm64.DivMod.LimbSpec.Div128Phase2bV5
+import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2FullV5
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128PhaseEnd
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Phase1
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1
