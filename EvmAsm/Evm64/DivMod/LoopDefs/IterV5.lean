@@ -109,4 +109,63 @@ def isSkipBorrowN1CallV5 (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) : Prop :=
   let qHat := div128Quot_v5 u1 u0 v0
   (if BitVec.ult uTop (mulsubN4_c3 qHat v0 v1 v2 v3 u0 u1 u2 u3) then (1 : Word) else 0) = (0 : Word)
 
+-- ============================================================================
+-- n=1 per-digit iteration over the v5 (capped) trial quotient
+--
+-- Mirror of `iterN1Call` / `iterN1Max` / `iterN1` (LoopDefs/Iter.lean), swapping
+-- the call-path trial from `div128Quot` to `div128Quot_v5`. The max path uses
+-- the saturated `signExtend12 4095` constant and is version-agnostic. These are
+-- the building blocks for the v5 n=1 schoolbook `fullDivN1*V5` (bead 9.1).
+-- ============================================================================
+
+/-- v5 n=1 call-path iteration: trial = `div128Quot_v5 u1 u0 v0`. -/
+@[irreducible] def iterN1Call_v5 (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  iterWithDoubleAddback (div128Quot_v5 u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+/-- v5 n=1 max-path iteration (saturated trial; version-agnostic). -/
+@[irreducible] def iterN1Max_v5 (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  iterWithDoubleAddback (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+/-- v5 n=1 per-digit iteration dispatched on the call/max branch. -/
+def iterN1V5 (bltu : Bool) (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    Word × Word × Word × Word × Word × Word :=
+  if bltu then iterN1Call_v5 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+  else iterN1Max_v5 v0 v1 v2 v3 u0 u1 u2 u3 uTop
+
+@[simp]
+theorem iterN1V5_true {v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
+    iterN1V5 true v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+    iterN1Call_v5 v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  simp [iterN1V5]
+
+@[simp]
+theorem iterN1V5_false {v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word} :
+    iterN1V5 false v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+    iterN1Max_v5 v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  simp [iterN1V5]
+
+/-- Call-path n=1 v5 carry-zero reducer for a zero incoming top limb. -/
+theorem iterN1V5_true_carry_zero_of_mulsub_c3_zero
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hc3 : mulsubN4_c3 (div128Quot_v5 u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 = 0)
+    (huTop : uTop = 0) :
+    (iterN1V5 true v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2 = 0 := by
+  rw [iterN1V5_true]
+  unfold iterN1Call_v5
+  exact iterWithDoubleAddback_carry_zero_of_mulsub_c3_zero
+    (div128Quot_v5 u1 u0 v0) v0 v1 v2 v3 u0 u1 u2 u3 uTop hc3 huTop
+
+/-- Max-path n=1 v5 carry-zero reducer for a zero incoming top limb. -/
+theorem iterN1V5_false_carry_zero_of_mulsub_c3_zero
+    (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word)
+    (hc3 : mulsubN4_c3 (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 = 0)
+    (huTop : uTop = 0) :
+    (iterN1V5 false v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2 = 0 := by
+  rw [iterN1V5_false]
+  unfold iterN1Max_v5
+  exact iterWithDoubleAddback_carry_zero_of_mulsub_c3_zero
+    (signExtend12 4095) v0 v1 v2 v3 u0 u1 u2 u3 uTop hc3 huTop
+
 end EvmAsm.Evm64
