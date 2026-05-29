@@ -174,3 +174,4 @@ import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNz
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Bzero
