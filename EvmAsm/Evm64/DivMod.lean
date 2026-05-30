@@ -51,6 +51,7 @@ import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5
 import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
 import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
+import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5ExactX1
 import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.MaxSkipV5
 import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
