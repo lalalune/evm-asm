@@ -30,6 +30,8 @@ open EvmAsm.Rv64
   (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ R0.1) **
   ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
   ((sp + signExtend12 3976) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (1 : Word)) **
+  ((sp + signExtend12 4056) ↦ₘ R0.2.1) ** ((sp + signExtend12 4048) ↦ₘ R0.2.2.1) **
+  ((sp + signExtend12 4040) ↦ₘ R0.2.2.2.1) ** ((sp + signExtend12 4032) ↦ₘ R0.2.2.2.2.1) **
   ((sp + signExtend12 4024) ↦ₘ R0.2.2.2.2.2) ** ((sp + signExtend12 4016) ↦ₘ R1.2.2.2.2.2) **
   ((sp + signExtend12 4008) ↦ₘ R2.2.2.2.2.2) ** ((sp + signExtend12 4000) ↦ₘ R3.2.2.2.2.2) **
   ((sp + signExtend12 3968) ↦ₘ (base + div128CallRetOff)) ** ((sp + signExtend12 3960) ↦ₘ b0) **
@@ -51,7 +53,9 @@ theorem fullDivN1FrameShift0V5_unfold {sp base a0 a1 a2 a3 b0 scratchMem : Word}
      (.x9 ↦ᵣ signExtend12 4095) ** (.x11 ↦ᵣ R0.1) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 3976) ↦ₘ (0 : Word)) ** ((sp + signExtend12 3984) ↦ₘ (1 : Word)) **
-     ((sp + signExtend12 4024) ↦ₘ R0.2.2.2.2.2) ** ((sp + signExtend12 4016) ↦ₘ R1.2.2.2.2.2) **
+     ((sp + signExtend12 4056) ↦ₘ R0.2.1) ** ((sp + signExtend12 4048) ↦ₘ R0.2.2.1) **
+  ((sp + signExtend12 4040) ↦ₘ R0.2.2.2.1) ** ((sp + signExtend12 4032) ↦ₘ R0.2.2.2.2.1) **
+  ((sp + signExtend12 4024) ↦ₘ R0.2.2.2.2.2) ** ((sp + signExtend12 4016) ↦ₘ R1.2.2.2.2.2) **
      ((sp + signExtend12 4008) ↦ₘ R2.2.2.2.2.2) ** ((sp + signExtend12 4000) ↦ₘ R3.2.2.2.2.2) **
      ((sp + signExtend12 3968) ↦ₘ (base + div128CallRetOff)) ** ((sp + signExtend12 3960) ↦ₘ b0) **
      ((sp + signExtend12 3952) ↦ₘ divKTrialCallV5DLo b0) **
