@@ -277,4 +277,31 @@ theorem iterN2V5_false_step
   · rw [hconv, hcollapse, hco, h0]; ring
   · rw [hcollapse] at hlt; rw [hco, h0] at hlt; simpa using hlt
 
+/-- **Unified per-digit step (both branches).** For any `bltu` correctly
+    reflecting the comparison `u2 < v1`, with the window-validity invariant
+    `val256 window < 2^64·val256 v`, the digit produces the clean 2-limb
+    Euclidean step `val256 window = q·val256 v + R` with `R < val256 v`.
+    Dispatches to `iterN2V5_true_step` (call) or `iterN2V5_false_step` (max).
+    One lemma per digit for the cross-digit `fullDivN2MulSubEqV5` assembly. -/
+theorem iterN2V5_step (bltu : Bool) (v0 v1 u0 u1 u2 : Word)
+    (hbnz : v0 ||| v1 ||| 0 ||| 0 ≠ 0)
+    (hv1 : v1.toNat ≥ 2^63)
+    (hvalid : val256 u0 u1 u2 0 < 2^64 * val256 v0 v1 0 0)
+    (hcall : bltu = true → BitVec.ult u2 v1 = true)
+    (hmax : bltu = false → ¬ BitVec.ult u2 v1) :
+    val256 u0 u1 u2 0 =
+      (iterN2V5 bltu v0 v1 0 0 u0 u1 u2 0 0).1.toNat * val256 v0 v1 0 0 +
+        ((iterN2V5 bltu v0 v1 0 0 u0 u1 u2 0 0).2.1.toNat +
+          2^64 * (iterN2V5 bltu v0 v1 0 0 u0 u1 u2 0 0).2.2.1.toNat) ∧
+      (iterN2V5 bltu v0 v1 0 0 u0 u1 u2 0 0).2.1.toNat +
+          2^64 * (iterN2V5 bltu v0 v1 0 0 u0 u1 u2 0 0).2.2.1.toNat <
+        val256 v0 v1 0 0 := by
+  cases bltu with
+  | true =>
+    have hu : u2.toNat < v1.toNat := by
+      have := hcall rfl; rw [BitVec.ult] at this; exact of_decide_eq_true this
+    exact iterN2V5_true_step v0 v1 u0 u1 u2 hbnz hv1 hu
+  | false =>
+    exact iterN2V5_false_step v0 v1 u0 u1 u2 hbnz hv1 (hmax rfl) hvalid
+
 end EvmAsm.Evm64
