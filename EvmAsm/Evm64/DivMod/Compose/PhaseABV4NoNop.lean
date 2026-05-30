@@ -40,7 +40,7 @@ theorem divK_phaseB_n1_nm1_x8_v4 :
 theorem divK_phaseB_n2_nm1_x8_v4 :
     ((2 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (8 : Word) := by
   decide
-private theorem divK_phaseB_n3_nm1_x8_v4 :
+theorem divK_phaseB_n3_nm1_x8_v4 :
     ((3 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (16 : Word) := by
   decide
 private theorem divK_phaseB_n4_nm1_x8_v4 :
@@ -52,7 +52,7 @@ theorem phB_sp0_32_v4 {sp : Word} :
 theorem phB_sp8_32_v4 {sp : Word} :
     (sp + (8 : Word) + (32 : Word)) = sp + 40 := by
   bv_addr
-private theorem phB_sp16_32_v4 {sp : Word} :
+theorem phB_sp16_32_v4 {sp : Word} :
     (sp + (16 : Word) + (32 : Word)) = sp + 48 := by
   bv_addr
 private theorem phB_sp24_32_v4 {sp : Word} :

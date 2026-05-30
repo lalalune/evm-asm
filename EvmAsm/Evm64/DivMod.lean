@@ -150,6 +150,8 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopMaxCall
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Families
+import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientWord
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopSource
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopFinalPost
@@ -218,6 +220,8 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFromShape
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShiftNz
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Lane
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FullShift0
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ParamShift0
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShift0
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PostBridge
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0DivLimb
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PreLift
@@ -230,6 +234,10 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5R2Conservation
 import EvmAsm.Evm64.DivMod.Spec.N2V5R10Conservation
 import EvmAsm.Evm64.DivMod.Spec.N2V5ThreeStep
 import EvmAsm.Evm64.DivMod.Spec.N2V5RemainderLt
+import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderLt
+import EvmAsm.Evm64.DivMod.Spec.N3V5DigitStepIter
+import EvmAsm.Evm64.DivMod.Spec.N3V5AccQuot
+import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShape
@@ -270,6 +278,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopUnifiedPost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFull
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
