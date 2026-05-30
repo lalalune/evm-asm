@@ -263,6 +263,7 @@ import EvmAsm.Evm64.DivMod.LoopIterN3V5.CallAddbackBeqV5NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMax
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxAddbackNorm
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallAddbackNorm
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxExact
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMax
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallJ0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallExactX1
