@@ -104,7 +104,7 @@ theorem divK_loop_n2_unified_from_source_exact_loopIterScratch_v5_noNop_borrowCa
         (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1 := by
       simp only at hbltu_0; rw [show BitVec.ult _ v1 = false from hbltu_0.symm]; decide
     unfold loopN2SelectedBorrowCarryV5 at hcarry
-    simp only [loopN2IterSelectedV5_true, loopN2IterSelectedV5_false] at hcarry
+    simp only [loopN2IterSelectedV5_false] at hcarry
     obtain ⟨hc2, hc1, hc0⟩ := hcarry
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => hp)
@@ -128,7 +128,7 @@ theorem divK_loop_n2_unified_from_source_exact_loopIterScratch_v5_noNop_borrowCa
         (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1 := by
       simp only at hbltu_0; exact hbltu_0.symm
     unfold loopN2SelectedBorrowCarryV5 at hcarry
-    simp only [loopN2IterSelectedV5_true, loopN2IterSelectedV5_false] at hcarry
+    simp only [loopN2IterSelectedV5_false] at hcarry
     obtain ⟨hc2, hc1, hc0⟩ := hcarry
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => hp)
@@ -280,7 +280,7 @@ theorem divK_loop_n2_unified_from_source_exact_loopIterScratch_v5_noNop_borrowCa
             v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1 := by
       simp only at hbltu_0; rw [show BitVec.ult _ v1 = false from hbltu_0.symm]; decide
     unfold loopN2SelectedBorrowCarryV5 at hcarry
-    simp only [loopN2IterSelectedV5_true, loopN2IterSelectedV5_false] at hcarry
+    simp only [loopN2IterSelectedV5_true] at hcarry
     obtain ⟨hc2, hc1, hc0⟩ := hcarry
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => hp)
@@ -316,7 +316,7 @@ theorem divK_loop_n2_unified_from_source_exact_loopIterScratch_v5_noNop_borrowCa
             v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1).2.2.1 v1 := by
       simp only at hbltu_0; exact hbltu_0.symm
     unfold loopN2SelectedBorrowCarryV5 at hcarry
-    simp only [loopN2IterSelectedV5_true, loopN2IterSelectedV5_false] at hcarry
+    simp only [loopN2IterSelectedV5_true] at hcarry
     obtain ⟨hc2, hc1, hc0⟩ := hcarry
     exact cpsTripleWithin_weaken
       (fun _ hp => hp)
