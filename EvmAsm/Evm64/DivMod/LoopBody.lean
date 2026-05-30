@@ -323,7 +323,7 @@ private theorem lb_ab3_end {base : Word} : (base + addbackLimb3Off : Word) + 32 
 private theorem lb_abf_end {base : Word} : (base + addbackFinalOff : Word) + 16 = base + addbackBeqOff := by bv_addr
 
 @[irreducible]
-private def addbackFullPre
+def addbackFullPre
     (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     (v7Init v5Init v2Init : Word) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ v7Init) **
