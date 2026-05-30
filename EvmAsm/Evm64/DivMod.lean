@@ -235,6 +235,9 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5R10Conservation
 import EvmAsm.Evm64.DivMod.Spec.N2V5ThreeStep
 import EvmAsm.Evm64.DivMod.Spec.N2V5RemainderLt
 import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderLt
+import EvmAsm.Evm64.DivMod.Spec.N3V5HvSmall
+import EvmAsm.Evm64.DivMod.Spec.N3V5MaxCarryOfMaxShape
+import EvmAsm.Evm64.DivMod.Spec.N3V5CallCarryOfCallShape
 import EvmAsm.Evm64.DivMod.Spec.N3V5DigitStepIter
 import EvmAsm.Evm64.DivMod.Spec.N3V5AccQuot
 import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientShape
