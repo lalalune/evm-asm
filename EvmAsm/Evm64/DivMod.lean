@@ -89,6 +89,7 @@ import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
 import EvmAsm.Evm64.DivMod.Spec.N4QHatLeOne
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfBorrow
+import EvmAsm.Evm64.DivMod.Spec.N4SemanticOfBorrow
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
