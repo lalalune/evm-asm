@@ -109,6 +109,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenorm
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FrameShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5BridgeShift0
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.LoopUnifiedN1.CallIter210NoNop
 import EvmAsm.Evm64.DivMod.LoopUnifiedN1.UnifiedNoNop
