@@ -16,6 +16,7 @@
 
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
 import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
+import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientWord
 
 namespace EvmAsm.Evm64
 
@@ -130,5 +131,37 @@ theorem n2_shift0_remainder_eq_mod
       = val256 a0 a1 a2 a3 % val256 b0 b1 0 0 := by
     rw [hR0c.1, hR0c.2.1, hmodeq]; simp only [EvmWord.val256, h0]; ring_nf
   exact mod_of_val256_eq_mod hbnz hr
+
+/-- **v5 n=2 quotient word = div a b (shift=0).** The shift=0 quotient digits,
+    packed into a word `fromLimbs(R0.1, R1.1, R2.1, 0)`, equal `EvmWord.div a b`.
+    From the accumulated-quotient correctness + the EvmWord lift. -/
+theorem n2_shift0_quotient_word_eq_div
+    (a0 a1 a2 a3 b0 b1 : Word) (hb1 : b1.toNat ≥ 2^63) (bltu_2 bltu_1 bltu_0 : Bool)
+    (hc2 : bltu_2 = true → BitVec.ult (0:Word) b1 = true)
+    (hm2 : bltu_2 = false → ¬ BitVec.ult (0:Word) b1)
+    (hc1 : bltu_1 = true → BitVec.ult (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.2.1 b1 = true)
+    (hm1 : bltu_1 = false → ¬ BitVec.ult (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.2.1 b1)
+    (hc0 : bltu_0 = true → BitVec.ult (iterN2V5 bltu_1 b0 b1 0 0 a1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.2.1 0 0).2.2.1 b1 = true)
+    (hm0 : bltu_0 = false → ¬ BitVec.ult (iterN2V5 bltu_1 b0 b1 0 0 a1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.2.1 0 0).2.2.1 b1) :
+    EvmWord.fromLimbs (fun i : Fin 4 => match i with
+        | 0 => (iterN2V5 bltu_0 b0 b1 0 0 a0 (iterN2V5 bltu_1 b0 b1 0 0 a1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.2.1 0 0).2.1 (iterN2V5 bltu_1 b0 b1 0 0 a1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.2.1 0 0).2.2.1 0 0).1
+        | 1 => (iterN2V5 bltu_1 b0 b1 0 0 a1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.2.1 0 0).1
+        | 2 => (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).1
+        | 3 => 0)
+      = EvmWord.div
+          (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+          (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => b0 | 1 => b1 | 2 => 0 | 3 => 0) := by
+  have h0 : (0:Word).toNat = 0 := rfl
+  have hbnz : b0 ||| b1 ||| (0:Word) ||| 0 ≠ 0 := by
+    intro h; have h2 := (BitVec.or_eq_zero_iff.mp h).1; have h3 := (BitVec.or_eq_zero_iff.mp h2).1
+    have hz : b1 = 0 := (BitVec.or_eq_zero_iff.mp h3).2; rw [hz] at hb1; simp at hb1
+  have hacc := n2_shift0_acc_quot a0 a1 a2 a3 b0 b1 hb1 bltu_2 bltu_1 bltu_0 hc2 hm2 hc1 hm1 hc0 hm0
+  have hqval : val256
+      (iterN2V5 bltu_0 b0 b1 0 0 a0 (iterN2V5 bltu_1 b0 b1 0 0 a1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.2.1 0 0).2.1 (iterN2V5 bltu_1 b0 b1 0 0 a1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.2.1 0 0).2.2.1 0 0).1
+      (iterN2V5 bltu_1 b0 b1 0 0 a1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.1 (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).2.2.1 0 0).1
+      (iterN2V5 bltu_2 b0 b1 0 0 a2 a3 0 0 0).1 0
+      = val256 a0 a1 a2 a3 / val256 b0 b1 0 0 := by
+    rw [← hacc]; simp only [EvmWord.val256, h0]; ring
+  exact div_of_val256_eq_div hbnz hqval
 
 end EvmAsm.Evm64
