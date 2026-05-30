@@ -175,6 +175,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5R10Conservation
 import EvmAsm.Evm64.DivMod.Spec.N2V5ThreeStep
 import EvmAsm.Evm64.DivMod.Spec.N2V5RemainderLt
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
+import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShape
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePostSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4
