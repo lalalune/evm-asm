@@ -69,4 +69,76 @@ theorem iterN2V5_true_remainder_lt
   exact iterWithDoubleAddback_remainder_lt_of_plus_two
     (divKTrialCallV5QHat u2 u1 v1) v0 v1 0 0 u0 u1 u2 0 0 hbnz hc3 hq_over hq_ge
 
+/-- The n=2 divisor value is a 2-limb number, hence `< 2^128`. -/
+theorem n2_val256_v_lt_pow128 (v0 v1 : Word) : val256 v0 v1 0 0 < 2^128 := by
+  have h0 : (0 : Word).toNat = 0 := rfl
+  have := v0.isLt; have := v1.isLt
+  simp only [EvmWord.val256, h0]; omega
+
+/-- **v5 n=2 per-digit remainder collapse.** Since the remainder is `< val256 v
+    < 2^128`, its two high limbs and the overflow cell are zero — so its `val256`
+    occupies only the low two limbs.  Lets the per-digit conservation reduce to
+    the 2-limb step form consumed by `fullDivN2V5_three_step_nat`. -/
+theorem iterN2V5_true_remainder_collapse
+    (v0 v1 u0 u1 u2 : Word)
+    (hbnz : v0 ||| v1 ||| 0 ||| 0 ≠ 0)
+    (hv1 : v1.toNat ≥ 2^63)
+    (hcall : u2.toNat < v1.toNat) :
+    (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.2.2.1 = 0 ∧
+    (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.1 = 0 ∧
+    (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.2 = 0 := by
+  have hlt := iterN2V5_true_remainder_lt v0 v1 u0 u1 u2 hbnz hv1 hcall
+  have hv128 := n2_val256_v_lt_pow128 v0 v1
+  set out := iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0 with hout
+  have key : val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+      out.2.2.2.2.2.toNat * 2^256 < 2^128 := by omega
+  have hr2 := out.2.2.2.1.isLt
+  have hr3 := out.2.2.2.2.1.isLt
+  refine ⟨?_, ?_, ?_⟩
+  · have : out.2.2.2.1.toNat = 0 := by simp only [EvmWord.val256] at key; omega
+    exact BitVec.eq_of_toNat_eq (by rw [this]; rfl)
+  · have : out.2.2.2.2.1.toNat = 0 := by simp only [EvmWord.val256] at key; omega
+    exact BitVec.eq_of_toNat_eq (by rw [this]; rfl)
+  · have : out.2.2.2.2.2.toNat = 0 := by simp only [EvmWord.val256] at key; omega
+    exact BitVec.eq_of_toNat_eq (by rw [this]; rfl)
+
+/-- **v5 n=2 per-digit conservation from shape (no `Carry2Nz`).** The call-path
+    iteration preserves value: `val256 window = q·val256 v + val256(remainder) +
+    overflow·2^256`, with `q` the output quotient digit.  Discharged purely from
+    the trial bracket via `iterWithDoubleAddback_val256_conservation_of_branch_bounds`
+    — needs NO `isAddbackCarry2Nz` hypothesis (the q-magnitude side conditions
+    come from `q_pos_of_mulsub_borrow` / `q_ge_two_of_mulsub_borrow_and_addback_carry_zero`).
+    This is the cleaner replacement for the `…_of_carry2`-based conservations. -/
+theorem iterN2V5_true_conservation_from_shape
+    (v0 v1 u0 u1 u2 : Word)
+    (hbnz : v0 ||| v1 ||| 0 ||| 0 ≠ 0)
+    (hv1 : v1.toNat ≥ 2^63)
+    (hcall : u2.toNat < v1.toNat) :
+    val256 u0 u1 u2 0 =
+      (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).1.toNat * val256 v0 v1 0 0 +
+        val256
+          (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.1
+          (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.2.1
+          (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.2.2.1
+          (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.1 +
+        (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.2.toNat * 2^256 := by
+  have hrw : iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0 =
+      iterWithDoubleAddback (divKTrialCallV5QHat u2 u1 v1) v0 v1 0 0 u0 u1 u2 0 0 := by
+    unfold iterN2V5; rw [if_pos rfl]
+  rw [hrw]
+  set q := divKTrialCallV5QHat u2 u1 v1 with hq
+  have hq_over := n2_window_div_le_val256_div_plus_two_v5 v0 v1 u0 u1 u2 hv1 hcall
+  have hc3 : BitVec.ult (0 : Word) (mulsubN4 q v0 v1 0 0 u0 u1 u2 0).2.2.2.2 →
+      (mulsubN4 q v0 v1 0 0 u0 u1 u2 0).2.2.2.2 = 1 := by
+    intro hb
+    apply mulsubN4_c3_eq_one_v3_zero
+    intro h0; rw [h0] at hb; exact absurd hb (by decide)
+  have hconv := iterWithDoubleAddback_val256_conservation_of_branch_bounds
+    q v0 v1 0 0 u0 u1 u2 0 0 hbnz hq_over hc3
+    (fun hb _ => q_pos_of_mulsub_borrow q v0 v1 0 0 u0 u1 u2 0 (hc3 hb))
+    (fun hb hcz => q_ge_two_of_mulsub_borrow_and_addback_carry_zero
+      q v0 v1 0 0 u0 u1 u2 0 (hc3 hb) hcz)
+  have h0 : (0 : Word).toNat = 0 := rfl
+  simpa [h0] using hconv
+
 end EvmAsm.Evm64
