@@ -186,6 +186,9 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5IterSelectedEq
 import EvmAsm.Evm64.DivMod.Spec.N2V5IterR2R1Bridge
 import EvmAsm.Evm64.DivMod.Spec.N2V5BundleDigit2
 import EvmAsm.Evm64.DivMod.Spec.N2V5BundleOfShape
+import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0BundleOfShape
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LoopShift0
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PathShift0
 import EvmAsm.Evm64.DivMod.Spec.N2V5R2R1Dispatch
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormVShapeFacts
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarry
@@ -213,6 +216,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFullBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePostSelectedBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFromShape
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShiftNz
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Lane
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientCorrect
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLane
 import EvmAsm.Evm64.DivMod.Spec.N2V5Conditions
