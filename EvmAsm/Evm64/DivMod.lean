@@ -286,6 +286,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopFromShape
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenorm
 import EvmAsm.Evm64.DivMod.Spec.N3V5ConcretePostBridge
 import EvmAsm.Evm64.DivMod.Spec.N3V5PostToDispatchPostV5
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormBridge
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombos
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxCombos
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnified
