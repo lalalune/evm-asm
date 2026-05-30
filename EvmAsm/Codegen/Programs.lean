@@ -92,9 +92,19 @@ import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
+import EvmAsm.Codegen.Programs.CodeHashAtBlockHash
 import EvmAsm.Codegen.Programs.StateProof
 import EvmAsm.Codegen.Programs.StateStorageProof
 import EvmAsm.Codegen.Programs.StateCodeHashProof
+import EvmAsm.Codegen.Programs.StorageRootInWitness
+import EvmAsm.Codegen.Programs.WitnessStorageKeccakAtIndex
+import EvmAsm.Codegen.Programs.StateAccountSpecDefault
+import EvmAsm.Codegen.Programs.StateExtractStorageRoot
+import EvmAsm.Codegen.Programs.ChainLinkExtract
+import EvmAsm.Codegen.Programs.StateRootInWitness
+import EvmAsm.Codegen.Programs.StateExtractBalance
+import EvmAsm.Codegen.Programs.StateWalkExtractSlot
+import EvmAsm.Codegen.Programs.StateExtractCodeHash
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
@@ -422,6 +432,16 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_state_account_inclusion_proof_verify" => some ziskStateAccountInclusionProofVerifyProbeUnit
   | "zisk_state_slot_inclusion_proof_verify" => some ziskStateSlotInclusionProofVerifyProbeUnit
   | "zisk_state_code_hash_inclusion_proof_verify" => some ziskStateCodeHashInclusionProofVerifyProbeUnit
+  | "zisk_code_hash_at_block_hash_address" => some ziskCodeHashAtBlockHashAddressProbeUnit
+  | "zisk_storage_root_present_in_witness_storage" => some ziskStorageRootPresentInWitnessStorageProbeUnit
+  | "zisk_witness_storage_keccak_at_index" => some ziskWitnessStorageKeccakAtIndexProbeUnit
+  | "zisk_state_account_with_spec_default" => some ziskStateAccountWithSpecDefaultProbeUnit
+  | "zisk_state_extract_storage_root_for_address" => some ziskStateExtractStorageRootForAddressProbeUnit
+  | "zisk_chain_link_verify_and_extract_parent_state_root" => some ziskChainLinkVerifyAndExtractParentStateRootProbeUnit
+  | "zisk_parent_state_root_present_in_witness_state" => some ziskParentStateRootPresentInWitnessStateProbeUnit
+  | "zisk_state_extract_balance_for_address" => some ziskStateExtractBalanceForAddressProbeUnit
+  | "zisk_state_walk_extract_slot_value" => some ziskStateWalkExtractSlotValueProbeUnit
+  | "zisk_state_extract_code_hash_for_address" => some ziskStateExtractCodeHashForAddressProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
@@ -596,6 +616,16 @@ def knownProgramNames : List String :=
    "zisk_state_account_inclusion_proof_verify",
    "zisk_state_slot_inclusion_proof_verify",
    "zisk_state_code_hash_inclusion_proof_verify",
+   "zisk_code_hash_at_block_hash_address",
+   "zisk_storage_root_present_in_witness_storage",
+   "zisk_witness_storage_keccak_at_index",
+   "zisk_state_account_with_spec_default",
+   "zisk_state_extract_storage_root_for_address",
+   "zisk_chain_link_verify_and_extract_parent_state_root",
+   "zisk_parent_state_root_present_in_witness_state",
+   "zisk_state_extract_balance_for_address",
+   "zisk_state_walk_extract_slot_value",
+   "zisk_state_extract_code_hash_for_address",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
