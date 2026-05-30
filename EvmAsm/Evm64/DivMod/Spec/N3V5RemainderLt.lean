@@ -20,6 +20,7 @@
 
 import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindowN3
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
 
 namespace EvmAsm.Evm64
 
@@ -49,6 +50,44 @@ theorem n3_trial_call_val256_conservation
   set q := divKTrialCallV5QHat u3 u2 v2 with hq
   have hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 0 + 2 := by
     rw [hq]; exact n3_window_div_le_val256_div_plus_two_v5 v0 v1 v2 u0 u1 u2 u3 hv2 hcall
+  have hc3 : BitVec.ult uTop (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 →
+      (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 = 1 := by
+    intro hb
+    apply mulsubN4_c3_eq_one_v3_zero
+    intro hc3z
+    rw [hc3z] at hb
+    exact absurd hb (by simp [BitVec.ult])
+  exact iterWithDoubleAddback_val256_conservation_of_branch_bounds
+    q v0 v1 v2 0 u0 u1 u2 u3 uTop hbnz hq_over hc3
+    (fun hb _ => q_pos_of_mulsub_borrow q v0 v1 v2 0 u0 u1 u2 u3 (hc3 hb))
+    (fun hb hcz => q_ge_two_of_mulsub_borrow_and_addback_carry_zero
+      q v0 v1 v2 0 u0 u1 u2 u3 (hc3 hb) hcz)
+
+/-- **v5 n=3 per-digit val256 conservation (max path).**  When the trial would
+    overflow (`¬ u3 < v2`), the digit uses the cap trial `signExtend12 4095`; the
+    double-addback iterate still conserves value against `(v0,v1,v2,0)`.  This is
+    the form `iterN3Max` / `iterN3V5 false` unfold to. -/
+theorem n3_trial_max_val256_conservation
+    (v0 v1 v2 u0 u1 u2 u3 uTop : Word)
+    (hv2 : v2.toNat ≥ 2^63)
+    (hmax : ¬ BitVec.ult u3 v2) :
+    val256 u0 u1 u2 u3 + uTop.toNat * 2 ^ 256 =
+      (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12))
+          v0 v1 v2 0 u0 u1 u2 u3 uTop).1.toNat * val256 v0 v1 v2 0 +
+        val256
+          (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 uTop).2.1
+          (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 uTop).2.2.1
+          (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 uTop).2.2.2.1
+          (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 uTop).2.2.2.2.1 +
+        (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12))
+          v0 v1 v2 0 u0 u1 u2 u3 uTop).2.2.2.2.2.toNat * 2 ^ 256 := by
+  have hbnz : v0 ||| v1 ||| v2 ||| 0 ≠ 0 := by
+    intro h
+    have hv2z : v2 = 0 := (BitVec.or_eq_zero_iff.mp (BitVec.or_eq_zero_iff.mp h).1).2
+    rw [hv2z] at hv2; simp at hv2
+  set q := (signExtend12 (4095 : BitVec 12) : Word) with hq
+  have hq_over : q.toNat ≤ val256 u0 u1 u2 u3 / val256 v0 v1 v2 0 + 2 := by
+    rw [hq]; exact max_trial_local_overestimate_n3_of_not_ult v0 v1 v2 u0 u1 u2 u3 hv2 hmax
   have hc3 : BitVec.ult uTop (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 →
       (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 = 1 := by
     intro hb
