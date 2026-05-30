@@ -19,6 +19,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Spec.N2V5RemainderLt
+import EvmAsm.Evm64.DivMod.Spec.N2V5ThreeStep
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
 import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
 
@@ -336,5 +337,124 @@ theorem fullDivN2_first_window_valid (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     simp only [EvmWord.val256, h0]; ring
   rw [hWexp, hscaleV]
   exact first_window_core _ _ _ _ _ _ _ _ hU hA hB hSpos
+
+/-- **v5 n=2 accumulated quotient correctness (shift≠0).** The three v5 n=2
+    quotient digits combine to exactly `val256 a / val256 b`.  Telescopes the
+    three per-digit steps (R2/R1/R0) — chained via the window-validity invariant
+    and collapse facts — through `fullDivN2V5_three_step_nat` into the normalized
+    Euclidean equation, then `div_quotient_of_normalized` + the scaling bridges
+    recover the original quotient.  The `bltu` arguments must match the per-digit
+    `u2 < v1` comparisons (supplied here as hypotheses; discharged from the path
+    conditions `isTrialN2V5_j*` at the loop level).  This is the corrected
+    shift-aware route replacing the mis-stated `fullDivN2MulSubEqV5`. -/
+theorem fullDivN2_acc_quot_eq_div_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (bltu_2 bltu_1 bltu_0 : Bool)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) (hshift_nz : (clzResult b1).1 ≠ 0) (hb1nz : b1 ≠ 0)
+    (hc2 : bltu_2 = true → BitVec.ult (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 (fullDivN2NormV b0 b1 b2 b3).2.1 = true)
+    (hm2 : bltu_2 = false → ¬ BitVec.ult (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 (fullDivN2NormV b0 b1 b2 b3).2.1)
+    (hc1 : bltu_1 = true → BitVec.ult (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 (fullDivN2NormV b0 b1 b2 b3).2.1 = true)
+    (hm1 : bltu_1 = false → ¬ BitVec.ult (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 (fullDivN2NormV b0 b1 b2 b3).2.1)
+    (hc0 : bltu_0 = true → BitVec.ult (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 (fullDivN2NormV b0 b1 b2 b3).2.1 = true)
+    (hm0 : bltu_0 = false → ¬ BitVec.ult (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 (fullDivN2NormV b0 b1 b2 b3).2.1) :
+    (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1.toNat * 2^128
+      + (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1.toNat * 2^64
+      + (fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1.toNat
+      = val256 a0 a1 a2 a3 / val256 b0 b1 b2 b3 := by
+  have h0 : (0:Word).toNat = 0 := rfl
+  have hfwv := fullDivN2_first_window_valid a0 a1 a2 a3 b0 b1 b2 b3 hb2z hb3z hshift_nz hb1nz
+  have hR2 := fullDivN2R2V5_step_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 hb2z hb3z hshift_nz hb1nz hfwv hc2 hm2
+  have hR2c := fullDivN2R2V5_collapse_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 hb2z hb3z hshift_nz hb1nz hfwv hc2 hm2
+  have hR1valid := n2_next_window_lt (fullDivN2NormU a0 a1 a2 a3 b1).2.1
+      (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 _ hR2.2
+  have hR1 := fullDivN2R1V5_step_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 bltu_1 hb2z hb3z hshift_nz hb1nz hR2c.1 hR2c.2 hR1valid hc1 hm1
+  have hR1c := fullDivN2R1V5_collapse_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 bltu_1 hb2z hb3z hshift_nz hb1nz hR2c.1 hR2c.2 hR1valid hc1 hm1
+  have hR0valid := n2_next_window_lt (fullDivN2NormU a0 a1 a2 a3 b1).1
+      (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1
+      (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 _ hR1.2
+  have hR0 := fullDivN2R0V5_step_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 bltu_1 bltu_0 hb2z hb3z hshift_nz hb1nz hR1c.1 hR1c.2 hR0valid hc0 hm0
+  have hscaleU := fullDivN2NormU_val256_eq_scaled a0 a1 a2 a3 b1 hshift_nz
+  have hscaleV := fullDivN2NormV_val256_eq_scaled_of_shape b0 b1 b2 b3 hb2z hb3z hshift_nz
+  have hv2 := fullDivN2NormV_v2_zero_of_shape_shift_nz b0 b1 b2 b3 hb2z hshift_nz
+  have hv3 := fullDivN2NormV_top_zero_of_shape b0 b1 b2 b3 hb3z hb2z
+  rw [hv2, hv3] at hscaleV
+  have hw2 : val256 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.1 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 0
+      = (fullDivN2NormU a0 a1 a2 a3 b1).2.2.1.toNat + 2^64*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1.toNat + 2^128*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2.toNat := by
+    simp only [EvmWord.val256, h0]; ring
+  have hw1 : val256 (fullDivN2NormU a0 a1 a2 a3 b1).2.1 (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1 (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 0
+      = (fullDivN2NormU a0 a1 a2 a3 b1).2.1.toNat + 2^64*((fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat + 2^64*(fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1.toNat) := by
+    simp only [EvmWord.val256, h0]; ring
+  have hw0 : val256 (fullDivN2NormU a0 a1 a2 a3 b1).1 (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1 (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 0
+      = (fullDivN2NormU a0 a1 a2 a3 b1).1.toNat + 2^64*((fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat + 2^64*(fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1.toNat) := by
+    simp only [EvmWord.val256, h0]; ring
+  rw [hw2] at hR2; rw [hw1] at hR1; rw [hw0] at hR0
+  have hfirst : val256 a0 a1 a2 a3 * 2^(fullDivN2Shift b1).toNat =
+      (fullDivN2NormU a0 a1 a2 a3 b1).1.toNat + 2^64 * (fullDivN2NormU a0 a1 a2 a3 b1).2.1.toNat
+        + 2^128 * ((fullDivN2NormU a0 a1 a2 a3 b1).2.2.1.toNat + 2^64*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1.toNat + 2^128*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2.toNat) := by
+    rw [← hscaleU]; simp only [EvmWord.val256]; ring
+  have htele := fullDivN2V5_three_step_nat hfirst hR2.1 hR1.1 hR0.1
+  rw [hscaleV] at htele
+  have hlt : (fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat + 2^64*(fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1.toNat < val256 b0 b1 b2 b3 * 2^(fullDivN2Shift b1).toNat := by
+    rw [← hscaleV]; exact hR0.2
+  have hfin := div_quotient_of_normalized htele hlt
+  linarith [hfin]
+
+/-- **v5 n=2 normalized Euclidean equation (shift≠0).** The shared core consumed
+    by BOTH the DIV quotient correctness and the MOD remainder correctness (and
+    the loop): `val256 a · 2^s = Q · (val256 b · 2^s) + R0r` with `R0r < val256 b
+    · 2^s`, where `Q` is the accumulated quotient and `R0r` the final collapsed
+    2-limb remainder.  Same per-digit telescope as `fullDivN2_acc_quot_eq_div_of_shape`,
+    stopping at the Euclidean equation (before `div_quotient_of_normalized`). -/
+theorem fullDivN2_normalized_euclidean_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (bltu_2 bltu_1 bltu_0 : Bool)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) (hshift_nz : (clzResult b1).1 ≠ 0) (hb1nz : b1 ≠ 0)
+    (hc2 : bltu_2 = true → BitVec.ult (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 (fullDivN2NormV b0 b1 b2 b3).2.1 = true)
+    (hm2 : bltu_2 = false → ¬ BitVec.ult (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 (fullDivN2NormV b0 b1 b2 b3).2.1)
+    (hc1 : bltu_1 = true → BitVec.ult (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 (fullDivN2NormV b0 b1 b2 b3).2.1 = true)
+    (hm1 : bltu_1 = false → ¬ BitVec.ult (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 (fullDivN2NormV b0 b1 b2 b3).2.1)
+    (hc0 : bltu_0 = true → BitVec.ult (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 (fullDivN2NormV b0 b1 b2 b3).2.1 = true)
+    (hm0 : bltu_0 = false → ¬ BitVec.ult (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 (fullDivN2NormV b0 b1 b2 b3).2.1) :
+    (val256 a0 a1 a2 a3 * 2^(fullDivN2Shift b1).toNat =
+        ((fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1.toNat * 2^128
+          + (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1.toNat * 2^64
+          + (fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1.toNat)
+          * (val256 b0 b1 b2 b3 * 2^(fullDivN2Shift b1).toNat)
+          + ((fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat
+            + 2^64*(fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1.toNat)) ∧
+    ((fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat
+        + 2^64*(fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1.toNat
+      < val256 b0 b1 b2 b3 * 2^(fullDivN2Shift b1).toNat) := by
+  have h0 : (0:Word).toNat = 0 := rfl
+  have hfwv := fullDivN2_first_window_valid a0 a1 a2 a3 b0 b1 b2 b3 hb2z hb3z hshift_nz hb1nz
+  have hR2 := fullDivN2R2V5_step_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 hb2z hb3z hshift_nz hb1nz hfwv hc2 hm2
+  have hR2c := fullDivN2R2V5_collapse_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 hb2z hb3z hshift_nz hb1nz hfwv hc2 hm2
+  have hR1valid := n2_next_window_lt (fullDivN2NormU a0 a1 a2 a3 b1).2.1 (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1 (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 _ hR2.2
+  have hR1 := fullDivN2R1V5_step_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 bltu_1 hb2z hb3z hshift_nz hb1nz hR2c.1 hR2c.2 hR1valid hc1 hm1
+  have hR1c := fullDivN2R1V5_collapse_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 bltu_1 hb2z hb3z hshift_nz hb1nz hR2c.1 hR2c.2 hR1valid hc1 hm1
+  have hR0valid := n2_next_window_lt (fullDivN2NormU a0 a1 a2 a3 b1).1 (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1 (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 _ hR1.2
+  have hR0 := fullDivN2R0V5_step_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 bltu_1 bltu_0 hb2z hb3z hshift_nz hb1nz hR1c.1 hR1c.2 hR0valid hc0 hm0
+  have hscaleU := fullDivN2NormU_val256_eq_scaled a0 a1 a2 a3 b1 hshift_nz
+  have hscaleV := fullDivN2NormV_val256_eq_scaled_of_shape b0 b1 b2 b3 hb2z hb3z hshift_nz
+  have hv2 := fullDivN2NormV_v2_zero_of_shape_shift_nz b0 b1 b2 b3 hb2z hshift_nz
+  have hv3 := fullDivN2NormV_top_zero_of_shape b0 b1 b2 b3 hb3z hb2z
+  rw [hv2, hv3] at hscaleV
+  have hw2 : val256 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.1 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 0
+      = (fullDivN2NormU a0 a1 a2 a3 b1).2.2.1.toNat + 2^64*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1.toNat + 2^128*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2.toNat := by
+    simp only [EvmWord.val256, h0]; ring
+  have hw1 : val256 (fullDivN2NormU a0 a1 a2 a3 b1).2.1 (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1 (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 0
+      = (fullDivN2NormU a0 a1 a2 a3 b1).2.1.toNat + 2^64*((fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat + 2^64*(fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1.toNat) := by
+    simp only [EvmWord.val256, h0]; ring
+  have hw0 : val256 (fullDivN2NormU a0 a1 a2 a3 b1).1 (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1 (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 0
+      = (fullDivN2NormU a0 a1 a2 a3 b1).1.toNat + 2^64*((fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat + 2^64*(fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1.toNat) := by
+    simp only [EvmWord.val256, h0]; ring
+  rw [hw2] at hR2; rw [hw1] at hR1; rw [hw0] at hR0
+  have hfirst : val256 a0 a1 a2 a3 * 2^(fullDivN2Shift b1).toNat =
+      (fullDivN2NormU a0 a1 a2 a3 b1).1.toNat + 2^64 * (fullDivN2NormU a0 a1 a2 a3 b1).2.1.toNat
+        + 2^128 * ((fullDivN2NormU a0 a1 a2 a3 b1).2.2.1.toNat + 2^64*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1.toNat + 2^128*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2.toNat) := by
+    rw [← hscaleU]; simp only [EvmWord.val256]; ring
+  have htele := fullDivN2V5_three_step_nat hfirst hR2.1 hR1.1 hR0.1
+  rw [hscaleV] at htele
+  refine ⟨htele, ?_⟩
+  rw [← hscaleV]; exact hR0.2
 
 end EvmAsm.Evm64
