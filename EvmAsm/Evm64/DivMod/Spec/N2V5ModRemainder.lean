@@ -138,4 +138,28 @@ theorem fullModN2RemainderWordV5_eq_mod_of_shape
   unfold fullModN2RemainderWordV5
   exact mod_correct_normalized hbnz (fullDivN2Shift b1).toNat hmulsub heucl.2 hr_denorm
 
+/-- **MOD getLimbN bridge.** Decompose the remainder-word equality into the four
+    per-limb `(mod a b).getLimbN k = denorm-limb_k` facts the n=2 MOD lane wrapper
+    feeds to `modStackDispatchPost`.  Pure `fromLimbs` projection — MOD analog of
+    `fullDivN2V5_hdivs_of_word_eq`. -/
+theorem fullModN2V5_hmods_of_word_eq
+    (a b : EvmWord) (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (bltu_2 bltu_1 bltu_0 : Bool)
+    (hmod : fullModN2RemainderWordV5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 = EvmWord.mod a b) :
+    (EvmWord.mod a b).getLimbN 0 =
+        (((fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.1 >>> ((fullDivN2Shift b1).toNat % 64)) |||
+          ((fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 <<< ((signExtend12 (0 : BitVec 12) - fullDivN2Shift b1).toNat % 64))) ∧
+    (EvmWord.mod a b).getLimbN 1 =
+        (((fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 >>> ((fullDivN2Shift b1).toNat % 64)) |||
+          ((fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 <<< ((signExtend12 (0 : BitVec 12) - fullDivN2Shift b1).toNat % 64))) ∧
+    (EvmWord.mod a b).getLimbN 2 =
+        (((fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 >>> ((fullDivN2Shift b1).toNat % 64)) |||
+          ((fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <<< ((signExtend12 (0 : BitVec 12) - fullDivN2Shift b1).toNat % 64))) ∧
+    (EvmWord.mod a b).getLimbN 3 =
+        ((fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 >>> ((fullDivN2Shift b1).toNat % 64)) := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [← hmod]; delta fullModN2RemainderWordV5; exact EvmWord.getLimbN_fromLimbs_0
+  · rw [← hmod]; delta fullModN2RemainderWordV5; exact EvmWord.getLimbN_fromLimbs_1
+  · rw [← hmod]; delta fullModN2RemainderWordV5; exact EvmWord.getLimbN_fromLimbs_2
+  · rw [← hmod]; delta fullModN2RemainderWordV5; exact EvmWord.getLimbN_fromLimbs_3
+
 end EvmAsm.Evm64
