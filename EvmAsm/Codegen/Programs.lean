@@ -108,6 +108,7 @@ import EvmAsm.Codegen.Programs.StateExtractCodeHash
 import EvmAsm.Codegen.Programs.StateExtractNonce
 import EvmAsm.Codegen.Programs.WitnessHeadersStateRootAtIndex
 import EvmAsm.Codegen.Programs.WitnessHeadersAllChainLinksValidate
+import EvmAsm.Codegen.Programs.WitnessStorageNodeKindDistribution
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
@@ -448,6 +449,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_state_extract_nonce_for_address" => some ziskStateExtractNonceForAddressProbeUnit
   | "zisk_witness_headers_state_root_at_index" => some ziskWitnessHeadersStateRootAtIndexProbeUnit
   | "zisk_witness_headers_all_chain_links_validate" => some ziskWitnessHeadersAllChainLinksValidateProbeUnit
+  | "zisk_witness_storage_node_kind_distribution" => some ziskWitnessStorageNodeKindDistributionProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
@@ -635,6 +637,7 @@ def knownProgramNames : List String :=
    "zisk_state_extract_nonce_for_address",
    "zisk_witness_headers_state_root_at_index",
    "zisk_witness_headers_all_chain_links_validate",
+   "zisk_witness_storage_node_kind_distribution",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
