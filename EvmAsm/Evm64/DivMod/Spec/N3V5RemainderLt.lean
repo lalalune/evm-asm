@@ -20,6 +20,7 @@
 
 import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindowN3
 import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+import EvmAsm.Evm64.EvmWordArith.DivN4RemainderLt
 import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
 
 namespace EvmAsm.Evm64
@@ -62,6 +63,70 @@ theorem n3_trial_call_val256_conservation
     (fun hb _ => q_pos_of_mulsub_borrow q v0 v1 v2 0 u0 u1 u2 u3 (hc3 hb))
     (fun hb hcz => q_ge_two_of_mulsub_borrow_and_addback_carry_zero
       q v0 v1 v2 0 u0 u1 u2 u3 (hc3 hb) hcz)
+
+/-- The n=3 divisor value `(v0,v1,v2,0)` is a 3-limb number, hence `< 2^192`. -/
+theorem n3_val256_v_lt_pow192 (v0 v1 v2 : Word) : val256 v0 v1 v2 0 < 2 ^ 192 := by
+  have h0 : (0 : Word).toNat = 0 := rfl
+  have := v0.isLt; have := v1.isLt; have := v2.isLt
+  simp only [EvmWord.val256, h0]; omega
+
+/-- **v5 n=3 per-digit remainder bound (call path, `uTop = 0`).**  The
+    double-addback remainder is below the 3-limb divisor. -/
+theorem n3_trial_call_remainder_lt
+    (v0 v1 v2 u0 u1 u2 u3 : Word)
+    (hv2 : v2.toNat ≥ 2^63)
+    (hcall : u3.toNat < v2.toNat) :
+    val256
+        (iterWithDoubleAddback (divKTrialCallV5QHat u3 u2 v2) v0 v1 v2 0 u0 u1 u2 u3 0).2.1
+        (iterWithDoubleAddback (divKTrialCallV5QHat u3 u2 v2) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.1
+        (iterWithDoubleAddback (divKTrialCallV5QHat u3 u2 v2) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.2.1
+        (iterWithDoubleAddback (divKTrialCallV5QHat u3 u2 v2) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.2.2.1 +
+      (iterWithDoubleAddback (divKTrialCallV5QHat u3 u2 v2) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.2.2.2.toNat
+        * 2 ^ 256 <
+    val256 v0 v1 v2 0 := by
+  have hbnz : v0 ||| v1 ||| v2 ||| 0 ≠ 0 := by
+    intro h
+    have hv2z : v2 = 0 := (BitVec.or_eq_zero_iff.mp (BitVec.or_eq_zero_iff.mp h).1).2
+    rw [hv2z] at hv2; simp at hv2
+  have hv_pos : 0 < val256 v0 v1 v2 0 := by
+    have h0 : (0 : Word).toNat = 0 := rfl
+    simp only [EvmWord.val256, h0]; omega
+  have hq_over := n3_window_div_le_val256_div_plus_two_v5 v0 v1 v2 u0 u1 u2 u3 hv2 hcall
+  have hge := n3_window_val256_div_le_trial_v5 v0 v1 v2 u0 u1 u2 u3 hv2 hcall
+  have hq_ge : val256 u0 u1 u2 u3 + (0 : Word).toNat * 2 ^ 256 <
+      ((divKTrialCallV5QHat u3 u2 v2).toNat + 1) * val256 v0 v1 v2 0 := by
+    have h0 : (0 : Word).toNat = 0 := rfl
+    rw [h0, Nat.zero_mul, Nat.add_zero]
+    exact (Nat.div_lt_iff_lt_mul hv_pos).mp (by omega)
+  have hc3 : BitVec.ult (0 : Word)
+        (mulsubN4 (divKTrialCallV5QHat u3 u2 v2) v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 →
+      (mulsubN4 (divKTrialCallV5QHat u3 u2 v2) v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 = 1 := by
+    intro hb
+    apply mulsubN4_c3_eq_one_v3_zero
+    intro hc3z
+    rw [hc3z] at hb
+    exact absurd hb (by decide)
+  exact iterWithDoubleAddback_remainder_lt_of_plus_two
+    (divKTrialCallV5QHat u3 u2 v2) v0 v1 v2 0 u0 u1 u2 u3 0 hbnz hc3 hq_over hq_ge
+
+/-- **v5 n=3 per-digit remainder collapse (call path).**  The remainder fits in
+    three limbs: the top limb (`rem3`) and the overflow carry are zero. -/
+theorem n3_trial_call_collapse
+    (v0 v1 v2 u0 u1 u2 u3 : Word)
+    (hv2 : v2.toNat ≥ 2^63)
+    (hcall : u3.toNat < v2.toNat) :
+    (iterWithDoubleAddback (divKTrialCallV5QHat u3 u2 v2) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.2.2.1 = 0 ∧
+    (iterWithDoubleAddback (divKTrialCallV5QHat u3 u2 v2) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.2.2.2 = 0 := by
+  have hlt := n3_trial_call_remainder_lt v0 v1 v2 u0 u1 u2 u3 hv2 hcall
+  have hv192 := n3_val256_v_lt_pow192 v0 v1 v2
+  set out := iterWithDoubleAddback (divKTrialCallV5QHat u3 u2 v2) v0 v1 v2 0 u0 u1 u2 u3 0 with hout
+  have key : val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+      out.2.2.2.2.2.toNat * 2 ^ 256 < 2 ^ 192 := by omega
+  refine ⟨?_, ?_⟩
+  · have h : out.2.2.2.2.1.toNat = 0 := by simp only [EvmWord.val256] at key; omega
+    exact BitVec.eq_of_toNat_eq (by rw [h]; rfl)
+  · have h : out.2.2.2.2.2.toNat = 0 := by simp only [EvmWord.val256] at key; omega
+    exact BitVec.eq_of_toNat_eq (by rw [h]; rfl)
 
 /-- **v5 n=3 per-digit val256 conservation (max path).**  When the trial would
     overflow (`¬ u3 < v2`), the digit uses the cap trial `signExtend12 4095`; the
