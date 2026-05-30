@@ -92,6 +92,9 @@ import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
+import EvmAsm.Codegen.Programs.WitnessCodesKeccakAtIndex
+import EvmAsm.Codegen.Programs.ChainWalkOneStepBack
+import EvmAsm.Codegen.Programs.ChainWalkNStepsBack
 import EvmAsm.Codegen.Programs.BlockNumberAtBlockHash
 import EvmAsm.Codegen.Programs.CodeHashAtBlockHash
 import EvmAsm.Codegen.Programs.WitnessHeadersFindIndexByBlockHash
@@ -99,6 +102,9 @@ import EvmAsm.Codegen.Programs.StorageRootAtBlockHash
 import EvmAsm.Codegen.Programs.StateAccountAtBlockHash
 import EvmAsm.Codegen.Programs.WitnessHeadersBlockHashAtIndex
 import EvmAsm.Codegen.Programs.StateSlotAtBlockHash
+import EvmAsm.Codegen.Programs.BalanceAtBlockHash
+import EvmAsm.Codegen.Programs.NonceAtBlockHash
+import EvmAsm.Codegen.Programs.CodeAtBlockHash
 import EvmAsm.Codegen.Programs.StateProof
 import EvmAsm.Codegen.Programs.StateStorageProof
 import EvmAsm.Codegen.Programs.StateCodeHashProof
@@ -119,6 +125,12 @@ import EvmAsm.Codegen.Programs.WitnessHeadersAccountAtIndex
 import EvmAsm.Codegen.Programs.WitnessHeadersChainLink
 import EvmAsm.Codegen.Programs.StateRootPresentInWitnessState
 import EvmAsm.Codegen.Programs.WitnessHeadersSlotAtIndex
+import EvmAsm.Codegen.Programs.StateStorageRootProof
+import EvmAsm.Codegen.Programs.WitnessNodeKindDistribution
+import EvmAsm.Codegen.Programs.StateNonceProof
+import EvmAsm.Codegen.Programs.StateBalanceProof
+import EvmAsm.Codegen.Programs.WitnessStateKeccakAtIndex
+import EvmAsm.Codegen.Programs.ChainLinkParentKeccak
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
@@ -447,9 +459,14 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_state_slot_inclusion_proof_verify" => some ziskStateSlotInclusionProofVerifyProbeUnit
   | "zisk_state_code_hash_inclusion_proof_verify" => some ziskStateCodeHashInclusionProofVerifyProbeUnit
   | "zisk_code_hash_at_block_hash_address" => some ziskCodeHashAtBlockHashAddressProbeUnit
+  | "zisk_nonce_at_block_hash_address" => some ziskNonceAtBlockHashAddressProbeUnit
+  | "zisk_code_at_block_hash_address" => some ziskCodeAtBlockHashAddressProbeUnit
+  | "zisk_chain_walk_one_step_back_from_block_hash" => some ziskChainWalkOneStepBackFromBlockHashProbeUnit
+  | "zisk_chain_walk_n_steps_back_from_block_hash" => some ziskChainWalkNStepsBackFromBlockHashProbeUnit
   | "zisk_block_number_at_block_hash" => some ziskBlockNumberAtBlockHashProbeUnit
   | "zisk_storage_root_present_in_witness_storage" => some ziskStorageRootPresentInWitnessStorageProbeUnit
   | "zisk_witness_storage_keccak_at_index" => some ziskWitnessStorageKeccakAtIndexProbeUnit
+  | "zisk_witness_codes_keccak_at_index" => some ziskWitnessCodesKeccakAtIndexProbeUnit
   | "zisk_state_account_with_spec_default" => some ziskStateAccountWithSpecDefaultProbeUnit
   | "zisk_state_extract_storage_root_for_address" => some ziskStateExtractStorageRootForAddressProbeUnit
   | "zisk_chain_link_verify_and_extract_parent_state_root" => some ziskChainLinkVerifyAndExtractParentStateRootProbeUnit
@@ -470,6 +487,13 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_state_account_at_block_hash_address" => some ziskStateAccountAtBlockHashAddressProbeUnit
   | "zisk_witness_headers_block_hash_at_index" => some ziskWitnessHeadersBlockHashAtIndexProbeUnit
   | "zisk_state_slot_at_block_hash_address" => some ziskStateSlotAtBlockHashAddressProbeUnit
+  | "zisk_state_storage_root_inclusion_proof_verify" => some ziskStateStorageRootInclusionProofVerifyProbeUnit
+  | "zisk_witness_state_node_kind_distribution" => some ziskWitnessStateNodeKindDistributionProbeUnit
+  | "zisk_state_nonce_inclusion_proof_verify" => some ziskStateNonceInclusionProofVerifyProbeUnit
+  | "zisk_state_balance_inclusion_proof_verify" => some ziskStateBalanceInclusionProofVerifyProbeUnit
+  | "zisk_witness_state_keccak_at_index" => some ziskWitnessStateKeccakAtIndexProbeUnit
+  | "zisk_parent_keccak_matches_child_parent_hash" => some ziskParentKeccakMatchesChildParentHashProbeUnit
+  | "zisk_balance_at_block_hash_address" => some ziskBalanceAtBlockHashAddressProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
@@ -645,9 +669,14 @@ def knownProgramNames : List String :=
    "zisk_state_slot_inclusion_proof_verify",
    "zisk_state_code_hash_inclusion_proof_verify",
    "zisk_code_hash_at_block_hash_address",
+   "zisk_nonce_at_block_hash_address",
+   "zisk_code_at_block_hash_address",
+   "zisk_chain_walk_one_step_back_from_block_hash",
+   "zisk_chain_walk_n_steps_back_from_block_hash",
    "zisk_block_number_at_block_hash",
    "zisk_storage_root_present_in_witness_storage",
    "zisk_witness_storage_keccak_at_index",
+   "zisk_witness_codes_keccak_at_index",
    "zisk_state_account_with_spec_default",
    "zisk_state_extract_storage_root_for_address",
    "zisk_chain_link_verify_and_extract_parent_state_root",
@@ -668,6 +697,13 @@ def knownProgramNames : List String :=
    "zisk_state_account_at_block_hash_address",
    "zisk_witness_headers_block_hash_at_index",
    "zisk_state_slot_at_block_hash_address",
+   "zisk_state_storage_root_inclusion_proof_verify",
+   "zisk_witness_state_node_kind_distribution",
+   "zisk_state_nonce_inclusion_proof_verify",
+   "zisk_state_balance_inclusion_proof_verify",
+   "zisk_witness_state_keccak_at_index",
+   "zisk_parent_keccak_matches_child_parent_hash",
+   "zisk_balance_at_block_hash_address",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
