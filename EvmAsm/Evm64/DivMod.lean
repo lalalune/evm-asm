@@ -185,6 +185,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIter
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallIter
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSource
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCC
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCombo2
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePostSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4
