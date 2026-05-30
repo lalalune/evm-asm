@@ -20,6 +20,7 @@
 
 import EvmAsm.Evm64.DivMod.Spec.N2V5RemainderLt
 import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
+import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
 
 namespace EvmAsm.Evm64
 
@@ -75,5 +76,47 @@ theorem fullDivN2NormV_val256_eq_scaled_of_shape
     Nat.mod_eq_of_lt (by have := clzResult_fst_toNat_le b1; omega)
   rw [hsmod, antiShift_toNat_mod_eq h_shift_pos (clzResult_fst_toNat_le b1)]
   exact EvmWord.val256_normalize h_shift_pos (by omega) b0 b1 0 0 (by simp)
+
+/-- **First-digit (R2) step over the normalized window.** Rewrites
+    `fullDivN2R2V5` to expose `iterN2V5` over the 2-limb `normV` (using the
+    shift≠0 shape lemmas) and applies the unified per-digit step
+    `iterN2V5_step`.  Gives the clean 2-limb Euclidean step
+    `val256(nu2,nu3,nu4,0) = q2·val256 normV + R2r` with `R2r < val256 normV`,
+    from window-validity + the `bltu_2` path match.  First link of the
+    cross-digit telescope for `fullDivN2QuotientWordV5_eq_div_of_shape`. -/
+theorem fullDivN2R2V5_step_of_shape (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (bltu_2 : Bool)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) (hshift_nz : (clzResult b1).1 ≠ 0) (hb1nz : b1 ≠ 0)
+    (hvalid : val256 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.1
+        (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 0
+        < 2^64 * val256 (fullDivN2NormV b0 b1 b2 b3).1 (fullDivN2NormV b0 b1 b2 b3).2.1 0 0)
+    (hcall : bltu_2 = true →
+      BitVec.ult (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 (fullDivN2NormV b0 b1 b2 b3).2.1 = true)
+    (hmax : bltu_2 = false →
+      ¬ BitVec.ult (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 (fullDivN2NormV b0 b1 b2 b3).2.1) :
+    val256 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.1
+        (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 0 =
+      (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1.toNat *
+        val256 (fullDivN2NormV b0 b1 b2 b3).1 (fullDivN2NormV b0 b1 b2 b3).2.1 0 0 +
+        ((fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat +
+          2^64 * (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1.toNat) ∧
+      (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1.toNat +
+          2^64 * (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1.toNat <
+        val256 (fullDivN2NormV b0 b1 b2 b3).1 (fullDivN2NormV b0 b1 b2 b3).2.1 0 0 := by
+  have hv2 := fullDivN2NormV_v2_zero_of_shape_shift_nz b0 b1 b2 b3 hb2z hshift_nz
+  have hv3 := fullDivN2NormV_top_zero_of_shape b0 b1 b2 b3 hb3z hb2z
+  have hmsb := fullDivN2NormV_msb_of_b1_ne_zero b0 b1 b2 b3 hb1nz
+  have hbnz : (fullDivN2NormV b0 b1 b2 b3).1 ||| (fullDivN2NormV b0 b1 b2 b3).2.1 ||| 0 ||| 0 ≠ 0 := by
+    intro h
+    have h2 := (BitVec.or_eq_zero_iff.mp h).1
+    have h3 := (BitVec.or_eq_zero_iff.mp h2).1
+    have hz : (fullDivN2NormV b0 b1 b2 b3).2.1 = 0 := (BitVec.or_eq_zero_iff.mp h3).2
+    rw [hz] at hmsb; simp at hmsb
+  have hrw : fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3 =
+      iterN2V5 bltu_2 (fullDivN2NormV b0 b1 b2 b3).1 (fullDivN2NormV b0 b1 b2 b3).2.1 0 0
+        (fullDivN2NormU a0 a1 a2 a3 b1).2.2.1 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1
+        (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 0 0 := by
+    unfold fullDivN2R2V5; dsimp only; rw [hv2, hv3]
+  rw [hrw]
+  exact iterN2V5_step bltu_2 _ _ _ _ _ hbnz hmsb hvalid hcall hmax
 
 end EvmAsm.Evm64
