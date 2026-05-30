@@ -170,6 +170,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5HvSmall
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryOfCallShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5MaxCarryOfMaxShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5IterSelectedEq
+import EvmAsm.Evm64.DivMod.Spec.N2V5NormVShapeFacts
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallIterBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceBorrowCarry
