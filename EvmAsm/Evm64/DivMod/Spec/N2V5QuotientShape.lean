@@ -18,6 +18,7 @@
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
+import EvmAsm.Evm64.DivMod.Spec.N2V5TrialBranch
 
 namespace EvmAsm.Evm64
 
@@ -103,5 +104,43 @@ theorem div_getLimbN_eq_digit_n2_v5_of_shape
   fullDivN2V5_hdivs_of_word_eq _ _ a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 bltu_1 bltu_0
     (fullDivN2QuotientWordV5_eq_div_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 bltu_1 bltu_0
       hb2z hb3z hshift_nz hb1nz hc2 hm2 hc1 hm1 hc0 hm0)
+
+/-- **Lane bridge from the path predicate's trial branches.** The four
+    `(div a b).getLimbN` digit equalities from shape (shift≠0) + the three v5 n=2
+    trial-branch predicates `isTrialN2V5_j{2,1,0}` (which the loop establishes).
+    Derives the `bltu` path matches from the trial branches and applies
+    `div_getLimbN_eq_digit_n2_v5_of_shape`.  This is the corrected (shift-aware)
+    counterpart of `div_getLimbN_eq_digit_n2_v5_of_path`, free of the mis-stated
+    `fullDivN2MulSubEqV5`. -/
+theorem div_getLimbN_eq_digit_n2_v5_of_trials
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (bltu_2 bltu_1 bltu_0 : Bool)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) (hshift_nz : (clzResult b1).1 ≠ 0) (hb1nz : b1 ≠ 0)
+    (ht2 : isTrialN2V5_j2 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3)
+    (ht1 : isTrialN2V5_j1 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3)
+    (ht0 : isTrialN2V5_j0 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) :
+    (EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)).getLimbN 0
+      = (fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)).getLimbN 1
+      = (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)).getLimbN 2
+      = (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1 ∧
+    (EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)).getLimbN 3
+      = (0 : Word) := by
+  unfold isTrialN2V5_j2 at ht2
+  unfold isTrialN2V5_j1 at ht1
+  unfold isTrialN2V5_j0 at ht0
+  exact div_getLimbN_eq_digit_n2_v5_of_shape a0 a1 a2 a3 b0 b1 b2 b3 bltu_2 bltu_1 bltu_0
+    hb2z hb3z hshift_nz hb1nz
+    (fun h => ht2.symm.trans h) (fun h hu => by rw [h] at ht2; rw [hu] at ht2; exact absurd ht2 (by decide))
+    (fun h => ht1.symm.trans h) (fun h hu => by rw [h] at ht1; rw [hu] at ht1; exact absurd ht1 (by decide))
+    (fun h => ht0.symm.trans h) (fun h hu => by rw [h] at ht0; rw [hu] at ht0; exact absurd ht0 (by decide))
 
 end EvmAsm.Evm64
