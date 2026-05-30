@@ -177,6 +177,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxSourceBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCMBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMCBorrowCarry
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMMBorrowCarry
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientCorrect
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLane
 import EvmAsm.Evm64.DivMod.Spec.N2V5Conditions
