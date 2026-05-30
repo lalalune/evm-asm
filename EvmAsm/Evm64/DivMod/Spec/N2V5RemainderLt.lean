@@ -141,4 +141,34 @@ theorem iterN2V5_true_conservation_from_shape
   have h0 : (0 : Word).toNat = 0 := rfl
   simpa [h0] using hconv
 
+/-- **Combined clean 2-limb Euclidean step for the v5 n=2 call path.** From
+    shape, `val256 window = q·val256 v + R` with `R = rem0 + 2^64·rem1 <
+    val256 v` the collapsed 2-limb remainder.  Merges
+    `iterN2V5_true_conservation_from_shape` with `iterN2V5_true_remainder_collapse`
+    + `iterN2V5_true_remainder_lt` — exactly the per-digit step form fed to
+    `fullDivN2V5_three_step_nat` (#7344) to assemble `fullDivN2MulSubEqV5`. -/
+theorem iterN2V5_true_step
+    (v0 v1 u0 u1 u2 : Word)
+    (hbnz : v0 ||| v1 ||| 0 ||| 0 ≠ 0)
+    (hv1 : v1.toNat ≥ 2^63)
+    (hcall : u2.toNat < v1.toNat) :
+    val256 u0 u1 u2 0 =
+      (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).1.toNat * val256 v0 v1 0 0 +
+        ((iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.1.toNat +
+          2^64 * (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.2.1.toNat) ∧
+      (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.1.toNat +
+          2^64 * (iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0).2.2.1.toNat <
+        val256 v0 v1 0 0 := by
+  obtain ⟨hc2, hc3, hco⟩ := iterN2V5_true_remainder_collapse v0 v1 u0 u1 u2 hbnz hv1 hcall
+  have hconv := iterN2V5_true_conservation_from_shape v0 v1 u0 u1 u2 hbnz hv1 hcall
+  have hlt := iterN2V5_true_remainder_lt v0 v1 u0 u1 u2 hbnz hv1 hcall
+  set out := iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0 with hout
+  have h0 : (0 : Word).toNat = 0 := rfl
+  have hcollapse : val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 =
+      out.2.1.toNat + 2^64 * out.2.2.1.toNat := by
+    rw [hc2, hc3]; simp only [EvmWord.val256, h0]; ring
+  constructor
+  · rw [hconv, hcollapse, hco, h0]; ring
+  · rw [hcollapse] at hlt; rw [hco, h0] at hlt; simpa using hlt
+
 end EvmAsm.Evm64
