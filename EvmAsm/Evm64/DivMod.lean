@@ -206,6 +206,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShiftNz
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Lane
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PostBridge
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0DivLimb
+import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PreLift
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientCorrect
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLane
 import EvmAsm.Evm64.DivMod.Spec.N2V5Conditions
