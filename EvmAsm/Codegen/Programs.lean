@@ -93,6 +93,7 @@ import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.CodeHashAtBlockHash
+import EvmAsm.Codegen.Programs.WitnessHeadersFindIndexByBlockHash
 import EvmAsm.Codegen.Programs.StateProof
 import EvmAsm.Codegen.Programs.StateStorageProof
 import EvmAsm.Codegen.Programs.StateCodeHashProof
@@ -458,6 +459,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_witness_headers_chain_link_at_index" => some ziskWitnessHeadersChainLinkAtIndexProbeUnit
   | "zisk_state_root_present_in_witness_state" => some ziskStateRootPresentInWitnessStateProbeUnit
   | "zisk_witness_headers_slot_at_index_address" => some ziskWitnessHeadersSlotAtIndexAddressProbeUnit
+  | "zisk_witness_headers_find_index_by_block_hash" => some ziskWitnessHeadersFindIndexByBlockHashProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
@@ -650,6 +652,7 @@ def knownProgramNames : List String :=
    "zisk_witness_headers_chain_link_at_index",
    "zisk_state_root_present_in_witness_state",
    "zisk_witness_headers_slot_at_index_address",
+   "zisk_witness_headers_find_index_by_block_hash",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
