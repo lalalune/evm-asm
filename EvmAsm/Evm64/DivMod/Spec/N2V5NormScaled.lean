@@ -195,4 +195,94 @@ theorem fullDivN2R0V5_step_of_shape (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (bltu_2 blt
   exact iterN2V5_step bltu_0 _ _ _ _ _ hbnz hmsb hvalid hcall hmax
 
 
+
+/-- Unified per-digit remainder collapse (both branches). -/
+theorem iterN2V5_collapse (bltu : Bool) (v0 v1 u0 u1 u2 : Word)
+    (hbnz : v0 ||| v1 ||| 0 ||| 0 ≠ 0)
+    (hv1 : v1.toNat ≥ 2^63)
+    (hvalid : val256 u0 u1 u2 0 < 2^64 * val256 v0 v1 0 0)
+    (hcall : bltu = true → BitVec.ult u2 v1 = true)
+    (hmax : bltu = false → ¬ BitVec.ult u2 v1) :
+    (iterN2V5 bltu v0 v1 0 0 u0 u1 u2 0 0).2.2.2.1 = 0 ∧
+    (iterN2V5 bltu v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.1 = 0 ∧
+    (iterN2V5 bltu v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.2 = 0 := by
+  cases bltu with
+  | true =>
+    have hu : u2.toNat < v1.toNat := by
+      have := hcall rfl; rw [BitVec.ult] at this; exact of_decide_eq_true this
+    exact iterN2V5_true_remainder_collapse v0 v1 u0 u1 u2 hbnz hv1 hu
+  | false =>
+    exact iterN2V5_false_remainder_collapse v0 v1 u0 u1 u2 hbnz hv1 (hmax rfl) hvalid
+
+/-- fullDivN2R2V5_collapse_of_shape (collapse over the normalized window). -/
+theorem fullDivN2R2V5_collapse_of_shape (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (bltu_2 : Bool)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) (hshift_nz : (clzResult b1).1 ≠ 0) (hb1nz : b1 ≠ 0)
+    (hvalid : val256 ((fullDivN2NormU a0 a1 a2 a3 b1).2.2.1) ((fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1) ((fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2) 0
+        < 2^64 * val256 (fullDivN2NormV b0 b1 b2 b3).1 (fullDivN2NormV b0 b1 b2 b3).2.1 0 0)
+    (hcall : bltu_2 = true → BitVec.ult ((fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2) (fullDivN2NormV b0 b1 b2 b3).2.1 = true)
+    (hmax : bltu_2 = false → ¬ BitVec.ult ((fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2) (fullDivN2NormV b0 b1 b2 b3).2.1) :
+    (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 = 0 ∧ (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 = 0 := by
+  have hv2 := fullDivN2NormV_v2_zero_of_shape_shift_nz b0 b1 b2 b3 hb2z hshift_nz
+  have hv3 := fullDivN2NormV_top_zero_of_shape b0 b1 b2 b3 hb3z hb2z
+  have hmsb := fullDivN2NormV_msb_of_b1_ne_zero b0 b1 b2 b3 hb1nz
+  have hbnz : (fullDivN2NormV b0 b1 b2 b3).1 ||| (fullDivN2NormV b0 b1 b2 b3).2.1 ||| 0 ||| 0 ≠ 0 := by
+    intro h
+    have h2 := (BitVec.or_eq_zero_iff.mp h).1
+    have h3 := (BitVec.or_eq_zero_iff.mp h2).1
+    have hz : (fullDivN2NormV b0 b1 b2 b3).2.1 = 0 := (BitVec.or_eq_zero_iff.mp h3).2
+    rw [hz] at hmsb; simp at hmsb
+  have hrw : (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3) =
+      iterN2V5 bltu_2 (fullDivN2NormV b0 b1 b2 b3).1 (fullDivN2NormV b0 b1 b2 b3).2.1 0 0 ((fullDivN2NormU a0 a1 a2 a3 b1).2.2.1) ((fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1) ((fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2) 0 0 := by
+    unfold fullDivN2R2V5; dsimp only; rw [hv2, hv3]
+  rw [hrw]
+  exact iterN2V5_collapse bltu_2 _ _ _ _ _ hbnz hmsb hvalid hcall hmax |>.imp id (·.1)
+
+/-- fullDivN2R1V5_collapse_of_shape (collapse over the normalized window). -/
+theorem fullDivN2R1V5_collapse_of_shape (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (bltu_2 bltu_1 : Bool)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) (hshift_nz : (clzResult b1).1 ≠ 0) (hb1nz : b1 ≠ 0)
+    (hpc2 : (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 = 0) (hpc3 : (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 = 0)
+    (hvalid : val256 ((fullDivN2NormU a0 a1 a2 a3 b1).2.1) ((fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1) ((fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1) 0
+        < 2^64 * val256 (fullDivN2NormV b0 b1 b2 b3).1 (fullDivN2NormV b0 b1 b2 b3).2.1 0 0)
+    (hcall : bltu_1 = true → BitVec.ult ((fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1) (fullDivN2NormV b0 b1 b2 b3).2.1 = true)
+    (hmax : bltu_1 = false → ¬ BitVec.ult ((fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1) (fullDivN2NormV b0 b1 b2 b3).2.1) :
+    (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 = 0 ∧ (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 = 0 := by
+  have hv2 := fullDivN2NormV_v2_zero_of_shape_shift_nz b0 b1 b2 b3 hb2z hshift_nz
+  have hv3 := fullDivN2NormV_top_zero_of_shape b0 b1 b2 b3 hb3z hb2z
+  have hmsb := fullDivN2NormV_msb_of_b1_ne_zero b0 b1 b2 b3 hb1nz
+  have hbnz : (fullDivN2NormV b0 b1 b2 b3).1 ||| (fullDivN2NormV b0 b1 b2 b3).2.1 ||| 0 ||| 0 ≠ 0 := by
+    intro h
+    have h2 := (BitVec.or_eq_zero_iff.mp h).1
+    have h3 := (BitVec.or_eq_zero_iff.mp h2).1
+    have hz : (fullDivN2NormV b0 b1 b2 b3).2.1 = 0 := (BitVec.or_eq_zero_iff.mp h3).2
+    rw [hz] at hmsb; simp at hmsb
+  have hrw : (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3) =
+      iterN2V5 bltu_1 (fullDivN2NormV b0 b1 b2 b3).1 (fullDivN2NormV b0 b1 b2 b3).2.1 0 0 ((fullDivN2NormU a0 a1 a2 a3 b1).2.1) ((fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.1) ((fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1) 0 0 := by
+    unfold fullDivN2R1V5; dsimp only; rw [hv2, hv3, hpc2, hpc3]
+  rw [hrw]
+  exact iterN2V5_collapse bltu_1 _ _ _ _ _ hbnz hmsb hvalid hcall hmax |>.imp id (·.1)
+
+/-- fullDivN2R0V5_collapse_of_shape (collapse over the normalized window). -/
+theorem fullDivN2R0V5_collapse_of_shape (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (bltu_2 bltu_1 bltu_0 : Bool)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) (hshift_nz : (clzResult b1).1 ≠ 0) (hb1nz : b1 ≠ 0)
+    (hpc2 : (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 = 0) (hpc3 : (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 = 0)
+    (hvalid : val256 ((fullDivN2NormU a0 a1 a2 a3 b1).1) ((fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1) ((fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1) 0
+        < 2^64 * val256 (fullDivN2NormV b0 b1 b2 b3).1 (fullDivN2NormV b0 b1 b2 b3).2.1 0 0)
+    (hcall : bltu_0 = true → BitVec.ult ((fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1) (fullDivN2NormV b0 b1 b2 b3).2.1 = true)
+    (hmax : bltu_0 = false → ¬ BitVec.ult ((fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1) (fullDivN2NormV b0 b1 b2 b3).2.1) :
+    (fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 = 0 ∧ (fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 = 0 := by
+  have hv2 := fullDivN2NormV_v2_zero_of_shape_shift_nz b0 b1 b2 b3 hb2z hshift_nz
+  have hv3 := fullDivN2NormV_top_zero_of_shape b0 b1 b2 b3 hb3z hb2z
+  have hmsb := fullDivN2NormV_msb_of_b1_ne_zero b0 b1 b2 b3 hb1nz
+  have hbnz : (fullDivN2NormV b0 b1 b2 b3).1 ||| (fullDivN2NormV b0 b1 b2 b3).2.1 ||| 0 ||| 0 ≠ 0 := by
+    intro h
+    have h2 := (BitVec.or_eq_zero_iff.mp h).1
+    have h3 := (BitVec.or_eq_zero_iff.mp h2).1
+    have hz : (fullDivN2NormV b0 b1 b2 b3).2.1 = 0 := (BitVec.or_eq_zero_iff.mp h3).2
+    rw [hz] at hmsb; simp at hmsb
+  have hrw : (fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3) =
+      iterN2V5 bltu_0 (fullDivN2NormV b0 b1 b2 b3).1 (fullDivN2NormV b0 b1 b2 b3).2.1 0 0 ((fullDivN2NormU a0 a1 a2 a3 b1).1) ((fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.1) ((fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).2.2.1) 0 0 := by
+    unfold fullDivN2R0V5; dsimp only; rw [hv2, hv3, hpc2, hpc3]
+  rw [hrw]
+  exact iterN2V5_collapse bltu_0 _ _ _ _ _ hbnz hmsb hvalid hcall hmax |>.imp id (·.1)
+
 end EvmAsm.Evm64
