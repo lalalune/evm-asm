@@ -64,4 +64,133 @@ theorem loopN3UnifiedPostV5NoX1_to_fullDivN3DenormPreV5_frame_FF
     [ite_false, n3_ub1_off4064, n3_qa1, se12_32, se12_40, se12_48, se12_56] at hp ⊢
   xperm_hyp hp
 
+/-- FT (max × call) bridge: `loopN3UnifiedPostV5NoX1 false true → fullDivN3DenormPreV5`. -/
+theorem loopN3UnifiedPostV5NoX1_to_fullDivN3DenormPreV5_frame_FT
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0
+      scratchMem raVal : Word)
+    (h : PartialState)
+    (hp :
+      ((loopN3UnifiedPostV5NoX1 false true sp base
+        (fullDivN3NormV b0 b1 b2 b3).1
+        (fullDivN3NormV b0 b1 b2 b3).2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.2
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+        (0 : Word)
+        (fullDivN3NormU a0 a1 a2 a3 b2).1
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal)) **
+       (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 3992) ↦ₘ (clzResult b2).1))) h) :
+    (fullDivN3DenormPreV5 false true sp a0 a1 a2 a3 b0 b1 b2 b3 **
+     fullDivN3FrameNoX1V5 false true sp base a0 a1 a2 a3 b0 b1 b2 b3
+       retMem dMem dloMem scratchUn0 **
+     ((sp + signExtend12 3936) ↦ₘ
+       fullDivN3ScratchMemV5 false true a0 a1 a2 a3 b0 b1 b2 b3 scratchMem) **
+     (.x1 ↦ᵣ raVal)) h := by
+  delta loopN3UnifiedPostV5NoX1 loopIterPostN3CallScratchNoX1 at hp
+  simp (config := { decide := true }) only [] at hp
+  rw [loopExitPostN3_j0_eq] at hp
+  delta fullDivN3DenormPreV5 fullDivN3FrameNoX1V5 fullDivN3ScratchNoX1V5
+    fullDivN3ScratchMemV5 fullDivN3Shift
+  rw [fullDivN3R0V5_eq]
+  simp only [fullDivN3R1V5_false, fullDivN3C3V5, iterN3V5_true_eq]
+  simp (config := { decide := true }) only
+    [ite_true, ite_false, n3_ub1_off4064, n3_qa1, se12_32, se12_40, se12_48, se12_56] at hp ⊢
+  xperm_hyp hp
+
+/-- TF (call × max) bridge: `loopN3UnifiedPostV5NoX1 true false → fullDivN3DenormPreV5`. -/
+theorem loopN3UnifiedPostV5NoX1_to_fullDivN3DenormPreV5_frame_TF
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0
+      scratchMem raVal : Word)
+    (h : PartialState)
+    (hp :
+      ((loopN3UnifiedPostV5NoX1 true false sp base
+        (fullDivN3NormV b0 b1 b2 b3).1
+        (fullDivN3NormV b0 b1 b2 b3).2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.2
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+        (0 : Word)
+        (fullDivN3NormU a0 a1 a2 a3 b2).1
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal)) **
+       (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 3992) ↦ₘ (clzResult b2).1))) h) :
+    (fullDivN3DenormPreV5 true false sp a0 a1 a2 a3 b0 b1 b2 b3 **
+     fullDivN3FrameNoX1V5 true false sp base a0 a1 a2 a3 b0 b1 b2 b3
+       retMem dMem dloMem scratchUn0 **
+     ((sp + signExtend12 3936) ↦ₘ
+       fullDivN3ScratchMemV5 true false a0 a1 a2 a3 b0 b1 b2 b3 scratchMem) **
+     (.x1 ↦ᵣ raVal)) h := by
+  delta loopN3UnifiedPostV5NoX1 loopIterPostN3Max at hp
+  simp (config := { decide := true }) only [] at hp
+  rw [loopExitPostN3_j0_eq] at hp
+  delta fullDivN3DenormPreV5 fullDivN3FrameNoX1V5 fullDivN3ScratchNoX1V5
+    fullDivN3ScratchMemV5 fullDivN3Shift
+  rw [fullDivN3R0V5_eq]
+  simp only [fullDivN3R1V5_true, fullDivN3C3V5, iterN3V5_false_eq_max]
+  simp (config := { decide := true }) only
+    [ite_true, ite_false, n3_ub1_off4064, n3_qa1, se12_32, se12_40, se12_48, se12_56] at hp ⊢
+  xperm_hyp hp
+
+/-- TT (call × call) bridge: `loopN3UnifiedPostV5NoX1 true true → fullDivN3DenormPreV5`. -/
+theorem loopN3UnifiedPostV5NoX1_to_fullDivN3DenormPreV5_frame_TT
+    (sp base a0 a1 a2 a3 b0 b1 b2 b3 retMem dMem dloMem scratchUn0
+      scratchMem raVal : Word)
+    (h : PartialState)
+    (hp :
+      ((loopN3UnifiedPostV5NoX1 true true sp base
+        (fullDivN3NormV b0 b1 b2 b3).1
+        (fullDivN3NormV b0 b1 b2 b3).2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.1
+        (fullDivN3NormV b0 b1 b2 b3).2.2.2
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.1
+        (fullDivN3NormU a0 a1 a2 a3 b2).2.2.2.2
+        (0 : Word)
+        (fullDivN3NormU a0 a1 a2 a3 b2).1
+        retMem dMem dloMem scratchUn0 scratchMem **
+        (.x1 ↦ᵣ raVal)) **
+       (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+        ((sp + signExtend12 3992) ↦ₘ (clzResult b2).1))) h) :
+    (fullDivN3DenormPreV5 true true sp a0 a1 a2 a3 b0 b1 b2 b3 **
+     fullDivN3FrameNoX1V5 true true sp base a0 a1 a2 a3 b0 b1 b2 b3
+       retMem dMem dloMem scratchUn0 **
+     ((sp + signExtend12 3936) ↦ₘ
+       fullDivN3ScratchMemV5 true true a0 a1 a2 a3 b0 b1 b2 b3 scratchMem) **
+     (.x1 ↦ᵣ raVal)) h := by
+  delta loopN3UnifiedPostV5NoX1 loopIterPostN3CallScratchNoX1 at hp
+  simp (config := { decide := true }) only [] at hp
+  rw [loopExitPostN3_j0_eq] at hp
+  delta fullDivN3DenormPreV5 fullDivN3FrameNoX1V5 fullDivN3ScratchNoX1V5
+    fullDivN3ScratchMemV5 fullDivN3Shift
+  rw [fullDivN3R0V5_eq]
+  simp only [fullDivN3R1V5_true, fullDivN3C3V5, iterN3V5_true_eq]
+  simp (config := { decide := true }) only
+    [ite_true, n3_ub1_off4064, n3_qa1, se12_32, se12_40, se12_48, se12_56] at hp ⊢
+  xperm_hyp hp
+
 end EvmAsm.Evm64
