@@ -123,6 +123,7 @@ import EvmAsm.Codegen.Programs.StateStorageRootProof
 import EvmAsm.Codegen.Programs.WitnessNodeKindDistribution
 import EvmAsm.Codegen.Programs.StateNonceProof
 import EvmAsm.Codegen.Programs.StateBalanceProof
+import EvmAsm.Codegen.Programs.WitnessStateKeccakAtIndex
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
@@ -477,6 +478,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_witness_state_node_kind_distribution" => some ziskWitnessStateNodeKindDistributionProbeUnit
   | "zisk_state_nonce_inclusion_proof_verify" => some ziskStateNonceInclusionProofVerifyProbeUnit
   | "zisk_state_balance_inclusion_proof_verify" => some ziskStateBalanceInclusionProofVerifyProbeUnit
+  | "zisk_witness_state_keccak_at_index" => some ziskWitnessStateKeccakAtIndexProbeUnit
   | "zisk_balance_at_block_hash_address" => some ziskBalanceAtBlockHashAddressProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
@@ -679,6 +681,7 @@ def knownProgramNames : List String :=
    "zisk_witness_state_node_kind_distribution",
    "zisk_state_nonce_inclusion_proof_verify",
    "zisk_state_balance_inclusion_proof_verify",
+   "zisk_witness_state_keccak_at_index",
    "zisk_balance_at_block_hash_address",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
