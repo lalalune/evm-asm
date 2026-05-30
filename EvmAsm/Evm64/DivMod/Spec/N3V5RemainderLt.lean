@@ -166,4 +166,59 @@ theorem n3_trial_max_val256_conservation
     (fun hb hcz => q_ge_two_of_mulsub_borrow_and_addback_carry_zero
       q v0 v1 v2 0 u0 u1 u2 u3 (hc3 hb) hcz)
 
+/-- **v5 n=3 per-digit remainder bound (max path, `uTop = 0`).**  The cap-trial
+    double-addback remainder is below the 3-limb divisor, given the window-validity
+    invariant `val256 u < 2^64 · val256 v`. -/
+theorem n3_trial_max_remainder_lt
+    (v0 v1 v2 u0 u1 u2 u3 : Word)
+    (hv2 : v2.toNat ≥ 2^63)
+    (hmax : ¬ BitVec.ult u3 v2)
+    (hvalid : val256 u0 u1 u2 u3 < 2 ^ 64 * val256 v0 v1 v2 0) :
+    val256
+        (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 0).2.1
+        (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.1
+        (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.2.1
+        (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.2.2.1 +
+      (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.2.2.2.toNat
+        * 2 ^ 256 <
+    val256 v0 v1 v2 0 := by
+  have hbnz : v0 ||| v1 ||| v2 ||| 0 ≠ 0 := by
+    intro h
+    have hv2z : v2 = 0 := (BitVec.or_eq_zero_iff.mp (BitVec.or_eq_zero_iff.mp h).1).2
+    rw [hv2z] at hv2; simp at hv2
+  set q : Word := signExtend12 (4095 : BitVec 12) with hq
+  have hq_over := max_trial_local_overestimate_n3_of_not_ult v0 v1 v2 u0 u1 u2 u3 hv2 hmax
+  have hqsucc : q.toNat + 1 = 2 ^ 64 := by rw [hq, signExtend12_4095_toNat]; omega
+  have hq_ge : val256 u0 u1 u2 u3 + (0 : Word).toNat * 2 ^ 256 <
+      (q.toNat + 1) * val256 v0 v1 v2 0 := by
+    have h0 : (0 : Word).toNat = 0 := rfl
+    rw [h0, hqsucc, Nat.zero_mul, Nat.add_zero]; exact hvalid
+  have hc3 : BitVec.ult (0 : Word) (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 →
+      (mulsubN4 q v0 v1 v2 0 u0 u1 u2 u3).2.2.2.2 = 1 := by
+    intro hb
+    apply mulsubN4_c3_eq_one_v3_zero
+    intro hz; rw [hz] at hb; exact absurd hb (by decide)
+  exact iterWithDoubleAddback_remainder_lt_of_plus_two
+    q v0 v1 v2 0 u0 u1 u2 u3 0 hbnz hc3 hq_over hq_ge
+
+/-- **v5 n=3 per-digit remainder collapse (max path).**  Top limb (`rem3`) and
+    overflow carry are zero. -/
+theorem n3_trial_max_collapse
+    (v0 v1 v2 u0 u1 u2 u3 : Word)
+    (hv2 : v2.toNat ≥ 2^63)
+    (hmax : ¬ BitVec.ult u3 v2)
+    (hvalid : val256 u0 u1 u2 u3 < 2 ^ 64 * val256 v0 v1 v2 0) :
+    (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.2.2.1 = 0 ∧
+    (iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 0).2.2.2.2.2 = 0 := by
+  have hlt := n3_trial_max_remainder_lt v0 v1 v2 u0 u1 u2 u3 hv2 hmax hvalid
+  have hv192 := n3_val256_v_lt_pow192 v0 v1 v2
+  set out := iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 0 u0 u1 u2 u3 0 with hout
+  have key : val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+      out.2.2.2.2.2.toNat * 2 ^ 256 < 2 ^ 192 := by omega
+  refine ⟨?_, ?_⟩
+  · have h : out.2.2.2.2.1.toNat = 0 := by simp only [EvmWord.val256] at key; omega
+    exact BitVec.eq_of_toNat_eq (by rw [h]; rfl)
+  · have h : out.2.2.2.2.2.toNat = 0 := by simp only [EvmWord.val256] at key; omega
+    exact BitVec.eq_of_toNat_eq (by rw [h]; rfl)
+
 end EvmAsm.Evm64
