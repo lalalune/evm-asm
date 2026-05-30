@@ -44,4 +44,25 @@ theorem divK_beq_passthrough_v5_spec_within_noNop {carry : Word} (base : Word) (
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
     ntaken
 
+/-- v5 full add-back correction over `sharedDivModCodeNoNop_v5` — instantiation of
+    the generic `divK_addback_full_spec_within_of_sub` with the v5 code
+    subsumption.  Mirror of `divK_addback_full_named_v4_spec_within_noNop`. -/
+theorem divK_addback_full_named_v5_spec_within_noNop
+    (sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
+    (v7_init v5_init v2_init : Word) (base : Word) :
+    cpsTripleWithin 37 (base + addbackInitOff) (base + addbackBeqOff) (sharedDivModCodeNoNop_v5 base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ uBase) ** (.x7 ↦ᵣ v7_init) **
+       (.x11 ↦ᵣ qHat) ** (.x5 ↦ᵣ v5_init) ** (.x2 ↦ᵣ v2_init) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 32) ↦ₘ v0) ** ((uBase + signExtend12 0) ↦ₘ u0) **
+       ((sp + signExtend12 40) ↦ₘ v1) ** ((uBase + signExtend12 4088) ↦ₘ u1) **
+       ((sp + signExtend12 48) ↦ₘ v2) ** ((uBase + signExtend12 4080) ↦ₘ u2) **
+       ((sp + signExtend12 56) ↦ₘ v3) ** ((uBase + signExtend12 4072) ↦ₘ u3) **
+       ((uBase + signExtend12 4064) ↦ₘ u4))
+      (addbackFullPost sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4) :=
+  cpsTripleWithin_weaken
+    (fun h hp => by unfold addbackFullPre; exact hp)
+    (fun h hp => hp)
+    (divK_addback_full_spec_within_of_sub sp uBase qHat v0 v1 v2 v3 u0 u1 u2 u3 u4
+      v7_init v5_init v2_init base (sharedDivModCodeNoNop_v5 base) lb_sub_noNop_v5)
+
 end EvmAsm.Evm64
