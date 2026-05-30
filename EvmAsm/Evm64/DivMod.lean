@@ -218,6 +218,8 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFromShape
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShiftNz
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Lane
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FullShift0
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ParamShift0
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShift0
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PostBridge
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0DivLimb
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PreLift
