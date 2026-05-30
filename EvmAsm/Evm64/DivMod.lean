@@ -214,6 +214,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5ModRemainder
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Quotient
+import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0QuotientLane
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.IterPostV5
 import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallAddbackV5NoNop
