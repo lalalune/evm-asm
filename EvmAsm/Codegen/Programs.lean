@@ -117,6 +117,7 @@ import EvmAsm.Codegen.Programs.NonceAtBlockHash
 import EvmAsm.Codegen.Programs.CodeAtBlockHash
 import EvmAsm.Codegen.Programs.HasCodeOrNonceAtBlockHash
 import EvmAsm.Codegen.Programs.AccountExistsAtBlockHash
+import EvmAsm.Codegen.Programs.ExtcodesizeAtBlockHash
 import EvmAsm.Codegen.Programs.StateProof
 import EvmAsm.Codegen.Programs.StateStorageProof
 import EvmAsm.Codegen.Programs.StateCodeHashProof
@@ -473,6 +474,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_code_hash_at_block_hash_address" => some ziskCodeHashAtBlockHashAddressProbeUnit
   | "zisk_nonce_at_block_hash_address" => some ziskNonceAtBlockHashAddressProbeUnit
   | "zisk_code_at_block_hash_address" => some ziskCodeAtBlockHashAddressProbeUnit
+  | "zisk_extcodesize_at_block_hash_address" => some ziskExtcodesizeAtBlockHashAddressProbeUnit
   | "zisk_chain_walk_one_step_back_from_block_hash" => some ziskChainWalkOneStepBackFromBlockHashProbeUnit
   | "zisk_chain_walk_n_steps_back_from_block_hash" => some ziskChainWalkNStepsBackFromBlockHashProbeUnit
   | "zisk_state_root_chain_walk_back_n_steps_from_block_hash" => some ziskStateRootChainWalkBackNStepsFromBlockHashProbeUnit
@@ -695,6 +697,7 @@ def knownProgramNames : List String :=
    "zisk_code_hash_at_block_hash_address",
    "zisk_nonce_at_block_hash_address",
    "zisk_code_at_block_hash_address",
+   "zisk_extcodesize_at_block_hash_address",
    "zisk_chain_walk_one_step_back_from_block_hash",
    "zisk_chain_walk_n_steps_back_from_block_hash",
    "zisk_state_root_chain_walk_back_n_steps_from_block_hash",
