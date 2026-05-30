@@ -108,6 +108,7 @@ import EvmAsm.Codegen.Programs.HasCodeOrNonceAtBlockNumber
 import EvmAsm.Codegen.Programs.AccountIsEmptyAtBlockNumber
 import EvmAsm.Codegen.Programs.ExtcodesizeAtBlockNumber
 import EvmAsm.Codegen.Programs.ExtcodehashAtBlockNumber
+import EvmAsm.Codegen.Programs.SloadAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtBlockNumber
 import EvmAsm.Codegen.Programs.CodeAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtStateRoot
@@ -506,6 +507,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_account_is_empty_at_block_number_address" => some ziskAccountIsEmptyAtBlockNumberAddressProbeUnit
   | "zisk_extcodesize_at_block_number_address" => some ziskExtcodesizeAtBlockNumberAddressProbeUnit
   | "zisk_extcodehash_at_block_number_address" => some ziskExtcodehashAtBlockNumberAddressProbeUnit
+  | "zisk_sload_at_block_number_address" => some ziskSloadAtBlockNumberAddressProbeUnit
   | "zisk_block_hash_at_block_number" => some ziskBlockHashAtBlockNumberProbeUnit
   | "zisk_code_at_block_number_address" => some ziskCodeAtBlockNumberAddressProbeUnit
   | "zisk_block_hash_at_state_root" => some ziskBlockHashAtStateRootProbeUnit
@@ -742,6 +744,7 @@ def knownProgramNames : List String :=
    "zisk_account_is_empty_at_block_number_address",
    "zisk_extcodesize_at_block_number_address",
    "zisk_extcodehash_at_block_number_address",
+   "zisk_sload_at_block_number_address",
    "zisk_block_hash_at_block_number",
    "zisk_code_at_block_number_address",
    "zisk_block_hash_at_state_root",
