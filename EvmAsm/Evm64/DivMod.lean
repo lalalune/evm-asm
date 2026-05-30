@@ -236,6 +236,8 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5ThreeStep
 import EvmAsm.Evm64.DivMod.Spec.N2V5RemainderLt
 import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderLt
 import EvmAsm.Evm64.DivMod.Spec.N3V5DigitStepIter
+import EvmAsm.Evm64.DivMod.Spec.N3V5AccQuot
+import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShape
@@ -276,6 +278,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopUnifiedPost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFull
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
