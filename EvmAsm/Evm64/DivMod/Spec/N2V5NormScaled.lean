@@ -285,4 +285,56 @@ theorem fullDivN2R0V5_collapse_of_shape (a0 a1 a2 a3 b0 b1 b2 b3 : Word) (bltu_2
   rw [hrw]
   exact iterN2V5_collapse bltu_0 _ _ _ _ _ hbnz hmsb hvalid hcall hmax |>.imp id (·.1)
 
+/-- The n=2 divisor value is at least `2^64` (its top limb `b1` is nonzero). -/
+theorem n2_val256_b_ge_pow64 (b0 b1 : Word) (hb1 : b1 ≠ 0) : 2^64 ≤ val256 b0 b1 0 0 := by
+  have h0 : (0:Word).toNat = 0 := rfl
+  have hb1n : b1.toNat ≠ 0 := by intro h; exact hb1 (BitVec.eq_of_toNat_eq (by rw [h]; rfl))
+  simp only [EvmWord.val256, h0]; omega
+
+/-- Pure-`Nat` core of the first-window validity: from the scaled-dividend
+    identity and the divisor bound, the top 3-limb window is `< 2^64·(B·S)`. -/
+theorem first_window_core (n0 n1 n2 n3 n4 A B S : Nat)
+    (hU : n0 + 2^64*n1 + 2^128*n2 + 2^192*n3 + 2^256*n4 = A*S)
+    (hA : A < 2^256) (hB : 2^64 ≤ B) (hSpos : 0 < S) :
+    n2 + 2^64*n3 + 2^128*n4 < 2^64*(B*S) := by
+  have hW2le : 2^128*(n2+2^64*n3+2^128*n4) ≤ A*S := by nlinarith [hU]
+  have hAB : A*S < 2^192*(B*S) := by nlinarith [hA, hB, hSpos]
+  have hchain : 2^128*(n2+2^64*n3+2^128*n4) < 2^128*(2^64*(B*S)) := by nlinarith [hW2le, hAB]
+  exact Nat.lt_of_mul_lt_mul_left hchain
+
+/-- **First-window validity (digit R2).** The top 3-limb normalized window is
+    `< 2^64·val256 normV` — the `hvalid` hypothesis of the R2 step.  Follows from
+    the scaling bridge (`val256 normU + nu4·2^256 = val256 a·2^s`), the dividend
+    bound `val256 a < 2^256`, and the divisor bound `val256 b ≥ 2^64`. -/
+theorem fullDivN2_first_window_valid (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb2z : b2 = 0) (hb3z : b3 = 0) (hshift_nz : (clzResult b1).1 ≠ 0) (hb1nz : b1 ≠ 0) :
+    val256 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.1
+        (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 0
+      < 2^64 * val256 (fullDivN2NormV b0 b1 b2 b3).1 (fullDivN2NormV b0 b1 b2 b3).2.1 0 0 := by
+  have h0 : (0:Word).toNat = 0 := rfl
+  have hscaleU := fullDivN2NormU_val256_eq_scaled a0 a1 a2 a3 b1 hshift_nz
+  have hscaleV := fullDivN2NormV_val256_eq_scaled_of_shape b0 b1 b2 b3 hb2z hb3z hshift_nz
+  have hv2 := fullDivN2NormV_v2_zero_of_shape_shift_nz b0 b1 b2 b3 hb2z hshift_nz
+  have hv3 := fullDivN2NormV_top_zero_of_shape b0 b1 b2 b3 hb3z hb2z
+  rw [hv2, hv3] at hscaleV
+  have hA := val256_bound a0 a1 a2 a3
+  have hB : 2^64 ≤ val256 b0 b1 b2 b3 := by
+    subst b2; subst b3; exact n2_val256_b_ge_pow64 b0 b1 hb1nz
+  have hSpos : 0 < 2^(fullDivN2Shift b1).toNat := by positivity
+  have hU : (fullDivN2NormU a0 a1 a2 a3 b1).1.toNat
+      + 2^64*(fullDivN2NormU a0 a1 a2 a3 b1).2.1.toNat
+      + 2^128*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.1.toNat
+      + 2^192*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1.toNat
+      + 2^256*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2.toNat
+      = val256 a0 a1 a2 a3 * 2^(fullDivN2Shift b1).toNat := by
+    rw [← hscaleU]; simp only [EvmWord.val256]; ring
+  have hWexp : val256 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.1
+      (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1 (fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2 0
+      = (fullDivN2NormU a0 a1 a2 a3 b1).2.2.1.toNat
+        + 2^64*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.1.toNat
+        + 2^128*(fullDivN2NormU a0 a1 a2 a3 b1).2.2.2.2.toNat := by
+    simp only [EvmWord.val256, h0]; ring
+  rw [hWexp, hscaleV]
+  exact first_window_core _ _ _ _ _ _ _ _ hU hA hB hSpos
+
 end EvmAsm.Evm64
