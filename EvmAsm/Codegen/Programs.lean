@@ -99,6 +99,7 @@ import EvmAsm.Codegen.Programs.StorageRootAtBlockHash
 import EvmAsm.Codegen.Programs.StateAccountAtBlockHash
 import EvmAsm.Codegen.Programs.WitnessHeadersBlockHashAtIndex
 import EvmAsm.Codegen.Programs.StateSlotAtBlockHash
+import EvmAsm.Codegen.Programs.BalanceAtBlockHash
 import EvmAsm.Codegen.Programs.StateProof
 import EvmAsm.Codegen.Programs.StateStorageProof
 import EvmAsm.Codegen.Programs.StateCodeHashProof
@@ -482,6 +483,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_state_balance_inclusion_proof_verify" => some ziskStateBalanceInclusionProofVerifyProbeUnit
   | "zisk_witness_state_keccak_at_index" => some ziskWitnessStateKeccakAtIndexProbeUnit
   | "zisk_parent_keccak_matches_child_parent_hash" => some ziskParentKeccakMatchesChildParentHashProbeUnit
+  | "zisk_balance_at_block_hash_address" => some ziskBalanceAtBlockHashAddressProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
@@ -686,6 +688,7 @@ def knownProgramNames : List String :=
    "zisk_state_balance_inclusion_proof_verify",
    "zisk_witness_state_keccak_at_index",
    "zisk_parent_keccak_matches_child_parent_hash",
+   "zisk_balance_at_block_hash_address",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
