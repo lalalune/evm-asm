@@ -151,6 +151,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4Families
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Families
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePostSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4
