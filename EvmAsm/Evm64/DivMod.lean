@@ -57,9 +57,11 @@ import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
 import EvmAsm.Evm64.DivMod.Compose.NormBV5
 import EvmAsm.Evm64.DivMod.Compose.NormAV5
 import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
+import EvmAsm.Evm64.DivMod.Compose.CopyAUV5
 import EvmAsm.Evm64.DivMod.Compose.PhaseAV5
 import EvmAsm.Evm64.DivMod.Compose.CLZV5
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Preloop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.SharedLoopPost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Defs
@@ -70,6 +72,7 @@ import EvmAsm.Evm64.DivMod.Spec.N1V5CarryZero
 import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
 import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
 import EvmAsm.Evm64.DivMod.Spec.N1V5QuotientLimbs
+import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Quotient
 import EvmAsm.Evm64.DivMod.Spec.N1V5QuotientWordLane
 import EvmAsm.Evm64.DivMod.Spec.N1V5NoBorrow
 import EvmAsm.Evm64.DivMod.Spec.N1V5LaneBltu
@@ -178,3 +181,4 @@ import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNz
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Bzero
