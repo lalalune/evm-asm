@@ -22,6 +22,7 @@
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
 import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.LowerBound
 import EvmAsm.Evm64.EvmWordArith.DivV5TrialOverestimate
+import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
 
 namespace EvmAsm.Evm64
 
@@ -63,5 +64,44 @@ theorem n2_window_val256_div_le_trial_v5
   have hknuth := knuth_a_floor_window_le hV hVtop (by positivity) hU hUlow
   have hge := div128Quot_v5_ge_q_true u2 u1 v1 hv1 hcall
   omega
+
+/-- **v5 n=2 per-digit Knuth-A upper bound (`+2`).** The top-window quotient
+    `(u2·2^64+u1)/v1` overshoots the full window quotient by at most 2.  Proved
+    by reusing the n=4 `knuth_theorem_b_abstract` after scaling both window and
+    divisor by `2^128` (which embeds the 2-limb divisor into the 4-limb top-digit
+    frame; the scaling cancels in the quotient via `Nat.mul_div_mul_right`). -/
+theorem n2_window_top_div_le_val256_div_plus_two
+    (v0 v1 u0 u1 u2 : Word)
+    (hv1 : v1.toNat ≥ 2^63)
+    (hcall : u2.toNat < v1.toNat) :
+    (u2.toNat * 2^64 + u1.toNat) / v1.toNat ≤
+      val256 u0 u1 u2 0 / val256 v0 v1 0 0 + 2 := by
+  have h0 : (0 : Word).toNat = 0 := rfl
+  have hvr : v0.toNat * 2^128 < 2^192 := by
+    have h := v0.isLt
+    calc v0.toNat * 2^128 < 2^64 * 2^128 :=
+          Nat.mul_lt_mul_of_pos_right h (by positivity)
+      _ = 2^192 := by rw [← pow_add]
+  have hb := knuth_theorem_b_abstract
+    (val256 u0 u1 u2 0 * 2^128) (val256 v0 v1 0 0 * 2^128)
+    u2.toNat u1.toNat (u0.toNat * 2^128) v1.toNat (v0.toNat * 2^128)
+    (by simp only [EvmWord.val256, h0]; ring)
+    (by simp only [EvmWord.val256, h0]; ring)
+    hvr hv1 hcall u1.isLt
+  rwa [Nat.mul_div_mul_right _ _ (by positivity)] at hb
+
+/-- **v5 n=2 per-digit overestimate (`hq_over`).** The v5 trial quotient is at
+    most `val256 u / val256 v + 2` — the `hq_over` input of
+    `iterWithDoubleAddback_remainder_lt_of_plus_two`.  Combines
+    `divKTrialCallV5QHat_eq_floor` (the v5 trial is the exact top-window floor)
+    with the Knuth-A upper bound above. -/
+theorem n2_window_div_le_val256_div_plus_two_v5
+    (v0 v1 u0 u1 u2 : Word)
+    (hv1 : v1.toNat ≥ 2^63)
+    (hcall : u2.toNat < v1.toNat) :
+    (divKTrialCallV5QHat u2 u1 v1).toNat ≤
+      val256 u0 u1 u2 0 / val256 v0 v1 0 0 + 2 := by
+  rw [divKTrialCallV5QHat_eq_floor u2 u1 v1 hv1 hcall]
+  exact n2_window_top_div_le_val256_div_plus_two v0 v1 u0 u1 u2 hv1 hcall
 
 end EvmAsm.Evm64
