@@ -22,6 +22,7 @@
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Families
 import EvmAsm.Evm64.EvmWordArith.DivN4RemainderLt
 import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindow
+import EvmAsm.Evm64.EvmWordArith.DivN2MaxOverestimate
 
 namespace EvmAsm.Evm64
 
@@ -163,6 +164,111 @@ theorem iterN2V5_true_step
   have hconv := iterN2V5_true_conservation_from_shape v0 v1 u0 u1 u2 hbnz hv1 hcall
   have hlt := iterN2V5_true_remainder_lt v0 v1 u0 u1 u2 hbnz hv1 hcall
   set out := iterN2V5 true v0 v1 0 0 u0 u1 u2 0 0 with hout
+  have h0 : (0 : Word).toNat = 0 := rfl
+  have hcollapse : val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 =
+      out.2.1.toNat + 2^64 * out.2.2.1.toNat := by
+    rw [hc2, hc3]; simp only [EvmWord.val256, h0]; ring
+  constructor
+  · rw [hconv, hcollapse, hco, h0]; ring
+  · rw [hcollapse] at hlt; rw [hco, h0] at hlt; simpa using hlt
+
+/-! ### Max branch (`bltu = false`)
+
+The max path (`u2 ≥ v1`, trial `= 2^64-1`) mirrors the call path, with the
+overestimate from `max_trial_local_overestimate_n2_of_not_ult` and the
+no-underestimate `hq_ge` from the window-validity invariant
+`val256 window < 2^64·val256 v` (since the max trial `+1 = 2^64`). -/
+
+/-- **v5 n=2 per-digit remainder bound (max path).** -/
+theorem iterN2V5_false_remainder_lt
+    (v0 v1 u0 u1 u2 : Word) (hbnz : v0 ||| v1 ||| 0 ||| 0 ≠ 0)
+    (hv1 : v1.toNat ≥ 2^63) (hbltu : ¬ BitVec.ult u2 v1)
+    (hvalid : val256 u0 u1 u2 0 < 2^64 * val256 v0 v1 0 0) :
+    EvmWord.val256 (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.1
+        (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.1
+        (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.2.1
+        (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.1 +
+      (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.2.toNat * 2^256 <
+    EvmWord.val256 v0 v1 0 0 := by
+  have hrw : iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0 =
+      iterWithDoubleAddback (signExtend12 4095) v0 v1 0 0 u0 u1 u2 0 0 := by
+    unfold iterN2V5 iterN2Max; simp only [Bool.false_eq_true, if_false]
+  rw [hrw]
+  set q : Word := signExtend12 4095 with hq
+  have hq_over := max_trial_local_overestimate_n2_of_not_ult v0 v1 u0 u1 u2 hv1 hbltu
+  have hqsucc : q.toNat + 1 = 2^64 := by rw [hq, signExtend12_4095_toNat]; omega
+  have hq_ge : val256 u0 u1 u2 0 + (0 : Word).toNat * 2^256 < (q.toNat + 1) * val256 v0 v1 0 0 := by
+    have h0 : (0 : Word).toNat = 0 := rfl
+    rw [h0, hqsucc, Nat.zero_mul, Nat.add_zero]; exact hvalid
+  have hc3 : BitVec.ult (0 : Word) (mulsubN4 q v0 v1 0 0 u0 u1 u2 0).2.2.2.2 →
+      (mulsubN4 q v0 v1 0 0 u0 u1 u2 0).2.2.2.2 = 1 := by
+    intro hb; apply mulsubN4_c3_eq_one_v3_zero; intro hz; rw [hz] at hb; exact absurd hb (by decide)
+  exact iterWithDoubleAddback_remainder_lt_of_plus_two q v0 v1 0 0 u0 u1 u2 0 0 hbnz hc3 hq_over hq_ge
+
+/-- **v5 n=2 per-digit conservation (max path).** -/
+theorem iterN2V5_false_conservation
+    (v0 v1 u0 u1 u2 : Word) (hbnz : v0 ||| v1 ||| 0 ||| 0 ≠ 0)
+    (hv1 : v1.toNat ≥ 2^63) (hbltu : ¬ BitVec.ult u2 v1) :
+    val256 u0 u1 u2 0 =
+      (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).1.toNat * val256 v0 v1 0 0 +
+        val256 (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.1
+          (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.1
+          (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.2.1
+          (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.1 +
+        (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.2.toNat * 2^256 := by
+  have hrw : iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0 =
+      iterWithDoubleAddback (signExtend12 4095) v0 v1 0 0 u0 u1 u2 0 0 := by
+    unfold iterN2V5 iterN2Max; simp only [Bool.false_eq_true, if_false]
+  rw [hrw]
+  set q : Word := signExtend12 4095 with hq
+  have hq_over := max_trial_local_overestimate_n2_of_not_ult v0 v1 u0 u1 u2 hv1 hbltu
+  have hq1 : 1 ≤ q.toNat := by rw [hq, signExtend12_4095_toNat]; omega
+  have hq2 : 2 ≤ q.toNat := by rw [hq, signExtend12_4095_toNat]; omega
+  have hc3 : BitVec.ult (0 : Word) (mulsubN4 q v0 v1 0 0 u0 u1 u2 0).2.2.2.2 →
+      (mulsubN4 q v0 v1 0 0 u0 u1 u2 0).2.2.2.2 = 1 := by
+    intro hb; apply mulsubN4_c3_eq_one_v3_zero; intro hz; rw [hz] at hb; exact absurd hb (by decide)
+  have hconv := iterWithDoubleAddback_val256_conservation_of_branch_bounds
+    q v0 v1 0 0 u0 u1 u2 0 0 hbnz hq_over hc3 (fun _ _ => hq1) (fun _ _ => hq2)
+  have h0 : (0 : Word).toNat = 0 := rfl
+  simpa [h0] using hconv
+
+/-- **v5 n=2 per-digit remainder collapse (max path).** -/
+theorem iterN2V5_false_remainder_collapse
+    (v0 v1 u0 u1 u2 : Word) (hbnz : v0 ||| v1 ||| 0 ||| 0 ≠ 0)
+    (hv1 : v1.toNat ≥ 2^63) (hbltu : ¬ BitVec.ult u2 v1)
+    (hvalid : val256 u0 u1 u2 0 < 2^64 * val256 v0 v1 0 0) :
+    (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.2.1 = 0 ∧
+    (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.1 = 0 ∧
+    (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.2.2.2 = 0 := by
+  have hlt := iterN2V5_false_remainder_lt v0 v1 u0 u1 u2 hbnz hv1 hbltu hvalid
+  have hv128 := n2_val256_v_lt_pow128 v0 v1
+  set out := iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0 with hout
+  have key : val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 +
+      out.2.2.2.2.2.toNat * 2^256 < 2^128 := by omega
+  refine ⟨?_, ?_, ?_⟩
+  · have : out.2.2.2.1.toNat = 0 := by simp only [EvmWord.val256] at key; omega
+    exact BitVec.eq_of_toNat_eq (by rw [this]; rfl)
+  · have : out.2.2.2.2.1.toNat = 0 := by simp only [EvmWord.val256] at key; omega
+    exact BitVec.eq_of_toNat_eq (by rw [this]; rfl)
+  · have : out.2.2.2.2.2.toNat = 0 := by simp only [EvmWord.val256] at key; omega
+    exact BitVec.eq_of_toNat_eq (by rw [this]; rfl)
+
+/-- **Combined clean 2-limb Euclidean step for the v5 n=2 max path.** -/
+theorem iterN2V5_false_step
+    (v0 v1 u0 u1 u2 : Word) (hbnz : v0 ||| v1 ||| 0 ||| 0 ≠ 0)
+    (hv1 : v1.toNat ≥ 2^63) (hbltu : ¬ BitVec.ult u2 v1)
+    (hvalid : val256 u0 u1 u2 0 < 2^64 * val256 v0 v1 0 0) :
+    val256 u0 u1 u2 0 =
+      (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).1.toNat * val256 v0 v1 0 0 +
+        ((iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.1.toNat +
+          2^64 * (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.1.toNat) ∧
+      (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.1.toNat +
+          2^64 * (iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0).2.2.1.toNat <
+        val256 v0 v1 0 0 := by
+  obtain ⟨hc2, hc3, hco⟩ := iterN2V5_false_remainder_collapse v0 v1 u0 u1 u2 hbnz hv1 hbltu hvalid
+  have hconv := iterN2V5_false_conservation v0 v1 u0 u1 u2 hbnz hv1 hbltu
+  have hlt := iterN2V5_false_remainder_lt v0 v1 u0 u1 u2 hbnz hv1 hbltu hvalid
+  set out := iterN2V5 false v0 v1 0 0 u0 u1 u2 0 0 with hout
   have h0 : (0 : Word).toNat = 0 := rfl
   have hcollapse : val256 out.2.1 out.2.2.1 out.2.2.2.1 out.2.2.2.2.1 =
       out.2.1.toNat + 2^64 * out.2.2.1.toNat := by
