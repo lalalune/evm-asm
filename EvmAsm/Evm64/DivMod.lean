@@ -85,6 +85,7 @@ import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5FinalEqNamed
 import EvmAsm.Evm64.DivMod.Spec.N1V5CodeQuotNoBorrow
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5X7X9Eq
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallSkipJ0V5
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallSkipJgt0V5
@@ -175,6 +176,7 @@ import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxSkipV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallSkipV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMax
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallJ0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePostSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4
