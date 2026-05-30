@@ -165,6 +165,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5C3Invariant
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryFromUnreach
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryFromBorrow
 import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
+import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryBorrowN2
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientCorrect
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLane
 import EvmAsm.Evm64.DivMod.Spec.N2V5Conditions
