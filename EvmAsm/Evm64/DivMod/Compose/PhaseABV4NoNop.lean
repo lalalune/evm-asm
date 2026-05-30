@@ -16,25 +16,25 @@ open EvmAsm.Rv64.AddrNorm
   (bv64_4mul_9 bv64_4mul_10 bv64_4mul_11 bv64_4mul_12 bv64_4mul_13
    bv64_4mul_14 bv64_4mul_15)
 
-private theorem phB_i2_8_v4 {base : Word} :
+theorem phB_i2_8_v4 {base : Word} :
     (base + phaseBInit2Off : Word) + 8 = base + phaseBStep0Off := by bv_addr
-private theorem phB_addi_4_v4 {base : Word} :
+theorem phB_addi_4_v4 {base : Word} :
     (base + phaseBStep0Off : Word) + 4 = base + phaseBBneOff := by bv_addr
-private theorem phB_bne_4_v4 {base : Word} :
+theorem phB_bne_4_v4 {base : Word} :
     (base + phaseBBneOff : Word) + 4 = base + phaseBStep1Off := by bv_addr
-private theorem phB_step1_4_v4 {base : Word} :
+theorem phB_step1_4_v4 {base : Word} :
     (base + phaseBStep1Off : Word) + 4 = base + phaseBBne2Off := by bv_addr
-private theorem phB_step1_8_v4 {base : Word} :
+theorem phB_step1_8_v4 {base : Word} :
     (base + phaseBBne2Off : Word) + 4 = base + phaseBStep2Off := by bv_addr
-private theorem phB_step2_4_v4 {base : Word} :
+theorem phB_step2_4_v4 {base : Word} :
     (base + phaseBStep2Off : Word) + 4 = base + phaseBBne3Off := by bv_addr
-private theorem phB_step2_8_v4 {base : Word} :
+theorem phB_step2_8_v4 {base : Word} :
     (base + phaseBBne3Off : Word) + 4 = base + phaseBStep3Off := by bv_addr
-private theorem phB_fall_4_v4 {base : Word} :
+theorem phB_fall_4_v4 {base : Word} :
     (base + phaseBStep3Off : Word) + 4 = base + phaseBTailOff := by bv_addr
-private theorem phB_t_20_v4 {base : Word} :
+theorem phB_t_20_v4 {base : Word} :
     (base + phaseBTailOff : Word) + 20 = base + clzOff := by bv_addr
-private theorem divK_phaseB_n1_nm1_x8_v4 :
+theorem divK_phaseB_n1_nm1_x8_v4 :
     ((1 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (0 : Word) := by
   decide
 private theorem divK_phaseB_n2_nm1_x8_v4 :
@@ -46,7 +46,7 @@ private theorem divK_phaseB_n3_nm1_x8_v4 :
 private theorem divK_phaseB_n4_nm1_x8_v4 :
     ((4 : Word) + signExtend12 (4095 : BitVec 12)) <<< (3 : BitVec 6).toNat = (24 : Word) := by
   decide
-private theorem phB_sp0_32_v4 {sp : Word} :
+theorem phB_sp0_32_v4 {sp : Word} :
     (sp + (0 : Word) + (32 : Word)) = sp + 32 := by
   bv_addr
 private theorem phB_sp8_32_v4 {sp : Word} :

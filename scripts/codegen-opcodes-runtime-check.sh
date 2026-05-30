@@ -70,14 +70,18 @@ while IFS= read -r line; do
   # (tab is treated as IFS-whitespace), which silently shifts the
   # storage column into the calldata slot when calldata is empty.
   # `cut -f` preserves empty fields, so we slice each column
-  # explicitly. Order matches `--list-test-cases` 6-column TSV
-  # (M23 added column 6 for `expectedHaltKind`).
+  # explicitly. Order matches `--list-test-cases` 9-column TSV
+  # (M23 added col 6; M24 added cols 7 and 8 for the log-length
+  # assertions; M25 added col 9 for the post-state slot dump).
   name=$(printf '%s' "$line" | cut -f1)
   expected=$(printf '%s' "$line" | cut -f2)
   bytecode_csv=$(printf '%s' "$line" | cut -f3)
   calldata=$(printf '%s' "$line" | cut -f4)
   storage=$(printf '%s' "$line" | cut -f5)
   expected_halt_kind=$(printf '%s' "$line" | cut -f6)
+  expected_persistent_log_length=$(printf '%s' "$line" | cut -f7)
+  expected_transient_log_length=$(printf '%s' "$line" | cut -f8)
+  expected_post_storage=$(printf '%s' "$line" | cut -f9)
 
   if [[ -z "$name" || -z "$expected" || -z "$bytecode_csv" ]]; then
     echo
@@ -129,6 +133,45 @@ while IFS= read -r line; do
     echo "  $actual_halt_kind"
     if [[ "$actual_halt_kind" != "$expected_halt_kind" ]]; then
       case_failed="${case_failed:+$case_failed,}halt_kind"
+    fi
+  fi
+
+  # M24: persistent log_length at OUTPUT+40..48
+  if [[ -n "${expected_persistent_log_length:-}" ]]; then
+    actual_persistent="$(xxd -p -c 64 -s 40 -l 8 "gen-out/$name.output" | tr -d '\n')"
+    echo "expected persistent_log_length:"
+    echo "  $expected_persistent_log_length"
+    echo "actual persistent_log_length:"
+    echo "  $actual_persistent"
+    if [[ "$actual_persistent" != "$expected_persistent_log_length" ]]; then
+      case_failed="${case_failed:+$case_failed,}persistent_log_length"
+    fi
+  fi
+
+  # M24: transient log_length at OUTPUT+48..56
+  if [[ -n "${expected_transient_log_length:-}" ]]; then
+    actual_transient="$(xxd -p -c 64 -s 48 -l 8 "gen-out/$name.output" | tr -d '\n')"
+    echo "expected transient_log_length:"
+    echo "  $expected_transient_log_length"
+    echo "actual transient_log_length:"
+    echo "  $actual_transient"
+    if [[ "$actual_transient" != "$expected_transient_log_length" ]]; then
+      case_failed="${case_failed:+$case_failed,}transient_log_length"
+    fi
+  fi
+
+  # M25: post-state slot data at OUTPUT+56..
+  # Field length is variable (8-byte count + N × 64-byte slot entries).
+  # Read exactly `len(expected)/2` bytes from offset 56 and compare.
+  if [[ -n "${expected_post_storage:-}" ]]; then
+    post_len_bytes=$(( ${#expected_post_storage} / 2 ))
+    actual_post_storage="$(xxd -p -c 256 -s 56 -l "$post_len_bytes" "gen-out/$name.output" | tr -d '\n')"
+    echo "expected post_storage:"
+    echo "  $expected_post_storage"
+    echo "actual post_storage:"
+    echo "  $actual_post_storage"
+    if [[ "$actual_post_storage" != "$expected_post_storage" ]]; then
+      case_failed="${case_failed:+$case_failed,}post_storage"
     fi
   fi
 
