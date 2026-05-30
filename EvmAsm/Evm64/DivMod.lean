@@ -279,6 +279,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxCombos
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopLoopSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopLoopDefsBorrowCarry
+import EvmAsm.Evm64.DivMod.Spec.N3V5BundleOfShape
 import EvmAsm.Evm64.DivMod.LoopIterN3V5.CallSkipExactX1V5NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMax
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallJ0
