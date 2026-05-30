@@ -150,6 +150,8 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopMaxCall
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Families
+import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientWord
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopSource
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopFinalPost
