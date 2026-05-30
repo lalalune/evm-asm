@@ -103,6 +103,7 @@ import EvmAsm.Codegen.Programs.BlockHashAtBlockNumber
 import EvmAsm.Codegen.Programs.CodeAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtStateRoot
 import EvmAsm.Codegen.Programs.AccountStorageWalkable
+import EvmAsm.Codegen.Programs.CodeAtStateRoot
 import EvmAsm.Codegen.Programs.StateRootAtBlockNumber
 import EvmAsm.Codegen.Programs.CodeHashAtBlockHash
 import EvmAsm.Codegen.Programs.WitnessHeadersFindIndexByBlockHash
@@ -481,6 +482,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_code_at_block_number_address" => some ziskCodeAtBlockNumberAddressProbeUnit
   | "zisk_block_hash_at_state_root" => some ziskBlockHashAtStateRootProbeUnit
   | "zisk_account_storage_walkable_at_state_root" => some ziskAccountStorageWalkableAtStateRootProbeUnit
+  | "zisk_code_at_state_root_address" => some ziskCodeAtStateRootAddressProbeUnit
   | "zisk_state_root_at_block_number" => some ziskStateRootAtBlockNumberProbeUnit
   | "zisk_storage_root_present_in_witness_storage" => some ziskStorageRootPresentInWitnessStorageProbeUnit
   | "zisk_witness_storage_keccak_at_index" => some ziskWitnessStorageKeccakAtIndexProbeUnit
@@ -700,6 +702,7 @@ def knownProgramNames : List String :=
    "zisk_code_at_block_number_address",
    "zisk_block_hash_at_state_root",
    "zisk_account_storage_walkable_at_state_root",
+   "zisk_code_at_state_root_address",
    "zisk_state_root_at_block_number",
    "zisk_storage_root_present_in_witness_storage",
    "zisk_witness_storage_keccak_at_index",
