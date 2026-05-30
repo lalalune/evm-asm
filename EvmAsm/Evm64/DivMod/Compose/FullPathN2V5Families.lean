@@ -249,19 +249,8 @@ theorem fullDivN2UnifiedPostNoX1V5_unfold {bltu_2 bltu_1 bltu_0 : Bool}
        fullDivN2ScratchMemV5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3 scratchMem)) := by
   delta fullDivN2UnifiedPostNoX1V5; rfl
 
--- ============================================================================
--- Quotient word
--- ============================================================================
-
-@[irreducible]
-def fullDivN2QuotientWordV5 (bltu_2 bltu_1 bltu_0 : Bool)
-    (a0 a1 a2 a3 b0 b1 b2 b3 : Word) : EvmWord :=
-  EvmWord.fromLimbs (fun i : Fin 4 =>
-    match i with
-    | 0 => (fullDivN2R0V5 bltu_2 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2 b3).1
-    | 1 => (fullDivN2R1V5 bltu_2 bltu_1 a0 a1 a2 a3 b0 b1 b2 b3).1
-    | 2 => (fullDivN2R2V5 bltu_2 a0 a1 a2 a3 b0 b1 b2 b3).1
-    | 3 => (0 : Word))
+-- (`fullDivN2QuotientWordV5` lives in `Spec/N2V5QuotientWord.lean`, which imports
+-- this file for the `fullDivN2R{0,1,2}V5` digit results.)
 
 -- ============================================================================
 -- V5 denorm epilogue
