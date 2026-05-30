@@ -157,6 +157,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Families
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePostSelected
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientWord
+import EvmAsm.Evm64.DivMod.Spec.N2V5ConcretePostBridge
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientCorrect
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLane
 import EvmAsm.Evm64.DivMod.Spec.N2V5Conditions
