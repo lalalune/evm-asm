@@ -199,6 +199,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnifiedBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopSelectedBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFullBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFromShape
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShiftNz
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientCorrect
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLane
 import EvmAsm.Evm64.DivMod.Spec.N2V5Conditions
@@ -210,6 +211,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5ThreeStep
 import EvmAsm.Evm64.DivMod.Spec.N2V5RemainderLt
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShape
+import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5ModRemainder
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Quotient
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.IterPostV5
