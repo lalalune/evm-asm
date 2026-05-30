@@ -172,6 +172,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5TrialBranch
 import EvmAsm.Evm64.DivMod.Spec.N2V5DigitConservation
 import EvmAsm.Evm64.DivMod.Spec.N2V5R2Conservation
 import EvmAsm.Evm64.DivMod.Spec.N2V5R10Conservation
+import EvmAsm.Evm64.DivMod.Spec.N2V5ThreeStep
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePostSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4
