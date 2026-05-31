@@ -92,6 +92,8 @@ import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
 import EvmAsm.Evm64.DivMod.Spec.N4WindowDivBridge
 import EvmAsm.Evm64.DivMod.Spec.N4QHatWindowBound
 import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientExact
+import EvmAsm.Evm64.DivMod.Spec.N4C3LeTwo
+import EvmAsm.Evm64.DivMod.Spec.N4Carry2PredicateBridge
 import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientV4Bridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
@@ -251,6 +253,7 @@ import EvmAsm.Evm64.DivMod.Spec.N3V5CallCarryOfCallShape
 import EvmAsm.Evm64.DivMod.Spec.N3V5NormVShapeFacts
 import EvmAsm.Evm64.DivMod.Spec.N3V5DigitStepIter
 import EvmAsm.Evm64.DivMod.Spec.N3V5AccQuot
+import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0Quotient
 import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
