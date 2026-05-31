@@ -48,6 +48,8 @@ import EvmAsm.Evm64.EvmWordArith.ModBridgeAssemble
 import EvmAsm.Evm64.EvmWordArith.DivN4Lemmas
 import EvmAsm.Evm64.EvmWordArith.SkipBorrowExtract
 import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddback
+import EvmAsm.Evm64.EvmWordArith.DivN4SecondCarryGen
+import EvmAsm.Evm64.EvmWordArith.DivN4Carry2C3UTopPlusOne
 import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackGen
 import EvmAsm.Evm64.EvmWordArith.DivN4BorrowRemainderLtGen
 import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddbackVal256
