@@ -112,6 +112,7 @@ import EvmAsm.Codegen.Programs.ExtcodecopyAtBlockNumber
 import EvmAsm.Codegen.Programs.SloadAtBlockNumber
 import EvmAsm.Codegen.Programs.LogsBloomKeccakAtBlockNumber
 import EvmAsm.Codegen.Programs.TransactionsRootAtBlockNumber
+import EvmAsm.Codegen.Programs.TimestampAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtBlockNumber
 import EvmAsm.Codegen.Programs.CodeAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtStateRoot
@@ -527,6 +528,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_sload_at_block_number_address" => some ziskSloadAtBlockNumberAddressProbeUnit
   | "zisk_logs_bloom_keccak_at_block_number" => some ziskLogsBloomKeccakAtBlockNumberProbeUnit
   | "zisk_transactions_root_at_block_number" => some ziskTransactionsRootAtBlockNumberProbeUnit
+  | "zisk_timestamp_at_block_number" => some ziskTimestampAtBlockNumberProbeUnit
   | "zisk_block_hash_at_block_number" => some ziskBlockHashAtBlockNumberProbeUnit
   | "zisk_code_at_block_number_address" => some ziskCodeAtBlockNumberAddressProbeUnit
   | "zisk_block_hash_at_state_root" => some ziskBlockHashAtStateRootProbeUnit
@@ -774,6 +776,7 @@ def knownProgramNames : List String :=
    "zisk_sload_at_block_number_address",
    "zisk_logs_bloom_keccak_at_block_number",
    "zisk_transactions_root_at_block_number",
+   "zisk_timestamp_at_block_number",
    "zisk_block_hash_at_block_number",
    "zisk_code_at_block_number_address",
    "zisk_block_hash_at_state_root",
