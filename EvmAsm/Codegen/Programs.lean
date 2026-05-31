@@ -110,6 +110,7 @@ import EvmAsm.Codegen.Programs.ExtcodesizeAtBlockNumber
 import EvmAsm.Codegen.Programs.ExtcodehashAtBlockNumber
 import EvmAsm.Codegen.Programs.ExtcodecopyAtBlockNumber
 import EvmAsm.Codegen.Programs.SloadAtBlockNumber
+import EvmAsm.Codegen.Programs.LogsBloomKeccakAtBlockNumber
 import EvmAsm.Codegen.Programs.BaseFeePerGasAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtBlockNumber
 import EvmAsm.Codegen.Programs.CodeAtBlockNumber
@@ -178,6 +179,7 @@ import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.Address
+import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
 
 namespace EvmAsm.Codegen
 
@@ -511,6 +513,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_extcodehash_at_block_number_address" => some ziskExtcodehashAtBlockNumberAddressProbeUnit
   | "zisk_extcodecopy_at_block_number_address" => some ziskExtcodecopyAtBlockNumberAddressProbeUnit
   | "zisk_sload_at_block_number_address" => some ziskSloadAtBlockNumberAddressProbeUnit
+  | "zisk_logs_bloom_keccak_at_block_number" => some ziskLogsBloomKeccakAtBlockNumberProbeUnit
   | "zisk_base_fee_per_gas_at_block_number" => some ziskBaseFeePerGasAtBlockNumberProbeUnit
   | "zisk_block_hash_at_block_number" => some ziskBlockHashAtBlockNumberProbeUnit
   | "zisk_code_at_block_number_address" => some ziskCodeAtBlockNumberAddressProbeUnit
@@ -552,6 +555,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_witness_state_keccak_at_index" => some ziskWitnessStateKeccakAtIndexProbeUnit
   | "zisk_parent_keccak_matches_child_parent_hash" => some ziskParentKeccakMatchesChildParentHashProbeUnit
   | "zisk_balance_at_block_hash_address" => some ziskBalanceAtBlockHashAddressProbeUnit
+  | "zisk_parent_beacon_block_root_at_block_hash" => some ziskParentBeaconBlockRootAtBlockHashProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
@@ -750,6 +754,7 @@ def knownProgramNames : List String :=
    "zisk_extcodehash_at_block_number_address",
    "zisk_extcodecopy_at_block_number_address",
    "zisk_sload_at_block_number_address",
+   "zisk_logs_bloom_keccak_at_block_number",
    "zisk_base_fee_per_gas_at_block_number",
    "zisk_block_hash_at_block_number",
    "zisk_code_at_block_number_address",
@@ -791,6 +796,7 @@ def knownProgramNames : List String :=
    "zisk_witness_state_keccak_at_index",
    "zisk_parent_keccak_matches_child_parent_hash",
    "zisk_balance_at_block_hash_address",
+   "zisk_parent_beacon_block_root_at_block_hash",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
