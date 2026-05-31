@@ -91,6 +91,7 @@ import EvmAsm.Evm64.DivMod.Spec.N4V5QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
 import EvmAsm.Evm64.DivMod.Spec.N4WindowDivBridge
 import EvmAsm.Evm64.DivMod.Spec.N4QHatWindowBound
+import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientExact
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackWordLane
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
