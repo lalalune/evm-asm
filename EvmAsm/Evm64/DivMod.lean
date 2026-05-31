@@ -449,6 +449,7 @@ import EvmAsm.Evm64.DivMod.Spec.N4V5AddbackBorrowComplement
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2ComposeBridge
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopShiftNzCertOfShape
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneOfShapeNative
+import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditional
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLane
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNz
