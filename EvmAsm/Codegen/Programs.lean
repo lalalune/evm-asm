@@ -55,6 +55,7 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptEncode
+import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.StorageRoot
 import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptNibbles
@@ -290,6 +291,8 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
+  | "zisk_storage_root_single_slot" => some ziskStorageRootSingleSlotProbeUnit
+  | "zisk_account_set_storage_root" => some ziskAccountSetStorageRootProbeUnit
   | "zisk_mpt_leaf_node_encode" => some ziskMptLeafNodeEncodeProbeUnit
   | "zisk_mpt_node_slot_encode" => some ziskMptNodeSlotEncodeProbeUnit
   | "zisk_mpt_extension_node_encode" => some ziskMptExtensionNodeEncodeProbeUnit
@@ -1036,6 +1039,8 @@ def knownProgramNames : List String :=
    "zisk_rlp_encode_u64",
    "zisk_receipt_encode",
    "zisk_single_leaf_trie_root",
+   "zisk_storage_root_single_slot",
+   "zisk_account_set_storage_root",
    "zisk_mpt_leaf_node_encode",
    "zisk_mpt_node_slot_encode",
    "zisk_mpt_extension_node_encode",
@@ -1261,6 +1266,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/Mpt.lean",
     "EvmAsm/Codegen/Programs/MptSet.lean",
     "EvmAsm/Codegen/Programs/MptEncode.lean",
+    "EvmAsm/Codegen/Programs/StorageWrite.lean",
     "EvmAsm/Codegen/Programs/Noop.lean",
     "EvmAsm/Codegen/Programs/Storage.lean",
     "EvmAsm/Codegen/Programs/MptInternal.lean",
