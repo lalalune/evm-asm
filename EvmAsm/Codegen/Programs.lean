@@ -118,6 +118,7 @@ import EvmAsm.Codegen.Programs.GasUsedAtBlockNumber
 import EvmAsm.Codegen.Programs.ReceiptsRootAtBlockNumber
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockNumber
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockNumber
+import EvmAsm.Codegen.Programs.BeneficiaryAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtBlockNumber
 import EvmAsm.Codegen.Programs.CodeAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtStateRoot
@@ -538,6 +539,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_receipts_root_at_block_number" => some ziskReceiptsRootAtBlockNumberProbeUnit
   | "zisk_ommers_hash_at_block_number" => some ziskOmmersHashAtBlockNumberProbeUnit
   | "zisk_parent_beacon_block_root_at_block_number" => some ziskParentBeaconBlockRootAtBlockNumberProbeUnit
+  | "zisk_beneficiary_at_block_number" => some ziskBeneficiaryAtBlockNumberProbeUnit
   | "zisk_block_hash_at_block_number" => some ziskBlockHashAtBlockNumberProbeUnit
   | "zisk_code_at_block_number_address" => some ziskCodeAtBlockNumberAddressProbeUnit
   | "zisk_block_hash_at_state_root" => some ziskBlockHashAtStateRootProbeUnit
@@ -791,6 +793,7 @@ def knownProgramNames : List String :=
    "zisk_receipts_root_at_block_number",
    "zisk_ommers_hash_at_block_number",
    "zisk_parent_beacon_block_root_at_block_number",
+   "zisk_beneficiary_at_block_number",
    "zisk_block_hash_at_block_number",
    "zisk_code_at_block_number_address",
    "zisk_block_hash_at_state_root",
