@@ -35,13 +35,15 @@
 #     --all              run every stateless block (slow); default: smoke subset
 #     --limit N          cap to N guest invocations (default 50)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
-#     --steps N          ziskemu max steps (default $EEST_STEPS or 5000000)
+#     --steps N          ziskemu max steps (default $EEST_STEPS or 50000000)
 #     --min-succ N       exit 1 if fewer than N succ-bit matches (regression gate)
+#     --min-full N       exit 1 if fewer than N full (105-byte) matches (regression gate)
+#     --min-root N       exit 1 if fewer than N root matches (regression gate)
 #     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
 #
 # Exit:
-#   0 -- ran to completion (baseline mode), or succ >= --min-succ
-#   1 -- build/convert failure, no fixtures, or succ < --min-succ
+#   0 -- ran to completion (baseline mode), or all --min-* thresholds met
+#   1 -- build/convert failure, no fixtures, or a --min-{succ,full,root} regression
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -56,6 +58,8 @@ FILTER=""
 # halt long before this and are not slowed.
 STEPS="${EEST_STEPS:-50000000}"
 MIN_SUCC=""
+MIN_FULL=""
+MIN_ROOT=""
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 
 while [[ $# -gt 0 ]]; do
@@ -65,6 +69,8 @@ while [[ $# -gt 0 ]]; do
     --filter) FILTER="$2"; shift 2 ;;
     --steps) STEPS="$2"; shift 2 ;;
     --min-succ) MIN_SUCC="$2"; shift 2 ;;
+    --min-full) MIN_FULL="$2"; shift 2 ;;
+    --min-root) MIN_ROOT="$2"; shift 2 ;;
     --tag) TAG="$2"; shift 2 ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
@@ -173,8 +179,14 @@ BASELINE="$REPO_ROOT/gen-out/eest-baseline.txt"
 
 echo "==> wrote baseline: $BASELINE"
 
+rc=0
 if [[ -n "$MIN_SUCC" && "$succ" -lt "$MIN_SUCC" ]]; then
-  echo "==> REGRESSION: succ match $succ < --min-succ $MIN_SUCC" >&2
-  exit 1
+  echo "==> REGRESSION: succ match $succ < --min-succ $MIN_SUCC" >&2; rc=1
 fi
-exit 0
+if [[ -n "$MIN_FULL" && "$full" -lt "$MIN_FULL" ]]; then
+  echo "==> REGRESSION: full match $full < --min-full $MIN_FULL" >&2; rc=1
+fi
+if [[ -n "$MIN_ROOT" && "$root" -lt "$MIN_ROOT" ]]; then
+  echo "==> REGRESSION: root match $root < --min-root $MIN_ROOT" >&2; rc=1
+fi
+exit $rc
