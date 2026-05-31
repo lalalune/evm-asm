@@ -88,6 +88,9 @@ import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
 import EvmAsm.Evm64.DivMod.Spec.N4V5QuotientWord
+import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
+import EvmAsm.Evm64.DivMod.Spec.N4WindowDivBridge
+import EvmAsm.Evm64.DivMod.Spec.N4QHatWindowBound
 import EvmAsm.Evm64.DivMod.Spec.N4QHatLeOne
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
