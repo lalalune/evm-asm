@@ -125,58 +125,116 @@ def ssz_section(elements: list[bytes]) -> bytes:
 
 
 # ---- vector shapes (value-only update of an existing key) -----------------
+# On-path leaves in the branch/ext shapes use a >=32-byte value so their RLP
+# hashes (node_ref => 0xa0||keccak): then EVERY on-path node is a distinct
+# witness element with a clean section-relative byte offset, which the
+# record-walk reports and the reference predicts without modelling
+# inline-child positions. (The leaf shape's single leaf is found via
+# root_hash regardless of size, so it stays short.)
+A_OLD = b"a" * 32                  # forces la_old to hash
+A_NEW = b"a-new-value-xyz"         # new value (record-walk ignores it)
+
+
 def vec_leaf():
-    """Trie = single leaf (root). key path = full 4 nibbles."""
+    """Trie = single leaf (root). key path = full 4 nibbles. depth 0."""
     path = [0x1, 0x2, 0x3, 0x4]
     old, new = b"old-value", b"new-value-1234"
     root_node = leaf_node(path, old)
     new_root_node = leaf_node(path, new)
+    # levels: the non-terminal (branch/extension) nodes on the path, in
+    # root->leaf order. (kind, nibble, nibbles_consumed). Empty for a leaf.
     return dict(name="leaf", witness=[root_node], root=trie_root(root_node),
-                path=path, new_value=new, expected=trie_root(new_root_node))
+                path=path, new_value=new, expected=trie_root(new_root_node),
+                levels=[])
 
 
 def vec_branch():
     """Trie = branch(root) with two leaf children at nibble 1 and 2. Update
-    the child at nibble 1 (path 1,a,b)."""
+    the child at nibble 1 (path 1,a,b). depth 1."""
     la_path, lb_path = [0xa, 0xb], [0xc, 0xd]
-    a_old, a_new, b_val = b"a-old", b"a-new-value-xyz", b"b-val"
-    la_old = leaf_node(la_path, a_old); lb = leaf_node(lb_path, b_val)
+    b_val = b"b-val"
+    la_old = leaf_node(la_path, A_OLD); lb = leaf_node(lb_path, b_val)
     slots = [b"\x80"] * 16
     slots[1] = node_ref(la_old); slots[2] = node_ref(lb)
     root_node = branch_node(slots)
     # update: child at nibble 1 -> new value
-    la_new = leaf_node(la_path, a_new)
+    la_new = leaf_node(la_path, A_NEW)
     slots2 = list(slots); slots2[1] = node_ref(la_new)
     new_root_node = branch_node(slots2)
     witness = [root_node, la_old]  # path nodes (lb not needed for value-only)
     return dict(name="branch", witness=witness, root=trie_root(root_node),
-                path=[0x1] + la_path, new_value=a_new,
-                expected=trie_root(new_root_node))
+                path=[0x1] + la_path, new_value=A_NEW,
+                expected=trie_root(new_root_node),
+                levels=[("branch", 0x1, 1)])
 
 
 def vec_ext_branch():
     """Trie = extension(root, prefix=[5,6]) -> branch -> two leaves. Update
-    child at nibble 1 (path 5,6,1,a,b)."""
+    child at nibble 1 (path 5,6,1,a,b). depth 2."""
     ext_prefix = [0x5, 0x6]
     la_path, lb_path = [0xa, 0xb], [0xc, 0xd]
-    a_old, a_new, b_val = b"a-old", b"a-new-value-xyz", b"b-val"
-    la_old = leaf_node(la_path, a_old); lb = leaf_node(lb_path, b_val)
+    b_val = b"b-val"
+    la_old = leaf_node(la_path, A_OLD); lb = leaf_node(lb_path, b_val)
     slots = [b"\x80"] * 16
     slots[1] = node_ref(la_old); slots[2] = node_ref(lb)
     branch = branch_node(slots)
     root_node = extension_node(ext_prefix, node_ref(branch))
     # update
-    la_new = leaf_node(la_path, a_new)
+    la_new = leaf_node(la_path, A_NEW)
     slots2 = list(slots); slots2[1] = node_ref(la_new)
     branch2 = branch_node(slots2)
     new_root_node = extension_node(ext_prefix, node_ref(branch2))
     witness = [root_node, branch, la_old]
     return dict(name="ext_branch", witness=witness, root=trie_root(root_node),
-                path=ext_prefix + [0x1] + la_path, new_value=a_new,
-                expected=trie_root(new_root_node))
+                path=ext_prefix + [0x1] + la_path, new_value=A_NEW,
+                expected=trie_root(new_root_node),
+                levels=[("extension", 0, len(ext_prefix)),
+                        ("branch", 0x1, 1)])
 
 
 VECTORS = [vec_leaf, vec_branch, vec_ext_branch]
+
+
+# ---- record-walk expectation (mpt_set .4.2.1) -----------------------------
+def element_offsets(witness: list[bytes]) -> list[int]:
+    """Byte offset of each element BODY within an ssz_section: the u32 offset
+    table (4 bytes/element) followed by the concatenated bodies."""
+    base = 4 * len(witness); offs = []; cur = base
+    for e in witness:
+        offs.append(cur); cur += len(e)
+    return offs
+
+
+def record_walk_expected(v: dict) -> list[tuple[str, int, int]]:
+    """Expected probe OUTPUT fields for `zisk_mpt_set_record_walk` as
+    (name, byte_offset_in_output, u64_value). Mirrors the asm descent: every
+    on-path node is witness element i (path order); records 0..depth-1 are
+    the branch/extension nodes, the terminal (leaf) is element `depth`.
+
+    OUTPUT layout: status@0, meta(depth,consumed,leaf_offset,leaf_len)@8,
+    records (offset,len,kind,nibble) 32 B each @128.
+    """
+    witness, levels = v["witness"], v["levels"]
+    offs = element_offsets(witness)
+    depth = len(levels)
+    assert depth == len(witness) - 1, f"{v['name']}: depth/witness mismatch"
+    consumed = sum(consumed_n for (_k, _nib, consumed_n) in levels)
+    out = [
+        ("status", 0, 0),
+        ("depth", 8, depth),
+        ("consumed", 16, consumed),
+        ("leaf_offset", 24, offs[depth]),
+        ("leaf_len", 32, len(witness[depth])),
+    ]
+    for i, (kind, nibble, _c) in enumerate(levels):
+        base = 128 + 32 * i
+        out += [
+            (f"rec{i}_offset", base + 0, offs[i]),
+            (f"rec{i}_len", base + 8, len(witness[i])),
+            (f"rec{i}_kind", base + 16, 0 if kind == "branch" else 1),
+            (f"rec{i}_nibble", base + 24, nibble),
+        ]
+    return out
 
 if __name__ == "__main__":
     import os
@@ -190,5 +248,11 @@ if __name__ == "__main__":
             f.write(inp)
         with open(f"{outdir}/{v['name']}.expected", "w") as f:
             f.write(v["expected"].hex())
+        # record-walk expectation: "<name> <output_byte_offset> <u64_value>"
+        rw = record_walk_expected(v)
+        with open(f"{outdir}/{v['name']}.rwexpected", "w") as f:
+            for name, off, val in rw:
+                f.write(f"{name} {off} {val}\n")
+        depth = next(val for nm, _o, val in rw if nm == "depth")
         print(f"{v['name']:12} root={v['root'].hex()[:16]}.. "
-              f"expected_new_root={v['expected'].hex()}")
+              f"new_root={v['expected'].hex()[:16]}.. rw_depth={depth}")
