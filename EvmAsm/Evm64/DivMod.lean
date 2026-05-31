@@ -88,6 +88,9 @@ import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
 import EvmAsm.Evm64.DivMod.Spec.N4V5QuotientWord
+import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
+import EvmAsm.Evm64.DivMod.Spec.N4WindowDivBridge
+import EvmAsm.Evm64.DivMod.Spec.N4QHatWindowBound
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
@@ -137,6 +140,7 @@ import EvmAsm.Evm64.DivMod.LoopIterN4MaxV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN4CallV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN4AddbackV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN4V5.MaxAddbackBeqV5NoNop
+import EvmAsm.Evm64.DivMod.LoopIterN4V5.MaxSkipV5NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopMaxAddback
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
 import EvmAsm.Evm64.DivMod.Compose.ModPreloopN4V4NoNop
