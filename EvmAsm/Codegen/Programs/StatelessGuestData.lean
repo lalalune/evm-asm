@@ -48,27 +48,21 @@ def statelessGuestDataSection : String :=
   "sha256_w_params:\n" ++
   "  .quad sha256_w_state\n" ++
   "  .quad sha256_w_input\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_scratch:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_padded:\n" ++
-  "  .zero 1024\n" ++
+  -- ssz_merkleize_scratch / _padded relocated to the .sszscratch NOBITS
+  -- region (statelessGuestSszScratchSection, base SSZ_SCRATCH_BASE) and
+  -- enlarged; only the small _partial stays in .data.
   ".balign 32\n" ++
   "ssz_merkleize_partial:\n" ++
   "  .zero 64\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_chunks:\n" ++
-  "  .zero 1024\n" ++
+  -- ssz_hb_chunks relocated to .sszscratch (enlarged for big elements).
   ".balign 32\n" ++
   "ssz_hb_partial:\n" ++
   "  .zero 32\n" ++
   ".balign 32\n" ++
   "ssz_hb_mix:\n" ++
   "  .zero 64\n" ++
-  ".balign 32\n" ++
-  "ssz_ltb_child_roots:\n" ++
-  "  .zero 1024\n" ++
+  -- ssz_ltb_child_roots relocated to .sszscratch (enlarged for >32 list
+  -- elements, e.g. blocks with many transactions).
   ".balign 32\n" ++
   "ssz_ltb_partial:\n" ++
   "  .zero 32\n" ++
@@ -98,9 +92,8 @@ def statelessGuestDataSection : String :=
   -- npr_vh_aligned holds the 8-byte-aligned copy of the section (<=32
   -- chunks = 1024 bytes); npr_vh_partial is the pre-mix merkleize root;
   -- npr_versioned_hashes_dyn is the final mixed-in-length root.
-  ".balign 32\n" ++
-  "npr_vh_aligned:\n" ++
-  "  .zero 1024\n" ++
+  -- npr_vh_aligned relocated to .sszscratch (enlarged: List[Bytes32,4096]
+  -- versioned_hashes section is up to 4096*32 = 128 KiB).
   ".balign 32\n" ++
   "npr_vh_partial:\n" ++
   "  .zero 32\n" ++
@@ -454,6 +447,31 @@ def statelessGuestDataSection : String :=
   -- logs_bloom merkle (under node_0_3).
   ".balign 8\n" ++
   "npr_logs_bloom_node_2_3_scratch:\n" ++
-  "  .zero 32"
+  "  .zero 32\n" ++
+  -- ===== .sszscratch: large NOBITS SSZ-merkleization work region =====
+  -- Relocated here (out of .data, which is pinned just below OUTPUT at
+  -- 0xa0010000) and enlarged so hash_tree_root of a large element fits:
+  -- the largest EEST transaction element is ~1 MiB and block_access_list
+  -- ~90 KiB. Placed at SSZ_SCRATCH_BASE = 0xa2000000 by the linker's
+  -- --section-start=.sszscratch=0xa2000000 (see Driver.lean). @nobits =>
+  -- the multi-MiB reservation never lands in the ELF file. Inside the
+  -- verified RAM zone (0xa0000000..0xc0000000), so isValidMemAddr already
+  -- accepts it. Same labels as before => every `la <buf>` resolves here.
+  ".section .sszscratch, \"aw\", @nobits\n" ++
+  ".balign 32\n" ++
+  "ssz_merkleize_scratch:\n" ++
+  "  .zero 0x200000\n" ++              -- 2 MiB (in-place reduction; >= chunks)
+  ".balign 32\n" ++
+  "ssz_merkleize_padded:\n" ++
+  "  .zero 0x200000\n" ++              -- 2 MiB (next-pow2 padding buffer)
+  ".balign 32\n" ++
+  "ssz_hb_chunks:\n" ++
+  "  .zero 0x200000\n" ++              -- 2 MiB (packed bytes of one element)
+  ".balign 32\n" ++
+  "ssz_ltb_child_roots:\n" ++
+  "  .zero 0x20000\n" ++               -- 128 KiB (up to 4096 list-element roots)
+  ".balign 32\n" ++
+  "npr_vh_aligned:\n" ++
+  "  .zero 0x20000"                    -- 128 KiB (versioned_hashes List[Bytes32,4096])
 
 end EvmAsm.Codegen

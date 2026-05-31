@@ -79,7 +79,13 @@ def assembleAndLink (asmPath : System.FilePath) :
   runOrFail asProgram
     #["-march=rv64imac", "-mno-relax", "-o", objPath.toString, asmPath.toString]
   runOrFail ldProgram
+    -- `.sszscratch` is the stateless guest's large NOBITS merkleization
+    -- work region (EvmAsm/Stateless/MemoryLayout.lean: SSZ_SCRATCH_BASE).
+    -- Placing it at a high RAM VMA keeps the multi-MiB buffers clear of
+    -- `.data`/OUTPUT/stack. The flag is harmless for programs that do not
+    -- emit the section (GNU ld only relocates the section when present).
     #["-Ttext=0x80000000", "-Tdata=0xa0000000",
+      "--section-start=.sszscratch=0xa2000000",
       "-nostdlib", "--no-relax",
       "-o", elfPath.toString, objPath.toString]
   return (objPath, elfPath)
