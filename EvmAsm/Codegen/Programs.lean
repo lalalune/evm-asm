@@ -210,6 +210,7 @@ import EvmAsm.Codegen.Programs.WithdrawalsRootAtBlockHash
 import EvmAsm.Codegen.Programs.PrevRandaoAtBlockHash
 import EvmAsm.Codegen.Programs.DifficultyAtBlockHash
 import EvmAsm.Codegen.Programs.HeaderNonceAtBlockHash
+import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 
 namespace EvmAsm.Codegen
 
@@ -447,6 +448,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_ssz_hash_tree_root_list_bytelist" => some ziskSszHashTreeRootListByteListProbeUnit
   | "zisk_ssz_hash_tree_root_execution_witness" => some ziskSszHashTreeRootExecutionWitnessProbeUnit
   | "zisk_header_nonce_at_block_hash" => some ziskHeaderNonceAtBlockHashProbeUnit
+  | "zisk_post_merge_invariants_at_block_hash" => some ziskPostMergeInvariantsAtBlockHashProbeUnit
   | _                           => none
 
 /-- Look up a program by name. Returns `none` for unknown names so the CLI
@@ -887,6 +889,7 @@ def knownProgramNames : List String :=
    "zisk_prev_randao_at_block_hash",
    "zisk_difficulty_at_block_hash",
    "zisk_header_nonce_at_block_hash",
+   "zisk_post_merge_invariants_at_block_hash",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
