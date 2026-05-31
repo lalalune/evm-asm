@@ -1092,6 +1092,24 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   `_at_header_state_root`. Plus `zisk_blockhash_from_witness_headers`
   (BLOCKHASH) and `zisk_witness_headers_chain_validate` (chain continuity).
   Same fixture/round-trip discipline against `execution-specs` Python.
+- ✅ **EEST conformance harness (2026-05-31)**: the `stateless_guest` ELF
+  now runs against the real Ethereum Execution Spec Tests instead of only
+  synthetic inputs. Target = `ethereum/execution-spec-tests` @ `zkevm@v0.4.0`
+  (the dedicated stateless "zkevm" fixture line for the **Amsterdam /
+  Glamsterdam** fork; adds the 2-byte schema-id prefix + filled `public_keys`
+  the guest reads), vendored as the `execution-spec-tests` submodule
+  (`shallow=true`). Pipeline: `scripts/eest-fetch-fixtures.sh` downloads the
+  `fixtures_zkevm.tar.gz` release artifact;
+  `scripts/eest-stateless-to-input.py` turns each block's
+  `statelessInputBytes` into a ziskemu `-i` input (+ manifest);
+  `scripts/codegen-eest-stateless-check.sh` builds the ELF, runs each input
+  on ziskemu, and compares the output against the block's recorded
+  `statelessOutputBytes`. Baseline (zkevm@v0.4.0): 23,219 stateless blocks
+  (22,325 valid / 894 invalid); the still-partial guest matches the
+  `successful_validation` bit on the 894 invalid-expecting blocks (it rejects
+  every non-empty-header witness) and 0 full-output matches (it emits the
+  pre-v0.4.0 empty-`active_fork` encoding). PR7+ guest completeness moves
+  this baseline up; see PROGRESS.md Axis F.
 
 ### Cross-references
 
