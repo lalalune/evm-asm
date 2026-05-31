@@ -92,6 +92,7 @@ import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
 import EvmAsm.Evm64.DivMod.Spec.N4QHatOvershoot
 import EvmAsm.Evm64.DivMod.Spec.N4WindowDivBridge
 import EvmAsm.Evm64.DivMod.Spec.N4QHatWindowBound
+import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackWordLane
 import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientExact
 import EvmAsm.Evm64.DivMod.Spec.N4C3LeTwo
 import EvmAsm.Evm64.DivMod.Spec.N4C3LeU4Plus2
@@ -372,6 +373,9 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallSkip
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallAddback
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallSkip
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallAddback
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallSkip
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallSkip
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallSkip
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FrameShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5BridgeShift0
@@ -413,6 +417,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallAddback
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallAddbackOfConds
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackQOutReconcile
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipOfConds
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShiftNz
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNz
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0
