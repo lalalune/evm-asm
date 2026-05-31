@@ -300,6 +300,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1N2V5StackSpecUnconditional
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PostBridge
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0DivLimb
+import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0ModLimb
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PreLift
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientCorrect
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLane
@@ -328,6 +329,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShapeMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5ModRemainder
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Quotient
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0QuotientLane
+import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0RemainderLane
 import EvmAsm.Evm64.DivMod.LoopIterN2V5.IterPostV5
 import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallAddbackV5NoNop
