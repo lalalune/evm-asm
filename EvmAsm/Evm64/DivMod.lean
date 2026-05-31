@@ -234,6 +234,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PathShift0
 import EvmAsm.Evm64.DivMod.Spec.N2V5R2R1Dispatch
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormVShapeFacts
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarry
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarryMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallIterBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallIterBorrowCarryMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceBorrowCarry
