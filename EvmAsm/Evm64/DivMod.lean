@@ -361,6 +361,7 @@ import EvmAsm.Evm64.DivMod.Compose.LoopN3ExactX1
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridge
 import EvmAsm.Evm64.DivMod.Compose.ModShift0Epilogue
 import EvmAsm.Evm64.DivMod.LoopIterN4MaxV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN4CallAddbackV4NoNop
