@@ -242,6 +242,54 @@ def vec_acc():
                 expected=trie_root(final_root_node))
 
 
+# ---- multi-change driver vector (mpt_state_root .4.3.2) -------------------
+def build_state_root_input(root_hash, changes, witness_section) -> bytes:
+    """ziskemu `-i` body for zisk_mpt_state_root (file maps to INPUT+8):
+      +8 witness_len | +16 n_changes | +24 root_hash(32B)
+      +56 lengths table: N x (path_len:u64, value_len:u64)
+      then blobs path0,value0,... (each 8-aligned) | witness (8-aligned).
+    changes = list of (path_nibbles, value_bytes)."""
+    body = bytearray()
+    body += struct.pack("<Q", len(witness_section))   # +8
+    body += struct.pack("<Q", len(changes))           # +16
+    body += root_hash                                 # +24 .. +56
+    for (p, v) in changes:                            # lengths table
+        body += struct.pack("<Q", len(p)) + struct.pack("<Q", len(v))
+    for (p, v) in changes:                            # blobs, 8-aligned each
+        body += bytes(p)
+        while len(body) % 8 != 0:
+            body += b"\x00"
+        body += v
+        while len(body) % 8 != 0:
+            body += b"\x00"
+    body += witness_section
+    while len(body) % 8 != 0:
+        body += b"\x00"
+    return bytes(body)
+
+
+def vec_state_root():
+    """Branch trie with three hashed leaf children (nibbles 1,2,3); update
+    all three in sequence -> final root. Exercises the multi-change driver
+    threading mpt_set_acc through the appendable node DB."""
+    paths = {1: [0xa, 0xb], 2: [0xc, 0xd], 3: [0xe, 0xf]}
+    olds = {1: b"a" * 32, 2: b"b" * 32, 3: b"c" * 32}   # hashed children
+    news = {1: b"x1-new", 2: b"y2-new-value-padded-to-thirty2!!", 3: b"z3"}
+    old_leaves = {k: leaf_node(paths[k], olds[k]) for k in (1, 2, 3)}
+    slots = [b"\x80"] * 16
+    for k in (1, 2, 3):
+        slots[k] = node_ref(old_leaves[k])
+    root_node = branch_node(slots)
+    witness = [root_node] + [old_leaves[k] for k in (1, 2, 3)]
+    fslots = list(slots)
+    for k in (1, 2, 3):
+        fslots[k] = node_ref(leaf_node(paths[k], news[k]))
+    final_root_node = branch_node(fslots)
+    changes = [([k] + paths[k], news[k]) for k in (1, 2, 3)]
+    return dict(name="state_root", witness=witness, root=trie_root(root_node),
+                changes=changes, expected=trie_root(final_root_node))
+
+
 # ---- record-walk expectation (mpt_set .4.2.1) -----------------------------
 def element_offsets(witness: list[bytes]) -> list[int]:
     """Byte offset of each element BODY within an ssz_section: the u32 offset
@@ -314,3 +362,13 @@ if __name__ == "__main__":
         f.write(a["expected"].hex())
     print(f"{'acc':12} root={a['root'].hex()[:16]}.. "
           f"final_root={a['expected'].hex()}")
+    # multi-change driver vector (mpt_state_root)
+    sr = vec_state_root()
+    sec = ssz_section(sr["witness"])
+    inp = build_state_root_input(sr["root"], sr["changes"], sec)
+    with open(f"{outdir}/state_root.input", "wb") as f:
+        f.write(inp)
+    with open(f"{outdir}/state_root.expected", "w") as f:
+        f.write(sr["expected"].hex())
+    print(f"{'state_root':12} root={sr['root'].hex()[:16]}.. "
+          f"final_root={sr['expected'].hex()} (n={len(sr['changes'])})")
