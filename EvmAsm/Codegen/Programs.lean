@@ -125,6 +125,7 @@ import EvmAsm.Codegen.Programs.PrevRandaoAtBlockNumber
 import EvmAsm.Codegen.Programs.ExcessBlobGasAtBlockNumber
 import EvmAsm.Codegen.Programs.BlobGasUsedAtBlockNumber
 import EvmAsm.Codegen.Programs.ExtraDataAtBlockNumber
+import EvmAsm.Codegen.Programs.ParentHashAtBlockNumber
 import EvmAsm.Codegen.Programs.BaseFeePerGasAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtBlockNumber
 import EvmAsm.Codegen.Programs.CodeAtBlockNumber
@@ -554,6 +555,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_excess_blob_gas_at_block_number" => some ziskExcessBlobGasAtBlockNumberProbeUnit
   | "zisk_blob_gas_used_at_block_number" => some ziskBlobGasUsedAtBlockNumberProbeUnit
   | "zisk_extra_data_at_block_number" => some ziskExtraDataAtBlockNumberProbeUnit
+  | "zisk_parent_hash_at_block_number" => some ziskParentHashAtBlockNumberProbeUnit
   | "zisk_base_fee_per_gas_at_block_number" => some ziskBaseFeePerGasAtBlockNumberProbeUnit
   | "zisk_block_hash_at_block_number" => some ziskBlockHashAtBlockNumberProbeUnit
   | "zisk_code_at_block_number_address" => some ziskCodeAtBlockNumberAddressProbeUnit
@@ -815,6 +817,7 @@ def knownProgramNames : List String :=
    "zisk_excess_blob_gas_at_block_number",
    "zisk_blob_gas_used_at_block_number",
    "zisk_extra_data_at_block_number",
+   "zisk_parent_hash_at_block_number",
    "zisk_base_fee_per_gas_at_block_number",
    "zisk_block_hash_at_block_number",
    "zisk_code_at_block_number_address",
