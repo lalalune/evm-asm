@@ -230,6 +230,40 @@ def statelessGuestEpilogue : String :=
   "  li a2, 19                  # chunk-cap log2 (2^24 / 32)\n" ++
   "  la a3, npr_dynamic_bal_root\n" ++
   "  jal ra, ssz_hash_tree_root_bytes\n" ++
+  "  # --- versioned_hashes_root = hash_tree_root(List[Bytes32, 4096]) ---\n" ++
+  "  # NPR field 1: fixed-size Bytes32 elements (no inner offset table), so\n" ++
+  "  # the section is N*32 bytes (N = len/32) and the root is\n" ++
+  "  # merkleize(section_chunks, capacity 2^12) then mix_in_length(N).\n" ++
+  "  # Offsets: versioned_hashes @ NPR+4 (s6+20), execution_requests @\n" ++
+  "  # NPR+40 (s6+56); read via sg_load_u32le (LBU -- s6 is unaligned).\n" ++
+  "  addi a0, s6, 20            # &versioned_hashes_offset (NPR+4)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s7, a0                  # s7 = versioned_hashes_offset (rel NPR)\n" ++
+  "  addi a0, s6, 56            # &execution_requests_offset (NPR+40)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  sub s9, a0, s7             # s9 = versioned_hashes section_len\n" ++
+  "  addi t0, s6, 16            # NPR_addr\n" ++
+  "  add a1, t0, s7             # src = NPR + versioned_hashes_offset (unaligned)\n" ++
+  "  la a0, npr_vh_aligned      # dst (8-byte aligned)\n" ++
+  "  mv a2, s9                  # len\n" ++
+  "  jal ra, sg_memcpy          # byte-copy section -> aligned buffer\n" ++
+  "  srli s10, s9, 5            # s10 = N = section_len / 32\n" ++
+  "  la a0, npr_vh_aligned\n" ++
+  "  mv a1, s10                 # N chunks (Bytes32 = 1 chunk each)\n" ++
+  "  li a2, 12                  # capacity log2 (MAX_BLOB_COMMITMENTS_PER_BLOCK)\n" ++
+  "  la a3, npr_vh_partial\n" ++
+  "  jal ra, ssz_merkleize      # pre-mix merkle root -> npr_vh_partial\n" ++
+  "  # mix_in_length: sha256(partial || u256_le(N)) -> npr_versioned_hashes_dyn\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_vh_partial\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  sd s10, 32(t1)             # length = N (u64 LE)\n" ++
+  "  sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_versioned_hashes_dyn\n" ++
+  "  jal ra, zkvm_sha256\n" ++
   "  # ===== exec_payload merkle path (leaves 0-15) =====\n" ++
   "  # Path leaf_6 -> node_6_7 -> node_4_7 -> node_0_7 -> node_0_15\n" ++
   "  # \n" ++
@@ -656,7 +690,7 @@ def statelessGuestEpilogue : String :=
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
   "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
-  "  la t3, npr_versioned_hashes_root\n" ++
+  "  la t3, npr_versioned_hashes_dyn\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
