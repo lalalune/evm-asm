@@ -662,5 +662,128 @@ def ziskRlpEncodeBytesProbeUnit : BuildUnit := {
   dataAsm     := ziskRlpEncodeBytesDataSection
 }
 
+/-! ## rlp_item_size / rlp_item_span (PR: full byte-span of an RLP item)
+
+    `rlp_list_nth_item` returns the item's CONTENT offset/length for string
+    items (e.g. a `0xa0||hash` ref -> offset after `0xa0`, length 32) but the
+    FULL span for embedded-list items -- inconsistent, so it can't be used to
+    copy a branch slot verbatim. `rlp_item_span` returns the FULL encoded span
+    (start offset incl. prefix, total size) of list item `i` for EVERY item
+    type, which is what mpt_set's branch-slot reconstruction needs. -/
+
+/-- `rlp_item_size`: a0 = ptr to one RLP item -> a0 = its full encoded size.
+    Leaf; clobbers t0..t6 only (preserves all s-registers and ra). -/
+def rlpItemSizeFunction : String :=
+  "rlp_item_size:\n" ++
+  "  lbu t0, 0(a0)\n" ++
+  "  li t1, 0x80\n" ++
+  "  bgeu t0, t1, .Lris2_a\n" ++
+  "  li a0, 1\n" ++                          -- single byte < 0x80
+  "  ret\n" ++
+  ".Lris2_a:\n" ++
+  "  li t1, 0xb8\n" ++
+  "  bgeu t0, t1, .Lris2_b\n" ++
+  "  addi a0, t0, -128\n" ++                  -- short string: len = t0 - 0x80
+  "  addi a0, a0, 1\n" ++                     -- + 1 prefix byte
+  "  ret\n" ++
+  ".Lris2_b:\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bgeu t0, t1, .Lris2_c\n" ++
+  "  li t1, 0xb7\n" ++
+  "  sub t2, t0, t1\n" ++                     -- long string: lol = t0 - 0xb7
+  "  j .Lris2_long\n" ++
+  ".Lris2_c:\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bgeu t0, t1, .Lris2_d\n" ++
+  "  addi a0, t0, -192\n" ++                  -- short list: len = t0 - 0xc0
+  "  addi a0, a0, 1\n" ++
+  "  ret\n" ++
+  ".Lris2_d:\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1\n" ++                     -- long list: lol = t0 - 0xf7
+  ".Lris2_long:\n" ++
+  "  li t3, 0\n" ++                           -- decoded length accumulator
+  "  addi t4, a0, 1\n" ++                     -- BE length bytes start at item+1
+  "  mv t5, t2\n" ++                          -- remaining lol bytes
+  ".Lris2_be:\n" ++
+  "  beqz t5, .Lris2_done\n" ++
+  "  slli t3, t3, 8\n" ++
+  "  lbu t6, 0(t4)\n" ++
+  "  or t3, t3, t6\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  j .Lris2_be\n" ++
+  ".Lris2_done:\n" ++
+  "  addi a0, t2, 1\n" ++                     -- 1 (tag) + lol
+  "  add a0, a0, t3\n" ++                     -- + decoded payload length
+  "  ret"
+
+/-- `rlp_item_span`: a0 = list ptr, a1 = list len, a2 = item index i,
+    a3 = out_start_ptr (u64, item start offset incl. its prefix, relative to
+    list ptr), a4 = out_size_ptr (u64, full encoded size). Returns a0 = 0 on
+    success, 1 on parse failure / i out of range. The cursor is kept in a
+    callee-saved register because `rlp_item_size` clobbers the temporaries. -/
+def rlpItemSpanFunction : String :=
+  "rlp_item_span:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0; add s1, a0, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  bgeu s0, s1, .Lrisp_fail\n" ++
+  "  lbu t0, 0(s0)\n" ++
+  "  li t1, 0xc0; bltu t0, t1, .Lrisp_fail\n" ++   -- outer must be a list
+  "  li t1, 0xf8; bltu t0, t1, .Lrisp_short_outer\n" ++
+  "  li t1, 0xf7; sub t2, t0, t1; addi t2, t2, 1\n" ++
+  "  add s5, s0, t2; j .Lrisp_walk\n" ++
+  ".Lrisp_short_outer:\n" ++
+  "  addi s5, s0, 1\n" ++                          -- cursor at first item
+  ".Lrisp_walk:\n" ++
+  "  li s6, 0\n" ++                                -- index
+  ".Lrisp_loop:\n" ++
+  "  beq s6, s2, .Lrisp_target\n" ++
+  "  bgeu s5, s1, .Lrisp_fail\n" ++
+  "  mv a0, s5; jal ra, rlp_item_size\n" ++
+  "  add s5, s5, a0; addi s6, s6, 1; j .Lrisp_loop\n" ++
+  ".Lrisp_target:\n" ++
+  "  bgeu s5, s1, .Lrisp_fail\n" ++
+  "  mv a0, s5; jal ra, rlp_item_size\n" ++
+  "  sub t1, s5, s0; sd t1, 0(s3); sd a0, 0(s4)\n" ++
+  "  li a0, 0; j .Lrisp_ret\n" ++
+  ".Lrisp_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lrisp_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64; ret"
+
+/-- `zisk_rlp_item_span`: probe. Input: bytes 0..8 list_len, 8..16 index i,
+    16.. list bytes. Output: 0..8 status, 8..16 item start offset, 16..24
+    item full size. -/
+def ziskRlpItemSpanPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld a1, 8(a5)                # list_len\n" ++
+  "  ld a2, 16(a5)               # index i\n" ++
+  "  addi a0, a5, 24             # list ptr\n" ++
+  "  li a3, 0xa0010008           # out_start\n" ++
+  "  li a4, 0xa0010010           # out_size\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  li t0, 0xa0010000; sd a0, 0(t0)\n" ++
+  "  j .Lrisp_pdone\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
+  ".Lrisp_pdone:"
+
+def ziskRlpItemSpanDataSection : String :=
+  ".section .data\n" ++
+  "ris_scratch:\n" ++
+  "  .zero 8"
+
+def ziskRlpItemSpanProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRlpItemSpanPrologue
+  dataAsm     := ziskRlpItemSpanDataSection
+}
+
 
 end EvmAsm.Codegen

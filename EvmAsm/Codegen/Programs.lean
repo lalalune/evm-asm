@@ -635,6 +635,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
+  | "zisk_rlp_item_span"        => some ziskRlpItemSpanProbeUnit
   | "zisk_rlp_encode_list_prefix" => some ziskRlpEncodeListPrefixProbeUnit
   | "zisk_withdrawal_rlp_encode" => some ziskWithdrawalRlpEncodeProbeUnit
   | "zisk_withdrawal_compute_hash" => some ziskWithdrawalComputeHashProbeUnit
@@ -914,6 +915,7 @@ def knownProgramNames : List String :=
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
+   "zisk_rlp_item_span",
    "zisk_rlp_encode_list_prefix",
    "zisk_withdrawal_rlp_encode",
    "zisk_withdrawal_compute_hash",
