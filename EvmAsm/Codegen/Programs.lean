@@ -60,6 +60,7 @@ import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.AccountApplyStorage
+import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.StorageRoot
 import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptNibbles
@@ -307,6 +308,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_storage_root_single_slot" => some ziskStorageRootSingleSlotProbeUnit
   | "zisk_account_set_storage_root" => some ziskAccountSetStorageRootProbeUnit
   | "zisk_account_apply_storage_slot" => some ziskAccountApplyStorageSlotProbeUnit
+  | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_mpt_leaf_node_encode" => some ziskMptLeafNodeEncodeProbeUnit
   | "zisk_mpt_node_slot_encode" => some ziskMptNodeSlotEncodeProbeUnit
   | "zisk_mpt_extension_node_encode" => some ziskMptExtensionNodeEncodeProbeUnit
@@ -1082,6 +1084,7 @@ def knownProgramNames : List String :=
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
    "zisk_account_apply_storage_slot",
+   "zisk_system_write_descriptors",
    "zisk_mpt_leaf_node_encode",
    "zisk_mpt_node_slot_encode",
    "zisk_mpt_extension_node_encode",
@@ -1315,6 +1318,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/MptEncode.lean",
     "EvmAsm/Codegen/Programs/StorageWrite.lean",
     "EvmAsm/Codegen/Programs/AccountApplyStorage.lean",
+    "EvmAsm/Codegen/Programs/SystemWrites.lean",
     "EvmAsm/Codegen/Programs/Noop.lean",
     "EvmAsm/Codegen/Programs/Storage.lean",
     "EvmAsm/Codegen/Programs/MptInternal.lean",
