@@ -2007,7 +2007,13 @@ carries over):
 - M26 — `addrHash` dimension (multi-contract storage keying)
 - M27 — Nested call frames + multi-frame journal push/pop
 - M28 — Witness MPT integration (cold reads + commit sweep)
-- M29 — EEST fixture harness + CI
+- M29 — EEST fixture harness + CI — 🟡 stateless harness **landed**:
+  `scripts/eest-fetch-fixtures.sh` (download `fixtures_zkevm.tar.gz`),
+  `scripts/eest-stateless-to-input.py` (fixture → ziskemu `-i` input +
+  manifest), `scripts/codegen-eest-stateless-check.sh` (build ELF, run on
+  ziskemu, compare vs `statelessOutputBytes`). Targets EEST
+  `zkevm@v0.4.0` (Amsterdam/Glamsterdam); baseline in PROGRESS.md Axis F.
+  CI job (smoke subset on PRs) still TODO.
 
 **Storage-orthogonal candidates** (any order, interleave anywhere):
 - Real EXP body wiring (verified body exists complete; M10-
