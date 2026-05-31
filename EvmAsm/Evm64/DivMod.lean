@@ -222,6 +222,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N2V5ConcretePostBridge
 import EvmAsm.Evm64.DivMod.Spec.N2V5ConcretePostBridgeMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5PostToDispatchPostV5
+import EvmAsm.Evm64.DivMod.Spec.N2V5PostToDispatchPostV5Mod
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExact
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallAddbackOverestimate
 import EvmAsm.Evm64.DivMod.Spec.N2V5TrialOverestimate
@@ -290,7 +291,9 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePostSelectedBorrowCa
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFromShape
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFromShapeMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShiftNz
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShiftNzMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Lane
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FullShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ParamShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShift0
@@ -321,6 +324,7 @@ import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShape
+import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShapeMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5ModRemainder
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Quotient
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0QuotientLane
