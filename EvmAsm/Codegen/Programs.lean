@@ -73,6 +73,7 @@ import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderBaseFee
+import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Chain
@@ -706,6 +707,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_eip1559_calc_base_fee_per_gas" => some ziskEip1559CalcBaseFeePerGasProbeUnit
   | "zisk_header_validate_base_fee" => some ziskHeaderValidateBaseFeeProbeUnit
   | "zisk_validate_header_full" => some ziskValidateHeaderFullProbeUnit
+  | "zisk_block_header_ssz_to_rlp" => some ziskBlockHeaderSszToRlpProbeUnit
   | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
@@ -987,6 +989,7 @@ def knownProgramNames : List String :=
    "zisk_eip1559_calc_base_fee_per_gas",
    "zisk_header_validate_base_fee",
    "zisk_validate_header_full",
+   "zisk_block_header_ssz_to_rlp",
    "zisk_u256_from_u64_be",
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero",
@@ -1252,6 +1255,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderBaseFee.lean",
+    "EvmAsm/Codegen/Programs/BlockHeaderSszToRlp.lean",
     "EvmAsm/Codegen/Programs/HeaderDecode.lean",
     "EvmAsm/Codegen/Programs/HeaderChain.lean",
     "EvmAsm/Codegen/Programs/HeaderFields.lean",
