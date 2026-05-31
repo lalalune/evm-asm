@@ -371,6 +371,9 @@ def vec_account_add_balance():
                         account=account_encode(nonce, bal, sroot, chash),
                         delta=delta,
                         expected=account_encode(nonce, bal + delta, sroot, chash)))
+    return out
+
+
 # ---- withdrawal -> (path, wei delta) preprocessing (.2.2.1) ---------------
 def withdrawal_rlp(index: int, vindex: int, address: bytes, amount: int) -> bytes:
     """Shanghai+ withdrawal RLP: rlp([index, validator_index, address, amount])."""
@@ -402,6 +405,55 @@ def vec_withdrawal_to_path_delta():
     return out
 
 
+# ---- withdrawal-driven post-state-root recompute (.2.2) -------------------
+def build_wsr_input(root_hash, wds, witness_section) -> bytes:
+    """ziskemu `-i` body for zisk_withdrawals_state_root (file -> INPUT+8):
+      +8 witness_len | +16 n_wds | +24 root_hash(32B)
+      +56 wd length table N x u64 | blobs (8-aligned each) | witness."""
+    body = bytearray(struct.pack("<Q", len(witness_section)) +
+                     struct.pack("<Q", len(wds)) + root_hash)
+    for wd in wds:
+        body += struct.pack("<Q", len(wd))
+    for wd in wds:
+        body += wd
+        while len(body) % 8 != 0:
+            body += b"\x00"
+    body += witness_section
+    while len(body) % 8 != 0:
+        body += b"\x00"
+    return bytes(body)
+
+
+def vec_withdrawals_state_root():
+    """State trie with two accounts whose key paths (keccak(address)) diverge
+    at nibble 0 (root is a branch with two hashed leaf children); credit both
+    via withdrawals; expected post-state root after the value-only updates."""
+    sroot, chash = b"\x11" * 32, b"\x22" * 32
+    # pick two addresses whose keccak first nibble differs (root branch only).
+    cands = [(bytes([i]) * 20, k256(bytes([i]) * 20)[0] >> 4) for i in range(1, 256)]
+    addr1, n1f = cands[0]
+    addr2, _ = next(c for c in cands if c[1] != n1f)
+    nib1 = bytes_to_nibbles_py(k256(addr1))
+    nib2 = bytes_to_nibbles_py(k256(addr2))
+    nonce1, bal1, amt1 = 1, 10 ** 18, 32 * 10 ** 9
+    nonce2, bal2, amt2 = 2, 5 * 10 ** 17, 16 * 10 ** 9
+
+    def trie(b1, b2):
+        l1 = leaf_node(list(nib1[1:]), account_encode(nonce1, b1, sroot, chash))
+        l2 = leaf_node(list(nib2[1:]), account_encode(nonce2, b2, sroot, chash))
+        slots = [b"\x80"] * 16
+        slots[nib1[0]] = node_ref(l1)
+        slots[nib2[0]] = node_ref(l2)
+        return branch_node(slots), l1, l2
+
+    root_node, leaf1, leaf2 = trie(bal1, bal2)
+    new_root_node, _, _ = trie(bal1 + amt1 * 10 ** 9, bal2 + amt2 * 10 ** 9)
+    return dict(witness=[root_node, leaf1, leaf2], root=trie_root(root_node),
+                wds=[withdrawal_rlp(0, 100, addr1, amt1),
+                     withdrawal_rlp(1, 101, addr2, amt2)],
+                expected=trie_root(new_root_node))
+
+
 if __name__ == "__main__":
     import os
     outdir = sys.argv[1] if len(sys.argv) > 1 else "gen-out/mpt-set"
@@ -424,6 +476,14 @@ if __name__ == "__main__":
         with open(f"{outdir}/{v['name']}.delta", "w") as f:
             f.write(v["delta"].hex())
         print(f"{v['name']:12} path={v['path'].hex()[:16]}.. delta={v['delta'].hex()}")
+    wsr = vec_withdrawals_state_root()
+    sec = ssz_section(wsr["witness"])
+    with open(f"{outdir}/wsr.input", "wb") as f:
+        f.write(build_wsr_input(wsr["root"], wsr["wds"], sec))
+    with open(f"{outdir}/wsr.expected", "w") as f:
+        f.write(wsr["expected"].hex())
+    print(f"{'wsr':12} root={wsr['root'].hex()[:16]}.. "
+          f"post_state_root={wsr['expected'].hex()} (n_wd={len(wsr['wds'])})")
     for mk in VECTORS:
         v = mk()
         sec = ssz_section(v["witness"])
