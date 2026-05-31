@@ -202,6 +202,7 @@ import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.Withdrawal
+import EvmAsm.Codegen.Programs.SszParentHeader
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
@@ -641,6 +642,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_item_span"        => some ziskRlpItemSpanProbeUnit
   | "zisk_rlp_encode_list_prefix" => some ziskRlpEncodeListPrefixProbeUnit
   | "zisk_withdrawal_rlp_encode" => some ziskWithdrawalRlpEncodeProbeUnit
+  | "zisk_extract_parent_header_and_state_root" => some ziskExtractParentHeaderProbeUnit
   | "zisk_withdrawal_compute_hash" => some ziskWithdrawalComputeHashProbeUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
@@ -923,6 +925,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_item_span",
    "zisk_rlp_encode_list_prefix",
    "zisk_withdrawal_rlp_encode",
+   "zisk_extract_parent_header_and_state_root",
    "zisk_withdrawal_compute_hash",
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
@@ -1284,7 +1287,8 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/TxSignature.lean",
     "EvmAsm/Codegen/Programs/TxSigningHash.lean",
     "EvmAsm/Codegen/Programs/U256.lean",
-    "EvmAsm/Codegen/Programs/Withdrawal.lean"
+    "EvmAsm/Codegen/Programs/Withdrawal.lean",
+    "EvmAsm/Codegen/Programs/SszParentHeader.lean"
   ]
   for path in paths do
     let contents ← IO.FS.readFile path
