@@ -329,6 +329,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FrameShift0
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5BridgeShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFull
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
