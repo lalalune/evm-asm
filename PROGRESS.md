@@ -109,9 +109,7 @@ when the underlying state changes.
 | Reference fork | Frontier/Shanghai (most opcodes); Amsterdam draft fork referenced for SDIV/SMOD |
 | Pin | `ethereum/execution-specs@ec23140` (gitlink in `.gitmodules`) |
 | Per-opcode reference-link audit | manual; `EvmWord.<op>` defs cite Python files in their docstrings (not yet machine-checked) |
-| EEST fixtures pin | `ethereum/execution-spec-tests` @ `zkevm@v0.4.0` (Amsterdam/Glamsterdam; gitlink, `shallow=true`); fixtures from the `fixtures_zkevm.tar.gz` release artifact, fetched by `scripts/eest-fetch-fixtures.sh` |
-| EEST stateless harness | ✅ wired — `scripts/codegen-eest-stateless-check.sh` runs the `stateless_guest` ELF on the zkevm fixtures via ziskemu and compares against each block's `statelessOutputBytes` |
-| EEST fixture pass rate | baseline (zkevm@v0.4.0): 23,219 stateless blocks (22,325 valid / 894 invalid). Partial guest matches the validation bit on the 894 invalid-expecting blocks (it rejects every non-empty-header witness); full 105-byte match = 0 (guest still emits the pre-v0.4.0 empty-`active_fork` encoding). Full run: `scripts/codegen-eest-stateless-check.sh --all` |
+| EEST fixture pass rate | ✗ harness not yet wired (parking-lot dependency on D obligations 3 + 4) |
 | RPC block replay | ✗ not started |
 
 ## G — Trust base
@@ -254,7 +252,7 @@ This is the verified gas-cost surrogate.
 ## D — Codegen reach
 
 - Programs in `EvmAsm/Codegen/Programs.lean` registry: **449**
-- ziskemu round-trip scripts: **440** under `scripts/codegen-*.sh`
+- ziskemu round-trip scripts: **441** under `scripts/codegen-*.sh`
 - Milestones (CODEGEN.md):
 
 | Milestone | Status |
