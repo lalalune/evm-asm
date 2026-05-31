@@ -78,6 +78,15 @@ def statelessGuestDataSection : String :=
   ".balign 32\n" ++
   "ssz_ew_field_roots:\n" ++
   "  .zero 96\n" ++
+  -- Dynamic NPR field-root scratch (PR: dynamic transactions_root +
+  -- block_access_list_root). Filled by the .Lsg_hash epilogue from the
+  -- live SSZ input, replacing the empty-list constants for these fields.
+  ".balign 32\n" ++
+  "npr_dynamic_tx_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "npr_dynamic_bal_root:\n" ++
+  "  .zero 32\n" ++
   sszZeroHashesDataSection ++ "\n" ++
   -- Header-validator pipeline scratch:
   ".balign 8\n" ++
