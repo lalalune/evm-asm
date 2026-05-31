@@ -202,6 +202,7 @@ import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.Address
+import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
 import EvmAsm.Codegen.Programs.TransactionsRootAtBlockHash
 import EvmAsm.Codegen.Programs.ReceiptsRootAtBlockHash
@@ -605,6 +606,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_witness_state_keccak_at_index" => some ziskWitnessStateKeccakAtIndexProbeUnit
   | "zisk_parent_keccak_matches_child_parent_hash" => some ziskParentKeccakMatchesChildParentHashProbeUnit
   | "zisk_balance_at_block_hash_address" => some ziskBalanceAtBlockHashAddressProbeUnit
+  | "zisk_ommers_hash_at_block_hash" => some ziskOmmersHashAtBlockHashProbeUnit
   | "zisk_parent_beacon_block_root_at_block_hash" => some ziskParentBeaconBlockRootAtBlockHashProbeUnit
   | "zisk_transactions_root_at_block_hash" => some ziskTransactionsRootAtBlockHashProbeUnit
   | "zisk_receipts_root_at_block_hash" => some ziskReceiptsRootAtBlockHashProbeUnit
@@ -873,6 +875,7 @@ def knownProgramNames : List String :=
    "zisk_witness_state_keccak_at_index",
    "zisk_parent_keccak_matches_child_parent_hash",
    "zisk_balance_at_block_hash_address",
+   "zisk_ommers_hash_at_block_hash",
    "zisk_parent_beacon_block_root_at_block_hash",
    "zisk_transactions_root_at_block_hash",
    "zisk_receipts_root_at_block_hash",
