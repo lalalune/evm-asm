@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""Convert EEST "zkevm" stateless fixtures into ziskemu guest inputs.
+
+The EEST zkevm fixtures (release line ``zkevm@vX.Y.Z``, targeting the
+Amsterdam / Glamsterdam fork) are ``blockchain_tests`` whose blocks each
+carry two extra hex fields:
+
+  * ``statelessInputBytes``  -- the schema-prefixed (``0x0001...``) SSZ
+    ``StatelessInput`` that ``run_stateless_guest`` consumes.
+  * ``statelessOutputBytes`` -- the canonical 105-byte SSZ
+    ``StatelessValidationResult`` the guest is expected to produce.
+
+This tool walks a directory of such fixtures and, for every block that
+has ``statelessInputBytes``, writes a ziskemu ``-i`` input file in the
+exact layout ``scripts/stateless-gen-input.py`` uses
+(``<u64 LE length><blob><zero pad to 8>``), and emits a TSV manifest
+that the harness (``codegen-eest-stateless-check.sh``) iterates.
+
+Manifest columns (tab-separated, one row per guest invocation):
+  label  input_file  expected_hex  succ_bit  input_len  fixture_relpath
+
+Usage:
+  eest-stateless-to-input.py --fixtures-dir DIR --out-dir DIR
+                             [--manifest FILE] [--limit N] [--filter SUB]
+
+``--limit`` caps the number of guest invocations emitted (the default is
+a small smoke subset; pass a large value or ``--all`` via the harness for
+the full suite).  ``--filter`` keeps only fixtures whose relative path
+contains the given substring.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import struct
+import sys
+from pathlib import Path
+
+
+def pack_ziskemu_input(blob: bytes) -> bytes:
+    """Mirror scripts/stateless-gen-input.py: 8-byte LE length, blob, pad to 8."""
+    total = 8 + len(blob)
+    pad = (-total) % 8
+    return struct.pack("<Q", len(blob)) + blob + (b"\x00" * pad)
+
+
+def sanitize(s: str) -> str:
+    return "".join(c if c.isalnum() or c in "._-" else "_" for c in s)
+
+
+def iter_blocks(fixture_path: Path):
+    """Yield (label, input_bytes, expected_bytes) for each stateless block."""
+    try:
+        doc = json.loads(fixture_path.read_text())
+    except (json.JSONDecodeError, OSError) as exc:  # corrupt / unreadable
+        print(f"  warn: cannot parse {fixture_path}: {exc}", file=sys.stderr)
+        return
+    for test_name, tc in doc.items():
+        blocks = tc.get("blocks") if isinstance(tc, dict) else None
+        if not isinstance(blocks, list):
+            continue
+        # Short, stable per-test tag (the part after the last "::").
+        short = test_name.split("::")[-1] if "::" in test_name else test_name
+        for bi, blk in enumerate(blocks):
+            if not isinstance(blk, dict):
+                continue
+            sib = blk.get("statelessInputBytes")
+            sob = blk.get("statelessOutputBytes")
+            if not sib or not sob:
+                continue  # block opted out of stateless validation
+            try:
+                ib = bytes.fromhex(sib[2:] if sib.startswith("0x") else sib)
+                ob = bytes.fromhex(sob[2:] if sob.startswith("0x") else sob)
+            except ValueError as exc:
+                print(f"  warn: bad hex in {fixture_path}: {exc}", file=sys.stderr)
+                continue
+            label = sanitize(f"{short}#b{bi}")
+            yield label, ib, ob
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--fixtures-dir", required=True, type=Path)
+    ap.add_argument("--out-dir", required=True, type=Path)
+    ap.add_argument("--manifest", type=Path, default=None)
+    ap.add_argument("--limit", type=int, default=0, help="cap invocations (0 = no cap)")
+    ap.add_argument("--filter", default="", help="keep fixtures whose relpath contains this")
+    args = ap.parse_args()
+
+    fixtures_dir: Path = args.fixtures_dir
+    out_dir: Path = args.out_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = args.manifest or (out_dir / "manifest.tsv")
+
+    json_files = sorted(
+        p for p in fixtures_dir.rglob("*.json")
+        if ".meta" not in p.parts
+    )
+
+    n = 0
+    used_labels: set[str] = set()
+    with manifest_path.open("w") as mf:
+        for fp in json_files:
+            relpath = str(fp.relative_to(fixtures_dir))
+            if args.filter and args.filter not in relpath:
+                continue
+            for label, ib, ob in iter_blocks(fp):
+                if args.limit and n >= args.limit:
+                    print(
+                        f"==> limit {args.limit} reached; stopping "
+                        f"(more fixtures available -- truncated)",
+                        file=sys.stderr,
+                    )
+                    mf.flush()
+                    print(f"wrote {n} input(s) + manifest {manifest_path}")
+                    return 0
+                # Make the label unique across fixtures by prefixing a counter.
+                uniq = f"{n:05d}_{label}"
+                if uniq in used_labels:
+                    uniq = f"{uniq}_{len(used_labels)}"
+                used_labels.add(uniq)
+
+                input_file = out_dir / f"{uniq}.input"
+                input_file.write_bytes(pack_ziskemu_input(ib))
+                succ_bit = ob[32] if len(ob) > 32 else -1
+                mf.write(
+                    "\t".join(
+                        [
+                            uniq,
+                            str(input_file),
+                            ob.hex(),
+                            str(succ_bit),
+                            str(len(ib)),
+                            relpath,
+                        ]
+                    )
+                    + "\n"
+                )
+                n += 1
+
+    print(f"wrote {n} input(s) + manifest {manifest_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
