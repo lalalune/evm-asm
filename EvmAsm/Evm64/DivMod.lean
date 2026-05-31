@@ -110,6 +110,7 @@ import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLaneNative
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
 import EvmAsm.Evm64.DivMod.Spec.N4V5QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialValue
+import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallSkipWordLane
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
