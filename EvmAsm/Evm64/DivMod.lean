@@ -93,6 +93,7 @@ import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLane
 import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialValue
 import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialBounds
 import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackWordLane
+import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackCarry
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
