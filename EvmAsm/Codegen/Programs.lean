@@ -132,6 +132,7 @@ import EvmAsm.Codegen.Programs.LogsBloomKeccakAtBlockHash
 import EvmAsm.Codegen.Programs.GasLimitAtBlockHash
 import EvmAsm.Codegen.Programs.BaseFeePerGasAtBlockHash
 import EvmAsm.Codegen.Programs.GasUsedAtBlockHash
+import EvmAsm.Codegen.Programs.TimestampAtBlockHash
 import EvmAsm.Codegen.Programs.AccountExistsAtBlockHash
 import EvmAsm.Codegen.Programs.ExtcodesizeAtBlockHash
 import EvmAsm.Codegen.Programs.AccountIsEmptyAtBlockHash
@@ -506,6 +507,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_gas_limit_at_block_hash" => some ziskGasLimitAtBlockHashProbeUnit
   | "zisk_base_fee_per_gas_at_block_hash" => some ziskBaseFeePerGasAtBlockHashProbeUnit
   | "zisk_gas_used_at_block_hash" => some ziskGasUsedAtBlockHashProbeUnit
+  | "zisk_timestamp_at_block_hash" => some ziskTimestampAtBlockHashProbeUnit
   | "zisk_extcodehash_at_block_hash_address" => some ziskExtcodehashAtBlockHashAddressProbeUnit
   | "zisk_extcodecopy_at_block_hash_address" => some ziskExtcodecopyAtBlockHashAddressProbeUnit
   | "zisk_state_slot_at_block_number_address" => some ziskStateSlotAtBlockNumberAddressProbeUnit
@@ -751,6 +753,7 @@ def knownProgramNames : List String :=
    "zisk_gas_limit_at_block_hash",
    "zisk_base_fee_per_gas_at_block_hash",
    "zisk_gas_used_at_block_hash",
+   "zisk_timestamp_at_block_hash",
    "zisk_extcodehash_at_block_hash_address",
    "zisk_extcodecopy_at_block_hash_address",
    "zisk_state_slot_at_block_number_address",
