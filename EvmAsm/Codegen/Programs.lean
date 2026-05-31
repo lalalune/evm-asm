@@ -1326,10 +1326,10 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/TxSigningHash.lean",
     "EvmAsm/Codegen/Programs/U256.lean",
     "EvmAsm/Codegen/Programs/Withdrawal.lean",
-    "EvmAsm/Codegen/Programs/WithdrawalPath.lean"
-    "EvmAsm/Codegen/Programs/SszWithdrawal.lean"
-    "EvmAsm/Codegen/Programs/SszWitnessState.lean"
-    "EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean"
+    "EvmAsm/Codegen/Programs/WithdrawalPath.lean",
+    "EvmAsm/Codegen/Programs/SszWithdrawal.lean",
+    "EvmAsm/Codegen/Programs/SszWitnessState.lean",
+    "EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean",
     "EvmAsm/Codegen/Programs/SszParentHeader.lean"
   ]
   for path in paths do
