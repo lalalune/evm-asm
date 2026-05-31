@@ -87,6 +87,13 @@ def statelessGuestDataSection : String :=
   ".balign 32\n" ++
   "npr_dynamic_bal_root:\n" ++
   "  .zero 32\n" ++
+  -- logs_bloom chunks 4-7 merkle scratch (full 8-chunk logs_bloom root).
+  ".balign 32\n" ++
+  "npr_lb_node_45_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "npr_lb_node_67_scratch:\n" ++
+  "  .zero 32\n" ++
   sszZeroHashesDataSection ++ "\n" ++
   -- Header-validator pipeline scratch:
   ".balign 8\n" ++
