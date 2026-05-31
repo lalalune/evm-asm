@@ -236,10 +236,60 @@ def record_walk_expected(v: dict) -> list[tuple[str, int, int]]:
         ]
     return out
 
+# ---- account RLP balance update (mpt account_add_balance .2.1) ------------
+def minimal_be(x: int) -> bytes:
+    return b"" if x == 0 else x.to_bytes((x.bit_length() + 7) // 8, "big")
+
+
+def rlp_int(x: int) -> bytes:
+    return rlp_bytes(minimal_be(x))
+
+
+def account_encode(nonce: int, balance: int, sroot: bytes, chash: bytes) -> bytes:
+    """Ethereum account RLP: rlp([nonce, balance, storageRoot, codeHash])."""
+    return rlp_list([rlp_int(nonce), rlp_int(balance),
+                     rlp_bytes(sroot), rlp_bytes(chash)])
+
+
+def build_aab_input(account: bytes, delta: int) -> bytes:
+    """ziskemu `-i` body for zisk_account_add_balance (file -> INPUT+8):
+      +8 account_len | +16 delta(32B BE) | +48 account RLP."""
+    body = struct.pack("<Q", len(account)) + delta.to_bytes(32, "big") + account
+    while len(body) % 8 != 0:
+        body += b"\x00"
+    return body
+
+
+def vec_account_add_balance():
+    sroot, chash = b"\x11" * 32, b"\x22" * 32
+    # (name, nonce, balance, delta) — covers byte growth, 0-start, 8-byte
+    # carry boundary, and a +0 no-op.
+    cases = [
+        ("aab1", 1, 0xff, 1),            # 255 + 1 = 256 (grows 1 -> 2 bytes)
+        ("aab2", 0, 0, 10 ** 18),        # 0 + 1e18 (empty -> multi-byte)
+        ("aab3", 5, 2 ** 64 - 1, 1),     # carry across the 8-byte boundary
+        ("aab4", 7, 0, 0),               # +0 no-op (balance stays empty)
+    ]
+    out = []
+    for name, nonce, bal, delta in cases:
+        out.append(dict(name=name,
+                        account=account_encode(nonce, bal, sroot, chash),
+                        delta=delta,
+                        expected=account_encode(nonce, bal + delta, sroot, chash)))
+    return out
+
+
 if __name__ == "__main__":
     import os
     outdir = sys.argv[1] if len(sys.argv) > 1 else "gen-out/mpt-set"
     os.makedirs(outdir, exist_ok=True)
+    for v in vec_account_add_balance():
+        with open(f"{outdir}/{v['name']}.input", "wb") as f:
+            f.write(build_aab_input(v["account"], v["delta"]))
+        with open(f"{outdir}/{v['name']}.expected", "w") as f:
+            f.write(v["expected"].hex())
+        print(f"{v['name']:12} account_len={len(v['account'])} "
+              f"new_account={v['expected'].hex()}")
     for mk in VECTORS:
         v = mk()
         sec = ssz_section(v["witness"])
