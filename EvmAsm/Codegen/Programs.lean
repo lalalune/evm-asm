@@ -177,6 +177,7 @@ import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.Address
+import EvmAsm.Codegen.Programs.TransactionsRootAtBlockHash
 
 namespace EvmAsm.Codegen
 
@@ -550,6 +551,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_witness_state_keccak_at_index" => some ziskWitnessStateKeccakAtIndexProbeUnit
   | "zisk_parent_keccak_matches_child_parent_hash" => some ziskParentKeccakMatchesChildParentHashProbeUnit
   | "zisk_balance_at_block_hash_address" => some ziskBalanceAtBlockHashAddressProbeUnit
+  | "zisk_transactions_root_at_block_hash" => some ziskTransactionsRootAtBlockHashProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
@@ -788,6 +790,7 @@ def knownProgramNames : List String :=
    "zisk_witness_state_keccak_at_index",
    "zisk_parent_keccak_matches_child_parent_hash",
    "zisk_balance_at_block_hash_address",
+   "zisk_transactions_root_at_block_hash",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
