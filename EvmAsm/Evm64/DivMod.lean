@@ -86,6 +86,7 @@ import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0LaneFirstDigit
 import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0LaneRest
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
 import EvmAsm.Evm64.DivMod.Spec.N4V5QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
