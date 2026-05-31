@@ -250,6 +250,7 @@ import EvmAsm.Evm64.DivMod.Spec.N3V5CallCarryOfCallShape
 import EvmAsm.Evm64.DivMod.Spec.N3V5NormVShapeFacts
 import EvmAsm.Evm64.DivMod.Spec.N3V5DigitStepIter
 import EvmAsm.Evm64.DivMod.Spec.N3V5AccQuot
+import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0Quotient
 import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
