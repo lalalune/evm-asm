@@ -116,6 +116,7 @@ import EvmAsm.Codegen.Programs.TimestampAtBlockNumber
 import EvmAsm.Codegen.Programs.GasLimitAtBlockNumber
 import EvmAsm.Codegen.Programs.GasUsedAtBlockNumber
 import EvmAsm.Codegen.Programs.ReceiptsRootAtBlockNumber
+import EvmAsm.Codegen.Programs.OmmersHashAtBlockNumber
 import EvmAsm.Codegen.Programs.PrevRandaoAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtBlockNumber
 import EvmAsm.Codegen.Programs.CodeAtBlockNumber
@@ -534,6 +535,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_gas_limit_at_block_number" => some ziskGasLimitAtBlockNumberProbeUnit
   | "zisk_gas_used_at_block_number" => some ziskGasUsedAtBlockNumberProbeUnit
   | "zisk_receipts_root_at_block_number" => some ziskReceiptsRootAtBlockNumberProbeUnit
+  | "zisk_ommers_hash_at_block_number" => some ziskOmmersHashAtBlockNumberProbeUnit
   | "zisk_prev_randao_at_block_number" => some ziskPrevRandaoAtBlockNumberProbeUnit
   | "zisk_block_hash_at_block_number" => some ziskBlockHashAtBlockNumberProbeUnit
   | "zisk_code_at_block_number_address" => some ziskCodeAtBlockNumberAddressProbeUnit
@@ -785,6 +787,7 @@ def knownProgramNames : List String :=
    "zisk_gas_limit_at_block_number",
    "zisk_gas_used_at_block_number",
    "zisk_receipts_root_at_block_number",
+   "zisk_ommers_hash_at_block_number",
    "zisk_prev_randao_at_block_number",
    "zisk_block_hash_at_block_number",
    "zisk_code_at_block_number_address",
