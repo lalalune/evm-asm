@@ -438,6 +438,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipOfConds
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipOfCondsNative
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShiftNz
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShiftNzNative
+import EvmAsm.Evm64.DivMod.Spec.N4Carry2ComposeBridge
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLane
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNz
