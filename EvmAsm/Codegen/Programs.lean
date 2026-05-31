@@ -216,6 +216,7 @@ import EvmAsm.Codegen.Programs.BlobGasUsedAtBlockHash
 import EvmAsm.Codegen.Programs.BlobGasPairAtBlockHash
 import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
+import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 
 namespace EvmAsm.Codegen
 
@@ -459,6 +460,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_blob_gas_pair_at_block_hash" => some ziskBlobGasPairAtBlockHashProbeUnit
   | "zisk_post_merge_invariants_at_block_hash" => some ziskPostMergeInvariantsAtBlockHashProbeUnit
   | "zisk_block_roots_at_block_hash" => some ziskBlockRootsAtBlockHashProbeUnit
+  | "zisk_number_timestamp_pair_at_block_hash" => some ziskNumberTimestampPairAtBlockHashProbeUnit
   | _                           => none
 
 /-- Look up a program by name. Returns `none` for unknown names so the CLI
@@ -905,6 +907,7 @@ def knownProgramNames : List String :=
    "zisk_blob_gas_pair_at_block_hash",
    "zisk_post_merge_invariants_at_block_hash",
    "zisk_block_roots_at_block_hash",
+   "zisk_number_timestamp_pair_at_block_hash",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
