@@ -109,4 +109,24 @@ def KECCAK_SCRATCH          : Word := 0xa1b70000
 def ECRECOVER_SCRATCH       : Word := 0xa1b80000
 def SHA256_SCRATCH          : Word := 0xa1b90000
 
+/-! ## SSZ merkleization scratch region (large, NOBITS)
+
+    The SSZ hash_tree_root buffers (merkleize scratch/padded, the byte
+    packer, the list child-roots, and the versioned_hashes staging
+    buffer) cannot live in the linked `.data` segment at `0xa0000000`:
+    `.data` grows up into `OUTPUT_ADDR = 0xa0010000` (only ~64 KiB of
+    headroom), which capped a single hashed element at 1024 B and
+    blocked correct NewPayloadRequest roots for blocks with large
+    transactions (~1 MiB) or block_access_list (~90 KiB).
+
+    They are instead emitted into a dedicated NOBITS section placed by
+    the linker at `SSZ_SCRATCH_BASE` (see `Driver.lean`'s
+    `--section-start=.sszscratch=...`). NOBITS keeps the multi-MiB
+    reservation out of the ELF file. The region sits above the
+    working-RAM anchors and the stack, and fully inside the verified
+    RAM zone `RAM_MEM_START..RAM_MEM_END` (`0xa0000000..0xc0000000`),
+    so `isValidMemAddr` already accepts it (no proof changes). -/
+def SSZ_SCRATCH_BASE        : Word := 0xa2000000
+def SSZ_SCRATCH_SIZE        : Nat  := 0x02000000  -- 32 MiB (0xa2000000..0xa4000000)
+
 end EvmAsm.Stateless
