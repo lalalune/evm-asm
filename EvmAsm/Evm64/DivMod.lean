@@ -425,6 +425,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallAddback
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallAddbackOfConds
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackQOutReconcile
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipOfConds
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipOfCondsNative
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShiftNz
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLane
 
