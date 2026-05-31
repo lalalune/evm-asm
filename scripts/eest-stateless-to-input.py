@@ -116,7 +116,12 @@ def main() -> int:
                     print(f"wrote {n} input(s) + manifest {manifest_path}")
                     return 0
                 # Make the label unique across fixtures by prefixing a counter.
-                uniq = f"{n:05d}_{label}"
+                # Truncate the descriptive part so the on-disk filename stays
+                # within the OS limit (255 bytes) -- blob test names with full
+                # parametrization can be 200+ chars. The counter prefix already
+                # guarantees uniqueness; the collision guard handles truncation
+                # clashes.
+                uniq = f"{n:05d}_{label[:96]}"
                 if uniq in used_labels:
                     uniq = f"{uniq}_{len(used_labels)}"
                 used_labels.add(uniq)

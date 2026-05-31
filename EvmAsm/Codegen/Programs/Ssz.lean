@@ -787,20 +787,29 @@ def sszHashTreeRootListByteListFunction : String :=
   "  mv s3, a3                  # s3 = count_log2\n" ++
   "  mv s4, a4                  # s4 = out ptr\n" ++
   "  beqz s1, .Lszls_N0          # empty section ⇒ N = 0\n" ++
-  "  lwu t0, 0(s0)              # offset_0 = 4 * N\n" ++
+  "  lbu t0, 0(s0)              # offset_0 = 4*N (LBU-packed: section ptr may be unaligned)\n" ++
+  "  lbu t5, 1(s0); slli t5, t5, 8;  or t0, t0, t5\n" ++
+  "  lbu t5, 2(s0); slli t5, t5, 16; or t0, t0, t5\n" ++
+  "  lbu t5, 3(s0); slli t5, t5, 24; or t0, t0, t5\n" ++
   "  srli s5, t0, 2             # s5 = N (element count)\n" ++
   "  li s6, 0                   # s6 = i (loop counter)\n" ++
   ".Lszls_loop:\n" ++
   "  beq s6, s5, .Lszls_done_loop\n" ++
   "  slli t0, s6, 2             # 4*i\n" ++
   "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)              # inner_off_i\n" ++
+  "  lbu t2, 0(t1)              # inner_off_i (LBU-packed)\n" ++
+  "  lbu t5, 1(t1); slli t5, t5, 8;  or t2, t2, t5\n" ++
+  "  lbu t5, 2(t1); slli t5, t5, 16; or t2, t2, t5\n" ++
+  "  lbu t5, 3(t1); slli t5, t5, 24; or t2, t2, t5\n" ++
   "  add a0, s0, t2             # el_i_start\n" ++
   "  addi t3, s6, 1\n" ++
   "  beq t3, s5, .Lszls_use_end\n" ++
   "  slli t3, t3, 2             # 4*(i+1)\n" ++
   "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)              # inner_off_{i+1}\n" ++
+  "  lbu t4, 0(t3)              # inner_off_{i+1} (LBU-packed)\n" ++
+  "  lbu t5, 1(t3); slli t5, t5, 8;  or t4, t4, t5\n" ++
+  "  lbu t5, 2(t3); slli t5, t5, 16; or t4, t4, t5\n" ++
+  "  lbu t5, 3(t3); slli t5, t5, 24; or t4, t4, t5\n" ++
   "  add t4, s0, t4             # el_i_end\n" ++
   "  j .Lszls_have_end\n" ++
   ".Lszls_use_end:\n" ++

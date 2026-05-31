@@ -78,6 +78,35 @@ def statelessGuestDataSection : String :=
   ".balign 32\n" ++
   "ssz_ew_field_roots:\n" ++
   "  .zero 96\n" ++
+  -- Dynamic NPR field-root scratch (PR: dynamic transactions_root +
+  -- block_access_list_root). Filled by the .Lsg_hash epilogue from the
+  -- live SSZ input, replacing the empty-list constants for these fields.
+  ".balign 32\n" ++
+  "npr_dynamic_tx_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "npr_dynamic_bal_root:\n" ++
+  "  .zero 32\n" ++
+  -- logs_bloom chunks 4-7 merkle scratch (full 8-chunk logs_bloom root).
+  ".balign 32\n" ++
+  "npr_lb_node_45_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "npr_lb_node_67_scratch:\n" ++
+  "  .zero 32\n" ++
+  -- versioned_hashes (List[Bytes32, 4096]) dynamic root scratch:
+  -- npr_vh_aligned holds the 8-byte-aligned copy of the section (<=32
+  -- chunks = 1024 bytes); npr_vh_partial is the pre-mix merkleize root;
+  -- npr_versioned_hashes_dyn is the final mixed-in-length root.
+  ".balign 32\n" ++
+  "npr_vh_aligned:\n" ++
+  "  .zero 1024\n" ++
+  ".balign 32\n" ++
+  "npr_vh_partial:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "npr_versioned_hashes_dyn:\n" ++
+  "  .zero 32\n" ++
   sszZeroHashesDataSection ++ "\n" ++
   -- Header-validator pipeline scratch:
   ".balign 8\n" ++

@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
 
 namespace EvmAsm.Codegen
@@ -187,6 +188,82 @@ def statelessGuestEpilogue : String :=
   "  li s6, 0x40000000\n" ++
   "  addi s6, s6, 18             # s6 = SSZ_BASE\n" ++
   "  # \n" ++
+  "  # ===== dynamic NPR list field-roots (replace empty-list consts) =====\n" ++
+  "  # exec_payload_addr = NPR_addr + 44 (NPR fixed header) = s6 + 16 + 44\n" ++
+  "  # = s6 + 60. The variable fields' u32 offsets sit in the exec_payload\n" ++
+  "  # fixed header: transactions @ +504, withdrawals @ +508,\n" ++
+  "  # block_access_list @ +528. The list/bytes helpers cap N<=32 elements\n" ++
+  "  # and <=1024 bytes/element; blocks beyond that stay root-diffs.\n" ++
+  "  # All offset reads use sg_load_u32le (LBU-packed): the SSZ base s6 is\n" ++
+  "  # 0x40000012 (mod 4 = 2), so a direct LWU would be a misaligned access\n" ++
+  "  # (the verified RV64 subset traps on those). s7/s8 are scratch (free:\n" ++
+  "  # the validator pipeline only uses s2-s5 and s6=SSZ_BASE; the ssz_*\n" ++
+  "  # helpers save s0-s6 and never touch s7/s8).\n" ++
+  "  # --- transactions_root = hash_tree_root(List[ByteList[2^30], 2^20]) ---\n" ++
+  "  addi a0, s6, 564           # &transactions_offset (exec_payload+504)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s7, a0                  # s7 = transactions_offset\n" ++
+  "  addi a0, s6, 568           # &withdrawals_offset (exec_payload+508)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s8, a0                  # s8 = withdrawals_offset\n" ++
+  "  addi t0, s6, 60            # exec_payload_addr\n" ++
+  "  add a0, t0, s7             # transactions_start (unaligned ptr OK: helper offset\n" ++
+  "                             # table now LBU-packed; element bytes via LBU packer)\n" ++
+  "  sub a1, s8, s7             # transactions_len\n" ++
+  "  li a2, 25                  # per-element chunk-cap log2 (2^30 / 32)\n" ++
+  "  li a3, 20                  # list capacity log2 (MAX_TRANSACTIONS_PER_PAYLOAD)\n" ++
+  "  la a4, npr_dynamic_tx_root\n" ++
+  "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
+  "  # --- block_access_list_root = hash_tree_root(ByteList[2^24]) ---\n" ++
+  "  # bal section ends at exec_payload end = NPR + versioned_hashes_offset.\n" ++
+  "  addi a0, s6, 588           # &block_access_list_offset (exec_payload+528)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s7, a0                  # s7 = block_access_list_offset\n" ++
+  "  addi a0, s6, 20            # &versioned_hashes_offset (NPR+4)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s8, a0                  # s8 = versioned_hashes_offset (= exec_payload end rel NPR)\n" ++
+  "  addi t0, s6, 60            # exec_payload_addr\n" ++
+  "  add a0, t0, s7             # bal_start (unaligned OK: htr_bytes packs via LBU)\n" ++
+  "  addi t1, s6, 16            # NPR_addr\n" ++
+  "  add t1, t1, s8             # exec_payload_end = NPR + versioned_hashes_offset\n" ++
+  "  sub a1, t1, a0             # bal_len\n" ++
+  "  li a2, 19                  # chunk-cap log2 (2^24 / 32)\n" ++
+  "  la a3, npr_dynamic_bal_root\n" ++
+  "  jal ra, ssz_hash_tree_root_bytes\n" ++
+  "  # --- versioned_hashes_root = hash_tree_root(List[Bytes32, 4096]) ---\n" ++
+  "  # NPR field 1: fixed-size Bytes32 elements (no inner offset table), so\n" ++
+  "  # the section is N*32 bytes (N = len/32) and the root is\n" ++
+  "  # merkleize(section_chunks, capacity 2^12) then mix_in_length(N).\n" ++
+  "  # Offsets: versioned_hashes @ NPR+4 (s6+20), execution_requests @\n" ++
+  "  # NPR+40 (s6+56); read via sg_load_u32le (LBU -- s6 is unaligned).\n" ++
+  "  addi a0, s6, 20            # &versioned_hashes_offset (NPR+4)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s7, a0                  # s7 = versioned_hashes_offset (rel NPR)\n" ++
+  "  addi a0, s6, 56            # &execution_requests_offset (NPR+40)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  sub s9, a0, s7             # s9 = versioned_hashes section_len\n" ++
+  "  addi t0, s6, 16            # NPR_addr\n" ++
+  "  add a1, t0, s7             # src = NPR + versioned_hashes_offset (unaligned)\n" ++
+  "  la a0, npr_vh_aligned      # dst (8-byte aligned)\n" ++
+  "  mv a2, s9                  # len\n" ++
+  "  jal ra, sg_memcpy          # byte-copy section -> aligned buffer\n" ++
+  "  srli s10, s9, 5            # s10 = N = section_len / 32\n" ++
+  "  la a0, npr_vh_aligned\n" ++
+  "  mv a1, s10                 # N chunks (Bytes32 = 1 chunk each)\n" ++
+  "  li a2, 12                  # capacity log2 (MAX_BLOB_COMMITMENTS_PER_BLOCK)\n" ++
+  "  la a3, npr_vh_partial\n" ++
+  "  jal ra, ssz_merkleize      # pre-mix merkle root -> npr_vh_partial\n" ++
+  "  # mix_in_length: sha256(partial || u256_le(N)) -> npr_versioned_hashes_dyn\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_vh_partial\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  sd s10, 32(t1)             # length = N (u64 LE)\n" ++
+  "  sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_versioned_hashes_dyn\n" ++
+  "  jal ra, zkvm_sha256\n" ++
   "  # ===== exec_payload merkle path (leaves 0-15) =====\n" ++
   "  # Path leaf_6 -> node_6_7 -> node_4_7 -> node_0_7 -> node_0_15\n" ++
   "  # \n" ++
@@ -239,15 +316,49 @@ def statelessGuestEpilogue : String :=
   "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_leaf_4_logs_bloom_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_0_3 -> npr_leaf_4_logs_bloom_scratch\n" ++
-  "  # leaf_4 (logs_bloom root) = sha256(node_0_3 || ssz_zero_hash[2])\n" ++
+  "  # leaf_4 (logs_bloom root) = sha256(node_0_3 || node_4_7), where\n" ++
+  "  # node_4_7 covers logs_bloom chunks 4-7 (previously assumed zero via\n" ++
+  "  # ssz_zero_hash[2] -- wrong for any block that emits logs). chunk_k\n" ++
+  "  # lives at SSZ_BASE + 176 + 32*k: chunk4 @ +304 .. chunk7 @ +400.\n" ++
+  "  # chunk_k @ s6+176+32*k is unaligned (s6 = 0x40000012), so copy the\n" ++
+  "  # 64-byte (chunk4||chunk5) / (chunk6||chunk7) ranges byte-wise via\n" ++
+  "  # sg_memcpy into the aligned npr_sha_input buffer (no misaligned LD).\n" ++
+  "  #   node_4_5 = sha256(chunk4 || chunk5)\n" ++
+  "  la a0, npr_sha_input        # dst (aligned)\n" ++
+  "  addi a1, s6, 304            # src = chunk4 (unaligned)\n" ++
+  "  li a2, 64\n" ++
+  "  jal ra, sg_memcpy\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_lb_node_45_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_4_5 -> npr_lb_node_45_scratch\n" ++
+  "  #   node_6_7 = sha256(chunk6 || chunk7)\n" ++
+  "  la a0, npr_sha_input        # dst (aligned)\n" ++
+  "  addi a1, s6, 368            # src = chunk6 (unaligned)\n" ++
+  "  li a2, 64\n" ++
+  "  jal ra, sg_memcpy\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_lb_node_67_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_6_7 -> npr_lb_node_67_scratch\n" ++
+  "  #   node_4_7 = sha256(node_4_5 || node_6_7) -> npr_lb_node_45_scratch\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, npr_lb_node_45_scratch\n" ++
+  "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
+  "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
+  "  la t3, npr_lb_node_67_scratch\n" ++
+  "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
+  "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
+  "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
+  "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, npr_lb_node_45_scratch\n" ++
+  "  jal ra, zkvm_sha256         # node_4_7 -> npr_lb_node_45_scratch\n" ++
+  "  #   leaf_4 = sha256(node_0_3 || node_4_7)\n" ++
   "  la t1, npr_sha_input\n" ++
   "  la t3, npr_leaf_4_logs_bloom_scratch\n" ++
   "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
   "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
-  "  la t3, ssz_zero_hashes\n" ++
-  "  addi t3, t3, 64             # ssz_zero_hash[2]\n" ++
+  "  la t3, npr_lb_node_45_scratch\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
@@ -316,7 +427,7 @@ def statelessGuestEpilogue : String :=
   "  ld t2, 540(s6); sd t2,  8(t1)\n" ++
   "  ld t2, 548(s6); sd t2, 16(t1)\n" ++
   "  ld t2, 556(s6); sd t2, 24(t1)\n" ++
-  "  la t3, npr_leaf_13_transactions_root\n" ++
+  "  la t3, npr_dynamic_tx_root\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
@@ -495,7 +606,7 @@ def statelessGuestEpilogue : String :=
   "  ld t2, 580(s6)              # excess_blob_gas\n" ++
   "  sd t2,  0(t1)\n" ++
   "  sd zero,  8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
-  "  la t3, npr_leaf_17_bal_root\n" ++
+  "  la t3, npr_dynamic_bal_root\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
@@ -579,7 +690,7 @@ def statelessGuestEpilogue : String :=
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
   "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
-  "  la t3, npr_versioned_hashes_root\n" ++
+  "  la t3, npr_versioned_hashes_dyn\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
@@ -615,6 +726,38 @@ def statelessGuestEpilogue : String :=
   "  jal ra, zkvm_sha256         # root -> OUTPUT_ADDR\n" ++
   "  j .Lsg_done\n" ++
   zkvmSha256Function ++ "\n" ++
+  -- SSZ merkleization helpers for the dynamic transactions_root /
+  -- block_access_list_root (zkvm_sha256 already emitted just above, so it
+  -- is NOT re-included here -- doing so would duplicate the label).
+  sszPackBytesFunction ++ "\n" ++
+  sszMerkleizePow2Function ++ "\n" ++
+  sszMerkleizeFunction ++ "\n" ++
+  sszHashTreeRootBytesFunction ++ "\n" ++
+  sszHashTreeRootListByteListFunction ++ "\n" ++
+  -- Alignment-safe little-endian u32 load: a0 = addr -> a0 = u32 LE.
+  -- Reads byte-wise (LBU) so the source may be unaligned (SSZ base is
+  -- 0x40000012). Leaf; clobbers t0,t1,a0; preserves all s-registers and ra.
+  "sg_load_u32le:\n" ++
+  "  lbu t0, 0(a0)\n" ++
+  "  lbu t1, 1(a0); slli t1, t1, 8;  or t0, t0, t1\n" ++
+  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
+  "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
+  "  mv a0, t0\n" ++
+  "  ret\n" ++
+  -- Alignment-safe byte copy: a0 = dst, a1 = src, a2 = len. Byte-wise
+  -- (LBU/SB) so src/dst may be unaligned. Leaf; clobbers t0,a0,a1,a2;
+  -- preserves all s-registers and ra.
+  "sg_memcpy:\n" ++
+  ".Lsgmc_loop:\n" ++
+  "  beqz a2, .Lsgmc_done\n" ++
+  "  lbu t0, 0(a1)\n" ++
+  "  sb  t0, 0(a0)\n" ++
+  "  addi a0, a0, 1\n" ++
+  "  addi a1, a1, 1\n" ++
+  "  addi a2, a2, -1\n" ++
+  "  j .Lsgmc_loop\n" ++
+  ".Lsgmc_done:\n" ++
+  "  ret\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   chainValidatePostMergeFullFunction ++ "\n" ++
