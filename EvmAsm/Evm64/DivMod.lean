@@ -91,6 +91,7 @@ import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientExact
 import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientV4Bridge
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLane
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipUpperBound
+import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLaneNative
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
 import EvmAsm.Evm64.DivMod.Spec.N4V5QuotientWord
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
