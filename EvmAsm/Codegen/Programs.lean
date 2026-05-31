@@ -211,6 +211,7 @@ import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
 import EvmAsm.Codegen.Programs.SszWithdrawal
 import EvmAsm.Codegen.Programs.SszWitnessState
+import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
@@ -657,6 +658,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_withdrawal_to_path_delta" => some ziskWithdrawalToPathDeltaProbeUnit
   | "zisk_ssz_withdrawal_to_rlp" => some ziskSszWithdrawalToRlpProbeUnit
   | "zisk_extract_witness_state_section" => some ziskExtractWitnessStateSectionProbeUnit
+  | "zisk_extract_payload_and_withdrawals" => some ziskExtractPayloadAndWithdrawalsProbeUnit
   | "zisk_withdrawal_compute_hash" => some ziskWithdrawalComputeHashProbeUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
@@ -949,6 +951,7 @@ def knownProgramNames : List String :=
    "zisk_withdrawal_to_path_delta",
    "zisk_ssz_withdrawal_to_rlp",
    "zisk_extract_witness_state_section",
+   "zisk_extract_payload_and_withdrawals",
    "zisk_withdrawal_compute_hash",
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
@@ -1323,6 +1326,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/WithdrawalPath.lean"
     "EvmAsm/Codegen/Programs/SszWithdrawal.lean"
     "EvmAsm/Codegen/Programs/SszWitnessState.lean"
+    "EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean"
   ]
   for path in paths do
     let contents ← IO.FS.readFile path
