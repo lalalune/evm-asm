@@ -86,6 +86,7 @@ import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0LaneFirstDigit
 import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0LaneRest
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
 import EvmAsm.Evm64.DivMod.Spec.N4V5QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
@@ -433,6 +434,8 @@ import EvmAsm.Evm64.DivMod.LoopIterN4CallAddbackV4NoNop
 
 import EvmAsm.Evm64.DivMod.Compose.PhaseBV5
 import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FamiliesMod
 import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueShift0ClzV5
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
@@ -457,3 +460,6 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLane
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNz
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Bzero
+
+-- v5 MOD lanes (bead evm-asm-wbc4i.10.3.2)
+import EvmAsm.Evm64.DivMod.Compose.FullPathV5BzeroMod
