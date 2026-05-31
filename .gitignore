@@ -4,3 +4,4 @@ build/
 rust-u256-asm/
 gen-out/
 .claude/
+__pycache__/
