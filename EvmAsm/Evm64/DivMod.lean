@@ -239,6 +239,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5BundleDigit2
 import EvmAsm.Evm64.DivMod.Spec.N2V5BundleOfShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0BundleOfShape
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LoopShift0
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LoopShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PathShift0
 import EvmAsm.Evm64.DivMod.Spec.N2V5R2R1Dispatch
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormVShapeFacts
