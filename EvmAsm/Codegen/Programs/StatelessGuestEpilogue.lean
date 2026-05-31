@@ -286,28 +286,21 @@ def statelessGuestEpilogue : String :=
   "  # node_4_7 covers logs_bloom chunks 4-7 (previously assumed zero via\n" ++
   "  # ssz_zero_hash[2] -- wrong for any block that emits logs). chunk_k\n" ++
   "  # lives at SSZ_BASE + 176 + 32*k: chunk4 @ +304 .. chunk7 @ +400.\n" ++
+  "  # chunk_k @ s6+176+32*k is unaligned (s6 = 0x40000012), so copy the\n" ++
+  "  # 64-byte (chunk4||chunk5) / (chunk6||chunk7) ranges byte-wise via\n" ++
+  "  # sg_memcpy into the aligned npr_sha_input buffer (no misaligned LD).\n" ++
   "  #   node_4_5 = sha256(chunk4 || chunk5)\n" ++
-  "  la t1, npr_sha_input\n" ++
-  "  ld t2, 304(s6); sd t2,  0(t1)\n" ++
-  "  ld t2, 312(s6); sd t2,  8(t1)\n" ++
-  "  ld t2, 320(s6); sd t2, 16(t1)\n" ++
-  "  ld t2, 328(s6); sd t2, 24(t1)\n" ++
-  "  ld t2, 336(s6); sd t2, 32(t1)\n" ++
-  "  ld t2, 344(s6); sd t2, 40(t1)\n" ++
-  "  ld t2, 352(s6); sd t2, 48(t1)\n" ++
-  "  ld t2, 360(s6); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input        # dst (aligned)\n" ++
+  "  addi a1, s6, 304            # src = chunk4 (unaligned)\n" ++
+  "  li a2, 64\n" ++
+  "  jal ra, sg_memcpy\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_lb_node_45_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_4_5 -> npr_lb_node_45_scratch\n" ++
   "  #   node_6_7 = sha256(chunk6 || chunk7)\n" ++
-  "  la t1, npr_sha_input\n" ++
-  "  ld t2, 368(s6); sd t2,  0(t1)\n" ++
-  "  ld t2, 376(s6); sd t2,  8(t1)\n" ++
-  "  ld t2, 384(s6); sd t2, 16(t1)\n" ++
-  "  ld t2, 392(s6); sd t2, 24(t1)\n" ++
-  "  ld t2, 400(s6); sd t2, 32(t1)\n" ++
-  "  ld t2, 408(s6); sd t2, 40(t1)\n" ++
-  "  ld t2, 416(s6); sd t2, 48(t1)\n" ++
-  "  ld t2, 424(s6); sd t2, 56(t1)\n" ++
+  "  la a0, npr_sha_input        # dst (aligned)\n" ++
+  "  addi a1, s6, 368            # src = chunk6 (unaligned)\n" ++
+  "  li a2, 64\n" ++
+  "  jal ra, sg_memcpy\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_lb_node_67_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_6_7 -> npr_lb_node_67_scratch\n" ++
   "  #   node_4_7 = sha256(node_4_5 || node_6_7) -> npr_lb_node_45_scratch\n" ++
@@ -716,6 +709,20 @@ def statelessGuestEpilogue : String :=
   "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
   "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
   "  mv a0, t0\n" ++
+  "  ret\n" ++
+  -- Alignment-safe byte copy: a0 = dst, a1 = src, a2 = len. Byte-wise
+  -- (LBU/SB) so src/dst may be unaligned. Leaf; clobbers t0,a0,a1,a2;
+  -- preserves all s-registers and ra.
+  "sg_memcpy:\n" ++
+  ".Lsgmc_loop:\n" ++
+  "  beqz a2, .Lsgmc_done\n" ++
+  "  lbu t0, 0(a1)\n" ++
+  "  sb  t0, 0(a0)\n" ++
+  "  addi a0, a0, 1\n" ++
+  "  addi a1, a1, 1\n" ++
+  "  addi a2, a2, -1\n" ++
+  "  j .Lsgmc_loop\n" ++
+  ".Lsgmc_done:\n" ++
   "  ret\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
