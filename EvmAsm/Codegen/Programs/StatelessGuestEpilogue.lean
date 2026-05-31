@@ -280,6 +280,22 @@ def statelessGuestEpilogue : String :=
   "  mv a1, s9                  # section_len\n" ++
   "  la a2, npr_dynamic_wd_root\n" ++
   "  jal ra, ssz_htr_withdrawals\n" ++
+  "  # --- execution_requests_root = hash_tree_root(SszExecutionRequests) ---\n" ++
+  "  # NewPayloadRequest field 3 (last variable field): a container of three\n" ++
+  "  # List[Container] fields. Section = [NPR+er_off, NPR_end=witness_off).\n" ++
+  "  # er_off @ NPR+40 (s6+56); witness_off = outer.offsets[1] @ blob+4 (s6+4).\n" ++
+  "  addi a0, s6, 56            # &execution_requests_offset (NPR+40)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s7, a0                  # s7 = execution_requests_offset (rel NPR)\n" ++
+  "  addi a0, s6, 4             # &witness_offset (outer.offsets[1])\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s8, a0                  # s8 = witness_offset (= NPR end, rel blob)\n" ++
+  "  addi a0, s6, 16            # NPR_addr\n" ++
+  "  add a0, a0, s7             # er_section_start = NPR + er_off\n" ++
+  "  sub a1, s8, s7             # witness_off - er_off\n" ++
+  "  addi a1, a1, -16           # er_section_len = witness_off - 16 - er_off\n" ++
+  "  la a2, npr_exec_requests_dyn\n" ++
+  "  jal ra, ssz_htr_execution_requests\n" ++
   "  # ===== exec_payload merkle path (leaves 0-15) =====\n" ++
   "  # Path leaf_6 -> node_6_7 -> node_4_7 -> node_0_7 -> node_0_15\n" ++
   "  # \n" ++
@@ -719,7 +735,7 @@ def statelessGuestEpilogue : String :=
   "  ld t2, 32(s6); sd t2,  8(t1)\n" ++
   "  ld t2, 40(s6); sd t2, 16(t1)\n" ++
   "  ld t2, 48(s6); sd t2, 24(t1)\n" ++
-  "  la t3, npr_exec_requests_root\n" ++
+  "  la t3, npr_exec_requests_dyn\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
@@ -830,6 +846,113 @@ def statelessGuestEpilogue : String :=
   "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
   "  addi sp, sp, 64\n" ++
   "  ret\n" ++
+  -- ===== execution_requests hash_tree_root (SszExecutionRequests) =====
+  -- Container of 3 List[Container] fields {deposits, withdrawals,
+  -- consolidations}; root = merkleize([htr(each list)], limit_log2=2).
+  -- Built from reusable pieces (all alignment-safe via sg_memcpy; all
+  -- save/restore the s-registers they use, and the nested ssz_merkleize
+  -- saves s0-s6, so deep nesting is register-safe). Verified byte-for-byte
+  -- against remerkleable for deposits / withdrawal-requests /
+  -- consolidations / mixed fixtures.
+  --
+  -- htr(ByteVector[48]) = sha256(b[0:32] || b[32:48]|pad16).
+  "sg_htr_bv48:\n" ++                       -- a0=src, a1=out
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  la t0, bv_buf; sd zero, 48(t0); sd zero, 56(t0)\n" ++
+  "  la a0, bv_buf; mv a1, s0; li a2, 48; jal ra, sg_memcpy\n" ++
+  "  la a0, bv_buf; li a1, 64; mv a2, s1; jal ra, zkvm_sha256\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n" ++
+  -- htr(ByteVector[96]) = merkleize([b0,b1,b2], limit_log2=2).
+  "sg_htr_bv96:\n" ++                       -- a0=src, a1=out
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  la a0, bv_buf; mv a1, s0; li a2, 96; jal ra, sg_memcpy\n" ++
+  "  la a0, bv_buf; li a1, 3; li a2, 2; mv a3, s1; jal ra, ssz_merkleize\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n" ++
+  -- htr(SszDepositRequest): 192B {pubkey BV48, wc Bytes32, amount u64,\n" ++
+  -- sig BV96, index u64}; 5 leaves merkleized at limit_log2=3.
+  "sg_htr_deposit:\n" ++                     -- a0=w(192), a1=out
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  mv a0, s0; la a1, er_leaf_buf; jal ra, sg_htr_bv48\n" ++             -- leaf0 pubkey
+  "  la a0, er_leaf_buf; addi a0, a0, 32; addi a1, s0, 48; li a2, 32; jal ra, sg_memcpy\n" ++  -- leaf1 wc
+  "  la t0, er_leaf_buf; sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++
+  "  la a0, er_leaf_buf; addi a0, a0, 64; addi a1, s0, 80; li a2, 8; jal ra, sg_memcpy\n" ++   -- leaf2 amount
+  "  addi a0, s0, 88; la a1, er_leaf_buf; addi a1, a1, 96; jal ra, sg_htr_bv96\n" ++           -- leaf3 sig
+  "  la t0, er_leaf_buf; sd zero, 128(t0); sd zero, 136(t0); sd zero, 144(t0); sd zero, 152(t0)\n" ++
+  "  la a0, er_leaf_buf; addi a0, a0, 128; addi a1, s0, 184; li a2, 8; jal ra, sg_memcpy\n" ++ -- leaf4 index
+  "  la a0, er_leaf_buf; li a1, 5; li a2, 3; mv a3, s1; jal ra, ssz_merkleize\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n" ++
+  -- htr(SszWithdrawalRequest): 76B {src_addr BV20, validator_pubkey BV48,\n" ++
+  -- amount u64}; 3 leaves at limit_log2=2.
+  "sg_htr_wr:\n" ++                          -- a0=w(76), a1=out
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  la t0, er_leaf_buf; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la a0, er_leaf_buf; mv a1, s0; li a2, 20; jal ra, sg_memcpy\n" ++                          -- leaf0 src_addr
+  "  addi a0, s0, 20; la a1, er_leaf_buf; addi a1, a1, 32; jal ra, sg_htr_bv48\n" ++            -- leaf1 validator_pubkey
+  "  la t0, er_leaf_buf; sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++
+  "  la a0, er_leaf_buf; addi a0, a0, 64; addi a1, s0, 68; li a2, 8; jal ra, sg_memcpy\n" ++    -- leaf2 amount
+  "  la a0, er_leaf_buf; li a1, 3; li a2, 2; mv a3, s1; jal ra, ssz_merkleize\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n" ++
+  -- htr(SszConsolidationRequest): 116B {src_addr BV20, src_pubkey BV48,\n" ++
+  -- target_pubkey BV48}; 3 leaves at limit_log2=2.
+  "sg_htr_cr:\n" ++                          -- a0=w(116), a1=out
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  la t0, er_leaf_buf; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la a0, er_leaf_buf; mv a1, s0; li a2, 20; jal ra, sg_memcpy\n" ++                          -- leaf0 src_addr
+  "  addi a0, s0, 20; la a1, er_leaf_buf; addi a1, a1, 32; jal ra, sg_htr_bv48\n" ++            -- leaf1 src_pubkey
+  "  addi a0, s0, 68; la a1, er_leaf_buf; addi a1, a1, 64; jal ra, sg_htr_bv48\n" ++            -- leaf2 target_pubkey
+  "  la a0, er_leaf_buf; li a1, 3; li a2, 2; mv a3, s1; jal ra, ssz_merkleize\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n" ++
+  -- hash_tree_root(List[FixedContainer, cap]) via a per-element htr fn ptr.
+  --   a0=body, a1=section_len, a2=elem_size, a3=elem_htr_fn, a4=limit_log2,
+  --   a5=32-byte out. root = merkleize(child_roots, limit) + mix_in_length(N).
+  "sg_htr_clist:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0; mv s3, a2; mv s4, a3; mv s6, a4; mv s5, a5\n" ++
+  "  divu s1, a1, s3            # N = section_len / elem_size\n" ++
+  "  li s2, 0\n" ++
+  ".Lcl_loop:\n" ++
+  "  beq s2, s1, .Lcl_done\n" ++
+  "  mul t0, s2, s3; add a0, s0, t0          # elem = body + i*esz\n" ++
+  "  la a1, er_child_roots; slli t0, s2, 5; add a1, a1, t0   # &child_roots[i]\n" ++
+  "  jalr ra, s4, 0                          # elem_htr(elem, slot)\n" ++
+  "  addi s2, s2, 1; j .Lcl_loop\n" ++
+  ".Lcl_done:\n" ++
+  "  la a0, er_child_roots; mv a1, s1; mv a2, s6; la a3, er_clist_partial; jal ra, ssz_merkleize\n" ++
+  "  la t1, npr_sha_input; la t3, er_clist_partial\n" ++
+  "  ld t2,0(t3); sd t2,0(t1); ld t2,8(t3); sd t2,8(t1); ld t2,16(t3); sd t2,16(t1); ld t2,24(t3); sd t2,24(t1)\n" ++
+  "  sd s1, 32(t1); sd zero,40(t1); sd zero,48(t1); sd zero,56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; mv a2, s5; jal ra, zkvm_sha256\n" ++
+  "  ld ra,0(sp); ld s0,8(sp); ld s1,16(sp); ld s2,24(sp)\n" ++
+  "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); ld s6,56(sp); addi sp,sp,64; ret\n" ++
+  -- hash_tree_root(SszExecutionRequests): a0=section, a1=section_len, a2=out.
+  -- 3 u32 offsets (deposits/withdrawals/consolidations) at section+0/+4/+8;
+  -- each list body is fixed-size containers (no inner offset table).
+  "ssz_htr_execution_requests:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s2, a1; mv s1, a2\n" ++
+  "  mv a0, s0; jal ra, sg_load_u32le; mv s3, a0          # deposits offset\n" ++
+  "  addi a0, s0, 4; jal ra, sg_load_u32le; mv s4, a0     # withdrawals offset\n" ++
+  "  addi a0, s0, 8; jal ra, sg_load_u32le; mv s5, a0     # consolidations offset\n" ++
+  "  add a0, s0, s3; sub a1, s4, s3; li a2, 192; la a3, sg_htr_deposit; li a4, 13; la a5, er_outer_buf; jal ra, sg_htr_clist\n" ++
+  "  add a0, s0, s4; sub a1, s5, s4; li a2, 76;  la a3, sg_htr_wr;      li a4, 4;  la a5, er_outer_buf; addi a5, a5, 32; jal ra, sg_htr_clist\n" ++
+  "  add a0, s0, s5; sub a1, s2, s5; li a2, 116; la a3, sg_htr_cr;      li a4, 1;  la a5, er_outer_buf; addi a5, a5, 64; jal ra, sg_htr_clist\n" ++
+  "  la a0, er_outer_buf; li a1, 3; li a2, 2; mv a3, s1; jal ra, ssz_merkleize\n" ++
+  "  ld ra,0(sp); ld s0,8(sp); ld s1,16(sp); ld s2,24(sp)\n" ++
+  "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); addi sp,sp,64; ret\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   chainValidatePostMergeFullFunction ++ "\n" ++
