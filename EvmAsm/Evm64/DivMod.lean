@@ -220,6 +220,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePost
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePostSelected
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N2V5ConcretePostBridge
+import EvmAsm.Evm64.DivMod.Spec.N2V5ConcretePostBridgeMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5PostToDispatchPostV5
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExact
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallAddbackOverestimate
