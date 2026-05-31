@@ -105,6 +105,7 @@ import EvmAsm.Evm64.DivMod.Spec.DivDispatchShift
 import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientV4Bridge
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackWordLane
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLane
+import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipUpperBound
 import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialValue
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
