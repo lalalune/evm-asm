@@ -204,6 +204,7 @@ import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
 import EvmAsm.Codegen.Programs.TransactionsRootAtBlockHash
 import EvmAsm.Codegen.Programs.ReceiptsRootAtBlockHash
+import EvmAsm.Codegen.Programs.WithdrawalsRootAtBlockHash
 import EvmAsm.Codegen.Programs.PrevRandaoAtBlockHash
 
 namespace EvmAsm.Codegen
@@ -605,6 +606,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_parent_beacon_block_root_at_block_hash" => some ziskParentBeaconBlockRootAtBlockHashProbeUnit
   | "zisk_transactions_root_at_block_hash" => some ziskTransactionsRootAtBlockHashProbeUnit
   | "zisk_receipts_root_at_block_hash" => some ziskReceiptsRootAtBlockHashProbeUnit
+  | "zisk_withdrawals_root_at_block_hash" => some ziskWithdrawalsRootAtBlockHashProbeUnit
   | "zisk_prev_randao_at_block_hash" => some ziskPrevRandaoAtBlockHashProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
@@ -871,6 +873,7 @@ def knownProgramNames : List String :=
    "zisk_parent_beacon_block_root_at_block_hash",
    "zisk_transactions_root_at_block_hash",
    "zisk_receipts_root_at_block_hash",
+   "zisk_withdrawals_root_at_block_hash",
    "zisk_prev_randao_at_block_hash",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
