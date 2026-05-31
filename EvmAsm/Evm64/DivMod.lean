@@ -94,6 +94,9 @@ import EvmAsm.Evm64.DivMod.Spec.N4QHatWindowBound
 import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientExact
 import EvmAsm.Evm64.DivMod.Spec.N4C3LeTwo
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2PredicateBridge
+import EvmAsm.Evm64.DivMod.Spec.N4QHatLeOne
+import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfBorrow
+import EvmAsm.Evm64.DivMod.Spec.N4SemanticOfBorrow
 import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientV4Bridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
 import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
