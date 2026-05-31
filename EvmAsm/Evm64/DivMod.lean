@@ -60,6 +60,7 @@ import EvmAsm.Evm64.DivMod.Compose.NormAV5
 import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
 import EvmAsm.Evm64.DivMod.Compose.CopyAUV5
 import EvmAsm.Evm64.DivMod.Compose.PhaseAV5
+import EvmAsm.Evm64.DivMod.Compose.PreloopV5Mod
 import EvmAsm.Evm64.DivMod.Compose.CLZV5
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Preloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0
