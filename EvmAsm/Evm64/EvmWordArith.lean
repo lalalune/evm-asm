@@ -55,6 +55,7 @@ import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddbackVal256
 import EvmAsm.Evm64.EvmWordArith.DivN4RemainderLt
 import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
 import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeU4Plus2
+import EvmAsm.Evm64.EvmWordArith.DivN4C3LeUTopPlusOne
 import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
 import EvmAsm.Evm64.EvmWordArith.DivN2MaxOverestimate
 import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
