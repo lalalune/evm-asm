@@ -49,6 +49,7 @@ import EvmAsm.Evm64.EvmWordArith.DivN4Lemmas
 import EvmAsm.Evm64.EvmWordArith.SkipBorrowExtract
 import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddback
 import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackGen
+import EvmAsm.Evm64.EvmWordArith.DivN4BorrowRemainderLtGen
 import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackVal256
 import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddbackVal256
 import EvmAsm.Evm64.EvmWordArith.DivN4IterConservationGen
