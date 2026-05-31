@@ -50,7 +50,11 @@ REPO_ROOT="$(pwd)"
 ALL=0
 LIMIT=50
 FILTER=""
-STEPS="${EEST_STEPS:-5000000}"
+# Default step cap. ziskemu stops at the guest's halt, so this only bounds
+# runaway/very-large runs -- raised to 50M so many-deposit / large-tx blocks
+# (whose NPR-root merkleization is sha256-heavy) complete; normal blocks
+# halt long before this and are not slowed.
+STEPS="${EEST_STEPS:-50000000}"
 MIN_SUCC=""
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 

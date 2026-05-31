@@ -119,6 +119,25 @@ def statelessGuestDataSection : String :=
   ".balign 32\n" ++
   "npr_dynamic_wd_root:\n" ++
   "  .zero 32\n" ++
+  -- execution_requests (SszExecutionRequests) dynamic root scratch:
+  -- bv_buf packs a ByteVector[<=96]; er_leaf_buf holds a container's
+  -- field leaves (<=5*32); er_clist_partial / er_outer_buf are pre-mix
+  -- merkle roots; npr_exec_requests_dyn is the final field root.
+  ".balign 32\n" ++
+  "bv_buf:\n" ++
+  "  .zero 96\n" ++
+  ".balign 32\n" ++
+  "er_leaf_buf:\n" ++
+  "  .zero 256\n" ++
+  ".balign 32\n" ++
+  "er_clist_partial:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "er_outer_buf:\n" ++
+  "  .zero 96\n" ++
+  ".balign 32\n" ++
+  "npr_exec_requests_dyn:\n" ++
+  "  .zero 32\n" ++
   sszZeroHashesDataSection ++ "\n" ++
   -- Header-validator pipeline scratch:
   ".balign 8\n" ++
@@ -491,6 +510,9 @@ def statelessGuestDataSection : String :=
   "  .zero 0x20000\n" ++               -- 128 KiB (up to 4096 list-element roots)
   ".balign 32\n" ++
   "npr_vh_aligned:\n" ++
-  "  .zero 0x20000"                    -- 128 KiB (versioned_hashes List[Bytes32,4096])
+  "  .zero 0x20000\n" ++               -- 128 KiB (versioned_hashes List[Bytes32,4096])
+  ".balign 32\n" ++
+  "er_child_roots:\n" ++
+  "  .zero 0x40000"                    -- 256 KiB (up to MAX_DEPOSIT_REQUESTS = 2^13 roots)
 
 end EvmAsm.Codegen
