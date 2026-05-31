@@ -284,7 +284,9 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopSelectedBorrowCarryMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFullBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFullBorrowCarryMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePostSelectedBorrowCarry
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePostSelectedBorrowCarryMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFromShape
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFromShapeMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShiftNz
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Lane
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FullShift0
