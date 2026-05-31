@@ -90,6 +90,9 @@ import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
 import EvmAsm.Evm64.DivMod.Spec.N4V5QuotientWord
 import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
 import EvmAsm.Evm64.DivMod.Spec.N4QHatOvershoot
+import EvmAsm.Evm64.DivMod.Spec.N4C3EqUTopPlusOne
+import EvmAsm.Evm64.DivMod.Spec.N4QOutConservationGen
+import EvmAsm.Evm64.DivMod.Spec.N4QHatGeTwo
 import EvmAsm.Evm64.DivMod.Spec.N4WindowDivBridge
 import EvmAsm.Evm64.DivMod.Spec.N4QHatWindowBound
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackWordLane
