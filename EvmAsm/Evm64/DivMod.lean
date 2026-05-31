@@ -101,6 +101,7 @@ import EvmAsm.Evm64.DivMod.Spec.N4Carry2PredicateBridge
 import EvmAsm.Evm64.DivMod.Spec.N4QHatLeOne
 import EvmAsm.Evm64.DivMod.Spec.N4QHatTopWindowBound
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfBorrow
+import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfBorrowGen
 import EvmAsm.Evm64.DivMod.Spec.N4SemanticOfBorrow
 import EvmAsm.Evm64.DivMod.Spec.DivDispatchShift
 import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientV4Bridge
