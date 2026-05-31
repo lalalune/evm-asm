@@ -531,6 +531,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_hp_decode_nibbles"    => some ziskHpDecodeNibblesProbeUnit
   | "zisk_mpt_walk"             => some ziskMptWalkProbeUnit
   | "zisk_mpt_set_record_walk"  => some ziskMptSetRecordWalkProbeUnit
+  | "zisk_mpt_set"              => some ziskMptSetProbeUnit
   | "zisk_bytes_to_nibbles"     => some ziskBytesToNibblesProbeUnit
   | "zisk_mpt_lookup_by_key"    => some ziskMptLookupByKeyProbeUnit
   | "zisk_account_decode"       => some ziskAccountDecodeProbeUnit
@@ -803,6 +804,7 @@ def knownProgramNames : List String :=
    "zisk_hp_decode_nibbles",
    "zisk_mpt_walk",
    "zisk_mpt_set_record_walk",
+   "zisk_mpt_set",
    "zisk_bytes_to_nibbles",
    "zisk_mpt_lookup_by_key",
    "zisk_account_decode",
