@@ -111,6 +111,21 @@ import EvmAsm.Codegen.Programs.ExtcodehashAtBlockNumber
 import EvmAsm.Codegen.Programs.ExtcodecopyAtBlockNumber
 import EvmAsm.Codegen.Programs.SloadAtBlockNumber
 import EvmAsm.Codegen.Programs.LogsBloomKeccakAtBlockNumber
+import EvmAsm.Codegen.Programs.TransactionsRootAtBlockNumber
+import EvmAsm.Codegen.Programs.TimestampAtBlockNumber
+import EvmAsm.Codegen.Programs.GasLimitAtBlockNumber
+import EvmAsm.Codegen.Programs.GasUsedAtBlockNumber
+import EvmAsm.Codegen.Programs.ReceiptsRootAtBlockNumber
+import EvmAsm.Codegen.Programs.OmmersHashAtBlockNumber
+import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockNumber
+import EvmAsm.Codegen.Programs.BeneficiaryAtBlockNumber
+import EvmAsm.Codegen.Programs.WithdrawalsRootAtBlockNumber
+import EvmAsm.Codegen.Programs.DifficultyAtBlockNumber
+import EvmAsm.Codegen.Programs.PrevRandaoAtBlockNumber
+import EvmAsm.Codegen.Programs.ExcessBlobGasAtBlockNumber
+import EvmAsm.Codegen.Programs.BlobGasUsedAtBlockNumber
+import EvmAsm.Codegen.Programs.ExtraDataAtBlockNumber
+import EvmAsm.Codegen.Programs.ParentHashAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtBlockNumber
 import EvmAsm.Codegen.Programs.CodeAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtStateRoot
@@ -128,6 +143,12 @@ import EvmAsm.Codegen.Programs.BalanceAtBlockHash
 import EvmAsm.Codegen.Programs.NonceAtBlockHash
 import EvmAsm.Codegen.Programs.CodeAtBlockHash
 import EvmAsm.Codegen.Programs.HasCodeOrNonceAtBlockHash
+import EvmAsm.Codegen.Programs.LogsBloomKeccakAtBlockHash
+import EvmAsm.Codegen.Programs.GasLimitAtBlockHash
+import EvmAsm.Codegen.Programs.BaseFeePerGasAtBlockHash
+import EvmAsm.Codegen.Programs.GasUsedAtBlockHash
+import EvmAsm.Codegen.Programs.TimestampAtBlockHash
+import EvmAsm.Codegen.Programs.BeneficiaryAtBlockHash
 import EvmAsm.Codegen.Programs.AccountExistsAtBlockHash
 import EvmAsm.Codegen.Programs.ExtcodesizeAtBlockHash
 import EvmAsm.Codegen.Programs.AccountIsEmptyAtBlockHash
@@ -498,6 +519,12 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_state_root_chain_walk_back_n_steps_from_block_hash" => some ziskStateRootChainWalkBackNStepsFromBlockHashProbeUnit
   | "zisk_block_number_at_block_hash" => some ziskBlockNumberAtBlockHashProbeUnit
   | "zisk_has_code_or_nonce_at_block_hash_address" => some ziskHasCodeOrNonceAtBlockHashAddressProbeUnit
+  | "zisk_logs_bloom_keccak_at_block_hash" => some ziskLogsBloomKeccakAtBlockHashProbeUnit
+  | "zisk_gas_limit_at_block_hash" => some ziskGasLimitAtBlockHashProbeUnit
+  | "zisk_base_fee_per_gas_at_block_hash" => some ziskBaseFeePerGasAtBlockHashProbeUnit
+  | "zisk_gas_used_at_block_hash" => some ziskGasUsedAtBlockHashProbeUnit
+  | "zisk_timestamp_at_block_hash" => some ziskTimestampAtBlockHashProbeUnit
+  | "zisk_beneficiary_at_block_hash" => some ziskBeneficiaryAtBlockHashProbeUnit
   | "zisk_extcodehash_at_block_hash_address" => some ziskExtcodehashAtBlockHashAddressProbeUnit
   | "zisk_extcodecopy_at_block_hash_address" => some ziskExtcodecopyAtBlockHashAddressProbeUnit
   | "zisk_state_slot_at_block_number_address" => some ziskStateSlotAtBlockNumberAddressProbeUnit
@@ -514,6 +541,21 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_extcodecopy_at_block_number_address" => some ziskExtcodecopyAtBlockNumberAddressProbeUnit
   | "zisk_sload_at_block_number_address" => some ziskSloadAtBlockNumberAddressProbeUnit
   | "zisk_logs_bloom_keccak_at_block_number" => some ziskLogsBloomKeccakAtBlockNumberProbeUnit
+  | "zisk_transactions_root_at_block_number" => some ziskTransactionsRootAtBlockNumberProbeUnit
+  | "zisk_timestamp_at_block_number" => some ziskTimestampAtBlockNumberProbeUnit
+  | "zisk_gas_limit_at_block_number" => some ziskGasLimitAtBlockNumberProbeUnit
+  | "zisk_gas_used_at_block_number" => some ziskGasUsedAtBlockNumberProbeUnit
+  | "zisk_receipts_root_at_block_number" => some ziskReceiptsRootAtBlockNumberProbeUnit
+  | "zisk_ommers_hash_at_block_number" => some ziskOmmersHashAtBlockNumberProbeUnit
+  | "zisk_parent_beacon_block_root_at_block_number" => some ziskParentBeaconBlockRootAtBlockNumberProbeUnit
+  | "zisk_beneficiary_at_block_number" => some ziskBeneficiaryAtBlockNumberProbeUnit
+  | "zisk_withdrawals_root_at_block_number" => some ziskWithdrawalsRootAtBlockNumberProbeUnit
+  | "zisk_difficulty_at_block_number" => some ziskDifficultyAtBlockNumberProbeUnit
+  | "zisk_prev_randao_at_block_number" => some ziskPrevRandaoAtBlockNumberProbeUnit
+  | "zisk_excess_blob_gas_at_block_number" => some ziskExcessBlobGasAtBlockNumberProbeUnit
+  | "zisk_blob_gas_used_at_block_number" => some ziskBlobGasUsedAtBlockNumberProbeUnit
+  | "zisk_extra_data_at_block_number" => some ziskExtraDataAtBlockNumberProbeUnit
+  | "zisk_parent_hash_at_block_number" => some ziskParentHashAtBlockNumberProbeUnit
   | "zisk_block_hash_at_block_number" => some ziskBlockHashAtBlockNumberProbeUnit
   | "zisk_code_at_block_number_address" => some ziskCodeAtBlockNumberAddressProbeUnit
   | "zisk_block_hash_at_state_root" => some ziskBlockHashAtStateRootProbeUnit
@@ -739,6 +781,12 @@ def knownProgramNames : List String :=
    "zisk_state_root_chain_walk_back_n_steps_from_block_hash",
    "zisk_block_number_at_block_hash",
    "zisk_has_code_or_nonce_at_block_hash_address",
+   "zisk_logs_bloom_keccak_at_block_hash",
+   "zisk_gas_limit_at_block_hash",
+   "zisk_base_fee_per_gas_at_block_hash",
+   "zisk_gas_used_at_block_hash",
+   "zisk_timestamp_at_block_hash",
+   "zisk_beneficiary_at_block_hash",
    "zisk_extcodehash_at_block_hash_address",
    "zisk_extcodecopy_at_block_hash_address",
    "zisk_state_slot_at_block_number_address",
@@ -755,6 +803,21 @@ def knownProgramNames : List String :=
    "zisk_extcodecopy_at_block_number_address",
    "zisk_sload_at_block_number_address",
    "zisk_logs_bloom_keccak_at_block_number",
+   "zisk_transactions_root_at_block_number",
+   "zisk_timestamp_at_block_number",
+   "zisk_gas_limit_at_block_number",
+   "zisk_gas_used_at_block_number",
+   "zisk_receipts_root_at_block_number",
+   "zisk_ommers_hash_at_block_number",
+   "zisk_parent_beacon_block_root_at_block_number",
+   "zisk_beneficiary_at_block_number",
+   "zisk_withdrawals_root_at_block_number",
+   "zisk_difficulty_at_block_number",
+   "zisk_prev_randao_at_block_number",
+   "zisk_excess_blob_gas_at_block_number",
+   "zisk_blob_gas_used_at_block_number",
+   "zisk_extra_data_at_block_number",
+   "zisk_parent_hash_at_block_number",
    "zisk_block_hash_at_block_number",
    "zisk_code_at_block_number_address",
    "zisk_block_hash_at_state_root",
