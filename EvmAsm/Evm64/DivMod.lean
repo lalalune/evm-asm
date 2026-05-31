@@ -240,6 +240,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCCBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxJ0BorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIterBorrowCarry
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIterBorrowCarryMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxSourceBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMBorrowCarry
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCMBorrowCarry
