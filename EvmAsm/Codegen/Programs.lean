@@ -124,6 +124,10 @@ import EvmAsm.Codegen.Programs.DifficultyAtBlockNumber
 import EvmAsm.Codegen.Programs.PrevRandaoAtBlockNumber
 import EvmAsm.Codegen.Programs.ExcessBlobGasAtBlockNumber
 import EvmAsm.Codegen.Programs.BlobGasUsedAtBlockNumber
+import EvmAsm.Codegen.Programs.ExtraDataAtBlockNumber
+import EvmAsm.Codegen.Programs.ParentHashAtBlockNumber
+import EvmAsm.Codegen.Programs.HeaderNonceAtBlockNumber
+import EvmAsm.Codegen.Programs.BaseFeePerGasAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtBlockNumber
 import EvmAsm.Codegen.Programs.CodeAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtStateRoot
@@ -198,6 +202,10 @@ import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
+import EvmAsm.Codegen.Programs.TransactionsRootAtBlockHash
+import EvmAsm.Codegen.Programs.ReceiptsRootAtBlockHash
+import EvmAsm.Codegen.Programs.WithdrawalsRootAtBlockHash
+import EvmAsm.Codegen.Programs.PrevRandaoAtBlockHash
 
 namespace EvmAsm.Codegen
 
@@ -551,6 +559,10 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_prev_randao_at_block_number" => some ziskPrevRandaoAtBlockNumberProbeUnit
   | "zisk_excess_blob_gas_at_block_number" => some ziskExcessBlobGasAtBlockNumberProbeUnit
   | "zisk_blob_gas_used_at_block_number" => some ziskBlobGasUsedAtBlockNumberProbeUnit
+  | "zisk_extra_data_at_block_number" => some ziskExtraDataAtBlockNumberProbeUnit
+  | "zisk_parent_hash_at_block_number" => some ziskParentHashAtBlockNumberProbeUnit
+  | "zisk_header_nonce_at_block_number" => some ziskHeaderNonceAtBlockNumberProbeUnit
+  | "zisk_base_fee_per_gas_at_block_number" => some ziskBaseFeePerGasAtBlockNumberProbeUnit
   | "zisk_block_hash_at_block_number" => some ziskBlockHashAtBlockNumberProbeUnit
   | "zisk_code_at_block_number_address" => some ziskCodeAtBlockNumberAddressProbeUnit
   | "zisk_block_hash_at_state_root" => some ziskBlockHashAtStateRootProbeUnit
@@ -592,6 +604,10 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_parent_keccak_matches_child_parent_hash" => some ziskParentKeccakMatchesChildParentHashProbeUnit
   | "zisk_balance_at_block_hash_address" => some ziskBalanceAtBlockHashAddressProbeUnit
   | "zisk_parent_beacon_block_root_at_block_hash" => some ziskParentBeaconBlockRootAtBlockHashProbeUnit
+  | "zisk_transactions_root_at_block_hash" => some ziskTransactionsRootAtBlockHashProbeUnit
+  | "zisk_receipts_root_at_block_hash" => some ziskReceiptsRootAtBlockHashProbeUnit
+  | "zisk_withdrawals_root_at_block_hash" => some ziskWithdrawalsRootAtBlockHashProbeUnit
+  | "zisk_prev_randao_at_block_hash" => some ziskPrevRandaoAtBlockHashProbeUnit
   | "zisk_slot_at_index"        => some ziskSlotAtIndexProbeUnit
   | "zisk_rlp_encode_uint_be"   => some ziskRlpEncodeUintBeProbeUnit
   | "zisk_rlp_encode_bytes"     => some ziskRlpEncodeBytesProbeUnit
@@ -810,6 +826,10 @@ def knownProgramNames : List String :=
    "zisk_prev_randao_at_block_number",
    "zisk_excess_blob_gas_at_block_number",
    "zisk_blob_gas_used_at_block_number",
+   "zisk_extra_data_at_block_number",
+   "zisk_parent_hash_at_block_number",
+   "zisk_header_nonce_at_block_number",
+   "zisk_base_fee_per_gas_at_block_number",
    "zisk_block_hash_at_block_number",
    "zisk_code_at_block_number_address",
    "zisk_block_hash_at_state_root",
@@ -851,6 +871,10 @@ def knownProgramNames : List String :=
    "zisk_parent_keccak_matches_child_parent_hash",
    "zisk_balance_at_block_hash_address",
    "zisk_parent_beacon_block_root_at_block_hash",
+   "zisk_transactions_root_at_block_hash",
+   "zisk_receipts_root_at_block_hash",
+   "zisk_withdrawals_root_at_block_hash",
+   "zisk_prev_randao_at_block_hash",
    "zisk_slot_at_index",
    "zisk_rlp_encode_uint_be",
    "zisk_rlp_encode_bytes",
