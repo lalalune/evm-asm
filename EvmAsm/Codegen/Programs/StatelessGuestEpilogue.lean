@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
 
 namespace EvmAsm.Codegen
@@ -187,6 +188,34 @@ def statelessGuestEpilogue : String :=
   "  li s6, 0x40000000\n" ++
   "  addi s6, s6, 18             # s6 = SSZ_BASE\n" ++
   "  # \n" ++
+  "  # ===== dynamic NPR list field-roots (replace empty-list consts) =====\n" ++
+  "  # exec_payload_addr = NPR_addr + 44 (NPR fixed header) = s6 + 16 + 44\n" ++
+  "  # = s6 + 60. The variable fields' u32 offsets sit in the exec_payload\n" ++
+  "  # fixed header: transactions @ +504, withdrawals @ +508,\n" ++
+  "  # block_access_list @ +528. The list/bytes helpers cap N<=32 elements\n" ++
+  "  # and <=1024 bytes/element; blocks beyond that stay root-diffs.\n" ++
+  "  # --- transactions_root = hash_tree_root(List[ByteList[2^30], 2^20]) ---\n" ++
+  "  addi t0, s6, 60            # exec_payload_addr\n" ++
+  "  lwu t1, 504(t0)            # transactions offset (rel exec_payload)\n" ++
+  "  lwu t2, 508(t0)            # withdrawals offset (= transactions end)\n" ++
+  "  add a0, t0, t1             # transactions_start\n" ++
+  "  sub a1, t2, t1             # transactions_len\n" ++
+  "  li a2, 25                  # per-element chunk-cap log2 (2^30 / 32)\n" ++
+  "  li a3, 20                  # list capacity log2 (MAX_TRANSACTIONS_PER_PAYLOAD)\n" ++
+  "  la a4, npr_dynamic_tx_root\n" ++
+  "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
+  "  # --- block_access_list_root = hash_tree_root(ByteList[2^24]) ---\n" ++
+  "  # bal section ends at exec_payload end = NPR + versioned_hashes_offset.\n" ++
+  "  addi t3, s6, 16            # NPR_addr\n" ++
+  "  lwu t4, 4(t3)              # versioned_hashes offset (rel NPR) = exec_payload end\n" ++
+  "  add t4, t3, t4             # exec_payload_end_addr\n" ++
+  "  addi t0, s6, 60            # exec_payload_addr\n" ++
+  "  lwu t1, 528(t0)            # block_access_list offset (rel exec_payload)\n" ++
+  "  add a0, t0, t1             # bal_start\n" ++
+  "  sub a1, t4, a0             # bal_len = exec_payload_end - bal_start\n" ++
+  "  li a2, 19                  # chunk-cap log2 (2^24 / 32)\n" ++
+  "  la a3, npr_dynamic_bal_root\n" ++
+  "  jal ra, ssz_hash_tree_root_bytes\n" ++
   "  # ===== exec_payload merkle path (leaves 0-15) =====\n" ++
   "  # Path leaf_6 -> node_6_7 -> node_4_7 -> node_0_7 -> node_0_15\n" ++
   "  # \n" ++
@@ -316,7 +345,7 @@ def statelessGuestEpilogue : String :=
   "  ld t2, 540(s6); sd t2,  8(t1)\n" ++
   "  ld t2, 548(s6); sd t2, 16(t1)\n" ++
   "  ld t2, 556(s6); sd t2, 24(t1)\n" ++
-  "  la t3, npr_leaf_13_transactions_root\n" ++
+  "  la t3, npr_dynamic_tx_root\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
@@ -495,7 +524,7 @@ def statelessGuestEpilogue : String :=
   "  ld t2, 580(s6)              # excess_blob_gas\n" ++
   "  sd t2,  0(t1)\n" ++
   "  sd zero,  8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
-  "  la t3, npr_leaf_17_bal_root\n" ++
+  "  la t3, npr_dynamic_bal_root\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 48(t1)\n" ++
@@ -615,6 +644,14 @@ def statelessGuestEpilogue : String :=
   "  jal ra, zkvm_sha256         # root -> OUTPUT_ADDR\n" ++
   "  j .Lsg_done\n" ++
   zkvmSha256Function ++ "\n" ++
+  -- SSZ merkleization helpers for the dynamic transactions_root /
+  -- block_access_list_root (zkvm_sha256 already emitted just above, so it
+  -- is NOT re-included here -- doing so would duplicate the label).
+  sszPackBytesFunction ++ "\n" ++
+  sszMerkleizePow2Function ++ "\n" ++
+  sszMerkleizeFunction ++ "\n" ++
+  sszHashTreeRootBytesFunction ++ "\n" ++
+  sszHashTreeRootListByteListFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   chainValidatePostMergeFullFunction ++ "\n" ++
