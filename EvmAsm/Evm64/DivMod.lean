@@ -342,6 +342,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallSkip
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkip
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallSkip
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallSkip
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFull
