@@ -264,6 +264,22 @@ def statelessGuestEpilogue : String :=
   "  sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_versioned_hashes_dyn\n" ++
   "  jal ra, zkvm_sha256\n" ++
+  "  # --- withdrawals_root = hash_tree_root(List[SszWithdrawal, 16]) ---\n" ++
+  "  # ExecutionPayload field 14: fixed 44-byte containers (index u64,\n" ++
+  "  # validator_index u64, address ByteVector[20], amount u64), no inner\n" ++
+  "  # offset table; section = N*44 at exec_payload+withdrawals_offset\n" ++
+  "  # (@+508), ending at block_access_list_offset (@+528).\n" ++
+  "  addi a0, s6, 568           # &withdrawals_offset (exec_payload+508)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s7, a0                  # s7 = withdrawals_offset (rel exec_payload)\n" ++
+  "  addi a0, s6, 588           # &block_access_list_offset (exec_payload+528)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  sub s9, a0, s7             # s9 = withdrawals section_len\n" ++
+  "  addi t0, s6, 60            # exec_payload_addr\n" ++
+  "  add a0, t0, s7             # withdrawals_start (unaligned ptr OK)\n" ++
+  "  mv a1, s9                  # section_len\n" ++
+  "  la a2, npr_dynamic_wd_root\n" ++
+  "  jal ra, ssz_htr_withdrawals\n" ++
   "  # ===== exec_payload merkle path (leaves 0-15) =====\n" ++
   "  # Path leaf_6 -> node_6_7 -> node_4_7 -> node_0_7 -> node_0_15\n" ++
   "  # \n" ++
@@ -408,7 +424,7 @@ def statelessGuestEpilogue : String :=
   "  #                       leaf_15=blob_gas_used)\n" ++
   "  # blob_gas_used (u64 LE @ SSZ_BASE + 16 + 44 + 512 = +572)\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  la t3, npr_leaf_14_withdrawals_root\n" ++
+  "  la t3, npr_dynamic_wd_root\n" ++
   "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
@@ -757,6 +773,62 @@ def statelessGuestEpilogue : String :=
   "  addi a2, a2, -1\n" ++
   "  j .Lsgmc_loop\n" ++
   ".Lsgmc_done:\n" ++
+  "  ret\n" ++
+  -- hash_tree_root(List[SszWithdrawal, 16]):  a0=section ptr (may be
+  -- unaligned), a1=section_len, a2=32-byte out. Each withdrawal is a
+  -- fixed 44-byte container; its root = merkleize([index|pad,
+  -- validator_index|pad, address|pad, amount|pad], limit_log2=2). The
+  -- list root = merkleize(child_roots, limit_log2=4) then
+  -- mix_in_length(N). N=0 yields the empty-list constant (no regression).
+  -- All reads byte-wise (sg_memcpy) -- alignment-safe. Preserves s0-s6+ra.
+  "ssz_htr_withdrawals:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                  # s0 = section\n" ++
+  "  mv s3, a2                  # s3 = out\n" ++
+  "  li t0, 44\n" ++
+  "  divu s1, a1, t0            # s1 = N = section_len / 44\n" ++
+  "  li s2, 0                   # s2 = i\n" ++
+  "  la s4, wd_child_roots      # s4 = &child_roots[i]\n" ++
+  ".Lwd_loop:\n" ++
+  "  beq s2, s1, .Lwd_done\n" ++
+  "  li t0, 44; mul t0, s2, t0; add s5, s0, t0   # s5 = w = section + i*44\n" ++
+  "  # node_01 = sha256(index|pad24 || validator_index|pad24)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  sd zero,0(t1); sd zero,8(t1); sd zero,16(t1); sd zero,24(t1)\n" ++
+  "  sd zero,32(t1); sd zero,40(t1); sd zero,48(t1); sd zero,56(t1)\n" ++
+  "  la a0, npr_sha_input; mv a1, s5; li a2, 8; jal ra, sg_memcpy\n" ++
+  "  la a0, npr_sha_input; addi a0, a0, 32; addi a1, s5, 8; li a2, 8; jal ra, sg_memcpy\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, wd_node_a; jal ra, zkvm_sha256\n" ++
+  "  # node_23 = sha256(address|pad12 || amount|pad24)\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  sd zero,0(t1); sd zero,8(t1); sd zero,16(t1); sd zero,24(t1)\n" ++
+  "  sd zero,32(t1); sd zero,40(t1); sd zero,48(t1); sd zero,56(t1)\n" ++
+  "  la a0, npr_sha_input; addi a1, s5, 16; li a2, 20; jal ra, sg_memcpy\n" ++
+  "  la a0, npr_sha_input; addi a0, a0, 32; addi a1, s5, 36; li a2, 8; jal ra, sg_memcpy\n" ++
+  "  la a0, npr_sha_input; li a1, 64; la a2, wd_node_b; jal ra, zkvm_sha256\n" ++
+  "  # wroot = sha256(node_01 || node_23) -> child_roots[i]\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, wd_node_a\n" ++
+  "  ld t2,0(t3); sd t2,0(t1); ld t2,8(t3); sd t2,8(t1); ld t2,16(t3); sd t2,16(t1); ld t2,24(t3); sd t2,24(t1)\n" ++
+  "  la t3, wd_node_b\n" ++
+  "  ld t2,0(t3); sd t2,32(t1); ld t2,8(t3); sd t2,40(t1); ld t2,16(t3); sd t2,48(t1); ld t2,24(t3); sd t2,56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; mv a2, s4; jal ra, zkvm_sha256\n" ++
+  "  addi s4, s4, 32\n" ++
+  "  addi s2, s2, 1\n" ++
+  "  j .Lwd_loop\n" ++
+  ".Lwd_done:\n" ++
+  "  la a0, wd_child_roots; mv a1, s1; li a2, 4; la a3, wd_partial; jal ra, ssz_merkleize\n" ++
+  "  # mix_in_length: sha256(wd_partial || u256_le(N)) -> out\n" ++
+  "  la t1, npr_sha_input\n" ++
+  "  la t3, wd_partial\n" ++
+  "  ld t2,0(t3); sd t2,0(t1); ld t2,8(t3); sd t2,8(t1); ld t2,16(t3); sd t2,16(t1); ld t2,24(t3); sd t2,24(t1)\n" ++
+  "  sd s1, 32(t1); sd zero,40(t1); sd zero,48(t1); sd zero,56(t1)\n" ++
+  "  la a0, npr_sha_input; li a1, 64; mv a2, s3; jal ra, zkvm_sha256\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++

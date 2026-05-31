@@ -100,6 +100,25 @@ def statelessGuestDataSection : String :=
   ".balign 32\n" ++
   "npr_versioned_hashes_dyn:\n" ++
   "  .zero 32\n" ++
+  -- withdrawals (List[SszWithdrawal,16]) dynamic root scratch:
+  -- wd_child_roots holds up to 16 per-withdrawal roots; wd_node_a/b are
+  -- the 2 inner-merkle nodes per withdrawal; wd_partial is the pre-mix
+  -- list root; npr_dynamic_wd_root is the final mixed-in-length root.
+  ".balign 32\n" ++
+  "wd_child_roots:\n" ++
+  "  .zero 512\n" ++          -- 16 * 32
+  ".balign 32\n" ++
+  "wd_node_a:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "wd_node_b:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "wd_partial:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "npr_dynamic_wd_root:\n" ++
+  "  .zero 32\n" ++
   sszZeroHashesDataSection ++ "\n" ++
   -- Header-validator pipeline scratch:
   ".balign 8\n" ++
