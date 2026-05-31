@@ -213,6 +213,7 @@ import EvmAsm.Codegen.Programs.SszWithdrawal
 import EvmAsm.Codegen.Programs.SszWitnessState
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
 import EvmAsm.Codegen.Programs.SszParentHeader
+import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
@@ -729,6 +730,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_validate_header_rlp_pair" => some ziskValidateHeaderRlpPairProbeUnit
   | "zisk_block_header_ssz_to_rlp" => some ziskBlockHeaderSszToRlpProbeUnit
   | "zisk_step2_verdict"         => some ziskStep2VerdictProbeUnit
+  | "zisk_stateless_verdict"    => some ziskStatelessVerdictProbeUnit
   | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
@@ -1022,6 +1024,7 @@ def knownProgramNames : List String :=
    "zisk_validate_header_rlp_pair",
    "zisk_block_header_ssz_to_rlp",
    "zisk_step2_verdict",
+   "zisk_stateless_verdict",
    "zisk_u256_from_u64_be",
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero",
@@ -1330,7 +1333,8 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/SszWithdrawal.lean",
     "EvmAsm/Codegen/Programs/SszWitnessState.lean",
     "EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean",
-    "EvmAsm/Codegen/Programs/SszParentHeader.lean"
+    "EvmAsm/Codegen/Programs/SszParentHeader.lean",
+    "EvmAsm/Codegen/Programs/StatelessVerdict.lean"
   ]
   for path in paths do
     let contents ← IO.FS.readFile path
