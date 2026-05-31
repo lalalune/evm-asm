@@ -104,6 +104,18 @@ theorem iterN3V5_false_eq (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
       iterWithDoubleAddback (signExtend12 (4095 : BitVec 12)) v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
   unfold iterN3V5 iterN3Max; simp only [Bool.false_eq_true, if_false]
 
+/-- `iterN3V5 false …` collapsed to the NAMED `iterN3Max` (stops *before* unfolding
+    the irreducible `iterN3Max`).  Unlike `iterN3V5_false_eq` — which over-unfolds
+    to `iterWithDoubleAddback (signExtend12 4095) …` — this keeps the result in the
+    same named form the loop combos / unified wrappers expect for the max branch,
+    so `simp only [iterN3V5_false_eq_max]` rewrites a bundle window to `iterN3Max`
+    without forcing the explosive defeq through the irreducible def.  Mirror of
+    n2's `loopN2IterSelectedV5_false`. -/
+theorem iterN3V5_false_eq_max (v0 v1 v2 v3 u0 u1 u2 u3 uTop : Word) :
+    iterN3V5 false v0 v1 v2 v3 u0 u1 u2 u3 uTop =
+      iterN3Max v0 v1 v2 v3 u0 u1 u2 u3 uTop := by
+  unfold iterN3V5; simp only [Bool.false_eq_true, if_false]
+
 /-- Per-digit conservation, wrapped onto `iterN3V5 false` (clean, `uTop = 0`). -/
 theorem iterN3V5_max_conservation (v0 v1 v2 u0 u1 u2 u3 : Word)
     (hv2 : v2.toNat ≥ 2^63) (hmax : ¬ BitVec.ult u3 v2) :
