@@ -434,6 +434,7 @@ import EvmAsm.Evm64.DivMod.LoopIterN4CallAddbackV4NoNop
 import EvmAsm.Evm64.DivMod.Compose.PhaseBV5
 import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
 import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FamiliesMod
 import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueShift0ClzV5
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
