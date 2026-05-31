@@ -29,6 +29,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
+import EvmAsm.Codegen.Programs.MptEncode
 
 namespace EvmAsm.Codegen
 
@@ -349,6 +350,329 @@ def ziskMptSetRecordWalkProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskMptSetRecordWalkPrologue
   dataAsm     := ziskMptWalkDataSection
+}
+
+/-! ## mset_memcpy -- byte copy (leaf helper)
+
+    a0 = dst, a1 = src, a2 = len. Advances a0/a1/a2; clobbers t0.
+    Leaf-callable (no jal), preserves all s-registers and ra. -/
+def msetMemcpyFunction : String :=
+  "mset_memcpy:\n" ++
+  "  beqz a2, .Lmsetcpy_done\n" ++
+  ".Lmsetcpy_loop:\n" ++
+  "  lbu t0, 0(a1)\n" ++
+  "  sb t0, 0(a0)\n" ++
+  "  addi a0, a0, 1\n" ++
+  "  addi a1, a1, 1\n" ++
+  "  addi a2, a2, -1\n" ++
+  "  bnez a2, .Lmsetcpy_loop\n" ++
+  ".Lmsetcpy_done:\n" ++
+  "  ret"
+
+/-! ## mpt_splice_slot -- replace one list item with a new reference
+
+    Given an RLP list (a branch or extension node) and the byte span of its
+    item `k` (found via `rlp_item_span`), produce a new RLP list identical to
+    the original except item `k` is replaced by `new_ref`, with a freshly
+    computed list prefix. This is the per-level bubble-up step: for a value-
+    only update every ancestor node is byte-identical to its original except
+    the single child slot on the path, so re-splicing the ORIGINAL node (read
+    from the stable witness) with the new child ref yields the new node.
+
+    Calling convention:
+      a0 (input)  : src list RLP ptr
+      a1 (input)  : src list RLP length
+      a2 (input)  : item index k to replace (branch: child nibble; ext: 1)
+      a3 (input)  : new_ref ptr (already-encoded slot bytes)
+      a4 (input)  : new_ref length
+      a5 (input)  : output buffer ptr (caller-supplied, distinct from src)
+      a6 (input)  : u64 out length ptr
+      ra (input)  : return
+      a0 (output) : 0 (ok) / 1 (parse fail / k out of range)
+
+    new_payload = src[payload_start..slot_start] ++ new_ref
+                  ++ src[slot_start+slot_size..src_len]
+    out         = rlp_encode_list_prefix(len(new_payload)) ++ new_payload -/
+def mptSpliceSlotFunction : String :=
+  "mpt_splice_slot:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # src\n" ++
+  "  mv s1, a1                   # src_len\n" ++
+  "  mv s2, a2                   # k\n" ++
+  "  mv s3, a3                   # new_ref\n" ++
+  "  mv s4, a4                   # new_ref_len\n" ++
+  "  mv s5, a5                   # out\n" ++
+  "  mv s6, a6                   # out_len ptr\n" ++
+  "  # payload_start = byte offset of item 0 (= list prefix length).\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
+  "  la a3, mset_span_start; la a4, mset_span_size\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lsplice_fail\n" ++
+  "  la t0, mset_span_start; ld t1, 0(t0)\n" ++
+  "  la t0, mset_payload_start; sd t1, 0(t0)\n" ++
+  "  # span of item k.\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
+  "  la a3, mset_span_start; la a4, mset_span_size\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lsplice_fail\n" ++
+  "  la t0, mset_span_start; ld t2, 0(t0)   # slot_start\n" ++
+  "  la t0, mset_span_size;  ld t3, 0(t0)   # slot_size\n" ++
+  "  la t0, mset_payload_start; ld t1, 0(t0) # payload_start\n" ++
+  "  sub t4, t2, t1                          # head_len = slot_start - payload_start\n" ++
+  "  add t5, t2, t3                          # tail_start = slot_start + slot_size\n" ++
+  "  sub t6, s1, t5                          # tail_len = src_len - tail_start\n" ++
+  "  la t0, mset_head_len;  sd t4, 0(t0)\n" ++
+  "  la t0, mset_tail_start; sd t5, 0(t0)\n" ++
+  "  la t0, mset_tail_len;   sd t6, 0(t0)\n" ++
+  "  # new_payload_len = head_len + new_ref_len + tail_len\n" ++
+  "  add t1, t4, s4\n" ++
+  "  add t1, t1, t6\n" ++
+  "  la t0, mset_new_payload_len; sd t1, 0(t0)\n" ++
+  "  # write list prefix at out[0..].\n" ++
+  "  mv a0, t1\n" ++
+  "  mv a1, s5\n" ++
+  "  la a2, mset_prefix_len\n" ++
+  "  jal ra, rlp_encode_list_prefix\n" ++
+  "  la t0, mset_prefix_len; ld t1, 0(t0)\n" ++
+  "  add t2, s5, t1                          # cursor = out + prefix_len\n" ++
+  "  la t0, mset_cursor; sd t2, 0(t0)\n" ++
+  "  # copy head = src[payload_start .. slot_start].\n" ++
+  "  la t0, mset_cursor; ld a0, 0(t0)\n" ++
+  "  la t0, mset_payload_start; ld t1, 0(t0); add a1, s0, t1\n" ++
+  "  la t0, mset_head_len; ld a2, 0(t0)\n" ++
+  "  jal ra, mset_memcpy\n" ++
+  "  la t0, mset_cursor; ld t1, 0(t0)\n" ++
+  "  la t0, mset_head_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  la t0, mset_cursor; sd t1, 0(t0)\n" ++
+  "  # copy new_ref.\n" ++
+  "  la t0, mset_cursor; ld a0, 0(t0)\n" ++
+  "  mv a1, s3; mv a2, s4\n" ++
+  "  jal ra, mset_memcpy\n" ++
+  "  la t0, mset_cursor; ld t1, 0(t0); add t1, t1, s4\n" ++
+  "  la t0, mset_cursor; sd t1, 0(t0)\n" ++
+  "  # copy tail = src[tail_start .. src_len].\n" ++
+  "  la t0, mset_cursor; ld a0, 0(t0)\n" ++
+  "  la t0, mset_tail_start; ld t1, 0(t0); add a1, s0, t1\n" ++
+  "  la t0, mset_tail_len; ld a2, 0(t0)\n" ++
+  "  jal ra, mset_memcpy\n" ++
+  "  # out_len = prefix_len + new_payload_len.\n" ++
+  "  la t0, mset_prefix_len; ld t1, 0(t0)\n" ++
+  "  la t0, mset_new_payload_len; ld t2, 0(t0)\n" ++
+  "  add t1, t1, t2\n" ++
+  "  sd t1, 0(s6)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lsplice_ret\n" ++
+  ".Lsplice_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lsplice_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-! ## mpt_set -- value-only update of an existing key, recompute root
+
+    Compose record-walk + bubble-up: descend to the leaf (recording the
+    branch/extension nodes on the path), re-encode the leaf with `new_value`,
+    then walk back up re-encoding each ancestor's touched child slot, hashing
+    at every >=32-byte boundary, and keccak the final root node.
+
+    Scope: VALUE-ONLY update of an EXISTING key (no insert/delete, no
+    structural change) -- covers existing-account and existing-slot updates.
+
+    Calling convention:
+      a0 (input)  : root_hash ptr (32 bytes)
+      a1 (input)  : witness section ptr
+      a2 (input)  : witness section length
+      a3 (input)  : path_nibbles ptr (one byte per nibble)
+      a4 (input)  : path_nibbles length
+      a5 (input)  : new_value ptr
+      a6 (input)  : new_value length
+      a7 (input)  : out_root ptr (32 bytes, written on success)
+      ra (input)  : return
+      a0 (output) : 0 (ok) / 1 (key not found) / 2 (parse / splice fail) -/
+def mptSetFunction : String :=
+  "mpt_set:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp)\n" ++
+  "  mv s0, a1                   # witness\n" ++
+  "  mv s1, a3                   # path\n" ++
+  "  mv s2, a4                   # path_len\n" ++
+  "  mv s3, a5                   # new_value\n" ++
+  "  mv s4, a6                   # new_value_len\n" ++
+  "  mv s5, a7                   # out_root\n" ++
+  "  # ---- record-walk (a0=root_hash, a2=witness_len unchanged) ----\n" ++
+  "  mv a1, s0\n" ++
+  "  mv a3, s1\n" ++
+  "  mv a4, s2\n" ++
+  "  la a5, mset_stack\n" ++
+  "  la a6, mset_meta\n" ++
+  "  jal ra, mpt_set_record_walk\n" ++
+  "  bnez a0, .Lmset_ret         # propagate not-found / parse-fail\n" ++
+  "  la t0, mset_meta\n" ++
+  "  ld s6, 0(t0)                # depth\n" ++
+  "  ld s8, 8(t0)                # consumed nibbles\n" ++
+  "  # ---- re-encode leaf from path[consumed:] + new_value ----\n" ++
+  "  add a0, s1, s8              # path + consumed\n" ++
+  "  sub a1, s2, s8              # path_len - consumed\n" ++
+  "  mv a2, s3                   # new_value\n" ++
+  "  mv a3, s4                   # new_value_len\n" ++
+  "  la a4, mset_node\n" ++
+  "  la a5, mset_node_len\n" ++
+  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  la t0, mset_node_len; ld s9, 0(t0)   # current node len\n" ++
+  "  # ---- current_ref = node_slot_encode(node) ----\n" ++
+  "  la a0, mset_node\n" ++
+  "  mv a1, s9\n" ++
+  "  la a2, mset_ref\n" ++
+  "  la a3, mset_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  # ---- bubble up: process records depth-1 .. 0 ----\n" ++
+  "  mv s7, s6                   # i = depth\n" ++
+  ".Lmset_bubble:\n" ++
+  "  beqz s7, .Lmset_root\n" ++
+  "  addi s7, s7, -1\n" ++
+  "  la t0, mset_stack\n" ++
+  "  slli t1, s7, 5              # 32 * i\n" ++
+  "  add t0, t0, t1              # &record[i]\n" ++
+  "  ld t2, 0(t0)                # node_offset\n" ++
+  "  ld t3, 8(t0)                # node_len\n" ++
+  "  ld t4, 16(t0)               # kind (0 branch / 1 ext)\n" ++
+  "  ld t5, 24(t0)               # nibble\n" ++
+  "  add a0, s0, t2              # src = witness + node_offset\n" ++
+  "  mv a1, t3                   # src_len\n" ++
+  "  beqz t4, .Lmset_k_branch\n" ++
+  "  li a2, 1                    # extension: replace item 1\n" ++
+  "  j .Lmset_k_done\n" ++
+  ".Lmset_k_branch:\n" ++
+  "  mv a2, t5                   # branch: replace item[nibble]\n" ++
+  ".Lmset_k_done:\n" ++
+  "  la a3, mset_ref\n" ++
+  "  la t0, mset_ref_len; ld a4, 0(t0)\n" ++
+  "  la a5, mset_node            # out (overwrite -- src is in witness)\n" ++
+  "  la a6, mset_node_len\n" ++
+  "  jal ra, mpt_splice_slot\n" ++
+  "  bnez a0, .Lmset_fail\n" ++
+  "  la t0, mset_node_len; ld s9, 0(t0)\n" ++
+  "  la a0, mset_node\n" ++
+  "  mv a1, s9\n" ++
+  "  la a2, mset_ref\n" ++
+  "  la a3, mset_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  j .Lmset_bubble\n" ++
+  ".Lmset_root:\n" ++
+  "  # mset_node holds the new root node (len s9); root = keccak256(node).\n" ++
+  "  la a0, mset_node\n" ++
+  "  mv a1, s9\n" ++
+  "  mv a2, s5                   # out_root\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  ".Lmset_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
+  "  ret\n" ++
+  ".Lmset_fail:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lmset_ret"
+
+/-- `zisk_mpt_set`: probe BuildUnit. Reuses `scripts/mpt_ref.py`
+    `build_probe_input` (the layout the record-walk probe also reads), and
+    writes the recomputed 32-byte new root to OUTPUT+0 so the existing
+    `scripts/codegen-zisk-mpt-set-check.sh` compares it against the reference.
+    Input layout (file maps to INPUT+8 at 0x40000000):
+      INPUT+8 witness_len, +16 path_len, +24 new_value_len,
+      +32 root_hash (32B), +64 path nibbles, then new_value,
+      8-aligned witness section.
+    Output layout:
+      OUTPUT+0  : 32-byte recomputed new root
+      OUTPUT+32 : status (0 ok / 1 not-found / 2 fail) -/
+def ziskMptSetPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a2, 8(t0)                # witness_len\n" ++
+  "  ld a4, 16(t0)               # path_len\n" ++
+  "  ld a6, 24(t0)               # new_value_len\n" ++
+  "  addi a0, t0, 32             # root_hash ptr (INPUT+32)\n" ++
+  "  addi a3, t0, 64             # path ptr (INPUT+64)\n" ++
+  "  add a5, a3, a4              # new_value ptr = path + path_len\n" ++
+  "  # witness ptr = path_ptr + roundup8(path_len + new_value_len).\n" ++
+  "  add t1, a4, a6\n" ++
+  "  addi t1, t1, 7\n" ++
+  "  andi t1, t1, -8\n" ++
+  "  add a1, a3, t1             # witness ptr\n" ++
+  "  li a7, 0xa0010000          # out_root at OUTPUT+0 (32 B)\n" ++
+  "  jal ra, mpt_set\n" ++
+  "  li t0, 0xa0010020\n" ++
+  "  sd a0, 0(t0)               # status at OUTPUT+32\n" ++
+  "  j .Lmset_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  mptSetRecordWalkFunction ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
+  msetMemcpyFunction ++ "\n" ++
+  mptSpliceSlotFunction ++ "\n" ++
+  mptSetFunction ++ "\n" ++
+  ".Lmset_pdone:"
+
+/-- Merged data section for the `zisk_mpt_set` probe: the record-walk +
+    helper scratch (`ziskMptWalkDataSection`: zk3_state, wlh_scratch_hash,
+    mnk_*, mw_*) plus the leaf-encoder scratch (`mlnen_*`) plus mpt_set's own
+    splice scratch and buffers (`mset_*`). All labels are disjoint. -/
+def ziskMptSetDataSection : String :=
+  ziskMptWalkDataSection ++ "\n" ++
+  ".balign 8\n" ++
+  "mlnen_field_len:\n  .zero 8\n" ++
+  "mlnen_hp_len:\n  .zero 8\n" ++
+  "mlnen_cursor:\n  .zero 8\n" ++
+  "mlnen_total_payload:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "mlnen_hp_buf:\n  .zero 1024\n" ++
+  ".balign 8\n" ++
+  "mlnen_payload_buf:\n  .zero 16384\n" ++
+  ".balign 8\n" ++
+  "mset_span_start:\n  .zero 8\n" ++
+  "mset_span_size:\n  .zero 8\n" ++
+  "mset_payload_start:\n  .zero 8\n" ++
+  "mset_head_len:\n  .zero 8\n" ++
+  "mset_tail_start:\n  .zero 8\n" ++
+  "mset_tail_len:\n  .zero 8\n" ++
+  "mset_new_payload_len:\n  .zero 8\n" ++
+  "mset_prefix_len:\n  .zero 8\n" ++
+  "mset_cursor:\n  .zero 8\n" ++
+  "mset_node_len:\n  .zero 8\n" ++
+  "mset_ref_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "mset_meta:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mset_stack:\n  .zero 2048\n" ++
+  ".balign 8\n" ++
+  "mset_ref:\n  .zero 64\n" ++
+  ".balign 8\n" ++
+  "mset_node:\n  .zero 2048"
+
+def ziskMptSetProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptSetPrologue
+  dataAsm     := ziskMptSetDataSection
 }
 
 end EvmAsm.Codegen
