@@ -251,8 +251,8 @@ This is the verified gas-cost surrogate.
 
 ## D — Codegen reach
 
-- Programs in `EvmAsm/Codegen/Programs.lean` registry: **453**
-- ziskemu round-trip scripts: **445** under `scripts/codegen-*.sh`
+- Programs in `EvmAsm/Codegen/Programs.lean` registry: **454**
+- ziskemu round-trip scripts: **446** under `scripts/codegen-*.sh`
 - Programs in `EvmAsm/Codegen/Programs.lean` registry: **454**
 - ziskemu round-trip scripts: **446** under `scripts/codegen-*.sh`
 - Milestones (CODEGEN.md):
