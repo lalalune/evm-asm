@@ -194,25 +194,39 @@ def statelessGuestEpilogue : String :=
   "  # fixed header: transactions @ +504, withdrawals @ +508,\n" ++
   "  # block_access_list @ +528. The list/bytes helpers cap N<=32 elements\n" ++
   "  # and <=1024 bytes/element; blocks beyond that stay root-diffs.\n" ++
+  "  # All offset reads use sg_load_u32le (LBU-packed): the SSZ base s6 is\n" ++
+  "  # 0x40000012 (mod 4 = 2), so a direct LWU would be a misaligned access\n" ++
+  "  # (the verified RV64 subset traps on those). s7/s8 are scratch (free:\n" ++
+  "  # the validator pipeline only uses s2-s5 and s6=SSZ_BASE; the ssz_*\n" ++
+  "  # helpers save s0-s6 and never touch s7/s8).\n" ++
   "  # --- transactions_root = hash_tree_root(List[ByteList[2^30], 2^20]) ---\n" ++
+  "  addi a0, s6, 564           # &transactions_offset (exec_payload+504)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s7, a0                  # s7 = transactions_offset\n" ++
+  "  addi a0, s6, 568           # &withdrawals_offset (exec_payload+508)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s8, a0                  # s8 = withdrawals_offset\n" ++
   "  addi t0, s6, 60            # exec_payload_addr\n" ++
-  "  lwu t1, 504(t0)            # transactions offset (rel exec_payload)\n" ++
-  "  lwu t2, 508(t0)            # withdrawals offset (= transactions end)\n" ++
-  "  add a0, t0, t1             # transactions_start\n" ++
-  "  sub a1, t2, t1             # transactions_len\n" ++
+  "  add a0, t0, s7             # transactions_start (unaligned ptr OK: helper offset\n" ++
+  "                             # table now LBU-packed; element bytes via LBU packer)\n" ++
+  "  sub a1, s8, s7             # transactions_len\n" ++
   "  li a2, 25                  # per-element chunk-cap log2 (2^30 / 32)\n" ++
   "  li a3, 20                  # list capacity log2 (MAX_TRANSACTIONS_PER_PAYLOAD)\n" ++
   "  la a4, npr_dynamic_tx_root\n" ++
   "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
   "  # --- block_access_list_root = hash_tree_root(ByteList[2^24]) ---\n" ++
   "  # bal section ends at exec_payload end = NPR + versioned_hashes_offset.\n" ++
-  "  addi t3, s6, 16            # NPR_addr\n" ++
-  "  lwu t4, 4(t3)              # versioned_hashes offset (rel NPR) = exec_payload end\n" ++
-  "  add t4, t3, t4             # exec_payload_end_addr\n" ++
+  "  addi a0, s6, 588           # &block_access_list_offset (exec_payload+528)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s7, a0                  # s7 = block_access_list_offset\n" ++
+  "  addi a0, s6, 20            # &versioned_hashes_offset (NPR+4)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s8, a0                  # s8 = versioned_hashes_offset (= exec_payload end rel NPR)\n" ++
   "  addi t0, s6, 60            # exec_payload_addr\n" ++
-  "  lwu t1, 528(t0)            # block_access_list offset (rel exec_payload)\n" ++
-  "  add a0, t0, t1             # bal_start\n" ++
-  "  sub a1, t4, a0             # bal_len = exec_payload_end - bal_start\n" ++
+  "  add a0, t0, s7             # bal_start (unaligned OK: htr_bytes packs via LBU)\n" ++
+  "  addi t1, s6, 16            # NPR_addr\n" ++
+  "  add t1, t1, s8             # exec_payload_end = NPR + versioned_hashes_offset\n" ++
+  "  sub a1, t1, a0             # bal_len\n" ++
   "  li a2, 19                  # chunk-cap log2 (2^24 / 32)\n" ++
   "  la a3, npr_dynamic_bal_root\n" ++
   "  jal ra, ssz_hash_tree_root_bytes\n" ++
@@ -693,6 +707,16 @@ def statelessGuestEpilogue : String :=
   sszMerkleizeFunction ++ "\n" ++
   sszHashTreeRootBytesFunction ++ "\n" ++
   sszHashTreeRootListByteListFunction ++ "\n" ++
+  -- Alignment-safe little-endian u32 load: a0 = addr -> a0 = u32 LE.
+  -- Reads byte-wise (LBU) so the source may be unaligned (SSZ base is
+  -- 0x40000012). Leaf; clobbers t0,t1,a0; preserves all s-registers and ra.
+  "sg_load_u32le:\n" ++
+  "  lbu t0, 0(a0)\n" ++
+  "  lbu t1, 1(a0); slli t1, t1, 8;  or t0, t0, t1\n" ++
+  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
+  "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
+  "  mv a0, t0\n" ++
+  "  ret\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   chainValidatePostMergeFullFunction ++ "\n" ++
