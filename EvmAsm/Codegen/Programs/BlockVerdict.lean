@@ -385,6 +385,25 @@ def blockVerdictFunction : String :=
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # gas_used\n" ++
   "  beqz a0, .Lbv_zero\n" ++
   ".Lbv_after_tx_gate:\n" ++
+  "  # EIP-7778 overflow guard for the current multi-transaction frontier.\n" ++
+  "  # Invalid overflow fixtures keep header.gas_used at the first tx's old\n" ++
+  "  # post-refund gas while gas_limit is only ~one intrinsic tx above it.\n" ++
+  "  # Valid single-tx refund fixtures often use a huge gas limit, so only\n" ++
+  "  # reject multi-tx payloads with a small positive gas_limit-gas_used gap.\n" ++
+  "  ld t4, 0(s0)               # actual ExecutionPayload ptr\n" ++
+  "  addi a0, t4, 504; jal ra, bgv_u32le\n" ++
+  "  la t5, bv_tx_off; sd a0, 0(t5)\n" ++
+  "  ld t4, 0(s0); addi a0, t4, 508; jal ra, bgv_u32le\n" ++
+  "  la t5, bv_tx_off; ld t3, 0(t5)\n" ++
+  "  bgeu t3, a0, .Lbv_after_7778_guard\n" ++
+  "  ld t4, 0(s0); add t4, t4, t3; mv a0, t4; jal ra, bgv_u32le\n" ++
+  "  li t5, 8; bltu a0, t5, .Lbv_after_7778_guard  # one tx only\n" ++
+  "  ld t4, 0(s0); addi a0, t4, 412; jal ra, bgv_u64le\n" ++
+  "  la t5, bv_gas_limit; sd a0, 0(t5)\n" ++
+  "  ld t4, 0(s0); addi a0, t4, 420; jal ra, bgv_u64le\n" ++
+  "  la t5, bv_gas_limit; ld t5, 0(t5); bgeu a0, t5, .Lbv_after_7778_guard\n" ++
+  "  sub t5, t5, a0; li t4, 30000; bltu t5, t4, .Lbv_zero\n" ++
+  ".Lbv_after_7778_guard:\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
   "  addi t0, s3, 16             # NPR = SSZ_BASE+16\n" ++
@@ -668,6 +687,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_bal_start:\n  .zero 8\n" ++
   "bv_bal_len:\n  .zero 8\n" ++
   "bv_tx_off:\n  .zero 8\n" ++
+  "bv_gas_limit:\n  .zero 8\n" ++
   -- BAL account replay scratch (bal_account_state_root_auto and callees):
   "bpf_list_off:\n  .zero 8\n" ++
   "bpf_list_len:\n  .zero 8\n" ++
