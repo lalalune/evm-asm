@@ -46,11 +46,16 @@ def storageRootSingleSlotFunction : String :=
   "  mv s1, a1                   # value ptr\n" ++
   "  mv s2, a2                   # value len\n" ++
   "  mv s3, a3                   # out root\n" ++
+  "  # The storage-trie leaf value is RLP(stored word), which the leaf node\n" ++
+  "  # then wraps again -- so RLP-encode the value FIRST (for a >=0x80 / multi-\n" ++
+  "  # byte word this adds the 0x80+len prefix; small words are unchanged).\n" ++
+  "  mv a0, s1; mv a1, s2; la a2, srss_rlpval; la a3, srss_rlpval_len\n" ++
+  "  jal ra, rlp_encode_bytes\n" ++
   "  # trie key = keccak256(slot_key, 32) -> srss_key\n" ++
   "  mv a0, s0; li a1, 32; la a2, srss_key\n" ++
   "  jal ra, zkvm_keccak256\n" ++
-  "  # root = single_leaf_trie_root(srss_key, 32, value, value_len, out)\n" ++
-  "  la a0, srss_key; li a1, 32; mv a2, s1; mv a3, s2; mv a4, s3\n" ++
+  "  # root = single_leaf_trie_root(srss_key, 32, RLP(value), len, out)\n" ++
+  "  la a0, srss_key; li a1, 32; la a2, srss_rlpval; la t0, srss_rlpval_len; ld a3, 0(t0); mv a4, s3\n" ++
   "  jal ra, single_leaf_trie_root\n" ++
   "  li a0, 0\n" ++
   "  ld ra, 0(sp)\n" ++
@@ -126,7 +131,10 @@ def ziskStorageRootSingleSlotDataSection : String :=
   "sltr_payload_buf:\n  .zero 16384\n" ++
   "sltr_node_buf:\n  .zero 16384\n" ++
   ".balign 32\n" ++
-  "srss_key:\n  .zero 32"
+  "srss_key:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "srss_rlpval:\n  .zero 40\n" ++
+  "srss_rlpval_len:\n  .zero 8"
 
 def ziskStorageRootSingleSlotProbeUnit : BuildUnit := {
   body        := NOP
