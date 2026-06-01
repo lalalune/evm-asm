@@ -54,6 +54,9 @@ import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
+import EvmAsm.Codegen.Programs.MptSetAcc
+import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
+import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.AccountApplyStorage
@@ -75,6 +78,9 @@ import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderBaseFee
+import EvmAsm.Codegen.Programs.ValidateHeaderPair
+import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
+import EvmAsm.Codegen.Programs.Step2Verdict
 import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Chain
@@ -204,6 +210,7 @@ import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.Withdrawal
+import EvmAsm.Codegen.Programs.WithdrawalPath
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
@@ -537,6 +544,10 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_walk"             => some ziskMptWalkProbeUnit
   | "zisk_mpt_set_record_walk"  => some ziskMptSetRecordWalkProbeUnit
   | "zisk_mpt_set"              => some ziskMptSetProbeUnit
+  | "zisk_mpt_set_acc"          => some ziskMptSetAccProbeUnit
+  | "zisk_mpt_state_root"       => some ziskMptStateRootProbeUnit
+  | "zisk_withdrawals_state_root" => some ziskWithdrawalsStateRootProbeUnit
+  | "zisk_account_add_balance"  => some ziskAccountAddBalanceProbeUnit
   | "zisk_bytes_to_nibbles"     => some ziskBytesToNibblesProbeUnit
   | "zisk_mpt_lookup_by_key"    => some ziskMptLookupByKeyProbeUnit
   | "zisk_account_decode"       => some ziskAccountDecodeProbeUnit
@@ -646,6 +657,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_item_span"        => some ziskRlpItemSpanProbeUnit
   | "zisk_rlp_encode_list_prefix" => some ziskRlpEncodeListPrefixProbeUnit
   | "zisk_withdrawal_rlp_encode" => some ziskWithdrawalRlpEncodeProbeUnit
+  | "zisk_withdrawal_to_path_delta" => some ziskWithdrawalToPathDeltaProbeUnit
   | "zisk_withdrawal_compute_hash" => some ziskWithdrawalComputeHashProbeUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
@@ -711,6 +723,9 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_eip1559_calc_base_fee_per_gas" => some ziskEip1559CalcBaseFeePerGasProbeUnit
   | "zisk_header_validate_base_fee" => some ziskHeaderValidateBaseFeeProbeUnit
   | "zisk_validate_header_full" => some ziskValidateHeaderFullProbeUnit
+  | "zisk_validate_header_rlp_pair" => some ziskValidateHeaderRlpPairProbeUnit
+  | "zisk_block_header_ssz_to_rlp" => some ziskBlockHeaderSszToRlpProbeUnit
+  | "zisk_step2_verdict"         => some ziskStep2VerdictProbeUnit
   | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
@@ -810,6 +825,10 @@ def knownProgramNames : List String :=
    "zisk_mpt_walk",
    "zisk_mpt_set_record_walk",
    "zisk_mpt_set",
+   "zisk_mpt_set_acc",
+   "zisk_mpt_state_root",
+   "zisk_withdrawals_state_root",
+   "zisk_account_add_balance",
    "zisk_bytes_to_nibbles",
    "zisk_mpt_lookup_by_key",
    "zisk_account_decode",
@@ -928,6 +947,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_item_span",
    "zisk_rlp_encode_list_prefix",
    "zisk_withdrawal_rlp_encode",
+   "zisk_withdrawal_to_path_delta",
    "zisk_withdrawal_compute_hash",
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
@@ -992,6 +1012,9 @@ def knownProgramNames : List String :=
    "zisk_eip1559_calc_base_fee_per_gas",
    "zisk_header_validate_base_fee",
    "zisk_validate_header_full",
+   "zisk_validate_header_rlp_pair",
+   "zisk_block_header_ssz_to_rlp",
+   "zisk_step2_verdict",
    "zisk_u256_from_u64_be",
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero",
@@ -1260,6 +1283,9 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderBaseFee.lean",
+    "EvmAsm/Codegen/Programs/ValidateHeaderPair.lean",
+    "EvmAsm/Codegen/Programs/BlockHeaderSszToRlp.lean",
+    "EvmAsm/Codegen/Programs/Step2Verdict.lean",
     "EvmAsm/Codegen/Programs/HeaderDecode.lean",
     "EvmAsm/Codegen/Programs/HeaderChain.lean",
     "EvmAsm/Codegen/Programs/HeaderFields.lean",
@@ -1268,6 +1294,9 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/HeaderU64.lean",
     "EvmAsm/Codegen/Programs/Mpt.lean",
     "EvmAsm/Codegen/Programs/MptSet.lean",
+    "EvmAsm/Codegen/Programs/MptSetAcc.lean",
+    "EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean",
+    "EvmAsm/Codegen/Programs/AccountBalance.lean",
     "EvmAsm/Codegen/Programs/MptEncode.lean",
     "EvmAsm/Codegen/Programs/StorageWrite.lean",
     "EvmAsm/Codegen/Programs/AccountApplyStorage.lean",
@@ -1294,7 +1323,8 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/TxSignature.lean",
     "EvmAsm/Codegen/Programs/TxSigningHash.lean",
     "EvmAsm/Codegen/Programs/U256.lean",
-    "EvmAsm/Codegen/Programs/Withdrawal.lean"
+    "EvmAsm/Codegen/Programs/Withdrawal.lean",
+    "EvmAsm/Codegen/Programs/WithdrawalPath.lean"
   ]
   for path in paths do
     let contents ← IO.FS.readFile path
