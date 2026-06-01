@@ -32,6 +32,8 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptInsertWalk
+import EvmAsm.Codegen.Programs.MptInternal
+import EvmAsm.Codegen.Programs.MptEncode
 
 namespace EvmAsm.Codegen
 
@@ -79,7 +81,8 @@ def mptInsertFunction : String :=
   "  ld t1, 16(t0)               # case\n" ++
   "  li t2, 3; beq t1, t2, .Lins_empty\n" ++
   "  li t2, 0; beq t1, t2, .Lins_branch_empty\n" ++
-  "  li a0, 1; j .Lins_ret       # leaf/ext-split etc.: conservative (follow-up)\n" ++
+  "  li t2, 1; beq t1, t2, .Lins_leaf_split\n" ++
+  "  li a0, 1; j .Lins_ret       # ext-split / exists / branch-value: conservative\n" ++
   ".Lins_empty:\n" ++
   "  # root := keccak(leaf(full path, value)).\n" ++
   "  mv a0, s1; mv a1, s2; mv a2, s3; mv a3, s4\n" ++
@@ -88,6 +91,71 @@ def mptInsertFunction : String :=
   "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0); mv a2, s5\n" ++
   "  jal ra, zkvm_keccak256\n" ++
   "  li a0, 0; j .Lins_ret\n" ++
+  ".Lins_leaf_split:\n" ++
+  "  # split the terminal leaf: shared prefix m = match_len. Build a branch with\n" ++
+  "  # the old leaf' at K[m] and the new leaf at P[m]; wrap in extension if m>0.\n" ++
+  "  la t0, ins_meta; ld t1, 24(t0); add a0, s0, t1     # terminal leaf ptr\n" ++
+  "  la t0, ins_meta; ld a1, 32(t0)                      # terminal len\n" ++
+  "  la a2, ins_k; la a3, ins_kcount; la a4, ins_lv_ptr; la a5, ins_lv_len\n" ++
+  "  jal ra, mpt_leaf_extract\n" ++
+  "  bnez a0, .Lins_fail\n" ++
+  "  la t0, ins_meta; ld t1, 40(t0); la t2, ins_m; sd t1, 0(t2)   # m\n" ++
+  "  # nibble_old = K[m]; nibble_new = path[consumed + m]\n" ++
+  "  la t2, ins_k; add t2, t2, t1; lbu t3, 0(t2); la t4, ins_niba; sd t3, 0(t4)\n" ++
+  "  add t2, s1, s8; add t2, t2, t1; lbu t3, 0(t2); la t4, ins_nibb; sd t3, 0(t4)\n" ++
+  "  # old_leaf' = leaf(K[m+1..], LV) -> ins_node ; ref_old -> ins_ref\n" ++
+  "  la t0, ins_kcount; ld t1, 0(t0); la t2, ins_m; ld t3, 0(t2)\n" ++
+  "  la a0, ins_k; add a0, a0, t3; addi a0, a0, 1\n" ++
+  "  sub a1, t1, t3; addi a1, a1, -1\n" ++
+  "  la t0, ins_lv_ptr; ld a2, 0(t0); la t0, ins_lv_len; ld a3, 0(t0)\n" ++
+  "  la a4, ins_node; la a5, ins_node_len\n" ++
+  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
+  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  # new_leaf = leaf(P[m+1..], value) -> ins_node2 ; ref_new -> ins_ref2\n" ++
+  "  la t2, ins_m; ld t3, 0(t2)\n" ++
+  "  add a0, s1, s8; add a0, a0, t3; addi a0, a0, 1\n" ++
+  "  sub a1, s2, s8; sub a1, a1, t3; addi a1, a1, -1\n" ++
+  "  mv a2, s3; mv a3, s4\n" ++
+  "  la a4, ins_node2; la a5, ins_node2_len\n" ++
+  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
+  "  la a2, ins_ref2; la a3, ins_ref2_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  # branch = splice(empty_branch, K[m], ref_old) then splice(.., P[m], ref_new)\n" ++
+  "  la a0, ins_empty_branch; li a1, 18\n" ++
+  "  la t0, ins_niba; ld a2, 0(t0)\n" ++
+  "  la a3, ins_ref; la t0, ins_ref_len; ld a4, 0(t0)\n" ++
+  "  la a5, ins_node; la a6, ins_node_len\n" ++
+  "  jal ra, mpt_splice_slot\n" ++
+  "  bnez a0, .Lins_fail\n" ++
+  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
+  "  la t0, ins_nibb; ld a2, 0(t0)\n" ++
+  "  la a3, ins_ref2; la t0, ins_ref2_len; ld a4, 0(t0)\n" ++
+  "  la a5, ins_node2; la a6, ins_node2_len\n" ++
+  "  jal ra, mpt_splice_slot\n" ++
+  "  bnez a0, .Lins_fail\n" ++
+  "  # branch node is in ins_node2; ref -> ins_ref\n" ++
+  "  la a0, ins_node2; la t0, ins_node2_len; ld a1, 0(t0)\n" ++
+  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  # copy the branch into ins_node so .Lins_root (m=0, depth=0) hashes it\n" ++
+  "  la t0, ins_node2_len; ld t1, 0(t0); la t2, ins_node_len; sd t1, 0(t2)\n" ++
+  "  la a0, ins_node; la a1, ins_node2; mv a2, t1\n" ++
+  "  jal ra, mset_memcpy\n" ++
+  "  # if m > 0: wrap extension(K[0..m] -> branch_ref) -> ins_node ; ref -> ins_ref\n" ++
+  "  la t0, ins_m; ld t1, 0(t0); beqz t1, .Lins_ls_bubble\n" ++
+  "  la a0, ins_k; mv a1, t1\n" ++
+  "  la a2, ins_ref; la t0, ins_ref_len; ld a3, 0(t0)\n" ++
+  "  la a4, ins_node; la a5, ins_node_len\n" ++
+  "  jal ra, mpt_extension_node_encode\n" ++
+  "  la a0, ins_node; la t0, ins_node_len; ld a1, 0(t0)\n" ++
+  "  la a2, ins_ref; la a3, ins_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  ".Lins_ls_bubble:\n" ++
+  "  mv s7, s6\n" ++
+  "  j .Lins_bubble\n" ++
   ".Lins_branch_empty:\n" ++
   "  # leaf = leaf(path[consumed+1..], value).\n" ++
   "  add a0, s1, s8; addi a0, a0, 1\n" ++
@@ -191,6 +259,8 @@ def ziskMptInsertPrologue : String :=
   rlpItemSpanFunction ++ "\n" ++
   msetMemcpyFunction ++ "\n" ++
   mptSpliceSlotFunction ++ "\n" ++
+  mptLeafExtractFunction ++ "\n" ++
+  mptExtensionNodeEncodeFunction ++ "\n" ++
   mptInsertFunction ++ "\n" ++
   ".Lmins_pdone:"
 
@@ -212,7 +282,38 @@ def ziskMptInsertDataSection : String :=
   ".balign 8\n" ++
   "ins_ref:\n  .zero 64\n" ++
   ".balign 8\n" ++
-  "ins_node:\n  .zero 2048"
+  "ins_node:\n  .zero 2048\n" ++
+  -- leaf-split scratch + buffers (and mpt_leaf_extract's mle_* scratch)
+  ".balign 8\n" ++
+  "mle_path_off:\n  .zero 8\n" ++
+  "mle_path_len:\n  .zero 8\n" ++
+  "ins_kcount:\n  .zero 8\n" ++
+  "ins_lv_ptr:\n  .zero 8\n" ++
+  "ins_lv_len:\n  .zero 8\n" ++
+  "ins_m:\n  .zero 8\n" ++
+  "ins_niba:\n  .zero 8\n" ++
+  "ins_nibb:\n  .zero 8\n" ++
+  "ins_node2_len:\n  .zero 8\n" ++
+  "ins_ref2_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "ins_k:\n  .zero 64\n" ++
+  ".balign 8\n" ++
+  "ins_ref2:\n  .zero 64\n" ++
+  ".balign 8\n" ++
+  "ins_node2:\n  .zero 2048\n" ++
+  ".balign 8\n" ++
+  "ins_empty_branch:\n" ++
+  "  .byte 0xd1,0x80,0x80,0x80,0x80,0x80,0x80,0x80\n" ++
+  "  .byte 0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80\n" ++
+  "  .byte 0x80,0x80\n" ++
+  -- mpt_extension_node_encode scratch (mxne_*)
+  ".balign 8\n" ++
+  "mxne_field_len:\n  .zero 8\n" ++
+  "mxne_hp_len:\n  .zero 8\n" ++
+  "mxne_cursor:\n  .zero 8\n" ++
+  "mxne_total_payload:\n  .zero 8\n" ++
+  "mxne_hp_buf:\n  .zero 1024\n" ++
+  "mxne_payload_buf:\n  .zero 16384"
 
 def ziskMptInsertProbeUnit : BuildUnit := {
   body        := NOP
