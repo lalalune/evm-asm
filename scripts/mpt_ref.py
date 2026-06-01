@@ -195,6 +195,53 @@ def vec_ext_branch():
 VECTORS = [vec_leaf, vec_branch, vec_ext_branch]
 
 
+# ---- accumulating (2 sequential updates) vector (mpt_set_acc .4.3.1) -------
+# Two value-only updates applied in sequence to a branch trie: update key A
+# (nibble 1), then key B (nibble 2) starting from the NEW root. This forces
+# the appendable node DB: update 2's walk starts at update 1's new root
+# (only in the DB, not the witness) and descends into the unchanged sibling
+# leaf (resolved from the witness). Both old leaves are >=32 bytes so they
+# are hash-referenced (distinct witness elements), and the new root branch is
+# itself >=32 so it is hash-keyed in the DB.
+def build_acc_probe_input(root_hash, p1, v1, p2, v2, witness_section) -> bytes:
+    """ziskemu `-i` body for zisk_mpt_set_acc (file maps to INPUT+8):
+      +8 witness_len | +16 path1_len | +24 value1_len | +32 path2_len
+      +40 value2_len | +48 root_hash(32B) | +80 path1 | value1 | path2
+      | value2 | witness  -- each variable segment padded to 8 bytes."""
+    body = bytearray()
+    body += struct.pack("<Q", len(witness_section))   # +8
+    body += struct.pack("<Q", len(p1))                # +16
+    body += struct.pack("<Q", len(v1))                # +24
+    body += struct.pack("<Q", len(p2))                # +32
+    body += struct.pack("<Q", len(v2))                # +40
+    body += root_hash                                 # +48 .. +80
+    for seg in (bytes(p1), v1, bytes(p2), v2, witness_section):
+        body += seg
+        while len(body) % 8 != 0:
+            body += b"\x00"
+    return bytes(body)
+
+
+def vec_acc():
+    la_path, lb_path = [0xa, 0xb], [0xc, 0xd]
+    a_old, b_old = b"a" * 32, b"b" * 32          # >=32 => hashed children
+    v1, v2 = b"v1-new", b"v2-new-value-padded-to-thirty2!"
+    la_old = leaf_node(la_path, a_old); lb_old = leaf_node(lb_path, b_old)
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(la_old); slots[2] = node_ref(lb_old)
+    root_node = branch_node(slots)
+    witness = [root_node, la_old, lb_old]
+    # expected final trie after both updates
+    la_new = leaf_node(la_path, v1); lb_new = leaf_node(lb_path, v2)
+    fslots = list(slots)
+    fslots[1] = node_ref(la_new); fslots[2] = node_ref(lb_new)
+    final_root_node = branch_node(fslots)
+    return dict(name="acc", witness=witness, root=trie_root(root_node),
+                path1=[0x1] + la_path, value1=v1,
+                path2=[0x2] + lb_path, value2=v2,
+                expected=trie_root(final_root_node))
+
+
 # ---- record-walk expectation (mpt_set .4.2.1) -----------------------------
 def element_offsets(witness: list[bytes]) -> list[int]:
     """Byte offset of each element BODY within an ssz_section: the u32 offset
@@ -298,3 +345,14 @@ if __name__ == "__main__":
         depth = next(val for nm, _o, val in rw if nm == "depth")
         print(f"{v['name']:12} root={v['root'].hex()[:16]}.. "
               f"new_root={v['expected'].hex()[:16]}.. rw_depth={depth}")
+    # accumulating 2-update vector (mpt_set_acc)
+    a = vec_acc()
+    sec = ssz_section(a["witness"])
+    inp = build_acc_probe_input(a["root"], a["path1"], a["value1"],
+                                a["path2"], a["value2"], sec)
+    with open(f"{outdir}/acc.input", "wb") as f:
+        f.write(inp)
+    with open(f"{outdir}/acc.expected", "w") as f:
+        f.write(a["expected"].hex())
+    print(f"{'acc':12} root={a['root'].hex()[:16]}.. "
+          f"final_root={a['expected'].hex()}")
