@@ -7,6 +7,14 @@ gen-out/eest-run/manifest.tsv and per-case *.result.tsv files.
 Recommended:
   uv run --directory execution-specs --quiet python3 \
     ../scripts/eest-succ-mismatch-report.py
+
+The context column includes `tx_gas` entries computed with executable-spec
+transaction decoding:
+  g  = tx gas limit
+  ir = intrinsic regular gas
+  is = intrinsic state gas
+  wr = worst-case regular contribution, min(TX_MAX_GAS_LIMIT, g - is)
+  ws = worst-case state contribution, g - ir
 """
 
 from __future__ import annotations
@@ -41,10 +49,22 @@ def decode_context(input_path: Path) -> str:
     from ethereum.forks.amsterdam.stateless_guest import (  # type: ignore
         deserialize_stateless_input,
     )
+    from ethereum.forks.amsterdam.transactions import (  # type: ignore
+        TX_MAX_GAS_LIMIT,
+        decode_transaction,
+        validate_transaction,
+    )
 
     blob = unpack_zisk_input(input_path)
     stateless_input = deserialize_stateless_input(blob)
     payload = stateless_input.new_payload_request.execution_payload
+    tx_context = decode_tx_context(
+        payload.transactions,
+        block_gas_limit=int(payload.gas_limit),
+        tx_max_gas_limit=int(TX_MAX_GAS_LIMIT),
+        decode_transaction=decode_transaction,
+        validate_transaction=validate_transaction,
+    )
     return "\t".join(
         [
             f"txs={len(payload.transactions)}",
@@ -55,8 +75,148 @@ def decode_context(input_path: Path) -> str:
             f"headers={len(stateless_input.witness.headers)}",
             f"state_nodes={len(stateless_input.witness.state)}",
             f"codes={len(stateless_input.witness.codes)}",
+            tx_context,
         ]
     )
+
+
+def decode_tx_context(
+    transactions,
+    *,
+    block_gas_limit: int,
+    tx_max_gas_limit: int,
+    decode_transaction,
+    validate_transaction,
+) -> str:
+    """Return compact executable-spec gas dimensions for the transaction list."""
+    if not transactions:
+        return "tx_gas=empty"
+
+    dims: list[tuple[int, int, int, int, int, bool]] = []
+    regular_used_worst = 0
+    first_regular_over = 0
+    first_state_single_over = 0
+
+    for i, encoded in enumerate(transactions, start=1):
+        tx = decode_transaction(encoded)
+        intrinsic_regular, intrinsic_state = intrinsic_split_8037(
+            tx, validate_transaction
+        )
+        gas = int(tx.gas)
+        worst_regular = min(tx_max_gas_limit, max(0, gas - intrinsic_state))
+        worst_state = max(0, gas - intrinsic_regular)
+        is_create = len(bytes(tx.to)) == 0
+        dims.append(
+            (
+                gas,
+                intrinsic_regular,
+                intrinsic_state,
+                worst_regular,
+                worst_state,
+                is_create,
+            )
+        )
+
+        if (
+            first_regular_over == 0
+            and worst_regular > block_gas_limit - regular_used_worst
+        ):
+            first_regular_over = i
+        regular_used_worst += worst_regular
+
+        if first_state_single_over == 0 and worst_state > block_gas_limit:
+            first_state_single_over = i
+
+    shown_indices = list(range(min(len(dims), 4)))
+    if len(dims) > 4:
+        shown_indices.append(len(dims) - 1)
+
+    rendered = []
+    for index in shown_indices:
+        (
+            gas,
+            intrinsic_regular,
+            intrinsic_state,
+            worst_regular,
+            worst_state,
+            is_create,
+        ) = dims[index]
+        create_tag = ",create" if is_create else ""
+        rendered.append(
+            "#{}(g={},ir={},is={},wr={},ws={}{})".format(
+                index + 1,
+                gas,
+                intrinsic_regular,
+                intrinsic_state,
+                worst_regular,
+                worst_state,
+                create_tag,
+            )
+        )
+    if len(dims) > 5:
+        rendered.insert(4, "...")
+
+    regular_part = "regular_over=none"
+    if first_regular_over:
+        regular_part = f"regular_over=@{first_regular_over}"
+    state_part = (
+        f"single_state_over=@{first_state_single_over}"
+        if first_state_single_over
+        else "single_state_over=none"
+    )
+    return f"tx_gas={','.join(rendered)};{regular_part};{state_part}"
+
+
+def intrinsic_split_8037(tx, validate_transaction) -> tuple[int, int]:
+    """Return Amsterdam/EIP-8037 intrinsic regular/state gas for a decoded tx.
+
+    The checked-in execution-specs submodule may be older than the
+    tests-zkevm fixture branch and return a single intrinsic gas value. Keep the
+    report useful for these fixtures by locally mirroring the EIP-8037 split.
+    """
+    try:
+        intrinsic = validate_transaction(tx)
+    except Exception:
+        intrinsic = None
+    if (
+        intrinsic is not None
+        and hasattr(intrinsic, "regular")
+        and hasattr(intrinsic, "state")
+    ):
+        return int(intrinsic.regular), int(intrinsic.state)
+
+    data = bytes(tx.data)
+    zero_bytes = data.count(0)
+    nonzero_bytes = len(data) - zero_bytes
+    tokens_in_calldata = zero_bytes + 4 * nonzero_bytes
+
+    create_regular = 0
+    create_state = 0
+    if len(bytes(tx.to)) == 0:
+        create_state = 120 * 1530
+        create_regular = 9000 + 2 * ((len(data) + 31) // 32)
+
+    access_list_regular = 0
+    access_list_floor_tokens = 0
+    for access in getattr(tx, "access_list", ()):
+        slot_count = len(access.slots)
+        access_list_regular += 2400 + 1900 * slot_count
+        access_list_floor_tokens += 80 + 128 * slot_count
+
+    authorizations = getattr(tx, "authorizations", ())
+    auth_regular = 7500 * len(authorizations)
+    auth_state = (120 + 23) * 1530 * len(authorizations)
+
+    intrinsic_regular = (
+        21000
+        + 4 * tokens_in_calldata
+        + create_regular
+        + access_list_regular
+        + 16 * access_list_floor_tokens
+        + auth_regular
+    )
+    intrinsic_state = create_state + auth_state
+    return intrinsic_regular, intrinsic_state
 
 
 def main() -> int:
