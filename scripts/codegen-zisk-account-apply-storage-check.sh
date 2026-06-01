@@ -28,7 +28,8 @@ def nib(b):
     for x in b: o+=[x>>4,x&0xf]
     return o
 def srss(slot, val):
-    return m.trie_root(m.leaf_node(nib(m.k256(slot)), val))
+    # storage-trie leaf value is RLP(word); leaf_node wraps it again
+    return m.trie_root(m.leaf_node(nib(m.k256(slot)), rlp.encode(val)))
 def pack(acct, slot, val):
     # file: [0:8]acct_len [8:16]val_len [16:48]slot [48:80]val [128:]acct
     body=bytearray(struct.pack("<Q",len(acct))+struct.pack("<Q",len(val)))
