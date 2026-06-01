@@ -11,6 +11,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
 import EvmAsm.Codegen.Programs.MptInsertWalk
+import EvmAsm.Codegen.Programs.MptInternal
 
 namespace EvmAsm.Codegen
 
@@ -35,6 +36,7 @@ def mptDeleteAccFunction : String :=
   "  mv s1, a3                   # path\n" ++
   "  mv s2, a4                   # path_len\n" ++
   "  mv s5, a7                   # out_root\n" ++
+  "  la t0, mdacc_witness_len; sd a2, 0(t0)\n" ++
   "  mv a1, s0\n" ++
   "  mv a3, s1\n" ++
   "  mv a4, s2\n" ++
@@ -73,6 +75,7 @@ def mptDeleteAccFunction : String :=
   "  bnez a0, .Lmdacc_fail\n" ++
   "  la t1, mw_child_length; ld t1, 0(t1)\n" ++
   "  beqz t1, .Lmdacc_count_next\n" ++
+  "  la t2, mdacc_survivor_nibble; sd s1, 0(t2)\n" ++
   "  addi s2, s2, 1\n" ++
   ".Lmdacc_count_next:\n" ++
   "  addi s1, s1, 1\n" ++
@@ -85,11 +88,46 @@ def mptDeleteAccFunction : String :=
   "  la t0, mw_child_length; ld t0, 0(t0)  # branch value length\n" ++
   "  beqz s2, .Lmdacc_zero_children\n" ++
   "  li t1, 1; bne s2, t1, .Lmdacc_no_collapse_needed\n" ++
-  "  beqz t0, .Lmdacc_need_collapse\n" ++
+  "  beqz t0, .Lmdacc_collapse_one_child\n" ++
   "  j .Lmdacc_no_collapse_needed\n" ++
   ".Lmdacc_zero_children:\n" ++
   "  bnez t0, .Lmdacc_need_collapse\n" ++
   "  j .Lmdacc_need_collapse\n" ++
+  ".Lmdacc_collapse_one_child:\n" ++
+  "  la t0, mdacc_survivor_nibble; ld a2, 0(t0)\n" ++
+  "  mv a0, s3; mv a1, s4\n" ++
+  "  la a3, mw_child_offset; la a4, mw_child_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmdacc_fail\n" ++
+  "  la t0, mw_child_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32; bne t1, t2, .Lmdacc_need_collapse\n" ++
+  "  la t0, mw_child_offset; ld t0, 0(t0); add a2, s3, t0\n" ++
+  "  mv a0, s0; la t0, mdacc_witness_len; ld a1, 0(t0)\n" ++
+  "  la a3, mdacc_child_ptr; la a4, mdacc_child_len\n" ++
+  "  jal ra, mpt_node_resolve\n" ++
+  "  bnez a0, .Lmdacc_need_collapse\n" ++
+  "  la t0, mdacc_child_ptr; ld a0, 0(t0)\n" ++
+  "  la t0, mdacc_child_len; ld a1, 0(t0)\n" ++
+  "  la a2, mdacc_leaf_path; la a3, mdacc_leaf_path_len; la a4, mdacc_leaf_value_ptr; la a5, mdacc_leaf_value_len\n" ++
+  "  jal ra, mpt_leaf_extract\n" ++
+  "  bnez a0, .Lmdacc_need_collapse\n" ++
+  "  la t0, mdacc_survivor_nibble; ld t1, 0(t0); la t2, mdacc_collapsed_path; sb t1, 0(t2)\n" ++
+  "  la t3, mdacc_leaf_path; addi t2, t2, 1; la t0, mdacc_leaf_path_len; ld t4, 0(t0)\n" ++
+  ".Lmdacc_cpath_cp:\n" ++
+  "  beqz t4, .Lmdacc_cpath_done\n" ++
+  "  lbu t5, 0(t3); sb t5, 0(t2); addi t3, t3, 1; addi t2, t2, 1; addi t4, t4, -1; j .Lmdacc_cpath_cp\n" ++
+  ".Lmdacc_cpath_done:\n" ++
+  "  la t0, mdacc_leaf_path_len; ld a1, 0(t0); addi a1, a1, 1\n" ++
+  "  la a0, mdacc_collapsed_path; la t0, mdacc_leaf_value_ptr; ld a2, 0(t0); la t0, mdacc_leaf_value_len; ld a3, 0(t0)\n" ++
+  "  la a4, mset_node; la a5, mset_node_len\n" ++
+  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
+  "  la a0, mset_node; mv a1, s4\n" ++
+  "  jal ra, node_db_append\n" ++
+  "  la a0, mset_node; mv a1, s4; la a2, mset_ref; la a3, mset_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  addi s7, s6, -1\n" ++
+  "  j .Lmdacc_bubble\n" ++
   ".Lmdacc_no_collapse_needed:\n" ++
   "  # current_ref = RLP empty string/list item (0x80), the canonical empty\n" ++
   "  # branch child reference.\n" ++
@@ -165,8 +203,12 @@ def ziskMptDeleteAccPrologue : String :=
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   hpDecodeNibblesFunction ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptDeleteWalkDbFunction ++ "\n" ++
+  mptLeafExtractFunction ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
   rlpItemSizeFunction ++ "\n" ++
   rlpItemSpanFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
@@ -178,6 +220,19 @@ def ziskMptDeleteAccPrologue : String :=
 
 def ziskMptDeleteAccDataSection : String :=
   ziskMptSetAccDataSection ++ "\n" ++
+  ".balign 8\n" ++
+  "mle_path_off:\n  .zero 8\n" ++
+  "mle_path_len:\n  .zero 8\n" ++
+  "mdacc_witness_len:\n  .zero 8\n" ++
+  "mdacc_survivor_nibble:\n  .zero 8\n" ++
+  "mdacc_child_ptr:\n  .zero 8\n" ++
+  "mdacc_child_len:\n  .zero 8\n" ++
+  "mdacc_leaf_path_len:\n  .zero 8\n" ++
+  "mdacc_leaf_value_ptr:\n  .zero 8\n" ++
+  "mdacc_leaf_value_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "mdacc_leaf_path:\n  .zero 128\n" ++
+  "mdacc_collapsed_path:\n  .zero 128\n" ++
   ".balign 32\n" ++
   iwEmptyTrieRootData
 

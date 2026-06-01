@@ -111,7 +111,8 @@ write_case("branch_no_collapse", trie_root(root), [1, 0xa, 0xb], [root, la], tri
 slots3 = [b"\x80"] * 16
 slots3[1] = node_ref(la); slots3[2] = node_ref(lb)
 root3 = branch_node(slots3)
-write_case("branch_collapse_needed", trie_root(root3), [1, 0xa, 0xb], [root3, la], b"\x00" * 32, 3)
+collapsed = leaf_node([2, 0xc, 0xd], b"B" * 32)
+write_case("branch_collapse_leaf", trie_root(root3), [1, 0xa, 0xb], [root3, la, lb], trie_root(collapsed))
 PY
 
 echo "==> lake build codegen"
@@ -124,7 +125,7 @@ lake exe codegen --program zisk_mpt_delete_acc --halt linux93 \
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 
 fail=0
-for name in leaf_to_empty branch_no_collapse branch_collapse_needed; do
+for name in leaf_to_empty branch_no_collapse branch_collapse_leaf; do
   out="$VDIR/$name.output"
   if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_delete_acc.elf" \
         -i "$VDIR/$name.input" -o "$out" -n 10000000 >/dev/null 2>&1 </dev/null; then
@@ -145,5 +146,5 @@ for name in leaf_to_empty branch_no_collapse branch_collapse_needed; do
   fi
 done
 
-[[ "$fail" -eq 0 ]] && echo "==> PASS: mpt_delete_acc no-collapse vectors match Python roots" \
+[[ "$fail" -eq 0 ]] && echo "==> PASS: mpt_delete_acc vectors match Python roots" \
   || { echo "==> FAIL"; exit 1; }
