@@ -28,6 +28,7 @@ import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StatelessVerdict
+import EvmAsm.Codegen.Programs.BalGasValid
 
 namespace EvmAsm.Codegen
 
@@ -158,6 +159,25 @@ def blockVerdictFunction : String :=
   ".Lbv_cmpok:\n" ++
   "  bnez s1, .Lbv_zero\n" ++
   "  bnez s2, .Lbv_zero\n" ++
+  "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
+  "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
+  "  addi t0, s3, 16             # NPR = SSZ_BASE+16\n" ++
+  "  addi t1, t0, 44             # exec_payload = NPR+44\n" ++
+  "  la t2, bv_exec_p; sd t1, 0(t2)\n" ++
+  "  la t2, bv_npr_p;  sd t0, 0(t2)\n" ++
+  "  addi a0, t1, 528; jal ra, bgv_u32le        # bal_off\n" ++
+  "  la t2, bv_exec_p; ld t1, 0(t2); add a0, t1, a0   # bal_start\n" ++
+  "  la t2, bv_bal_start; sd a0, 0(t2)\n" ++
+  "  la t2, bv_npr_p; ld t0, 0(t2); addi a0, t0, 4; jal ra, bgv_u32le   # vh_off\n" ++
+  "  la t2, bv_npr_p; ld t0, 0(t2); add a1, t0, a0   # bal_end\n" ++
+  "  la t2, bv_bal_start; ld t3, 0(t2); sub a1, a1, t3   # bal_len (a1 survives bgv_u64le)\n" ++
+  "  la t2, bv_bal_len; sd a1, 0(t2)\n" ++
+  "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le   # a0 = gas_limit\n" ++
+  "  mv a2, a0                                  # gas_limit\n" ++
+  "  la t2, bv_bal_start; ld a0, 0(t2)          # bal_start\n" ++
+  "  la t2, bv_bal_len; ld a1, 0(t2)            # bal_len\n" ++
+  "  jal ra, bal_gas_valid\n" ++
+  "  bnez a0, .Lbv_zero          # BAL gas exceeded (or parse fail) -> invalid\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
@@ -302,6 +322,10 @@ def ziskStatelessVerdictV2Prologue : String :=
   bsrSysChangeFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  bgvU32leFunction ++ "\n" ++
+  bgvU64leFunction ++ "\n" ++
+  balGasValidFunction ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
   ".Lv2_pdone:"
 
@@ -371,7 +395,17 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_addr_4788:\n" ++
   "  .byte 0x00, 0x0F, 0x3d, 0xf6, 0xD7, 0x32, 0x80, 0x7E\n" ++
   "  .byte 0xf1, 0x31, 0x9f, 0xB7, 0xB8, 0xbB, 0x85, 0x22\n" ++
-  "  .byte 0xd0, 0xBe, 0xac, 0x02"
+  "  .byte 0xd0, 0xBe, 0xac, 0x02\n" ++
+  -- bal_gas_valid scratch (bal_gas_valid + block_verdict's BAL navigation):
+  ".balign 8\n" ++
+  "bgv_count:\n  .zero 8\n" ++
+  "bgv_off:\n  .zero 8\n" ++
+  "bgv_size:\n  .zero 8\n" ++
+  "bgv_acctlen:\n  .zero 8\n" ++
+  "bv_exec_p:\n  .zero 8\n" ++
+  "bv_npr_p:\n  .zero 8\n" ++
+  "bv_bal_start:\n  .zero 8\n" ++
+  "bv_bal_len:\n  .zero 8"
 
 def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   body        := NOP
