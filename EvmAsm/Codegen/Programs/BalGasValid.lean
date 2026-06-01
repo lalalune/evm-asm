@@ -115,6 +115,61 @@ def bgvU64leFunction : String :=
   ".Lbgv64d:\n" ++
   "  mv a0, t0; ret"
 
+/-! ## bal_section_info -- locate BAL RLP inside an SszStatelessInput.
+    a0 = SSZ_BASE   a1 = out BAL ptr   a2 = out BAL len   a3 = out account count
+    a0 (output) = 0 ok / 1 parse error. -/
+def balSectionInfoFunction : String :=
+  "bal_section_info:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # SSZ_BASE\n" ++
+  "  mv s3, a1                   # out ptr cell\n" ++
+  "  mv s4, a2                   # out len cell\n" ++
+  "  mv s5, a3                   # out count cell\n" ++
+  "  addi s1, s0, 16             # NPR = SSZ_BASE+16\n" ++
+  "  addi s2, s0, 60             # exec_payload = SSZ_BASE+60\n" ++
+  "  addi a0, s2, 528; jal ra, bgv_u32le\n" ++
+  "  add t0, s2, a0              # bal_start\n" ++
+  "  sd t0, 0(s3)\n" ++
+  "  addi a0, s1, 4; jal ra, bgv_u32le\n" ++
+  "  add t1, s1, a0              # bal_end\n" ++
+  "  ld t0, 0(s3); sub t1, t1, t0\n" ++
+  "  sd t1, 0(s4)\n" ++
+  "  mv a0, t0; mv a1, t1; mv a2, s5\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbsi_fail\n" ++
+  "  li a0, 0; j .Lbsi_ret\n" ++
+  ".Lbsi_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbsi_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_bal_section_info`: probe. Fed the SAME `-i` input as the guest.
+    Output: OUTPUT+0 = status, OUTPUT+8 = BAL ptr, OUTPUT+16 = BAL len,
+    OUTPUT+24 = account count. -/
+def ziskBalSectionInfoPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a0, 0x40000000; addi a0, a0, 18    # SSZ_BASE\n" ++
+  "  li a1, 0xa0010008\n" ++
+  "  li a2, 0xa0010010\n" ++
+  "  li a3, 0xa0010018\n" ++
+  "  jal ra, bal_section_info\n" ++
+  "  li t0, 0xa0010000; sd a0, 0(t0)\n" ++
+  "  j .Lbsi_pdone\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  bgvU32leFunction ++ "\n" ++
+  bgvU64leFunction ++ "\n" ++
+  balSectionInfoFunction ++ "\n" ++
+  ".Lbsi_pdone:"
+
 /-- `zisk_bal_gas_valid`: probe. Fed the SAME `-i` input as the guest. Navigates
     to the block_access_list section + block_gas_limit and runs bal_gas_valid.
     Output: OUTPUT+0 = result (0 valid / 1 exceeded / 2 parse error). -/
@@ -156,6 +211,12 @@ def ziskBalGasValidDataSection : String :=
 def ziskBalGasValidProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskBalGasValidPrologue
+  dataAsm     := ziskBalGasValidDataSection
+}
+
+def ziskBalSectionInfoProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBalSectionInfoPrologue
   dataAsm     := ziskBalGasValidDataSection
 }
 
