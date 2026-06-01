@@ -47,6 +47,36 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la a2, baap_bal; la a3, baap_bal_len; la a4, baap_nonce; la a5, baap_nonce_len\n" ++
   "  jal ra, bal_account_post_fields\n" ++
   "  bnez a0, .Lbaap_fail\n" ++
+  "  # Apply the final BAL code change first, when present. CodeChanges items are\n" ++
+  "  # [blockAccessIndex, newCode]; the account field stores keccak256(newCode).\n" ++
+  "  mv a0, s2; mv a1, s3; li a2, 5; la a3, baap_code_list_off; la a4, baap_code_list_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbaap_fail\n" ++
+  "  la t0, baap_code_list_off; ld t0, 0(t0); add t0, s2, t0; la t1, baap_code_list_ptr; sd t0, 0(t1)\n" ++
+  "  la t1, baap_code_list_len; ld a1, 0(t1); mv a0, t0; la a2, baap_code_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbaap_fail\n" ++
+  "  la t0, baap_code_count; ld t0, 0(t0); beqz t0, .Lbaap_storage_gate\n" ++
+  "  addi a2, t0, -1; la t1, baap_code_list_ptr; ld a0, 0(t1); la t1, baap_code_list_len; ld a1, 0(t1)\n" ++
+  "  la a3, baap_item_off; la a4, baap_item_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbaap_fail\n" ++
+  "  la t0, baap_code_list_ptr; ld t0, 0(t0); la t1, baap_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  la t1, baap_item_len; ld t1, 0(t1); la t2, baap_code_item_ptr; sd t0, 0(t2)\n" ++
+  "  mv a0, t0; mv a1, t1; li a2, 1; la a3, baap_code_off; la a4, baap_code_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbaap_fail\n" ++
+  "  la t0, baap_code_item_ptr; ld t0, 0(t0); la t1, baap_code_off; ld t1, 0(t1); add a0, t0, t1\n" ++
+  "  la t1, baap_code_len; ld a1, 0(t1); la a2, baap_code_hash\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  la a0, baap_code_hash; li a1, 32; la a2, aab_enc; la a3, aab_enc_len\n" ++
+  "  jal ra, rlp_encode_bytes\n" ++
+  "  mv a0, s6; mv a1, s7; li a2, 3; la a3, aab_enc; la t0, aab_enc_len; ld a4, 0(t0)\n" ++
+  "  la a5, baap_tmp3; la a6, baap_tmp3_len\n" ++
+  "  jal ra, mpt_splice_slot\n" ++
+  "  bnez a0, .Lbaap_fail\n" ++
+  "  la s6, baap_tmp3; la t0, baap_tmp3_len; ld s7, 0(t0)\n" ++
+  ".Lbaap_storage_gate:\n" ++
   "  # Apply one BAL storage change first if this account also has a nonce/balance\n" ++
   "  # post-field. Storage-only system BAL entries are handled by system writes.\n" ++
   "  la t0, baap_bal_len; ld t0, 0(t0); li t1, -1; bne t0, t1, .Lbaap_try_storage\n" ++
@@ -222,13 +252,23 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_slot_changes_count:\n  .zero 8\n" ++
   "baap_val_off:\n  .zero 8\n" ++
   "baap_val_len:\n  .zero 8\n" ++
+  "baap_code_list_off:\n  .zero 8\n" ++
+  "baap_code_list_len:\n  .zero 8\n" ++
+  "baap_code_list_ptr:\n  .zero 8\n" ++
+  "baap_code_count:\n  .zero 8\n" ++
+  "baap_code_item_ptr:\n  .zero 8\n" ++
+  "baap_code_off:\n  .zero 8\n" ++
+  "baap_code_len:\n  .zero 8\n" ++
+  "baap_tmp3_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "baap_bal:\n  .zero 32\n" ++
   "baap_nonce:\n  .zero 32\n" ++
   "baap_slot:\n  .zero 32\n" ++
+  "baap_code_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "baap_tmp:\n  .zero 512\n" ++
   "baap_tmp2:\n  .zero 512\n" ++
+  "baap_tmp3:\n  .zero 512\n" ++
   "baap_out_pad:\n  .zero 8"
 
 def ziskBalAccountApplyPostFieldsProbeUnit : BuildUnit := {
