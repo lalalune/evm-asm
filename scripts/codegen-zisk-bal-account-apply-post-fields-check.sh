@@ -23,6 +23,7 @@ os.makedirs(outdir, exist_ok=True)
 
 EMPTY_ROOT = bytes.fromhex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 EMPTY_CODE_HASH = bytes.fromhex("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+SLOT_1_VALUE_7_ROOT = bytes.fromhex("2e7827dc2c61c322f13f77e6f25dd18844ccc48426dde70301d2d57d138fced8")
 
 
 def minimal_be(n: int) -> bytes:
@@ -52,20 +53,26 @@ def rlp_int(n: int) -> bytes:
     return rlp_bytes(minimal_be(n))
 
 
-def account_rlp(nonce: int, balance: int) -> bytes:
-    return rlp_list([rlp_int(nonce), rlp_int(balance), rlp_bytes(EMPTY_ROOT), rlp_bytes(EMPTY_CODE_HASH)])
+def account_rlp(nonce: int, balance: int, storage_root: bytes = EMPTY_ROOT) -> bytes:
+    return rlp_list([rlp_int(nonce), rlp_int(balance), rlp_bytes(storage_root), rlp_bytes(EMPTY_CODE_HASH)])
 
 
 def change_pair(index: int, value: bytes) -> bytes:
     return rlp_list([rlp_int(index), value])
 
 
-def bal_account_change_rlp(address: bytes, balance_changes=None, nonce_changes=None):
+def storage_change(slot: int, changes) -> bytes:
+    return rlp_list([rlp_int(slot), rlp_list([change_pair(i, rlp_int(v)) for i, v in changes])])
+
+
+def bal_account_change_rlp(address: bytes, storage_changes=None, balance_changes=None, nonce_changes=None):
+    storage_changes = storage_changes or []
     balance_changes = balance_changes or []
     nonce_changes = nonce_changes or []
+    sc = [storage_change(slot, changes) for slot, changes in storage_changes]
     bc = [change_pair(i, rlp_int(v)) for i, v in balance_changes]
     nc = [change_pair(i, rlp_int(v)) for i, v in nonce_changes]
-    return rlp_list([rlp_bytes(address), rlp_list([]), rlp_list([]),
+    return rlp_list([rlp_bytes(address), rlp_list(sc), rlp_list([]),
                      rlp_list(bc), rlp_list(nc), rlp_list([])])
 
 
@@ -87,6 +94,12 @@ cases = [
     ("baap_nonce", base, bal_account_change_rlp(addr, nonce_changes=[(1, 7)]), account_rlp(7, 5)),
     ("baap_both", base, bal_account_change_rlp(addr, balance_changes=[(1, 9)], nonce_changes=[(1, 7)]), account_rlp(7, 9)),
     ("baap_zero_balance", base, bal_account_change_rlp(addr, balance_changes=[(1, 0)]), account_rlp(1, 0)),
+    (
+        "baap_storage_only",
+        base,
+        bal_account_change_rlp(addr, storage_changes=[(1, [(1, 7)])]),
+        account_rlp(1, 5, SLOT_1_VALUE_7_ROOT),
+    ),
 ]
 
 for name, account, account_change, expected in cases:
@@ -105,7 +118,7 @@ lake exe codegen --program zisk_bal_account_apply_post_fields --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_bal_account_apply_post_fields"
 
 fail=0
-for name in baap_noop baap_balance baap_nonce baap_both baap_zero_balance; do
+for name in baap_noop baap_balance baap_nonce baap_both baap_zero_balance baap_storage_only; do
   out="$VDIR/$name.output"
   "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_apply_post_fields.elf" \
     -i "$VDIR/$name.input" -o "$out" -n 2000000 >/dev/null 2>&1 </dev/null \
