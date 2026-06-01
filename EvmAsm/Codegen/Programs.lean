@@ -54,6 +54,7 @@ import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
+import EvmAsm.Codegen.Programs.MptSetAcc
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.StorageRoot
@@ -533,6 +534,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_walk"             => some ziskMptWalkProbeUnit
   | "zisk_mpt_set_record_walk"  => some ziskMptSetRecordWalkProbeUnit
   | "zisk_mpt_set"              => some ziskMptSetProbeUnit
+  | "zisk_mpt_set_acc"          => some ziskMptSetAccProbeUnit
+  | "zisk_mpt_state_root"       => some ziskMptStateRootProbeUnit
   | "zisk_account_add_balance"  => some ziskAccountAddBalanceProbeUnit
   | "zisk_bytes_to_nibbles"     => some ziskBytesToNibblesProbeUnit
   | "zisk_mpt_lookup_by_key"    => some ziskMptLookupByKeyProbeUnit
@@ -807,6 +810,8 @@ def knownProgramNames : List String :=
    "zisk_mpt_walk",
    "zisk_mpt_set_record_walk",
    "zisk_mpt_set",
+   "zisk_mpt_set_acc",
+   "zisk_mpt_state_root",
    "zisk_account_add_balance",
    "zisk_bytes_to_nibbles",
    "zisk_mpt_lookup_by_key",
@@ -1263,6 +1268,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/HeaderU64.lean",
     "EvmAsm/Codegen/Programs/Mpt.lean",
     "EvmAsm/Codegen/Programs/MptSet.lean",
+    "EvmAsm/Codegen/Programs/MptSetAcc.lean",
     "EvmAsm/Codegen/Programs/AccountBalance.lean",
     "EvmAsm/Codegen/Programs/MptEncode.lean",
     "EvmAsm/Codegen/Programs/Noop.lean",
