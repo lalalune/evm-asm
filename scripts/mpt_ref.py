@@ -786,6 +786,7 @@ def vec_mi_leafsplit_depth1():
     spl[0xa] = node_ref(old2)
     spl[0x9] = node_ref(new2)
     split_branch = branch_node(spl)
+    slots_b2 = list(slots_b)
     slots_b2[0x7] = node_ref(split_branch)
     b2 = branch_node(slots_b2)
     slots_r2 = list(slots_r)

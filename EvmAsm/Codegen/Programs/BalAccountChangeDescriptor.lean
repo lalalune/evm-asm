@@ -8,6 +8,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.BalAccountChangeValue
 
 namespace EvmAsm.Codegen
@@ -24,7 +25,8 @@ open EvmAsm.Rv64
     a0 (output) = 0 ok / 1 failure.
 
     Descriptor layout matches `mpt_state_root_ins`:
-      +0 path_ptr | +8 path_len | +16 value_ptr | +24 value_len | +32 is_insert. -/
+      +0 path_ptr | +8 path_len | +16 value_ptr | +24 value_len | +32 mode.
+    Modes are 0=modify, 1=insert, 2=delete, 3=no-op. -/
 def balAccountChangeDescriptorFunction : String :=
   "bal_account_change_descriptor:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -44,6 +46,16 @@ def balAccountChangeDescriptorFunction : String :=
   "  mv a4, s2; mv a5, s3; la a6, baacd_value_len\n" ++
   "  jal ra, bal_account_change_value\n" ++
   "  bnez a0, .Lbaacd_fail_value\n" ++
+  "  mv a0, s3; la t0, baacd_value_len; ld a1, 0(t0); la a2, baacd_is_empty\n" ++
+  "  jal ra, account_is_eip161_empty\n" ++
+  "  bnez a0, .Lbaacd_fail_value\n" ++
+  "  la t0, baacd_is_empty; ld t0, 0(t0); beqz t0, .Lbaacd_have_mode\n" ++
+  "  beqz s0, .Lbaacd_delete_empty\n" ++
+  "  li s0, 3                    # absent account remained empty: no-op\n" ++
+  "  j .Lbaacd_have_mode\n" ++
+  ".Lbaacd_delete_empty:\n" ++
+  "  li s0, 2                    # existing account became empty: delete leaf\n" ++
+  ".Lbaacd_have_mode:\n" ++
   "  sd s2, 0(s1)\n" ++
   "  li t0, 64; sd t0, 8(s1)\n" ++
   "  sd s3, 16(s1)\n" ++
@@ -100,6 +112,7 @@ def ziskBalAccountChangeDescriptorPrologue : String :=
   msetMemcpyFunction ++ "\n" ++
   mptSpliceSlotFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
+  accountIsEip161EmptyFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
@@ -112,7 +125,15 @@ def ziskBalAccountChangeDescriptorDataSection : String :=
   ziskBalAccountChangeValueDataSection ++ "\n" ++
   ".balign 8\n" ++
   "baacd_value_len:\n  .zero 8\n" ++
+  "baacd_is_empty:\n  .zero 8\n" ++
   "baacd_fail_code:\n  .zero 8\n" ++
+  "aie_offset:\n  .zero 8\n" ++
+  "aie_length:\n  .zero 8\n" ++
+  "aie_empty_code_hash:\n" ++
+  "  .byte 0xc5,0xd2,0x46,0x01,0x86,0xf7,0x23,0x3c\n" ++
+  "  .byte 0x92,0x7e,0x7d,0xb2,0xdc,0xc7,0x03,0xc0\n" ++
+  "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
+  "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
   "baacd_pad:\n  .zero 8"
 
 def ziskBalAccountChangeDescriptorProbeUnit : BuildUnit := {
