@@ -195,6 +195,101 @@ def vec_ext_branch():
 VECTORS = [vec_leaf, vec_branch, vec_ext_branch]
 
 
+# ---- accumulating (2 sequential updates) vector (mpt_set_acc .4.3.1) -------
+# Two value-only updates applied in sequence to a branch trie: update key A
+# (nibble 1), then key B (nibble 2) starting from the NEW root. This forces
+# the appendable node DB: update 2's walk starts at update 1's new root
+# (only in the DB, not the witness) and descends into the unchanged sibling
+# leaf (resolved from the witness). Both old leaves are >=32 bytes so they
+# are hash-referenced (distinct witness elements), and the new root branch is
+# itself >=32 so it is hash-keyed in the DB.
+def build_acc_probe_input(root_hash, p1, v1, p2, v2, witness_section) -> bytes:
+    """ziskemu `-i` body for zisk_mpt_set_acc (file maps to INPUT+8):
+      +8 witness_len | +16 path1_len | +24 value1_len | +32 path2_len
+      +40 value2_len | +48 root_hash(32B) | +80 path1 | value1 | path2
+      | value2 | witness  -- each variable segment padded to 8 bytes."""
+    body = bytearray()
+    body += struct.pack("<Q", len(witness_section))   # +8
+    body += struct.pack("<Q", len(p1))                # +16
+    body += struct.pack("<Q", len(v1))                # +24
+    body += struct.pack("<Q", len(p2))                # +32
+    body += struct.pack("<Q", len(v2))                # +40
+    body += root_hash                                 # +48 .. +80
+    for seg in (bytes(p1), v1, bytes(p2), v2, witness_section):
+        body += seg
+        while len(body) % 8 != 0:
+            body += b"\x00"
+    return bytes(body)
+
+
+def vec_acc():
+    la_path, lb_path = [0xa, 0xb], [0xc, 0xd]
+    a_old, b_old = b"a" * 32, b"b" * 32          # >=32 => hashed children
+    v1, v2 = b"v1-new", b"v2-new-value-padded-to-thirty2!"
+    la_old = leaf_node(la_path, a_old); lb_old = leaf_node(lb_path, b_old)
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(la_old); slots[2] = node_ref(lb_old)
+    root_node = branch_node(slots)
+    witness = [root_node, la_old, lb_old]
+    # expected final trie after both updates
+    la_new = leaf_node(la_path, v1); lb_new = leaf_node(lb_path, v2)
+    fslots = list(slots)
+    fslots[1] = node_ref(la_new); fslots[2] = node_ref(lb_new)
+    final_root_node = branch_node(fslots)
+    return dict(name="acc", witness=witness, root=trie_root(root_node),
+                path1=[0x1] + la_path, value1=v1,
+                path2=[0x2] + lb_path, value2=v2,
+                expected=trie_root(final_root_node))
+
+
+# ---- multi-change driver vector (mpt_state_root .4.3.2) -------------------
+def build_state_root_input(root_hash, changes, witness_section) -> bytes:
+    """ziskemu `-i` body for zisk_mpt_state_root (file maps to INPUT+8):
+      +8 witness_len | +16 n_changes | +24 root_hash(32B)
+      +56 lengths table: N x (path_len:u64, value_len:u64)
+      then blobs path0,value0,... (each 8-aligned) | witness (8-aligned).
+    changes = list of (path_nibbles, value_bytes)."""
+    body = bytearray()
+    body += struct.pack("<Q", len(witness_section))   # +8
+    body += struct.pack("<Q", len(changes))           # +16
+    body += root_hash                                 # +24 .. +56
+    for (p, v) in changes:                            # lengths table
+        body += struct.pack("<Q", len(p)) + struct.pack("<Q", len(v))
+    for (p, v) in changes:                            # blobs, 8-aligned each
+        body += bytes(p)
+        while len(body) % 8 != 0:
+            body += b"\x00"
+        body += v
+        while len(body) % 8 != 0:
+            body += b"\x00"
+    body += witness_section
+    while len(body) % 8 != 0:
+        body += b"\x00"
+    return bytes(body)
+
+
+def vec_state_root():
+    """Branch trie with three hashed leaf children (nibbles 1,2,3); update
+    all three in sequence -> final root. Exercises the multi-change driver
+    threading mpt_set_acc through the appendable node DB."""
+    paths = {1: [0xa, 0xb], 2: [0xc, 0xd], 3: [0xe, 0xf]}
+    olds = {1: b"a" * 32, 2: b"b" * 32, 3: b"c" * 32}   # hashed children
+    news = {1: b"x1-new", 2: b"y2-new-value-padded-to-thirty2!!", 3: b"z3"}
+    old_leaves = {k: leaf_node(paths[k], olds[k]) for k in (1, 2, 3)}
+    slots = [b"\x80"] * 16
+    for k in (1, 2, 3):
+        slots[k] = node_ref(old_leaves[k])
+    root_node = branch_node(slots)
+    witness = [root_node] + [old_leaves[k] for k in (1, 2, 3)]
+    fslots = list(slots)
+    for k in (1, 2, 3):
+        fslots[k] = node_ref(leaf_node(paths[k], news[k]))
+    final_root_node = branch_node(fslots)
+    changes = [([k] + paths[k], news[k]) for k in (1, 2, 3)]
+    return dict(name="state_root", witness=witness, root=trie_root(root_node),
+                changes=changes, expected=trie_root(final_root_node))
+
+
 # ---- record-walk expectation (mpt_set .4.2.1) -----------------------------
 def element_offsets(witness: list[bytes]) -> list[int]:
     """Byte offset of each element BODY within an ssz_section: the u32 offset
@@ -236,10 +331,179 @@ def record_walk_expected(v: dict) -> list[tuple[str, int, int]]:
         ]
     return out
 
+# ---- account RLP balance update (mpt account_add_balance .2.1) ------------
+def minimal_be(x: int) -> bytes:
+    return b"" if x == 0 else x.to_bytes((x.bit_length() + 7) // 8, "big")
+
+
+def rlp_int(x: int) -> bytes:
+    return rlp_bytes(minimal_be(x))
+
+
+def account_encode(nonce: int, balance: int, sroot: bytes, chash: bytes) -> bytes:
+    """Ethereum account RLP: rlp([nonce, balance, storageRoot, codeHash])."""
+    return rlp_list([rlp_int(nonce), rlp_int(balance),
+                     rlp_bytes(sroot), rlp_bytes(chash)])
+
+
+def build_aab_input(account: bytes, delta: int) -> bytes:
+    """ziskemu `-i` body for zisk_account_add_balance (file -> INPUT+8):
+      +8 account_len | +16 delta(32B BE) | +48 account RLP."""
+    body = struct.pack("<Q", len(account)) + delta.to_bytes(32, "big") + account
+    while len(body) % 8 != 0:
+        body += b"\x00"
+    return body
+
+
+def vec_account_add_balance():
+    sroot, chash = b"\x11" * 32, b"\x22" * 32
+    # (name, nonce, balance, delta) — covers byte growth, 0-start, 8-byte
+    # carry boundary, and a +0 no-op.
+    cases = [
+        ("aab1", 1, 0xff, 1),            # 255 + 1 = 256 (grows 1 -> 2 bytes)
+        ("aab2", 0, 0, 10 ** 18),        # 0 + 1e18 (empty -> multi-byte)
+        ("aab3", 5, 2 ** 64 - 1, 1),     # carry across the 8-byte boundary
+        ("aab4", 7, 0, 0),               # +0 no-op (balance stays empty)
+    ]
+    out = []
+    for name, nonce, bal, delta in cases:
+        out.append(dict(name=name,
+                        account=account_encode(nonce, bal, sroot, chash),
+                        delta=delta,
+                        expected=account_encode(nonce, bal + delta, sroot, chash)))
+# ---- withdrawal -> (path, wei delta) preprocessing (.2.2.1) ---------------
+def withdrawal_rlp(index: int, vindex: int, address: bytes, amount: int) -> bytes:
+    """Shanghai+ withdrawal RLP: rlp([index, validator_index, address, amount])."""
+    def ri(x: int) -> bytes:  # minimal-int RLP (local, avoids cross-branch clash)
+        return rlp_bytes(b"" if x == 0 else x.to_bytes((x.bit_length() + 7) // 8, "big"))
+    return rlp_list([ri(index), ri(vindex), rlp_bytes(address), ri(amount)])
+def bytes_to_nibbles_py(b: bytes) -> bytes:
+    out = bytearray()
+    for byte in b:
+        out.append(byte >> 4)
+        out.append(byte & 0xF)
+    return bytes(out)
+def vec_withdrawal_to_path_delta():
+        ("wtpd1", 0, 5, bytes.fromhex("00112233445566778899aabbccddeeff00112233"), 1),
+        ("wtpd2", 7, 99, b"\xab" * 20, 32 * 10 ** 9),   # ~32 ETH in Gwei
+        ("wtpd3", 1, 1, bytes(range(20)), 2 ** 40),
+    for name, idx, vidx, addr, amt in cases:
+                        wd=withdrawal_rlp(idx, vidx, addr, amt),
+                        path=bytes_to_nibbles_py(k256(addr)),     # 64 nibbles
+                        delta=(amt * 10 ** 9).to_bytes(32, "big")))
+    return out
+
+
+# ---- withdrawal -> (path, wei delta) preprocessing (.2.2.1) ---------------
+def withdrawal_rlp(index: int, vindex: int, address: bytes, amount: int) -> bytes:
+    """Shanghai+ withdrawal RLP: rlp([index, validator_index, address, amount])."""
+    def ri(x: int) -> bytes:  # minimal-int RLP (local, avoids cross-branch clash)
+        return rlp_bytes(b"" if x == 0 else x.to_bytes((x.bit_length() + 7) // 8, "big"))
+    return rlp_list([ri(index), ri(vindex), rlp_bytes(address), ri(amount)])
+
+
+def bytes_to_nibbles_py(b: bytes) -> bytes:
+    out = bytearray()
+    for byte in b:
+        out.append(byte >> 4)
+        out.append(byte & 0xF)
+    return bytes(out)
+
+
+def vec_withdrawal_to_path_delta():
+    cases = [
+        ("wtpd1", 0, 5, bytes.fromhex("00112233445566778899aabbccddeeff00112233"), 1),
+        ("wtpd2", 7, 99, b"\xab" * 20, 32 * 10 ** 9),   # ~32 ETH in Gwei
+        ("wtpd3", 1, 1, bytes(range(20)), 2 ** 40),
+    ]
+    out = []
+    for name, idx, vidx, addr, amt in cases:
+        out.append(dict(name=name,
+                        wd=withdrawal_rlp(idx, vidx, addr, amt),
+                        path=bytes_to_nibbles_py(k256(addr)),     # 64 nibbles
+                        delta=(amt * 10 ** 9).to_bytes(32, "big")))
+    return out
+
+
+# ---- withdrawal-driven post-state-root recompute (.2.2) -------------------
+def build_wsr_input(root_hash, wds, witness_section) -> bytes:
+    """ziskemu `-i` body for zisk_withdrawals_state_root (file -> INPUT+8):
+      +8 witness_len | +16 n_wds | +24 root_hash(32B)
+      +56 wd length table N x u64 | blobs (8-aligned each) | witness."""
+    body = bytearray(struct.pack("<Q", len(witness_section)) +
+                     struct.pack("<Q", len(wds)) + root_hash)
+    for wd in wds:
+        body += struct.pack("<Q", len(wd))
+    for wd in wds:
+        body += wd
+        while len(body) % 8 != 0:
+            body += b"\x00"
+    body += witness_section
+    while len(body) % 8 != 0:
+        body += b"\x00"
+    return bytes(body)
+
+
+def vec_withdrawals_state_root():
+    """State trie with two accounts whose key paths (keccak(address)) diverge
+    at nibble 0 (root is a branch with two hashed leaf children); credit both
+    via withdrawals; expected post-state root after the value-only updates."""
+    sroot, chash = b"\x11" * 32, b"\x22" * 32
+    # pick two addresses whose keccak first nibble differs (root branch only).
+    cands = [(bytes([i]) * 20, k256(bytes([i]) * 20)[0] >> 4) for i in range(1, 256)]
+    addr1, n1f = cands[0]
+    addr2, _ = next(c for c in cands if c[1] != n1f)
+    nib1 = bytes_to_nibbles_py(k256(addr1))
+    nib2 = bytes_to_nibbles_py(k256(addr2))
+    nonce1, bal1, amt1 = 1, 10 ** 18, 32 * 10 ** 9
+    nonce2, bal2, amt2 = 2, 5 * 10 ** 17, 16 * 10 ** 9
+
+    def trie(b1, b2):
+        l1 = leaf_node(list(nib1[1:]), account_encode(nonce1, b1, sroot, chash))
+        l2 = leaf_node(list(nib2[1:]), account_encode(nonce2, b2, sroot, chash))
+        slots = [b"\x80"] * 16
+        slots[nib1[0]] = node_ref(l1)
+        slots[nib2[0]] = node_ref(l2)
+        return branch_node(slots), l1, l2
+
+    root_node, leaf1, leaf2 = trie(bal1, bal2)
+    new_root_node, _, _ = trie(bal1 + amt1 * 10 ** 9, bal2 + amt2 * 10 ** 9)
+    return dict(witness=[root_node, leaf1, leaf2], root=trie_root(root_node),
+                wds=[withdrawal_rlp(0, 100, addr1, amt1),
+                     withdrawal_rlp(1, 101, addr2, amt2)],
+                expected=trie_root(new_root_node))
+
+
 if __name__ == "__main__":
     import os
     outdir = sys.argv[1] if len(sys.argv) > 1 else "gen-out/mpt-set"
     os.makedirs(outdir, exist_ok=True)
+    for v in vec_account_add_balance():
+        with open(f"{outdir}/{v['name']}.input", "wb") as f:
+            f.write(build_aab_input(v["account"], v["delta"]))
+        with open(f"{outdir}/{v['name']}.expected", "w") as f:
+            f.write(v["expected"].hex())
+        print(f"{v['name']:12} account_len={len(v['account'])} "
+              f"new_account={v['expected'].hex()}")
+    for v in vec_withdrawal_to_path_delta():
+        body = struct.pack("<Q", len(v["wd"])) + v["wd"]
+        while len(body) % 8 != 0:
+            body += b"\x00"
+        with open(f"{outdir}/{v['name']}.input", "wb") as f:
+            f.write(body)
+        with open(f"{outdir}/{v['name']}.path", "w") as f:
+            f.write(v["path"].hex())
+        with open(f"{outdir}/{v['name']}.delta", "w") as f:
+            f.write(v["delta"].hex())
+        print(f"{v['name']:12} path={v['path'].hex()[:16]}.. delta={v['delta'].hex()}")
+    wsr = vec_withdrawals_state_root()
+    sec = ssz_section(wsr["witness"])
+    with open(f"{outdir}/wsr.input", "wb") as f:
+        f.write(build_wsr_input(wsr["root"], wsr["wds"], sec))
+    with open(f"{outdir}/wsr.expected", "w") as f:
+        f.write(wsr["expected"].hex())
+    print(f"{'wsr':12} root={wsr['root'].hex()[:16]}.. "
+          f"post_state_root={wsr['expected'].hex()} (n_wd={len(wsr['wds'])})")
     for mk in VECTORS:
         v = mk()
         sec = ssz_section(v["witness"])
@@ -256,3 +520,24 @@ if __name__ == "__main__":
         depth = next(val for nm, _o, val in rw if nm == "depth")
         print(f"{v['name']:12} root={v['root'].hex()[:16]}.. "
               f"new_root={v['expected'].hex()[:16]}.. rw_depth={depth}")
+    # accumulating 2-update vector (mpt_set_acc)
+    a = vec_acc()
+    sec = ssz_section(a["witness"])
+    inp = build_acc_probe_input(a["root"], a["path1"], a["value1"],
+                                a["path2"], a["value2"], sec)
+    with open(f"{outdir}/acc.input", "wb") as f:
+        f.write(inp)
+    with open(f"{outdir}/acc.expected", "w") as f:
+        f.write(a["expected"].hex())
+    print(f"{'acc':12} root={a['root'].hex()[:16]}.. "
+          f"final_root={a['expected'].hex()}")
+    # multi-change driver vector (mpt_state_root)
+    sr = vec_state_root()
+    sec = ssz_section(sr["witness"])
+    inp = build_state_root_input(sr["root"], sr["changes"], sec)
+    with open(f"{outdir}/state_root.input", "wb") as f:
+        f.write(inp)
+    with open(f"{outdir}/state_root.expected", "w") as f:
+        f.write(sr["expected"].hex())
+    print(f"{'state_root':12} root={sr['root'].hex()[:16]}.. "
+          f"final_root={sr['expected'].hex()} (n={len(sr['changes'])})")
