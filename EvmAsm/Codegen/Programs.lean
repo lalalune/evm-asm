@@ -65,6 +65,7 @@ import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.BalGasValid
+import EvmAsm.Codegen.Programs.BalAccountPath
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.AccountApplyStorage
@@ -317,6 +318,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit
+  | "zisk_bal_account_path"      => some ziskBalAccountPathProbeUnit
   | "zisk_storage_root_single_slot" => some ziskStorageRootSingleSlotProbeUnit
   | "zisk_account_set_storage_root" => some ziskAccountSetStorageRootProbeUnit
   | "zisk_block_access_list_hash" => some ziskBlockAccessListHashProbeUnit
@@ -1109,6 +1111,7 @@ def knownProgramNames : List String :=
    "zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
    "zisk_bal_gas_valid",
+   "zisk_bal_account_path",
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
    "zisk_block_access_list_hash",

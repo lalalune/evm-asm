@@ -374,6 +374,52 @@ def vec_account_add_balance():
     return out
 
 
+def bal_account_change_rlp(address: bytes,
+                           storage_changes: list[bytes] | None = None,
+                           storage_reads: list[bytes] | None = None,
+                           balance_changes: list[tuple[int, int]] | None = None,
+                           nonce_changes: list[tuple[int, int]] | None = None,
+                           code_changes: list[tuple[int, bytes]] | None = None) -> bytes:
+    def change_pair(index: int, value_rlp: bytes) -> bytes:
+        return rlp_list([rlp_int(index), value_rlp])
+
+    storage_changes = storage_changes or []
+    storage_reads = storage_reads or []
+    balance_changes = balance_changes or []
+    nonce_changes = nonce_changes or []
+    code_changes = code_changes or []
+    sc = [rlp_list([rlp_bytes(slot), rlp_list([])]) for slot in storage_changes]
+    sr = [rlp_bytes(slot) for slot in storage_reads]
+    bc = [change_pair(i, rlp_int(v)) for i, v in balance_changes]
+    nc = [change_pair(i, rlp_int(v)) for i, v in nonce_changes]
+    cc = [change_pair(i, rlp_bytes(code)) for i, code in code_changes]
+    return rlp_list([rlp_bytes(address), rlp_list(sc), rlp_list(sr),
+                     rlp_list(bc), rlp_list(nc), rlp_list(cc)])
+
+
+def build_bacp_input(account_change: bytes) -> bytes:
+    body = struct.pack("<Q", len(account_change)) + account_change
+    while len(body) % 8 != 0:
+        body += b"\x00"
+    return body
+
+
+def vec_bal_account_path():
+    cases = [
+        ("bacp_empty", bytes.fromhex("00112233445566778899aabbccddeeff00112233"), {}),
+        ("bacp_changes", bytes.fromhex("c0f6dc9e5836f54caadbf59cc69346c508e1992b"),
+         dict(storage_reads=[(0x200b).to_bytes(2, "big")],
+              balance_changes=[(1, 5), (2, 10 ** 10)],
+              nonce_changes=[(1, 1)])),
+        ("bacp_precompile", bytes.fromhex("0000000000000000000000000000000000000001"),
+         dict(balance_changes=[(1, 10 ** 10)])),
+    ]
+    return [dict(name=name,
+                 account_change=bal_account_change_rlp(addr, **kwargs),
+                 path=bytes_to_nibbles_py(k256(addr)))
+            for name, addr, kwargs in cases]
+
+
 # ---- withdrawal -> (path, wei delta) preprocessing (.2.2.1) ---------------
 def withdrawal_rlp(index: int, vindex: int, address: bytes, amount: int) -> bytes:
     """Shanghai+ withdrawal RLP: rlp([index, validator_index, address, amount])."""
@@ -997,6 +1043,12 @@ if __name__ == "__main__":
             f.write(v["expected"].hex())
         print(f"{v['name']:12} field={v['field_index']} value={v['value']} "
               f"new_account={v['expected'].hex()}")
+    for v in vec_bal_account_path():
+        with open(f"{outdir}/{v['name']}.input", "wb") as f:
+            f.write(build_bacp_input(v["account_change"]))
+        with open(f"{outdir}/{v['name']}.path", "w") as f:
+            f.write(v["path"].hex())
+        print(f"{v['name']:12} path={v['path'].hex()[:16]}..")
     for v in vec_withdrawal_to_path_delta():
         body = struct.pack("<Q", len(v["wd"])) + v["wd"]
         while len(body) % 8 != 0:
