@@ -710,6 +710,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_sc_index:\n  .zero 8\n" ++
   "baap_sc_out_count:\n  .zero 8\n" ++
   "baap_storage_empty_flag:\n  .zero 8\n" ++
+  "baap_storage_delete_flag:\n  .zero 8\n" ++
   "baap_storage_root_ptr:\n  .zero 8\n" ++
   "baap_walk_val_len:\n  .zero 8\n" ++
   "baap_item_off:\n  .zero 8\n" ++
