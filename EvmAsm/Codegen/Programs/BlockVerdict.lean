@@ -35,6 +35,8 @@ import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.HeadersKeccak
+import EvmAsm.Codegen.Programs.StateCompose
+import EvmAsm.Codegen.Programs.BalCodePreimages
 
 namespace EvmAsm.Codegen
 
@@ -714,6 +716,19 @@ def blockVerdictFunction : String :=
   "  la t2, bv_bal_len; ld a1, 0(t2)            # bal_len\n" ++
   "  jal ra, bal_gas_valid\n" ++
   "  bnez a0, .Lbv_bal_gas_fail          # BAL gas exceeded (or parse fail) -> invalid\n" ++
+  "  # Witness integrity: for every BAL account with non-empty pre-state code,\n" ++
+  "  # witness.codes must contain that code hash, matching execution-specs'\n" ++
+  "  # WitnessState.get_code behavior for missing non-empty code preimages.\n" ++
+  "  la t2, bv_bal_start; ld a0, 0(t2)\n" ++
+  "  la t2, bv_bal_len; ld a1, 0(t2)\n" ++
+  "  ld a2, 8(s0)                  # parent header RLP\n" ++
+  "  ld a3, 16(s0)                 # parent header RLP length\n" ++
+  "  ld a4, 80(s0)                 # witness.state ptr\n" ++
+  "  ld a5, 88(s0)                 # witness.state len\n" ++
+  "  la t2, svf_codes_ptr; ld a6, 0(t2)\n" ++
+  "  la t2, svf_codes_len; ld a7, 0(t2)\n" ++
+  "  jal ra, bal_code_preimages_valid\n" ++
+  "  bnez a0, .Lbv_code_preimage_fail\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)             # exec_payload\n" ++
@@ -739,6 +754,8 @@ def blockVerdictFunction : String :=
   "  li t0, 6; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_gas_fail:\n" ++
   "  li t0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_code_preimage_fail:\n" ++
+  "  li t0, 11; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip8037_gas_fail:\n" ++
   "  addi t0, a0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
@@ -768,8 +785,15 @@ def statelessVerdictV2Function : String :=
   "  add t0, s0, a0; la t1, svf_witness_section; sd t0, 0(t1)\n" ++
   "  addi a0, s0, 8; jal ra, bgv_u32le          # chain_config outer offset\n" ++
   "  add t0, s0, a0; la t1, svf_witness_end; sd t0, 0(t1)\n" ++
+  "  la t1, svf_witness_section; ld t0, 0(t1); addi a0, t0, 4; jal ra, bgv_u32le # codes offset\n" ++
+  "  mv t5, a0\n" ++
   "  la t1, svf_witness_section; ld t0, 0(t1); addi a0, t0, 8; jal ra, bgv_u32le # headers offset\n" ++
-  "  la t1, svf_witness_section; ld t0, 0(t1); add t2, t0, a0\n" ++
+  "  mv t6, a0\n" ++
+  "  bltu t6, t5, .Lv2_zero\n" ++
+  "  la t1, svf_witness_section; ld t0, 0(t1); add t2, t0, t5\n" ++
+  "  la t3, svf_codes_ptr; sd t2, 0(t3)\n" ++
+  "  sub t4, t6, t5; la t3, svf_codes_len; sd t4, 0(t3)\n" ++
+  "  add t2, t0, t6\n" ++
   "  la t3, svf_headers_ptr; sd t2, 0(t3)\n" ++
   "  la t1, svf_witness_end; ld t1, 0(t1); bltu t1, t2, .Lv2_zero\n" ++
   "  sub a1, t1, t2; la t3, svf_headers_len; sd a1, 0(t3)\n" ++
@@ -871,6 +895,10 @@ def ziskStatelessVerdictV2Prologue : String :=
   mptSpliceSlotFunction ++ "\n" ++
   accountAddBalanceFunction ++ "\n" ++
   mptWalkFunction ++ "\n" ++
+  mptLookupByKeyFunction ++ "\n" ++
+  accountDecodeFunction ++ "\n" ++
+  accountAtAddressFunction ++ "\n" ++
+  extcodesizeAtHeaderStateRootFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
@@ -945,6 +973,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
+  balCodePreimagesValidFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
   ".Lv2_pdone:"
@@ -1049,9 +1078,36 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_state_status:\n  .zero 8\n" ++
   "svf_witness_section:\n  .zero 8\n" ++
   "svf_witness_end:\n  .zero 8\n" ++
+  "svf_codes_ptr:\n  .zero 8\n" ++
+  "svf_codes_len:\n  .zero 8\n" ++
   "svf_headers_ptr:\n  .zero 8\n" ++
   "svf_headers_len:\n  .zero 8\n" ++
   "svf_headers_count:\n  .zero 8\n" ++
+  -- account_at_address / extcodesize_at_header_state_root scratch:
+  "bbcv_count:\n  .zero 8\n" ++
+  "bbcv_off:\n  .zero 8\n" ++
+  "bbcv_size:\n  .zero 8\n" ++
+  "bbcv_acct_len:\n  .zero 8\n" ++
+  "bbcv_addr_off:\n  .zero 8\n" ++
+  "bbcv_addr_len:\n  .zero 8\n" ++
+  "ad_offset:\n  .zero 8\n" ++
+  "ad_length:\n  .zero 8\n" ++
+  "aa_value_len:\n  .zero 8\n" ++
+  "ecsahsr_dummy_offset:\n  .zero 8\n" ++
+  "ecsahsr_code_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "aa_value_scratch:\n  .zero 256\n" ++
+  "ecsahsr_state_root:\n  .zero 32\n" ++
+  "mlk_keccak_buf:\n  .zero 32\n" ++
+  "mlk_nibble_buf:\n  .zero 64\n" ++
+  ".balign 8\n" ++
+  "ecsahsr_acct_struct:\n  .zero 104\n" ++
+  ".balign 32\n" ++
+  "ecsahsr_empty_code_hash:\n" ++
+  "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
+  "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
+  "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
+  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
   ".balign 32\n" ++
   "vh_keccak_table:\n" ++
   "  .zero 8192\n" ++
@@ -1315,6 +1371,10 @@ def statelessVerdictV2GuestClosure : String :=
   mptSpliceSlotFunction ++ "\n" ++
   accountAddBalanceFunction ++ "\n" ++
   mptWalkFunction ++ "\n" ++
+  mptLookupByKeyFunction ++ "\n" ++
+  accountDecodeFunction ++ "\n" ++
+  accountAtAddressFunction ++ "\n" ++
+  extcodesizeAtHeaderStateRootFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
@@ -1389,6 +1449,7 @@ def statelessVerdictV2GuestClosure : String :=
   headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
+  balCodePreimagesValidFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   statelessVerdictV2Function
 
