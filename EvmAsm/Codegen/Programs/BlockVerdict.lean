@@ -562,6 +562,78 @@ def eip8037TxGasGateFunction : String :=
   "  addi sp, sp, 112\n" ++
   "  ret"
 
+/-! ## public_keys_valid -- structural stateless-input public key guard.
+    a0 = SSZ_BASE   a1 = exec_payload ptr
+    a0 (output) = 0 ok, 1 malformed/mismatched public_keys.
+
+    Amsterdam passes `stateless_input.public_keys` to `execute_block`; the
+    executable spec rejects if the count differs from the transaction count,
+    and then compares each supplied 65-byte uncompressed SEC1 public key against
+    recovered transaction keys. This guard implements the count check plus the
+    cheap canonical shape checks that catch malformed optional-proof fixtures:
+    each key is exactly an SSZ fixed 65-byte entry, starts with 0x04, and does
+    not have an all-zero 64-byte coordinate payload. -/
+def publicKeysValidFunction : String :=
+  "public_keys_valid:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp)\n" ++
+  "  mv s0, a0                   # SSZ_BASE\n" ++
+  "  mv s1, a1                   # exec_payload\n" ++
+  "  # tx_count from the SSZ transactions list.\n" ++
+  "  addi a0, s1, 504; jal ra, bgv_u32le\n" ++
+  "  mv s2, a0                   # transactions_offset\n" ++
+  "  addi a0, s1, 508; jal ra, bgv_u32le\n" ++
+  "  mv s3, a0                   # withdrawals_offset\n" ++
+  "  li s4, 0                    # tx_count\n" ++
+  "  bleu s3, s2, .Lpkv_have_tx_count\n" ++
+  "  sub t0, s3, s2\n" ++
+  "  li t1, 4; bltu t0, t1, .Lpkv_fail\n" ++
+  "  add t2, s1, s2\n" ++
+  "  mv a0, t2; jal ra, bgv_u32le\n" ++
+  "  andi t1, a0, 3; bnez t1, .Lpkv_fail\n" ++
+  "  srli s4, a0, 2\n" ++
+  "  slli t1, s4, 2; bgtu t1, t0, .Lpkv_fail\n" ++
+  ".Lpkv_have_tx_count:\n" ++
+  "  # public_keys start = SSZ_BASE + outer.offsets[3]. End = zisk input\n" ++
+  "  # payload start + host length; host length includes schema id + SSZ bytes.\n" ++
+  "  addi a0, s0, 12; jal ra, bgv_u32le\n" ++
+  "  add s5, s0, a0              # public_keys ptr\n" ++
+  "  li a0, 0x40000008; jal ra, bgv_u64le\n" ++
+  "  li t0, 0x40000010; add s6, t0, a0     # end of host payload\n" ++
+  "  bltu s6, s5, .Lpkv_fail\n" ++
+  "  sub s7, s6, s5              # public_keys byte length\n" ++
+  "  li t0, 65\n" ++
+  "  remu t1, s7, t0; bnez t1, .Lpkv_fail\n" ++
+  "  divu s8, s7, t0             # public key count\n" ++
+  "  bne s8, s4, .Lpkv_fail\n" ++
+  "  li s9, 0\n" ++
+  ".Lpkv_loop:\n" ++
+  "  beq s9, s8, .Lpkv_ok\n" ++
+  "  li t0, 65; mul t1, s9, t0; add t2, s5, t1\n" ++
+  "  lbu t3, 0(t2); li t4, 4; bne t3, t4, .Lpkv_fail\n" ++
+  "  li t3, 1; li t4, 0\n" ++
+  ".Lpkv_coord_loop:\n" ++
+  "  li t5, 65; beq t3, t5, .Lpkv_coord_done\n" ++
+  "  add t6, t2, t3; lbu t6, 0(t6); or t4, t4, t6\n" ++
+  "  addi t3, t3, 1; j .Lpkv_coord_loop\n" ++
+  ".Lpkv_coord_done:\n" ++
+  "  beqz t4, .Lpkv_fail\n" ++
+  "  addi s9, s9, 1; j .Lpkv_loop\n" ++
+  ".Lpkv_ok:\n" ++
+  "  li a0, 0; j .Lpkv_ret\n" ++
+  ".Lpkv_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lpkv_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
+  "  ret"
+
 /-! ## block_verdict -- step2_verdict with the FULL (system + withdrawal) recompute.
     a0 = params ptr (the step2_verdict struct)   a1 = SSZ_BASE
     a0 (output) = verdict bit. -/
@@ -613,6 +685,10 @@ def blockVerdictFunction : String :=
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # gas_used\n" ++
   "  beqz a0, .Lbv_zero_gas_used\n" ++
   ".Lbv_after_tx_gate:\n" ++
+  "  mv a0, s3\n" ++
+  "  la t2, bv_exec_p; ld a1, 0(t2)\n" ++
+  "  jal ra, public_keys_valid\n" ++
+  "  bnez a0, .Lbv_public_keys_fail\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
   "  addi t0, s3, 16             # NPR = SSZ_BASE+16\n" ++
@@ -653,6 +729,8 @@ def blockVerdictFunction : String :=
   "  li t0, 4; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero_gas_used:\n" ++
   "  li t0, 5; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_public_keys_fail:\n" ++
+  "  li t0, 6; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_gas_fail:\n" ++
   "  li t0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip8037_gas_fail:\n" ++
@@ -835,6 +913,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
+  publicKeysValidFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
@@ -1264,6 +1343,7 @@ def statelessVerdictV2GuestClosure : String :=
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
+  publicKeysValidFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
