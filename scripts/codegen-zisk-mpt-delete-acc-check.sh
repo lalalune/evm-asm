@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Verify the first mpt_delete_acc slice: single-leaf deletion and branch-only
-# deletion without canonical collapse.
+# Verify mpt_delete_acc deletion slices: single-leaf deletion, branch-only
+# deletion without canonical collapse, and covered branch-collapse cases.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
@@ -113,6 +113,12 @@ slots3[1] = node_ref(la); slots3[2] = node_ref(lb)
 root3 = branch_node(slots3)
 collapsed = leaf_node([2, 0xc, 0xd], b"B" * 32)
 write_case("branch_collapse_leaf", trie_root(root3), [1, 0xa, 0xb], [root3, la, lb], trie_root(collapsed))
+
+slots4 = [b"\x80"] * 16
+slots4[1] = node_ref(la)
+root4 = branch_node(slots4, b"branch-value")
+collapsed_value = leaf_node([], b"branch-value")
+write_case("branch_value_collapse", trie_root(root4), [1, 0xa, 0xb], [root4, la], trie_root(collapsed_value))
 PY
 
 echo "==> lake build codegen"
@@ -125,7 +131,7 @@ lake exe codegen --program zisk_mpt_delete_acc --halt linux93 \
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 
 fail=0
-for name in leaf_to_empty branch_no_collapse branch_collapse_leaf; do
+for name in leaf_to_empty branch_no_collapse branch_collapse_leaf branch_value_collapse; do
   out="$VDIR/$name.output"
   if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_delete_acc.elf" \
         -i "$VDIR/$name.input" -o "$out" -n 10000000 >/dev/null 2>&1 </dev/null; then
