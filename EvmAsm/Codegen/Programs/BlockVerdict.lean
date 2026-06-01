@@ -123,6 +123,10 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
   "  la a6, basr_records; la a7, basr_accounts\n" ++
   "  jal ra, bal_account_record_array; bnez a0, .Lbsr_cons\n" ++
+  "  # `bal_account_apply_post_fields` may replay BAL storage changes through\n" ++
+  "  # `account_apply_storage_slot_acc`, which reads the shared witness globals.\n" ++
+  "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
+  "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0); la a2, basr_records\n" ++
   "  la t0, bsr_bal_count; ld a3, 0(t0); la a4, basr_desc; la a5, basr_paths; la a6, basr_values\n" ++
   "  jal ra, bal_account_descriptor_array; bnez a0, .Lbsr_cons\n" ++
