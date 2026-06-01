@@ -59,6 +59,7 @@ import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.SystemWrites
+import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.StorageRoot
 import EvmAsm.Codegen.Programs.MptInternal
@@ -305,6 +306,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
+  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit
   | "zisk_block_access_list_hash" => some ziskBlockAccessListHashProbeUnit
   | "zisk_mpt_leaf_node_encode" => some ziskMptLeafNodeEncodeProbeUnit
   | "zisk_mpt_node_slot_encode" => some ziskMptNodeSlotEncodeProbeUnit
@@ -1079,6 +1081,7 @@ def knownProgramNames : List String :=
    "zisk_receipt_encode",
    "zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
+   "zisk_bal_gas_valid",
    "zisk_block_access_list_hash",
    "zisk_mpt_leaf_node_encode",
    "zisk_mpt_node_slot_encode",
@@ -1312,6 +1315,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/AccountBalance.lean",
     "EvmAsm/Codegen/Programs/MptEncode.lean",
     "EvmAsm/Codegen/Programs/SystemWrites.lean",
+    "EvmAsm/Codegen/Programs/BalGasValid.lean",
     "EvmAsm/Codegen/Programs/BlockAccessListHash.lean",
     "EvmAsm/Codegen/Programs/Noop.lean",
     "EvmAsm/Codegen/Programs/Storage.lean",
