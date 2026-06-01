@@ -53,6 +53,44 @@ def mptDeleteAccFunction : String :=
   "  ld t3, 16(t1); bnez t3, .Lmdacc_need_collapse\n" ++
   "  addi t0, t0, 1; j .Lmdacc_check_loop\n" ++
   ".Lmdacc_check_done:\n" ++
+  "  # If the deepest branch would become collapsible after deleting this\n" ++
+  "  # child, stay conservative. No-collapse bubbling is canonical only when\n" ++
+  "  # the terminal branch still has at least two child refs, or has a branch\n" ++
+  "  # value plus at least one child.\n" ++
+  "  addi t0, s6, -1\n" ++
+  "  la t1, mset_stack; slli t2, t0, 5; add t1, t1, t2\n" ++
+  "  ld s3, 0(t1)                # terminal branch ptr\n" ++
+  "  ld s4, 8(t1)                # terminal branch len\n" ++
+  "  ld s7, 24(t1)               # deleted child nibble\n" ++
+  "  li s1, 0                    # i\n" ++
+  "  li s2, 0                    # non-empty child count after deletion\n" ++
+  ".Lmdacc_count_children:\n" ++
+  "  li t1, 16; beq s1, t1, .Lmdacc_count_done\n" ++
+  "  beq s1, s7, .Lmdacc_count_next\n" ++
+  "  mv a0, s3; mv a1, s4; mv a2, s1\n" ++
+  "  la a3, mw_child_offset; la a4, mw_child_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmdacc_fail\n" ++
+  "  la t1, mw_child_length; ld t1, 0(t1)\n" ++
+  "  beqz t1, .Lmdacc_count_next\n" ++
+  "  addi s2, s2, 1\n" ++
+  ".Lmdacc_count_next:\n" ++
+  "  addi s1, s1, 1\n" ++
+  "  j .Lmdacc_count_children\n" ++
+  ".Lmdacc_count_done:\n" ++
+  "  mv a0, s3; mv a1, s4; li a2, 16\n" ++
+  "  la a3, mw_child_offset; la a4, mw_child_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmdacc_fail\n" ++
+  "  la t0, mw_child_length; ld t0, 0(t0)  # branch value length\n" ++
+  "  beqz s2, .Lmdacc_zero_children\n" ++
+  "  li t1, 1; bne s2, t1, .Lmdacc_no_collapse_needed\n" ++
+  "  beqz t0, .Lmdacc_need_collapse\n" ++
+  "  j .Lmdacc_no_collapse_needed\n" ++
+  ".Lmdacc_zero_children:\n" ++
+  "  bnez t0, .Lmdacc_need_collapse\n" ++
+  "  j .Lmdacc_need_collapse\n" ++
+  ".Lmdacc_no_collapse_needed:\n" ++
   "  # current_ref = RLP empty string/list item (0x80), the canonical empty\n" ++
   "  # branch child reference.\n" ++
   "  la t0, mset_ref; li t1, 0x80; sb t1, 0(t0)\n" ++

@@ -108,7 +108,10 @@ slots2 = list(slots); slots2[1] = b"\x80"
 root2 = branch_node(slots2)
 write_case("branch_no_collapse", trie_root(root), [1, 0xa, 0xb], [root, la], trie_root(root2))
 
-# Extension ancestry should remain conservative in this slice.
+slots3 = [b"\x80"] * 16
+slots3[1] = node_ref(la); slots3[2] = node_ref(lb)
+root3 = branch_node(slots3)
+write_case("branch_collapse_needed", trie_root(root3), [1, 0xa, 0xb], [root3, la], b"\x00" * 32, 3)
 PY
 
 echo "==> lake build codegen"
@@ -121,22 +124,23 @@ lake exe codegen --program zisk_mpt_delete_acc --halt linux93 \
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 
 fail=0
-for name in leaf_to_empty branch_no_collapse; do
+for name in leaf_to_empty branch_no_collapse branch_collapse_needed; do
   out="$VDIR/$name.output"
   if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_delete_acc.elf" \
         -i "$VDIR/$name.input" -o "$out" -n 10000000 >/dev/null 2>&1 </dev/null; then
     echo "  ERROR  $name (ziskemu)"; fail=1; continue
   fi
   exp="$(cat "$VDIR/$name.expected")"
+  exp_status="$(cat "$VDIR/$name.status")"
   act="$(od -An -tx1 -N 32 "$out" | tr -d ' \n')"
   st="$(read_u64 "$out" 32)"
-  if [[ "$act" == "$exp" && "$st" == "0" ]]; then
+  if [[ "$st" == "$exp_status" ]] && { [[ "$exp_status" != "0" ]] || [[ "$act" == "$exp" ]]; }; then
     echo "  PASS   $name"
   else
     echo "  FAIL   $name"
     echo "      root expected $exp"
     echo "      root actual   $act"
-    echo "      status        $st"
+    echo "      status        $st (expected $exp_status)"
     fail=1
   fi
 done
