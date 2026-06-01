@@ -37,20 +37,18 @@
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
 #     --steps N          ziskemu max steps (default $EEST_STEPS or 50000000)
 #     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto)
-#     --job-mem-mib N    memory budget per ziskemu job (default $EEST_JOB_MEM_MIB or 8192)
+#     --job-mem-mib N|auto
+#                        memory budget per ziskemu job (default $EEST_JOB_MEM_MIB
+#                        or auto). Auto is derived from the ziskemu build:
+#                        stock builds budget ~7000 MiB/process; patched lowmem
+#                        builds advertising PATCHED-lowmem budget 1024 MiB/process
+#                        for this stateless guest workload.
+#                        CPU cap uses one core/job on patched builds and four
+#                        cores/job on stock builds unless EEST_JOB_CPU_THREADS is set.
 #     --min-succ N       exit 1 if fewer than N succ-bit matches (regression gate)
 #     --min-full N       exit 1 if fewer than N full (105-byte) matches (regression gate)
 #     --min-root N       exit 1 if fewer than N root matches (regression gate)
 #     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
-#     --jobs N           run N ziskemu invocations in parallel (default: auto).
-#                        The auto value is derived from the ziskemu build: a
-#                        stock build peaks at ~6.5 GB RSS per process (because it
-#                        allocates a flat ROM array spanning the 127 MB gap up to
-#                        the embedded float library), so only a few fit in RAM; a
-#                        "PATCHED-lowmem" build (float library split into its own
-#                        array) peaks at ~22 MB, so we can run ~one-per-core.
-#                        See ziskemu --version to tell which build is installed.
-#                        Override with --jobs N or $EEST_JOBS.
 #
 # Exit:
 #   0 -- ran to completion (baseline mode), or all --min-* thresholds met
@@ -69,15 +67,13 @@ FILTER=""
 # halt long before this and are not slowed.
 STEPS="${EEST_STEPS:-50000000}"
 JOBS="${EEST_JOBS:-auto}"
-JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-8192}"
-JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-4}"
+JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
+JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
 MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-# Parallelism: empty => auto-detect from the ziskemu build (see below).
-JOBS="${EEST_JOBS:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -91,7 +87,6 @@ while [[ $# -gt 0 ]]; do
     --min-full) MIN_FULL="$2"; shift 2 ;;
     --min-root) MIN_ROOT="$2"; shift 2 ;;
     --tag) TAG="$2"; shift 2 ;;
-    --jobs) JOBS="$2"; shift 2 ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -100,47 +95,17 @@ if [[ "$JOBS" != "auto" ]] && { ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [[ "$JOBS" -lt 1 
   echo "--jobs must be a positive integer or auto (got: $JOBS)" >&2
   exit 1
 fi
-if ! [[ "$JOB_MEM_MIB" =~ ^[0-9]+$ ]] || [[ "$JOB_MEM_MIB" -lt 1 ]]; then
-  echo "--job-mem-mib must be a positive integer (got: $JOB_MEM_MIB)" >&2
+if [[ "$JOB_MEM_MIB" != "auto" ]] && { ! [[ "$JOB_MEM_MIB" =~ ^[0-9]+$ ]] || [[ "$JOB_MEM_MIB" -lt 1 ]]; }; then
+  echo "--job-mem-mib must be a positive integer or auto (got: $JOB_MEM_MIB)" >&2
   exit 1
 fi
-if ! [[ "$JOB_CPU_THREADS" =~ ^[0-9]+$ ]] || [[ "$JOB_CPU_THREADS" -lt 1 ]]; then
-  echo "EEST_JOB_CPU_THREADS must be a positive integer (got: $JOB_CPU_THREADS)" >&2
+if [[ "$JOB_CPU_THREADS" != "auto" ]] && { ! [[ "$JOB_CPU_THREADS" =~ ^[0-9]+$ ]] || [[ "$JOB_CPU_THREADS" -lt 1 ]]; }; then
+  echo "EEST_JOB_CPU_THREADS must be a positive integer or auto (got: $JOB_CPU_THREADS)" >&2
   exit 1
 fi
 if ! [[ "$MEM_RESERVE_MIB" =~ ^[0-9]+$ ]]; then
   echo "EEST_MEM_RESERVE_MIB must be a nonnegative integer (got: $MEM_RESERVE_MIB)" >&2
   exit 1
-fi
-
-compute_job_cap() {
-  local mem_avail_kib mem_avail_mib mem_cap ncpu cpu_cap cap
-  mem_avail_kib="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || true)"
-  if [[ -z "$mem_avail_kib" ]]; then
-    mem_cap=1
-  else
-    mem_avail_mib=$((mem_avail_kib / 1024))
-    if [[ "$mem_avail_mib" -le "$MEM_RESERVE_MIB" ]]; then
-      mem_cap=1
-    else
-      mem_cap=$(((mem_avail_mib - MEM_RESERVE_MIB) / JOB_MEM_MIB))
-      [[ "$mem_cap" -lt 1 ]] && mem_cap=1
-    fi
-  fi
-  ncpu="$(nproc 2>/dev/null || echo 1)"
-  cpu_cap=$((ncpu / JOB_CPU_THREADS))
-  [[ "$cpu_cap" -lt 1 ]] && cpu_cap=1
-  cap="$mem_cap"
-  [[ "$cpu_cap" -lt "$cap" ]] && cap="$cpu_cap"
-  echo "$cap"
-}
-
-JOB_CAP="$(compute_job_cap)"
-if [[ "$JOBS" == "auto" ]]; then
-  JOBS="$JOB_CAP"
-elif [[ "$JOBS" -gt "$JOB_CAP" ]]; then
-  echo "==> requested --jobs $JOBS capped to $JOB_CAP (job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS)" >&2
-  JOBS="$JOB_CAP"
 fi
 
 cleanup_children() {
@@ -173,31 +138,60 @@ fi
 # instruction in one flat array indexed from the program base; because the
 # embedded float library is linked ~127 MB above the program, that array spans
 # the whole gap (~33M entries) and costs ~6.5 GB. A "PATCHED-lowmem" build moves
-# the float library into its own array, dropping peak RSS to ~22 MB. We size the
-# job pool accordingly: stock => memory-bound (few jobs); patched => core-bound.
+# the float library into its own array; tiny ELFs measure around 30 MB RSS, while
+# the stateless guest measures around 700 MB RSS on real fixtures. We size this
+# harness for the stateless workload.
 ZISKEMU_VERSION="$("$ZISKEMU" --version 2>/dev/null || echo unknown)"
 if [[ "$ZISKEMU_VERSION" == *PATCHED-lowmem* ]]; then
   ZISKEMU_FLAVOR="patched-lowmem"
-  PER_PROC_MB=128          # ~22 MB peak + headroom
+  ZISKEMU_AUTO_JOB_MEM_MIB=1024
+  ZISKEMU_AUTO_JOB_CPU_THREADS=1
 else
   ZISKEMU_FLAVOR="stock"
-  PER_PROC_MB=7000         # ~6.5 GB peak, rounded up
+  ZISKEMU_AUTO_JOB_MEM_MIB=7000
+  ZISKEMU_AUTO_JOB_CPU_THREADS=4
+fi
+if [[ "$JOB_MEM_MIB" == "auto" ]]; then
+  JOB_MEM_MIB="$ZISKEMU_AUTO_JOB_MEM_MIB"
+fi
+if [[ "$JOB_CPU_THREADS" == "auto" ]]; then
+  JOB_CPU_THREADS="$ZISKEMU_AUTO_JOB_CPU_THREADS"
 fi
 
+compute_job_cap() {
+  local mem_avail_kib mem_avail_mib mem_cap ncpu cpu_cap cap
+  mem_avail_kib="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || true)"
+  if [[ -z "$mem_avail_kib" ]]; then
+    mem_cap=1
+  else
+    mem_avail_mib=$((mem_avail_kib / 1024))
+    if [[ "$mem_avail_mib" -le "$MEM_RESERVE_MIB" ]]; then
+      mem_cap=1
+    else
+      mem_cap=$(((mem_avail_mib - MEM_RESERVE_MIB) / JOB_MEM_MIB))
+      [[ "$mem_cap" -lt 1 ]] && mem_cap=1
+    fi
+  fi
+  ncpu="$(nproc 2>/dev/null || echo 1)"
+  cpu_cap=$((ncpu / JOB_CPU_THREADS))
+  [[ "$cpu_cap" -lt 1 ]] && cpu_cap=1
+  cap="$mem_cap"
+  [[ "$cpu_cap" -lt "$cap" ]] && cap="$cpu_cap"
+  echo "$cap"
+}
+
 CPUS="$(nproc 2>/dev/null || echo 1)"
-if [[ -z "$JOBS" ]]; then
-  # MemAvailable is the realistic cap; fall back to MemTotal, then 1 job.
-  AVAIL_MB="$(awk '/^MemAvailable:/{print int($2/1024); f=1} END{if(!f) print 0}' /proc/meminfo 2>/dev/null || echo 0)"
-  [[ "$AVAIL_MB" -le 0 ]] && AVAIL_MB="$(awk '/^MemTotal:/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo "$PER_PROC_MB")"
-  MEM_JOBS=$(( AVAIL_MB / PER_PROC_MB ))
-  (( MEM_JOBS < 1 )) && MEM_JOBS=1
-  JOBS=$(( CPUS < MEM_JOBS ? CPUS : MEM_JOBS ))
+JOB_CAP="$(compute_job_cap)"
+if [[ "$JOBS" == "auto" ]]; then
+  JOBS="$JOB_CAP"
+elif [[ "$JOBS" -gt "$JOB_CAP" ]]; then
+  echo "==> requested --jobs $JOBS capped to $JOB_CAP (job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS)" >&2
+  JOBS="$JOB_CAP"
 fi
-(( JOBS < 1 )) && JOBS=1
 
 echo "==> ziskemu: $ZISKEMU"
 echo "    version: $ZISKEMU_VERSION"
-echo "    flavor:  $ZISKEMU_FLAVOR (~${PER_PROC_MB} MB/proc budget) -> jobs=$JOBS (cpus=$CPUS)"
+echo "    flavor:  $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget) -> jobs=$JOBS (cpus=$CPUS)"
 
 # --- locate fixtures --------------------------------------------------------
 FX="${EEST_FIXTURES_DIR:-$REPO_ROOT/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
@@ -288,7 +282,13 @@ else
   fi
 fi
 
-# Phase 2 -- classify the recorded outputs (serial, manifest order).
+# --- classify ---------------------------------------------------------------
+# The 105-byte SszStatelessValidationResult decomposes into three
+# independently-checkable regions, so we report each separately to show
+# exactly where the guest stands (not just full-vs-not):
+#   root [0:32]   = new_payload_request_root  (hex chars 0..64)
+#   succ [32]     = successful_validation     (hex chars 64..66)
+#   tail [33:105] = u32 offset (=37) + 68-byte chain_config (hex 66..210)
 total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0
 while IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath; do
   total=$((total + 1))
@@ -335,7 +335,7 @@ BASELINE="$REPO_ROOT/gen-out/eest-baseline.txt"
   echo "  selection:   $([[ $ALL -eq 1 ]] && echo all || echo "limit=$LIMIT")${FILTER:+ filter=$FILTER}"
   echo "  ziskemu:     $ZISKEMU (steps=$STEPS)"
   echo "  zisk build:  $ZISKEMU_FLAVOR -- $ZISKEMU_VERSION"
-  echo "  jobs:        $JOBS (cpus=$CPUS, ~${PER_PROC_MB} MB/proc budget)"
+  echo "  jobs:        $JOBS (cpus=$CPUS, ${JOB_MEM_MIB} MiB/proc budget)"
   echo "  total:       $total"
   echo "  errored:     $err"
   echo "  ran:         $ran"
@@ -345,7 +345,6 @@ BASELINE="$REPO_ROOT/gen-out/eest-baseline.txt"
   echo "  tail match:    $tail   (bytes 33:105 = offset + chain_config)"
   echo "  root-only diff:$rod   (succ+tail match; ONLY root differs => 1 field from full)"
   echo "  fail:          $fail"
-  echo "  jobs:          $JOBS"
 } | tee "$BASELINE"
 
 echo "==> wrote baseline: $BASELINE"
