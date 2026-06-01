@@ -33,6 +33,7 @@
 # Usage:
 #   scripts/codegen-eest-stateless-check.sh [options]
 #     --all              run every stateless block (slow); default: smoke subset
+#     --skip N           skip first N selected stateless blocks after filtering
 #     --limit N          cap to N guest invocations (default 50)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
 #     --steps N          ziskemu max steps (default $EEST_STEPS or 50000000)
@@ -59,6 +60,7 @@ cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
 ALL=0
+SKIP=0
 LIMIT=50
 FILTER=""
 # Default step cap. ziskemu stops at the guest's halt, so this only bounds
@@ -78,6 +80,7 @@ TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all) ALL=1; shift ;;
+    --skip) SKIP="$2"; shift 2 ;;
     --limit) LIMIT="$2"; shift 2 ;;
     --filter) FILTER="$2"; shift 2 ;;
     --steps) STEPS="$2"; shift 2 ;;
@@ -91,6 +94,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if ! [[ "$SKIP" =~ ^[0-9]+$ ]]; then
+  echo "--skip must be a nonnegative integer (got: $SKIP)" >&2
+  exit 1
+fi
 if [[ "$JOBS" != "auto" ]] && { ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [[ "$JOBS" -lt 1 ]]; }; then
   echo "--jobs must be a positive integer or auto (got: $JOBS)" >&2
   exit 1
@@ -214,9 +221,13 @@ RUN_DIR="$REPO_ROOT/gen-out/eest-run"
 rm -rf "$RUN_DIR"
 mkdir -p "$RUN_DIR"
 conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
+[[ "$SKIP" != "0" ]] && conv_args+=(--skip "$SKIP")
 [[ "$ALL" -eq 0 ]] && conv_args+=(--limit "$LIMIT")
 [[ -n "$FILTER" ]] && conv_args+=(--filter "$FILTER")
-echo "==> convert fixtures (tag=$TAG, $([[ $ALL -eq 1 ]] && echo all || echo "limit=$LIMIT")${FILTER:+, filter=$FILTER})"
+selection="$([[ $ALL -eq 1 ]] && echo all || echo "limit=$LIMIT")"
+[[ "$SKIP" != "0" ]] && selection="$selection, skip=$SKIP"
+[[ -n "$FILTER" ]] && selection="$selection, filter=$FILTER"
+echo "==> convert fixtures (tag=$TAG, $selection)"
 python3 scripts/eest-stateless-to-input.py "${conv_args[@]}"
 
 MANIFEST="$RUN_DIR/manifest.tsv"
@@ -332,7 +343,7 @@ BASELINE="$REPO_ROOT/gen-out/eest-baseline.txt"
   echo "EEST stateless-guest baseline"
   echo "  generated:   $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   echo "  fixture tag: $TAG"
-  echo "  selection:   $([[ $ALL -eq 1 ]] && echo all || echo "limit=$LIMIT")${FILTER:+ filter=$FILTER}"
+  echo "  selection:   $selection"
   echo "  ziskemu:     $ZISKEMU (steps=$STEPS)"
   echo "  zisk build:  $ZISKEMU_FLAVOR -- $ZISKEMU_VERSION"
   echo "  jobs:        $JOBS (cpus=$CPUS, ${JOB_MEM_MIB} MiB/proc budget)"

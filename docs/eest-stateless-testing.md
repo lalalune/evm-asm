@@ -1,0 +1,121 @@
+# EEST Stateless Guest Testing
+
+This runbook covers the fixture-driven stateless guest harness:
+
+```bash
+scripts/codegen-eest-stateless-check.sh [options]
+```
+
+The harness builds `stateless_guest`, converts EEST `zkevm` fixture blocks
+into `ziskemu -i` inputs, runs each selected input, and compares the 105-byte
+guest output with the fixture's `statelessOutputBytes`.
+
+## Prerequisites
+
+Install the normal codegen requirements from the README: Lean/Lake,
+`riscv64-elf-binutils`, and `ziskemu`.
+
+Fetch the EEST fixture tarball once:
+
+```bash
+scripts/eest-fetch-fixtures.sh zkevm@v0.4.0
+```
+
+By default the harness reads:
+
+```text
+gen-out/eest-fixtures/zkevm@v0.4.0/fixtures/fixtures
+```
+
+Override that with `EEST_FIXTURES_DIR=/path/to/fixtures` when needed. Use
+`EEST_FIXTURE_TAG=...` or `--tag ...` to select a different cached release.
+
+## Common Commands
+
+Run the default smoke subset:
+
+```bash
+scripts/codegen-eest-stateless-check.sh
+```
+
+Run a focused fixture subset:
+
+```bash
+scripts/codegen-eest-stateless-check.sh \
+  --filter bal_7002_partial_sweep \
+  --limit 2 \
+  --jobs 32 \
+  --steps 200000000
+```
+
+Run a large batch:
+
+```bash
+scripts/codegen-eest-stateless-check.sh \
+  --limit 1000 \
+  --jobs 32 \
+  --steps 200000000
+```
+
+Resume from a later offset by skipping the first selected cases:
+
+```bash
+scripts/codegen-eest-stateless-check.sh \
+  --skip 1000 \
+  --limit 1000 \
+  --jobs 32 \
+  --steps 200000000
+```
+
+Run every selected stateless block:
+
+```bash
+scripts/codegen-eest-stateless-check.sh \
+  --all \
+  --jobs 32 \
+  --steps 200000000
+```
+
+`--filter` is applied first, `--skip N` skips the first N stateless blocks in
+that filtered order, and `--limit N` caps how many remaining blocks are emitted.
+With `--all`, `--skip` still applies but no limit is added.
+
+## Outputs
+
+The current run directory is recreated each time:
+
+```text
+gen-out/eest-run/
+```
+
+Important files:
+
+- `manifest.tsv`: one row per selected guest invocation.
+- `<case>.input`: ziskemu input for that fixture block.
+- `<case>.output`: raw guest output.
+- `<case>.emu.log`: ziskemu stdout/stderr.
+- `<case>.result.tsv`: per-case harness status and output hex.
+- `gen-out/eest-baseline.txt`: run summary for the latest harness execution.
+
+The summary reports:
+
+- `full match`: all 105 output bytes match.
+- `root match`: bytes 0:32 match `new_payload_request_root`.
+- `succ match`: byte 32 matches `successful_validation`.
+- `tail match`: bytes 33:105 match the offset and chain config tail.
+- `root-only diff`: success and tail match, but the root field differs.
+
+Use `--min-full`, `--min-root`, or `--min-succ` to turn a batch into a
+regression gate. For example:
+
+```bash
+scripts/codegen-eest-stateless-check.sh --limit 1000 --min-full 1000
+```
+
+## Useful Knobs
+
+- `ZISKEMU=/path/to/ziskemu`: choose a specific emulator binary.
+- `EEST_STEPS=N` or `--steps N`: set the ziskemu step cap.
+- `EEST_JOBS=N` or `--jobs N`: set parallel guest jobs.
+- `EEST_MEM_RESERVE_MIB=N`: reserve host memory when auto-sizing jobs.
+- `EEST_FIXTURES_DIR=/path`: point at an already extracted fixture directory.
