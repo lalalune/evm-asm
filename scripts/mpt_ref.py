@@ -748,13 +748,6 @@ def vec_mi_depth2():
     c = branch_node(slots_c)
     slots_b = [b"\x80"] * 16
     slots_b[0x7] = node_ref(c)
-def vec_mi_leafsplit_depth1():
-    """R slot5 -> branch B (hash); B slot7 -> leaf LA key [a,b]. Insert path
-    [5,7,9,c] diverges at LA (m=0) -> LEAF_SPLIT at DEPTH 1 (ancestors R,B): the
-    new branch replaces LA at B slot7, bubbling through B then R. mi_leaf_split
-    was depth 0; this exercises the leaf-split terminal under ancestors."""
-    la = leaf_node([0xa, 0xb], b"L" * 40)       # >=32 hash-ref
-    slots_b[0x7] = node_ref(la)
     b = branch_node(slots_b)
     slots_r = [b"\x80"] * 16
     slots_r[0x5] = node_ref(b)
@@ -766,6 +759,26 @@ def vec_mi_leafsplit_depth1():
     c2 = branch_node(slots_c2)
     slots_b2 = list(slots_b)
     slots_b2[0x7] = node_ref(c2)
+    b2 = branch_node(slots_b2)
+    slots_r2 = list(slots_r)
+    slots_r2[0x5] = node_ref(b2)
+    root2 = branch_node(slots_r2)
+    return dict(name="mi_depth2", witness=[root, b, c], root=trie_root(root),
+                path=[0x5, 0x7, 0x2, 0xe], value=val, expected=trie_root(root2))
+
+
+def vec_mi_leafsplit_depth1():
+    """R slot5 -> branch B (hash); B slot7 -> leaf LA key [a,b]. Insert path
+    [5,7,9,c] diverges at LA (m=0) -> LEAF_SPLIT at DEPTH 1 (ancestors R,B): the
+    new branch replaces LA at B slot7, bubbling through B then R. mi_leaf_split
+    was depth 0; this exercises the leaf-split terminal under ancestors."""
+    la = leaf_node([0xa, 0xb], b"L" * 40)       # >=32 hash-ref
+    slots_b = [b"\x80"] * 16
+    slots_b[0x7] = node_ref(la)
+    b = branch_node(slots_b)
+    slots_r = [b"\x80"] * 16
+    slots_r[0x5] = node_ref(b)
+    root = branch_node(slots_r)
     val = b"newdeep"
     old2 = leaf_node([0xb], b"L" * 40)          # LA[m+1..]=[b]
     new2 = leaf_node([0xc], val)                # P[m+1..]=[c]
@@ -778,8 +791,9 @@ def vec_mi_leafsplit_depth1():
     slots_r2 = list(slots_r)
     slots_r2[0x5] = node_ref(b2)
     root2 = branch_node(slots_r2)
-    return dict(name="mi_depth2", witness=[root, b, c], root=trie_root(root),
-                path=[0x5, 0x7, 0x2, 0xe], value=val, expected=trie_root(root2))
+    return dict(name="mi_leafsplit_depth1", witness=[root, b, la],
+                root=trie_root(root), path=[0x5, 0x7, 0x9, 0xc], value=val,
+                expected=trie_root(root2))
 
 
 def vec_mi_acctkey():
@@ -820,7 +834,7 @@ def vec_mi_acctkey_f9():
 
 MI_VECTORS = [vec_mi_branch_empty, vec_mi_empty_trie, vec_mi_ext_then_branch,
               vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_depth2,
-              vec_mi_acctkey, vec_mi_acctkey_f9]
+              vec_mi_leafsplit_depth1, vec_mi_acctkey, vec_mi_acctkey_f9]
 
 
 # ---- insert-aware multi-change driver (mpt_state_root_ins .2.4.2.6.3) ------
@@ -911,12 +925,6 @@ def vec_state_root_ins_longkey():
     return dict(name="state_root_ins_longkey", witness=[root, leaf_a],
                 root=trie_root(root), changes=changes,
                 expected=trie_root(new_root))
-    return dict(name="mi_leafsplit_depth1", witness=[root, b, la],
-                root=trie_root(root), path=[0x5, 0x7, 0x9, 0xc], value=val,
-                expected=trie_root(root2))
-              vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_leafsplit_depth1]
-
-
 # ---- insert-aware multi-change driver (mpt_state_root_ins .2.4.2.6.3) ------
 def build_state_root_ins_input(root_hash, changes, witness_section) -> bytes:
     """ziskemu -i body for zisk_mpt_state_root_ins (file maps to INPUT+8):

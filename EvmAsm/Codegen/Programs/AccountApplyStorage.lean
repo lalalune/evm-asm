@@ -30,6 +30,7 @@ import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.MptSetAcc
 import EvmAsm.Codegen.Programs.MptInsertAcc
+import EvmAsm.Codegen.Programs.MptDeleteAcc
 
 namespace EvmAsm.Codegen
 
@@ -119,12 +120,14 @@ def accountApplyStorageSlotAccFunction : String :=
   "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lapsa_nonempty\n" ++
   "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lapsa_cmp\n" ++
   ".Lapsa_empty:\n" ++
+  "  beqz s4, .Lapsa_copy_current\n" ++
   "  mv a0, s2; mv a1, s3; mv a2, s4; la a3, aps_newsroot\n" ++
   "  jal ra, storage_root_single_slot\n" ++
   "  j .Lapsa_set_account\n" ++
   ".Lapsa_nonempty:\n" ++
   "  # Need caller-provided witness for the existing storage trie.\n" ++
   "  la t0, aps_witness_ptr; ld t0, 0(t0); beqz t0, .Lapsa_conservative\n" ++
+  "  beqz s4, .Lapsa_delete_nonempty\n" ++
   "  # RLP(value) is the leaf value stored in the storage trie.\n" ++
   "  mv a0, s3; mv a1, s4; la a2, srss_rlpval; la a3, srss_rlpval_len\n" ++
   "  jal ra, rlp_encode_bytes\n" ++
@@ -157,6 +160,26 @@ def accountApplyStorageSlotAccFunction : String :=
   "  mv a0, s0; mv a1, s1; la a2, aps_newsroot; mv a3, s5; mv a4, s6\n" ++
   "  jal ra, account_set_storage_root\n" ++
   "  bnez a0, .Lapsa_parsefail\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lapsa_ret\n" ++
+  ".Lapsa_delete_nonempty:\n" ++
+  "  mv a0, s2; li a1, 32; la a2, srss_key\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  la a0, srss_key; li a1, 32; la a2, aps_path\n" ++
+  "  jal ra, bytes_to_nibbles\n" ++
+  "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
+  "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
+  "  la t0, aps_off; ld t0, 0(t0); add a0, s0, t0\n" ++
+  "  la t0, aps_witness_ptr; ld a1, 0(t0)\n" ++
+  "  la t0, aps_witness_len; ld a2, 0(t0)\n" ++
+  "  la a3, aps_path; li a4, 64; la a7, aps_newsroot\n" ++
+  "  jal ra, mpt_delete_acc\n" ++
+  "  beqz a0, .Lapsa_set_account\n" ++
+  "  j .Lapsa_conservative\n" ++
+  ".Lapsa_copy_current:\n" ++
+  "  mv a0, s5; mv a1, s0; mv a2, s1\n" ++
+  "  jal ra, mset_memcpy\n" ++
+  "  sd s1, 0(s6)\n" ++
   "  li a0, 0\n" ++
   "  j .Lapsa_ret\n" ++
   ".Lapsa_conservative:\n" ++
@@ -208,15 +231,6 @@ def ziskAccountApplyStorageSlotPrologue : String :=
   mptSpliceSlotFunction ++ "\n" ++
   accountSetStorageRootFunction ++ "\n" ++
   accountApplyStorageSlotFunction ++ "\n" ++
-  accountApplyStorageSlotAccFunction ++ "\n" ++
-  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
-  mptNodeSlotEncodeFunction ++ "\n" ++
-  nodeDbAppendFunction ++ "\n" ++
-  nodeDbLookupFunction ++ "\n" ++
-  mptNodeResolveFunction ++ "\n" ++
-  mptSetRecordWalkDbFunction ++ "\n" ++
-  mptSetAccFunction ++ "\n" ++
-  mptInsertAccFunction ++ "\n" ++
   ".Laps_pdone:"
 
 def ziskAccountApplyStorageSlotDataSection : String :=
