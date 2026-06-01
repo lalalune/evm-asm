@@ -460,7 +460,7 @@ def ziskMptSetAccDataSection : String :=
   ".balign 32\n" ++
   "mset_tmproot:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "mset_db_data:\n  .zero 65536"
+  "mset_db_data:\n  .zero 8388608"
 
 def ziskMptSetAccProbeUnit : BuildUnit := {
   body        := NOP

@@ -48,6 +48,9 @@ def mptStateRootInsFunction : String :=
   "  # init the node DB (shared by mpt_set_acc + mpt_insert_acc)\n" ++
   "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
   "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
+  "  la t0, sri_fail_index; sd zero, 0(t0)\n" ++
+  "  la t0, sri_fail_mode; sd zero, 0(t0)\n" ++
+  "  la t0, sri_fail_status; sd zero, 0(t0)\n" ++
   "  li s5, 0                    # i\n" ++
   ".Lsri_loop:\n" ++
   "  beq s5, s3, .Lsri_done\n" ++
@@ -58,6 +61,7 @@ def mptStateRootInsFunction : String :=
   "  ld a5, 16(t0)               # value_ptr\n" ++
   "  ld a6, 24(t0)               # value_len\n" ++
   "  ld t2, 32(t0)               # mode: 0=set, 1=insert, 2=delete, 3=noop\n" ++
+  "  la t3, sri_cur_mode; sd t2, 0(t3)\n" ++
   "  la a0, mset_dr_root\n" ++
   "  mv a1, s0\n" ++
   "  mv a2, s1\n" ++
@@ -90,6 +94,9 @@ def mptStateRootInsFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n" ++
   ".Lsri_fail:\n" ++
+  "  la t0, sri_fail_index; sd s5, 0(t0)\n" ++
+  "  la t0, sri_cur_mode; ld t1, 0(t0); la t0, sri_fail_mode; sd t1, 0(t0)\n" ++
+  "  la t0, sri_fail_status; sd a0, 0(t0)\n" ++
   "  j .Lsri_ret"
 
 /-- `zisk_mpt_state_root_ins`: probe applying a LIST of changes, each tagged
@@ -197,6 +204,10 @@ def ziskMptStateRootInsDataSection : String :=
   ".balign 8\n" ++
   "mset_dr_root:\n  .zero 32\n" ++
   ".balign 8\n" ++
+  "sri_cur_mode:\n  .zero 8\n" ++
+  "sri_fail_index:\n  .zero 8\n" ++
+  "sri_fail_mode:\n  .zero 8\n" ++
+  "sri_fail_status:\n  .zero 8\n" ++
   "sri_changes:\n  .zero 4096"
 
 def ziskMptStateRootInsProbeUnit : BuildUnit := {

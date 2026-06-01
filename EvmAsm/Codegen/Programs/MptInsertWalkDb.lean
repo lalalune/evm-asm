@@ -289,7 +289,7 @@ def ziskMptInsertWalkDbDataSection : String :=
   ".balign 8\n" ++
   "mset_db_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "mset_db_data:\n  .zero 65536"
+  "mset_db_data:\n  .zero 8388608"
 
 def ziskMptInsertWalkDbProbeUnit : BuildUnit := {
   body        := NOP

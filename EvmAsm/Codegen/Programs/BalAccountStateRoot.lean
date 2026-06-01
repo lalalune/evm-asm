@@ -300,11 +300,11 @@ def ziskBalAccountStateRootDataSection : String :=
   "baada_item_len:\n  .zero 8\n" ++
   "baada_fail_code:\n  .zero 8\n" ++
   "baada_fail_index:\n  .zero 8\n" ++
-  "basr_records:\n  .zero 4096\n" ++
-  "basr_desc:\n  .zero 4096\n" ++
-  "basr_paths:\n  .zero 8192\n" ++
-  "basr_values:\n  .zero 16384\n" ++
-  "basr_accounts:\n  .zero 16384\n" ++
+  "basr_records:\n  .zero 98304\n" ++    -- 4096 * 24
+  "basr_desc:\n  .zero 163840\n" ++     -- 4096 * 40
+  "basr_paths:\n  .zero 262144\n" ++     -- 4096 * 64
+  "basr_values:\n  .zero 1048576\n" ++   -- 4096 * 256
+  "basr_accounts:\n  .zero 1048576\n" ++ -- 4096 * 256
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
