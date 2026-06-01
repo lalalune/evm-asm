@@ -639,8 +639,37 @@ def vec_mi_leaf_split_m0():
                 path=[9, 6, 7], value=val, expected=trie_root(branch))
 
 
+def vec_mi_depth2():
+    """root branch slot5 -> branch B slot7 -> branch C, slot2 empty. Insert
+    path [5,7,2,e] -> BRANCH_EMPTY_SLOT at C, depth 2 (root + B ancestors).
+    Exercises the depth>=2 bubble-up."""
+    leaf_l = leaf_node([0xd], b"L" * 40)        # >=32 -> hash-ref
+    slots_c = [b"\x80"] * 16
+    slots_c[0xa] = node_ref(leaf_l)
+    c = branch_node(slots_c)
+    slots_b = [b"\x80"] * 16
+    slots_b[0x7] = node_ref(c)
+    b = branch_node(slots_b)
+    slots_r = [b"\x80"] * 16
+    slots_r[0x5] = node_ref(b)
+    root = branch_node(slots_r)
+    val = b"depth2val"
+    new_leaf = leaf_node([0xe], val)            # path[consumed+1..] = [e]
+    slots_c2 = list(slots_c)
+    slots_c2[0x2] = node_ref(new_leaf)          # nibble path[consumed=2] = 2
+    c2 = branch_node(slots_c2)
+    slots_b2 = list(slots_b)
+    slots_b2[0x7] = node_ref(c2)
+    b2 = branch_node(slots_b2)
+    slots_r2 = list(slots_r)
+    slots_r2[0x5] = node_ref(b2)
+    root2 = branch_node(slots_r2)
+    return dict(name="mi_depth2", witness=[root, b, c], root=trie_root(root),
+                path=[0x5, 0x7, 0x2, 0xe], value=val, expected=trie_root(root2))
+
+
 MI_VECTORS = [vec_mi_branch_empty, vec_mi_empty_trie, vec_mi_ext_then_branch,
-              vec_mi_leaf_split, vec_mi_leaf_split_m0]
+              vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_depth2]
 
 
 # ---- insert-aware multi-change driver (mpt_state_root_ins .2.4.2.6.3) ------
