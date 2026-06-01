@@ -25,6 +25,8 @@ open EvmAsm.Rv64
     pre-state code hash is exactly keccak(0x00) is also skipped: EIP-7708
     selfdestruct beneficiaries can have one-byte STOP code without requiring
     the bytecode preimage. A pure account-touch row is also accepted when a
+    pure account-touch row for the block fee recipient is also skipped:
+    Amsterdam warms/touches coinbase without reading its bytecode. A
     literal `PUSH20 <address>; EXTCODEHASH` occurs in witness bytecode, since
     EXTCODEHASH reads the account leaf's code_hash and does not call
     WitnessState.get_code. Rows that carry storage or code activity still
@@ -106,6 +108,15 @@ def balCodePreimagesValidFunction : String :=
   "  la t2, bbcv_nonce_count; ld t3, 0(t2)\n" ++
   "  or t4, t1, t3\n" ++
   "  bnez t4, .Lbbcv_next\n" ++
+  "  la t0, bbcv_fee_recipient_valid; ld t0, 0(t0); beqz t0, .Lbbcv_touch_skip_flags\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add t1, s10, t1\n" ++
+  "  la t2, bbcv_fee_recipient\n" ++
+  "  li t3, 20\n" ++
+  ".Lbbcv_fee_recipient_cmp:\n" ++
+  "  beqz t3, .Lbbcv_next\n" ++
+  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lbbcv_touch_skip_flags\n" ++
+  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbbcv_fee_recipient_cmp\n" ++
+  ".Lbbcv_touch_skip_flags:\n" ++
   "  la t0, bbcv_skip_touch_only; ld t4, 0(t0)\n" ++
   "  bnez t4, .Lbbcv_next\n" ++
   "  j .Lbbcv_check_code\n" ++

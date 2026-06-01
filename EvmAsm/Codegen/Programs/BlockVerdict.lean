@@ -733,6 +733,7 @@ def blockVerdictFunction : String :=
   "  beqz t5, .Lbv_code_preimage_flag_done\n" ++
   "  li t6, 1; la t2, bbcv_skip_touch_only; sd t6, 0(t2)\n" ++
   ".Lbv_code_preimage_flag_done:\n" ++
+  "  li t6, 1; la t2, bbcv_fee_recipient_valid; sd t6, 0(t2)\n  la a0, bbcv_fee_recipient; ld a1, 0(s0); addi a1, a1, 32; li a2, 20\n  jal ra, mset_memcpy\n" ++
   "  la t2, bv_bal_start; ld a0, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a1, 0(t2)\n" ++
   "  ld a2, 8(s0)                  # parent header RLP\n" ++
@@ -1112,6 +1113,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bbcv_nonce_count:\n  .zero 8\n" ++
   "bbcv_skip_touch_only:\n  .zero 8\n" ++
   "bbcv_touch_only:\n  .zero 8\n" ++
+  "bbcv_fee_recipient_valid:\n  .zero 8\n.balign 8\nbbcv_fee_recipient:\n  .zero 20\n" ++
   ".balign 32\n" ++
   "bbcv_code_hash:\n  .zero 32\n" ++
   "bbcv_stop_code_hash:\n" ++
