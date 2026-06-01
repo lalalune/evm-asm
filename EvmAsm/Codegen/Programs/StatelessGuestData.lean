@@ -441,6 +441,9 @@ def statelessGuestDataSection : String :=
   "  .byte 0x92, 0xe5, 0x53, 0xe3, 0x5e, 0xcb, 0x4a, 0x33\n" ++
   "  .byte 0x7a, 0x1b, 0x1c, 0x0e, 0x4a, 0xfe, 0x1e, 0x0e\n" ++
   ".balign 8\n" ++
+  "npr_saved_mtvec:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
   "npr_node_12_13_scratch:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
