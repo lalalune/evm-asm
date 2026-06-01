@@ -1090,6 +1090,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bbcv_acct_len:\n  .zero 8\n" ++
   "bbcv_addr_off:\n  .zero 8\n" ++
   "bbcv_addr_len:\n  .zero 8\n" ++
+  "bbcv_field_off:\n  .zero 8\n" ++
+  "bbcv_field_len:\n  .zero 8\n" ++
+  "bbcv_field_count:\n  .zero 8\n" ++
+  "bbcv_balance_count:\n  .zero 8\n" ++
+  "bbcv_nonce_count:\n  .zero 8\n" ++
   "ad_offset:\n  .zero 8\n" ++
   "ad_length:\n  .zero 8\n" ++
   "aa_value_len:\n  .zero 8\n" ++
