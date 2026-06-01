@@ -702,6 +702,13 @@ def vec_mi_depth2():
     c = branch_node(slots_c)
     slots_b = [b"\x80"] * 16
     slots_b[0x7] = node_ref(c)
+def vec_mi_leafsplit_depth1():
+    """R slot5 -> branch B (hash); B slot7 -> leaf LA key [a,b]. Insert path
+    [5,7,9,c] diverges at LA (m=0) -> LEAF_SPLIT at DEPTH 1 (ancestors R,B): the
+    new branch replaces LA at B slot7, bubbling through B then R. mi_leaf_split
+    was depth 0; this exercises the leaf-split terminal under ancestors."""
+    la = leaf_node([0xa, 0xb], b"L" * 40)       # >=32 hash-ref
+    slots_b[0x7] = node_ref(la)
     b = branch_node(slots_b)
     slots_r = [b"\x80"] * 16
     slots_r[0x5] = node_ref(b)
@@ -713,6 +720,14 @@ def vec_mi_depth2():
     c2 = branch_node(slots_c2)
     slots_b2 = list(slots_b)
     slots_b2[0x7] = node_ref(c2)
+    val = b"newdeep"
+    old2 = leaf_node([0xb], b"L" * 40)          # LA[m+1..]=[b]
+    new2 = leaf_node([0xc], val)                # P[m+1..]=[c]
+    spl = [b"\x80"] * 16
+    spl[0xa] = node_ref(old2)
+    spl[0x9] = node_ref(new2)
+    split_branch = branch_node(spl)
+    slots_b2[0x7] = node_ref(split_branch)
     b2 = branch_node(slots_b2)
     slots_r2 = list(slots_r)
     slots_r2[0x5] = node_ref(b2)
@@ -850,6 +865,10 @@ def vec_state_root_ins_longkey():
     return dict(name="state_root_ins_longkey", witness=[root, leaf_a],
                 root=trie_root(root), changes=changes,
                 expected=trie_root(new_root))
+    return dict(name="mi_leafsplit_depth1", witness=[root, b, la],
+                root=trie_root(root), path=[0x5, 0x7, 0x9, 0xc], value=val,
+                expected=trie_root(root2))
+              vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_leafsplit_depth1]
 
 
 # ---- insert-aware multi-change driver (mpt_state_root_ins .2.4.2.6.3) ------
@@ -895,6 +914,69 @@ def vec_state_root_ins():
     return dict(name="state_root_ins", witness=[root, leaf_a],
                 root=trie_root(root), changes=changes,
                 expected=trie_root(new_root))
+
+
+def vec_state_root_ins_deep():
+    """R branch: slot1 -> leaf A (existing), slot2 -> branch B (hash); B slot5
+    -> leaf B, slot7 empty. change0 = MODIFY key A (slot1) -> R' in the DB;
+    change1 = INSERT at B slot7 via path [2,7,e,f] -- descends R' (resolved
+    from the DB) -> B (witness) -> empty slot7, so the insert's bubble-up must
+    splice a DB-RESIDENT ancestor (R'). This is the depth>=1 insert-after-modify
+    the depth-0 state_root_ins vector never exercised."""
+    a_old, a_new = b"A" * 32, b"a-new" * 8
+    b_old, vins = b"B" * 32, b"ins" * 12
+    leaf_a = leaf_node([0xa, 0xb], a_old)
+    leaf_b = leaf_node([0xc, 0xd], b_old)
+    slots_bb = [b"\x80"] * 16
+    slots_bb[0x5] = node_ref(leaf_b)
+    bb = branch_node(slots_bb)
+    slots_r = [b"\x80"] * 16
+    slots_r[0x1] = node_ref(leaf_a)
+    slots_r[0x2] = node_ref(bb)
+    root = branch_node(slots_r)
+    # post: slot1 leaf updated; B gets a new leaf at slot7
+    slots_bb2 = list(slots_bb)
+    slots_bb2[0x7] = node_ref(leaf_node([0xe, 0xf], vins))
+    bb2 = branch_node(slots_bb2)
+    slots_r2 = list(slots_r)
+    slots_r2[0x1] = node_ref(leaf_node([0xa, 0xb], a_new))
+    slots_r2[0x2] = node_ref(bb2)
+    root2 = branch_node(slots_r2)
+    changes = [([0x1, 0xa, 0xb], a_new, False),
+               ([0x2, 0x7, 0xe, 0xf], vins, True)]
+    return dict(name="state_root_ins_deep", witness=[root, leaf_a, bb],
+                root=trie_root(root), changes=changes,
+                expected=trie_root(root2))
+
+
+def vec_state_root_ins_dbchild():
+    """R slot5 -> branch B; B slot5 -> leaf A, slot7 empty. change0 = MODIFY
+    key A (path 5,5,a,b) -> re-encodes B AND R into the DB. change1 = INSERT at
+    B slot7 (path 5,7,e,f): descends R'(DB) slot5 -> B'(DB, MODIFIED by change0)
+    -> empty slot7. So the insert must resolve a DB-modified INTERMEDIATE node
+    (B') and bubble through two DB-resident ancestors -- the case neither
+    state_root_ins nor state_root_ins_deep exercised."""
+    a_old, a_new, vins = b"A" * 32, b"a-new" * 8, b"ins" * 12
+    leaf_a = leaf_node([0xa, 0xb], a_old)
+    slots_b = [b"\x80"] * 16
+    slots_b[0x5] = node_ref(leaf_a)
+    bb = branch_node(slots_b)
+    slots_r = [b"\x80"] * 16
+    slots_r[0x5] = node_ref(bb)
+    root = branch_node(slots_r)
+    # post
+    slots_b2 = list(slots_b)
+    slots_b2[0x5] = node_ref(leaf_node([0xa, 0xb], a_new))
+    slots_b2[0x7] = node_ref(leaf_node([0xe, 0xf], vins))
+    bb2 = branch_node(slots_b2)
+    slots_r2 = list(slots_r)
+    slots_r2[0x5] = node_ref(bb2)
+    root2 = branch_node(slots_r2)
+    changes = [([0x5, 0x5, 0xa, 0xb], a_new, False),
+               ([0x5, 0x7, 0xe, 0xf], vins, True)]
+    return dict(name="state_root_ins_dbchild", witness=[root, bb, leaf_a],
+                root=trie_root(root), changes=changes,
+                expected=trie_root(root2))
 
 
 if __name__ == "__main__":
@@ -1018,3 +1100,19 @@ if __name__ == "__main__":
     with open(f"{outdir}/state_root_ins_large_branch.expected", "w") as f:
         f.write(srilb["expected"].hex())
     print(f"{'sri_large':12} final_root={srilb['expected'].hex()} (large DB root + insert)")
+    srid = vec_state_root_ins_deep()
+    sec = ssz_section(srid["witness"])
+    with open(f"{outdir}/state_root_ins_deep.input", "wb") as f:
+        f.write(build_state_root_ins_input(srid["root"], srid["changes"], sec))
+    with open(f"{outdir}/state_root_ins_deep.expected", "w") as f:
+        f.write(srid["expected"].hex())
+    print(f"{'sri_deep':12} root={srid['root'].hex()[:16]}.. "
+          f"final_root={srid['expected'].hex()} (modify+insert depth>=1)")
+    sridc = vec_state_root_ins_dbchild()
+    sec = ssz_section(sridc["witness"])
+    with open(f"{outdir}/state_root_ins_dbchild.input", "wb") as f:
+        f.write(build_state_root_ins_input(sridc["root"], sridc["changes"], sec))
+    with open(f"{outdir}/state_root_ins_dbchild.expected", "w") as f:
+        f.write(sridc["expected"].hex())
+    print(f"{'sri_dbchild':12} root={sridc['root'].hex()[:16]}.. "
+          f"final_root={sridc['expected'].hex()} (insert via DB-modified child)")
