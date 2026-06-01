@@ -624,6 +624,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   swdMinimalCopyFunction ++ "\n" ++
   systemWriteDescriptorsFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
+  accountIsEip161EmptyFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
@@ -822,7 +823,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bacp_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "baacd_value_len:\n  .zero 8\n" ++
+  "baacd_is_empty:\n  .zero 8\n" ++
   "baacd_fail_code:\n  .zero 8\n" ++
+  "aie_offset:\n  .zero 8\n" ++
+  "aie_length:\n  .zero 8\n" ++
+  "aie_empty_code_hash:\n" ++
+  "  .byte 0xc5,0xd2,0x46,0x01,0x86,0xf7,0x23,0x3c\n" ++
+  "  .byte 0x92,0x7e,0x7d,0xb2,0xdc,0xc7,0x03,0xc0\n" ++
+  "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
+  "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
   "bacv_fail_code:\n  .zero 8\n" ++
   "baada_item_off:\n  .zero 8\n" ++
   "baada_item_len:\n  .zero 8\n" ++
@@ -1009,6 +1018,7 @@ def statelessVerdictV2GuestClosure : String :=
   swdMinimalCopyFunction ++ "\n" ++
   systemWriteDescriptorsFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
+  accountIsEip161EmptyFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
