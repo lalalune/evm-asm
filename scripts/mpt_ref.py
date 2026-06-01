@@ -643,6 +643,51 @@ MI_VECTORS = [vec_mi_branch_empty, vec_mi_empty_trie, vec_mi_ext_then_branch,
               vec_mi_leaf_split, vec_mi_leaf_split_m0]
 
 
+# ---- insert-aware multi-change driver (mpt_state_root_ins .2.4.2.6.3) ------
+def build_state_root_ins_input(root_hash, changes, witness_section) -> bytes:
+    """ziskemu -i body for zisk_mpt_state_root_ins (file maps to INPUT+8):
+      +8 witness_len | +16 n_changes | +24 root_hash(32B)
+      +56 table: N x (path_len:u64, value_len:u64, is_insert:u64)
+      then blobs path0,value0,... (each 8-aligned) | then witness."""
+    body = bytearray()
+    body += struct.pack("<Q", len(witness_section))
+    body += struct.pack("<Q", len(changes))
+    body += root_hash
+    for (path, value, isins) in changes:
+        body += struct.pack("<QQQ", len(path), len(value), 1 if isins else 0)
+    for (path, value, isins) in changes:
+        body += bytes(path)
+        while len(body) % 8 != 0:
+            body += b"\x00"
+        body += value
+        while len(body) % 8 != 0:
+            body += b"\x00"
+    body += witness_section
+    while len(body) % 8 != 0:        # ziskemu requires a multiple-of-8 input
+        body += b"\x00"
+    return bytes(body)
+
+
+def vec_state_root_ins():
+    """Branch root with leaf at slot 1 (existing key A) + empty slot 3.
+    change 0 = MODIFY key A; change 1 = INSERT at slot 3. The insert must
+    resolve the modified root from the DB (the modify appended it)."""
+    la_path = [0xa, 0xb]
+    a_old, a_new, v2 = b"A" * 32, b"a-new" * 8, b"v2" * 20
+    leaf_a = leaf_node(la_path, a_old)
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(leaf_a)
+    root = branch_node(slots)
+    slots2 = list(slots)
+    slots2[1] = node_ref(leaf_node(la_path, a_new))
+    slots2[3] = node_ref(leaf_node([0xc, 0xd], v2))
+    new_root = branch_node(slots2)
+    changes = [([0x1] + la_path, a_new, False), ([0x3, 0xc, 0xd], v2, True)]
+    return dict(name="state_root_ins", witness=[root, leaf_a],
+                root=trie_root(root), changes=changes,
+                expected=trie_root(new_root))
+
+
 if __name__ == "__main__":
     import os
     outdir = sys.argv[1] if len(sys.argv) > 1 else "gen-out/mpt-set"
@@ -734,3 +779,12 @@ if __name__ == "__main__":
         f.write(sr["expected"].hex())
     print(f"{'state_root':12} root={sr['root'].hex()[:16]}.. "
           f"final_root={sr['expected'].hex()} (n={len(sr['changes'])})")
+    # insert-aware multi-change driver vector (mpt_state_root_ins)
+    sri = vec_state_root_ins()
+    sec = ssz_section(sri["witness"])
+    with open(f"{outdir}/state_root_ins.input", "wb") as f:
+        f.write(build_state_root_ins_input(sri["root"], sri["changes"], sec))
+    with open(f"{outdir}/state_root_ins.expected", "w") as f:
+        f.write(sri["expected"].hex())
+    print(f"{'state_root_ins':12} root={sri['root'].hex()[:16]}.. "
+          f"final_root={sri['expected'].hex()} (modify+insert)")
