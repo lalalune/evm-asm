@@ -123,10 +123,12 @@ Wire enough memory and registers so the verified `evm_add` program
     epilogue is itself a verified `Program` — every instruction lives
     in `Instr` and goes through the same totalized `emitInstr` and
     `#guard` round-trip tests as the body.
-- `Driver.lean` adds `-Tdata=0xa0000000` to the link step so writable
+- `Driver.lean` adds `-Tdata=0xa0100000` to the link step so writable
   `.data` lands in `ziskemu`'s RAM region (`0xa0000000–0xc0000000`);
-  without this, the emulator refuses the ELF with
-  *"writable data section … outside RAM bounds"*.
+  without an explicit RAM address, the emulator refuses the ELF with
+  *"writable data section … outside RAM bounds"*. The data base is above
+  `OUTPUT_ADDR = 0xa0010000`, so large scratch sections cannot alias the
+  public output buffer.
 - `scripts/codegen-evm_add-check.sh` builds, emits, links, runs, and
   diffs the first 32 bytes of `ziskemu`'s `-o` output against the
   expected 4-limb sum. **PASSES** with the M2 test case
@@ -492,14 +494,12 @@ verified `Program`s; see `docs/99-mload-design.md` §4 and the
 - `x14, x15, x16, x17, x18` = caller-saved scratch for memory handlers
 
 **`.data` budget.**
-The dispatcher's `.data` section starts at `0xa0000000` and must
-stay under `0xa0010000` (= `OUTPUT_ADDR`). Post-M7 layout: ~50 B
-bytecode + 256 B stack scratch + 32 KiB EVM memory + 2 KiB jump
-table ≈ 35 KiB. Comfortably under the 64 KiB cap. A future
-milestone that needs > 32 KiB of EVM memory should either grow
-the budget (extending `.data` is bounded by `OUTPUT_ADDR`) or
-relocate `evm_memory` to a separate section linked above
-`OUTPUT_ADDR + 0x10000`.
+The dispatcher's `.data` section starts at `0xa0100000`, deliberately above
+the fixed ziskemu public-output page at `0xa0010000`. Earlier milestones kept
+`.data` below `OUTPUT_ADDR`; the stateless guest's scratch data now exceeds
+that old 64 KiB window, so the link layout reserves the output page instead of
+treating it as the upper bound for writable data. Large multi-MiB SSZ scratch
+buffers remain in the separate `.sszscratch` section at `0xa2000000`.
 
 **Exit criteria (met).**
 `scripts/codegen-opcodes-check.sh` exits 0 with all 24 cases
