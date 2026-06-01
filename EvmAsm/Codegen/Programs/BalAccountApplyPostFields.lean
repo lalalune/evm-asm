@@ -20,6 +20,77 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-! ## baap_delete_single_leaf_storage
+
+    Conservative storage-delete helper for BAL post-state replay. It handles
+    only the common one-slot trie case: if the account's prior storageRoot is
+    exactly a leaf at the cleared slot, deleting that slot makes the storage
+    root the empty trie root. Other trie shapes stay conservative.
+
+    a0 = account RLP ptr        a1 = account RLP length
+    a2 = slot key ptr (32 B)    a3 = output account ptr
+    a4 = u64 out account length ptr
+    a0 (output) = 0 ok / 1 conservative or parse failure. -/
+def baapDeleteSingleLeafStorageFunction : String :=
+  "baap_delete_single_leaf_storage:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # account\n" ++
+  "  mv s1, a1                   # account len\n" ++
+  "  mv s2, a2                   # slot key\n" ++
+  "  mv s3, a3                   # out account\n" ++
+  "  mv s4, a4                   # out len\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 2; la a3, aps_off; la a4, aps_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbaapdsl_fail\n" ++
+  "  la t0, aps_len; ld t1, 0(t0); li t2, 32; bne t1, t2, .Lbaapdsl_fail\n" ++
+  "  la t0, aps_off; ld t1, 0(t0); add t1, s0, t1; la t0, baap_storage_root_ptr; sd t1, 0(t0)\n" ++
+  "  # Deleting from an empty storage trie is a no-op.\n" ++
+  "  mv t2, t1; la t3, aps_empty_root; li t4, 32\n" ++
+  ".Lbaapdsl_empty_cmp:\n" ++
+  "  beqz t4, .Lbaapdsl_copy_current\n" ++
+  "  lbu t5, 0(t2); lbu t6, 0(t3); bne t5, t6, .Lbaapdsl_nonempty\n" ++
+  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lbaapdsl_empty_cmp\n" ++
+  ".Lbaapdsl_nonempty:\n" ++
+  "  mv a0, s2; li a1, 32; la a2, srss_key\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  la a0, srss_key; li a1, 32; la a2, baap_storage_paths\n" ++
+  "  jal ra, bytes_to_nibbles\n" ++
+  "  la t0, aps_witness_ptr; ld a0, 0(t0); beqz a0, .Lbaapdsl_fail\n" ++
+  "  la t0, aps_witness_len; ld a1, 0(t0); la t0, baap_storage_root_ptr; ld a2, 0(t0)\n" ++
+  "  la a3, baap_item_off; la a4, baap_item_len\n" ++
+  "  jal ra, witness_lookup_by_hash\n" ++
+  "  bnez a0, .Lbaapdsl_fail\n" ++
+  "  la t0, aps_witness_ptr; ld t1, 0(t0); la t0, baap_item_off; ld t2, 0(t0); add a0, t1, t2\n" ++
+  "  la t0, baap_item_len; ld a1, 0(t0); la a2, baap_walk_val; la a3, baap_walk_val_len\n" ++
+  "  la a4, baap_code_item_ptr; la a5, baap_val_len\n" ++
+  "  jal ra, mpt_leaf_extract\n" ++
+  "  bnez a0, .Lbaapdsl_fail\n" ++
+  "  la t0, baap_walk_val_len; ld t0, 0(t0); li t1, 64; bne t0, t1, .Lbaapdsl_fail\n" ++
+  "  la t0, baap_walk_val; la t1, baap_storage_paths; li t2, 64\n" ++
+  ".Lbaapdsl_path_cmp:\n" ++
+  "  beqz t2, .Lbaapdsl_set_empty\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbaapdsl_fail\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbaapdsl_path_cmp\n" ++
+  ".Lbaapdsl_set_empty:\n" ++
+  "  mv a0, s0; mv a1, s1; la a2, aps_empty_root; mv a3, s3; mv a4, s4\n" ++
+  "  jal ra, account_set_storage_root\n" ++
+  "  bnez a0, .Lbaapdsl_fail\n" ++
+  "  li a0, 0; j .Lbaapdsl_ret\n" ++
+  ".Lbaapdsl_copy_current:\n" ++
+  "  mv a0, s3; mv a1, s0; mv a2, s1\n" ++
+  "  jal ra, mset_memcpy\n" ++
+  "  sd s1, 0(s4)\n" ++
+  "  li a0, 0; j .Lbaapdsl_ret\n" ++
+  ".Lbaapdsl_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbaapdsl_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
 /-! ## bal_account_apply_post_fields -- account RLP + BAL item -> post account RLP
 
     a0 = account RLP ptr        a1 = account RLP length
@@ -133,10 +204,17 @@ def balAccountApplyPostFieldsFunction : String :=
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbaap_fail\n" ++
   "  la t0, baap_val_len; ld t0, 0(t0); li t1, 32; bgtu t0, t1, .Lbaap_fail\n" ++
+  "  beqz t0, .Lbaap_one_storage_delete\n" ++
   "  la t1, baap_slot_changes_ptr; ld t1, 0(t1); la t2, baap_item_off; ld t2, 0(t2); add t1, t1, t2\n" ++
   "  la t2, baap_val_off; ld t2, 0(t2); add a3, t1, t2\n" ++
   "  mv a0, s6; mv a1, s7; la a2, baap_slot; mv a4, t0; la a5, baap_tmp2; la a6, baap_tmp2_len\n" ++
   "  jal ra, account_apply_storage_slot_acc\n" ++
+  "  bnez a0, .Lbaap_fail\n" ++
+  "  la s6, baap_tmp2; la t0, baap_tmp2_len; ld s7, 0(t0)\n" ++
+  "  j .Lbaap_nonce\n" ++
+  ".Lbaap_one_storage_delete:\n" ++
+  "  mv a0, s6; mv a1, s7; la a2, baap_slot; la a3, baap_tmp2; la a4, baap_tmp2_len\n" ++
+  "  jal ra, baap_delete_single_leaf_storage\n" ++
   "  bnez a0, .Lbaap_fail\n" ++
   "  la s6, baap_tmp2; la t0, baap_tmp2_len; ld s7, 0(t0)\n" ++
   "  j .Lbaap_nonce\n" ++
@@ -350,6 +428,7 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   mptStateRootInsFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
+  baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   ".Lbaap_pdone:"
 
