@@ -294,7 +294,9 @@ open EvmAsm.Rv64
 def statelessGuestUnit : BuildUnit := {
   body        := EvmAsm.Stateless.run_stateless_guest
   epilogueAsm := statelessGuestEpilogue
-  dataAsm     := statelessGuestDataSection
+  -- guest scratch + the Step-2 verdict's data (zk3_state / rfu_* are dedup'd out
+  -- of the guest section since the appended verdict section provides them).
+  dataAsm     := statelessGuestDataSection ++ "\n" ++ statelessVerdictV2GuestData
 }
 
 /-! ## registry -/

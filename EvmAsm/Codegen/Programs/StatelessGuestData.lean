@@ -148,14 +148,9 @@ def statelessGuestDataSection : String :=
   "sg_kpr_bad_index:\n" ++
   "  .zero 8\n" ++
   -- Shared K-PR scratch (zk3_state / rfu_offset / rfu_length: used by
-  -- rlp_list_nth_item + rlp_field_to_u64; same labels each K-PR
-  -- declares, declared once here):
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
+  -- rlp_list_nth_item + rlp_field_to_u64). Now provided by the appended Step-2
+  -- verdict data section (statelessGuestUnit.dataAsm), so NOT declared here to
+  -- avoid duplicate-symbol errors.
   -- K290 chain_validate_post_merge_full scratch:
   "cvpmf_field:\n" ++
   "  .zero 8\n" ++

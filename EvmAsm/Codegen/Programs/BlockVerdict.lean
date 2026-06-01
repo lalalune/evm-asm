@@ -413,4 +413,92 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   dataAsm     := ziskStatelessVerdictV2DataSection
 }
 
+/-- The full stateless_verdict_v2 asm closure for embedding in the GUEST epilogue,
+    OMITTING rlp_list_nth_item + rlp_field_to_u64 (the guest already defines those,
+    so they would be duplicate labels). The guest jal's `stateless_verdict_v2` and
+    writes its bit to OUTPUT[32]. -/
+def statelessVerdictV2GuestClosure : String :=
+  zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  mptBranchChildFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  u256FromU64BeFunction ++ "\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256DivU64BeFunction ++ "\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256EqFunction ++ "\n" ++
+  withdrawalDecodeFunction ++ "\n" ++
+  withdrawalToPathDeltaFunction ++ "\n" ++
+  msetMemcpyFunction ++ "\n" ++
+  mptSpliceSlotFunction ++ "\n" ++
+  accountAddBalanceFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
+  nodeDbAppendFunction ++ "\n" ++
+  nodeDbLookupFunction ++ "\n" ++
+  mptNodeResolveFunction ++ "\n" ++
+  mptSetRecordWalkDbFunction ++ "\n" ++
+  mptSetAccFunction ++ "\n" ++
+  mptStateRootFunction ++ "\n" ++
+  withdrawalsStateRootFunction ++ "\n" ++
+  validateHeaderBasicFunction ++ "\n" ++
+  checkGasLimitFunction ++ "\n" ++
+  headerValidatePostMergeFunction ++ "\n" ++
+  headerValidateExtraDataLengthFunction ++ "\n" ++
+  eip1559CalcBaseFeePerGasFunction ++ "\n" ++
+  headerValidateBaseFeeFunction ++ "\n" ++
+  validateHeaderFullFunction ++ "\n" ++
+  headerExtendedDecodeFunction ++ "\n" ++
+  headersParentHashFunction ++ "\n" ++
+  headerValidateParentHashFunction ++ "\n" ++
+  validateHeaderRlpPairFunction ++ "\n" ++
+  bhrRevLeBeFunction ++ "\n" ++
+  blockHeaderSszToRlpFunction ++ "\n" ++
+  step2VerdictFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  ephU32leFunction ++ "\n" ++
+  extractParentHeaderAndStateRootFunction ++ "\n" ++
+  spwU32leFunction ++ "\n" ++
+  extractPayloadAndWithdrawalsFunction ++ "\n" ++
+  swsU32leFunction ++ "\n" ++
+  extractWitnessStateSectionFunction ++ "\n" ++
+  swrRevLeBeFunction ++ "\n" ++
+  sszWithdrawalToRlpFunction ++ "\n" ++
+  statelessVerdictFromSszFunction ++ "\n" ++
+  singleLeafTrieRootFunction ++ "\n" ++
+  storageRootSingleSlotFunction ++ "\n" ++
+  accountSetStorageRootFunction ++ "\n" ++
+  accountApplyStorageSlotFunction ++ "\n" ++
+  swdReadU64leFunction ++ "\n" ++
+  swdWriteBe32U64Function ++ "\n" ++
+  swdWriteBe8Function ++ "\n" ++
+  swdMinimalCopyFunction ++ "\n" ++
+  systemWriteDescriptorsFunction ++ "\n" ++
+  bsrSysChangeFunction ++ "\n" ++
+  blockStateRootFunction ++ "\n" ++
+  blockVerdictFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  bgvU32leFunction ++ "\n" ++
+  bgvU64leFunction ++ "\n" ++
+  balGasValidFunction ++ "\n" ++
+  statelessVerdictV2Function
+
+/-- The data section the guest needs for the embedded verdict closure (same as the
+    probe's, MINUS zk3_state / rfu_offset / rfu_length which the guest data already
+    defines — those are removed from the guest data section to avoid dup labels). -/
+def statelessVerdictV2GuestData : String :=
+  ziskStatelessVerdictV2DataSection
+
 end EvmAsm.Codegen
