@@ -24,6 +24,7 @@ os.makedirs(outdir, exist_ok=True)
 EMPTY_ROOT = bytes.fromhex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 EMPTY_CODE_HASH = bytes.fromhex("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 SLOT_1_VALUE_7_ROOT = bytes.fromhex("2e7827dc2c61c322f13f77e6f25dd18844ccc48426dde70301d2d57d138fced8")
+SLOTS_1_2_VALUES_7_9_ROOT = bytes.fromhex("d4768ae8d8aaa8da763864dd76573bdc5d107ac968eb886393419033cc66dac7")
 
 
 def minimal_be(n: int) -> bytes:
@@ -100,6 +101,12 @@ cases = [
         bal_account_change_rlp(addr, storage_changes=[(1, [(1, 7)])]),
         account_rlp(1, 5, SLOT_1_VALUE_7_ROOT),
     ),
+    (
+        "baap_two_storage",
+        base,
+        bal_account_change_rlp(addr, storage_changes=[(1, [(1, 7)]), (2, [(2, 9)])]),
+        account_rlp(1, 5, SLOTS_1_2_VALUES_7_9_ROOT),
+    ),
 ]
 
 for name, account, account_change, expected in cases:
@@ -118,7 +125,7 @@ lake exe codegen --program zisk_bal_account_apply_post_fields --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_bal_account_apply_post_fields"
 
 fail=0
-for name in baap_noop baap_balance baap_nonce baap_both baap_zero_balance baap_storage_only; do
+for name in baap_noop baap_balance baap_nonce baap_both baap_zero_balance baap_storage_only baap_two_storage; do
   out="$VDIR/$name.output"
   "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_apply_post_fields.elf" \
     -i "$VDIR/$name.input" -o "$out" -n 2000000 >/dev/null 2>&1 </dev/null \
