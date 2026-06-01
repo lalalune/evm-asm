@@ -704,7 +704,325 @@ def vec_mi_ext_then_branch():
                 expected=trie_root(new_root))
 
 
-MI_VECTORS = [vec_mi_branch_empty, vec_mi_empty_trie, vec_mi_ext_then_branch]
+def vec_mi_leaf_split():
+    """Root = leaf key [1,2,3,4]. Insert path [1,2,9,9] (shared prefix [1,2],
+    m=2): split into a branch (old leaf' at nibble 3, new leaf at nibble 9)
+    wrapped in extension([1,2])."""
+    lv = b"leaf-value"
+    root = leaf_node([1, 2, 3, 4], lv)
+    val = b"newval-xyz"
+    old2 = leaf_node([4], lv)          # K[m+1..] = [4]
+    new2 = leaf_node([9], val)         # P[m+1..] = [9]
+    slots = [b"\x80"] * 16
+    slots[3] = node_ref(old2)          # K[m] = 3
+    slots[9] = node_ref(new2)          # P[m] = 9
+    branch = branch_node(slots)
+    newroot = extension_node([1, 2], node_ref(branch))
+    return dict(name="mi_leaf_split", witness=[root], root=trie_root(root),
+                path=[1, 2, 9, 9], value=val, expected=trie_root(newroot))
+
+
+def vec_mi_leaf_split_m0():
+    """Root = leaf key [5,6,7]. Insert path [9,6,7] diverges at nibble 0
+    (m=0): split into a branch directly (no extension wrap)."""
+    lv = b"abc"
+    root = leaf_node([5, 6, 7], lv)
+    val = b"xyz"
+    old2 = leaf_node([6, 7], lv)       # K[1..] = [6,7]
+    new2 = leaf_node([6, 7], val)      # P[1..] = [6,7]
+    slots = [b"\x80"] * 16
+    slots[5] = node_ref(old2)          # K[0] = 5
+    slots[9] = node_ref(new2)          # P[0] = 9
+    branch = branch_node(slots)
+    return dict(name="mi_leaf_split_m0", witness=[root], root=trie_root(root),
+                path=[9, 6, 7], value=val, expected=trie_root(branch))
+
+
+def vec_mi_depth2():
+    """root branch slot5 -> branch B slot7 -> branch C, slot2 empty. Insert
+    path [5,7,2,e] -> BRANCH_EMPTY_SLOT at C, depth 2 (root + B ancestors).
+    Exercises the depth>=2 bubble-up."""
+    leaf_l = leaf_node([0xd], b"L" * 40)        # >=32 -> hash-ref
+    slots_c = [b"\x80"] * 16
+    slots_c[0xa] = node_ref(leaf_l)
+    c = branch_node(slots_c)
+    slots_b = [b"\x80"] * 16
+    slots_b[0x7] = node_ref(c)
+def vec_mi_leafsplit_depth1():
+    """R slot5 -> branch B (hash); B slot7 -> leaf LA key [a,b]. Insert path
+    [5,7,9,c] diverges at LA (m=0) -> LEAF_SPLIT at DEPTH 1 (ancestors R,B): the
+    new branch replaces LA at B slot7, bubbling through B then R. mi_leaf_split
+    was depth 0; this exercises the leaf-split terminal under ancestors."""
+    la = leaf_node([0xa, 0xb], b"L" * 40)       # >=32 hash-ref
+    slots_b[0x7] = node_ref(la)
+    b = branch_node(slots_b)
+    slots_r = [b"\x80"] * 16
+    slots_r[0x5] = node_ref(b)
+    root = branch_node(slots_r)
+    val = b"depth2val"
+    new_leaf = leaf_node([0xe], val)            # path[consumed+1..] = [e]
+    slots_c2 = list(slots_c)
+    slots_c2[0x2] = node_ref(new_leaf)          # nibble path[consumed=2] = 2
+    c2 = branch_node(slots_c2)
+    slots_b2 = list(slots_b)
+    slots_b2[0x7] = node_ref(c2)
+    val = b"newdeep"
+    old2 = leaf_node([0xb], b"L" * 40)          # LA[m+1..]=[b]
+    new2 = leaf_node([0xc], val)                # P[m+1..]=[c]
+    spl = [b"\x80"] * 16
+    spl[0xa] = node_ref(old2)
+    spl[0x9] = node_ref(new2)
+    split_branch = branch_node(spl)
+    slots_b2[0x7] = node_ref(split_branch)
+    b2 = branch_node(slots_b2)
+    slots_r2 = list(slots_r)
+    slots_r2[0x5] = node_ref(b2)
+    root2 = branch_node(slots_r2)
+    return dict(name="mi_depth2", witness=[root, b, c], root=trie_root(root),
+                path=[0x5, 0x7, 0x2, 0xe], value=val, expected=trie_root(root2))
+
+
+def vec_mi_acctkey():
+    """Branch root, slot1 empty, slot2 -> leaf. Insert a FULL 64-nibble account
+    path (slot1) -> leaf with a 63-nibble (odd) key + a 70-byte account value --
+    the realistic case (mi_branch_empty used a 2-nibble key)."""
+    other = leaf_node([0x0] * 63, b"O" * 40)
+    slots = [b"\x80"] * 16
+    slots[2] = node_ref(other)
+    root = branch_node(slots)
+    path = [1] + [(i * 7 + 3) % 16 for i in range(63)]
+    val = bytes.fromhex("f8448080") + b"\x00" * 66
+    new_leaf = leaf_node(path[1:], val)
+    slots2 = list(slots)
+    slots2[1] = node_ref(new_leaf)
+    root2 = branch_node(slots2)
+    return dict(name="mi_acctkey", witness=[root], root=trie_root(root),
+                path=path, value=val, expected=trie_root(root2))
+
+
+def vec_mi_acctkey_f9():
+    """Large branch root with seven occupied slots (payload 241, f8 prefix).
+    Insert a full 64-nibble account path into an empty slot, growing the branch
+    payload to 273 and forcing the list prefix from f8 LL to f9 LLLL."""
+    slots = [b"\x80"] * 16
+    for i in range(2, 9):
+        slots[i] = node_ref(leaf_node([i] * 63, bytes([i]) * 40))
+    root = branch_node(slots)
+    path = [1] + [(i * 7 + 3) % 16 for i in range(63)]
+    val = bytes.fromhex("f8448080") + b"\x00" * 66
+    new_leaf = leaf_node(path[1:], val)
+    slots2 = list(slots)
+    slots2[1] = node_ref(new_leaf)
+    root2 = branch_node(slots2)
+    return dict(name="mi_acctkey_f9", witness=[root], root=trie_root(root),
+                path=path, value=val, expected=trie_root(root2))
+
+
+MI_VECTORS = [vec_mi_branch_empty, vec_mi_empty_trie, vec_mi_ext_then_branch,
+              vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_depth2,
+              vec_mi_acctkey, vec_mi_acctkey_f9]
+
+
+# ---- insert-aware multi-change driver (mpt_state_root_ins .2.4.2.6.3) ------
+def build_state_root_ins_input(root_hash, changes, witness_section) -> bytes:
+    """ziskemu -i body for zisk_mpt_state_root_ins (file maps to INPUT+8):
+      +8 witness_len | +16 n_changes | +24 root_hash(32B)
+      +56 table: N x (path_len:u64, value_len:u64, is_insert:u64)
+      then blobs path0,value0,... (each 8-aligned) | then witness."""
+    body = bytearray()
+    body += struct.pack("<Q", len(witness_section))
+    body += struct.pack("<Q", len(changes))
+    body += root_hash
+    for (path, value, isins) in changes:
+        body += struct.pack("<QQQ", len(path), len(value), 1 if isins else 0)
+    for (path, value, isins) in changes:
+        body += bytes(path)
+        while len(body) % 8 != 0:
+            body += b"\x00"
+        body += value
+        while len(body) % 8 != 0:
+            body += b"\x00"
+    body += witness_section
+    while len(body) % 8 != 0:        # ziskemu requires a multiple-of-8 input
+        body += b"\x00"
+    return bytes(body)
+
+
+def vec_state_root_ins_large_branch():
+    """Large root branch: modify an existing hashed leaf, then insert a full
+    64-nibble account into an empty slot of the DB-resident modified root.
+    The branch payload crosses the f8 LL -> f9 LLLL boundary after insert."""
+    slots = [b"\x80"] * 16
+    leaves = {}
+    for i in range(2, 9):
+        leaf = leaf_node([i] * 63, bytes([i]) * 40)
+        leaves[i] = leaf
+        slots[i] = node_ref(leaf)
+    root = branch_node(slots)
+    mod_path = [2] + [2] * 63
+    mod_val = b"modified-slot-2-value" * 2
+    ins_path = [1] + [(i * 7 + 3) % 16 for i in range(63)]
+    ins_val = bytes.fromhex("f8448080") + b"\x00" * 66
+    slots2 = list(slots)
+    slots2[2] = node_ref(leaf_node([2] * 63, mod_val))
+    slots2[1] = node_ref(leaf_node(ins_path[1:], ins_val))
+    root2 = branch_node(slots2)
+    changes = [(mod_path, mod_val, False), (ins_path, ins_val, True)]
+    witness = [root] + [leaves[i] for i in range(2, 9)]
+    return dict(name="state_root_ins_large_branch", witness=witness,
+                root=trie_root(root), changes=changes, expected=trie_root(root2))
+
+def vec_state_root_ins():
+    """Branch root with leaf at slot 1 (existing key A) + empty slot 3.
+    change 0 = MODIFY key A; change 1 = INSERT at slot 3. The insert must
+    resolve the modified root from the DB (the modify appended it)."""
+    la_path = [0xa, 0xb]
+    a_old, a_new, v2 = b"A" * 32, b"a-new" * 8, b"v2" * 20
+    leaf_a = leaf_node(la_path, a_old)
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(leaf_a)
+    root = branch_node(slots)
+    slots2 = list(slots)
+    slots2[1] = node_ref(leaf_node(la_path, a_new))
+    slots2[3] = node_ref(leaf_node([0xc, 0xd], v2))
+    new_root = branch_node(slots2)
+    changes = [([0x1] + la_path, a_new, False), ([0x3, 0xc, 0xd], v2, True)]
+    return dict(name="state_root_ins", witness=[root, leaf_a],
+                root=trie_root(root), changes=changes,
+                expected=trie_root(new_root))
+
+
+def vec_state_root_ins_longkey():
+    """change0 MODIFY key A (slot1) -> R' in DB; change1 INSERT a FULL 64-nibble
+    path at R' empty slot3 -> a 63-nibble-key leaf. Combines DB-resident root +
+    long account-style leaf key (the real eip4895 precompile case)."""
+    a_old, a_new = b"A" * 32, b"a-new" * 8
+    leaf_a = leaf_node([0xa, 0xb], a_old)
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(leaf_a)
+    root = branch_node(slots)
+    ipath = [3] + [(i * 5 + 2) % 16 for i in range(63)]   # 64 nibbles at slot3
+    val = bytes.fromhex("f8448080") + b"\x00" * 66
+    slots2 = list(slots)
+    slots2[1] = node_ref(leaf_node([0xa, 0xb], a_new))
+    slots2[3] = node_ref(leaf_node(ipath[1:], val))
+    new_root = branch_node(slots2)
+    changes = [([0x1, 0xa, 0xb], a_new, False), (ipath, val, True)]
+    return dict(name="state_root_ins_longkey", witness=[root, leaf_a],
+                root=trie_root(root), changes=changes,
+                expected=trie_root(new_root))
+    return dict(name="mi_leafsplit_depth1", witness=[root, b, la],
+                root=trie_root(root), path=[0x5, 0x7, 0x9, 0xc], value=val,
+                expected=trie_root(root2))
+              vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_leafsplit_depth1]
+
+
+# ---- insert-aware multi-change driver (mpt_state_root_ins .2.4.2.6.3) ------
+def build_state_root_ins_input(root_hash, changes, witness_section) -> bytes:
+    """ziskemu -i body for zisk_mpt_state_root_ins (file maps to INPUT+8):
+      +8 witness_len | +16 n_changes | +24 root_hash(32B)
+      +56 table: N x (path_len:u64, value_len:u64, is_insert:u64)
+      then blobs path0,value0,... (each 8-aligned) | then witness."""
+    body = bytearray()
+    body += struct.pack("<Q", len(witness_section))
+    body += struct.pack("<Q", len(changes))
+    body += root_hash
+    for (path, value, isins) in changes:
+        body += struct.pack("<QQQ", len(path), len(value), 1 if isins else 0)
+    for (path, value, isins) in changes:
+        body += bytes(path)
+        while len(body) % 8 != 0:
+            body += b"\x00"
+        body += value
+        while len(body) % 8 != 0:
+            body += b"\x00"
+    body += witness_section
+    while len(body) % 8 != 0:        # ziskemu requires a multiple-of-8 input
+        body += b"\x00"
+    return bytes(body)
+
+
+def vec_state_root_ins():
+    """Branch root with leaf at slot 1 (existing key A) + empty slot 3.
+    change 0 = MODIFY key A; change 1 = INSERT at slot 3. The insert must
+    resolve the modified root from the DB (the modify appended it)."""
+    la_path = [0xa, 0xb]
+    a_old, a_new, v2 = b"A" * 32, b"a-new" * 8, b"v2" * 20
+    leaf_a = leaf_node(la_path, a_old)
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(leaf_a)
+    root = branch_node(slots)
+    slots2 = list(slots)
+    slots2[1] = node_ref(leaf_node(la_path, a_new))
+    slots2[3] = node_ref(leaf_node([0xc, 0xd], v2))
+    new_root = branch_node(slots2)
+    changes = [([0x1] + la_path, a_new, False), ([0x3, 0xc, 0xd], v2, True)]
+    return dict(name="state_root_ins", witness=[root, leaf_a],
+                root=trie_root(root), changes=changes,
+                expected=trie_root(new_root))
+
+
+def vec_state_root_ins_deep():
+    """R branch: slot1 -> leaf A (existing), slot2 -> branch B (hash); B slot5
+    -> leaf B, slot7 empty. change0 = MODIFY key A (slot1) -> R' in the DB;
+    change1 = INSERT at B slot7 via path [2,7,e,f] -- descends R' (resolved
+    from the DB) -> B (witness) -> empty slot7, so the insert's bubble-up must
+    splice a DB-RESIDENT ancestor (R'). This is the depth>=1 insert-after-modify
+    the depth-0 state_root_ins vector never exercised."""
+    a_old, a_new = b"A" * 32, b"a-new" * 8
+    b_old, vins = b"B" * 32, b"ins" * 12
+    leaf_a = leaf_node([0xa, 0xb], a_old)
+    leaf_b = leaf_node([0xc, 0xd], b_old)
+    slots_bb = [b"\x80"] * 16
+    slots_bb[0x5] = node_ref(leaf_b)
+    bb = branch_node(slots_bb)
+    slots_r = [b"\x80"] * 16
+    slots_r[0x1] = node_ref(leaf_a)
+    slots_r[0x2] = node_ref(bb)
+    root = branch_node(slots_r)
+    # post: slot1 leaf updated; B gets a new leaf at slot7
+    slots_bb2 = list(slots_bb)
+    slots_bb2[0x7] = node_ref(leaf_node([0xe, 0xf], vins))
+    bb2 = branch_node(slots_bb2)
+    slots_r2 = list(slots_r)
+    slots_r2[0x1] = node_ref(leaf_node([0xa, 0xb], a_new))
+    slots_r2[0x2] = node_ref(bb2)
+    root2 = branch_node(slots_r2)
+    changes = [([0x1, 0xa, 0xb], a_new, False),
+               ([0x2, 0x7, 0xe, 0xf], vins, True)]
+    return dict(name="state_root_ins_deep", witness=[root, leaf_a, bb],
+                root=trie_root(root), changes=changes,
+                expected=trie_root(root2))
+
+
+def vec_state_root_ins_dbchild():
+    """R slot5 -> branch B; B slot5 -> leaf A, slot7 empty. change0 = MODIFY
+    key A (path 5,5,a,b) -> re-encodes B AND R into the DB. change1 = INSERT at
+    B slot7 (path 5,7,e,f): descends R'(DB) slot5 -> B'(DB, MODIFIED by change0)
+    -> empty slot7. So the insert must resolve a DB-modified INTERMEDIATE node
+    (B') and bubble through two DB-resident ancestors -- the case neither
+    state_root_ins nor state_root_ins_deep exercised."""
+    a_old, a_new, vins = b"A" * 32, b"a-new" * 8, b"ins" * 12
+    leaf_a = leaf_node([0xa, 0xb], a_old)
+    slots_b = [b"\x80"] * 16
+    slots_b[0x5] = node_ref(leaf_a)
+    bb = branch_node(slots_b)
+    slots_r = [b"\x80"] * 16
+    slots_r[0x5] = node_ref(bb)
+    root = branch_node(slots_r)
+    # post
+    slots_b2 = list(slots_b)
+    slots_b2[0x5] = node_ref(leaf_node([0xa, 0xb], a_new))
+    slots_b2[0x7] = node_ref(leaf_node([0xe, 0xf], vins))
+    bb2 = branch_node(slots_b2)
+    slots_r2 = list(slots_r)
+    slots_r2[0x5] = node_ref(bb2)
+    root2 = branch_node(slots_r2)
+    changes = [([0x5, 0x5, 0xa, 0xb], a_new, False),
+               ([0x5, 0x7, 0xe, 0xf], vins, True)]
+    return dict(name="state_root_ins_dbchild", witness=[root, bb, leaf_a],
+                root=trie_root(root), changes=changes,
+                expected=trie_root(root2))
 
 
 if __name__ == "__main__":
@@ -811,3 +1129,42 @@ if __name__ == "__main__":
         f.write(sr["expected"].hex())
     print(f"{'state_root':12} root={sr['root'].hex()[:16]}.. "
           f"final_root={sr['expected'].hex()} (n={len(sr['changes'])})")
+    # insert-aware multi-change driver vector (mpt_state_root_ins)
+    sri = vec_state_root_ins()
+    sec = ssz_section(sri["witness"])
+    with open(f"{outdir}/state_root_ins.input", "wb") as f:
+        f.write(build_state_root_ins_input(sri["root"], sri["changes"], sec))
+    with open(f"{outdir}/state_root_ins.expected", "w") as f:
+        f.write(sri["expected"].hex())
+    print(f"{'state_root_ins':12} root={sri['root'].hex()[:16]}.. "
+          f"final_root={sri['expected'].hex()} (modify+insert)")
+    srilk = vec_state_root_ins_longkey()
+    sec = ssz_section(srilk["witness"])
+    with open(f"{outdir}/state_root_ins_longkey.input", "wb") as f:
+        f.write(build_state_root_ins_input(srilk["root"], srilk["changes"], sec))
+    with open(f"{outdir}/state_root_ins_longkey.expected", "w") as f:
+        f.write(srilk["expected"].hex())
+    print(f"{'sri_longkey':12} final_root={srilk['expected'].hex()} (DB root + 64-nibble insert)")
+    srilb = vec_state_root_ins_large_branch()
+    sec = ssz_section(srilb["witness"])
+    with open(f"{outdir}/state_root_ins_large_branch.input", "wb") as f:
+        f.write(build_state_root_ins_input(srilb["root"], srilb["changes"], sec))
+    with open(f"{outdir}/state_root_ins_large_branch.expected", "w") as f:
+        f.write(srilb["expected"].hex())
+    print(f"{'sri_large':12} final_root={srilb['expected'].hex()} (large DB root + insert)")
+    srid = vec_state_root_ins_deep()
+    sec = ssz_section(srid["witness"])
+    with open(f"{outdir}/state_root_ins_deep.input", "wb") as f:
+        f.write(build_state_root_ins_input(srid["root"], srid["changes"], sec))
+    with open(f"{outdir}/state_root_ins_deep.expected", "w") as f:
+        f.write(srid["expected"].hex())
+    print(f"{'sri_deep':12} root={srid['root'].hex()[:16]}.. "
+          f"final_root={srid['expected'].hex()} (modify+insert depth>=1)")
+    sridc = vec_state_root_ins_dbchild()
+    sec = ssz_section(sridc["witness"])
+    with open(f"{outdir}/state_root_ins_dbchild.input", "wb") as f:
+        f.write(build_state_root_ins_input(sridc["root"], sridc["changes"], sec))
+    with open(f"{outdir}/state_root_ins_dbchild.expected", "w") as f:
+        f.write(sridc["expected"].hex())
+    print(f"{'sri_dbchild':12} root={sridc['root'].hex()[:16]}.. "
+          f"final_root={sridc['expected'].hex()} (insert via DB-modified child)")
