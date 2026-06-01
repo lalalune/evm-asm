@@ -119,6 +119,30 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_delta; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2\n" ++
   "  ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
   "  beqz t1, .Lbsr_wl_next\n" ++
+  "  # Repeated withdrawals to the same recipient accumulate into one state change.\n" ++
+  "  li t6, 2                     # scan recorded withdrawal changes [2, s1)\n" ++
+  ".Lbsr_dup_scan:\n" ++
+  "  beq t6, s1, .Lbsr_no_dup\n" ++
+  "  slli t0, t6, 6; la t1, bsr_paths; add t0, t1, t0     # prev path\n" ++
+  "  slli t2, s1, 6; add t1, t1, t2                       # current path\n" ++
+  "  li t2, 64\n" ++
+  ".Lbsr_dup_cmp:\n" ++
+  "  beqz t2, .Lbsr_dup_found\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbsr_dup_next\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbsr_dup_cmp\n" ++
+  ".Lbsr_dup_next:\n" ++
+  "  addi t6, t6, 1; j .Lbsr_dup_scan\n" ++
+  ".Lbsr_dup_found:\n" ++
+  "  slli t0, t6, 5; slli t1, t6, 3; add t0, t0, t1; la t1, bsr_changes; add t0, t1, t0\n" ++
+  "  la t1, bsr_prev_desc; sd t0, 0(t1)\n" ++
+  "  ld t1, 16(t0); la t2, bsr_prev_acct; sd t1, 0(t2)\n" ++
+  "  ld a1, 24(t0); mv a0, t1; la a2, bsr_delta; la a3, bsr_acct; la a4, bsr_tmplen\n" ++
+  "  jal ra, account_add_balance; bnez a0, .Lbsr_cons\n" ++
+  "  la t0, bsr_prev_acct; ld a0, 0(t0); la a1, bsr_acct; la t0, bsr_tmplen; ld a2, 0(t0)\n" ++
+  "  jal ra, mset_memcpy\n" ++
+  "  la t0, bsr_prev_desc; ld t0, 0(t0); la t1, bsr_tmplen; ld t1, 0(t1); sd t1, 24(t0)\n" ++
+  "  j .Lbsr_wl_next\n" ++
+  ".Lbsr_no_dup:\n" ++
   "  li t0, 66; bge s1, t0, .Lbsr_cons   # cap to the change-buffer size\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  slli t1, s1, 6; la t2, bsr_paths; add a3, t2, t1; li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
@@ -419,6 +443,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_pathp:\n  .zero 8\n" ++
   "bsr_acct_len:\n  .zero 8\n" ++
   "bsr_tmplen:\n  .zero 8\n" ++
+  "bsr_prev_desc:\n  .zero 8\n" ++
+  "bsr_prev_acct:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bsr_kbuf:\n  .zero 32\n" ++
   "bsr_delta:\n  .zero 32\n" ++
