@@ -159,6 +159,17 @@ def blockVerdictFunction : String :=
   ".Lbv_cmpok:\n" ++
   "  bnez s1, .Lbv_zero\n" ++
   "  bnez s2, .Lbv_zero\n" ++
+  "  # NO-TRANSACTION gate: this verdict does NOT validate transactions, so it can\n" ++
+  "  # only soundly judge no-tx blocks. A tx-bearing INVALID block whose invalid tx\n" ++
+  "  # is rejected (no state change) would otherwise match the recompute -> false\n" ++
+  "  # positive. tx list is empty iff transactions_offset == withdrawals_offset.\n" ++
+  "  addi t4, s3, 60             # exec_payload = SSZ_BASE+60\n" ++
+  "  la t5, bv_exec_p; sd t4, 0(t5)\n" ++
+  "  addi a0, t4, 504; jal ra, bgv_u32le        # transactions_offset\n" ++
+  "  la t5, bv_tx_off; sd a0, 0(t5)\n" ++
+  "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 508; jal ra, bgv_u32le   # withdrawals_offset\n" ++
+  "  la t5, bv_tx_off; ld t3, 0(t5)\n" ++
+  "  bgtu a0, t3, .Lbv_zero      # wd_off > tx_off => transactions present => conservative 0\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
   "  addi t0, s3, 16             # NPR = SSZ_BASE+16\n" ++
@@ -405,7 +416,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_exec_p:\n  .zero 8\n" ++
   "bv_npr_p:\n  .zero 8\n" ++
   "bv_bal_start:\n  .zero 8\n" ++
-  "bv_bal_len:\n  .zero 8"
+  "bv_bal_len:\n  .zero 8\n" ++
+  "bv_tx_off:\n  .zero 8"
 
 def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   body        := NOP
