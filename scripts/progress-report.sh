@@ -121,7 +121,16 @@ codegen_scripts() {
 # --------------------------------------------------------------------
 
 sorry_count() { grep -rE '^\s*sorry\b' EvmAsm/ 2>/dev/null | wc -l | tr -d ' '; }
+# NOTE: this counts only the literal `axiom` *keyword* in source — it
+# CANNOT see trust axioms that `bv_decide`/`native_decide` synthesize per
+# call (`<owner>._native.<tactic>.ax_*`). The kernel-truth audit of those
+# lives in scripts/check-axioms.sh; the burndown count is below.
 axiom_count() { grep -rE '^\s*axiom\b' EvmAsm/ 2>/dev/null | wc -l | tr -d ' '; }
+# Pre-existing native_decide trust-axiom owners grandfathered in the
+# burndown allowlist (non-comment, non-blank lines).
+nd_grandfathered_count() {
+  grep -vE '^[[:space:]]*(#|$)' scripts/axiom-allow.txt 2>/dev/null | wc -l | tr -d ' '
+}
 
 # --------------------------------------------------------------------
 # Compose the report
@@ -154,9 +163,10 @@ cat <<EOF
 | Invariant | Status |
 |---|---|
 | \`sorry\` count in \`EvmAsm/\` | $(sorry_count) |
-| \`axiom\` count in \`EvmAsm/\` | $(axiom_count) |
-| Conformance vectors (kernel-checked, \`allConformanceVectors_length\`) | ${CONF_COUNT} |
-| Build CI guardrails | \`check-no-warnings.sh\`, \`check-unbounded-cps.sh\`, \`check-unimported.sh\`, \`check-file-size.sh\` |
+| literal \`axiom\` declarations in \`EvmAsm/\` | $(axiom_count) |
+| trust axioms in witnessed proofs (kernel \`#print axioms\`) | \`bv_decide\` accepted; \`native_decide\` forbidden — $(nd_grandfathered_count) pre-existing owner(s) grandfathered in [\`scripts/axiom-allow.txt\`](scripts/axiom-allow.txt) (burndown → 0), audited by [\`scripts/check-axioms.sh\`](scripts/check-axioms.sh) |
+| Conformance vectors (kernel-checked, \`allConformanceVectors_length\`) | ${CONF_COUNT} (floor in [\`scripts/conformance-baseline.txt\`](scripts/conformance-baseline.txt), gated by \`check-conformance-floor.sh\`) |
+| Build CI guardrails | \`check-no-warnings.sh\`, \`check-unimported.sh\`, \`check-file-size.sh\`, \`check-progress.sh\`, \`check-axioms.sh\`, \`check-conformance-floor.sh\` |
 
 EOF
 
