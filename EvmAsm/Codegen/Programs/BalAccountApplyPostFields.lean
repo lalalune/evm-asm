@@ -246,7 +246,7 @@ def balAccountApplyPostFieldsFunction : String :=
   ".Lbaap_multi_loop:\n" ++
   "  la t0, baap_sc_index; ld t0, 0(t0); la t1, baap_sc_count; ld t1, 0(t1)\n" ++
   "  beq t0, t1, .Lbaap_multi_apply\n" ++
-  "  li t2, 32; bgeu t0, t2, .Lbaap_fail\n" ++
+  "  li t2, 64; bgeu t0, t2, .Lbaap_fail\n" ++
   "  la t1, baap_sc_ptr; ld a0, 0(t1); la t1, baap_sc_len; ld a1, 0(t1); mv a2, t0\n" ++
   "  la a3, baap_item_off; la a4, baap_item_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
@@ -529,9 +529,9 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
   "baap_walk_val:\n  .zero 128\n" ++
-  "baap_storage_desc:\n  .zero 1280\n" ++
-  "baap_storage_paths:\n  .zero 2048\n" ++
-  "baap_storage_values:\n  .zero 2048\n" ++
+  "baap_storage_desc:\n  .zero 2560\n" ++
+  "baap_storage_paths:\n  .zero 4096\n" ++
+  "baap_storage_values:\n  .zero 4096\n" ++
   "baap_out_pad:\n  .zero 8"
 
 def ziskBalAccountApplyPostFieldsProbeUnit : BuildUnit := {
