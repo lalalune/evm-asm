@@ -100,14 +100,22 @@ def blockStateRootFunction : String :=
   "  la a0, bsr_addr_4788; la a1, swd_4788_slot; la a2, swd_4788_val\n" ++
   "  la t0, swd_4788_vlen; ld a3, 0(t0); li a4, 1\n" ++
   "  jal ra, bsr_sys_change; bnez a0, .Lbsr_cons\n" ++
-  "  # withdrawal changes at index 2..2+n_wds\n" ++
-  "  li s0, 0\n" ++
+  "  # withdrawal changes: change counter s1 starts after the 2 system changes.\n" ++
+  "  # The change index is DECOUPLED from the withdrawal index (s0): a withdrawal\n" ++
+  "  # whose delta is 0 (amount 0) is a no-op on state -- an absent recipient is\n" ++
+  "  # created-then-cleared per EIP-161 -- so it is SKIPPED without advancing the\n" ++
+  "  # change counter. (Foundation for delta accumulation + account insert.)\n" ++
+  "  li s0, 0                     # withdrawal index\n" ++
+  "  li s1, 2                     # change counter (2 system changes already recorded)\n" ++
   ".Lbsr_wl:\n" ++
   "  beq s0, s4, .Lbsr_apply\n" ++
-  "  addi s1, s0, 2               # change index\n" ++
   "  slli t0, s0, 4; add t0, s3, t0; ld a0, 0(t0); ld a1, 8(t0)   # wd[i] rlp ptr/len\n" ++
   "  slli t1, s1, 6; la t2, bsr_paths; add a2, t2, t1; la a3, bsr_delta\n" ++
   "  jal ra, withdrawal_to_path_delta; bnez a0, .Lbsr_cons\n" ++
+  "  # zero-amount withdrawal (delta == 0) -> no state change -> skip.\n" ++
+  "  la t0, bsr_delta; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2\n" ++
+  "  ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+  "  beqz t1, .Lbsr_wl_next\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  slli t1, s1, 6; la t2, bsr_paths; add a3, t2, t1; li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
   "  jal ra, mpt_walk; bnez a0, .Lbsr_cons\n" ++
@@ -118,10 +126,12 @@ def blockStateRootFunction : String :=
   "  slli t2, s1, 6; la t3, bsr_paths; add t3, t3, t2; sd t3, 0(t1); li t3, 64; sd t3, 8(t1)\n" ++
   "  slli t2, s1, 7; la t3, bsr_newaccts; add t3, t3, t2; sd t3, 16(t1)\n" ++
   "  la t3, bsr_tmplen; ld t3, 0(t3); sd t3, 24(t1)\n" ++
+  "  addi s1, s1, 1               # advance change counter (only on a recorded change)\n" ++
+  ".Lbsr_wl_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_wl\n" ++
   ".Lbsr_apply:\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  la a3, bsr_changes; addi a4, s4, 2; mv a5, s5\n" ++
+  "  la a3, bsr_changes; mv a4, s1; mv a5, s5     # change count = s1\n" ++
   "  jal ra, mpt_state_root\n" ++
   "  j .Lbsr_ret\n" ++
   ".Lbsr_cons:\n" ++
