@@ -114,6 +114,49 @@ def accountAddBalanceFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret"
 
+/-! ## account_set_uint_field -- replace an account RLP uint field exactly
+
+    a0 = account RLP ptr        a1 = account RLP length
+    a2 = field index (0 nonce / 1 balance)
+    a3 = value ptr (big-endian bytes)  a4 = value length (<= 32)
+    a5 = output buffer ptr      a6 = u64 out length ptr
+    a0 (output) = 0 (ok) / 1 (parse fail / value too long)
+
+    The value is encoded as a canonical RLP integer, then spliced into the
+    account list at the requested field. This is the BAL post-value analogue of
+    account_add_balance: withdrawal replay adds a delta, BAL replay sets the
+    exact post nonce/balance reported by the block access list. -/
+def accountSetUintFieldFunction : String :=
+  "account_set_uint_field:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # account ptr\n" ++
+  "  mv s1, a1                   # account len\n" ++
+  "  mv s2, a2                   # field index\n" ++
+  "  mv s3, a3                   # value ptr\n" ++
+  "  mv s4, a4                   # value len\n" ++
+  "  mv s5, a5                   # out ptr\n" ++
+  "  mv s6, a6                   # out len ptr\n" ++
+  "  li t0, 32; bgtu s4, t0, .Lasuf_fail\n" ++
+  "  mv a0, s3; mv a1, s4; la a2, aab_enc\n" ++
+  "  jal ra, rlp_encode_uint_be\n" ++
+  "  la t0, aab_enc_len; sd a0, 0(t0)\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
+  "  la a3, aab_enc; la t0, aab_enc_len; ld a4, 0(t0)\n" ++
+  "  mv a5, s5; mv a6, s6\n" ++
+  "  jal ra, mpt_splice_slot\n" ++
+  "  j .Lasuf_ret\n" ++
+  ".Lasuf_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lasuf_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
 /-- `zisk_account_add_balance`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  account_len (u64)
@@ -168,6 +211,46 @@ def ziskAccountAddBalanceDataSection : String :=
 def ziskAccountAddBalanceProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskAccountAddBalancePrologue
+  dataAsm     := ziskAccountAddBalanceDataSection
+}
+
+
+/-- `zisk_account_set_uint_field`: probe BuildUnit.
+    Input layout (file maps to INPUT+8 at 0x40000000):
+      +8  account_len (u64)
+      +16 field_index (u64, 0 nonce / 1 balance)
+      +24 value_len (u64)
+      +32 value bytes (big-endian, up to 32 bytes)
+      +64 account RLP bytes
+    Output layout:
+      OUTPUT+0 : new account RLP length (u64)
+      OUTPUT+8 : new account RLP bytes
+      OUTPUT+512 : status -/
+def ziskAccountSetUintFieldPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a1, 8(t0)                # account_len\n" ++
+  "  ld a2, 16(t0)               # field_index\n" ++
+  "  ld a4, 24(t0)               # value_len\n" ++
+  "  addi a3, t0, 32             # value ptr\n" ++
+  "  addi a0, t0, 64             # account ptr\n" ++
+  "  li a5, 0xa0010008           # out at OUTPUT+8\n" ++
+  "  li a6, 0xa0010000           # out_len at OUTPUT+0\n" ++
+  "  jal ra, account_set_uint_field\n" ++
+  "  li t0, 0xa0010200; sd a0, 0(t0)   # status at OUTPUT+512\n" ++
+  "  j .Lasuf_pdone\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
+  msetMemcpyFunction ++ "\n" ++
+  mptSpliceSlotFunction ++ "\n" ++
+  accountSetUintFieldFunction ++ "\n" ++
+  ".Lasuf_pdone:"
+
+def ziskAccountSetUintFieldProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskAccountSetUintFieldPrologue
   dataAsm     := ziskAccountAddBalanceDataSection
 }
 

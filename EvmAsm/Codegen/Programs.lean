@@ -570,6 +570,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_state_root"       => some ziskMptStateRootProbeUnit
   | "zisk_withdrawals_state_root" => some ziskWithdrawalsStateRootProbeUnit
   | "zisk_account_add_balance"  => some ziskAccountAddBalanceProbeUnit
+  | "zisk_account_set_uint_field" => some ziskAccountSetUintFieldProbeUnit
   | "zisk_bytes_to_nibbles"     => some ziskBytesToNibblesProbeUnit
   | "zisk_mpt_lookup_by_key"    => some ziskMptLookupByKeyProbeUnit
   | "zisk_account_decode"       => some ziskAccountDecodeProbeUnit
@@ -862,6 +863,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_state_root",
    "zisk_withdrawals_state_root",
    "zisk_account_add_balance",
+   "zisk_account_set_uint_field",
    "zisk_bytes_to_nibbles",
    "zisk_mpt_lookup_by_key",
    "zisk_account_decode",

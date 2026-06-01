@@ -374,6 +374,29 @@ def vec_account_add_balance():
     return out
 
 
+
+def build_asuf_input(account: bytes, field_index: int, value: int) -> bytes:
+    """ziskemu `-i` body for zisk_account_set_uint_field (file -> INPUT+8):
+      +8 account_len | +16 field_index | +24 value_len | +32 value bytes | +64 account RLP."""
+    vb = minimal_be(value)
+    body = (struct.pack("<Q", len(account)) + struct.pack("<Q", field_index) +
+            struct.pack("<Q", len(vb)) + vb + b"\x00" * (32 - len(vb)) + account)
+    while len(body) % 8 != 0:
+        body += b"\x00"
+    return body
+
+
+def vec_account_set_uint_field():
+    sroot, chash = b"\x11" * 32, b"\x22" * 32
+    account = account_encode(1, 0xff, sroot, chash)
+    cases = [
+        ("asuf_nonce", account, 0, 2, account_encode(2, 0xff, sroot, chash)),
+        ("asuf_balance", account, 1, 0x0100, account_encode(1, 0x0100, sroot, chash)),
+        ("asuf_zero_balance", account, 1, 0, account_encode(1, 0, sroot, chash)),
+    ]
+    return [dict(name=name, account=acct, field_index=field, value=value, expected=expected)
+            for name, acct, field, value, expected in cases]
+
 # ---- withdrawal -> (path, wei delta) preprocessing (.2.2.1) ---------------
 def withdrawal_rlp(index: int, vindex: int, address: bytes, amount: int) -> bytes:
     """Shanghai+ withdrawal RLP: rlp([index, validator_index, address, amount])."""
@@ -809,6 +832,13 @@ if __name__ == "__main__":
         with open(f"{outdir}/{v['name']}.expected", "w") as f:
             f.write(v["expected"].hex())
         print(f"{v['name']:12} account_len={len(v['account'])} "
+              f"new_account={v['expected'].hex()}")
+    for v in vec_account_set_uint_field():
+        with open(f"{outdir}/{v['name']}.input", "wb") as f:
+            f.write(build_asuf_input(v["account"], v["field_index"], v["value"]))
+        with open(f"{outdir}/{v['name']}.expected", "w") as f:
+            f.write(v["expected"].hex())
+        print(f"{v['name']:12} field={v['field_index']} value={v['value']} "
               f"new_account={v['expected'].hex()}")
     for v in vec_withdrawal_to_path_delta():
         body = struct.pack("<Q", len(v["wd"])) + v["wd"]
