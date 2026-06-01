@@ -704,6 +704,31 @@ def vec_mi_ext_then_branch():
                 expected=trie_root(new_root))
 
 
+def vec_mi_ext_split():
+    """Root = extension prefix [5,6] -> branch. Insert path [5,9,0,0]
+    diverges inside the extension at m=1, so the old child stays directly at
+    branch slot 6, the new leaf goes under slot 9, and the shared prefix [5]
+    wraps the new branch."""
+    la = leaf_node([0xa, 0xb], b"x" * 32)
+    lb = leaf_node([0xc, 0xd], b"y" * 32)
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(la)
+    slots[2] = node_ref(lb)
+    branch = branch_node(slots)
+    root = extension_node([0x5, 0x6], node_ref(branch))
+    val = b"ext-new"
+
+    new_leaf = leaf_node([0x0, 0x0], val)
+    slots2 = [b"\x80"] * 16
+    slots2[0x6] = node_ref(branch)
+    slots2[0x9] = node_ref(new_leaf)
+    split_branch = branch_node(slots2)
+    new_root = extension_node([0x5], node_ref(split_branch))
+    return dict(name="mi_ext_split", witness=[root], root=trie_root(root),
+                path=[0x5, 0x9, 0x0, 0x0], value=val,
+                expected=trie_root(new_root))
+
+
 def vec_mi_leaf_split():
     """Root = leaf key [1,2,3,4]. Insert path [1,2,9,9] (shared prefix [1,2],
     m=2): split into a branch (old leaf' at nibble 3, new leaf at nibble 9)
@@ -834,7 +859,7 @@ def vec_mi_acctkey_f9():
 
 
 MI_VECTORS = [vec_mi_branch_empty, vec_mi_empty_trie, vec_mi_ext_then_branch,
-              vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_depth2,
+              vec_mi_ext_split, vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_depth2,
               vec_mi_leafsplit_depth1, vec_mi_acctkey, vec_mi_acctkey_f9]
 
 
