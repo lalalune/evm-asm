@@ -688,6 +688,39 @@ def vec_state_root_ins():
                 expected=trie_root(new_root))
 
 
+def vec_state_root_ins_deep():
+    """R branch: slot1 -> leaf A (existing), slot2 -> branch B (hash); B slot5
+    -> leaf B, slot7 empty. change0 = MODIFY key A (slot1) -> R' in the DB;
+    change1 = INSERT at B slot7 via path [2,7,e,f] -- descends R' (resolved
+    from the DB) -> B (witness) -> empty slot7, so the insert's bubble-up must
+    splice a DB-RESIDENT ancestor (R'). This is the depth>=1 insert-after-modify
+    the depth-0 state_root_ins vector never exercised."""
+    a_old, a_new = b"A" * 32, b"a-new" * 8
+    b_old, vins = b"B" * 32, b"ins" * 12
+    leaf_a = leaf_node([0xa, 0xb], a_old)
+    leaf_b = leaf_node([0xc, 0xd], b_old)
+    slots_bb = [b"\x80"] * 16
+    slots_bb[0x5] = node_ref(leaf_b)
+    bb = branch_node(slots_bb)
+    slots_r = [b"\x80"] * 16
+    slots_r[0x1] = node_ref(leaf_a)
+    slots_r[0x2] = node_ref(bb)
+    root = branch_node(slots_r)
+    # post: slot1 leaf updated; B gets a new leaf at slot7
+    slots_bb2 = list(slots_bb)
+    slots_bb2[0x7] = node_ref(leaf_node([0xe, 0xf], vins))
+    bb2 = branch_node(slots_bb2)
+    slots_r2 = list(slots_r)
+    slots_r2[0x1] = node_ref(leaf_node([0xa, 0xb], a_new))
+    slots_r2[0x2] = node_ref(bb2)
+    root2 = branch_node(slots_r2)
+    changes = [([0x1, 0xa, 0xb], a_new, False),
+               ([0x2, 0x7, 0xe, 0xf], vins, True)]
+    return dict(name="state_root_ins_deep", witness=[root, leaf_a, bb],
+                root=trie_root(root), changes=changes,
+                expected=trie_root(root2))
+
+
 if __name__ == "__main__":
     import os
     outdir = sys.argv[1] if len(sys.argv) > 1 else "gen-out/mpt-set"
@@ -788,3 +821,11 @@ if __name__ == "__main__":
         f.write(sri["expected"].hex())
     print(f"{'state_root_ins':12} root={sri['root'].hex()[:16]}.. "
           f"final_root={sri['expected'].hex()} (modify+insert)")
+    srid = vec_state_root_ins_deep()
+    sec = ssz_section(srid["witness"])
+    with open(f"{outdir}/state_root_ins_deep.input", "wb") as f:
+        f.write(build_state_root_ins_input(srid["root"], srid["changes"], sec))
+    with open(f"{outdir}/state_root_ins_deep.expected", "w") as f:
+        f.write(srid["expected"].hex())
+    print(f"{'sri_deep':12} root={srid['root'].hex()[:16]}.. "
+          f"final_root={srid['expected'].hex()} (modify+insert depth>=1)")

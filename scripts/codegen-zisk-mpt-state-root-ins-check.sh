@@ -22,7 +22,7 @@ lake exe codegen --program zisk_mpt_state_root_ins --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_mpt_state_root_ins"
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 fail=0
-for name in state_root_ins; do
+for name in state_root_ins state_root_ins_deep; do
   out="$VDIR/$name.sri.output"
   if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_state_root_ins.elf" \
         -i "$VDIR/$name.input" -o "$out" -n 8000000 >/dev/null 2>&1 </dev/null; then
