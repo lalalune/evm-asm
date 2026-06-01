@@ -14,6 +14,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.BalAccountPostFields
+import EvmAsm.Codegen.Programs.MptStateRootIns
 
 namespace EvmAsm.Codegen
 
@@ -199,6 +200,18 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   bytesToNibblesFunction ++ "\n" ++
   hpEncodeNibblesFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  nodeDbLookupFunction ++ "\n" ++
+  nodeDbAppendFunction ++ "\n" ++
+  mptNodeResolveFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  mptSetRecordWalkDbFunction ++ "\n" ++
+  mptInsertWalkDbFunction ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  mptLeafExtractFunction ++ "\n" ++
+  mptExtensionNodeEncodeFunction ++ "\n" ++
   singleLeafTrieRootFunction ++ "\n" ++
   storageRootSingleSlotFunction ++ "\n" ++
   rlpItemSizeFunction ++ "\n" ++
@@ -208,6 +221,7 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   accountSetStorageRootFunction ++ "\n" ++
   accountApplyStorageSlotFunction ++ "\n" ++
   accountApplyStorageSlotAccFunction ++ "\n" ++
+  mptSetAccFunction ++ "\n" ++
   mptInsertAccFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
@@ -215,8 +229,16 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   ".Lbaap_pdone:"
 
 def ziskBalAccountApplyPostFieldsDataSection : String :=
-  ziskAccountAddBalanceDataSection ++ "\n" ++
+  ziskMptStateRootInsDataSection ++ "\n" ++
   ziskBalAccountPostFieldsDataSection ++ "\n" ++
+  ".balign 8\n" ++
+  "aab_bal_off:\n  .zero 8\n" ++
+  "aab_bal_len:\n  .zero 8\n" ++
+  "aab_enc_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "aab_bal32:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "aab_enc:\n  .zero 64\n" ++
   ".balign 8\n" ++
   "sltr_field_len:\n  .zero 8\n" ++
   "sltr_nibble_count:\n  .zero 8\n" ++

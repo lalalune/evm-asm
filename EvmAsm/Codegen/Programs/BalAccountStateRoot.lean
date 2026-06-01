@@ -187,6 +187,34 @@ def ziskBalAccountStateRootDataSection : String :=
   "bpf_item_ptr:\n  .zero 8\n" ++
   "bpf_val_off:\n  .zero 8\n" ++
   "bpf_val_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "sltr_field_len:\n  .zero 8\n" ++
+  "sltr_nibble_count:\n  .zero 8\n" ++
+  "sltr_hp_len:\n  .zero 8\n" ++
+  "sltr_cursor:\n  .zero 8\n" ++
+  "sltr_total_payload:\n  .zero 8\n" ++
+  "sltr_nibbles:\n  .zero 2048\n" ++
+  "sltr_hp_buf:\n  .zero 1024\n" ++
+  "sltr_payload_buf:\n  .zero 16384\n" ++
+  "sltr_node_buf:\n  .zero 16384\n" ++
+  ".balign 32\n" ++
+  "srss_key:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "srss_rlpval:\n  .zero 40\n" ++
+  "srss_rlpval_len:\n  .zero 8\n" ++
+  "asr_ref:\n  .zero 40\n" ++
+  "aps_off:\n  .zero 8\n" ++
+  "aps_len:\n  .zero 8\n" ++
+  "aps_witness_ptr:\n  .zero 8\n" ++
+  "aps_witness_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "aps_newsroot:\n  .zero 32\n" ++
+  "aps_path:\n  .zero 64\n" ++
+  "aps_empty_root:\n" ++
+  "  .byte 0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6\n" ++
+  "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
+  "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
+  "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21\n" ++
   "baap_bal_len:\n  .zero 8\n" ++
   "baap_nonce_len:\n  .zero 8\n" ++
   "baap_tmp_len:\n  .zero 8\n" ++
