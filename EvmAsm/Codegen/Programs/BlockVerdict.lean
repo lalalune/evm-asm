@@ -576,6 +576,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_sc_ptr:\n  .zero 8\n" ++
   "baap_sc_count:\n  .zero 8\n" ++
   "baap_sc_index:\n  .zero 8\n" ++
+  "baap_sc_out_count:\n  .zero 8\n" ++
+  "baap_storage_empty_flag:\n  .zero 8\n" ++
+  "baap_storage_root_ptr:\n  .zero 8\n" ++
+  "baap_walk_val_len:\n  .zero 8\n" ++
   "baap_item_off:\n  .zero 8\n" ++
   "baap_item_len:\n  .zero 8\n" ++
   "baap_slot_changes_off:\n  .zero 8\n" ++
@@ -602,6 +606,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_tmp2:\n  .zero 512\n" ++
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
+  "baap_walk_val:\n  .zero 128\n" ++
   "baap_storage_desc:\n  .zero 1280\n" ++
   "baap_storage_paths:\n  .zero 2048\n" ++
   "baap_storage_values:\n  .zero 2048\n" ++
