@@ -21,9 +21,12 @@ open EvmAsm.Rv64
     The helper is deliberately narrow: balance/nonce-only BAL entries do not
     prove that account bytecode was read, so they are skipped. Pure
     account-touch rows are skipped only when `bbcv_skip_touch_only` is set by
-    the caller for withdrawal-only blocks. Rows that carry storage or code
-    activity still reject the extcodesize helper's status 5 and leave deeper
-    obligations for later gates. -/
+    the caller for withdrawal-only blocks. A pure account-touch row whose
+    pre-state code hash is exactly keccak(0x00) is also skipped: EIP-7708
+    selfdestruct beneficiaries can have one-byte STOP code without requiring
+    the bytecode preimage. Rows that carry storage or code activity still
+    reject the extcodesize helper's status 5 and leave deeper obligations for
+    later gates. -/
 def balCodePreimagesValidFunction : String :=
   "bal_code_preimages_valid:\n" ++
   "  addi sp, sp, -112\n" ++
@@ -55,6 +58,7 @@ def balCodePreimagesValidFunction : String :=
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbbcv_parse_fail\n" ++
   "  la t0, bbcv_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbbcv_parse_fail\n" ++
+  "  li t1, 1; la t0, bbcv_touch_only; sd t1, 0(t0)\n" ++
   "  # Balance/nonce-only BAL entries record scalar account effects and do\n" ++
   "  # not imply that account bytecode was read. Pure account-touch rows\n" ++
   "  # are skipped only when the caller marks withdrawal-only mode.\n" ++
@@ -64,14 +68,14 @@ def balCodePreimagesValidFunction : String :=
   "  la t0, bbcv_field_off; ld t1, 0(t0); add a0, s10, t1; la t0, bbcv_field_len; ld a1, 0(t0); la a2, bbcv_field_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbbcv_parse_fail\n" ++
-  "  la t0, bbcv_field_count; ld t1, 0(t0); bnez t1, .Lbbcv_check_code\n" ++
+  "  la t0, bbcv_field_count; ld t1, 0(t0); bnez t1, .Lbbcv_check_code_non_touch\n" ++
   "  mv a0, s10; la t0, bbcv_acct_len; ld a1, 0(t0); li a2, 2; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbbcv_parse_fail\n" ++
   "  la t0, bbcv_field_off; ld t1, 0(t0); add a0, s10, t1; la t0, bbcv_field_len; ld a1, 0(t0); la a2, bbcv_field_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbbcv_parse_fail\n" ++
-  "  la t0, bbcv_field_count; ld t1, 0(t0); bnez t1, .Lbbcv_check_code\n" ++
+  "  la t0, bbcv_field_count; ld t1, 0(t0); bnez t1, .Lbbcv_check_code_non_touch\n" ++
   "  mv a0, s10; la t0, bbcv_acct_len; ld a1, 0(t0); li a2, 3; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbbcv_parse_fail\n" ++
@@ -94,22 +98,37 @@ def balCodePreimagesValidFunction : String :=
   "  la t0, bbcv_field_off; ld t1, 0(t0); add a0, s10, t1; la t0, bbcv_field_len; ld a1, 0(t0); la a2, bbcv_field_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbbcv_parse_fail\n" ++
-  "  la t0, bbcv_field_count; ld t1, 0(t0); bnez t1, .Lbbcv_check_code\n" ++
+  "  la t0, bbcv_field_count; ld t1, 0(t0); bnez t1, .Lbbcv_check_code_non_touch\n" ++
   "  la t0, bbcv_balance_count; ld t1, 0(t0)\n" ++
   "  la t2, bbcv_nonce_count; ld t3, 0(t2)\n" ++
   "  or t4, t1, t3\n" ++
   "  bnez t4, .Lbbcv_next\n" ++
   "  la t0, bbcv_skip_touch_only; ld t4, 0(t0)\n" ++
   "  bnez t4, .Lbbcv_next\n" ++
+  "  j .Lbbcv_check_code\n" ++
+  ".Lbbcv_check_code_non_touch:\n" ++
+  "  la t0, bbcv_touch_only; sd zero, 0(t0)\n" ++
   ".Lbbcv_check_code:\n" ++
   "  la t0, bbcv_addr_off; ld t1, 0(t0); add a2, s10, t1\n" ++
   "  mv a0, s2; mv a1, s3; mv a3, s4; mv a4, s5; mv a5, s6; mv a6, s7\n" ++
   "  jal ra, extcodesize_at_header_state_root\n" ++
-  "  li t0, 5; beq a0, t0, .Lbbcv_missing_code\n" ++
+  "  li t0, 5; beq a0, t0, .Lbbcv_maybe_stop_touch\n" ++
   ".Lbbcv_next:\n" ++
   "  addi s9, s9, 1; j .Lbbcv_loop\n" ++
   ".Lbbcv_ok:\n" ++
   "  li a0, 0; j .Lbbcv_ret\n" ++
+  ".Lbbcv_maybe_stop_touch:\n" ++
+  "  la t0, bbcv_touch_only; ld t1, 0(t0); beqz t1, .Lbbcv_missing_code\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a2, s10, t1\n" ++
+  "  mv a0, s2; mv a1, s3; mv a3, s4; mv a4, s5; la a5, bbcv_code_hash\n" ++
+  "  jal ra, code_hash_at_header_state_root\n" ++
+  "  bnez a0, .Lbbcv_missing_code\n" ++
+  "  la t0, bbcv_code_hash; la t1, bbcv_stop_code_hash\n" ++
+  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lbbcv_missing_code\n" ++
+  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lbbcv_missing_code\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lbbcv_missing_code\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lbbcv_missing_code\n" ++
+  "  j .Lbbcv_next\n" ++
   ".Lbbcv_missing_code:\n" ++
   "  li a0, 1; j .Lbbcv_ret\n" ++
   ".Lbbcv_parse_fail:\n" ++

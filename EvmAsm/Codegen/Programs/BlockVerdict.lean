@@ -36,6 +36,7 @@ import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.StateCompose
+import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
 
 namespace EvmAsm.Codegen
@@ -986,6 +987,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
+  codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
@@ -1109,6 +1111,18 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bbcv_balance_count:\n  .zero 8\n" ++
   "bbcv_nonce_count:\n  .zero 8\n" ++
   "bbcv_skip_touch_only:\n  .zero 8\n" ++
+  "bbcv_touch_only:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bbcv_code_hash:\n  .zero 32\n" ++
+  "bbcv_stop_code_hash:\n" ++
+  "  .quad 0x14281e7a9e7836bc, 0x7d818f8229424636, 0x9165d677b4f71266, 0x8ac9bc64e0a996ff\n" ++
+  ".balign 32\n" ++
+  "chahsr_state_root:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "chahsr_acct_struct:\n  .zero 104\n" ++
+  ".balign 32\n" ++
+  "chahsr_empty_code_hash:\n" ++
+  "  .quad 0x3c23f7860146d2c5, 0xc003c7dcb27d7e92, 0x3b2782ca53b600e5, 0x70a4855d04d8fa7b\n" ++
   "ad_offset:\n  .zero 8\n" ++
   "ad_length:\n  .zero 8\n" ++
   "aa_value_len:\n  .zero 8\n" ++
@@ -1468,6 +1482,7 @@ def statelessVerdictV2GuestClosure : String :=
   headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
+  codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   statelessVerdictV2Function
