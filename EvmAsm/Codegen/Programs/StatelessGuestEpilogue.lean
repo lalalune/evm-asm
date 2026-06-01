@@ -14,6 +14,7 @@ import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.BlockVerdict
 
 namespace EvmAsm.Codegen
 
@@ -756,6 +757,13 @@ def statelessGuestEpilogue : String :=
   "  ld t2, 24(t3); sd t2, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; li a2, 0xa0010000\n" ++
   "  jal ra, zkvm_sha256         # root -> OUTPUT_ADDR\n" ++
+  "  # ===== Step-2 successful_validation: sound full state-transition verdict =====\n" ++
+  "  # (header-validate + withdrawals/EIP-2935/EIP-4788 state recompute ==\n" ++
+  "  #  payload.state_root + EIP-7928 BAL gas-limit rule). NPR root is already at\n" ++
+  "  #  OUTPUT[0..32); stamp the verdict bit at OUTPUT[32]. Conservative: any\n" ++
+  "  #  unhandled case -> 0 (never a false positive).\n" ++
+  "  jal ra, stateless_verdict_v2\n" ++
+  "  li t0, 0xa0010000; sb a0, 32(t0)\n" ++
   "  j .Lsg_done\n" ++
   zkvmSha256Function ++ "\n" ++
   -- SSZ merkleization helpers for the dynamic transactions_root /
@@ -962,6 +970,9 @@ def statelessGuestEpilogue : String :=
   chainValidateBlobGasUsedUnderMaxFunction ++ "\n" ++
   chainValidateIncreasingTimestampsFunction ++ "\n" ++
   chainValidateConsecutiveNumbersFunction ++ "\n" ++
+  -- Step-2 verdict closure (omits rlp_list_nth_item / rlp_field_to_u64 — already
+  -- defined above in this epilogue — to avoid duplicate labels):
+  statelessVerdictV2GuestClosure ++ "\n" ++
   ".Lsg_done:"
 
 end EvmAsm.Codegen
