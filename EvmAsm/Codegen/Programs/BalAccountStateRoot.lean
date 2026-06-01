@@ -9,6 +9,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
+import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.MptStateRootIns
 
 namespace EvmAsm.Codegen
@@ -46,6 +47,38 @@ def balAccountStateRootFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
+  "  ret"
+
+/-! ## bal_account_state_root_auto -- derive records + replay BAL account changes
+
+    a0 = root_hash ptr        a1 = witness ptr       a2 = witness length
+    a3 = BAL list ptr         a4 = BAL list length   a5 = n records/items
+    a6 = out root ptr         a0 (output) = 0 ok / nonzero failure. -/
+def balAccountStateRootAutoFunction : String :=
+  "bal_account_state_root_auto:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # root hash ptr\n" ++
+  "  mv s1, a1                   # witness ptr\n" ++
+  "  mv s2, a2                   # witness len\n" ++
+  "  mv s3, a3                   # BAL list ptr\n" ++
+  "  mv s4, a4                   # BAL list len\n" ++
+  "  mv s5, a5                   # n\n" ++
+  "  mv s6, a6                   # out root\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; mv a5, s5\n" ++
+  "  la a6, basr_records; la a7, basr_accounts\n" ++
+  "  jal ra, bal_account_record_array\n" ++
+  "  bnez a0, .Lbasra_ret\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4\n" ++
+  "  la a5, basr_records; mv a6, s5; mv a7, s6\n" ++
+  "  jal ra, bal_account_state_root\n" ++
+  ".Lbasra_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
   "  addi sp, sp, 96\n" ++
   "  ret"
 
@@ -110,6 +143,7 @@ def ziskBalAccountStateRootPrologue : String :=
   rlpItemSizeFunction ++ "\n" ++
   rlpItemSpanFunction ++ "\n" ++
   msetMemcpyFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
   mptSpliceSlotFunction ++ "\n" ++
   mptLeafExtractFunction ++ "\n" ++
   mptExtensionNodeEncodeFunction ++ "\n" ++
@@ -120,10 +154,12 @@ def ziskBalAccountStateRootPrologue : String :=
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
   balAccountDescriptorArrayFunction ++ "\n" ++
+  balAccountRecordArrayFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
   balAccountStateRootFunction ++ "\n" ++
+  balAccountStateRootAutoFunction ++ "\n" ++
   ".Lbasr_pdone:"
 
 /-- Data section combines the MPT state-root driver scratch with only the
@@ -164,11 +200,65 @@ def ziskBalAccountStateRootDataSection : String :=
   "basr_desc:\n  .zero 4096\n" ++
   "basr_paths:\n  .zero 8192\n" ++
   "basr_values:\n  .zero 16384\n" ++
+  "basr_accounts:\n  .zero 16384\n" ++
+  "bara_item_off:\n  .zero 8\n" ++
+  "bara_item_len:\n  .zero 8\n" ++
+  "bara_acct_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bara_path:\n  .zero 64\n" ++
+  "bara_acct:\n  .zero 256\n" ++
+  ".balign 8\n" ++
+  "bara_empty_account:\n" ++
+  "  .byte 0xf8,0x44,0x80,0x80,0xa0\n" ++
+  "  .byte 0x56,0xe8,0x1f,0x17,0x1b,0xcc,0x55,0xa6\n" ++
+  "  .byte 0xff,0x83,0x45,0xe6,0x92,0xc0,0xf8,0x6e\n" ++
+  "  .byte 0x5b,0x48,0xe0,0x1b,0x99,0x6c,0xad,0xc0\n" ++
+  "  .byte 0x01,0x62,0x2f,0xb5,0xe3,0x63,0xb4,0x21\n" ++
+  "  .byte 0xa0\n" ++
+  "  .byte 0xc5,0xd2,0x46,0x01,0x86,0xf7,0x23,0x3c\n" ++
+  "  .byte 0x92,0x7e,0x7d,0xb2,0xdc,0xc7,0x03,0xc0\n" ++
+  "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
+  "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
+  ".balign 8\n" ++
   "basr_pad:\n  .zero 8"
 
 def ziskBalAccountStateRootProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskBalAccountStateRootPrologue
+  dataAsm     := ziskBalAccountStateRootDataSection
+}
+
+/-- `zisk_bal_account_state_root_auto`: same as `bal_account_state_root`, but
+    derives account records from the pre-state witness instead of reading them
+    from the input.
+    Input layout (file maps to INPUT+8 at 0x40000000):
+      +8  witness length (u64)
+      +16 n (u64)
+      +24 BAL list length (u64)
+      +32 root hash (32 bytes)
+      +64 BAL AccountChanges list bytes, padded to 8 bytes
+      then witness section
+    Output: OUTPUT+0 = final root, OUTPUT+32 = status. -/
+def ziskBalAccountStateRootAutoPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a2, 8(t0)                # witness len\n" ++
+  "  ld a5, 16(t0)               # n\n" ++
+  "  ld a4, 24(t0)               # BAL list len\n" ++
+  "  addi a0, t0, 32             # root hash ptr\n" ++
+  "  addi a3, t0, 64             # BAL list ptr\n" ++
+  "  add t1, a3, a4; addi t1, t1, 7; andi t1, t1, -8\n" ++
+  "  mv a1, t1                   # witness ptr\n" ++
+  "  li a6, 0xa0010000           # out root\n" ++
+  "  jal ra, bal_account_state_root_auto\n" ++
+  "  li t0, 0xa0010020; sd a0, 0(t0)\n" ++
+  "  j .Lbasra_pdone\n" ++
+  ziskBalAccountStateRootPrologue ++ "\n" ++
+  ".Lbasra_pdone:"
+
+def ziskBalAccountStateRootAutoProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBalAccountStateRootAutoPrologue
   dataAsm     := ziskBalAccountStateRootDataSection
 }
 
