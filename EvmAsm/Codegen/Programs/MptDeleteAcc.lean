@@ -128,6 +128,10 @@ def mptDeleteAccFunction : String :=
   "  jal ra, mpt_leaf_extract\n" ++
   "  beqz a0, .Lmdacc_collapse_leaf_child\n" ++
   "  li t0, 2; beq a0, t0, .Lmdacc_collapse_extension_child\n" ++
+  "  la t0, mdacc_child_ptr; ld a0, 0(t0)\n" ++
+  "  la t0, mdacc_child_len; ld a1, 0(t0)\n" ++
+  "  jal ra, mpt_node_kind\n" ++
+  "  beqz a0, .Lmdacc_collapse_branch_child\n" ++
   "  j .Lmdacc_need_collapse\n" ++
   ".Lmdacc_collapse_leaf_child:\n" ++
   "  la t0, mdacc_survivor_nibble; ld t1, 0(t0); la t2, mdacc_collapsed_path; sb t1, 0(t2)\n" ++
@@ -178,6 +182,31 @@ def mptDeleteAccFunction : String :=
   ".Lmdacc_ext_child_ready:\n" ++
   "  la t0, mdacc_leaf_path_len; ld a1, 0(t0); addi a1, a1, 1\n" ++
   "  la a0, mdacc_collapsed_path; la a2, mset_ref; la t0, mset_ref_len; ld a3, 0(t0)\n" ++
+  "  la a4, mset_node; la a5, mset_node_len\n" ++
+  "  jal ra, mpt_extension_node_encode\n" ++
+  "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
+  "  la a0, mset_node; mv a1, s4\n" ++
+  "  jal ra, node_db_append\n" ++
+  "  la a0, mset_node; mv a1, s4; la a2, mset_ref; la a3, mset_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  addi s7, s6, -1\n" ++
+  "  j .Lmdacc_bubble\n" ++
+  ".Lmdacc_collapse_branch_child:\n" ++
+  "  la t0, mdacc_survivor_nibble; ld t1, 0(t0); la t2, mdacc_collapsed_path; sb t1, 0(t2)\n" ++
+  "  mv a0, s3; mv a1, s4; mv a2, t1\n" ++
+  "  la a3, mw_child_offset; la a4, mw_child_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmdacc_fail\n" ++
+  "  la t0, mw_child_length; ld t1, 0(t0)\n" ++
+  "  li t2, 32; bne t1, t2, .Lmdacc_need_collapse\n" ++
+  "  la t0, mw_child_offset; ld t0, 0(t0); add t0, s3, t0\n" ++
+  "  la t4, mset_ref; li t5, 0xa0; sb t5, 0(t4); addi t4, t4, 1; li t5, 32\n" ++
+  ".Lmdacc_branch_child_hash_cp:\n" ++
+  "  beqz t5, .Lmdacc_branch_child_hash_done\n" ++
+  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lmdacc_branch_child_hash_cp\n" ++
+  ".Lmdacc_branch_child_hash_done:\n" ++
+  "  la t4, mset_ref_len; li t5, 33; sd t5, 0(t4)\n" ++
+  "  la a0, mdacc_collapsed_path; li a1, 1; la a2, mset_ref; li a3, 33\n" ++
   "  la a4, mset_node; la a5, mset_node_len\n" ++
   "  jal ra, mpt_extension_node_encode\n" ++
   "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
