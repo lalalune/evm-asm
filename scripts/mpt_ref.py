@@ -371,28 +371,38 @@ def vec_account_add_balance():
                         account=account_encode(nonce, bal, sroot, chash),
                         delta=delta,
                         expected=account_encode(nonce, bal + delta, sroot, chash)))
+    return out
+
+
 # ---- withdrawal -> (path, wei delta) preprocessing (.2.2.1) ---------------
 def withdrawal_rlp(index: int, vindex: int, address: bytes, amount: int) -> bytes:
     """Shanghai+ withdrawal RLP: rlp([index, validator_index, address, amount])."""
     def ri(x: int) -> bytes:  # minimal-int RLP (local, avoids cross-branch clash)
         return rlp_bytes(b"" if x == 0 else x.to_bytes((x.bit_length() + 7) // 8, "big"))
     return rlp_list([ri(index), ri(vindex), rlp_bytes(address), ri(amount)])
+
+
 def bytes_to_nibbles_py(b: bytes) -> bytes:
     out = bytearray()
     for byte in b:
         out.append(byte >> 4)
         out.append(byte & 0xF)
     return bytes(out)
+
+
 def vec_withdrawal_to_path_delta():
+    cases = [
         ("wtpd1", 0, 5, bytes.fromhex("00112233445566778899aabbccddeeff00112233"), 1),
         ("wtpd2", 7, 99, b"\xab" * 20, 32 * 10 ** 9),   # ~32 ETH in Gwei
         ("wtpd3", 1, 1, bytes(range(20)), 2 ** 40),
+    ]
+    out = []
     for name, idx, vidx, addr, amt in cases:
+        out.append(dict(name=name,
                         wd=withdrawal_rlp(idx, vidx, addr, amt),
                         path=bytes_to_nibbles_py(k256(addr)),     # 64 nibbles
                         delta=(amt * 10 ** 9).to_bytes(32, "big")))
     return out
-
 
 
 def build_asuf_input(account: bytes, field_index: int, value: int) -> bytes:
