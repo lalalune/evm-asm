@@ -37,6 +37,7 @@ def balAccountStateRootFunction : String :=
   "  mv s3, a5                   # account records\n" ++
   "  mv s4, a6                   # n\n" ++
   "  mv s5, a7                   # out root\n" ++
+  "  la t0, aps_witness_ptr; sd s1, 0(t0); la t0, aps_witness_len; sd s2, 0(t0)\n" ++
   "  mv a0, a3; mv a1, a4; mv a2, s3; mv a3, s4\n" ++
   "  la a4, basr_desc; la a5, basr_paths; la a6, basr_values\n" ++
   "  jal ra, bal_account_descriptor_array\n" ++
@@ -68,6 +69,7 @@ def balAccountStateRootAutoFunction : String :=
   "  mv s4, a4                   # BAL list len\n" ++
   "  mv s5, a5                   # n\n" ++
   "  mv s6, a6                   # out root\n" ++
+  "  la t0, aps_witness_ptr; sd s1, 0(t0); la t0, aps_witness_len; sd s2, 0(t0)\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; mv a5, s5\n" ++
   "  la a6, basr_records; la a7, basr_accounts\n" ++
   "  jal ra, bal_account_record_array\n" ++
@@ -149,6 +151,7 @@ def ziskBalAccountStateRootPrologue : String :=
   storageRootSingleSlotFunction ++ "\n" ++
   accountSetStorageRootFunction ++ "\n" ++
   accountApplyStorageSlotFunction ++ "\n" ++
+  accountApplyStorageSlotAccFunction ++ "\n" ++
   mptLeafExtractFunction ++ "\n" ++
   mptExtensionNodeEncodeFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++

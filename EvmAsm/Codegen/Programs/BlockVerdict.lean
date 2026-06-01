@@ -429,6 +429,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   storageRootSingleSlotFunction ++ "\n" ++
   accountSetStorageRootFunction ++ "\n" ++
   accountApplyStorageSlotFunction ++ "\n" ++
+  accountApplyStorageSlotAccFunction ++ "\n" ++
   swdReadU64leFunction ++ "\n" ++
   swdWriteBe32U64Function ++ "\n" ++
   swdWriteBe8Function ++ "\n" ++
@@ -476,8 +477,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "asr_ref:\n  .zero 40\n" ++
   "aps_off:\n  .zero 8\n" ++
   "aps_len:\n  .zero 8\n" ++
+  "aps_witness_ptr:\n  .zero 8\n" ++
+  "aps_witness_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "aps_newsroot:\n  .zero 32\n" ++
+  "aps_path:\n  .zero 64\n" ++
   "aps_empty_root:\n" ++
   "  .byte 0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6\n" ++
   "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
@@ -764,6 +768,7 @@ def statelessVerdictV2GuestClosure : String :=
   storageRootSingleSlotFunction ++ "\n" ++
   accountSetStorageRootFunction ++ "\n" ++
   accountApplyStorageSlotFunction ++ "\n" ++
+  accountApplyStorageSlotAccFunction ++ "\n" ++
   swdReadU64leFunction ++ "\n" ++
   swdWriteBe32U64Function ++ "\n" ++
   swdWriteBe8Function ++ "\n" ++
