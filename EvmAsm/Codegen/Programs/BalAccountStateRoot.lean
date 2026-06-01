@@ -274,7 +274,6 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_tmp2:\n  .zero 512\n" ++
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
-  "baap_walk_val:\n  .zero 128\n" ++
   "baap_storage_desc:\n  .zero 2560\n" ++
   "baap_storage_paths:\n  .zero 4096\n" ++
   "baap_storage_delete_paths:\n  .zero 4096\n" ++
