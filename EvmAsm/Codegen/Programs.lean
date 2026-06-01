@@ -55,6 +55,7 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptSetAcc
+import EvmAsm.Codegen.Programs.MptInsertWalk
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.MptEncode
@@ -557,6 +558,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_hp_decode_nibbles"    => some ziskHpDecodeNibblesProbeUnit
   | "zisk_mpt_walk"             => some ziskMptWalkProbeUnit
   | "zisk_mpt_set_record_walk"  => some ziskMptSetRecordWalkProbeUnit
+  | "zisk_mpt_insert_walk"      => some ziskMptInsertWalkProbeUnit
   | "zisk_mpt_set"              => some ziskMptSetProbeUnit
   | "zisk_mpt_set_acc"          => some ziskMptSetAccProbeUnit
   | "zisk_mpt_state_root"       => some ziskMptStateRootProbeUnit
@@ -844,6 +846,7 @@ def knownProgramNames : List String :=
    "zisk_hp_decode_nibbles",
    "zisk_mpt_walk",
    "zisk_mpt_set_record_walk",
+   "zisk_mpt_insert_walk",
    "zisk_mpt_set",
    "zisk_mpt_set_acc",
    "zisk_mpt_state_root",
@@ -1324,6 +1327,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/Mpt.lean",
     "EvmAsm/Codegen/Programs/MptSet.lean",
     "EvmAsm/Codegen/Programs/MptSetAcc.lean",
+    "EvmAsm/Codegen/Programs/MptInsertWalk.lean",
     "EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean",
     "EvmAsm/Codegen/Programs/AccountBalance.lean",
     "EvmAsm/Codegen/Programs/MptEncode.lean",

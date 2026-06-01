@@ -474,6 +474,114 @@ def vec_withdrawals_state_root():
                 expected=trie_root(new_root_node))
 
 
+# ---- insert-walk divergence vectors (mpt_insert_walk .2.4.2.6.1) ----------
+# Each vector is a trie + an ABSENT path; the walk must classify WHERE the path
+# diverges and record the terminal node + ancestor stack for a later insert.
+EMPTY_TRIE_ROOT = bytes.fromhex(
+    "56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+
+
+def vec_iw_branch_empty():
+    """Root = branch with an inline leaf at nibble 1. Insert path starts at
+    nibble 3 (empty slot) -> case 0 BRANCH_EMPTY_SLOT, terminal = root branch,
+    depth 0 (the branch is un-pushed), consumed 0."""
+    la = leaf_node([0xa, 0xb], b"v1")
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(la)
+    root = branch_node(slots)
+    return dict(name="iw_branch_empty", witness=[root], root=trie_root(root),
+                path=[0x3, 0x7, 0x8],
+                case=0, depth=0, consumed=0, match_len=0,
+                terminal_index=0, levels=[])
+
+
+def vec_iw_leaf_split():
+    """Root = leaf key [1,2,3,4]. Insert path [1,2,9,9] diverges at the leaf
+    with shared prefix [1,2] -> case 1 LEAF_SPLIT, match_len 2."""
+    root = leaf_node([0x1, 0x2, 0x3, 0x4], b"leaf-value")
+    return dict(name="iw_leaf_split", witness=[root], root=trie_root(root),
+                path=[0x1, 0x2, 0x9, 0x9],
+                case=1, depth=0, consumed=0, match_len=2,
+                terminal_index=0, levels=[])
+
+
+def vec_iw_ext_split():
+    """Root = extension prefix [5,6] -> branch. Insert path [5,9,0,0] diverges
+    inside the extension at position 1 -> case 2 EXTENSION_SPLIT, match_len 1."""
+    la = leaf_node([0xa, 0xb], b"x" * 32)
+    lb = leaf_node([0xc, 0xd], b"y" * 32)
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(la)
+    slots[2] = node_ref(lb)
+    branch = branch_node(slots)
+    root = extension_node([0x5, 0x6], node_ref(branch))
+    return dict(name="iw_ext_split", witness=[root], root=trie_root(root),
+                path=[0x5, 0x9, 0x0, 0x0],
+                case=2, depth=0, consumed=0, match_len=1,
+                terminal_index=0, levels=[])
+
+
+def vec_iw_empty_trie():
+    """Root = EMPTY_TRIE_ROOT -> case 3 EMPTY_TRIE (single new leaf)."""
+    return dict(name="iw_empty_trie", witness=[], root=EMPTY_TRIE_ROOT,
+                path=[0x1, 0x2],
+                case=3, depth=0, consumed=0, match_len=0,
+                terminal_index=None, levels=[])
+
+
+def vec_iw_ext_then_branch_empty():
+    """Root = extension [5,6] -> branch B (>=32, hash-referenced) with an inline
+    leaf at nibble 1. Insert path [5,6,3,c]: the extension matches fully (pushed
+    as an ancestor), then branch B's slot 3 is empty -> case 0 BRANCH_EMPTY_SLOT,
+    depth 1, consumed 2, terminal = branch B."""
+    la = leaf_node([0xc], b"z" * 40)            # big -> branch B > 32 bytes
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(la)
+    branch = branch_node(slots)
+    assert len(branch) >= 32, "branch must be hash-referenced for this vector"
+    root = extension_node([0x5, 0x6], node_ref(branch))
+    return dict(name="iw_ext_then_branch_empty",
+                witness=[root, branch], root=trie_root(root),
+                path=[0x5, 0x6, 0x3, 0xc],
+                case=0, depth=1, consumed=2, match_len=0,
+                terminal_index=1, levels=[("extension", 0, 2)])
+
+
+IW_VECTORS = [vec_iw_branch_empty, vec_iw_leaf_split, vec_iw_ext_split,
+              vec_iw_empty_trie, vec_iw_ext_then_branch_empty]
+
+
+def insert_walk_expected(v: dict) -> list[tuple[str, int, int]]:
+    """Expected probe OUTPUT for zisk_mpt_insert_walk as (name, offset, value).
+    OUTPUT: status@0, meta(depth@8, consumed@16, case@24, terminal_offset@32,
+    terminal_len@40, match_len@48), ancestor records 32 B each @128."""
+    witness, levels = v["witness"], v["levels"]
+    offs = element_offsets(witness)
+    if v["terminal_index"] is None:
+        term_off, term_len = 0, 0
+    else:
+        ti = v["terminal_index"]
+        term_off, term_len = offs[ti], len(witness[ti])
+    out = [
+        ("status", 0, 0),
+        ("depth", 8, v["depth"]),
+        ("consumed", 16, v["consumed"]),
+        ("case", 24, v["case"]),
+        ("terminal_offset", 32, term_off),
+        ("terminal_len", 40, term_len),
+        ("match_len", 48, v["match_len"]),
+    ]
+    for i, (kind, nibble, _c) in enumerate(levels):
+        base = 128 + 32 * i
+        out += [
+            (f"rec{i}_offset", base + 0, offs[i]),
+            (f"rec{i}_len", base + 8, len(witness[i])),
+            (f"rec{i}_kind", base + 16, 0 if kind == "branch" else 1),
+            (f"rec{i}_nibble", base + 24, nibble),
+        ]
+    return out
+
+
 if __name__ == "__main__":
     import os
     outdir = sys.argv[1] if len(sys.argv) > 1 else "gen-out/mpt-set"
@@ -520,6 +628,19 @@ if __name__ == "__main__":
         depth = next(val for nm, _o, val in rw if nm == "depth")
         print(f"{v['name']:12} root={v['root'].hex()[:16]}.. "
               f"new_root={v['expected'].hex()[:16]}.. rw_depth={depth}")
+    # insert-walk divergence vectors (mpt_insert_walk)
+    for mk in IW_VECTORS:
+        v = mk()
+        sec = ssz_section(v["witness"])
+        inp = build_probe_input(v["root"], v["path"], b"", sec)
+        with open(f"{outdir}/{v['name']}.input", "wb") as f:
+            f.write(inp)
+        iw = insert_walk_expected(v)
+        with open(f"{outdir}/{v['name']}.iwexpected", "w") as f:
+            for name, off, val in iw:
+                f.write(f"{name} {off} {val}\n")
+        print(f"{v['name']:24} case={v['case']} depth={v['depth']} "
+              f"consumed={v['consumed']} match_len={v['match_len']}")
     # accumulating 2-update vector (mpt_set_acc)
     a = vec_acc()
     sec = ssz_section(a["witness"])
