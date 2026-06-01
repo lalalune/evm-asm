@@ -261,6 +261,7 @@ def mptDeleteAccFunction : String :=
   "  beqz a0, .Lmdacc_bubble_ext_leaf\n" ++
   "  la a0, mset_node; mv a1, s4\n" ++
   "  jal ra, mpt_node_kind\n" ++
+  "  li t0, 1; beq a0, t0, .Lmdacc_bubble_ext_ext\n" ++
   "  li t0, 2; beq a0, t0, .Lmdacc_need_collapse\n" ++
   "  li t0, 3; beq a0, t0, .Lmdacc_need_collapse\n" ++
   ".Lmdacc_bubble_ext_rewrap:\n" ++
@@ -274,6 +275,35 @@ def mptDeleteAccFunction : String :=
   "  la a0, mset_node; mv a1, s4; la a2, mset_ref; la a3, mset_ref_len\n" ++
   "  jal ra, mpt_node_slot_encode\n" ++
   "  j .Lmdacc_bubble\n" ++
+  ".Lmdacc_bubble_ext_ext:\n" ++
+  "  la a0, mset_node; mv a1, s4\n" ++
+  "  la a2, mdacc_leaf_path; la a3, mdacc_leaf_path_len; la a4, mdacc_leaf_value_ptr; la a5, mdacc_leaf_value_len\n" ++
+  "  jal ra, mpt_extension_extract\n" ++
+  "  bnez a0, .Lmdacc_need_collapse\n" ++
+  "  la t0, mdacc_ext_path_len; ld t1, 0(t0)\n" ++
+  "  la t2, mdacc_collapsed_path; add t2, t2, t1\n" ++
+  "  la t3, mdacc_leaf_path; la t0, mdacc_leaf_path_len; ld t4, 0(t0)\n" ++
+  ".Lmdacc_bext_ext_path_cp:\n" ++
+  "  beqz t4, .Lmdacc_bext_ext_path_done\n" ++
+  "  lbu t5, 0(t3); sb t5, 0(t2); addi t3, t3, 1; addi t2, t2, 1; addi t4, t4, -1; j .Lmdacc_bext_ext_path_cp\n" ++
+  ".Lmdacc_bext_ext_path_done:\n" ++
+  "  la t0, mdacc_ext_path_len; ld t1, 0(t0); la t0, mdacc_leaf_path_len; ld t2, 0(t0); add t1, t1, t2; la t0, mdacc_ext_path_len; sd t1, 0(t0)\n" ++
+  "  la t0, mdacc_leaf_value_ptr; ld t0, 0(t0)\n" ++
+  "  la t1, mdacc_leaf_value_len; ld t2, 0(t1)\n" ++
+  "  li t3, 32; bne t2, t3, .Lmdacc_bext_ext_inline\n" ++
+  "  la t4, mset_ref; li t5, 0xa0; sb t5, 0(t4); addi t4, t4, 1; li t5, 32\n" ++
+  ".Lmdacc_bext_ext_hash_cp:\n" ++
+  "  beqz t5, .Lmdacc_bext_ext_hash_done\n" ++
+  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lmdacc_bext_ext_hash_cp\n" ++
+  ".Lmdacc_bext_ext_hash_done:\n" ++
+  "  la t4, mset_ref_len; li t5, 33; sd t5, 0(t4); j .Lmdacc_bubble_ext_rewrap\n" ++
+  ".Lmdacc_bext_ext_inline:\n" ++
+  "  la t4, mset_ref; mv t5, t2\n" ++
+  ".Lmdacc_bext_ext_inline_cp:\n" ++
+  "  beqz t5, .Lmdacc_bext_ext_inline_done\n" ++
+  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lmdacc_bext_ext_inline_cp\n" ++
+  ".Lmdacc_bext_ext_inline_done:\n" ++
+  "  la t4, mset_ref_len; sd t2, 0(t4); j .Lmdacc_bubble_ext_rewrap\n" ++
   ".Lmdacc_bubble_ext_leaf:\n" ++
   "  la t0, mdacc_ext_path_len; ld t1, 0(t0)\n" ++
   "  la t2, mdacc_collapsed_path; add t2, t2, t1\n" ++
