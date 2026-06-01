@@ -61,6 +61,7 @@ import EvmAsm.Codegen.Programs.MptInsertWalkDb
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
+import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
@@ -358,6 +359,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_transactions_root_one_tx" => some ziskBlockValidateTransactionsRootOneTxProbeUnit
   | "zisk_block_validate_withdrawals_root_one_w" => some ziskBlockValidateWithdrawalsRootOneWProbeUnit
   | "zisk_block_validate_withdrawals_root_two_w" => some ziskBlockValidateWithdrawalsRootTwoWProbeUnit
+  | "zisk_block_validate_withdrawals_root_indexed" => some ziskBlockValidateWithdrawalsRootIndexedProbeUnit
   | "zisk_block_validate_receipts_root_one_receipt" => some ziskBlockValidateReceiptsRootOneReceiptProbeUnit
   | "zisk_block_validate_receipts_root_two_receipts" => some ziskBlockValidateReceiptsRootTwoReceiptsProbeUnit
   | "zisk_block_validate_transactions_root_two_tx" => some ziskBlockValidateTransactionsRootTwoTxProbeUnit
@@ -1167,6 +1169,7 @@ def knownProgramNames : List String :=
    "zisk_block_validate_transactions_root_one_tx",
    "zisk_block_validate_withdrawals_root_one_w",
    "zisk_block_validate_withdrawals_root_two_w",
+   "zisk_block_validate_withdrawals_root_indexed",
    "zisk_block_validate_receipts_root_one_receipt",
    "zisk_block_validate_receipts_root_two_receipts",
    "zisk_block_validate_transactions_root_two_tx",
