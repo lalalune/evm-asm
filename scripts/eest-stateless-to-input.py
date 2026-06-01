@@ -21,12 +21,12 @@ Manifest columns (tab-separated, one row per guest invocation):
 
 Usage:
   eest-stateless-to-input.py --fixtures-dir DIR --out-dir DIR
-                             [--manifest FILE] [--limit N] [--filter SUB]
+                             [--manifest FILE] [--skip N] [--limit N]
+                             [--filter SUB]
 
-``--limit`` caps the number of guest invocations emitted (the default is
-a small smoke subset; pass a large value or ``--all`` via the harness for
-the full suite).  ``--filter`` keeps only fixtures whose relative path
-contains the given substring.
+``--filter`` keeps only fixtures whose relative path contains the given
+substring.  ``--skip`` drops the first N selected stateless blocks after
+filtering, then ``--limit`` caps the number of guest invocations emitted.
 """
 from __future__ import annotations
 
@@ -84,9 +84,15 @@ def main() -> int:
     ap.add_argument("--fixtures-dir", required=True, type=Path)
     ap.add_argument("--out-dir", required=True, type=Path)
     ap.add_argument("--manifest", type=Path, default=None)
+    ap.add_argument("--skip", type=int, default=0, help="skip first N selected invocations")
     ap.add_argument("--limit", type=int, default=0, help="cap invocations (0 = no cap)")
     ap.add_argument("--filter", default="", help="keep fixtures whose relpath contains this")
     args = ap.parse_args()
+
+    if args.skip < 0:
+        ap.error("--skip must be nonnegative")
+    if args.limit < 0:
+        ap.error("--limit must be nonnegative")
 
     fixtures_dir: Path = args.fixtures_dir
     out_dir: Path = args.out_dir
@@ -98,6 +104,7 @@ def main() -> int:
         if ".meta" not in p.parts
     )
 
+    selected = 0
     n = 0
     used_labels: set[str] = set()
     with manifest_path.open("w") as mf:
@@ -106,6 +113,10 @@ def main() -> int:
             if args.filter and args.filter not in relpath:
                 continue
             for label, ib, ob in iter_blocks(fp):
+                if selected < args.skip:
+                    selected += 1
+                    continue
+                selected += 1
                 if args.limit and n >= args.limit:
                     print(
                         f"==> limit {args.limit} reached; stopping "
