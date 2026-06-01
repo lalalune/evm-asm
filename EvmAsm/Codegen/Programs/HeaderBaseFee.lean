@@ -90,6 +90,7 @@ def eip1559CalcBaseFeePerGasFunction : String :=
   "  beq a1, s2, .Lebf_eq         # gas_used == target → expected = base_fee\n" ++
   "  li s4, 0                     # path flag: 0 = below, 1 = above\n" ++
   "  bgtu a1, s2, .Lebf_set_above\n" ++
+  "  beqz a1, .Lebf_below_zero_used\n" ++
   "  sub s3, s2, a1               # below: delta = target - gas_used\n" ++
   "  j .Lebf_compute\n" ++
   ".Lebf_set_above:\n" ++
@@ -120,6 +121,15 @@ def eip1559CalcBaseFeePerGasFunction : String :=
   "  li a0, 1\n" ++
   "  mv a1, s1\n" ++
   "  jal ra, u256_from_u64_be\n" ++
+  "  j .Lebf_apply\n" ++
+  ".Lebf_below_zero_used:\n" ++
+  "  # When parent_gas_used = 0, gas_used_delta = target, so\n" ++
+  "  # (base_fee * target) / target = base_fee exactly. Avoid the large\n" ++
+  "  # intermediate product for very high test gas limits.\n" ++
+  "  mv a0, s0\n" ++
+  "  li a1, 8\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_div_u64_be\n" ++
   ".Lebf_apply:\n" ++
   "  beqz s4, .Lebf_sub_path\n" ++
   "  # above: out = base_fee + delta\n" ++
