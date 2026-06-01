@@ -210,6 +210,11 @@ import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
+import EvmAsm.Codegen.Programs.SszWithdrawal
+import EvmAsm.Codegen.Programs.SszWitnessState
+import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
+import EvmAsm.Codegen.Programs.SszParentHeader
+import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
@@ -655,6 +660,10 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_rlp_encode_list_prefix" => some ziskRlpEncodeListPrefixProbeUnit
   | "zisk_withdrawal_rlp_encode" => some ziskWithdrawalRlpEncodeProbeUnit
   | "zisk_withdrawal_to_path_delta" => some ziskWithdrawalToPathDeltaProbeUnit
+  | "zisk_ssz_withdrawal_to_rlp" => some ziskSszWithdrawalToRlpProbeUnit
+  | "zisk_extract_witness_state_section" => some ziskExtractWitnessStateSectionProbeUnit
+  | "zisk_extract_payload_and_withdrawals" => some ziskExtractPayloadAndWithdrawalsProbeUnit
+  | "zisk_extract_parent_header_and_state_root" => some ziskExtractParentHeaderProbeUnit
   | "zisk_withdrawal_compute_hash" => some ziskWithdrawalComputeHashProbeUnit
   | "zisk_account_encode"       => some ziskAccountEncodeProbeUnit
   | "zisk_hp_encode_nibbles"    => some ziskHpEncodeNibblesProbeUnit
@@ -723,6 +732,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_validate_header_rlp_pair" => some ziskValidateHeaderRlpPairProbeUnit
   | "zisk_block_header_ssz_to_rlp" => some ziskBlockHeaderSszToRlpProbeUnit
   | "zisk_step2_verdict"         => some ziskStep2VerdictProbeUnit
+  | "zisk_stateless_verdict"    => some ziskStatelessVerdictProbeUnit
   | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
@@ -945,6 +955,10 @@ def knownProgramNames : List String :=
    "zisk_rlp_encode_list_prefix",
    "zisk_withdrawal_rlp_encode",
    "zisk_withdrawal_to_path_delta",
+   "zisk_ssz_withdrawal_to_rlp",
+   "zisk_extract_witness_state_section",
+   "zisk_extract_payload_and_withdrawals",
+   "zisk_extract_parent_header_and_state_root",
    "zisk_withdrawal_compute_hash",
    "zisk_account_encode",
    "zisk_hp_encode_nibbles",
@@ -1012,6 +1026,7 @@ def knownProgramNames : List String :=
    "zisk_validate_header_rlp_pair",
    "zisk_block_header_ssz_to_rlp",
    "zisk_step2_verdict",
+   "zisk_stateless_verdict",
    "zisk_u256_from_u64_be",
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero",
@@ -1318,7 +1333,12 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/TxSigningHash.lean",
     "EvmAsm/Codegen/Programs/U256.lean",
     "EvmAsm/Codegen/Programs/Withdrawal.lean",
-    "EvmAsm/Codegen/Programs/WithdrawalPath.lean"
+    "EvmAsm/Codegen/Programs/WithdrawalPath.lean",
+    "EvmAsm/Codegen/Programs/SszWithdrawal.lean",
+    "EvmAsm/Codegen/Programs/SszWitnessState.lean",
+    "EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean",
+    "EvmAsm/Codegen/Programs/SszParentHeader.lean",
+    "EvmAsm/Codegen/Programs/StatelessVerdict.lean"
   ]
   for path in paths do
     let contents ← IO.FS.readFile path
