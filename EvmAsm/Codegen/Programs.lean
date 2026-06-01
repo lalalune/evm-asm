@@ -1335,8 +1335,6 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean",
     "EvmAsm/Codegen/Programs/SszParentHeader.lean",
     "EvmAsm/Codegen/Programs/StatelessVerdict.lean"
-    "EvmAsm/Codegen/Programs/WithdrawalPath.lean"
-    "EvmAsm/Codegen/Programs/SszWithdrawal.lean"
   ]
   for path in paths do
     let contents ← IO.FS.readFile path
