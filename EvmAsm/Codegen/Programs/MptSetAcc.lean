@@ -468,4 +468,156 @@ def ziskMptSetAccProbeUnit : BuildUnit := {
   dataAsm     := ziskMptSetAccDataSection
 }
 
+/-! ## mpt_state_root -- multi-change post-state-root recompute (driver)
+
+    Sequentially apply a list of value-only changes via `mpt_set_acc`,
+    threading the root through the appendable node DB, and return the final
+    root. This is the generic engine for `compute_state_root_and_trie_changes`
+    (bead evm-asm-fhsxz.4.3.2): the withdrawal / account-RLP / verdict
+    specifics live in Step 2 (evm-asm-fhsxz.2).
+
+    a0 = root_hash ptr (32 bytes)
+    a1 = witness ptr            a2 = witness length
+    a3 = changes ptr            (array of 32-byte descriptors, each
+                                 (path_ptr:u64, path_len:u64,
+                                  value_ptr:u64, value_len:u64))
+    a4 = n_changes              a5 = out_root ptr (32 bytes)
+    a0 (output) = 0 (ok) / nonzero (the failing mpt_set_acc status)
+
+    Initializes the node DB, then loops: each `mpt_set_acc` resolves the
+    current root from the DB (or witness) and appends its new nodes, so the
+    next change traverses the updated trie. The threaded root is kept in
+    `mset_dr_root` (reading a0 then writing a7 to the same buffer is safe:
+    mpt_set_acc consumes the input root before writing the output). -/
+def mptStateRootFunction : String :=
+  "mpt_state_root:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a1                   # witness\n" ++
+  "  mv s1, a2                   # witness_len\n" ++
+  "  mv s2, a3                   # changes\n" ++
+  "  mv s3, a4                   # n_changes\n" ++
+  "  mv s4, a5                   # out_root\n" ++
+  "  # current root := root_hash (a0) -> mset_dr_root\n" ++
+  "  la t0, mset_dr_root\n" ++
+  "  ld t1,  0(a0); sd t1,  0(t0)\n" ++
+  "  ld t1,  8(a0); sd t1,  8(t0)\n" ++
+  "  ld t1, 16(a0); sd t1, 16(t0)\n" ++
+  "  ld t1, 24(a0); sd t1, 24(t0)\n" ++
+  "  # init node DB\n" ++
+  "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
+  "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
+  "  li s5, 0                    # i\n" ++
+  ".Lsr_loop:\n" ++
+  "  beq s5, s3, .Lsr_done\n" ++
+  "  slli t0, s5, 5; add t0, s2, t0   # &change[i]\n" ++
+  "  ld a3, 0(t0)                # path_ptr\n" ++
+  "  ld a4, 8(t0)                # path_len\n" ++
+  "  ld a5, 16(t0)               # value_ptr\n" ++
+  "  ld a6, 24(t0)               # value_len\n" ++
+  "  la a0, mset_dr_root\n" ++
+  "  mv a1, s0\n" ++
+  "  mv a2, s1\n" ++
+  "  la a7, mset_dr_root\n" ++
+  "  jal ra, mpt_set_acc\n" ++
+  "  bnez a0, .Lsr_fail\n" ++
+  "  addi s5, s5, 1\n" ++
+  "  j .Lsr_loop\n" ++
+  ".Lsr_done:\n" ++
+  "  la t0, mset_dr_root\n" ++
+  "  ld t1,  0(t0); sd t1,  0(s4)\n" ++
+  "  ld t1,  8(t0); sd t1,  8(s4)\n" ++
+  "  ld t1, 16(t0); sd t1, 16(s4)\n" ++
+  "  ld t1, 24(t0); sd t1, 24(s4)\n" ++
+  "  li a0, 0\n" ++
+  ".Lsr_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n" ++
+  ".Lsr_fail:\n" ++
+  "  j .Lsr_ret"
+
+/-- `zisk_mpt_state_root`: probe applying a LIST of value-only changes.
+    Input layout (file maps to INPUT+8 at 0x40000000):
+      +8  witness_len            +16 n_changes (N)
+      +24 root_hash (32B)        +56 lengths table: N x (path_len:u64,
+                                     value_len:u64)
+      +56+16N : blobs path0,value0,...,path_{N-1},value_{N-1} (each 8-aligned)
+      then : witness section (8-aligned)
+    The prologue builds the 32-byte descriptor array (mset_dr_changes) by
+    walking the lengths table + a running blob cursor, then calls
+    `mpt_state_root`. Output: OUTPUT+0 = final 32-byte root; OUTPUT+32 = status. -/
+def ziskMptStateRootPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a2, 8(t0)                # witness_len\n" ++
+  "  ld a4, 16(t0)               # n_changes\n" ++
+  "  addi a0, t0, 24             # root_hash ptr\n" ++
+  "  slli t1, a4, 4              # 16 * N (lengths table size)\n" ++
+  "  addi t2, t0, 56             # table base\n" ++
+  "  add t3, t2, t1              # blob cursor = table base + 16N\n" ++
+  "  la t4, mset_dr_changes      # descriptor array dst\n" ++
+  "  li t5, 0                    # i\n" ++
+  ".Lsrp_build:\n" ++
+  "  beq t5, a4, .Lsrp_build_done\n" ++
+  "  slli t6, t5, 4; add t6, t2, t6   # &table[i]\n" ++
+  "  ld a5, 0(t6)                # path_len\n" ++
+  "  ld a6, 8(t6)                # value_len\n" ++
+  "  sd t3, 0(t4)                # desc.path_ptr\n" ++
+  "  sd a5, 8(t4)                # desc.path_len\n" ++
+  "  addi a3, a5, 7; andi a3, a3, -8; add t3, t3, a3   # cursor += roundup8(path_len)\n" ++
+  "  sd t3, 16(t4)               # desc.value_ptr\n" ++
+  "  sd a6, 24(t4)               # desc.value_len\n" ++
+  "  addi a3, a6, 7; andi a3, a3, -8; add t3, t3, a3   # cursor += roundup8(value_len)\n" ++
+  "  addi t4, t4, 32\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  j .Lsrp_build\n" ++
+  ".Lsrp_build_done:\n" ++
+  "  mv a1, t3                   # witness ptr (after last value)\n" ++
+  "  la a3, mset_dr_changes      # changes array\n" ++
+  "  li a5, 0xa0010000           # out_root at OUTPUT+0\n" ++
+  "  jal ra, mpt_state_root\n" ++
+  "  li t0, 0xa0010020; sd a0, 0(t0)   # status at OUTPUT+32\n" ++
+  "  j .Lsrp_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
+  msetMemcpyFunction ++ "\n" ++
+  mptSpliceSlotFunction ++ "\n" ++
+  nodeDbAppendFunction ++ "\n" ++
+  nodeDbLookupFunction ++ "\n" ++
+  mptNodeResolveFunction ++ "\n" ++
+  mptSetRecordWalkDbFunction ++ "\n" ++
+  mptSetAccFunction ++ "\n" ++
+  mptStateRootFunction ++ "\n" ++
+  ".Lsrp_pdone:"
+
+/-- Data section for `zisk_mpt_state_root`: the acc-probe scratch plus the
+    driver's threaded-root buffer and descriptor array. -/
+def ziskMptStateRootDataSection : String :=
+  ziskMptSetAccDataSection ++ "\n" ++
+  ".balign 32\n" ++
+  "mset_dr_root:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mset_dr_changes:\n  .zero 2048"
+
+def ziskMptStateRootProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptStateRootPrologue
+  dataAsm     := ziskMptStateRootDataSection
+}
+
 end EvmAsm.Codegen
