@@ -34,6 +34,7 @@ import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.HeadersKeccak
 
 namespace EvmAsm.Codegen
 
@@ -760,6 +761,20 @@ def statelessVerdictV2Function : String :=
   "  jal ra, extract_payload_and_withdrawals\n" ++
   "  mv a0, s0; la a1, svf_witness; la a2, svf_witness_len\n" ++
   "  jal ra, extract_witness_state_section\n" ++
+  "  # Mirror execution-specs validate_headers(witness.headers): the witness\n" ++
+  "  # header list must be a contiguous parent-hash chain before validation can\n" ++
+  "  # succeed. SSZ offsets are read bytewise because SSZ_BASE is unaligned.\n" ++
+  "  addi a0, s0, 4; jal ra, bgv_u32le          # witness outer offset\n" ++
+  "  add t0, s0, a0; la t1, svf_witness_section; sd t0, 0(t1)\n" ++
+  "  addi a0, s0, 8; jal ra, bgv_u32le          # chain_config outer offset\n" ++
+  "  add t0, s0, a0; la t1, svf_witness_end; sd t0, 0(t1)\n" ++
+  "  la t1, svf_witness_section; ld t0, 0(t1); addi a0, t0, 8; jal ra, bgv_u32le # headers offset\n" ++
+  "  la t1, svf_witness_section; ld t0, 0(t1); add t2, t0, a0\n" ++
+  "  la t3, svf_headers_ptr; sd t2, 0(t3)\n" ++
+  "  la t1, svf_witness_end; ld t1, 0(t1); bltu t1, t2, .Lv2_zero\n" ++
+  "  sub a1, t1, t2; la t3, svf_headers_len; sd a1, 0(t3)\n" ++
+  "  mv a0, t2; la a2, svf_headers_count; jal ra, headers_validate_chain\n" ++
+  "  bnez a0, .Lv2_headers_fail\n" ++
   "  mv a0, s0; la t0, svf_payload; ld a1, 0(t0)\n" ++
   "  la a2, svf_parent_rlp; la a3, svf_parent_rlp_len; la a4, svf_parent_sr\n" ++
   "  jal ra, extract_parent_header_and_state_root\n" ++
@@ -792,6 +807,9 @@ def statelessVerdictV2Function : String :=
   "  la a0, sv_params; mv a1, s0\n" ++
   "  jal ra, block_verdict\n" ++
   "  j .Lv2_ret\n" ++
+  ".Lv2_headers_fail:\n" ++
+  "  li t0, 10; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
   ".Lv2_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lv2_ret:\n" ++
@@ -923,6 +941,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   rlpListCountItemsFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
+  headersKeccakArrayFunction ++ "\n" ++
+  headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
@@ -1027,6 +1047,17 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_fail_code:\n  .zero 8\n" ++
   "bv_header_status:\n  .zero 8\n" ++
   "bv_state_status:\n  .zero 8\n" ++
+  "svf_witness_section:\n  .zero 8\n" ++
+  "svf_witness_end:\n  .zero 8\n" ++
+  "svf_headers_ptr:\n  .zero 8\n" ++
+  "svf_headers_len:\n  .zero 8\n" ++
+  "svf_headers_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "vh_keccak_table:\n" ++
+  "  .zero 8192\n" ++
+  ".balign 32\n" ++
+  "vh_extracted_parent_hash:\n" ++
+  "  .zero 32\n" ++
   -- eip8037_tx_gas_gate scratch:
   "bsg_count:\n  .zero 8\n" ++
   "bsg_off:\n  .zero 8\n" ++
@@ -1354,6 +1385,8 @@ def statelessVerdictV2GuestClosure : String :=
   txTypeDispatchFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
+  headersKeccakArrayFunction ++ "\n" ++
+  headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
