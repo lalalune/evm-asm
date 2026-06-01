@@ -73,6 +73,7 @@ import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
 import EvmAsm.Codegen.Programs.BalAccountNthDescriptor
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
+import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.AccountApplyStorage
@@ -333,6 +334,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bal_account_nth_descriptor" => some ziskBalAccountNthDescriptorProbeUnit
   | "zisk_bal_account_descriptor_array" => some ziskBalAccountDescriptorArrayProbeUnit
   | "zisk_bal_account_state_root" => some ziskBalAccountStateRootProbeUnit
+  | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit
   | "zisk_storage_root_single_slot" => some ziskStorageRootSingleSlotProbeUnit
   | "zisk_account_set_storage_root" => some ziskAccountSetStorageRootProbeUnit
   | "zisk_block_access_list_hash" => some ziskBlockAccessListHashProbeUnit
@@ -1133,6 +1135,7 @@ def knownProgramNames : List String :=
    "zisk_bal_account_nth_descriptor",
    "zisk_bal_account_descriptor_array",
    "zisk_bal_account_state_root",
+   "zisk_bal_account_record_array",
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
    "zisk_block_access_list_hash",
