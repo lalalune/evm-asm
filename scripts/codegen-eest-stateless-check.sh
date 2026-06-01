@@ -36,6 +36,8 @@
 #     --limit N          cap to N guest invocations (default 50)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
 #     --steps N          ziskemu max steps (default $EEST_STEPS or 50000000)
+#     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto)
+#     --job-mem-mib N    memory budget per ziskemu job (default $EEST_JOB_MEM_MIB or 8192)
 #     --min-succ N       exit 1 if fewer than N succ-bit matches (regression gate)
 #     --min-full N       exit 1 if fewer than N full (105-byte) matches (regression gate)
 #     --min-root N       exit 1 if fewer than N root matches (regression gate)
@@ -66,6 +68,10 @@ FILTER=""
 # (whose NPR-root merkleization is sha256-heavy) complete; normal blocks
 # halt long before this and are not slowed.
 STEPS="${EEST_STEPS:-50000000}"
+JOBS="${EEST_JOBS:-auto}"
+JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-8192}"
+JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-4}"
+MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
@@ -79,6 +85,8 @@ while [[ $# -gt 0 ]]; do
     --limit) LIMIT="$2"; shift 2 ;;
     --filter) FILTER="$2"; shift 2 ;;
     --steps) STEPS="$2"; shift 2 ;;
+    --jobs) JOBS="$2"; shift 2 ;;
+    --job-mem-mib) JOB_MEM_MIB="$2"; shift 2 ;;
     --min-succ) MIN_SUCC="$2"; shift 2 ;;
     --min-full) MIN_FULL="$2"; shift 2 ;;
     --min-root) MIN_ROOT="$2"; shift 2 ;;
@@ -87,6 +95,64 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
 done
+
+if [[ "$JOBS" != "auto" ]] && { ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [[ "$JOBS" -lt 1 ]]; }; then
+  echo "--jobs must be a positive integer or auto (got: $JOBS)" >&2
+  exit 1
+fi
+if ! [[ "$JOB_MEM_MIB" =~ ^[0-9]+$ ]] || [[ "$JOB_MEM_MIB" -lt 1 ]]; then
+  echo "--job-mem-mib must be a positive integer (got: $JOB_MEM_MIB)" >&2
+  exit 1
+fi
+if ! [[ "$JOB_CPU_THREADS" =~ ^[0-9]+$ ]] || [[ "$JOB_CPU_THREADS" -lt 1 ]]; then
+  echo "EEST_JOB_CPU_THREADS must be a positive integer (got: $JOB_CPU_THREADS)" >&2
+  exit 1
+fi
+if ! [[ "$MEM_RESERVE_MIB" =~ ^[0-9]+$ ]]; then
+  echo "EEST_MEM_RESERVE_MIB must be a nonnegative integer (got: $MEM_RESERVE_MIB)" >&2
+  exit 1
+fi
+
+compute_job_cap() {
+  local mem_avail_kib mem_avail_mib mem_cap ncpu cpu_cap cap
+  mem_avail_kib="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || true)"
+  if [[ -z "$mem_avail_kib" ]]; then
+    mem_cap=1
+  else
+    mem_avail_mib=$((mem_avail_kib / 1024))
+    if [[ "$mem_avail_mib" -le "$MEM_RESERVE_MIB" ]]; then
+      mem_cap=1
+    else
+      mem_cap=$(((mem_avail_mib - MEM_RESERVE_MIB) / JOB_MEM_MIB))
+      [[ "$mem_cap" -lt 1 ]] && mem_cap=1
+    fi
+  fi
+  ncpu="$(nproc 2>/dev/null || echo 1)"
+  cpu_cap=$((ncpu / JOB_CPU_THREADS))
+  [[ "$cpu_cap" -lt 1 ]] && cpu_cap=1
+  cap="$mem_cap"
+  [[ "$cpu_cap" -lt "$cap" ]] && cap="$cpu_cap"
+  echo "$cap"
+}
+
+JOB_CAP="$(compute_job_cap)"
+if [[ "$JOBS" == "auto" ]]; then
+  JOBS="$JOB_CAP"
+elif [[ "$JOBS" -gt "$JOB_CAP" ]]; then
+  echo "==> requested --jobs $JOBS capped to $JOB_CAP (job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS)" >&2
+  JOBS="$JOB_CAP"
+fi
+
+cleanup_children() {
+  local pids
+  pids="$(jobs -pr || true)"
+  if [[ -n "$pids" ]]; then
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null || true
+    wait 2>/dev/null || true
+  fi
+}
+trap 'cleanup_children; exit 130' INT TERM HUP
 
 # --- locate ziskemu ---------------------------------------------------------
 ZISKEMU="${ZISKEMU:-}"
@@ -162,45 +228,83 @@ python3 scripts/eest-stateless-to-input.py "${conv_args[@]}"
 MANIFEST="$RUN_DIR/manifest.tsv"
 [[ -s "$MANIFEST" ]] || { echo "no stateless blocks selected" >&2; exit 1; }
 
-# --- run + classify ---------------------------------------------------------
-# The 105-byte SszStatelessValidationResult decomposes into three
-# independently-checkable regions, so we report each separately to show
-# exactly where the guest stands (not just full-vs-not):
-#   root [0:32]   = new_payload_request_root  (hex chars 0..64)
-#   succ [32]     = successful_validation     (hex chars 64..66)
-#   tail [33:105] = u32 offset (=37) + 68-byte chain_config (hex 66..210)
-# Phase 1 -- run every guest input on ziskemu, up to $JOBS at a time. Each run
-# records its exit code to "$RUN_DIR/$label.exit"; classification (phase 2) is
-# kept serial so the tallies and the per-fixture report stay deterministic and
-# in manifest order regardless of $JOBS.
-run_one() {
-  local label="$1" input="$2"
-  local rc=0
-  "$ZISKEMU" -e gen-out/stateless_guest.elf -i "$input" -o "$RUN_DIR/$label.output" \
-      -n "$STEPS" >"$RUN_DIR/$label.emu.log" 2>&1 </dev/null || rc=$?
-  printf '%s' "$rc" > "$RUN_DIR/$label.exit"
+run_case() {
+  local line="$1"
+  local label input expected_hex succ_bit input_len relpath
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath <<< "$line"
+  local out="$RUN_DIR/$label.output"
+  local log="$RUN_DIR/$label.emu.log"
+  local result="$RUN_DIR/$label.result.tsv"
+  local tmp_result="$result.tmp.$$"
+  local actual_hex
+
+  if ! "$ZISKEMU" -e gen-out/stateless_guest.elf -i "$input" -o "$out" \
+        -n "$STEPS" >"$log" 2>&1 </dev/null; then
+    printf 'ERROR\texit\n' > "$tmp_result"
+    mv "$tmp_result" "$result"
+    return 0
+  fi
+  actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
+  if [[ "${#actual_hex}" -lt 210 ]]; then
+    printf 'ERROR\tshort:%s\n' "${#actual_hex}" > "$tmp_result"
+    mv "$tmp_result" "$result"
+    return 0
+  fi
+  printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
+  mv "$tmp_result" "$result"
 }
 
-echo "==> run $(wc -l < "$MANIFEST" | tr -d ' ') guest inputs on ziskemu (jobs=$JOBS)"
-while IFS=$'\t' read -r label input _rest; do
-  run_one "$label" "$input" &
-  # Bound concurrency: while $JOBS are already running, wait for one to finish.
-  while (( $(jobs -rp | wc -l) >= JOBS )); do wait -n; done
-done < "$MANIFEST"
-wait
+wait_for_one_worker() {
+  local rc
+  set +e
+  wait -n
+  rc=$?
+  set -e
+  return "$rc"
+}
+
+echo "==> run stateless_guest on $(wc -l < "$MANIFEST" | tr -d ' ') input(s) (jobs=$JOBS)"
+if [[ "$JOBS" -eq 1 ]]; then
+  while IFS= read -r line; do
+    run_case "$line"
+  done < "$MANIFEST"
+else
+  active=0
+  worker_fail=0
+  while IFS= read -r line; do
+    run_case "$line" &
+    active=$((active + 1))
+    if [[ "$active" -ge "$JOBS" ]]; then
+      wait_for_one_worker || worker_fail=1
+      active=$((active - 1))
+    fi
+  done < "$MANIFEST"
+  while [[ "$active" -gt 0 ]]; do
+    wait_for_one_worker || worker_fail=1
+    active=$((active - 1))
+  done
+  if [[ "$worker_fail" -ne 0 ]]; then
+    echo "==> warning: at least one worker exited unexpectedly; classifying available results" >&2
+  fi
+fi
 
 # Phase 2 -- classify the recorded outputs (serial, manifest order).
 total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0
 while IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath; do
   total=$((total + 1))
-  out="$RUN_DIR/$label.output"
-  rc="$(cat "$RUN_DIR/$label.exit" 2>/dev/null || echo 1)"
-  if [[ "$rc" != 0 ]]; then
-    err=$((err + 1)); echo "  ERROR(exit)   $relpath"; continue
+  result="$RUN_DIR/$label.result.tsv"
+  if [[ ! -f "$result" ]]; then
+    err=$((err + 1)); echo "  ERROR(missing) $relpath"; continue
   fi
-  actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
-  if [[ "${#actual_hex}" -lt 210 ]]; then
-    err=$((err + 1)); echo "  ERROR(short)  $relpath (${#actual_hex} hex chars)"; continue
+  IFS=$'\t' read -r status actual_hex < "$result"
+  if [[ "$status" != "OK" ]]; then
+    err=$((err + 1))
+    case "$actual_hex" in
+      exit) echo "  ERROR(exit)   $relpath" ;;
+      short:*) echo "  ERROR(short)  $relpath (${actual_hex#short:} hex chars)" ;;
+      *) echo "  ERROR($actual_hex) $relpath" ;;
+    esac
+    continue
   fi
   exp="${expected_hex:0:210}"
 
@@ -241,6 +345,7 @@ BASELINE="$REPO_ROOT/gen-out/eest-baseline.txt"
   echo "  tail match:    $tail   (bytes 33:105 = offset + chain_config)"
   echo "  root-only diff:$rod   (succ+tail match; ONLY root differs => 1 field from full)"
   echo "  fail:          $fail"
+  echo "  jobs:          $JOBS"
 } | tee "$BASELINE"
 
 echo "==> wrote baseline: $BASELINE"

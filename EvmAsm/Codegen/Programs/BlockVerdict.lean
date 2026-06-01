@@ -7,17 +7,17 @@
   turns the verified bricks into actual EEST withdrawal full-matches.
 
     block_state_root: system_write_descriptors -> for each of the 2 system
-      contracts: walk the pre-state account, account_apply_storage_slot, record a
-      state-trie change; then the withdrawal changes (walk + account_add_balance);
+      contracts: walk the pre-state account, account_apply_storage_slot_acc,
+      record a state-trie change; then the withdrawal changes (walk + account_add_balance);
       then mpt_state_root over ALL changes -> post-state root.
     block_verdict: block_header_ssz_to_rlp + validate_header_rlp_pair +
       block_state_root + memcmp(recomputed, payload.state_root).
     stateless_verdict_v2: the real-SSZ glue (= stateless_verdict_from_ssz) but
       calling block_verdict (system writes included) instead of step2_verdict.
 
-  Conservative throughout: any walk miss / non-empty-storage system contract /
-  insert-needed withdrawal -> status != 0 -> verdict 0 (a MISS, never a false
-  positive). Reuses the stateless_verdict asm closure + data verbatim and adds the
+  Conservative throughout: any walk miss or unsupported trie shape -> status != 0
+  -> verdict 0 (a MISS, never a false positive). Reuses the stateless_verdict
+  asm closure + data verbatim and adds the
   StorageWrite / SystemWrites / single_leaf functions.
 -/
 
@@ -59,10 +59,13 @@ def bsrSysChangeFunction : String :=
   "  la t0, bsr_pathp; ld a3, 0(t0); li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
   "  jal ra, mpt_walk\n" ++
   "  bnez a0, .Lbsc_fail\n" ++
-  "  # account_apply_storage_slot(acct, len, slot, val, vlen, newacct, bsr_tmplen)\n" ++
+  "  # account_apply_storage_slot_acc(acct, len, slot, val, vlen, newacct, bsr_tmplen)\n" ++
+  "  # The accumulator helper replays non-empty system-contract storage roots.\n" ++
+  "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
+  "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
   "  la a0, bsr_acct; la t0, bsr_acct_len; ld a1, 0(t0); mv a2, s1; mv a3, s2; mv a4, s3\n" ++
   "  slli t0, s4, 7; la t1, bsr_newaccts; add a5, t1, t0; la a6, bsr_tmplen\n" ++
-  "  jal ra, account_apply_storage_slot\n" ++
+  "  jal ra, account_apply_storage_slot_acc\n" ++
   "  bnez a0, .Lbsc_fail\n" ++
   "  # record change[index] = (path, 64, newacct, tmplen, is_insert=0) -- 40 B\n" ++
   "  slli t0, s4, 5; slli t4, s4, 3; add t0, t0, t4; la t1, bsr_changes; add t1, t1, t0\n" ++
@@ -272,6 +275,10 @@ def blockVerdictFunction : String :=
   "  j .Lbv_after_tx_gate\n" ++
   ".Lbv_tx_present:\n" ++
   "  la t5, bsr_bal_count; ld t5, 0(t5); beqz t5, .Lbv_zero  # tx blocks need BAL replay\n" ++
+  "  # Any included transaction must consume nonzero gas. This catches rejected\n" ++
+  "  # tx payloads whose state/BAL roots otherwise match the conservative replay.\n" ++
+  "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # gas_used\n" ++
+  "  beqz a0, .Lbv_zero\n" ++
   ".Lbv_after_tx_gate:\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
