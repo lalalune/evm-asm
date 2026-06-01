@@ -38,6 +38,9 @@
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
 #     --steps N          ziskemu max steps (default $EEST_STEPS or 50000000)
 #     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto)
+#     --max-failures N   stop after N FAIL/ERROR results (default: disabled)
+#     --stop-after-failures N
+#                        alias for --max-failures
 #     --job-mem-mib N|auto
 #                        memory budget per ziskemu job (default $EEST_JOB_MEM_MIB
 #                        or auto). Auto is derived from the ziskemu build:
@@ -72,6 +75,7 @@ JOBS="${EEST_JOBS:-auto}"
 JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
 JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
 MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
+MAX_FAILURES=""
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
@@ -85,6 +89,7 @@ while [[ $# -gt 0 ]]; do
     --filter) FILTER="$2"; shift 2 ;;
     --steps) STEPS="$2"; shift 2 ;;
     --jobs) JOBS="$2"; shift 2 ;;
+    --max-failures|--stop-after-failures) MAX_FAILURES="$2"; shift 2 ;;
     --job-mem-mib) JOB_MEM_MIB="$2"; shift 2 ;;
     --min-succ) MIN_SUCC="$2"; shift 2 ;;
     --min-full) MIN_FULL="$2"; shift 2 ;;
@@ -108,6 +113,10 @@ if [[ "$JOB_MEM_MIB" != "auto" ]] && { ! [[ "$JOB_MEM_MIB" =~ ^[0-9]+$ ]] || [[ 
 fi
 if [[ "$JOB_CPU_THREADS" != "auto" ]] && { ! [[ "$JOB_CPU_THREADS" =~ ^[0-9]+$ ]] || [[ "$JOB_CPU_THREADS" -lt 1 ]]; }; then
   echo "EEST_JOB_CPU_THREADS must be a positive integer or auto (got: $JOB_CPU_THREADS)" >&2
+  exit 1
+fi
+if [[ -n "$MAX_FAILURES" ]] && { ! [[ "$MAX_FAILURES" =~ ^[0-9]+$ ]] || [[ "$MAX_FAILURES" -lt 1 ]]; }; then
+  echo "--max-failures must be a positive integer when set (got: $MAX_FAILURES)" >&2
   exit 1
 fi
 if ! [[ "$MEM_RESERVE_MIB" =~ ^[0-9]+$ ]]; then
@@ -232,6 +241,8 @@ python3 scripts/eest-stateless-to-input.py "${conv_args[@]}"
 
 MANIFEST="$RUN_DIR/manifest.tsv"
 [[ -s "$MANIFEST" ]] || { echo "no stateless blocks selected" >&2; exit 1; }
+mapfile -t manifestLines < "$MANIFEST"
+selectedCount="${#manifestLines[@]}"
 
 run_case() {
   local line="$1"
@@ -268,31 +279,6 @@ wait_for_one_worker() {
   return "$rc"
 }
 
-echo "==> run stateless_guest on $(wc -l < "$MANIFEST" | tr -d ' ') input(s) (jobs=$JOBS)"
-if [[ "$JOBS" -eq 1 ]]; then
-  while IFS= read -r line; do
-    run_case "$line"
-  done < "$MANIFEST"
-else
-  active=0
-  worker_fail=0
-  while IFS= read -r line; do
-    run_case "$line" &
-    active=$((active + 1))
-    if [[ "$active" -ge "$JOBS" ]]; then
-      wait_for_one_worker || worker_fail=1
-      active=$((active - 1))
-    fi
-  done < "$MANIFEST"
-  while [[ "$active" -gt 0 ]]; do
-    wait_for_one_worker || worker_fail=1
-    active=$((active - 1))
-  done
-  if [[ "$worker_fail" -ne 0 ]]; then
-    echo "==> warning: at least one worker exited unexpectedly; classifying available results" >&2
-  fi
-fi
-
 # --- classify ---------------------------------------------------------------
 # The 105-byte SszStatelessValidationResult decomposes into three
 # independently-checkable regions, so we report each separately to show
@@ -300,13 +286,30 @@ fi
 #   root [0:32]   = new_payload_request_root  (hex chars 0..64)
 #   succ [32]     = successful_validation     (hex chars 64..66)
 #   tail [33:105] = u32 offset (=37) + 68-byte chain_config (hex 66..210)
+declare -A classifiedLabels=()
 total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0
-while IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath; do
-  total=$((total + 1))
+
+classify_case_result() {
+  local line="$1"
+  local require_result="${2:-0}"
+  local label input expected_hex succ_bit input_len relpath result status actual_hex exp r s t
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath <<< "$line"
+  if [[ -n "${classifiedLabels[$label]+x}" ]]; then
+    return 0
+  fi
   result="$RUN_DIR/$label.result.tsv"
   if [[ ! -f "$result" ]]; then
-    err=$((err + 1)); echo "  ERROR(missing) $relpath"; continue
+    if [[ "$require_result" -eq 0 ]]; then
+      return 1
+    fi
+    classifiedLabels["$label"]=1
+    total=$((total + 1))
+    err=$((err + 1))
+    echo "  ERROR(missing) $relpath"
+    return 0
   fi
+  classifiedLabels["$label"]=1
+  total=$((total + 1))
   IFS=$'\t' read -r status actual_hex < "$result"
   if [[ "$status" != "OK" ]]; then
     err=$((err + 1))
@@ -315,7 +318,7 @@ while IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath; do
       short:*) echo "  ERROR(short)  $relpath (${actual_hex#short:} hex chars)" ;;
       *) echo "  ERROR($actual_hex) $relpath" ;;
     esac
-    continue
+    return 0
   fi
   exp="${expected_hex:0:210}"
 
@@ -334,7 +337,89 @@ while IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath; do
     [[ "$s" == "succ" && "$t" == "tail" && "$r" == "----" ]] && rod=$((rod + 1))
     echo "  FAIL [$r/$s/$t]  $relpath (succ guest=${actual_hex:64:2} exp=${exp:64:2})"
   fi
-done < "$MANIFEST"
+  return 0
+}
+
+classify_completed_results() {
+  local line
+  for line in "${manifestLines[@]}"; do
+    classify_case_result "$line" 0 || true
+    if failure_limit_reached; then
+      return 0
+    fi
+  done
+}
+
+classify_missing_results() {
+  local line
+  for line in "${manifestLines[@]}"; do
+    classify_case_result "$line" 1 || true
+  done
+}
+
+failure_limit_reached() {
+  [[ -n "$MAX_FAILURES" && $((fail + err)) -ge "$MAX_FAILURES" ]]
+}
+
+stopEarly=0
+worker_fail=0
+run_note=""
+[[ -n "$MAX_FAILURES" ]] && run_note=", max_failures=$MAX_FAILURES"
+echo "==> run stateless_guest on $selectedCount input(s) (jobs=$JOBS$run_note)"
+if [[ "$JOBS" -eq 1 ]]; then
+  for line in "${manifestLines[@]}"; do
+    run_case "$line"
+    classify_case_result "$line" 1
+    if failure_limit_reached; then
+      stopEarly=1
+      break
+    fi
+  done
+else
+  active=0
+  nextLine=0
+  while [[ "$nextLine" -lt "$selectedCount" || "$active" -gt 0 ]]; do
+    while [[ "$nextLine" -lt "$selectedCount" && "$active" -lt "$JOBS" ]]; do
+      if failure_limit_reached; then
+        break
+      fi
+      run_case "${manifestLines[$nextLine]}" &
+      active=$((active + 1))
+      nextLine=$((nextLine + 1))
+    done
+
+    if failure_limit_reached; then
+      stopEarly=1
+      cleanup_children
+      active=0
+      classify_completed_results
+      break
+    fi
+    if [[ "$active" -eq 0 ]]; then
+      break
+    fi
+
+    wait_for_one_worker || worker_fail=1
+    active=$((active - 1))
+    classify_completed_results
+    if failure_limit_reached; then
+      stopEarly=1
+      cleanup_children
+      active=0
+      classify_completed_results
+      break
+    fi
+  done
+  if [[ "$worker_fail" -ne 0 ]]; then
+    echo "==> warning: at least one worker exited unexpectedly; classifying available results" >&2
+  fi
+fi
+if [[ "$stopEarly" -eq 0 ]]; then
+  classify_missing_results
+fi
+if [[ "$stopEarly" -eq 1 ]]; then
+  echo "==> stopped after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
+fi
 
 ran=$((total - err))
 # --- summary + baseline file ------------------------------------------------
@@ -347,6 +432,8 @@ BASELINE="$REPO_ROOT/gen-out/eest-baseline.txt"
   echo "  ziskemu:     $ZISKEMU (steps=$STEPS)"
   echo "  zisk build:  $ZISKEMU_FLAVOR -- $ZISKEMU_VERSION"
   echo "  jobs:        $JOBS (cpus=$CPUS, ${JOB_MEM_MIB} MiB/proc budget)"
+  echo "  selected:    $selectedCount"
+  [[ "$stopEarly" -eq 1 ]] && echo "  stopped:     after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
   echo "  total:       $total"
   echo "  errored:     $err"
   echo "  ran:         $ran"
