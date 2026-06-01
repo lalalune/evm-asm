@@ -29,6 +29,8 @@ import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BalGasValid
+import EvmAsm.Codegen.Programs.MptInsertAcc
+import EvmAsm.Codegen.Programs.MptStateRootIns
 
 namespace EvmAsm.Codegen
 
@@ -61,11 +63,12 @@ def bsrSysChangeFunction : String :=
   "  slli t0, s4, 7; la t1, bsr_newaccts; add a5, t1, t0; la a6, bsr_tmplen\n" ++
   "  jal ra, account_apply_storage_slot\n" ++
   "  bnez a0, .Lbsc_fail\n" ++
-  "  # record change[index] = (path, 64, newacct, tmplen)\n" ++
-  "  slli t0, s4, 5; la t1, bsr_changes; add t1, t1, t0\n" ++
+  "  # record change[index] = (path, 64, newacct, tmplen, is_insert=0) -- 40 B\n" ++
+  "  slli t0, s4, 5; slli t4, s4, 3; add t0, t0, t4; la t1, bsr_changes; add t1, t1, t0\n" ++
   "  la t2, bsr_pathp; ld t2, 0(t2); sd t2, 0(t1); li t3, 64; sd t3, 8(t1)\n" ++
   "  slli t0, s4, 7; la t2, bsr_newaccts; add t2, t2, t0; sd t2, 16(t1)\n" ++
   "  la t2, bsr_tmplen; ld t2, 0(t2); sd t2, 24(t1)\n" ++
+  "  sd zero, 32(t1)             # is_insert = 0 (system contract MODIFY)\n" ++
   "  li a0, 0; j .Lbsc_ret\n" ++
   ".Lbsc_fail:\n" ++
   "  li a0, 1\n" ++
@@ -116,23 +119,59 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_delta; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2\n" ++
   "  ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
   "  beqz t1, .Lbsr_wl_next\n" ++
+  "  # Repeated withdrawals to the same recipient accumulate into one state change.\n" ++
+  "  li t6, 2                     # scan recorded withdrawal changes [2, s1)\n" ++
+  ".Lbsr_dup_scan:\n" ++
+  "  beq t6, s1, .Lbsr_no_dup\n" ++
+  "  slli t0, t6, 6; la t1, bsr_paths; add t0, t1, t0     # prev path\n" ++
+  "  slli t2, s1, 6; add t1, t1, t2                       # current path\n" ++
+  "  li t2, 64\n" ++
+  ".Lbsr_dup_cmp:\n" ++
+  "  beqz t2, .Lbsr_dup_found\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbsr_dup_next\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbsr_dup_cmp\n" ++
+  ".Lbsr_dup_next:\n" ++
+  "  addi t6, t6, 1; j .Lbsr_dup_scan\n" ++
+  ".Lbsr_dup_found:\n" ++
+  "  slli t0, t6, 5; slli t1, t6, 3; add t0, t0, t1; la t1, bsr_changes; add t0, t1, t0\n" ++
+  "  la t1, bsr_prev_desc; sd t0, 0(t1)\n" ++
+  "  ld t1, 16(t0); la t2, bsr_prev_acct; sd t1, 0(t2)\n" ++
+  "  ld a1, 24(t0); mv a0, t1; la a2, bsr_delta; la a3, bsr_acct; la a4, bsr_tmplen\n" ++
+  "  jal ra, account_add_balance; bnez a0, .Lbsr_cons\n" ++
+  "  la t0, bsr_prev_acct; ld a0, 0(t0); la a1, bsr_acct; la t0, bsr_tmplen; ld a2, 0(t0)\n" ++
+  "  jal ra, mset_memcpy\n" ++
+  "  la t0, bsr_prev_desc; ld t0, 0(t0); la t1, bsr_tmplen; ld t1, 0(t1); sd t1, 24(t0)\n" ++
+  "  j .Lbsr_wl_next\n" ++
+  ".Lbsr_no_dup:\n" ++
+  "  li t0, 66; bge s1, t0, .Lbsr_cons   # cap to the change-buffer size\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  slli t1, s1, 6; la t2, bsr_paths; add a3, t2, t1; li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
-  "  jal ra, mpt_walk; bnez a0, .Lbsr_cons\n" ++
+  "  jal ra, mpt_walk\n" ++
+  "  beqz a0, .Lbsr_wl_found\n" ++
+  "  li t0, 1; bne a0, t0, .Lbsr_cons   # parse-fail (2) -> conservative\n" ++
+  "  # NOT-FOUND: create the account. fresh = empty_account + delta (balance 0 -> delta).\n" ++
+  "  la a0, bsr_empty_account; li a1, 70; la a2, bsr_delta\n" ++
+  "  slli t1, s1, 7; la t2, bsr_newaccts; add a3, t2, t1; la a4, bsr_tmplen\n" ++
+  "  jal ra, account_add_balance; bnez a0, .Lbsr_cons\n" ++
+  "  li t5, 1; j .Lbsr_wl_record   # is_insert = 1\n" ++
+  ".Lbsr_wl_found:\n" ++
   "  la a0, bsr_acct; la t0, bsr_acct_len; ld a1, 0(t0); la a2, bsr_delta\n" ++
   "  slli t1, s1, 7; la t2, bsr_newaccts; add a3, t2, t1; la a4, bsr_tmplen\n" ++
   "  jal ra, account_add_balance; bnez a0, .Lbsr_cons\n" ++
-  "  slli t0, s1, 5; la t1, bsr_changes; add t1, t1, t0\n" ++
+  "  li t5, 0                      # is_insert = 0 (MODIFY existing)\n" ++
+  ".Lbsr_wl_record:\n" ++
+  "  slli t0, s1, 5; slli t6, s1, 3; add t0, t0, t6; la t1, bsr_changes; add t1, t1, t0   # *40\n" ++
   "  slli t2, s1, 6; la t3, bsr_paths; add t3, t3, t2; sd t3, 0(t1); li t3, 64; sd t3, 8(t1)\n" ++
   "  slli t2, s1, 7; la t3, bsr_newaccts; add t3, t3, t2; sd t3, 16(t1)\n" ++
   "  la t3, bsr_tmplen; ld t3, 0(t3); sd t3, 24(t1)\n" ++
+  "  sd t5, 32(t1)               # is_insert\n" ++
   "  addi s1, s1, 1               # advance change counter (only on a recorded change)\n" ++
   ".Lbsr_wl_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_wl\n" ++
   ".Lbsr_apply:\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  la a3, bsr_changes; mv a4, s1; mv a5, s5     # change count = s1\n" ++
-  "  jal ra, mpt_state_root\n" ++
+  "  la a3, bsr_changes; mv a4, s1; mv a5, s5     # change count = s1 (40-byte recs)\n" ++
+  "  jal ra, mpt_state_root_ins\n" ++
   "  j .Lbsr_ret\n" ++
   ".Lbsr_cons:\n" ++
   "  li a0, 1\n" ++
@@ -305,6 +344,11 @@ def ziskStatelessVerdictV2Prologue : String :=
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++
   mptStateRootFunction ++ "\n" ++
+  mptLeafExtractFunction ++ "\n" ++
+  mptExtensionNodeEncodeFunction ++ "\n" ++
+  mptInsertWalkDbFunction ++ "\n" ++
+  mptInsertAccFunction ++ "\n" ++
+  mptStateRootInsFunction ++ "\n" ++
   withdrawalsStateRootFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++
   checkGasLimitFunction ++ "\n" ++
@@ -399,14 +443,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_pathp:\n  .zero 8\n" ++
   "bsr_acct_len:\n  .zero 8\n" ++
   "bsr_tmplen:\n  .zero 8\n" ++
+  "bsr_prev_desc:\n  .zero 8\n" ++
+  "bsr_prev_acct:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bsr_kbuf:\n  .zero 32\n" ++
   "bsr_delta:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bsr_acct:\n  .zero 256\n" ++
-  "bsr_paths:\n  .zero 1152\n" ++
-  "bsr_newaccts:\n  .zero 2304\n" ++
-  "bsr_changes:\n  .zero 576\n" ++
+  "bsr_paths:\n  .zero 4224\n" ++          -- 66 * 64
+  "bsr_newaccts:\n  .zero 8448\n" ++       -- 66 * 128
+  "bsr_changes:\n  .zero 2640\n" ++        -- 66 * 40 (40-byte recs w/ is_insert)
   ".balign 32\n" ++
   "bsr_addr_2935:\n" ++
   "  .byte 0x00, 0x00, 0xF9, 0x08, 0x27, 0xF1, 0xC5, 0x3a\n" ++
@@ -427,7 +473,74 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_npr_p:\n  .zero 8\n" ++
   "bv_bal_start:\n  .zero 8\n" ++
   "bv_bal_len:\n  .zero 8\n" ++
-  "bv_tx_off:\n  .zero 8"
+  "bv_tx_off:\n  .zero 8\n" ++
+  -- fresh-account RLP [nonce=0, balance=0, storageRoot=EMPTY_TRIE, codeHash=EMPTY_CODE].
+  -- Keep this immutable template before the mutable insert scratch buffers.
+  ".balign 8\n" ++
+  "bsr_empty_account:\n" ++
+  "  .byte 0xf8,0x44,0x80,0x80,0xa0\n" ++
+  "  .byte 0x56,0xe8,0x1f,0x17,0x1b,0xcc,0x55,0xa6\n" ++
+  "  .byte 0xff,0x83,0x45,0xe6,0x92,0xc0,0xf8,0x6e\n" ++
+  "  .byte 0x5b,0x48,0xe0,0x1b,0x99,0x6c,0xad,0xc0\n" ++
+  "  .byte 0x01,0x62,0x2f,0xb5,0xe3,0x63,0xb4,0x21\n" ++
+  "  .byte 0xa0\n" ++
+  "  .byte 0xc5,0xd2,0x46,0x01,0x86,0xf7,0x23,0x3c\n" ++
+  "  .byte 0x92,0x7e,0x7d,0xb2,0xdc,0xc7,0x03,0xc0\n" ++
+  "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
+  "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
+  -- account INSERT engine scratch (mpt_insert_walk_db / mpt_insert_acc /
+  -- mpt_state_root_ins; the node DB + mset_*/mlnen_*/mw_* are already in the base):
+  ".balign 8\n" ++
+  "iw_empty_trie_root:\n" ++
+  "  .byte 0x56,0xe8,0x1f,0x17,0x1b,0xcc,0x55,0xa6\n" ++
+  "  .byte 0xff,0x83,0x45,0xe6,0x92,0xc0,0xf8,0x6e\n" ++
+  "  .byte 0x5b,0x48,0xe0,0x1b,0x99,0x6c,0xad,0xc0\n" ++
+  "  .byte 0x01,0x62,0x2f,0xb5,0xe3,0x63,0xb4,0x21\n" ++
+  ".balign 8\n" ++
+  "iwd_ptr:\n  .zero 8\n" ++
+  "iwd_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "iwd_hash:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ins_wl:\n  .zero 8\n" ++
+  "ins_node_len:\n  .zero 8\n" ++
+  "ins_ref_len:\n  .zero 8\n" ++
+  "mle_path_off:\n  .zero 8\n" ++
+  "mle_path_len:\n  .zero 8\n" ++
+  "ins_kcount:\n  .zero 8\n" ++
+  "ins_lv_ptr:\n  .zero 8\n" ++
+  "ins_lv_len:\n  .zero 8\n" ++
+  "ins_m:\n  .zero 8\n" ++
+  "ins_niba:\n  .zero 8\n" ++
+  "ins_nibb:\n  .zero 8\n" ++
+  "ins_node2_len:\n  .zero 8\n" ++
+  "ins_ref2_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "ins_meta:\n  .zero 48\n" ++
+  ".balign 8\n" ++
+  "ins_stack:\n  .zero 2048\n" ++
+  ".balign 8\n" ++
+  "ins_k:\n  .zero 64\n" ++
+  ".balign 8\n" ++
+  "ins_ref:\n  .zero 64\n" ++
+  ".balign 8\n" ++
+  "ins_ref2:\n  .zero 64\n" ++
+  ".balign 8\n" ++
+  "ins_node:\n  .zero 2048\n" ++
+  ".balign 8\n" ++
+  "ins_node2:\n  .zero 2048\n" ++
+  ".balign 8\n" ++
+  "ins_empty_branch:\n" ++
+  "  .byte 0xd1,0x80,0x80,0x80,0x80,0x80,0x80,0x80\n" ++
+  "  .byte 0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80\n" ++
+  "  .byte 0x80,0x80\n" ++
+  ".balign 8\n" ++
+  "mxne_field_len:\n  .zero 8\n" ++
+  "mxne_hp_len:\n  .zero 8\n" ++
+  "mxne_cursor:\n  .zero 8\n" ++
+  "mxne_total_payload:\n  .zero 8\n" ++
+  "mxne_hp_buf:\n  .zero 1024\n" ++
+  "mxne_payload_buf:\n  .zero 16384\n"
 
 def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   body        := NOP
@@ -474,6 +587,11 @@ def statelessVerdictV2GuestClosure : String :=
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++
   mptStateRootFunction ++ "\n" ++
+  mptLeafExtractFunction ++ "\n" ++
+  mptExtensionNodeEncodeFunction ++ "\n" ++
+  mptInsertWalkDbFunction ++ "\n" ++
+  mptInsertAccFunction ++ "\n" ++
+  mptStateRootInsFunction ++ "\n" ++
   withdrawalsStateRootFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++
   checkGasLimitFunction ++ "\n" ++
