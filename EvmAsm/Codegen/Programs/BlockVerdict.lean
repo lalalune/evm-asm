@@ -573,6 +573,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
+  baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
@@ -929,6 +930,7 @@ def statelessVerdictV2GuestClosure : String :=
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
+  baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++

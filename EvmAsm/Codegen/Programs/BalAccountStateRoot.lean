@@ -157,6 +157,7 @@ def ziskBalAccountStateRootPrologue : String :=
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
+  baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++

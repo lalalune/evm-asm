@@ -94,6 +94,7 @@ def ziskBalAccountChangeValuePrologue : String :=
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
+  baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   ".Lbacv_pdone:"
