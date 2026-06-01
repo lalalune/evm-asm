@@ -46,8 +46,8 @@ FX="${EEST_FIXTURES_DIR:-$REPO_ROOT/gen-out/eest-fixtures/$TAG/fixtures/fixtures
 
 echo "==> lake build codegen"
 lake build codegen >/dev/null
-echo "==> emit zisk_stateless_verdict probe ELF"
-lake exe codegen --program zisk_stateless_verdict --halt linux93 -o gen-out/zisk_stateless_verdict >/dev/null
+echo "==> emit zisk_stateless_verdict_v2 probe ELF"
+lake exe codegen --program zisk_stateless_verdict_v2 --halt linux93 -o gen-out/zisk_stateless_verdict_v2 >/dev/null
 
 RUN_DIR="$REPO_ROOT/gen-out/verdict-run"
 rm -rf "$RUN_DIR"; mkdir -p "$RUN_DIR"
@@ -61,20 +61,21 @@ total=0 match=0 miss=0 fp=0 err=0
 while IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath; do
   total=$((total + 1))
   out="$RUN_DIR/$label.vout"
-  if ! "$ZISKEMU" -e gen-out/zisk_stateless_verdict.elf -i "$input" -o "$out" \
+  if ! "$ZISKEMU" -e gen-out/zisk_stateless_verdict_v2.elf -i "$input" -o "$out" \
         -n "$STEPS" >/dev/null 2>&1 </dev/null; then
     err=$((err + 1)); echo "  ERROR(exit)   $relpath"; continue
   fi
   v="$(od -An -tu1 -j 0 -N 1 "$out" 2>/dev/null | tr -d ' \n')"
   [[ -z "$v" ]] && { err=$((err + 1)); echo "  ERROR(short)  $relpath"; continue; }
+  dbg="$(od -An -v -tu8 -j 8 -N 80 "$out" 2>/dev/null | xargs || true)"
   if [[ "$v" == "$succ_bit" ]]; then
-    match=$((match + 1)); echo "  MATCH  verdict=$v exp=$succ_bit  $relpath"
+    match=$((match + 1)); echo "  MATCH  verdict=$v exp=$succ_bit dbg=[$dbg]  $relpath"
   elif [[ "$v" == "0" && "$succ_bit" == "1" ]]; then
-    miss=$((miss + 1)); echo "  miss   verdict=0 exp=1 (conservative)  $relpath"
+    miss=$((miss + 1)); echo "  miss   verdict=0 exp=1 (conservative) dbg=[$dbg]  $relpath"
   elif [[ "$v" == "1" && "$succ_bit" == "0" ]]; then
-    fp=$((fp + 1)); echo "  ** FALSE POSITIVE ** verdict=1 exp=0  $relpath"
+    fp=$((fp + 1)); echo "  ** FALSE POSITIVE ** verdict=1 exp=0 dbg=[$dbg]  $relpath"
   else
-    echo "  DIFF   verdict=$v exp=$succ_bit  $relpath"
+    echo "  DIFF   verdict=$v exp=$succ_bit dbg=[$dbg]  $relpath"
   fi
 done < "$MANIFEST"
 

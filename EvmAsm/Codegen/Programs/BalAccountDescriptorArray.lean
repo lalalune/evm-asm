@@ -41,13 +41,15 @@ def balAccountDescriptorArrayFunction : String :=
   "  mv s4, a4                   # descriptor cursor\n" ++
   "  mv s5, a5                   # path cursor\n" ++
   "  mv s6, a6                   # value cursor\n" ++
+  "  la t0, baada_fail_code; sd zero, 0(t0)\n" ++
+  "  la t0, baada_fail_index; sd zero, 0(t0)\n" ++
   "  li s7, 0                    # i\n" ++
   ".Lbaada_loop:\n" ++
   "  beq s7, s3, .Lbaada_ok\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s7\n" ++
   "  la a3, baada_item_off; la a4, baada_item_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaada_ret\n" ++
+  "  bnez a0, .Lbaada_fail_nth\n" ++
   "  slli t0, s7, 4; slli t1, s7, 3; add t0, t0, t1; add t0, s2, t0\n" ++
   "  ld a0, 0(t0)                # account ptr\n" ++
   "  ld a1, 8(t0)                # account len\n" ++
@@ -56,7 +58,7 @@ def balAccountDescriptorArrayFunction : String :=
   "  la t1, baada_item_len; ld a3, 0(t1)\n" ++
   "  mv a5, s4; mv a6, s5; mv a7, s6\n" ++
   "  jal ra, bal_account_change_descriptor\n" ++
-  "  bnez a0, .Lbaada_ret\n" ++
+  "  bnez a0, .Lbaada_fail_desc\n" ++
   "  ld s8, 24(s4)               # value length from descriptor\n" ++
   "  addi s4, s4, 40\n" ++
   "  addi s5, s5, 64\n" ++
@@ -65,6 +67,12 @@ def balAccountDescriptorArrayFunction : String :=
   "  j .Lbaada_loop\n" ++
   ".Lbaada_ok:\n" ++
   "  li a0, 0\n" ++
+  "  j .Lbaada_ret\n" ++
+  ".Lbaada_fail_nth:\n" ++
+  "  li t0, 201; la t1, baada_fail_code; sd t0, 0(t1); la t1, baada_fail_index; sd s7, 0(t1)\n" ++
+  "  j .Lbaada_ret\n" ++
+  ".Lbaada_fail_desc:\n" ++
+  "  li t0, 202; la t1, baada_fail_code; sd t0, 0(t1); la t1, baada_fail_index; sd s7, 0(t1)\n" ++
   ".Lbaada_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
@@ -139,6 +147,8 @@ def ziskBalAccountDescriptorArrayDataSection : String :=
   ".balign 8\n" ++
   "baada_item_off:\n  .zero 8\n" ++
   "baada_item_len:\n  .zero 8\n" ++
+  "baada_fail_code:\n  .zero 8\n" ++
+  "baada_fail_index:\n  .zero 8\n" ++
   "baada_records:\n  .zero 768\n" ++
   "baada_pad:\n  .zero 8"
 

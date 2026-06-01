@@ -224,6 +224,7 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_nonce_len:\n  .zero 8\n" ++
   "baap_tmp_len:\n  .zero 8\n" ++
   "baap_tmp2_len:\n  .zero 8\n" ++
+  "baap_fail_code:\n  .zero 8\n" ++
   "baap_sc_off:\n  .zero 8\n" ++
   "baap_sc_len:\n  .zero 8\n" ++
   "baap_sc_ptr:\n  .zero 8\n" ++
@@ -232,6 +233,8 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_sc_out_count:\n  .zero 8\n" ++
   "baap_storage_empty_flag:\n  .zero 8\n" ++
   "baap_storage_delete_flag:\n  .zero 8\n" ++
+  "baap_storage_delete_count:\n  .zero 8\n" ++
+  "baap_storage_delete_index:\n  .zero 8\n" ++
   "baap_storage_root_ptr:\n  .zero 8\n" ++
   "baap_walk_val_len:\n  .zero 8\n" ++
   "mdacc_witness_len:\n  .zero 8\n" ++
@@ -272,6 +275,7 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_storage_value_cursor:\n  .zero 8\n" ++
   "baap_storage_desc:\n  .zero 2560\n" ++
   "baap_storage_paths:\n  .zero 4096\n" ++
+  "baap_storage_delete_paths:\n  .zero 4096\n" ++
   "baap_storage_values:\n  .zero 4096\n" ++
   "mdacc_leaf_path:\n  .zero 128\n" ++
   "mdacc_collapsed_path:\n  .zero 128\n" ++
@@ -281,8 +285,12 @@ def ziskBalAccountStateRootDataSection : String :=
   "bacp_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "baacd_value_len:\n  .zero 8\n" ++
+  "baacd_fail_code:\n  .zero 8\n" ++
+  "bacv_fail_code:\n  .zero 8\n" ++
   "baada_item_off:\n  .zero 8\n" ++
   "baada_item_len:\n  .zero 8\n" ++
+  "baada_fail_code:\n  .zero 8\n" ++
+  "baada_fail_index:\n  .zero 8\n" ++
   "basr_records:\n  .zero 4096\n" ++
   "basr_desc:\n  .zero 4096\n" ++
   "basr_paths:\n  .zero 8192\n" ++

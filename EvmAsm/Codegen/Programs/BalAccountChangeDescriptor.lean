@@ -39,16 +39,20 @@ def balAccountChangeDescriptorFunction : String :=
   "  mv s5, a1                   # account len\n" ++
   "  mv s6, a2                   # AccountChanges ptr\n" ++
   "  mv s7, a3                   # AccountChanges len\n" ++
+  "  la t0, baacd_fail_code; sd zero, 0(t0)\n" ++
   "  mv a0, s4; mv a1, s5; mv a2, s6; mv a3, s7\n" ++
   "  mv a4, s2; mv a5, s3; la a6, baacd_value_len\n" ++
   "  jal ra, bal_account_change_value\n" ++
-  "  bnez a0, .Lbaacd_ret\n" ++
+  "  bnez a0, .Lbaacd_fail_value\n" ++
   "  sd s2, 0(s1)\n" ++
   "  li t0, 64; sd t0, 8(s1)\n" ++
   "  sd s3, 16(s1)\n" ++
   "  la t0, baacd_value_len; ld t0, 0(t0); sd t0, 24(s1)\n" ++
   "  sd s0, 32(s1)\n" ++
   "  li a0, 0\n" ++
+  "  j .Lbaacd_ret\n" ++
+  ".Lbaacd_fail_value:\n" ++
+  "  li t0, 301; la t1, baacd_fail_code; sd t0, 0(t1)\n" ++
   ".Lbaacd_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
@@ -108,6 +112,7 @@ def ziskBalAccountChangeDescriptorDataSection : String :=
   ziskBalAccountChangeValueDataSection ++ "\n" ++
   ".balign 8\n" ++
   "baacd_value_len:\n  .zero 8\n" ++
+  "baacd_fail_code:\n  .zero 8\n" ++
   "baacd_pad:\n  .zero 8"
 
 def ziskBalAccountChangeDescriptorProbeUnit : BuildUnit := {
