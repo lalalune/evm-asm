@@ -41,6 +41,7 @@
 #     --max-failures N   stop after N FAIL/ERROR results (default: disabled)
 #     --stop-after-failures N
 #                        alias for --max-failures
+#     --quiet-passes     suppress per-case PASS(full) lines
 #     --job-mem-mib N|auto
 #                        memory budget per ziskemu job (default $EEST_JOB_MEM_MIB
 #                        or auto). Auto is derived from the ziskemu build:
@@ -76,6 +77,7 @@ JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
 JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
 MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
 MAX_FAILURES=""
+QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
@@ -95,6 +97,8 @@ Options:
   --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto)
   --max-failures N         stop after N FAIL/ERROR results
   --stop-after-failures N  alias for --max-failures
+  --quiet-passes           suppress per-case PASS(full) lines
+  --show-passes            print per-case PASS(full) lines, overriding EEST_QUIET_PASSES
   --job-mem-mib N|auto     memory budget per ziskemu job
   --min-succ N             exit 1 if fewer than N succ-bit matches
   --min-full N             exit 1 if fewer than N full matches
@@ -123,6 +127,8 @@ while [[ $# -gt 0 ]]; do
     --steps) require_arg "$1" "${2:-}"; STEPS="$2"; shift 2 ;;
     --jobs) require_arg "$1" "${2:-}"; JOBS="$2"; shift 2 ;;
     --max-failures|--stop-after-failures) require_arg "$1" "${2:-}"; MAX_FAILURES="$2"; shift 2 ;;
+    --quiet-passes) QUIET_PASSES=1; shift ;;
+    --show-passes) QUIET_PASSES=0; shift ;;
     --job-mem-mib) require_arg "$1" "${2:-}"; JOB_MEM_MIB="$2"; shift 2 ;;
     --min-succ) require_arg "$1" "${2:-}"; MIN_SUCC="$2"; shift 2 ;;
     --min-full) require_arg "$1" "${2:-}"; MIN_FULL="$2"; shift 2 ;;
@@ -152,6 +158,14 @@ if [[ -n "$MAX_FAILURES" ]] && { ! [[ "$MAX_FAILURES" =~ ^[0-9]+$ ]] || [[ "$MAX
   echo "--max-failures must be a positive integer when set (got: $MAX_FAILURES)" >&2
   exit 1
 fi
+if ! [[ "$QUIET_PASSES" =~ ^(0|1|true|false|yes|no)$ ]]; then
+  echo "EEST_QUIET_PASSES must be 0/1/true/false/yes/no (got: $QUIET_PASSES)" >&2
+  exit 1
+fi
+case "$QUIET_PASSES" in
+  1|true|yes) QUIET_PASSES=1 ;;
+  *) QUIET_PASSES=0 ;;
+esac
 if ! [[ "$MEM_RESERVE_MIB" =~ ^[0-9]+$ ]]; then
   echo "EEST_MEM_RESERVE_MIB must be a nonnegative integer (got: $MEM_RESERVE_MIB)" >&2
   exit 1
@@ -361,7 +375,8 @@ classify_case_result() {
   [[ "${actual_hex:66:144}" == "${exp:66:144}" ]] && { tail=$((tail + 1)); t=tail; } || t=----
 
   if [[ "$actual_hex" == "$exp" ]]; then
-    full=$((full + 1)); echo "  PASS(full)        $relpath"
+    full=$((full + 1))
+    [[ "$QUIET_PASSES" -eq 1 ]] || echo "  PASS(full)        $relpath"
   else
     fail=$((fail + 1))
     # root-only diff: succ + tail already match, ONLY the 32-byte root

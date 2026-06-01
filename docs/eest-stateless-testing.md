@@ -73,6 +73,7 @@ Collect only the first few failures from a large or highly parallel run:
 scripts/codegen-eest-stateless-check.sh \
   --all \
   --jobs 32 \
+  --quiet-passes \
   --max-failures 20 \
   --steps 200000000
 ```
@@ -95,6 +96,11 @@ classified. `--stop-after-failures N` is an alias. With parallel jobs, workers
 that already finished before the stop point may also be reported, but the
 harness stops scheduling new cases and cleans up active workers once the cap is
 observed.
+
+Use `--quiet-passes` (or `EEST_QUIET_PASSES=1`) to suppress per-case
+`PASS(full)` lines while still printing every `FAIL` and `ERROR` plus the final
+summary. This is useful for large `--jobs 32 --max-failures N` searches after a
+long passing prefix. `--show-passes` restores the default verbose pass output.
 
 ## Outputs
 
@@ -134,5 +140,6 @@ scripts/codegen-eest-stateless-check.sh --limit 1000 --min-full 1000
 - `EEST_STEPS=N` or `--steps N`: set the ziskemu step cap.
 - `EEST_JOBS=N` or `--jobs N`: set parallel guest jobs.
 - `--max-failures N` or `--stop-after-failures N`: stop after N failures/errors.
+- `EEST_QUIET_PASSES=1` or `--quiet-passes`: hide per-case pass lines.
 - `EEST_MEM_RESERVE_MIB=N`: reserve host memory when auto-sizing jobs.
 - `EEST_FIXTURES_DIR=/path`: point at an already extracted fixture directory.
