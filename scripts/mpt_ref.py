@@ -562,6 +562,52 @@ def insert_walk_expected(v: dict) -> list[tuple[str, int, int]]:
     return out
 
 
+# ---- insert vectors (mpt_insert .2.4.2.6.2): expected NEW root ------------
+# Insert an ABSENT key; expected = the re-rooted trie. Covers the cases the
+# first mpt_insert slice supports: EMPTY_TRIE and BRANCH_EMPTY_SLOT (depth 0
+# and depth 1 with an extension ancestor).
+def vec_mi_branch_empty():
+    la = leaf_node([0xa, 0xb], b"v1")
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(la)
+    root = branch_node(slots)
+    val = b"newval"
+    new_leaf = leaf_node([0x7, 0x8], val)        # path[consumed+1..] = [7,8]
+    slots2 = list(slots)
+    slots2[3] = node_ref(new_leaf)               # nibble path[consumed] = 3
+    new_root = branch_node(slots2)
+    return dict(name="mi_branch_empty", witness=[root], root=trie_root(root),
+                path=[0x3, 0x7, 0x8], value=val, expected=trie_root(new_root))
+
+
+def vec_mi_empty_trie():
+    val = b"hello"
+    new_root = leaf_node([0x1, 0x2, 0x3, 0x4], val)
+    return dict(name="mi_empty_trie", witness=[], root=EMPTY_TRIE_ROOT,
+                path=[0x1, 0x2, 0x3, 0x4], value=val,
+                expected=trie_root(new_root))
+
+
+def vec_mi_ext_then_branch():
+    la = leaf_node([0xc], b"z" * 40)             # big -> branch hash-referenced
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(la)
+    branch = branch_node(slots)
+    root = extension_node([0x5, 0x6], node_ref(branch))
+    val = b"zzz"
+    new_leaf = leaf_node([0xc], val)             # path[consumed+1..] = [c]
+    slots2 = list(slots)
+    slots2[3] = node_ref(new_leaf)               # nibble path[consumed=2] = 3
+    new_branch = branch_node(slots2)
+    new_root = extension_node([0x5, 0x6], node_ref(new_branch))
+    return dict(name="mi_ext_then_branch", witness=[root, branch],
+                root=trie_root(root), path=[0x5, 0x6, 0x3, 0xc], value=val,
+                expected=trie_root(new_root))
+
+
+MI_VECTORS = [vec_mi_branch_empty, vec_mi_empty_trie, vec_mi_ext_then_branch]
+
+
 if __name__ == "__main__":
     import os
     outdir = sys.argv[1] if len(sys.argv) > 1 else "gen-out/mpt-set"
@@ -621,6 +667,17 @@ if __name__ == "__main__":
                 f.write(f"{name} {off} {val}\n")
         print(f"{v['name']:24} case={v['case']} depth={v['depth']} "
               f"consumed={v['consumed']} match_len={v['match_len']}")
+    # insert vectors (mpt_insert): expected NEW root
+    for mk in MI_VECTORS:
+        v = mk()
+        sec = ssz_section(v["witness"])
+        inp = build_probe_input(v["root"], v["path"], v["value"], sec)
+        with open(f"{outdir}/{v['name']}.input", "wb") as f:
+            f.write(inp)
+        with open(f"{outdir}/{v['name']}.expected", "w") as f:
+            f.write(v["expected"].hex())
+        print(f"{v['name']:24} root={v['root'].hex()[:16]}.. "
+              f"new_root={v['expected'].hex()}")
     # accumulating 2-update vector (mpt_set_acc)
     a = vec_acc()
     sec = ssz_section(a["witness"])
