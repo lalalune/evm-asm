@@ -200,13 +200,23 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_slot_changes_count:\n  .zero 8\n" ++
   "baap_val_off:\n  .zero 8\n" ++
   "baap_val_len:\n  .zero 8\n" ++
+  "baap_code_list_off:\n  .zero 8\n" ++
+  "baap_code_list_len:\n  .zero 8\n" ++
+  "baap_code_list_ptr:\n  .zero 8\n" ++
+  "baap_code_count:\n  .zero 8\n" ++
+  "baap_code_item_ptr:\n  .zero 8\n" ++
+  "baap_code_off:\n  .zero 8\n" ++
+  "baap_code_len:\n  .zero 8\n" ++
+  "baap_tmp3_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "baap_bal:\n  .zero 32\n" ++
   "baap_nonce:\n  .zero 32\n" ++
   "baap_slot:\n  .zero 32\n" ++
+  "baap_code_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "baap_tmp:\n  .zero 512\n" ++
   "baap_tmp2:\n  .zero 512\n" ++
+  "baap_tmp3:\n  .zero 512\n" ++
   "bacp_off:\n  .zero 8\n" ++
   "bacp_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
