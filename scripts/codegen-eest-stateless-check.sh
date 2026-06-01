@@ -81,21 +81,54 @@ MIN_FULL=""
 MIN_ROOT=""
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 
+usage() {
+  cat <<'USAGE'
+Usage:
+  scripts/codegen-eest-stateless-check.sh [options]
+
+Options:
+  --all                    run every stateless block (slow); default: smoke subset
+  --skip N                 skip first N selected stateless blocks after filtering
+  --limit N                cap to N guest invocations (default 50)
+  --filter SUBSTR          only fixtures whose relpath contains SUBSTR
+  --steps N                ziskemu max steps (default $EEST_STEPS or 50000000)
+  --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto)
+  --max-failures N         stop after N FAIL/ERROR results
+  --stop-after-failures N  alias for --max-failures
+  --job-mem-mib N|auto     memory budget per ziskemu job
+  --min-succ N             exit 1 if fewer than N succ-bit matches
+  --min-full N             exit 1 if fewer than N full matches
+  --min-root N             exit 1 if fewer than N root matches
+  --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
+  -h, --help               show this help
+USAGE
+}
+
+require_arg() {
+  local opt="$1"
+  if [[ $# -lt 2 || -z "${2:-}" ]]; then
+    echo "$opt requires an argument" >&2
+    usage >&2
+    exit 1
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -h|--help) usage; exit 0 ;;
     --all) ALL=1; shift ;;
-    --skip) SKIP="$2"; shift 2 ;;
-    --limit) LIMIT="$2"; shift 2 ;;
-    --filter) FILTER="$2"; shift 2 ;;
-    --steps) STEPS="$2"; shift 2 ;;
-    --jobs) JOBS="$2"; shift 2 ;;
-    --max-failures|--stop-after-failures) MAX_FAILURES="$2"; shift 2 ;;
-    --job-mem-mib) JOB_MEM_MIB="$2"; shift 2 ;;
-    --min-succ) MIN_SUCC="$2"; shift 2 ;;
-    --min-full) MIN_FULL="$2"; shift 2 ;;
-    --min-root) MIN_ROOT="$2"; shift 2 ;;
-    --tag) TAG="$2"; shift 2 ;;
-    *) echo "unknown arg: $1" >&2; exit 1 ;;
+    --skip) require_arg "$1" "${2:-}"; SKIP="$2"; shift 2 ;;
+    --limit) require_arg "$1" "${2:-}"; LIMIT="$2"; shift 2 ;;
+    --filter) require_arg "$1" "${2:-}"; FILTER="$2"; shift 2 ;;
+    --steps) require_arg "$1" "${2:-}"; STEPS="$2"; shift 2 ;;
+    --jobs) require_arg "$1" "${2:-}"; JOBS="$2"; shift 2 ;;
+    --max-failures|--stop-after-failures) require_arg "$1" "${2:-}"; MAX_FAILURES="$2"; shift 2 ;;
+    --job-mem-mib) require_arg "$1" "${2:-}"; JOB_MEM_MIB="$2"; shift 2 ;;
+    --min-succ) require_arg "$1" "${2:-}"; MIN_SUCC="$2"; shift 2 ;;
+    --min-full) require_arg "$1" "${2:-}"; MIN_FULL="$2"; shift 2 ;;
+    --min-root) require_arg "$1" "${2:-}"; MIN_ROOT="$2"; shift 2 ;;
+    --tag) require_arg "$1" "${2:-}"; TAG="$2"; shift 2 ;;
+    *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
 
