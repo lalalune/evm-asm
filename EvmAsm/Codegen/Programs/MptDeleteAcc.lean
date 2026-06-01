@@ -249,10 +249,43 @@ def mptDeleteAccFunction : String :=
   "  la a2, mdacc_leaf_path; la a3, mdacc_leaf_path_len; la a4, mdacc_leaf_value_ptr; la a5, mdacc_leaf_value_len\n" ++
   "  jal ra, mpt_extension_extract\n" ++
   "  bnez a0, .Lmdacc_need_collapse\n" ++
-  "  la a0, mdacc_leaf_path; la t0, mdacc_leaf_path_len; ld a1, 0(t0)\n" ++
+  "  la t0, mdacc_leaf_path_len; ld t4, 0(t0); la t1, mdacc_ext_path_len; sd t4, 0(t1)\n" ++
+  "  la t2, mdacc_leaf_path; la t3, mdacc_collapsed_path\n" ++
+  ".Lmdacc_bext_path_cp:\n" ++
+  "  beqz t4, .Lmdacc_bext_path_done\n" ++
+  "  lbu t5, 0(t2); sb t5, 0(t3); addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lmdacc_bext_path_cp\n" ++
+  ".Lmdacc_bext_path_done:\n" ++
+  "  la a0, mset_node; mv a1, s4\n" ++
+  "  la a2, mdacc_leaf_path; la a3, mdacc_leaf_path_len; la a4, mdacc_leaf_value_ptr; la a5, mdacc_leaf_value_len\n" ++
+  "  jal ra, mpt_leaf_extract\n" ++
+  "  beqz a0, .Lmdacc_bubble_ext_leaf\n" ++
+  "  la a0, mset_node; mv a1, s4\n" ++
+  "  jal ra, mpt_node_kind\n" ++
+  "  li t0, 2; beq a0, t0, .Lmdacc_need_collapse\n" ++
+  "  li t0, 3; beq a0, t0, .Lmdacc_need_collapse\n" ++
+  ".Lmdacc_bubble_ext_rewrap:\n" ++
+  "  la a0, mdacc_collapsed_path; la t0, mdacc_ext_path_len; ld a1, 0(t0)\n" ++
   "  la a2, mset_ref; la t0, mset_ref_len; ld a3, 0(t0)\n" ++
   "  la a4, mset_node; la a5, mset_node_len\n" ++
   "  jal ra, mpt_extension_node_encode\n" ++
+  "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
+  "  la a0, mset_node; mv a1, s4\n" ++
+  "  jal ra, node_db_append\n" ++
+  "  la a0, mset_node; mv a1, s4; la a2, mset_ref; la a3, mset_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  j .Lmdacc_bubble\n" ++
+  ".Lmdacc_bubble_ext_leaf:\n" ++
+  "  la t0, mdacc_ext_path_len; ld t1, 0(t0)\n" ++
+  "  la t2, mdacc_collapsed_path; add t2, t2, t1\n" ++
+  "  la t3, mdacc_leaf_path; la t0, mdacc_leaf_path_len; ld t4, 0(t0)\n" ++
+  ".Lmdacc_bext_leaf_cp:\n" ++
+  "  beqz t4, .Lmdacc_bext_leaf_done\n" ++
+  "  lbu t5, 0(t3); sb t5, 0(t2); addi t3, t3, 1; addi t2, t2, 1; addi t4, t4, -1; j .Lmdacc_bext_leaf_cp\n" ++
+  ".Lmdacc_bext_leaf_done:\n" ++
+  "  la t0, mdacc_ext_path_len; ld a1, 0(t0); la t0, mdacc_leaf_path_len; ld t1, 0(t0); add a1, a1, t1\n" ++
+  "  la a0, mdacc_collapsed_path; la t0, mdacc_leaf_value_ptr; ld a2, 0(t0); la t0, mdacc_leaf_value_len; ld a3, 0(t0)\n" ++
+  "  la a4, mset_node; la a5, mset_node_len\n" ++
+  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
   "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
   "  la a0, mset_node; mv a1, s4\n" ++
   "  jal ra, node_db_append\n" ++
@@ -337,6 +370,7 @@ def ziskMptDeleteAccDataSection : String :=
   "mdacc_child_ptr:\n  .zero 8\n" ++
   "mdacc_child_len:\n  .zero 8\n" ++
   "mdacc_leaf_path_len:\n  .zero 8\n" ++
+  "mdacc_ext_path_len:\n  .zero 8\n" ++
   "mdacc_leaf_value_ptr:\n  .zero 8\n" ++
   "mdacc_leaf_value_len:\n  .zero 8\n" ++
   "mee_path_off:\n  .zero 8\n" ++
