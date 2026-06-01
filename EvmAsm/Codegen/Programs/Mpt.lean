@@ -725,7 +725,7 @@ def mptWalkFunction : String :=
   "  la a3, mw_lookup_offset\n" ++
   "  la a4, mw_lookup_length\n" ++
   "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lmw_not_found\n" ++
+  "  bnez a0, .Lmw_parse_fail    # referenced child hash missing => bad proof\n" ++
   "  la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1\n" ++
   "  la t0, mw_lookup_length; ld s8, 0(t0)\n" ++
   "  j .Lmw_loop\n" ++
@@ -804,7 +804,7 @@ def mptWalkFunction : String :=
   "  la a3, mw_lookup_offset\n" ++
   "  la a4, mw_lookup_length\n" ++
   "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lmw_not_found\n" ++
+  "  bnez a0, .Lmw_parse_fail    # referenced extension child hash missing => bad proof\n" ++
   "  la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1\n" ++
   "  la t0, mw_lookup_length; ld s8, 0(t0)\n" ++
   "  j .Lmw_loop\n" ++
