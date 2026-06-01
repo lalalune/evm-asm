@@ -60,6 +60,7 @@ import EvmAsm.Codegen.Programs.MptInsert
 import EvmAsm.Codegen.Programs.MptInsertWalkDb
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
@@ -590,6 +591,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_insert_walk_db"    => some ziskMptInsertWalkDbProbeUnit
   | "zisk_mpt_insert_acc"        => some ziskMptInsertAccProbeUnit
   | "zisk_mpt_state_root_ins"    => some ziskMptStateRootInsProbeUnit
+  | "zisk_mpt_indexed_trie_root_small" => some ziskMptIndexedTrieRootSmallProbeUnit
   | "zisk_mpt_delete_walk_db"    => some ziskMptDeleteWalkDbProbeUnit
   | "zisk_mpt_delete_acc"        => some ziskMptDeleteAccProbeUnit
   | "zisk_mpt_set"              => some ziskMptSetProbeUnit
@@ -885,6 +887,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_insert_walk_db",
    "zisk_mpt_insert_acc",
    "zisk_mpt_state_root_ins",
+   "zisk_mpt_indexed_trie_root_small",
    "zisk_mpt_delete_walk_db",
    "zisk_mpt_delete_acc",
    "zisk_mpt_set",
