@@ -625,7 +625,42 @@ def vec_mi_ext_then_branch():
                 expected=trie_root(new_root))
 
 
-MI_VECTORS = [vec_mi_branch_empty, vec_mi_empty_trie, vec_mi_ext_then_branch]
+def vec_mi_leaf_split():
+    """Root = leaf key [1,2,3,4]. Insert path [1,2,9,9] (shared prefix [1,2],
+    m=2): split into a branch (old leaf' at nibble 3, new leaf at nibble 9)
+    wrapped in extension([1,2])."""
+    lv = b"leaf-value"
+    root = leaf_node([1, 2, 3, 4], lv)
+    val = b"newval-xyz"
+    old2 = leaf_node([4], lv)          # K[m+1..] = [4]
+    new2 = leaf_node([9], val)         # P[m+1..] = [9]
+    slots = [b"\x80"] * 16
+    slots[3] = node_ref(old2)          # K[m] = 3
+    slots[9] = node_ref(new2)          # P[m] = 9
+    branch = branch_node(slots)
+    newroot = extension_node([1, 2], node_ref(branch))
+    return dict(name="mi_leaf_split", witness=[root], root=trie_root(root),
+                path=[1, 2, 9, 9], value=val, expected=trie_root(newroot))
+
+
+def vec_mi_leaf_split_m0():
+    """Root = leaf key [5,6,7]. Insert path [9,6,7] diverges at nibble 0
+    (m=0): split into a branch directly (no extension wrap)."""
+    lv = b"abc"
+    root = leaf_node([5, 6, 7], lv)
+    val = b"xyz"
+    old2 = leaf_node([6, 7], lv)       # K[1..] = [6,7]
+    new2 = leaf_node([6, 7], val)      # P[1..] = [6,7]
+    slots = [b"\x80"] * 16
+    slots[5] = node_ref(old2)          # K[0] = 5
+    slots[9] = node_ref(new2)          # P[0] = 9
+    branch = branch_node(slots)
+    return dict(name="mi_leaf_split_m0", witness=[root], root=trie_root(root),
+                path=[9, 6, 7], value=val, expected=trie_root(branch))
+
+
+MI_VECTORS = [vec_mi_branch_empty, vec_mi_empty_trie, vec_mi_ext_then_branch,
+              vec_mi_leaf_split, vec_mi_leaf_split_m0]
 
 
 if __name__ == "__main__":
