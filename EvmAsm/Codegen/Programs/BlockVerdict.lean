@@ -145,12 +145,6 @@ def blockStateRootFunction : String :=
   ".Lbsr_wl_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_wl\n" ++
   ".Lbsr_apply:\n" ++
-  "  # DEBUG: system-only root (first 2 changes) -> OUTPUT+128\n" ++
-  "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  la a3, bsr_changes; li a4, 2; la a5, bsr_dbgroot\n" ++
-  "  jal ra, mpt_state_root_ins\n" ++
-  "  la t0, bsr_dbgroot; li t5, 0xa0010080\n" ++
-  "  ld t1,0(t0);sd t1,0(t5);ld t1,8(t0);sd t1,8(t5);ld t1,16(t0);sd t1,16(t5);ld t1,24(t0);sd t1,24(t5)\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la a3, bsr_changes; mv a4, s1; mv a5, s5     # change count = s1 (40-byte recs)\n" ++
   "  jal ra, mpt_state_root_ins\n" ++
@@ -182,16 +176,6 @@ def blockVerdictFunction : String :=
   "  la a5, sv_recomputed; mv a6, s3\n" ++
   "  jal ra, block_state_root\n" ++
   "  mv s2, a0\n" ++
-  "  # DEBUG: R_asm -> OUTPUT+64 ; expected payload.state_root -> OUTPUT+96 ; status -> OUTPUT+1\n" ++
-  "  li t5, 0xa0010001; sb a0, 0(t5)\n" ++
-  "  la t0, sv_recomputed; li t5, 0xa0010040\n" ++
-  "  ld t1, 0(t0); sd t1, 0(t5); ld t1, 8(t0); sd t1, 8(t5)\n" ++
-  "  ld t1, 16(t0); sd t1, 16(t5); ld t1, 24(t0); sd t1, 24(t5)\n" ++
-  "  ld t0, 0(s0); addi t0, t0, 52; li t5, 0xa0010060; li t6, 32\n" ++
-  ".Lbv_dbgcp:\n" ++
-  "  beqz t6, .Lbv_dbgdone\n" ++
-  "  lbu t1, 0(t0); sb t1, 0(t5); addi t0, t0, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbv_dbgcp\n" ++
-  ".Lbv_dbgdone:\n" ++
   "  la t0, sv_recomputed; ld t1, 0(s0); addi t1, t1, 52; li t2, 32\n" ++
   ".Lbv_cmp:\n" ++
   "  beqz t2, .Lbv_cmpok\n" ++
@@ -464,6 +448,20 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_bal_start:\n  .zero 8\n" ++
   "bv_bal_len:\n  .zero 8\n" ++
   "bv_tx_off:\n  .zero 8\n" ++
+  -- fresh-account RLP [nonce=0, balance=0, storageRoot=EMPTY_TRIE, codeHash=EMPTY_CODE].
+  -- Keep this immutable template before the mutable insert scratch buffers.
+  ".balign 8\n" ++
+  "bsr_empty_account:\n" ++
+  "  .byte 0xf8,0x44,0x80,0x80,0xa0\n" ++
+  "  .byte 0x56,0xe8,0x1f,0x17,0x1b,0xcc,0x55,0xa6\n" ++
+  "  .byte 0xff,0x83,0x45,0xe6,0x92,0xc0,0xf8,0x6e\n" ++
+  "  .byte 0x5b,0x48,0xe0,0x1b,0x99,0x6c,0xad,0xc0\n" ++
+  "  .byte 0x01,0x62,0x2f,0xb5,0xe3,0x63,0xb4,0x21\n" ++
+  "  .byte 0xa0\n" ++
+  "  .byte 0xc5,0xd2,0x46,0x01,0x86,0xf7,0x23,0x3c\n" ++
+  "  .byte 0x92,0x7e,0x7d,0xb2,0xdc,0xc7,0x03,0xc0\n" ++
+  "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
+  "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
   -- account INSERT engine scratch (mpt_insert_walk_db / mpt_insert_acc /
   -- mpt_state_root_ins; the node DB + mset_*/mlnen_*/mw_* are already in the base):
   ".balign 8\n" ++
@@ -516,22 +514,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "mxne_cursor:\n  .zero 8\n" ++
   "mxne_total_payload:\n  .zero 8\n" ++
   "mxne_hp_buf:\n  .zero 1024\n" ++
-  "mxne_payload_buf:\n  .zero 16384\n" ++
-  ".balign 8\n" ++
-  "bsr_dbgroot:\n  .zero 32\n" ++
-  -- fresh-account RLP [nonce=0, balance=0, storageRoot=EMPTY_TRIE, codeHash=EMPTY_CODE]
-  ".balign 8\n" ++
-  "bsr_empty_account:\n" ++
-  "  .byte 0xf8,0x44,0x80,0x80,0xa0\n" ++
-  "  .byte 0x56,0xe8,0x1f,0x17,0x1b,0xcc,0x55,0xa6\n" ++
-  "  .byte 0xff,0x83,0x45,0xe6,0x92,0xc0,0xf8,0x6e\n" ++
-  "  .byte 0x5b,0x48,0xe0,0x1b,0x99,0x6c,0xad,0xc0\n" ++
-  "  .byte 0x01,0x62,0x2f,0xb5,0xe3,0x63,0xb4,0x21\n" ++
-  "  .byte 0xa0\n" ++
-  "  .byte 0xc5,0xd2,0x46,0x01,0x86,0xf7,0x23,0x3c\n" ++
-  "  .byte 0x92,0x7e,0x7d,0xb2,0xdc,0xc7,0x03,0xc0\n" ++
-  "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
-  "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70"
+  "mxne_payload_buf:\n  .zero 16384\n"
 
 def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   body        := NOP
