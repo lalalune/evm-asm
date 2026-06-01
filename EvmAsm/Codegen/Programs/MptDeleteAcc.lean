@@ -1,0 +1,152 @@
+/-
+  EvmAsm.Codegen.Programs.MptDeleteAcc
+
+  First executable delete accumulator for existing MPT keys. This slice handles
+  the no-collapse cases: deleting a single-leaf trie to EMPTY_TRIE_ROOT, and
+  deleting a leaf below branch-only ancestors by bubbling the canonical empty
+  RLP child reference upward through the shared node DB.
+-/
+
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.MptDeleteWalkDb
+import EvmAsm.Codegen.Programs.MptInsertWalk
+
+namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
+
+/-! ## mpt_delete_acc -- DB-aware delete, no-collapse slice.
+
+    a0=root_hash, a1=witness, a2=witness_len, a3=path, a4=path_len,
+    a7=out_root -> a0 status:
+      0 ok
+      1 not found / incomplete witness
+      2 parse or splice failure
+      3 deletion would require branch/extension collapse (follow-up PR)
+-/
+def mptDeleteAccFunction : String :=
+  "mpt_delete_acc:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a1                   # witness\n" ++
+  "  mv s1, a3                   # path\n" ++
+  "  mv s2, a4                   # path_len\n" ++
+  "  mv s5, a7                   # out_root\n" ++
+  "  mv a1, s0\n" ++
+  "  mv a3, s1\n" ++
+  "  mv a4, s2\n" ++
+  "  la a5, mset_stack\n" ++
+  "  la a6, mset_meta\n" ++
+  "  jal ra, mpt_delete_walk_db\n" ++
+  "  bnez a0, .Lmdacc_ret\n" ++
+  "  la t0, mset_meta; ld s6, 0(t0)   # depth\n" ++
+  "  beqz s6, .Lmdacc_empty_root\n" ++
+  "  # This first accumulator slice supports branch-only ancestry. Extension\n" ++
+  "  # merge/collapse is handled by the follow-up child bead.\n" ++
+  "  li t0, 0\n" ++
+  ".Lmdacc_check_loop:\n" ++
+  "  beq t0, s6, .Lmdacc_check_done\n" ++
+  "  la t1, mset_stack; slli t2, t0, 5; add t1, t1, t2\n" ++
+  "  ld t3, 16(t1); bnez t3, .Lmdacc_need_collapse\n" ++
+  "  addi t0, t0, 1; j .Lmdacc_check_loop\n" ++
+  ".Lmdacc_check_done:\n" ++
+  "  # current_ref = RLP empty string/list item (0x80), the canonical empty\n" ++
+  "  # branch child reference.\n" ++
+  "  la t0, mset_ref; li t1, 0x80; sb t1, 0(t0)\n" ++
+  "  la t0, mset_ref_len; li t1, 1; sd t1, 0(t0)\n" ++
+  "  mv s7, s6                   # i = depth\n" ++
+  ".Lmdacc_bubble:\n" ++
+  "  beqz s7, .Lmdacc_root\n" ++
+  "  addi s7, s7, -1\n" ++
+  "  la t0, mset_stack; slli t1, s7, 5; add t0, t0, t1\n" ++
+  "  ld t2, 0(t0)                # node_ptr ABS\n" ++
+  "  ld t3, 8(t0)                # node_len\n" ++
+  "  ld t5, 24(t0)               # branch nibble\n" ++
+  "  mv a0, t2; mv a1, t3; mv a2, t5\n" ++
+  "  la a3, mset_ref; la t0, mset_ref_len; ld a4, 0(t0)\n" ++
+  "  la a5, mset_node; la a6, mset_node_len\n" ++
+  "  jal ra, mpt_splice_slot\n" ++
+  "  bnez a0, .Lmdacc_fail\n" ++
+  "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
+  "  la a0, mset_node; mv a1, s4\n" ++
+  "  jal ra, node_db_append\n" ++
+  "  la a0, mset_node; mv a1, s4; la a2, mset_ref; la a3, mset_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  j .Lmdacc_bubble\n" ++
+  ".Lmdacc_root:\n" ++
+  "  la a0, mset_node; mv a1, s4; mv a2, s5\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmdacc_ret\n" ++
+  ".Lmdacc_empty_root:\n" ++
+  "  la t0, iw_empty_trie_root\n" ++
+  "  ld t1, 0(t0); sd t1, 0(s5)\n" ++
+  "  ld t1, 8(t0); sd t1, 8(s5)\n" ++
+  "  ld t1, 16(t0); sd t1, 16(s5)\n" ++
+  "  ld t1, 24(t0); sd t1, 24(s5)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lmdacc_ret\n" ++
+  ".Lmdacc_need_collapse:\n" ++
+  "  li a0, 3\n" ++
+  "  j .Lmdacc_ret\n" ++
+  ".Lmdacc_fail:\n" ++
+  "  li a0, 2\n" ++
+  ".Lmdacc_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
+/-- Probe input (file maps to INPUT+8):
+      +8 witness_len | +16 path_len | +24 root_hash | +56 path | witness.
+    Output: root@0, status@32. -/
+def ziskMptDeleteAccPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
+  "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a2, 8(t0)                # witness_len\n" ++
+  "  ld a4, 16(t0)               # path_len\n" ++
+  "  addi a0, t0, 24             # root_hash ptr\n" ++
+  "  addi a3, t0, 56             # path ptr\n" ++
+  "  add t1, a3, a4; addi t1, t1, 7; andi t1, t1, -8\n" ++
+  "  mv a1, t1                   # witness ptr\n" ++
+  "  li a7, 0xa0010000           # out root\n" ++
+  "  jal ra, mpt_delete_acc\n" ++
+  "  li t0, 0xa0010020; sd a0, 0(t0)\n" ++
+  "  j .Lmdacc_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  nodeDbLookupFunction ++ "\n" ++
+  nodeDbAppendFunction ++ "\n" ++
+  mptNodeResolveFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  mptSetRecordWalkDbFunction ++ "\n" ++
+  mptDeleteWalkDbFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  msetMemcpyFunction ++ "\n" ++
+  mptSpliceSlotFunction ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  mptDeleteAccFunction ++ "\n" ++
+  ".Lmdacc_pdone:"
+
+def ziskMptDeleteAccDataSection : String :=
+  ziskMptSetAccDataSection ++ "\n" ++
+  ".balign 32\n" ++
+  iwEmptyTrieRootData
+
+def ziskMptDeleteAccProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskMptDeleteAccPrologue
+  dataAsm     := ziskMptDeleteAccDataSection
+}
+
+end EvmAsm.Codegen
