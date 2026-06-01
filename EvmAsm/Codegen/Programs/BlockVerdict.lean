@@ -126,16 +126,28 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0); la a2, basr_records\n" ++
   "  la t0, bsr_bal_count; ld a3, 0(t0); la a4, basr_desc; la a5, basr_paths; la a6, basr_values\n" ++
   "  jal ra, bal_account_descriptor_array; bnez a0, .Lbsr_cons\n" ++
-  "  li s0, 0                     # copy BAL descriptors into bsr_changes at s1\n" ++
+  "  li s0, 0                     # scan BAL descriptors; copy only changed accounts\n" ++
   ".Lbsr_bal_copy:\n" ++
   "  la t6, bsr_bal_count; ld t6, 0(t6); beq s0, t6, .Lbsr_bal_copied\n" ++
   "  slli t0, s0, 5; slli t1, s0, 3; add t0, t0, t1; la t2, basr_desc; add t0, t2, t0\n" ++
-  "  add t1, s1, s0; slli t2, t1, 5; slli t3, t1, 3; add t2, t2, t3; la t3, bsr_changes; add t2, t3, t2\n" ++
+  "  la t5, bsr_cur_desc; sd t0, 0(t5)\n" ++
+  "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
+  "  ld t4, 24(t0); ld t5, 8(t3); bne t4, t5, .Lbsr_bal_copy_changed\n" ++
+  "  ld t4, 16(t0); ld t5, 0(t3); ld t6, 24(t0)\n" ++
+  ".Lbsr_bal_eq_loop:\n" ++
+  "  beqz t6, .Lbsr_bal_copy_next\n" ++
+  "  lbu a0, 0(t4); lbu a1, 0(t5); bne a0, a1, .Lbsr_bal_copy_changed\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbsr_bal_eq_loop\n" ++
+  ".Lbsr_bal_copy_changed:\n" ++
+  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add t2, t3, t2\n" ++
+  "  la t0, bsr_cur_desc; ld t0, 0(t0)\n" ++
   "  ld t3, 0(t0); sd t3, 0(t2); ld t3, 8(t0); sd t3, 8(t2); ld t3, 16(t0); sd t3, 16(t2)\n" ++
   "  ld t3, 24(t0); sd t3, 24(t2); ld t3, 32(t0); sd t3, 32(t2)\n" ++
+  "  addi s1, s1, 1\n" ++
+  ".Lbsr_bal_copy_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_bal_copy\n" ++
   ".Lbsr_bal_copied:\n" ++
-  "  la t6, bsr_bal_count; ld t6, 0(t6); add s1, s1, t6\n" ++
+  "  la t6, bsr_bal_count; ld t6, 0(t6); bnez t6, .Lbsr_apply\n" ++
   ".Lbsr_bal_done:\n" ++
   "  # withdrawal changes: change counter s1 starts after system/BAL changes.\n" ++
   "  # The change index is DECOUPLED from the withdrawal index (s0): a withdrawal\n" ++
@@ -493,6 +505,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_bal_start:\n  .zero 8\n" ++
   "bsr_bal_len:\n  .zero 8\n" ++
   "bsr_bal_count:\n  .zero 8\n" ++
+  "bsr_cur_desc:\n  .zero 8\n" ++
   "bsr_exec_p:\n  .zero 8\n" ++
   "bsr_tx_off:\n  .zero 8\n" ++
   "bsr_pathp:\n  .zero 8\n" ++
