@@ -54,6 +54,9 @@ def hp_encode(nibbles: list[int], is_leaf: bool) -> bytes:
 def leaf_node(path: list[int], value: bytes) -> bytes:
     return rlp_list([rlp_bytes(hp_encode(path, True)), rlp_bytes(value)])
 
+def extension_node(path: list[int], child_ref: bytes) -> bytes:
+    return rlp_list([rlp_bytes(hp_encode(path, False)), child_ref])
+
 def branch_node(slots: list[bytes], value: bytes = b"") -> bytes:
     return rlp_list(slots + [rlp_bytes(value)])
 
@@ -119,6 +122,13 @@ slots4[1] = node_ref(la)
 root4 = branch_node(slots4, b"branch-value")
 collapsed_value = leaf_node([], b"branch-value")
 write_case("branch_value_collapse", trie_root(root4), [1, 0xa, 0xb], [root4, la], trie_root(collapsed_value))
+
+ext = extension_node([3, 4], node_ref(lb))
+slots5 = [b"\x80"] * 16
+slots5[1] = node_ref(la); slots5[2] = node_ref(ext)
+root5 = branch_node(slots5)
+collapsed_ext = extension_node([2, 3, 4], node_ref(lb))
+write_case("branch_collapse_extension", trie_root(root5), [1, 0xa, 0xb], [root5, la, ext], trie_root(collapsed_ext))
 PY
 
 echo "==> lake build codegen"
@@ -131,7 +141,7 @@ lake exe codegen --program zisk_mpt_delete_acc --halt linux93 \
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 
 fail=0
-for name in leaf_to_empty branch_no_collapse branch_collapse_leaf branch_value_collapse; do
+for name in leaf_to_empty branch_no_collapse branch_collapse_leaf branch_value_collapse branch_collapse_extension; do
   out="$VDIR/$name.output"
   if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_delete_acc.elf" \
         -i "$VDIR/$name.input" -o "$out" -n 10000000 >/dev/null 2>&1 </dev/null; then

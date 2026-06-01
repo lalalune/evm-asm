@@ -126,7 +126,10 @@ def mptDeleteAccFunction : String :=
   "  la t0, mdacc_child_len; ld a1, 0(t0)\n" ++
   "  la a2, mdacc_leaf_path; la a3, mdacc_leaf_path_len; la a4, mdacc_leaf_value_ptr; la a5, mdacc_leaf_value_len\n" ++
   "  jal ra, mpt_leaf_extract\n" ++
-  "  bnez a0, .Lmdacc_need_collapse\n" ++
+  "  beqz a0, .Lmdacc_collapse_leaf_child\n" ++
+  "  li t0, 2; beq a0, t0, .Lmdacc_collapse_extension_child\n" ++
+  "  j .Lmdacc_need_collapse\n" ++
+  ".Lmdacc_collapse_leaf_child:\n" ++
   "  la t0, mdacc_survivor_nibble; ld t1, 0(t0); la t2, mdacc_collapsed_path; sb t1, 0(t2)\n" ++
   "  la t3, mdacc_leaf_path; addi t2, t2, 1; la t0, mdacc_leaf_path_len; ld t4, 0(t0)\n" ++
   ".Lmdacc_cpath_cp:\n" ++
@@ -137,6 +140,46 @@ def mptDeleteAccFunction : String :=
   "  la a0, mdacc_collapsed_path; la t0, mdacc_leaf_value_ptr; ld a2, 0(t0); la t0, mdacc_leaf_value_len; ld a3, 0(t0)\n" ++
   "  la a4, mset_node; la a5, mset_node_len\n" ++
   "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
+  "  la a0, mset_node; mv a1, s4\n" ++
+  "  jal ra, node_db_append\n" ++
+  "  la a0, mset_node; mv a1, s4; la a2, mset_ref; la a3, mset_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  addi s7, s6, -1\n" ++
+  "  j .Lmdacc_bubble\n" ++
+  ".Lmdacc_collapse_extension_child:\n" ++
+  "  la t0, mdacc_child_ptr; ld a0, 0(t0)\n" ++
+  "  la t0, mdacc_child_len; ld a1, 0(t0)\n" ++
+  "  la a2, mdacc_leaf_path; la a3, mdacc_leaf_path_len; la a4, mdacc_leaf_value_ptr; la a5, mdacc_leaf_value_len\n" ++
+  "  jal ra, mpt_extension_extract\n" ++
+  "  bnez a0, .Lmdacc_need_collapse\n" ++
+  "  la t0, mdacc_survivor_nibble; ld t1, 0(t0); la t2, mdacc_collapsed_path; sb t1, 0(t2)\n" ++
+  "  la t3, mdacc_leaf_path; addi t2, t2, 1; la t0, mdacc_leaf_path_len; ld t4, 0(t0)\n" ++
+  ".Lmdacc_epath_cp:\n" ++
+  "  beqz t4, .Lmdacc_epath_done\n" ++
+  "  lbu t5, 0(t3); sb t5, 0(t2); addi t3, t3, 1; addi t2, t2, 1; addi t4, t4, -1; j .Lmdacc_epath_cp\n" ++
+  ".Lmdacc_epath_done:\n" ++
+  "  la t0, mdacc_leaf_value_ptr; ld t0, 0(t0)\n" ++
+  "  la t1, mdacc_leaf_value_len; ld t2, 0(t1)\n" ++
+  "  li t3, 32; bne t2, t3, .Lmdacc_ext_child_inline\n" ++
+  "  la t4, mset_ref; li t5, 0xa0; sb t5, 0(t4); addi t4, t4, 1; li t5, 32\n" ++
+  ".Lmdacc_ext_child_hash_cp:\n" ++
+  "  beqz t5, .Lmdacc_ext_child_hash_done\n" ++
+  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lmdacc_ext_child_hash_cp\n" ++
+  ".Lmdacc_ext_child_hash_done:\n" ++
+  "  li t5, 33; la t4, mset_ref_len; sd t5, 0(t4); j .Lmdacc_ext_child_ready\n" ++
+  ".Lmdacc_ext_child_inline:\n" ++
+  "  la t4, mset_ref; mv t5, t2\n" ++
+  ".Lmdacc_ext_child_inline_cp:\n" ++
+  "  beqz t5, .Lmdacc_ext_child_inline_done\n" ++
+  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lmdacc_ext_child_inline_cp\n" ++
+  ".Lmdacc_ext_child_inline_done:\n" ++
+  "  la t4, mset_ref_len; sd t2, 0(t4)\n" ++
+  ".Lmdacc_ext_child_ready:\n" ++
+  "  la t0, mdacc_leaf_path_len; ld a1, 0(t0); addi a1, a1, 1\n" ++
+  "  la a0, mdacc_collapsed_path; la a2, mset_ref; la t0, mset_ref_len; ld a3, 0(t0)\n" ++
+  "  la a4, mset_node; la a5, mset_node_len\n" ++
+  "  jal ra, mpt_extension_node_encode\n" ++
   "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
   "  la a0, mset_node; mv a1, s4\n" ++
   "  jal ra, node_db_append\n" ++
@@ -224,7 +267,9 @@ def ziskMptDeleteAccPrologue : String :=
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptDeleteWalkDbFunction ++ "\n" ++
   mptLeafExtractFunction ++ "\n" ++
+  mptExtensionExtractFunction ++ "\n" ++
   mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptExtensionNodeEncodeFunction ++ "\n" ++
   rlpItemSizeFunction ++ "\n" ++
   rlpItemSpanFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
@@ -246,9 +291,17 @@ def ziskMptDeleteAccDataSection : String :=
   "mdacc_leaf_path_len:\n  .zero 8\n" ++
   "mdacc_leaf_value_ptr:\n  .zero 8\n" ++
   "mdacc_leaf_value_len:\n  .zero 8\n" ++
+  "mee_path_off:\n  .zero 8\n" ++
+  "mee_path_len:\n  .zero 8\n" ++
+  "mxne_field_len:\n  .zero 8\n" ++
+  "mxne_hp_len:\n  .zero 8\n" ++
+  "mxne_cursor:\n  .zero 8\n" ++
+  "mxne_total_payload:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "mdacc_leaf_path:\n  .zero 128\n" ++
   "mdacc_collapsed_path:\n  .zero 128\n" ++
+  "mxne_hp_buf:\n  .zero 1024\n" ++
+  "mxne_payload_buf:\n  .zero 16384\n" ++
   ".balign 32\n" ++
   iwEmptyTrieRootData
 
