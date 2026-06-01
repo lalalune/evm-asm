@@ -1,0 +1,131 @@
+/-
+  EvmAsm.Codegen.Programs.SszPayloadWithdrawals
+
+  extract_payload_and_withdrawals (bead evm-asm-fhsxz.2.4.2.3): locate the
+  `ExecutionPayload` and its `withdrawals` list within an `SszStatelessInput`,
+  the two inputs the Step-2 verdict still needs from the real guest input:
+    * the ExecutionPayload ptr feeds `block_header_ssz_to_rlp` (this header);
+    * each 44-byte SSZ Withdrawal feeds `ssz_withdrawal_to_rlp` ->
+      `withdrawals_state_root`.
+
+  Navigation (per the NPR-root epilogue, StatelessGuestEpilogue.lean):
+    NPR          = SSZ_BASE + outer.offsets[0]      (OUTER_NPR_OFFSET = 0)
+    exec_payload = NPR + NPR.offsets[0]             (execution_payload, NPR+44)
+    wd_off       = u32 @ exec_payload+508           (withdrawals offset)
+    bal_off      = u32 @ exec_payload+528           (block_access_list offset =
+                                                     end of the withdrawals data)
+    withdrawals_ptr = exec_payload + wd_off
+    withdrawals_len = bal_off - wd_off
+    count           = withdrawals_len / 44          (Withdrawal is fixed 44 B,
+                                                     so the list has no inner
+                                                     offset table)
+  All u32 offsets are read byte-wise (LBU+shift) for the no-misaligned
+  invariant (the SSZ blob base is unaligned in the real guest input).
+-/
+
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
+
+namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
+
+/-! ## spw_u32le -- read a little-endian u32 byte-wise (a0 = ptr -> a0). Leaf. -/
+def spwU32leFunction : String :=
+  "spw_u32le:\n" ++
+  "  lbu t0, 0(a0)\n" ++
+  "  lbu t1, 1(a0); slli t1, t1, 8;  or t0, t0, t1\n" ++
+  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
+  "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
+  "  mv a0, t0\n" ++
+  "  ret"
+
+/-- `extract_payload_and_withdrawals`.
+    a0 = SSZ_BASE ptr
+    a1 = out: ExecutionPayload ptr (u64)
+    a2 = out: withdrawals list ptr (u64)
+    a3 = out: withdrawals count (u64)
+    a0 (output) = 0. -/
+def extractPayloadAndWithdrawalsFunction : String :=
+  "extract_payload_and_withdrawals:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0                   # SSZ_BASE\n" ++
+  "  mv s1, a1                   # out payload ptr\n" ++
+  "  mv s2, a2                   # out withdrawals ptr\n" ++
+  "  mv s3, a3                   # out withdrawals count\n" ++
+  "  # NPR = SSZ_BASE + outer.offsets[0]\n" ++
+  "  mv a0, s0\n" ++
+  "  jal ra, spw_u32le\n" ++
+  "  add t2, s0, a0              # NPR addr\n" ++
+  "  # exec_payload = NPR + NPR.offsets[0]\n" ++
+  "  mv a0, t2\n" ++
+  "  jal ra, spw_u32le\n" ++
+  "  # a0 = NPR.offsets[0]; recompute NPR (t2 clobbered by call? spw_u32le uses only t0/t1)\n" ++
+  "  add s4, t2, a0              # s4 = exec_payload addr\n" ++
+  "  sd s4, 0(s1)                # out payload ptr\n" ++
+  "  # wd_off = u32 @ exec_payload+508\n" ++
+  "  addi a0, s4, 508\n" ++
+  "  jal ra, spw_u32le\n" ++
+  "  mv t4, a0                   # wd_off\n" ++
+  "  # bal_off = u32 @ exec_payload+528\n" ++
+  "  addi a0, s4, 528\n" ++
+  "  jal ra, spw_u32le\n" ++
+  "  # a0 = bal_off ; t4 = wd_off\n" ++
+  "  add t5, s4, t4              # withdrawals_ptr = exec_payload + wd_off\n" ++
+  "  sd t5, 0(s2)\n" ++
+  "  sub t6, a0, t4              # withdrawals_len = bal_off - wd_off\n" ++
+  "  # count = withdrawals_len / 44 (repeated subtraction; count is small)\n" ++
+  "  li t0, 0                    # count\n" ++
+  "  li t1, 44\n" ++
+  ".Lspw_cnt:\n" ++
+  "  bltu t6, t1, .Lspw_cnt_done\n" ++
+  "  sub t6, t6, t1\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lspw_cnt\n" ++
+  ".Lspw_cnt_done:\n" ++
+  "  sd t0, 0(s3)                # out count\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_extract_payload_and_withdrawals`: probe. Input file (-> INPUT+8) is
+    the SszStatelessInput SSZ blob (SSZ_BASE = INPUT+8 for the probe).
+    Output: OUTPUT+0 = payload offset from SSZ_BASE, OUTPUT+8 = withdrawals
+    offset from SSZ_BASE, OUTPUT+16 = withdrawals count. -/
+def ziskExtractPayloadAndWithdrawalsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a0, 0x40000008           # SSZ_BASE = input start (probe)\n" ++
+  "  la a1, spw_payload_ptr\n" ++
+  "  la a2, spw_wd_ptr\n" ++
+  "  la a3, spw_wd_count\n" ++
+  "  jal ra, extract_payload_and_withdrawals\n" ++
+  "  li t6, 0x40000008           # SSZ_BASE for relative offsets\n" ++
+  "  la t0, spw_payload_ptr; ld t1, 0(t0); sub t1, t1, t6\n" ++
+  "  li t2, 0xa0010000; sd t1, 0(t2)\n" ++
+  "  la t0, spw_wd_ptr; ld t1, 0(t0); sub t1, t1, t6\n" ++
+  "  li t2, 0xa0010008; sd t1, 0(t2)\n" ++
+  "  la t0, spw_wd_count; ld t1, 0(t0)\n" ++
+  "  li t2, 0xa0010010; sd t1, 0(t2)\n" ++
+  "  j .Lspw_pdone\n" ++
+  spwU32leFunction ++ "\n" ++
+  extractPayloadAndWithdrawalsFunction ++ "\n" ++
+  ".Lspw_pdone:"
+
+def ziskExtractPayloadAndWithdrawalsDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "spw_payload_ptr:\n  .zero 8\n" ++
+  "spw_wd_ptr:\n  .zero 8\n" ++
+  "spw_wd_count:\n  .zero 8"
+
+def ziskExtractPayloadAndWithdrawalsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskExtractPayloadAndWithdrawalsPrologue
+  dataAsm     := ziskExtractPayloadAndWithdrawalsDataSection
+}
+
+end EvmAsm.Codegen
