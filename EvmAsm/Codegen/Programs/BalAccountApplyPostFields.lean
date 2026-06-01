@@ -78,10 +78,9 @@ def balAccountApplyPostFieldsFunction : String :=
   "  bnez a0, .Lbaap_fail\n" ++
   "  la s6, baap_tmp3; la t0, baap_tmp3_len; ld s7, 0(t0)\n" ++
   ".Lbaap_storage_gate:\n" ++
-  "  # Apply one BAL storage change first if this account also has a nonce/balance\n" ++
-  "  # post-field. Storage-only system BAL entries are handled by system writes.\n" ++
-  "  la t0, baap_bal_len; ld t0, 0(t0); li t1, -1; bne t0, t1, .Lbaap_try_storage\n" ++
-  "  la t0, baap_nonce_len; ld t0, 0(t0); li t1, -1; beq t0, t1, .Lbaap_nonce\n" ++
+  "  # Apply one BAL storage change first when present. Storage-only user-tx\n" ++
+  "  # writes still affect the post-state account even without balance/nonce\n" ++
+  "  # changes; an empty storage_changes list falls through unchanged.\n" ++
   ".Lbaap_try_storage:\n" ++
   "  mv a0, s2; mv a1, s3; li a2, 1; la a3, baap_sc_off; la a4, baap_sc_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
