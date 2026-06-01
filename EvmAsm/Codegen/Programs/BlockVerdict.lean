@@ -719,6 +719,19 @@ def blockVerdictFunction : String :=
   "  # Witness integrity: for every BAL account with non-empty pre-state code,\n" ++
   "  # witness.codes must contain that code hash, matching execution-specs'\n" ++
   "  # WitnessState.get_code behavior for missing non-empty code preimages.\n" ++
+  "  # Pure BAL account-touch rows are safe to ignore only for withdrawal-only\n" ++
+  "  # blocks: zero-amount withdrawals may touch an account without reading code.\n" ++
+  "  la t2, bbcv_skip_touch_only; sd zero, 0(t2)\n" ++
+  "  ld t4, 0(s0)\n" ++
+  "  addi a0, t4, 504; jal ra, bgv_u32le        # transactions_offset\n" ++
+  "  mv t3, a0\n" ++
+  "  ld t4, 0(s0)\n" ++
+  "  addi a0, t4, 508; jal ra, bgv_u32le        # withdrawals_offset\n" ++
+  "  bltu t3, a0, .Lbv_code_preimage_flag_done  # transactions present\n" ++
+  "  ld t5, 72(s0)\n" ++
+  "  beqz t5, .Lbv_code_preimage_flag_done\n" ++
+  "  li t6, 1; la t2, bbcv_skip_touch_only; sd t6, 0(t2)\n" ++
+  ".Lbv_code_preimage_flag_done:\n" ++
   "  la t2, bv_bal_start; ld a0, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a1, 0(t2)\n" ++
   "  ld a2, 8(s0)                  # parent header RLP\n" ++
@@ -1095,6 +1108,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bbcv_field_count:\n  .zero 8\n" ++
   "bbcv_balance_count:\n  .zero 8\n" ++
   "bbcv_nonce_count:\n  .zero 8\n" ++
+  "bbcv_skip_touch_only:\n  .zero 8\n" ++
   "ad_offset:\n  .zero 8\n" ++
   "ad_length:\n  .zero 8\n" ++
   "aa_value_len:\n  .zero 8\n" ++
