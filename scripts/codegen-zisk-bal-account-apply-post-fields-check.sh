@@ -25,6 +25,7 @@ EMPTY_ROOT = bytes.fromhex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc00162
 EMPTY_CODE_HASH = bytes.fromhex("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 SLOT_1_VALUE_7_ROOT = bytes.fromhex("2e7827dc2c61c322f13f77e6f25dd18844ccc48426dde70301d2d57d138fced8")
 SLOTS_1_2_VALUES_7_9_ROOT = bytes.fromhex("d4768ae8d8aaa8da763864dd76573bdc5d107ac968eb886393419033cc66dac7")
+SLOT_2_VALUE_9_ROOT = bytes.fromhex("ae2775a33ad618be6c0743c3902b06bc4d218ba6186818a6ebdd2ae0826cfd6b")
 
 
 def minimal_be(n: int) -> bytes:
@@ -107,6 +108,18 @@ cases = [
         bal_account_change_rlp(addr, storage_changes=[(1, [(1, 7)]), (2, [(2, 9)])]),
         account_rlp(1, 5, SLOTS_1_2_VALUES_7_9_ROOT),
     ),
+    (
+        "baap_two_storage_one_zero",
+        base,
+        bal_account_change_rlp(addr, storage_changes=[(1, [(1, 0)]), (2, [(2, 9)])]),
+        account_rlp(1, 5, SLOT_2_VALUE_9_ROOT),
+    ),
+    (
+        "baap_two_storage_all_zero",
+        base,
+        bal_account_change_rlp(addr, storage_changes=[(1, [(1, 0)]), (2, [(2, 0)])]),
+        base,
+    ),
 ]
 
 for name, account, account_change, expected in cases:
@@ -125,7 +138,7 @@ lake exe codegen --program zisk_bal_account_apply_post_fields --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_bal_account_apply_post_fields"
 
 fail=0
-for name in baap_noop baap_balance baap_nonce baap_both baap_zero_balance baap_storage_only baap_two_storage; do
+for name in baap_noop baap_balance baap_nonce baap_both baap_zero_balance baap_storage_only baap_two_storage baap_two_storage_one_zero baap_two_storage_all_zero; do
   out="$VDIR/$name.output"
   "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_apply_post_fields.elf" \
     -i "$VDIR/$name.input" -o "$out" -n 2000000 >/dev/null 2>&1 </dev/null \

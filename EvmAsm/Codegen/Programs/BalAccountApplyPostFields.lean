@@ -144,18 +144,26 @@ def balAccountApplyPostFieldsFunction : String :=
   "  # Multi-slot BAL storage replay is supported when the account's prior\n" ++
   "  # storage trie is empty: build all storage insert descriptors and apply\n" ++
   "  # them together so the intermediate trie root need not be in the witness.\n" ++
+  "  # Final zero slot values are trie-default no-ops for an empty storage trie.\n" ++
   "  mv a0, s6; mv a1, s7; li a2, 2; la a3, aps_off; la a4, aps_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbaap_fail\n" ++
   "  la t0, aps_len; ld t1, 0(t0); li t2, 32; bne t1, t2, .Lbaap_fail\n" ++
-  "  la t0, aps_off; ld t1, 0(t0); add t1, s6, t1; la t2, aps_empty_root; li t3, 32\n" ++
+  "  la t0, aps_off; ld t1, 0(t0); add t1, s6, t1; la t0, baap_storage_root_ptr; sd t1, 0(t0)\n" ++
+  "  la t2, aps_empty_root; li t3, 32\n" ++
   ".Lbaap_empty_cmp:\n" ++
   "  beqz t3, .Lbaap_empty_ok\n" ++
-  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lbaap_fail\n" ++
+  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lbaap_nonempty_ok\n" ++
   "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbaap_empty_cmp\n" ++
   ".Lbaap_empty_ok:\n" ++
+  "  li t0, 1; la t1, baap_storage_empty_flag; sd t0, 0(t1)\n" ++
+  "  j .Lbaap_multi_init\n" ++
+  ".Lbaap_nonempty_ok:\n" ++
+  "  la t0, baap_storage_empty_flag; sd zero, 0(t0)\n" ++
+  ".Lbaap_multi_init:\n" ++
   "  la t0, baap_storage_values; la t1, baap_storage_value_cursor; sd t0, 0(t1)\n" ++
   "  la t0, baap_sc_index; sd zero, 0(t0)\n" ++
+  "  la t0, baap_sc_out_count; sd zero, 0(t0)\n" ++
   ".Lbaap_multi_loop:\n" ++
   "  la t0, baap_sc_index; ld t0, 0(t0); la t1, baap_sc_count; ld t1, 0(t1)\n" ++
   "  beq t0, t1, .Lbaap_multi_apply\n" ++
@@ -203,24 +211,51 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la t1, baap_slot_changes_ptr; ld t1, 0(t1); la t2, baap_item_off; ld t2, 0(t2); add t1, t1, t2\n" ++
   "  la t2, baap_val_off; ld t2, 0(t2); add a0, t1, t2\n" ++
   "  mv a1, t0; la t2, baap_storage_value_cursor; ld a2, 0(t2); la a3, aab_enc_len\n" ++
+  "  bnez a1, .Lbaap_multi_encode_value\n" ++
+  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); beqz t0, .Lbaap_fail\n" ++
+  "  j .Lbaap_multi_skip_zero\n" ++
+  ".Lbaap_multi_encode_value:\n" ++
   "  jal ra, rlp_encode_bytes\n" ++
   "  la a0, baap_slot; li a1, 32; la a2, srss_key\n" ++
   "  jal ra, zkvm_keccak256\n" ++
-  "  la t0, baap_sc_index; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a2, t2, t1\n" ++
+  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a2, t2, t1\n" ++
   "  la a0, srss_key; li a1, 32\n" ++
   "  jal ra, bytes_to_nibbles\n" ++
-  "  la t0, baap_sc_index; ld t0, 0(t0); slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2\n" ++
+  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_mslot_insert\n" ++
+  "  la t0, baap_storage_root_ptr; ld a0, 0(t0)\n" ++
+  "  la t0, aps_witness_ptr; ld a1, 0(t0); la t0, aps_witness_len; ld a2, 0(t0)\n" ++
+  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a3, t2, t1\n" ++
+  "  li a4, 64; la a5, baap_walk_val; la a6, baap_walk_val_len\n" ++
+  "  jal ra, mpt_walk\n" ++
+  "  beqz a0, .Lbaap_mslot_modify\n" ++
+  "  li t0, 1; bne a0, t0, .Lbaap_fail\n" ++
+  ".Lbaap_mslot_insert:\n" ++
+  "  li t5, 1; j .Lbaap_mslot_have_mode\n" ++
+  ".Lbaap_mslot_modify:\n" ++
+  "  li t5, 0\n" ++
+  ".Lbaap_mslot_have_mode:\n" ++
+  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2\n" ++
   "  la t2, baap_storage_desc; add t1, t2, t1\n" ++
   "  slli t2, t0, 6; la t3, baap_storage_paths; add t2, t3, t2; sd t2, 0(t1)\n" ++
   "  li t2, 64; sd t2, 8(t1)\n" ++
   "  la t2, baap_storage_value_cursor; ld t3, 0(t2); sd t3, 16(t1)\n" ++
   "  la t4, aab_enc_len; ld t4, 0(t4); sd t4, 24(t1)\n" ++
-  "  li t5, 1; sd t5, 32(t1)\n" ++
+  "  sd t5, 32(t1)\n" ++
   "  add t3, t3, t4; addi t3, t3, 7; andi t3, t3, -8; sd t3, 0(t2)\n" ++
+  "  addi t0, t0, 1; la t1, baap_sc_out_count; sd t0, 0(t1)\n" ++
+  ".Lbaap_multi_skip_zero:\n" ++
+  "  la t0, baap_sc_index; ld t0, 0(t0)\n" ++
   "  addi t0, t0, 1; la t1, baap_sc_index; sd t0, 0(t1); j .Lbaap_multi_loop\n" ++
   ".Lbaap_multi_apply:\n" ++
+  "  la t0, baap_sc_out_count; ld a4, 0(t0); beqz a4, .Lbaap_nonce\n" ++
+  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); beqz t0, .Lbaap_multi_apply_nonempty\n" ++
   "  la a0, aps_empty_root; mv a1, zero; mv a2, zero; la a3, baap_storage_desc\n" ++
-  "  la t0, baap_sc_count; ld a4, 0(t0); la a5, aps_newsroot\n" ++
+  "  j .Lbaap_multi_apply_call\n" ++
+  ".Lbaap_multi_apply_nonempty:\n" ++
+  "  la t0, baap_storage_root_ptr; ld a0, 0(t0)\n" ++
+  "  la t0, aps_witness_ptr; ld a1, 0(t0); la t0, aps_witness_len; ld a2, 0(t0); la a3, baap_storage_desc\n" ++
+  ".Lbaap_multi_apply_call:\n" ++
+  "  la a5, aps_newsroot\n" ++
   "  jal ra, mpt_state_root_ins\n" ++
   "  bnez a0, .Lbaap_fail\n" ++
   "  mv a0, s6; mv a1, s7; la a2, aps_newsroot; la a3, baap_tmp2; la a4, baap_tmp2_len\n" ++
@@ -294,6 +329,7 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   mptNodeResolveFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   hpDecodeNibblesFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptInsertWalkDbFunction ++ "\n" ++
   mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
@@ -366,6 +402,10 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_sc_ptr:\n  .zero 8\n" ++
   "baap_sc_count:\n  .zero 8\n" ++
   "baap_sc_index:\n  .zero 8\n" ++
+  "baap_sc_out_count:\n  .zero 8\n" ++
+  "baap_storage_empty_flag:\n  .zero 8\n" ++
+  "baap_storage_root_ptr:\n  .zero 8\n" ++
+  "baap_walk_val_len:\n  .zero 8\n" ++
   "baap_item_off:\n  .zero 8\n" ++
   "baap_item_len:\n  .zero 8\n" ++
   "baap_slot_changes_off:\n  .zero 8\n" ++
@@ -392,6 +432,7 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_tmp2:\n  .zero 512\n" ++
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
+  "baap_walk_val:\n  .zero 128\n" ++
   "baap_storage_desc:\n  .zero 1280\n" ++
   "baap_storage_paths:\n  .zero 2048\n" ++
   "baap_storage_values:\n  .zero 2048\n" ++
