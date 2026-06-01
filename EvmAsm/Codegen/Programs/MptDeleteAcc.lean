@@ -1,10 +1,9 @@
 /-
   EvmAsm.Codegen.Programs.MptDeleteAcc
 
-  First executable delete accumulator for existing MPT keys. This slice handles
-  the no-collapse cases: deleting a single-leaf trie to EMPTY_TRIE_ROOT, and
-  deleting a leaf below branch-only ancestors by bubbling the canonical empty
-  RLP child reference upward through the shared node DB.
+  Executable delete accumulator for existing MPT keys. This slice handles
+  deleting a single-leaf trie to EMPTY_TRIE_ROOT, branch-only bubbling, and
+  the first branch-collapse cases through the shared node DB.
 -/
 
 import EvmAsm.Rv64.Program
@@ -17,14 +16,14 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-! ## mpt_delete_acc -- DB-aware delete, no-collapse slice.
+/-! ## mpt_delete_acc -- DB-aware delete accumulator.
 
     a0=root_hash, a1=witness, a2=witness_len, a3=path, a4=path_len,
     a7=out_root -> a0 status:
       0 ok
       1 not found / incomplete witness
       2 parse or splice failure
-      3 deletion would require branch/extension collapse (follow-up PR)
+      3 deletion would require an uncovered branch/extension collapse
 -/
 def mptDeleteAccFunction : String :=
   "mpt_delete_acc:\n" ++
@@ -91,8 +90,25 @@ def mptDeleteAccFunction : String :=
   "  beqz t0, .Lmdacc_collapse_one_child\n" ++
   "  j .Lmdacc_no_collapse_needed\n" ++
   ".Lmdacc_zero_children:\n" ++
-  "  bnez t0, .Lmdacc_need_collapse\n" ++
+  "  bnez t0, .Lmdacc_collapse_branch_value\n" ++
   "  j .Lmdacc_need_collapse\n" ++
+  ".Lmdacc_collapse_branch_value:\n" ++
+  "  mv a0, s3; mv a1, s4; li a2, 16\n" ++
+  "  la a3, mw_child_offset; la a4, mw_child_length\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lmdacc_fail\n" ++
+  "  la t0, mw_child_offset; ld t0, 0(t0); add a2, s3, t0\n" ++
+  "  la t0, mw_child_length; ld a3, 0(t0)\n" ++
+  "  la a0, mdacc_collapsed_path; mv a1, zero\n" ++
+  "  la a4, mset_node; la a5, mset_node_len\n" ++
+  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
+  "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
+  "  la a0, mset_node; mv a1, s4\n" ++
+  "  jal ra, node_db_append\n" ++
+  "  la a0, mset_node; mv a1, s4; la a2, mset_ref; la a3, mset_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  addi s7, s6, -1\n" ++
+  "  j .Lmdacc_bubble\n" ++
   ".Lmdacc_collapse_one_child:\n" ++
   "  la t0, mdacc_survivor_nibble; ld a2, 0(t0)\n" ++
   "  mv a0, s3; mv a1, s4\n" ++
