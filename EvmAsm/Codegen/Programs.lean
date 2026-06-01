@@ -334,6 +334,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bal_account_nth_descriptor" => some ziskBalAccountNthDescriptorProbeUnit
   | "zisk_bal_account_descriptor_array" => some ziskBalAccountDescriptorArrayProbeUnit
   | "zisk_bal_account_state_root" => some ziskBalAccountStateRootProbeUnit
+  | "zisk_bal_account_state_root_auto" => some ziskBalAccountStateRootAutoProbeUnit
   | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit
   | "zisk_storage_root_single_slot" => some ziskStorageRootSingleSlotProbeUnit
   | "zisk_account_set_storage_root" => some ziskAccountSetStorageRootProbeUnit
@@ -1135,6 +1136,7 @@ def knownProgramNames : List String :=
    "zisk_bal_account_nth_descriptor",
    "zisk_bal_account_descriptor_array",
    "zisk_bal_account_state_root",
+   "zisk_bal_account_state_root_auto",
    "zisk_bal_account_record_array",
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
