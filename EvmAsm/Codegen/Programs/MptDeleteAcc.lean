@@ -45,13 +45,13 @@ def mptDeleteAccFunction : String :=
   "  bnez a0, .Lmdacc_ret\n" ++
   "  la t0, mset_meta; ld s6, 0(t0)   # depth\n" ++
   "  beqz s6, .Lmdacc_empty_root\n" ++
-  "  # This first accumulator slice supports branch-only ancestry. Extension\n" ++
-  "  # merge/collapse is handled by the follow-up child bead.\n" ++
+  "  # Bubble supports branch ancestors and extension ancestors whose child\n" ++
+  "  # remains canonical. Extension/leaf merge is handled by a follow-up.\n" ++
   "  li t0, 0\n" ++
   ".Lmdacc_check_loop:\n" ++
   "  beq t0, s6, .Lmdacc_check_done\n" ++
   "  la t1, mset_stack; slli t2, t0, 5; add t1, t1, t2\n" ++
-  "  ld t3, 16(t1); bnez t3, .Lmdacc_need_collapse\n" ++
+  "  ld t3, 16(t1); li t4, 1; bgtu t3, t4, .Lmdacc_need_collapse\n" ++
   "  addi t0, t0, 1; j .Lmdacc_check_loop\n" ++
   ".Lmdacc_check_done:\n" ++
   "  # If the deepest branch would become collapsible after deleting this\n" ++
@@ -62,6 +62,7 @@ def mptDeleteAccFunction : String :=
   "  la t1, mset_stack; slli t2, t0, 5; add t1, t1, t2\n" ++
   "  ld s3, 0(t1)                # terminal branch ptr\n" ++
   "  ld s4, 8(t1)                # terminal branch len\n" ++
+  "  ld t3, 16(t1); bnez t3, .Lmdacc_need_collapse\n" ++
   "  ld s7, 24(t1)               # deleted child nibble\n" ++
   "  li s1, 0                    # i\n" ++
   "  li s2, 0                    # non-empty child count after deletion\n" ++
@@ -228,12 +229,30 @@ def mptDeleteAccFunction : String :=
   "  la t0, mset_stack; slli t1, s7, 5; add t0, t0, t1\n" ++
   "  ld t2, 0(t0)                # node_ptr ABS\n" ++
   "  ld t3, 8(t0)                # node_len\n" ++
+  "  ld t4, 16(t0)               # kind\n" ++
+  "  li t6, 1; beq t4, t6, .Lmdacc_bubble_extension\n" ++
+  "  bnez t4, .Lmdacc_need_collapse\n" ++
   "  ld t5, 24(t0)               # branch nibble\n" ++
   "  mv a0, t2; mv a1, t3; mv a2, t5\n" ++
   "  la a3, mset_ref; la t0, mset_ref_len; ld a4, 0(t0)\n" ++
   "  la a5, mset_node; la a6, mset_node_len\n" ++
   "  jal ra, mpt_splice_slot\n" ++
   "  bnez a0, .Lmdacc_fail\n" ++
+  "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
+  "  la a0, mset_node; mv a1, s4\n" ++
+  "  jal ra, node_db_append\n" ++
+  "  la a0, mset_node; mv a1, s4; la a2, mset_ref; la a3, mset_ref_len\n" ++
+  "  jal ra, mpt_node_slot_encode\n" ++
+  "  j .Lmdacc_bubble\n" ++
+  ".Lmdacc_bubble_extension:\n" ++
+  "  mv a0, t2; mv a1, t3\n" ++
+  "  la a2, mdacc_leaf_path; la a3, mdacc_leaf_path_len; la a4, mdacc_leaf_value_ptr; la a5, mdacc_leaf_value_len\n" ++
+  "  jal ra, mpt_extension_extract\n" ++
+  "  bnez a0, .Lmdacc_need_collapse\n" ++
+  "  la a0, mdacc_leaf_path; la t0, mdacc_leaf_path_len; ld a1, 0(t0)\n" ++
+  "  la a2, mset_ref; la t0, mset_ref_len; ld a3, 0(t0)\n" ++
+  "  la a4, mset_node; la a5, mset_node_len\n" ++
+  "  jal ra, mpt_extension_node_encode\n" ++
   "  la t0, mset_node_len; ld s4, 0(t0)\n" ++
   "  la a0, mset_node; mv a1, s4\n" ++
   "  jal ra, node_db_append\n" ++
