@@ -275,6 +275,10 @@ def blockVerdictFunction : String :=
   "  j .Lbv_after_tx_gate\n" ++
   ".Lbv_tx_present:\n" ++
   "  la t5, bsr_bal_count; ld t5, 0(t5); beqz t5, .Lbv_zero  # tx blocks need BAL replay\n" ++
+  "  # Any included transaction must consume nonzero gas. This catches rejected\n" ++
+  "  # tx payloads whose state/BAL roots otherwise match the conservative replay.\n" ++
+  "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # gas_used\n" ++
+  "  beqz a0, .Lbv_zero\n" ++
   ".Lbv_after_tx_gate:\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
