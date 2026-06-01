@@ -49,7 +49,8 @@ srss.append(((12).to_bytes(32,"big"), b"\x0c"))
 srss.append(((1).to_bytes(32,"big"), b"\x42"))
 for i,(slot,val) in enumerate(srss):
     key=m.k256(slot)
-    leaf=m.leaf_node(nibbles(key), val)
+    # the storage-trie leaf value is RLP(word); leaf_node wraps it again
+    leaf=m.leaf_node(nibbles(key), rlp.encode(val))
     root=m.trie_root(leaf)
     body=struct.pack("<Q", len(val)) + slot + val
     open(f"{VDIR}/srss_{i}.input","wb").write(pad8(body))
