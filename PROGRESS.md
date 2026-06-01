@@ -109,7 +109,7 @@ when the underlying state changes.
 | Reference fork | Frontier/Shanghai (most opcodes); Amsterdam draft fork referenced for SDIV/SMOD |
 | Pin | `ethereum/execution-specs@ec23140` (gitlink in `.gitmodules`) |
 | Per-opcode reference-link audit | manual; `EvmWord.<op>` defs cite Python files in their docstrings (not yet machine-checked) |
-| EEST fixture pass rate | 🟡 harness wired (`zkevm@v0.4.0`, Amsterdam) + first SOUND 105-byte full-matches on no-transaction blocks: eip4895 2/30, eip7928 3/150, **0 false positives** across a broad cross-family scan. Soundness gates: no-transaction gate (verdict only judges tx-empty blocks) + EIP-7928 BAL gas-limit check; state recompute = EIP-2935/4788 system writes + withdrawal balance credits → `mpt_state_root`. Tx/EVM execution (Steps 3-6) unbuilt ⇒ tx-bearing blocks rejected conservatively. |
+| EEST fixture pass rate | ✗ harness not yet wired (parking-lot dependency on D obligations 3 + 4) |
 | RPC block replay | ✗ not started |
 
 ## G — Trust base
@@ -251,8 +251,8 @@ This is the verified gas-cost surrogate.
 
 ## D — Codegen reach
 
-- Programs in `EvmAsm/Codegen/Programs.lean` registry: **483**
-- ziskemu round-trip scripts: **473** under `scripts/codegen-*.sh`
+- Programs in `EvmAsm/Codegen/Programs.lean` registry: **478**
+- ziskemu round-trip scripts: **469** under `scripts/codegen-*.sh`
 - Milestones (CODEGEN.md):
 
 | Milestone | Status |
