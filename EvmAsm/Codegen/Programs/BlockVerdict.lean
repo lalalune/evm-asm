@@ -555,11 +555,26 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_bal_len:\n  .zero 8\n" ++
   "baap_nonce_len:\n  .zero 8\n" ++
   "baap_tmp_len:\n  .zero 8\n" ++
+  "baap_tmp2_len:\n  .zero 8\n" ++
+  "baap_sc_off:\n  .zero 8\n" ++
+  "baap_sc_len:\n  .zero 8\n" ++
+  "baap_sc_ptr:\n  .zero 8\n" ++
+  "baap_sc_count:\n  .zero 8\n" ++
+  "baap_item_off:\n  .zero 8\n" ++
+  "baap_item_len:\n  .zero 8\n" ++
+  "baap_slot_changes_off:\n  .zero 8\n" ++
+  "baap_slot_changes_len:\n  .zero 8\n" ++
+  "baap_slot_changes_ptr:\n  .zero 8\n" ++
+  "baap_slot_changes_count:\n  .zero 8\n" ++
+  "baap_val_off:\n  .zero 8\n" ++
+  "baap_val_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "baap_bal:\n  .zero 32\n" ++
   "baap_nonce:\n  .zero 32\n" ++
+  "baap_slot:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "baap_tmp:\n  .zero 512\n" ++
+  "baap_tmp2:\n  .zero 512\n" ++
   "bacp_off:\n  .zero 8\n" ++
   "bacp_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
