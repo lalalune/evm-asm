@@ -95,14 +95,19 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la a3, baap_item_off; la a4, baap_item_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_item_len; ld t0, 0(t0); li t1, 32; bgtu t0, t1, .Lbaap_fail\n" ++
+  "  la t0, baap_sc_ptr; ld t0, 0(t0); la t1, baap_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  la t1, baap_item_len; ld t1, 0(t1); la t2, baap_code_item_ptr; sd t0, 0(t2)\n" ++
+  "  mv a0, t0; mv a1, t1; li a2, 0; la a3, baap_val_off; la a4, baap_val_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbaap_fail\n" ++
+  "  la t0, baap_val_len; ld t0, 0(t0); li t1, 32; bgtu t0, t1, .Lbaap_fail\n" ++
   "  la t0, baap_slot; li t1, 0\n" ++
   ".Lbaap_slot_zero:\n" ++
   "  li t2, 32; beq t1, t2, .Lbaap_slot_zero_done\n" ++
   "  add t3, t0, t1; sb zero, 0(t3); addi t1, t1, 1; j .Lbaap_slot_zero\n" ++
   ".Lbaap_slot_zero_done:\n" ++
-  "  la t0, baap_item_len; ld t1, 0(t0); li t2, 32; sub t2, t2, t1; la t3, baap_slot; add t3, t3, t2\n" ++
-  "  la t0, baap_sc_ptr; ld t0, 0(t0); la t2, baap_item_off; ld t2, 0(t2); add t0, t0, t2\n" ++
+  "  la t0, baap_val_len; ld t1, 0(t0); li t2, 32; sub t2, t2, t1; la t3, baap_slot; add t3, t3, t2\n" ++
+  "  la t0, baap_code_item_ptr; ld t0, 0(t0); la t2, baap_val_off; ld t2, 0(t2); add t0, t0, t2\n" ++
   ".Lbaap_slot_cp:\n" ++
   "  beqz t1, .Lbaap_slot_done\n" ++
   "  lbu t2, 0(t0); sb t2, 0(t3); addi t0, t0, 1; addi t3, t3, 1; addi t1, t1, -1; j .Lbaap_slot_cp\n" ++
@@ -130,7 +135,7 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la t1, baap_slot_changes_ptr; ld t1, 0(t1); la t2, baap_item_off; ld t2, 0(t2); add t1, t1, t2\n" ++
   "  la t2, baap_val_off; ld t2, 0(t2); add a3, t1, t2\n" ++
   "  mv a0, s6; mv a1, s7; la a2, baap_slot; mv a4, t0; la a5, baap_tmp2; la a6, baap_tmp2_len\n" ++
-  "  jal ra, account_apply_storage_slot\n" ++
+  "  jal ra, account_apply_storage_slot_acc\n" ++
   "  bnez a0, .Lbaap_fail\n" ++
   "  la s6, baap_tmp2; la t0, baap_tmp2_len; ld s7, 0(t0)\n" ++
   "  # Apply nonce first if present.\n" ++
@@ -202,6 +207,8 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   mptSpliceSlotFunction ++ "\n" ++
   accountSetStorageRootFunction ++ "\n" ++
   accountApplyStorageSlotFunction ++ "\n" ++
+  accountApplyStorageSlotAccFunction ++ "\n" ++
+  mptInsertAccFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
@@ -228,8 +235,11 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "asr_ref:\n  .zero 40\n" ++
   "aps_off:\n  .zero 8\n" ++
   "aps_len:\n  .zero 8\n" ++
+  "aps_witness_ptr:\n  .zero 8\n" ++
+  "aps_witness_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "aps_newsroot:\n  .zero 32\n" ++
+  "aps_path:\n  .zero 64\n" ++
   "aps_empty_root:\n" ++
   "  .byte 0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6\n" ++
   "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
