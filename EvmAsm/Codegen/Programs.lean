@@ -219,6 +219,7 @@ import EvmAsm.Codegen.Programs.SszWitnessState
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
 import EvmAsm.Codegen.Programs.SszParentHeader
 import EvmAsm.Codegen.Programs.StatelessVerdict
+import EvmAsm.Codegen.Programs.BlockVerdict
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
@@ -294,7 +295,9 @@ open EvmAsm.Rv64
 def statelessGuestUnit : BuildUnit := {
   body        := EvmAsm.Stateless.run_stateless_guest
   epilogueAsm := statelessGuestEpilogue
-  dataAsm     := statelessGuestDataSection
+  -- guest scratch + the Step-2 verdict's data (zk3_state / rfu_* are dedup'd out
+  -- of the guest section since the appended verdict section provides them).
+  dataAsm     := statelessGuestDataSection ++ "\n" ++ statelessVerdictV2GuestData
 }
 
 /-! ## registry -/
@@ -742,6 +745,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_block_header_ssz_to_rlp" => some ziskBlockHeaderSszToRlpProbeUnit
   | "zisk_step2_verdict"         => some ziskStep2VerdictProbeUnit
   | "zisk_stateless_verdict"    => some ziskStatelessVerdictProbeUnit
+  | "zisk_stateless_verdict_v2" => some ziskStatelessVerdictV2ProbeUnit
   | "zisk_u256_from_u64_be"     => some ziskU256FromU64BeProbeUnit
   | "zisk_u256_to_u64_be"       => some ziskU256ToU64BeProbeUnit
   | "zisk_u256_is_zero"         => some ziskU256IsZeroProbeUnit
@@ -1036,6 +1040,7 @@ def knownProgramNames : List String :=
    "zisk_block_header_ssz_to_rlp",
    "zisk_step2_verdict",
    "zisk_stateless_verdict",
+   "zisk_stateless_verdict_v2",
    "zisk_u256_from_u64_be",
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero",
@@ -1356,7 +1361,8 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/SszWitnessState.lean",
     "EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean",
     "EvmAsm/Codegen/Programs/SszParentHeader.lean",
-    "EvmAsm/Codegen/Programs/StatelessVerdict.lean"
+    "EvmAsm/Codegen/Programs/StatelessVerdict.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdict.lean"
   ]
   for path in paths do
     let contents ← IO.FS.readFile path

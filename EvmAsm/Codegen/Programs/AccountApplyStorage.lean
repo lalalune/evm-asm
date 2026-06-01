@@ -143,6 +143,7 @@ def ziskAccountApplyStorageSlotDataSection : String :=
   ".balign 8\n" ++
   "srss_rlpval:\n  .zero 40\n" ++
   "srss_rlpval_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
   "asr_ref:\n  .zero 40\n" ++
   "mset_span_start:\n  .zero 8\n" ++
   "mset_span_size:\n  .zero 8\n" ++
