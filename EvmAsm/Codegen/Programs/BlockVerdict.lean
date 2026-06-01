@@ -91,6 +91,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_root_p; sd a0, 0(t0)\n" ++
   "  la t0, bsr_wit_p;  sd a1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;   sd a2, 0(t0)\n" ++
+  "  la t0, bsr_ssz_p;  sd a6, 0(t0)\n" ++
   "  mv s3, a3                   # wds descriptors\n" ++
   "  mv s4, a4                   # n_wds\n" ++
   "  mv s5, a5                   # out_root\n" ++
@@ -104,13 +105,44 @@ def blockStateRootFunction : String :=
   "  la a0, bsr_addr_4788; la a1, swd_4788_slot; la a2, swd_4788_val\n" ++
   "  la t0, swd_4788_vlen; ld a3, 0(t0); li a4, 1\n" ++
   "  jal ra, bsr_sys_change; bnez a0, .Lbsr_cons\n" ++
-  "  # withdrawal changes: change counter s1 starts after the 2 system changes.\n" ++
+  "  # BAL account changes are tx-execution account post-values. Append them before\n" ++
+  "  # withdrawals so withdrawal credits can update a BAL-touched account in place.\n" ++
+  "  li s1, 2                     # change counter (2 system changes already recorded)\n" ++
+  "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
+  "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
+  "  addi a0, t0, 504; jal ra, bgv_u32le; la t0, bsr_tx_off; sd a0, 0(t0)\n" ++
+  "  la t0, bsr_exec_p; ld t0, 0(t0); addi a0, t0, 508; jal ra, bgv_u32le\n" ++
+  "  la t0, bsr_tx_off; ld t0, 0(t0); bgtu a0, t0, .Lbsr_bal_present\n" ++
+  "  j .Lbsr_bal_done             # no transactions: preserve withdrawal-only path\n" ++
+  ".Lbsr_bal_present:\n" ++
+  "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
+  "  jal ra, bal_section_info; bnez a0, .Lbsr_cons\n" ++
+  "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
+  "  add t0, s1, t6; li t1, 66; bgtu t0, t1, .Lbsr_cons\n" ++
+  "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
+  "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
+  "  la a6, basr_records; la a7, basr_accounts\n" ++
+  "  jal ra, bal_account_record_array; bnez a0, .Lbsr_cons\n" ++
+  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0); la a2, basr_records\n" ++
+  "  la t0, bsr_bal_count; ld a3, 0(t0); la a4, basr_desc; la a5, basr_paths; la a6, basr_values\n" ++
+  "  jal ra, bal_account_descriptor_array; bnez a0, .Lbsr_cons\n" ++
+  "  li s0, 0                     # copy BAL descriptors into bsr_changes at s1\n" ++
+  ".Lbsr_bal_copy:\n" ++
+  "  la t6, bsr_bal_count; ld t6, 0(t6); beq s0, t6, .Lbsr_bal_copied\n" ++
+  "  slli t0, s0, 5; slli t1, s0, 3; add t0, t0, t1; la t2, basr_desc; add t0, t2, t0\n" ++
+  "  add t1, s1, s0; slli t2, t1, 5; slli t3, t1, 3; add t2, t2, t3; la t3, bsr_changes; add t2, t3, t2\n" ++
+  "  ld t3, 0(t0); sd t3, 0(t2); ld t3, 8(t0); sd t3, 8(t2); ld t3, 16(t0); sd t3, 16(t2)\n" ++
+  "  ld t3, 24(t0); sd t3, 24(t2); ld t3, 32(t0); sd t3, 32(t2)\n" ++
+  "  addi s0, s0, 1; j .Lbsr_bal_copy\n" ++
+  ".Lbsr_bal_copied:\n" ++
+  "  la t6, bsr_bal_count; ld t6, 0(t6); add s1, s1, t6\n" ++
+  ".Lbsr_bal_done:\n" ++
+  "  # withdrawal changes: change counter s1 starts after system/BAL changes.\n" ++
   "  # The change index is DECOUPLED from the withdrawal index (s0): a withdrawal\n" ++
   "  # whose delta is 0 (amount 0) is a no-op on state -- an absent recipient is\n" ++
   "  # created-then-cleared per EIP-161 -- so it is SKIPPED without advancing the\n" ++
   "  # change counter. (Foundation for delta accumulation + account insert.)\n" ++
   "  li s0, 0                     # withdrawal index\n" ++
-  "  li s1, 2                     # change counter (2 system changes already recorded)\n" ++
   ".Lbsr_wl:\n" ++
   "  beq s0, s4, .Lbsr_apply\n" ++
   "  slli t0, s0, 4; add t0, s3, t0; ld a0, 0(t0); ld a1, 8(t0)   # wd[i] rlp ptr/len\n" ++
@@ -124,8 +156,9 @@ def blockStateRootFunction : String :=
   "  li t6, 2                     # scan recorded withdrawal changes [2, s1)\n" ++
   ".Lbsr_dup_scan:\n" ++
   "  beq t6, s1, .Lbsr_no_dup\n" ++
-  "  slli t0, t6, 6; la t1, bsr_paths; add t0, t1, t0     # prev path\n" ++
-  "  slli t2, s1, 6; add t1, t1, t2                       # current path\n" ++
+  "  slli t0, t6, 5; slli t1, t6, 3; add t0, t0, t1; la t1, bsr_changes; add t0, t1, t0\n" ++
+  "  ld t0, 0(t0)                  # prev path from descriptor (bsr_paths or basr_paths)\n" ++
+  "  slli t2, s1, 6; la t1, bsr_paths; add t1, t1, t2                       # current path\n" ++
   "  li t2, 64\n" ++
   ".Lbsr_dup_cmp:\n" ++
   "  beqz t2, .Lbsr_dup_found\n" ++
@@ -219,7 +252,11 @@ def blockVerdictFunction : String :=
   "  la t5, bv_tx_off; sd a0, 0(t5)\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 508; jal ra, bgv_u32le   # withdrawals_offset\n" ++
   "  la t5, bv_tx_off; ld t3, 0(t5)\n" ++
-  "  bgtu a0, t3, .Lbv_zero      # wd_off > tx_off => transactions present => conservative 0\n" ++
+  "  bgtu a0, t3, .Lbv_tx_present # wd_off > tx_off => transactions present\n" ++
+  "  j .Lbv_after_tx_gate\n" ++
+  ".Lbv_tx_present:\n" ++
+  "  la t5, bsr_bal_count; ld t5, 0(t5); beqz t5, .Lbv_zero  # tx blocks need BAL replay\n" ++
+  ".Lbv_after_tx_gate:\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
   "  addi t0, s3, 16             # NPR = SSZ_BASE+16\n" ++
@@ -452,6 +489,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_root_p:\n  .zero 8\n" ++
   "bsr_wit_p:\n  .zero 8\n" ++
   "bsr_wl_v:\n  .zero 8\n" ++
+  "bsr_ssz_p:\n  .zero 8\n" ++
+  "bsr_bal_start:\n  .zero 8\n" ++
+  "bsr_bal_len:\n  .zero 8\n" ++
+  "bsr_bal_count:\n  .zero 8\n" ++
+  "bsr_exec_p:\n  .zero 8\n" ++
+  "bsr_tx_off:\n  .zero 8\n" ++
   "bsr_pathp:\n  .zero 8\n" ++
   "bsr_acct_len:\n  .zero 8\n" ++
   "bsr_tmplen:\n  .zero 8\n" ++
