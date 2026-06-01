@@ -147,6 +147,13 @@ slots7_after = list(slots7); slots7_after[1] = b"\x80"
 branch7_after = branch_node(slots7_after)
 collapsed_root7 = extension_node([9, 9], node_ref(branch7_after))
 write_case("extension_bubble_branch_no_collapse", trie_root(root7), [9, 9, 1, 0xa, 0xb], [root7, branch7, la], trie_root(collapsed_root7))
+
+slots8 = [b"\x80"] * 16
+slots8[1] = node_ref(la); slots8[2] = node_ref(lb)
+branch8 = branch_node(slots8)
+root8 = extension_node([9, 9], node_ref(branch8))
+collapsed_root8 = leaf_node([9, 9, 2, 0xc, 0xd], b"B" * 32)
+write_case("extension_merge_leaf", trie_root(root8), [9, 9, 1, 0xa, 0xb], [root8, branch8, la, lb], trie_root(collapsed_root8))
 PY
 
 echo "==> lake build codegen"
@@ -159,7 +166,7 @@ lake exe codegen --program zisk_mpt_delete_acc --halt linux93 \
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 
 fail=0
-for name in leaf_to_empty branch_no_collapse branch_collapse_leaf branch_value_collapse branch_collapse_extension branch_collapse_branch extension_bubble_branch_no_collapse; do
+for name in leaf_to_empty branch_no_collapse branch_collapse_leaf branch_value_collapse branch_collapse_extension branch_collapse_branch extension_bubble_branch_no_collapse extension_merge_leaf; do
   out="$VDIR/$name.output"
   if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_delete_acc.elf" \
         -i "$VDIR/$name.input" -o "$out" -n 10000000 >/dev/null 2>&1 </dev/null; then
