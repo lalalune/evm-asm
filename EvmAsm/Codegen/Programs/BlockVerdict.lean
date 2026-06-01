@@ -223,7 +223,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
   "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
-  "  add t0, s1, t6; li t1, 66; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
+  "  add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
   "  la a6, basr_records; la a7, basr_accounts\n" ++
@@ -298,7 +298,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_prev_desc; ld t0, 0(t0); la t1, bsr_tmplen; ld t1, 0(t1); sd t1, 24(t0)\n" ++
   "  j .Lbsr_wl_next\n" ++
   ".Lbsr_no_dup:\n" ++
-  "  li t0, 66; bge s1, t0, .Lbsr_cons_change_cap   # cap to the change-buffer size\n" ++
+  "  li t0, 4096; bge s1, t0, .Lbsr_cons_change_cap # cap to the change-buffer size\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  slli t1, s1, 6; la t2, bsr_paths; add a3, t2, t1; li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
   "  jal ra, mpt_walk\n" ++
@@ -411,25 +411,6 @@ def blockVerdictFunction : String :=
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # gas_used\n" ++
   "  beqz a0, .Lbv_zero_gas_used\n" ++
   ".Lbv_after_tx_gate:\n" ++
-  "  # EIP-7778 overflow guard for the current multi-transaction frontier.\n" ++
-  "  # Invalid overflow fixtures keep header.gas_used at the first tx's old\n" ++
-  "  # post-refund gas while gas_limit is only ~one intrinsic tx above it.\n" ++
-  "  # Valid single-tx refund fixtures often use a huge gas limit, so only\n" ++
-  "  # reject multi-tx payloads with a small positive gas_limit-gas_used gap.\n" ++
-  "  ld t4, 0(s0)               # actual ExecutionPayload ptr\n" ++
-  "  addi a0, t4, 504; jal ra, bgv_u32le\n" ++
-  "  la t5, bv_tx_off; sd a0, 0(t5)\n" ++
-  "  ld t4, 0(s0); addi a0, t4, 508; jal ra, bgv_u32le\n" ++
-  "  la t5, bv_tx_off; ld t3, 0(t5)\n" ++
-  "  bgeu t3, a0, .Lbv_after_7778_guard\n" ++
-  "  ld t4, 0(s0); add t4, t4, t3; mv a0, t4; jal ra, bgv_u32le\n" ++
-  "  li t5, 8; bltu a0, t5, .Lbv_after_7778_guard  # one tx only\n" ++
-  "  ld t4, 0(s0); addi a0, t4, 412; jal ra, bgv_u64le\n" ++
-  "  la t5, bv_gas_limit; sd a0, 0(t5)\n" ++
-  "  ld t4, 0(s0); addi a0, t4, 420; jal ra, bgv_u64le\n" ++
-  "  la t5, bv_gas_limit; ld t5, 0(t5); bgeu a0, t5, .Lbv_after_7778_guard\n" ++
-  "  sub t5, t5, a0; li t4, 30000; bltu t5, t4, .Lbv_7778_guard_fail\n" ++
-  ".Lbv_after_7778_guard:\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
   "  addi t0, s3, 16             # NPR = SSZ_BASE+16\n" ++
@@ -460,8 +441,6 @@ def blockVerdictFunction : String :=
   "  li t0, 4; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero_gas_used:\n" ++
   "  li t0, 5; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_7778_guard_fail:\n" ++
-  "  li t0, 6; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_gas_fail:\n" ++
   "  li t0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
@@ -541,6 +520,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, baacd_fail_code; ld t2, 0(t1); sd t2, 64(t0)\n" ++
   "  la t1, bacv_fail_code; ld t2, 0(t1); sd t2, 72(t0)\n" ++
   "  la t1, baap_fail_code; ld t2, 0(t1); sd t2, 80(t0)\n" ++
+  "  la t1, sri_fail_index; ld t2, 0(t1); sd t2, 88(t0)\n" ++
+  "  la t1, sri_fail_mode; ld t2, 0(t1); sd t2, 96(t0)\n" ++
+  "  la t1, sri_fail_status; ld t2, 0(t1); sd t2, 104(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   -- the full stateless_verdict closure (verbatim):
   zkvmKeccak256Function ++ "\n" ++
@@ -718,9 +700,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_delta:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bsr_acct:\n  .zero 256\n" ++
-  "bsr_paths:\n  .zero 4224\n" ++          -- 66 * 64
-  "bsr_newaccts:\n  .zero 8448\n" ++       -- 66 * 128
-  "bsr_changes:\n  .zero 2640\n" ++        -- 66 * 40 (40-byte recs w/ is_insert)
+  "bsr_paths:\n  .zero 262144\n" ++       -- 4096 * 64
+  "bsr_newaccts:\n  .zero 524288\n" ++     -- 4096 * 128
+  "bsr_changes:\n  .zero 163840\n" ++      -- 4096 * 40 (40-byte recs w/ is_insert)
   ".balign 32\n" ++
   "bsr_addr_2935:\n" ++
   "  .byte 0x00, 0x00, 0xF9, 0x08, 0x27, 0xF1, 0xC5, 0x3a\n" ++
@@ -742,11 +724,14 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_bal_start:\n  .zero 8\n" ++
   "bv_bal_len:\n  .zero 8\n" ++
   "bv_tx_off:\n  .zero 8\n" ++
-  "bv_gas_limit:\n  .zero 8\n" ++
   "bv_fail_code:\n  .zero 8\n" ++
   "bv_header_status:\n  .zero 8\n" ++
   "bv_state_status:\n  .zero 8\n" ++
   "bsr_fail_code:\n  .zero 8\n" ++
+  "sri_cur_mode:\n  .zero 8\n" ++
+  "sri_fail_index:\n  .zero 8\n" ++
+  "sri_fail_mode:\n  .zero 8\n" ++
+  "sri_fail_status:\n  .zero 8\n" ++
   -- BAL account replay scratch (bal_account_state_root_auto and callees):
   "bpf_list_off:\n  .zero 8\n" ++
   "bpf_list_len:\n  .zero 8\n" ++
@@ -837,11 +822,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baada_item_len:\n  .zero 8\n" ++
   "baada_fail_code:\n  .zero 8\n" ++
   "baada_fail_index:\n  .zero 8\n" ++
-  "basr_records:\n  .zero 4096\n" ++
-  "basr_desc:\n  .zero 4096\n" ++
-  "basr_paths:\n  .zero 8192\n" ++
-  "basr_values:\n  .zero 16384\n" ++
-  "basr_accounts:\n  .zero 16384\n" ++
+  "basr_records:\n  .zero 98304\n" ++    -- 4096 * 24
+  "basr_desc:\n  .zero 163840\n" ++     -- 4096 * 40
+  "basr_paths:\n  .zero 262144\n" ++     -- 4096 * 64
+  "basr_values:\n  .zero 1048576\n" ++   -- 4096 * 256
+  "basr_accounts:\n  .zero 1048576\n" ++ -- 4096 * 256
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
