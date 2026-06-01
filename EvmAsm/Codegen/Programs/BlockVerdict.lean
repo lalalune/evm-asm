@@ -366,9 +366,10 @@ def blockStateRootFunction : String :=
     a0 (output) = 0 ok/unsupported, 1 regular overflow, 2 state overflow.
 
     This mirrors Amsterdam `check_transaction` only for the legacy tx fixtures we
-    can parse cheaply here. Unsupported typed txs, malformed tx lists, or large
-    transaction counts fail open so the state-root verdict does not reject blocks
-    for a partial gas model. -/
+    can parse cheaply here. Unsupported typed txs, malformed tx lists, large
+    transaction counts, or ambiguous multi-transaction regular-gas overflow fail
+    open so the state-root verdict does not reject blocks for a partial gas
+    model. -/
 def eip8037TxGasGateFunction : String :=
   "eip8037_state_used_before_tx:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -549,6 +550,10 @@ def eip8037TxGasGateFunction : String :=
   "  bgtu t2, t4, .Letg_state_fail\n" ++
   "  addi s8, s8, 1; j .Letg_tx_loop\n" ++
   ".Letg_regular_fail:\n" ++
+  "  li t0, 1; beq s7, t0, .Letg_regular_reject\n" ++
+  "  addi a0, s0, 420; jal ra, bgv_u64le        # header gas_used\n" ++
+  "  bgtu a0, s4, .Letg_ok                      # ambiguous: later tx may have used real gas\n" ++
+  ".Letg_regular_reject:\n" ++
   "  li a0, 1; j .Letg_ret\n" ++
   ".Letg_state_fail:\n" ++
   "  li a0, 2; j .Letg_ret\n" ++
@@ -670,7 +675,7 @@ def blockVerdictFunction : String :=
   "  # only soundly judge no-tx blocks. A tx-bearing INVALID block whose invalid tx\n" ++
   "  # is rejected (no state change) would otherwise match the recompute -> false\n" ++
   "  # positive. tx list is empty iff transactions_offset == withdrawals_offset.\n" ++
-  "  addi t4, s3, 60             # exec_payload = SSZ_BASE+60\n" ++
+  "  ld t4, 0(s0)                # exec_payload from extracted params\n" ++
   "  la t5, bv_exec_p; sd t4, 0(t5)\n" ++
   "  addi a0, t4, 504; jal ra, bgv_u32le        # transactions_offset\n" ++
   "  la t5, bv_tx_off; sd a0, 0(t5)\n" ++
@@ -691,9 +696,9 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_public_keys_fail\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
-  "  addi t0, s3, 16             # NPR = SSZ_BASE+16\n" ++
-  "  addi t1, t0, 44             # exec_payload = NPR+44\n" ++
-  "  la t2, bv_exec_p; sd t1, 0(t2)\n" ++
+  "  mv a0, s3; jal ra, bgv_u32le\n" ++
+  "  add t0, s3, a0              # NPR = SSZ_BASE + outer.offsets[0]\n" ++
+  "  la t2, bv_exec_p; ld t1, 0(t2)\n" ++
   "  la t2, bv_npr_p;  sd t0, 0(t2)\n" ++
   "  addi a0, t1, 528; jal ra, bgv_u32le        # bal_off\n" ++
   "  la t2, bv_exec_p; ld t1, 0(t2); add a0, t1, a0   # bal_start\n" ++
