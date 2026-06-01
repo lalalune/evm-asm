@@ -145,6 +145,12 @@ def blockStateRootFunction : String :=
   ".Lbsr_wl_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_wl\n" ++
   ".Lbsr_apply:\n" ++
+  "  # DEBUG: system-only root (first 2 changes) -> OUTPUT+128\n" ++
+  "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
+  "  la a3, bsr_changes; li a4, 2; la a5, bsr_dbgroot\n" ++
+  "  jal ra, mpt_state_root_ins\n" ++
+  "  la t0, bsr_dbgroot; li t5, 0xa0010080\n" ++
+  "  ld t1,0(t0);sd t1,0(t5);ld t1,8(t0);sd t1,8(t5);ld t1,16(t0);sd t1,16(t5);ld t1,24(t0);sd t1,24(t5)\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la a3, bsr_changes; mv a4, s1; mv a5, s5     # change count = s1 (40-byte recs)\n" ++
   "  jal ra, mpt_state_root_ins\n" ++
@@ -176,6 +182,16 @@ def blockVerdictFunction : String :=
   "  la a5, sv_recomputed; mv a6, s3\n" ++
   "  jal ra, block_state_root\n" ++
   "  mv s2, a0\n" ++
+  "  # DEBUG: R_asm -> OUTPUT+64 ; expected payload.state_root -> OUTPUT+96 ; status -> OUTPUT+1\n" ++
+  "  li t5, 0xa0010001; sb a0, 0(t5)\n" ++
+  "  la t0, sv_recomputed; li t5, 0xa0010040\n" ++
+  "  ld t1, 0(t0); sd t1, 0(t5); ld t1, 8(t0); sd t1, 8(t5)\n" ++
+  "  ld t1, 16(t0); sd t1, 16(t5); ld t1, 24(t0); sd t1, 24(t5)\n" ++
+  "  ld t0, 0(s0); addi t0, t0, 52; li t5, 0xa0010060; li t6, 32\n" ++
+  ".Lbv_dbgcp:\n" ++
+  "  beqz t6, .Lbv_dbgdone\n" ++
+  "  lbu t1, 0(t0); sb t1, 0(t5); addi t0, t0, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbv_dbgcp\n" ++
+  ".Lbv_dbgdone:\n" ++
   "  la t0, sv_recomputed; ld t1, 0(s0); addi t1, t1, 52; li t2, 32\n" ++
   ".Lbv_cmp:\n" ++
   "  beqz t2, .Lbv_cmpok\n" ++
@@ -501,6 +517,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "mxne_total_payload:\n  .zero 8\n" ++
   "mxne_hp_buf:\n  .zero 1024\n" ++
   "mxne_payload_buf:\n  .zero 16384\n" ++
+  ".balign 8\n" ++
+  "bsr_dbgroot:\n  .zero 32\n" ++
   -- fresh-account RLP [nonce=0, balance=0, storageRoot=EMPTY_TRIE, codeHash=EMPTY_CODE]
   ".balign 8\n" ++
   "bsr_empty_account:\n" ++

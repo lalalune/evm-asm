@@ -668,8 +668,27 @@ def vec_mi_depth2():
                 path=[0x5, 0x7, 0x2, 0xe], value=val, expected=trie_root(root2))
 
 
+def vec_mi_acctkey():
+    """Branch root, slot1 empty, slot2 -> leaf. Insert a FULL 64-nibble account
+    path (slot1) -> leaf with a 63-nibble (odd) key + a 70-byte account value --
+    the realistic case (mi_branch_empty used a 2-nibble key)."""
+    other = leaf_node([0x0] * 63, b"O" * 40)
+    slots = [b"\x80"] * 16
+    slots[2] = node_ref(other)
+    root = branch_node(slots)
+    path = [1] + [(i * 7 + 3) % 16 for i in range(63)]
+    val = bytes.fromhex("f8448080") + b"\x00" * 66
+    new_leaf = leaf_node(path[1:], val)
+    slots2 = list(slots)
+    slots2[1] = node_ref(new_leaf)
+    root2 = branch_node(slots2)
+    return dict(name="mi_acctkey", witness=[root], root=trie_root(root),
+                path=path, value=val, expected=trie_root(root2))
+
+
 MI_VECTORS = [vec_mi_branch_empty, vec_mi_empty_trie, vec_mi_ext_then_branch,
-              vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_depth2]
+              vec_mi_leaf_split, vec_mi_leaf_split_m0, vec_mi_depth2,
+              vec_mi_acctkey]
 
 
 # ---- insert-aware multi-change driver (mpt_state_root_ins .2.4.2.6.3) ------
@@ -713,6 +732,27 @@ def vec_state_root_ins():
     new_root = branch_node(slots2)
     changes = [([0x1] + la_path, a_new, False), ([0x3, 0xc, 0xd], v2, True)]
     return dict(name="state_root_ins", witness=[root, leaf_a],
+                root=trie_root(root), changes=changes,
+                expected=trie_root(new_root))
+
+
+def vec_state_root_ins_longkey():
+    """change0 MODIFY key A (slot1) -> R' in DB; change1 INSERT a FULL 64-nibble
+    path at R' empty slot3 -> a 63-nibble-key leaf. Combines DB-resident root +
+    long account-style leaf key (the real eip4895 precompile case)."""
+    a_old, a_new = b"A" * 32, b"a-new" * 8
+    leaf_a = leaf_node([0xa, 0xb], a_old)
+    slots = [b"\x80"] * 16
+    slots[1] = node_ref(leaf_a)
+    root = branch_node(slots)
+    ipath = [3] + [(i * 5 + 2) % 16 for i in range(63)]   # 64 nibbles at slot3
+    val = bytes.fromhex("f8448080") + b"\x00" * 66
+    slots2 = list(slots)
+    slots2[1] = node_ref(leaf_node([0xa, 0xb], a_new))
+    slots2[3] = node_ref(leaf_node(ipath[1:], val))
+    new_root = branch_node(slots2)
+    changes = [([0x1, 0xa, 0xb], a_new, False), (ipath, val, True)]
+    return dict(name="state_root_ins_longkey", witness=[root, leaf_a],
                 root=trie_root(root), changes=changes,
                 expected=trie_root(new_root))
 
@@ -817,3 +857,10 @@ if __name__ == "__main__":
         f.write(sri["expected"].hex())
     print(f"{'state_root_ins':12} root={sri['root'].hex()[:16]}.. "
           f"final_root={sri['expected'].hex()} (modify+insert)")
+    srilk = vec_state_root_ins_longkey()
+    sec = ssz_section(srilk["witness"])
+    with open(f"{outdir}/state_root_ins_longkey.input", "wb") as f:
+        f.write(build_state_root_ins_input(srilk["root"], srilk["changes"], sec))
+    with open(f"{outdir}/state_root_ins_longkey.expected", "w") as f:
+        f.write(srilk["expected"].hex())
+    print(f"{'sri_longkey':12} final_root={srilk['expected'].hex()} (DB root + 64-nibble insert)")
