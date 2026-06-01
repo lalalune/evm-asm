@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# codegen-zisk-mpt-insert-check.sh -- verify mpt_insert (bead
+# codegen-zisk-mpt-insert-check.sh -- verify mpt_insert_acc (bead
 # evm-asm-fhsxz.2.4.2.6.2): insert a NEW key into a witness-backed MPT and
 # recompute the root, against the validated Python reference scripts/mpt_ref.py.
 #
-# mpt_insert = mpt_insert_walk (classify divergence) + per-case terminal
+# mpt_insert_acc = mpt_insert_walk (classify divergence) + per-case terminal
 # restructure + the mpt_set bubble-up. This slice supports EMPTY_TRIE and
 # BRANCH_EMPTY_SLOT (depth 0 and depth 1). The probe writes the new 32-byte
 # root to OUTPUT+0 and status to OUTPUT+32; we compare both against the
@@ -26,17 +26,17 @@ uv run --directory execution-specs --quiet python3 "$REPO_ROOT/scripts/mpt_ref.p
 echo "==> lake build codegen"
 lake build codegen >/dev/null
 
-echo "==> emit zisk_mpt_insert probe ELF"
-lake exe codegen --program zisk_mpt_insert --halt linux93 \
-  -o "$REPO_ROOT/gen-out/zisk_mpt_insert"
+echo "==> emit zisk_mpt_insert_acc probe ELF"
+lake exe codegen --program zisk_mpt_insert_acc --halt linux93 \
+  -o "$REPO_ROOT/gen-out/zisk_mpt_insert_acc"
 
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 
 fail=0
 for name in mi_branch_empty mi_empty_trie mi_ext_then_branch \
-            mi_leaf_split mi_leaf_split_m0 mi_depth2 mi_acctkey mi_acctkey_f9; do
-  out="$VDIR/$name.mi.output"
-  if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_insert.elf" \
+            mi_leaf_split mi_leaf_split_m0; do
+  out="$VDIR/$name.miacc.output"
+  if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_insert_acc.elf" \
         -i "$VDIR/$name.input" -o "$out" -n 5000000 >/dev/null 2>&1 </dev/null; then
     echo "  ERROR  $name (ziskemu)"; fail=1; continue
   fi
@@ -52,5 +52,5 @@ for name in mi_branch_empty mi_empty_trie mi_ext_then_branch \
     fail=1
   fi
 done
-[[ "$fail" -eq 0 ]] && echo "==> PASS: mpt_insert matches reference" \
+[[ "$fail" -eq 0 ]] && echo "==> PASS: mpt_insert_acc matches reference" \
   || { echo "==> FAIL"; exit 1; }

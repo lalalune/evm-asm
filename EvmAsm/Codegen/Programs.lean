@@ -58,6 +58,8 @@ import EvmAsm.Codegen.Programs.MptSetAcc
 import EvmAsm.Codegen.Programs.MptInsertWalk
 import EvmAsm.Codegen.Programs.MptInsert
 import EvmAsm.Codegen.Programs.MptInsertWalkDb
+import EvmAsm.Codegen.Programs.MptInsertAcc
+import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.MptEncode
@@ -563,6 +565,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_insert_walk"      => some ziskMptInsertWalkProbeUnit
   | "zisk_mpt_insert"           => some ziskMptInsertProbeUnit
   | "zisk_mpt_insert_walk_db"    => some ziskMptInsertWalkDbProbeUnit
+  | "zisk_mpt_insert_acc"        => some ziskMptInsertAccProbeUnit
+  | "zisk_mpt_state_root_ins"    => some ziskMptStateRootInsProbeUnit
   | "zisk_mpt_set"              => some ziskMptSetProbeUnit
   | "zisk_mpt_set_acc"          => some ziskMptSetAccProbeUnit
   | "zisk_mpt_state_root"       => some ziskMptStateRootProbeUnit
@@ -854,6 +858,8 @@ def knownProgramNames : List String :=
    "zisk_mpt_insert_walk",
    "zisk_mpt_insert",
    "zisk_mpt_insert_walk_db",
+   "zisk_mpt_insert_acc",
+   "zisk_mpt_state_root_ins",
    "zisk_mpt_set",
    "zisk_mpt_set_acc",
    "zisk_mpt_state_root",
@@ -1338,6 +1344,8 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/MptInsertWalk.lean",
     "EvmAsm/Codegen/Programs/MptInsert.lean",
     "EvmAsm/Codegen/Programs/MptInsertWalkDb.lean",
+    "EvmAsm/Codegen/Programs/MptInsertAcc.lean",
+    "EvmAsm/Codegen/Programs/MptStateRootIns.lean",
     "EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean",
     "EvmAsm/Codegen/Programs/AccountBalance.lean",
     "EvmAsm/Codegen/Programs/MptEncode.lean",
