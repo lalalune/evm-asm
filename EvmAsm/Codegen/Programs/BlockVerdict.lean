@@ -31,6 +31,7 @@ import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.MptInsertAcc
+import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
 
 namespace EvmAsm.Codegen
@@ -218,11 +219,6 @@ def blockStateRootFunction : String :=
   "  li s1, 2                     # change counter (2 system changes already recorded)\n" ++
   "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
-  "  addi a0, t0, 504; jal ra, bgv_u32le; la t0, bsr_tx_off; sd a0, 0(t0)\n" ++
-  "  la t0, bsr_exec_p; ld t0, 0(t0); addi a0, t0, 508; jal ra, bgv_u32le\n" ++
-  "  la t0, bsr_tx_off; ld t0, 0(t0); bgtu a0, t0, .Lbsr_bal_present\n" ++
-  "  j .Lbsr_bal_done             # no transactions: preserve withdrawal-only path\n" ++
-  ".Lbsr_bal_present:\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
   "  jal ra, bal_section_info; bnez a0, .Lbsr_cons\n" ++
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
@@ -528,6 +524,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   mptNodeResolveFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++
+  mptDeleteWalkDbFunction ++ "\n" ++
+  mptExtensionExtractFunction ++ "\n" ++
+  mptDeleteAccFunction ++ "\n" ++
   mptStateRootFunction ++ "\n" ++
   mptLeafExtractFunction ++ "\n" ++
   mptExtensionNodeEncodeFunction ++ "\n" ++
@@ -713,6 +712,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_storage_delete_flag:\n  .zero 8\n" ++
   "baap_storage_root_ptr:\n  .zero 8\n" ++
   "baap_walk_val_len:\n  .zero 8\n" ++
+  "mdacc_witness_len:\n  .zero 8\n" ++
+  "mdacc_survivor_nibble:\n  .zero 8\n" ++
+  "mdacc_child_ptr:\n  .zero 8\n" ++
+  "mdacc_child_len:\n  .zero 8\n" ++
+  "mdacc_leaf_path_len:\n  .zero 8\n" ++
+  "mdacc_ext_path_len:\n  .zero 8\n" ++
+  "mdacc_leaf_value_ptr:\n  .zero 8\n" ++
+  "mdacc_leaf_value_len:\n  .zero 8\n" ++
+  "mee_path_off:\n  .zero 8\n" ++
+  "mee_path_len:\n  .zero 8\n" ++
   "baap_item_off:\n  .zero 8\n" ++
   "baap_item_len:\n  .zero 8\n" ++
   "baap_slot_changes_off:\n  .zero 8\n" ++
@@ -743,6 +752,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_storage_desc:\n  .zero 1280\n" ++
   "baap_storage_paths:\n  .zero 2048\n" ++
   "baap_storage_values:\n  .zero 2048\n" ++
+  "mdacc_leaf_path:\n  .zero 128\n" ++
+  "mdacc_collapsed_path:\n  .zero 128\n" ++
   "bacp_off:\n  .zero 8\n" ++
   "bacp_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
@@ -887,6 +898,9 @@ def statelessVerdictV2GuestClosure : String :=
   mptNodeResolveFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++
+  mptDeleteWalkDbFunction ++ "\n" ++
+  mptExtensionExtractFunction ++ "\n" ++
+  mptDeleteAccFunction ++ "\n" ++
   mptStateRootFunction ++ "\n" ++
   mptLeafExtractFunction ++ "\n" ++
   mptExtensionNodeEncodeFunction ++ "\n" ++

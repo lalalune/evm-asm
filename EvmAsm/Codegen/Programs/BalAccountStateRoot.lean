@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.MptDeleteAcc
 
 namespace EvmAsm.Codegen
 
@@ -154,6 +155,9 @@ def ziskBalAccountStateRootPrologue : String :=
   accountApplyStorageSlotAccFunction ++ "\n" ++
   mptLeafExtractFunction ++ "\n" ++
   mptExtensionNodeEncodeFunction ++ "\n" ++
+  mptDeleteWalkDbFunction ++ "\n" ++
+  mptExtensionExtractFunction ++ "\n" ++
+  mptDeleteAccFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
@@ -228,6 +232,18 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_sc_out_count:\n  .zero 8\n" ++
   "baap_storage_empty_flag:\n  .zero 8\n" ++
   "baap_storage_delete_flag:\n  .zero 8\n" ++
+  "baap_storage_root_ptr:\n  .zero 8\n" ++
+  "baap_walk_val_len:\n  .zero 8\n" ++
+  "mdacc_witness_len:\n  .zero 8\n" ++
+  "mdacc_survivor_nibble:\n  .zero 8\n" ++
+  "mdacc_child_ptr:\n  .zero 8\n" ++
+  "mdacc_child_len:\n  .zero 8\n" ++
+  "mdacc_leaf_path_len:\n  .zero 8\n" ++
+  "mdacc_ext_path_len:\n  .zero 8\n" ++
+  "mdacc_leaf_value_ptr:\n  .zero 8\n" ++
+  "mdacc_leaf_value_len:\n  .zero 8\n" ++
+  "mee_path_off:\n  .zero 8\n" ++
+  "mee_path_len:\n  .zero 8\n" ++
   "baap_item_off:\n  .zero 8\n" ++
   "baap_item_len:\n  .zero 8\n" ++
   "baap_slot_changes_off:\n  .zero 8\n" ++
@@ -254,9 +270,12 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_tmp2:\n  .zero 512\n" ++
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
+  "baap_walk_val:\n  .zero 128\n" ++
   "baap_storage_desc:\n  .zero 1280\n" ++
   "baap_storage_paths:\n  .zero 2048\n" ++
   "baap_storage_values:\n  .zero 2048\n" ++
+  "mdacc_leaf_path:\n  .zero 128\n" ++
+  "mdacc_collapsed_path:\n  .zero 128\n" ++
   "bacp_off:\n  .zero 8\n" ++
   "bacp_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
