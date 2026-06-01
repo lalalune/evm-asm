@@ -41,6 +41,22 @@ def evm_mod_callable_v1 : Program :=
   cc_ret ;;
   divK_div128
 
+theorem evm_div_callable_v1_length : evm_div_callable_v1.length = 319 := by
+  unfold evm_div_callable_v1
+  simp only [seq, Program.length_append, divK_phaseA_len, divK_phaseB_len, divK_clz_len,
+    divK_phaseC2_len,
+    divK_normB_len, divK_normA_len, divK_copyAU_len, divK_loopSetup_len,
+    divK_loopBody_len, divK_denorm_len, divK_divEpilogue_len, divK_zeroPath_len,
+    cc_ret_len, divK_div128_len]
+
+theorem evm_mod_callable_v1_length : evm_mod_callable_v1.length = 319 := by
+  unfold evm_mod_callable_v1
+  simp only [seq, Program.length_append, divK_phaseA_len, divK_phaseB_len, divK_clz_len,
+    divK_phaseC2_len,
+    divK_normB_len, divK_normA_len, divK_copyAU_len, divK_loopSetup_len,
+    divK_loopBody_len, divK_denorm_len, divK_modEpilogue_len, divK_zeroPath_len,
+    cc_ret_len, divK_div128_len]
+
 /-- Legacy v1 CodeReq layout for `evm_div_callable_v1`. -/
 abbrev evm_div_callable_code_v1 (base : Word) : CodeReq :=
   CodeReq.unionAll [

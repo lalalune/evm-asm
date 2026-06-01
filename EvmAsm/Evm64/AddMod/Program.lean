@@ -340,6 +340,6 @@ example : (evm_addmod 0).length =
     evm_addmod_phase1_carry.length +
     (evm_addmod_phase2_reduce 0).length +
     evm_addmod_epilogue.length := by
-  native_decide
+  decide
 
 end EvmAsm.Evm64

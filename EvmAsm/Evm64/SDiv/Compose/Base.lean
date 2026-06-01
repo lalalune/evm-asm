@@ -76,7 +76,7 @@ theorem sdivCode_div_callable_v1_sub {base : Word} :
         exact List.drop_append_length
       rw [h_drop]
       simp only [List.take_length])
-    (by native_decide)
+    (by rw [evm_div_callable_v1_length, evm_sdiv_legacy_length])
     (by
       rw [evm_sdiv_legacy_length]
       norm_num)
@@ -102,7 +102,7 @@ theorem sdivCodeV4_div_callable_sub {base : Word} :
         exact List.drop_append_length
       rw [h_drop]
       simp only [List.take_length])
-    (by native_decide)
+    (by rw [evm_div_callable_v4_length, evm_sdiv_v4_length])
     (by
       rw [evm_sdiv_v4_length]
       norm_num)
