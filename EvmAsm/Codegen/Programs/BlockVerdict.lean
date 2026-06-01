@@ -29,6 +29,7 @@ import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BalGasValid
+import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
 
@@ -384,12 +385,23 @@ def ziskStatelessVerdictV2Prologue : String :=
   swdWriteBe8Function ++ "\n" ++
   swdMinimalCopyFunction ++ "\n" ++
   systemWriteDescriptorsFunction ++ "\n" ++
+  accountSetUintFieldFunction ++ "\n" ++
+  balAccountPathFunction ++ "\n" ++
+  balAccountPostFieldsFunction ++ "\n" ++
+  balAccountApplyPostFieldsFunction ++ "\n" ++
+  balAccountChangeValueFunction ++ "\n" ++
+  balAccountChangeDescriptorFunction ++ "\n" ++
+  balAccountDescriptorArrayFunction ++ "\n" ++
+  balAccountRecordArrayFunction ++ "\n" ++
+  balAccountStateRootFunction ++ "\n" ++
+  balAccountStateRootAutoFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
+  balSectionInfoFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
   ".Lv2_pdone:"
@@ -474,6 +486,56 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_bal_start:\n  .zero 8\n" ++
   "bv_bal_len:\n  .zero 8\n" ++
   "bv_tx_off:\n  .zero 8\n" ++
+  -- BAL account replay scratch (bal_account_state_root_auto and callees):
+  "bpf_list_off:\n  .zero 8\n" ++
+  "bpf_list_len:\n  .zero 8\n" ++
+  "bpf_list_ptr:\n  .zero 8\n" ++
+  "bpf_count:\n  .zero 8\n" ++
+  "bpf_item_off:\n  .zero 8\n" ++
+  "bpf_item_len:\n  .zero 8\n" ++
+  "bpf_item_ptr:\n  .zero 8\n" ++
+  "bpf_val_off:\n  .zero 8\n" ++
+  "bpf_val_len:\n  .zero 8\n" ++
+  "baap_bal_len:\n  .zero 8\n" ++
+  "baap_nonce_len:\n  .zero 8\n" ++
+  "baap_tmp_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "baap_bal:\n  .zero 32\n" ++
+  "baap_nonce:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "baap_tmp:\n  .zero 512\n" ++
+  "bacp_off:\n  .zero 8\n" ++
+  "bacp_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bacp_hash:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "baacd_value_len:\n  .zero 8\n" ++
+  "baada_item_off:\n  .zero 8\n" ++
+  "baada_item_len:\n  .zero 8\n" ++
+  "basr_records:\n  .zero 4096\n" ++
+  "basr_desc:\n  .zero 4096\n" ++
+  "basr_paths:\n  .zero 8192\n" ++
+  "basr_values:\n  .zero 16384\n" ++
+  "basr_accounts:\n  .zero 16384\n" ++
+  "bara_item_off:\n  .zero 8\n" ++
+  "bara_item_len:\n  .zero 8\n" ++
+  "bara_acct_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bara_path:\n  .zero 64\n" ++
+  "bara_acct:\n  .zero 256\n" ++
+  ".balign 8\n" ++
+  "bara_empty_account:\n" ++
+  "  .byte 0xf8,0x44,0x80,0x80,0xa0\n" ++
+  "  .byte 0x56,0xe8,0x1f,0x17,0x1b,0xcc,0x55,0xa6\n" ++
+  "  .byte 0xff,0x83,0x45,0xe6,0x92,0xc0,0xf8,0x6e\n" ++
+  "  .byte 0x5b,0x48,0xe0,0x1b,0x99,0x6c,0xad,0xc0\n" ++
+  "  .byte 0x01,0x62,0x2f,0xb5,0xe3,0x63,0xb4,0x21\n" ++
+  "  .byte 0xa0\n" ++
+  "  .byte 0xc5,0xd2,0x46,0x01,0x86,0xf7,0x23,0x3c\n" ++
+  "  .byte 0x92,0x7e,0x7d,0xb2,0xdc,0xc7,0x03,0xc0\n" ++
+  "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
+  "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
+  ".balign 8\n" ++
   -- fresh-account RLP [nonce=0, balance=0, storageRoot=EMPTY_TRIE, codeHash=EMPTY_CODE].
   -- Keep this immutable template before the mutable insert scratch buffers.
   ".balign 8\n" ++
@@ -626,12 +688,23 @@ def statelessVerdictV2GuestClosure : String :=
   swdWriteBe8Function ++ "\n" ++
   swdMinimalCopyFunction ++ "\n" ++
   systemWriteDescriptorsFunction ++ "\n" ++
+  accountSetUintFieldFunction ++ "\n" ++
+  balAccountPathFunction ++ "\n" ++
+  balAccountPostFieldsFunction ++ "\n" ++
+  balAccountApplyPostFieldsFunction ++ "\n" ++
+  balAccountChangeValueFunction ++ "\n" ++
+  balAccountChangeDescriptorFunction ++ "\n" ++
+  balAccountDescriptorArrayFunction ++ "\n" ++
+  balAccountRecordArrayFunction ++ "\n" ++
+  balAccountStateRootFunction ++ "\n" ++
+  balAccountStateRootAutoFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
+  balSectionInfoFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
   statelessVerdictV2Function
 
