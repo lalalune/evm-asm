@@ -42,6 +42,9 @@
 #     --stop-after-failures N
 #                        alias for --max-failures
 #     --quiet-passes     suppress per-case PASS(full) lines
+#     --bsr-witness-cap N
+#                        experimental: patch the emitted block_state_root
+#                        witness cap before relinking (default: guest default)
 #     --job-mem-mib N|auto
 #                        memory budget per ziskemu job (default $EEST_JOB_MEM_MIB
 #                        or auto). Auto is derived from the ziskemu build:
@@ -78,6 +81,7 @@ JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
 MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
 MAX_FAILURES=""
 QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
+BSR_WITNESS_CAP="${EEST_BSR_WITNESS_CAP:-}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
@@ -99,6 +103,7 @@ Options:
   --stop-after-failures N  alias for --max-failures
   --quiet-passes           suppress per-case PASS(full) lines
   --show-passes            print per-case PASS(full) lines, overriding EEST_QUIET_PASSES
+  --bsr-witness-cap N      experimental: run with a proposed block_state_root witness cap
   --job-mem-mib N|auto     memory budget per ziskemu job
   --min-succ N             exit 1 if fewer than N succ-bit matches
   --min-full N             exit 1 if fewer than N full matches
@@ -129,6 +134,7 @@ while [[ $# -gt 0 ]]; do
     --max-failures|--stop-after-failures) require_arg "$1" "${2:-}"; MAX_FAILURES="$2"; shift 2 ;;
     --quiet-passes) QUIET_PASSES=1; shift ;;
     --show-passes) QUIET_PASSES=0; shift ;;
+    --bsr-witness-cap) require_arg "$1" "${2:-}"; BSR_WITNESS_CAP="$2"; shift 2 ;;
     --job-mem-mib) require_arg "$1" "${2:-}"; JOB_MEM_MIB="$2"; shift 2 ;;
     --min-succ) require_arg "$1" "${2:-}"; MIN_SUCC="$2"; shift 2 ;;
     --min-full) require_arg "$1" "${2:-}"; MIN_FULL="$2"; shift 2 ;;
@@ -156,6 +162,10 @@ if [[ "$JOB_CPU_THREADS" != "auto" ]] && { ! [[ "$JOB_CPU_THREADS" =~ ^[0-9]+$ ]
 fi
 if [[ -n "$MAX_FAILURES" ]] && { ! [[ "$MAX_FAILURES" =~ ^[0-9]+$ ]] || [[ "$MAX_FAILURES" -lt 1 ]]; }; then
   echo "--max-failures must be a positive integer when set (got: $MAX_FAILURES)" >&2
+  exit 1
+fi
+if [[ -n "$BSR_WITNESS_CAP" ]] && ! [[ "$BSR_WITNESS_CAP" =~ ^[0-9]+$ ]]; then
+  echo "--bsr-witness-cap must be a nonnegative integer when set (got: $BSR_WITNESS_CAP)" >&2
   exit 1
 fi
 if ! [[ "$QUIET_PASSES" =~ ^(0|1|true|false|yes|no)$ ]]; then
@@ -269,8 +279,61 @@ mkdir -p gen-out
 echo "==> lake build codegen"
 lake build codegen
 
-echo "==> emit stateless_guest ELF"
-lake exe codegen --program stateless_guest --halt linux93 -o gen-out/stateless_guest
+resolve_riscv_tool() {
+  local env_var="$1"; shift
+  local from_env="${!env_var:-}"
+  local candidate
+  if [[ -n "$from_env" ]]; then
+    echo "$from_env"
+    return 0
+  fi
+  for candidate in "$@"; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      command -v "$candidate"
+      return 0
+    fi
+  done
+  echo "$1"
+}
+
+patch_bsr_witness_cap_and_relink() {
+  local asm="gen-out/stateless_guest.s"
+  local obj="gen-out/stateless_guest.o"
+  local elf="gen-out/stateless_guest.elf"
+  local old="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 32768; bgtu a2, t1, .Lbsr_cons_change_cap"
+  local new="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, $BSR_WITNESS_CAP; bgtu a2, t1, .Lbsr_cons_change_cap"
+  local matches as_tool ld_tool
+
+  matches="$(grep -F -c "$old" "$asm" || true)"
+  if [[ "$matches" != "1" ]]; then
+    echo "expected exactly one block_state_root witness-cap instruction, found $matches" >&2
+    exit 1
+  fi
+  python3 - "$asm" "$old" "$new" <<'PYPATCH'
+import sys
+path, old, new = sys.argv[1:]
+text = open(path, "r", encoding="utf-8").read()
+if text.count(old) != 1:
+    raise SystemExit("unexpected block_state_root witness-cap match count")
+open(path, "w", encoding="utf-8").write(text.replace(old, new, 1))
+PYPATCH
+
+  as_tool="$(resolve_riscv_tool RISCV_AS riscv64-unknown-elf-as riscv64-elf-as)"
+  ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
+  "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
+  "$ld_tool" -Ttext=0x80000000 -Tdata=0xa0100000 \
+    --section-start=.sszscratch=0xa2000000 \
+    -nostdlib --no-relax -o "$elf" "$obj"
+}
+
+if [[ -n "$BSR_WITNESS_CAP" ]]; then
+  echo "==> emit stateless_guest assembly (experimental bsr_witness_cap=$BSR_WITNESS_CAP)"
+  lake exe codegen --program stateless_guest --halt linux93 -o gen-out/stateless_guest --asm-only
+  patch_bsr_witness_cap_and_relink
+else
+  echo "==> emit stateless_guest ELF"
+  lake exe codegen --program stateless_guest --halt linux93 -o gen-out/stateless_guest
+fi
 
 # --- convert fixtures -> ziskemu inputs + manifest --------------------------
 RUN_DIR="$REPO_ROOT/gen-out/eest-run"
