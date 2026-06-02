@@ -25,6 +25,9 @@ open EvmAsm.Rv64
 
     Account record layout is 24 bytes per selected BAL item:
       +0 account_ptr | +8 account_len | +16 is_insert.
+    An is_insert value of 3 marks a read-only BAL row already classified by
+    `bal_account_record_array`; the descriptor pass emits a no-op descriptor
+    without parsing that BAL item again.
 
     Descriptor layout matches `mpt_state_root_ins`, 40 bytes per item. Paths are
     written densely as 64-byte nibble arrays. Values are written densely in the
@@ -47,20 +50,24 @@ def balAccountDescriptorArrayFunction : String :=
   "  li s7, 0                    # i\n" ++
   ".Lbaada_loop:\n" ++
   "  beq s7, s3, .Lbaada_ok\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s7\n" ++
-  "  la a3, baada_item_off; la a4, baada_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaada_fail_nth\n" ++
   "  slli t0, s7, 4; slli t1, s7, 3; add t0, t0, t1; add t0, s2, t0\n" ++
   "  ld a0, 0(t0)                # account ptr\n" ++
   "  ld a1, 8(t0)                # account len\n" ++
   "  ld a4, 16(t0)               # is_insert\n" ++
   "  mv s8, t0                   # record ptr, preserved across classifier\n" ++
+  "  li t1, 3; beq a4, t1, .Lbaada_readonly\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s7\n" ++
+  "  la a3, baada_item_off; la a4, baada_item_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbaada_fail_nth\n" ++
   "  la t1, baada_item_off; ld t1, 0(t1); add a2, s0, t1\n" ++
   "  la t1, baada_item_len; ld a3, 0(t1)\n" ++
   "  mv a0, a2; mv a1, a3; jal ra, bal_account_has_state_change\n" ++
   "  li t1, 1; beq a0, t1, .Lbaada_changed\n" ++
   "  bnez a0, .Lbaada_fail_desc\n" ++
+  "  ld t1, 0(s8); sd s5, 0(s4); li t2, 64; sd t2, 8(s4); sd t1, 16(s4)\n" ++
+  "  ld t1, 8(s8); sd t1, 24(s4); li t2, 3; sd t2, 32(s4); j .Lbaada_desc_done\n" ++
+  ".Lbaada_readonly:\n" ++
   "  ld t1, 0(s8); sd s5, 0(s4); li t2, 64; sd t2, 8(s4); sd t1, 16(s4)\n" ++
   "  ld t1, 8(s8); sd t1, 24(s4); li t2, 3; sd t2, 32(s4); j .Lbaada_desc_done\n" ++
   ".Lbaada_changed:\n" ++
