@@ -10,6 +10,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
+import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.MptDeleteAcc
@@ -162,6 +163,7 @@ def ziskBalAccountStateRootPrologue : String :=
   accountSetUintFieldFunction ++ "\n" ++
   accountIsEip161EmptyFunction ++ "\n" ++
   balAccountHasStateChangeFunction ++ "\n" ++
+  balAccountIsModeledSystemFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
@@ -308,11 +310,13 @@ def ziskBalAccountStateRootDataSection : String :=
   "basr_paths:\n  .zero 262144\n" ++     -- 4096 * 64
   "basr_values:\n  .zero 1048576\n" ++   -- 4096 * 256
   "basr_accounts:\n  .zero 1048576\n" ++ -- 4096 * 256
+  ziskBalAccountIsModeledSystemDataSection ++ "\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
   "bara_bal_end:\n  .zero 8\n" ++
   "bara_next_item:\n  .zero 8\n" ++
+  "bara_skip_modeled_system:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bara_path:\n  .zero 64\n" ++
   "bara_acct:\n  .zero 256\n" ++

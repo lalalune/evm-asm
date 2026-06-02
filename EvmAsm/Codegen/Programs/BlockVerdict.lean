@@ -232,6 +232,7 @@ def blockStateRootFunction : String :=
   "  li t1, 512; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
+  "  li t0, 1; la t1, bara_skip_modeled_system; sd t0, 0(t1)\n" ++
   "  la a6, basr_records; la a7, basr_accounts\n" ++
   "  jal ra, bal_account_record_array; bnez a0, .Lbsr_cons_bal_records\n" ++
   "  # `bal_account_apply_post_fields` may replay BAL storage changes through\n" ++
@@ -1282,6 +1283,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bara_acct_len:\n  .zero 8\n" ++
   "bara_bal_end:\n  .zero 8\n" ++
   "bara_next_item:\n  .zero 8\n" ++
+  "bara_skip_modeled_system:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bara_path:\n  .zero 64\n" ++
   "bara_acct:\n  .zero 256\n" ++

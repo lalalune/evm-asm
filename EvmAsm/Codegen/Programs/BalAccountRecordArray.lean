@@ -10,6 +10,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalAccountPath
+import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
 
@@ -30,7 +31,12 @@ open EvmAsm.Rv64
     Found accounts are copied into the caller-provided arena with is_insert=0.
     Missing accounts use the canonical empty account RLP with is_insert=1.
     Read-only BAL rows are recorded as the canonical empty account RLP with
-    is_insert=3 so descriptor construction can skip re-classifying them. -/
+    is_insert=3 so descriptor construction can skip re-classifying them.
+
+    If `bara_skip_modeled_system` is nonzero, EIP-2935/EIP-4788 rows are also
+    recorded with is_insert=3 because the verdict path has already replayed
+    those system writes explicitly. The flag defaults to zero for standalone
+    BAL state-root callers. -/
 def balAccountRecordArrayFunction : String :=
   "bal_account_record_array:\n" ++
   "  addi sp, sp, -112\n" ++
@@ -68,6 +74,12 @@ def balAccountRecordArrayFunction : String :=
   "  bnez a0, .Lbara_fail\n" ++
   "  la s9, bara_empty_account; li t1, 70; li t2, 3; j .Lbara_record\n" ++
   ".Lbara_changed:\n" ++
+  "  la t0, bara_skip_modeled_system; ld t0, 0(t0); beqz t0, .Lbara_walk_changed\n" ++
+  "  mv a0, s9; la t0, bara_item_len; ld a1, 0(t0)\n" ++
+  "  jal ra, bal_account_is_modeled_system\n" ++
+  "  li t0, 1; beq a0, t0, .Lbara_modeled_system\n" ++
+  "  bnez a0, .Lbara_fail\n" ++
+  ".Lbara_walk_changed:\n" ++
   "  mv a0, s9; la t0, bara_item_len; ld a1, 0(t0)\n" ++
   "  la a2, bara_path\n" ++
   "  jal ra, bal_account_path\n" ++
@@ -86,6 +98,9 @@ def balAccountRecordArrayFunction : String :=
   "  la t0, bara_acct_len; ld t1, 0(t0)\n" ++
   "  li t0, 256; bgtu t1, t0, .Lbara_fail\n" ++
   "  li t2, 0                    # modify existing\n" ++
+  "  j .Lbara_record\n" ++
+  ".Lbara_modeled_system:\n" ++
+  "  la s9, bara_empty_account; li t1, 70; li t2, 3\n" ++
   ".Lbara_record:\n" ++
   "  mv a0, s7; mv a1, s9; mv a2, t1\n" ++
   "  jal ra, mset_memcpy\n" ++
@@ -145,6 +160,7 @@ def ziskBalAccountRecordArrayPrologue : String :=
   msetMemcpyFunction ++ "\n" ++
   mptWalkFunction ++ "\n" ++
   balAccountHasStateChangeFunction ++ "\n" ++
+  balAccountIsModeledSystemFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
   ".Lbara_pdone:"
@@ -152,7 +168,9 @@ def ziskBalAccountRecordArrayPrologue : String :=
 def ziskBalAccountRecordArrayDataSection : String :=
   ziskMptWalkDataSection ++ "\n" ++
   ziskBalAccountHasStateChangeDataSection ++ "\n" ++
+  ziskBalAccountIsModeledSystemDataSection ++ "\n" ++
   ".balign 8\n" ++
+  "bara_skip_modeled_system:\n  .zero 8\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
