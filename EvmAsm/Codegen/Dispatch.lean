@@ -369,8 +369,12 @@ def emitDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 528\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells up to env+480
+                          -- + M29 BLOCKHASH current/count at env+512/+520
+  ".balign 8\n" ++
+  "evm_block_hashes:\n" ++
+  "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
@@ -452,6 +456,8 @@ def emitRuntimeDispatcherPrologue : String :=
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  "  sd x0, 512(x20)\n" ++         -- env.currentBlockNumberOff = 0
+  "  sd x0, 520(x20)\n" ++         -- env.blockHashCountOff = 0
   "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
   "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
   ".preload_expand_loop:\n" ++
@@ -488,6 +494,36 @@ def emitRuntimeDispatcherPrologue : String :=
   "  addi x6, x6, -1\n" ++
   "  j .preload_expand_loop\n" ++
   ".preload_expand_done:\n" ++
+  -- M29: BLOCKHASH context trailer follows storage:
+  --   u64 current_block_number
+  --   u64 block_hash_count
+  --   count × 32-byte hashes, in increasing block-number order.
+  -- The table is clamped to the EVM window size (256 ancestors).
+  "  ld x6, 0(x5)\n" ++            -- x6 = current block number
+  "  sd x6, 512(x20)\n" ++
+  "  ld x6, 8(x5)\n" ++            -- x6 = source hash count
+  "  li x7, 256\n" ++
+  "  bgeu x7, x6, .blockhash_count_ok\n" ++
+  "  mv x6, x7\n" ++
+  ".blockhash_count_ok:\n" ++
+  "  sd x6, 520(x20)\n" ++
+  "  addi x5, x5, 16\n" ++         -- x5 = first source hash
+  "  la x7, evm_block_hashes\n" ++
+  ".blockhash_copy_loop:\n" ++
+  "  beqz x6, .blockhash_copy_done\n" ++
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 0(x7)\n" ++
+  "  ld x8, 8(x5)\n" ++
+  "  sd x8, 8(x7)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 16(x7)\n" ++
+  "  ld x8, 24(x5)\n" ++
+  "  sd x8, 24(x7)\n" ++
+  "  addi x5, x5, 32\n" ++
+  "  addi x7, x7, 32\n" ++
+  "  addi x6, x6, -1\n" ++
+  "  j .blockhash_copy_loop\n" ++
+  ".blockhash_copy_done:\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -512,8 +548,12 @@ def emitRuntimeDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 528\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells up to env+480
+                          -- + M29 BLOCKHASH current/count at env+512/+520
+  ".balign 8\n" ++
+  "evm_block_hashes:\n" ++
+  "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors

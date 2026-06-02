@@ -540,6 +540,59 @@ def envHandlers : List OpcodeHandlerSpec :=
   , { label := "h_SELFBALANCE", opcodes := [0x47], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .selfBalance, tail := .advanceAndRet 1 }
   , { label := "h_BASEFEE"    , opcodes := [0x48], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .baseFee    , tail := .advanceAndRet 1 } ]
 
+/-- M29 BLOCKHASH handler backed by the runtime block-history trailer.
+
+    Runtime input supplies:
+      - `env + 512`: current block number (`cur`, u64)
+      - `env + 520`: number of loaded recent hashes (`count`, clamped to 256)
+      - `evm_block_hashes`: `count` 32-byte hashes in increasing block-number
+        order, matching execution-specs' `block_env.block_hashes`.
+
+    The handler implements Amsterdam `block_hash` behavior for u64 targets:
+      - nonzero high limbs in the target word -> zero
+      - target >= cur -> zero
+      - cur - target > count -> zero
+      - otherwise copy `block_hashes[count - (cur - target)]` into the
+        popped stack slot. -/
+def blockHashHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_BLOCKHASH"
+    , opcodes := [0x40]
+    , body := []
+    , tail := .custom <|
+        "  ld x14, 8(x12)\n" ++
+        "  bnez x14, .Lblockhash_zero\n" ++
+        "  ld x14, 16(x12)\n" ++
+        "  bnez x14, .Lblockhash_zero\n" ++
+        "  ld x14, 24(x12)\n" ++
+        "  bnez x14, .Lblockhash_zero\n" ++
+        "  ld x14, 0(x12)\n" ++       -- x14 = target block number
+        "  ld x15, 512(x20)\n" ++     -- x15 = current block number
+        "  bgeu x14, x15, .Lblockhash_zero\n" ++
+        "  sub x16, x15, x14\n" ++    -- x16 = cur - target, strictly positive
+        "  ld x17, 520(x20)\n" ++     -- x17 = loaded hash count
+        "  bgtu x16, x17, .Lblockhash_zero\n" ++
+        "  sub x17, x17, x16\n" ++    -- index = count - age
+        "  slli x17, x17, 5\n" ++     -- index × 32
+        "  la x18, evm_block_hashes\n" ++
+        "  add x18, x18, x17\n" ++
+        "  ld x19, 0(x18)\n" ++
+        "  sd x19, 0(x12)\n" ++
+        "  ld x19, 8(x18)\n" ++
+        "  sd x19, 8(x12)\n" ++
+        "  ld x19, 16(x18)\n" ++
+        "  sd x19, 16(x12)\n" ++
+        "  ld x19, 24(x18)\n" ++
+        "  sd x19, 24(x12)\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret\n" ++
+        ".Lblockhash_zero:\n" ++
+        "  sd x0, 0(x12)\n" ++
+        "  sd x0, 8(x12)\n" ++
+        "  sd x0, 16(x12)\n" ++
+        "  sd x0, 24(x12)\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret" } ]
+
 /-- M13 calldata-context opcodes. Sibling to `envHandlers` — reads the
     `callDataLenOff = 424` cell from the same env block that M12
     initialises via `la x20, evm_env`.
@@ -1004,7 +1057,7 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ envHandlers ++ calldataHandlers ++
+  memoryHandlers ++ envHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   storageHandlers ++ haltHandlers ++ pushZeroHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++

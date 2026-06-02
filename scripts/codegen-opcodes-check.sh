@@ -55,14 +55,30 @@ fi
 echo "==> running $TOTAL test case(s)"
 
 FAILED=()
-# `--list-test-cases` emits TSV with `<name>\t<expected>\t<bytecode>`
-# since M8.5; this legacy runner only needs name+expected, so we drop
-# the 3rd column into `_bytecode_unused` to keep `read` honest.
-while IFS=$'\t' read -r name expected _bytecode_unused; do
+SKIPPED=0
+# `--list-test-cases` emits an optional-field TSV. The baked-bytecode
+# runner has no runtime input trailer, so cases that need calldata,
+# storage, or block-history context must run through
+# codegen-opcodes-runtime-check.sh instead.
+while IFS= read -r line; do
+  name=$(printf '%s' "$line" | cut -f1)
+  expected=$(printf '%s' "$line" | cut -f2)
+  calldata=$(printf '%s' "$line" | cut -f4)
+  storage=$(printf '%s' "$line" | cut -f5)
+  block_number=$(printf '%s' "$line" | cut -f6)
+  block_hashes=$(printf '%s' "$line" | cut -f7)
+
   if [[ -z "$name" || -z "$expected" ]]; then
     echo
     echo "==> SKIP: malformed --list-test-cases line"
     FAILED+=("${name:-<unknown>} (malformed-tsv)")
+    continue
+  fi
+
+  if [[ -n "${calldata:-}" || -n "${storage:-}" || -n "${block_number:-}" || -n "${block_hashes:-}" ]]; then
+    echo
+    echo "==> SKIP: $name (requires runtime input trailer)"
+    SKIPPED=$((SKIPPED + 1))
     continue
   fi
 
@@ -91,7 +107,8 @@ done <"$LIST_FILE"
 
 echo
 if [[ ${#FAILED[@]} -eq 0 ]]; then
-  echo "==> ALL PASS ($TOTAL case(s))"
+  RUN=$((TOTAL - SKIPPED))
+  echo "==> ALL PASS ($RUN run, $SKIPPED skipped runtime-input case(s))"
   exit 0
 else
   echo "==> FAIL: ${#FAILED[@]} of $TOTAL case(s) failed:"
