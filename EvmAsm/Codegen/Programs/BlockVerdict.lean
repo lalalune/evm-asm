@@ -28,6 +28,7 @@ import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.RequestsHash
+import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 namespace EvmAsm.Codegen
 
@@ -611,6 +612,8 @@ def publicKeysValidFunction : String :=
   "  remu t1, s7, t0; bnez t1, .Lpkv_fail\n" ++
   "  divu s8, s7, t0             # public key count\n" ++
   "  bne s8, s4, .Lpkv_fail\n" ++
+  "  la t0, bv_public_keys_ptr; sd s5, 0(t0)\n" ++
+  "  la t0, bv_public_keys_len; sd s7, 0(t0)\n" ++
   "  li s9, 0\n" ++
   ".Lpkv_loop:\n" ++
   "  beq s9, s8, .Lpkv_ok\n" ++
@@ -1018,6 +1021,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   balCodePreimagesValidFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
+  addressComputeCreateFunction ++ "\n" ++
   enrgU32leFunction ++ "\n" ++
   eip7702NonceReuseGuardFunction ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
@@ -1115,6 +1119,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_bal_start:\n  .zero 8\n" ++
   "bv_bal_len:\n  .zero 8\n" ++
   "bv_tx_off:\n  .zero 8\n" ++
+  "bv_public_keys_ptr:\n  .zero 8\n" ++
+  "bv_public_keys_len:\n  .zero 8\n" ++
   "bv_fail_code:\n  .zero 8\n" ++
   "bv_header_status:\n  .zero 8\n" ++
   "bv_state_status:\n  .zero 8\n" ++
@@ -1147,6 +1153,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bbcv_fee_recipient_valid:\n  .zero 8\n.balign 8\nbbcv_fee_recipient:\n  .zero 20\n" ++
   ".balign 32\n" ++
   "bbcv_code_hash:\n  .zero 32\n" ++
+  "bbcv_sender_addr:\n  .zero 32\n" ++
+  "bbcv_create_addr:\n  .zero 32\n" ++
+  "ac_buffer:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ac_nonce_be:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "ac_digest:\n  .zero 32\n" ++
   "bbcv_stop_code_hash:\n" ++
   "  .quad 0x14281e7a9e7836bc, 0x7d818f8229424636, 0x9165d677b4f71266, 0x8ac9bc64e0a996ff\n" ++
   ".balign 32\n" ++
@@ -1183,6 +1196,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_count:\n  .zero 8\n" ++
   "bsg_off:\n  .zero 8\n" ++
   "bsg_len:\n  .zero 8\n" ++
+  "bsg_tx_nonce:\n  .zero 8\n" ++
   "bsg_slot_count:\n  .zero 8\n" ++
   "bsg_slot_off:\n  .zero 8\n" ++
   "bsg_slot_len:\n  .zero 8\n" ++

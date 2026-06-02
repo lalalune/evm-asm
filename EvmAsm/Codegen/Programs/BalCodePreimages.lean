@@ -7,6 +7,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.StateCompose
+import EvmAsm.Codegen.Programs.Address
 
 namespace EvmAsm.Codegen
 
@@ -34,9 +35,11 @@ open EvmAsm.Rv64
     the executable spec touches the beneficiary account there without reading
     its bytecode. A pure account-touch row is also accepted when it is the
     `CREATE(to, 0)` address for a legacy transaction target and witness bytecode
-    contains a CREATE opcode, matching the CREATE collision predicate path
-    (`account_has_code_or_nonce` / `account_has_storage`) which does not read
-    bytecode. Rows that carry storage or code activity still reject the
+    contains a CREATE opcode, or when it is the top-level CREATE(sender, nonce)
+    address for a legacy contract-creation transaction. Both match CREATE
+    collision predicate paths (`account_has_code_or_nonce` /
+    `account_has_storage`) which do not read bytecode. Rows that carry storage
+    or code activity still reject the
     extcodesize helper's status 5 and leave deeper obligations for later gates.
     -/
 def balCodePreimagesValidFunction : String :=
@@ -339,8 +342,6 @@ def balCodePreimagesValidFunction : String :=
   "  mv s0, a0                  # 20-byte target address ptr\n" ++
   "  mv s1, a1                  # witness.codes ptr\n" ++
   "  mv s2, a2                  # witness.codes len\n" ++
-  "  jal ra, bal_codes_contains_create_opcode\n" ++
-  "  beqz a0, .Lbcc_no\n" ++
   "  la t0, bv_exec_p; ld s3, 0(t0)\n" ++
   "  la t0, bv_tx_off; ld s4, 0(t0)\n" ++
   "  beqz s3, .Lbcc_no\n" ++
@@ -380,7 +381,31 @@ def balCodePreimagesValidFunction : String :=
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbcc_next_tx\n" ++
   "  la t0, bsg_change_ptr; ld t3, 0(t0)\n" ++
-  "  la t0, bsg_to_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbcc_next_tx\n" ++
+  "  la t0, bsg_to_len; ld t1, 0(t0); li t2, 20; beq t1, t2, .Lbcc_internal_create\n" ++
+  "  bnez t1, .Lbcc_next_tx\n" ++
+  "  # Top-level legacy contract creation: compare target with CREATE(sender, nonce).\n" ++
+  "  la t0, bv_public_keys_ptr; ld t4, 0(t0)\n" ++
+  "  la t0, bv_public_keys_len; ld t5, 0(t0)\n" ++
+  "  beqz t4, .Lbcc_next_tx\n" ++
+  "  li t0, 65; mul t1, s8, t0; add t2, t1, t0; bgtu t2, t5, .Lbcc_next_tx\n" ++
+  "  add a0, t4, t1; addi a0, a0, 1       # skip SEC1 0x04 prefix\n" ++
+  "  la a1, bbcv_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0)\n" ++
+  "  li a2, 0; la a3, bsg_tx_nonce; jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lbcc_next_tx\n" ++
+  "  la a0, bbcv_sender_addr; la t0, bsg_tx_nonce; ld a1, 0(t0); la a2, bbcv_create_addr\n" ++
+  "  jal ra, address_compute_create\n" ++
+  "  la t0, bbcv_create_addr; li t1, 0\n" ++
+  ".Lbcc_cmp_top_create_addr:\n" ++
+  "  li t2, 20; beq t1, t2, .Lbcc_yes\n" ++
+  "  add t3, t0, t1; lbu t3, 0(t3)\n" ++
+  "  add t4, s0, t1; lbu t4, 0(t4)\n" ++
+  "  bne t3, t4, .Lbcc_next_tx\n" ++
+  "  addi t1, t1, 1; j .Lbcc_cmp_top_create_addr\n" ++
+  ".Lbcc_internal_create:\n" ++
+  "  jal ra, bal_codes_contains_create_opcode\n" ++
+  "  beqz a0, .Lbcc_next_tx\n" ++
+  "  la t0, bsg_change_ptr; ld t3, 0(t0)\n" ++
   "  la t0, bsg_to_off; ld t1, 0(t0); add t3, t3, t1\n" ++
   "  la t0, bsr_kbuf            # RLP([to, 0]) buffer\n" ++
   "  li t1, 0xd6; sb t1, 0(t0)\n" ++
