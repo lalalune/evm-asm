@@ -94,6 +94,7 @@ uv run --directory execution-specs --quiet python3 \
 
 The report includes `state_witness_bytes` and `over_bsr_cap`; the latter marks
 inputs whose state witness exceeds the current 32 KiB `block_state_root` cap.
+Pass `--bsr-cap N` to model a different proposed cap in that column.
 
 Run a large batch:
 
