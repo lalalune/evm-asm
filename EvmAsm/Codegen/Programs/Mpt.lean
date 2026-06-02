@@ -19,6 +19,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.MptWitnessIndex
 
 namespace EvmAsm.Codegen
 
@@ -46,12 +47,12 @@ open EvmAsm.Rv64
     Walks every element computing `keccak256(element_bytes)`
     until either a match is found or the list is exhausted.
 
-    The scan is deliberately capped at the default 64 KiB witness-section
-    budget. Experiments may raise `block_state_root`'s outer witness cap, but
-    this routine must not turn that into an unbounded O(N*D) guest run. Larger
-    sections conservatively miss until the NodeDb index is implemented. The
-    index should use a bounded-worst-case structure (sorted table/trie/tree),
-    not an attacker-shaped hash bucket chain. -/
+    The linear fallback is deliberately capped at the default 64 KiB
+    witness-section budget. Large stateless-verdict runs build a sorted
+    NodeDb index once via `witness_index_build`; when the `(section_ptr,len)`
+    matches that index this routine uses binary search instead of rescanning.
+    The index is deterministic and sorted by the full 32-byte hash, not an
+    attacker-shaped hash bucket chain. -/
 def witnessLookupByHashFunction : String :=
   "witness_lookup_by_hash:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -63,6 +64,23 @@ def witnessLookupByHashFunction : String :=
   "  mv s2, a2                  # target_hash ptr\n" ++
   "  mv s3, a3                  # out_offset ptr\n" ++
   "  mv s4, a4                  # out_length ptr\n" ++
+  "  la t0, widx_enabled\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  beqz t0, .Lwlh_linear\n" ++
+  "  la t0, widx_section_ptr\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  bne s0, t0, .Lwlh_linear\n" ++
+  "  la t0, widx_section_len\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  bne s1, t0, .Lwlh_linear\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s1\n" ++
+  "  mv a2, s2\n" ++
+  "  mv a3, s3\n" ++
+  "  mv a4, s4\n" ++
+  "  jal ra, witness_lookup_by_hash_indexed\n" ++
+  "  j .Lwlh_ret\n" ++
+  ".Lwlh_linear:\n" ++
   "  beqz s1, .Lwlh_miss        # empty section ⇒ miss\n" ++
   "  li t0, 65536               # linear-scan budget: default BSR witness cap\n" ++
   "  bgtu s1, t0, .Lwlh_miss    # larger witnesses need the indexed NodeDb path\n" ++
@@ -124,7 +142,8 @@ def witnessLookupByHashFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
   "  addi sp, sp, 64\n" ++
-  "  ret"
+  "  ret\n" ++
+  witnessIndexFunctions
 
 /-- `zisk_witness_lookup_by_hash`: probe BuildUnit. Reads
     (section_len, target_hash, section_bytes) from host input,
@@ -168,6 +187,45 @@ def ziskWitnessLookupByHashDataSection : String :=
 def ziskWitnessLookupByHashProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskWitnessLookupByHashPrologue
+  dataAsm     := ziskWitnessLookupByHashDataSection
+}
+
+
+/-- `zisk_witness_lookup_by_hash_indexed`: same probe contract as
+    `zisk_witness_lookup_by_hash`, but first builds the sorted witness index and
+    then resolves the hash through the indexed path. OUTPUT+24 records the
+    index-build status (0 = built, 1 = malformed/cap exceeded). -/
+def ziskWitnessLookupByHashIndexedPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  ld s0, 8(a5)                # section_len\n" ++
+  "  addi s1, a5, 16             # target_hash ptr\n" ++
+  "  addi s2, a5, 48             # section ptr\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a1, s0\n" ++
+  "  jal ra, witness_index_build\n" ++
+  "  li t0, 0xa0010018\n" ++
+  "  sd a0, 0(t0)                # index-build status at OUTPUT + 24\n" ++
+  "  bnez a0, .Lwlhi_done\n" ++
+  "  mv a0, s2\n" ++
+  "  mv a1, s0\n" ++
+  "  mv a2, s1\n" ++
+  "  li a3, 0xa0010008           # out_offset (OUTPUT + 8)\n" ++
+  "  li a4, 0xa0010010           # out_length (OUTPUT + 16)\n" ++
+  "  sd zero, 0(a3)\n" ++
+  "  sd zero, 0(a4)\n" ++
+  "  jal ra, witness_lookup_by_hash\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # lookup status at OUTPUT + 0\n" ++
+  ".Lwlhi_done:\n" ++
+  "  j .Lwlhi_pdone\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  ".Lwlhi_pdone:"
+
+def ziskWitnessLookupByHashIndexedProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskWitnessLookupByHashIndexedPrologue
   dataAsm     := ziskWitnessLookupByHashDataSection
 }
 
