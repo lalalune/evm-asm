@@ -84,6 +84,17 @@ The first starts at `--skip 17085` (`16582 + 503`), the second starts at
 `--skip 20085`. Each checks `--limit 1000` with a `--min-full 1000`
 regression threshold.
 
+Run the focused EXP opcode regression:
+
+```bash
+scripts/codegen-eest-exp-power256-check.sh
+```
+
+This checks the Amsterdam `exp_power256` state-test fixture and requires a full
+105-byte stateless output match. Override `EEST_EXP_POWER256_JOBS` or
+`EEST_EXP_POWER256_STEPS` for this wrapper without changing the broader harness
+defaults.
+
 Run the current BAL replay frontier around the EIP-7002 withdrawal-request
 cluster:
 
