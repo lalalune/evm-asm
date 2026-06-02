@@ -938,6 +938,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   extcodesizeAtHeaderStateRootFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++

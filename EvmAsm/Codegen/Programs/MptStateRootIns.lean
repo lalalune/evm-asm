@@ -48,6 +48,7 @@ def mptStateRootInsFunction : String :=
   "  # init the node DB (shared by mpt_set_acc + mpt_insert_acc)\n" ++
   "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
   "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
+  "  jal ra, mpt_resolve_cache_reset\n" ++
   "  la t0, sri_fail_index; sd zero, 0(t0)\n" ++
   "  la t0, sri_fail_mode; sd zero, 0(t0)\n" ++
   "  la t0, sri_fail_status; sd zero, 0(t0)\n" ++
@@ -153,6 +154,7 @@ def ziskMptStateRootInsPrologue : String :=
   witnessLookupByHashFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
