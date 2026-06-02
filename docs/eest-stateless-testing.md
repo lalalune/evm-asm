@@ -54,9 +54,21 @@ Run the complete `random_statetest` regression class for `zkevm@v0.4.0`:
 scripts/codegen-eest-random-statetest-check.sh --jobs 8
 ```
 
-This wrapper runs two windows, `--limit 200` and then `--skip 200 --limit 500`,
-with `--min-full` thresholds and `--max-failures 1`. The split keeps the
-second window directly reproducible without re-running the first prefix.
+This wrapper first counts the selected `random_statetest` blocks for the active
+fixture tag, then loops over every block in fixed-size windows with
+`--min-full` set to the actual chunk size and `--max-failures 1`. Set
+`EEST_RANDOM_WINDOW=N` to change the default 200-case window size.
+
+Run the literal EXTCODEHASH missing-code regression filters:
+
+```bash
+scripts/codegen-eest-literal-extcodehash-check.sh --jobs 4
+```
+
+This wrapper counts and runs the `witness_codes_extcodehash_only` and
+`witness_codes_extcode_delegated_eoa` filters with `--min-full` set to each
+filter's current selected count, so future cases added to those filters are
+covered automatically.
 
 Run a large batch:
 
