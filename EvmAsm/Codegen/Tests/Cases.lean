@@ -46,6 +46,9 @@ structure OpcodeTestCase where
       the runtime input packer serializes it in EVM-stack byte order.
       Empty string = zero blob base fee. -/
   blobBaseFee    : String := ""
+  /-- Optional BLOBHASH versioned-hash list (M28). Format is comma or
+      space-separated 32-byte hex blobs. Empty string = no blob hashes. -/
+  blobHashes     : String := ""
   /-- Optional expected halt-kind at `OUTPUT_ADDR + 32` (M23).
       16 hex chars = 8-byte LE u64 (e.g. `"0100000000000000"` for
       RETURN = 1, `"0200000000000000"` for REVERT = 2). Empty
@@ -420,6 +423,18 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x4a, 0x00"
       blobBaseFee    := "0x1234"
       expectedOutHex := "3412000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; BLOBHASH; STOP with one versioned hash. The handler
+    -- reads tx_env.blob_versioned_hashes[0].
+    { name           := "blobhash_index_zero"
+      bytecode       := "0x60, 0x00, 0x49, 0x00"
+      blobHashes     := "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+      expectedOutHex := "201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201" }
+  , -- PUSH1 0x01; BLOBHASH; STOP with one versioned hash. Per
+    -- execution-specs, out-of-range indexes push zero.
+    { name           := "blobhash_out_of_range"
+      bytecode       := "0x60, 0x01, 0x49, 0x00"
+      blobHashes     := "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0xab; BALANCE; STOP — BALANCE pops the pushed 0xab as
     -- the address and overwrites with 0. Expected: 0 in low limb.
     -- Smoke test for popPushZeroHandlers.
