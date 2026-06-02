@@ -248,7 +248,7 @@ def balAccountApplyPostFieldsFunction : String :=
   ".Lbaap_multi_loop:\n" ++
   "  la t0, baap_sc_index; ld t0, 0(t0); la t1, baap_sc_count; ld t1, 0(t1)\n" ++
   "  beq t0, t1, .Lbaap_multi_apply\n" ++
-  "  li t2, 64; bgeu t0, t2, .Lbaap_fail\n" ++
+  "  li t2, 512; bgeu t0, t2, .Lbaap_fail\n" ++
   "  la t1, baap_sc_ptr; ld a0, 0(t1); la t1, baap_sc_len; ld a1, 0(t1); mv a2, t0\n" ++
   "  la a3, baap_item_off; la a4, baap_item_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
@@ -294,7 +294,7 @@ def balAccountApplyPostFieldsFunction : String :=
   "  mv a1, t0; la t2, baap_storage_value_cursor; ld a2, 0(t2); la a3, aab_enc_len\n" ++
   "  bnez a1, .Lbaap_multi_encode_value\n" ++
   "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_multi_skip_zero\n" ++
-  "  la t0, baap_storage_delete_count; ld t0, 0(t0); li t1, 64; bgeu t0, t1, .Lbaap_fail\n" ++
+  "  la t0, baap_storage_delete_count; ld t0, 0(t0); li t1, 512; bgeu t0, t1, .Lbaap_fail\n" ++
   "  li t1, 1; la t2, baap_storage_delete_flag; sd t1, 0(t2)\n" ++
   "  la a0, baap_slot; li a1, 32; la a2, srss_key\n" ++
   "  jal ra, zkvm_keccak256\n" ++
@@ -360,7 +360,9 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la t0, baap_storage_delete_index; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_delete_paths; add a3, t2, t1\n" ++
   "  li a4, 64; la a7, aps_newsroot\n" ++
   "  jal ra, mpt_delete_acc\n" ++
-  "  bnez a0, .Lbaap_fail_storage_delete\n" ++
+  "  beqz a0, .Lbaap_multi_delete_ok\n" ++
+  "  li t0, 1; bne a0, t0, .Lbaap_fail_storage_delete\n" ++
+  ".Lbaap_multi_delete_ok:\n" ++
   "  la t0, baap_storage_delete_index; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  j .Lbaap_multi_delete_loop\n" ++
   ".Lbaap_multi_delete_init:\n" ++
@@ -390,7 +392,9 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la t0, baap_storage_delete_index; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_delete_paths; add a3, t2, t1\n" ++
   "  li a4, 64; la a7, aps_newsroot\n" ++
   "  jal ra, mpt_delete_acc\n" ++
-  "  bnez a0, .Lbaap_fail_storage_delete_only\n" ++
+  "  beqz a0, .Lbaap_multi_delete_only_ok\n" ++
+  "  li t0, 1; bne a0, t0, .Lbaap_fail_storage_delete_only\n" ++
+  ".Lbaap_multi_delete_only_ok:\n" ++
   "  la t0, baap_storage_delete_index; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  j .Lbaap_multi_delete_only_loop\n" ++
   ".Lbaap_nonce:\n" ++
@@ -597,10 +601,10 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
   "baap_walk_val:\n  .zero 128\n" ++
-  "baap_storage_desc:\n  .zero 2560\n" ++
-  "baap_storage_paths:\n  .zero 4096\n" ++
-  "baap_storage_delete_paths:\n  .zero 4096\n" ++
-  "baap_storage_values:\n  .zero 4096\n" ++
+  "baap_storage_desc:\n  .zero 20480\n" ++
+  "baap_storage_paths:\n  .zero 32768\n" ++
+  "baap_storage_delete_paths:\n  .zero 32768\n" ++
+  "baap_storage_values:\n  .zero 32768\n" ++
   "mdacc_leaf_path:\n  .zero 128\n" ++
   "mdacc_collapsed_path:\n  .zero 128\n" ++
   "baap_out_pad:\n  .zero 8"

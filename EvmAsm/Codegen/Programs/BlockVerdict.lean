@@ -31,6 +31,7 @@ import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
+import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
@@ -207,7 +208,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_wit_p;  sd a1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;   sd a2, 0(t0)\n" ++
   "  la t0, bsr_ssz_p;  sd a6, 0(t0)\n" ++
-  "  la t0, bsr_fail_code; sd zero, 0(t0)\n" ++
+  "  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 32768; bgtu a2, t1, .Lbsr_cons_change_cap\n" ++
   "  mv s3, a3                   # wds descriptors\n" ++
   "  mv s4, a4                   # n_wds\n" ++
   "  mv s5, a5                   # out_root\n" ++
@@ -228,35 +229,37 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
   "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
-  "  add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
+  "  li t1, 512; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
+  "  li t0, 1; la t1, bara_skip_modeled_system; sd t0, 0(t1)\n" ++
   "  la a6, basr_records; la a7, basr_accounts\n" ++
   "  jal ra, bal_account_record_array; bnez a0, .Lbsr_cons_bal_records\n" ++
   "  # `bal_account_apply_post_fields` may replay BAL storage changes through\n" ++
   "  # `account_apply_storage_slot_acc`, which reads the shared witness globals.\n" ++
   "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
-  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0); la a2, basr_records\n" ++
-  "  la t0, bsr_bal_count; ld a3, 0(t0); la a4, basr_desc; la a5, basr_paths; la a6, basr_values\n" ++
-  "  jal ra, bal_account_descriptor_array; bnez a0, .Lbsr_cons_bal_desc\n" ++
-  "  li s0, 0                     # scan BAL descriptors; copy only changed accounts\n" ++
+  "  li s0, 0                     # scan BAL records; append only changed accounts\n" ++
   ".Lbsr_bal_copy:\n" ++
   "  la t6, bsr_bal_count; ld t6, 0(t6); beq s0, t6, .Lbsr_bal_copied\n" ++
-  "  slli t0, s0, 5; slli t1, s0, 3; add t0, t0, t1; la t2, basr_desc; add t0, t2, t0\n" ++
-  "  la t5, bsr_cur_desc; sd t0, 0(t5)\n" ++
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
-  "  ld t4, 24(t0); ld t5, 8(t3); bne t4, t5, .Lbsr_bal_copy_changed\n" ++
-  "  ld t4, 16(t0); ld t5, 0(t3); ld t6, 24(t0)\n" ++
-  ".Lbsr_bal_eq_loop:\n" ++
-  "  beqz t6, .Lbsr_bal_copy_next\n" ++
-  "  lbu a0, 0(t4); lbu a1, 0(t5); bne a0, a1, .Lbsr_bal_copy_changed\n" ++
-  "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbsr_bal_eq_loop\n" ++
+  "  ld t4, 16(t3); li t5, 3; beq t4, t5, .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copy_changed:\n" ++
-  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add t2, t3, t2\n" ++
-  "  la t0, bsr_cur_desc; ld t0, 0(t0)\n" ++
-  "  ld t3, 0(t0); sd t3, 0(t2); ld t3, 8(t0); sd t3, 8(t2); ld t3, 16(t0); sd t3, 16(t2)\n" ++
-  "  ld t3, 24(t0); sd t3, 24(t2); ld t3, 32(t0); sd t3, 32(t2)\n" ++
+  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0); mv a2, s0\n" ++
+  "  la a3, baada_item_off; la a4, baada_item_len\n" ++
+  "  jal ra, rlp_list_nth_item; bnez a0, .Lbsr_cons_bal_desc\n" ++
+  "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
+  "  ld a0, 0(t3); ld a1, 8(t3); la t0, bsr_bal_start; ld t0, 0(t0); la t1, baada_item_off; ld t1, 0(t1); add a2, t0, t1\n" ++
+  "  la t1, baada_item_len; ld a3, 0(t1); ld a4, 16(t3)\n" ++
+  "  la t0, bsr_bal_item_ptr; sd a2, 0(t0); la t0, bsr_bal_item_len; sd a3, 0(t0)\n" ++
+  "  mv a0, a2; mv a1, a3; jal ra, bal_account_is_modeled_system\n" ++
+  "  li t0, 1; beq a0, t0, .Lbsr_bal_copy_next; bnez a0, .Lbsr_cons_bal_desc\n" ++
+  "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
+  "  ld a0, 0(t3); ld a1, 8(t3); la t0, bsr_bal_item_ptr; ld a2, 0(t0); la t0, bsr_bal_item_len; ld a3, 0(t0); ld a4, 16(t3)\n" ++
+  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a5, t3, t2\n" ++
+  "  slli t2, s1, 6; la t3, basr_paths; add a6, t3, t2\n" ++
+  "  slli t2, s1, 8; la t3, basr_values; add a7, t3, t2\n" ++
+  "  jal ra, bal_account_change_descriptor; bnez a0, .Lbsr_cons_bal_desc\n" ++
   "  addi s1, s1, 1\n" ++
   ".Lbsr_bal_copy_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_bal_copy\n" ++
@@ -869,8 +872,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_state_status; ld t2, 0(t1); sd t2, 24(t0)\n" ++
   "  la t1, bsr_bal_count; ld t2, 0(t1); sd t2, 32(t0)\n" ++
   "  la t1, bsr_fail_code; ld t2, 0(t1); sd t2, 40(t0)\n" ++
-  "  la t1, baada_fail_code; ld t2, 0(t1); sd t2, 48(t0)\n" ++
-  "  la t1, baada_fail_index; ld t2, 0(t1); sd t2, 56(t0)\n" ++
   "  la t1, baacd_fail_code; ld t2, 0(t1); sd t2, 64(t0)\n" ++
   "  la t1, bacv_fail_code; ld t2, 0(t1); sd t2, 72(t0)\n" ++
   "  la t1, baap_fail_code; ld t2, 0(t1); sd t2, 80(t0)\n" ++
@@ -953,7 +954,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   swrRevLeBeFunction ++ "\n" ++
   sszWithdrawalToRlpFunction ++ "\n" ++
   statelessVerdictFromSszFunction ++ "\n" ++
-  -- NEW: single_leaf + storage + system + block verdict:
   singleLeafTrieRootFunction ++ "\n" ++
   storageRootSingleSlotFunction ++ "\n" ++
   accountSetStorageRootFunction ++ "\n" ++
@@ -966,16 +966,15 @@ def ziskStatelessVerdictV2Prologue : String :=
   systemWriteDescriptorsFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   accountIsEip161EmptyFunction ++ "\n" ++
+  balAccountHasStateChangeFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
-  balAccountDescriptorArrayFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
-  balAccountStateRootFunction ++ "\n" ++
-  balAccountStateRootAutoFunction ++ "\n" ++
+  balAccountIsModeledSystemFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
@@ -1052,14 +1051,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_bal_start:\n  .zero 8\n" ++
   "bsr_bal_len:\n  .zero 8\n" ++
   "bsr_bal_count:\n  .zero 8\n" ++
-  "bsr_cur_desc:\n  .zero 8\n" ++
   "bsr_exec_p:\n  .zero 8\n" ++
   "bsr_tx_off:\n  .zero 8\n" ++
   "bsr_pathp:\n  .zero 8\n" ++
   "bsr_acct_len:\n  .zero 8\n" ++
   "bsr_tmplen:\n  .zero 8\n" ++
   "bsr_prev_desc:\n  .zero 8\n" ++
-  "bsr_prev_acct:\n  .zero 8\n" ++
+  "bsr_prev_acct:\n  .zero 8\n" ++ ziskBalAccountHasStateChangeDataSection ++
+  "bsr_bal_item_ptr:\n  .zero 8\n" ++
+  "bsr_bal_item_len:\n  .zero 8\n" ++
+  ziskBalAccountIsModeledSystemDataSection ++
   ".balign 32\n" ++
   "bsr_kbuf:\n  .zero 32\n" ++
   "bsr_delta:\n  .zero 32\n" ++
@@ -1249,10 +1250,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
   "baap_walk_val:\n  .zero 128\n" ++
-  "baap_storage_desc:\n  .zero 2560\n" ++
-  "baap_storage_paths:\n  .zero 4096\n" ++
-  "baap_storage_delete_paths:\n  .zero 4096\n" ++
-  "baap_storage_values:\n  .zero 4096\n" ++
+  "baap_storage_desc:\n  .zero 20480\n" ++
+  "baap_storage_paths:\n  .zero 32768\n" ++
+  "baap_storage_delete_paths:\n  .zero 32768\n" ++
+  "baap_storage_values:\n  .zero 32768\n" ++
   "mdacc_leaf_path:\n  .zero 128\n" ++
   "mdacc_collapsed_path:\n  .zero 128\n" ++
   "bacp_off:\n  .zero 8\n" ++
@@ -1273,16 +1274,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bacv_fail_code:\n  .zero 8\n" ++
   "baada_item_off:\n  .zero 8\n" ++
   "baada_item_len:\n  .zero 8\n" ++
-  "baada_fail_code:\n  .zero 8\n" ++
-  "baada_fail_index:\n  .zero 8\n" ++
   "basr_records:\n  .zero 98304\n" ++    -- 4096 * 24
-  "basr_desc:\n  .zero 163840\n" ++     -- 4096 * 40
   "basr_paths:\n  .zero 262144\n" ++     -- 4096 * 64
   "basr_values:\n  .zero 1048576\n" ++   -- 4096 * 256
   "basr_accounts:\n  .zero 1048576\n" ++ -- 4096 * 256
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
+  "bara_bal_end:\n  .zero 8\n" ++
+  "bara_next_item:\n  .zero 8\n" ++
+  "bara_skip_modeled_system:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bara_path:\n  .zero 64\n" ++
   "bara_acct:\n  .zero 256\n" ++
@@ -1461,16 +1462,15 @@ def statelessVerdictV2GuestClosure : String :=
   systemWriteDescriptorsFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   accountIsEip161EmptyFunction ++ "\n" ++
+  balAccountHasStateChangeFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
-  balAccountDescriptorArrayFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
-  balAccountStateRootFunction ++ "\n" ++
-  balAccountStateRootAutoFunction ++ "\n" ++
+  balAccountIsModeledSystemFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++

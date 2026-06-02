@@ -29,9 +29,16 @@ open EvmAsm.Rv64
     Amsterdam warms/touches coinbase without reading its bytecode. A
     literal `PUSH20 <address>; EXTCODEHASH` occurs in witness bytecode, since
     EXTCODEHASH reads the account leaf's code_hash and does not call
-    WitnessState.get_code. Rows that carry storage or code activity still
-    reject the extcodesize helper's status 5 and leave deeper obligations for
-    later gates. -/
+    WitnessState.get_code. A pure account-touch row is also accepted when a
+    legacy transaction data payload contains `PUSH20 <address>; SELFDESTRUCT`:
+    the executable spec touches the beneficiary account there without reading
+    its bytecode. A pure account-touch row is also accepted when it is the
+    `CREATE(to, 0)` address for a legacy transaction target and witness bytecode
+    contains a CREATE opcode, matching the CREATE collision predicate path
+    (`account_has_code_or_nonce` / `account_has_storage`) which does not read
+    bytecode. Rows that carry storage or code activity still reject the
+    extcodesize helper's status 5 and leave deeper obligations for later gates.
+    -/
 def balCodePreimagesValidFunction : String :=
   "bal_code_preimages_valid:\n" ++
   "  addi sp, sp, -112\n" ++
@@ -148,6 +155,12 @@ def balCodePreimagesValidFunction : String :=
   "  mv a0, s6; mv a1, s7\n" ++
   "  jal ra, bal_codes_contains_push20_extcodehash\n" ++
   "  bnez a0, .Lbbcv_next\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a0, s10, t1\n" ++
+  "  jal ra, bal_txs_contains_push20_selfdestruct\n" ++
+  "  bnez a0, .Lbbcv_next\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a0, s10, t1; mv a1, s6; mv a2, s7\n" ++
+  "  jal ra, bal_txs_contains_create_collision_touch\n" ++
+  "  bnez a0, .Lbbcv_next\n" ++
   "  j .Lbbcv_missing_code\n" ++
   ".Lbbcv_missing_code:\n" ++
   "  li a0, 1; j .Lbbcv_ret\n" ++
@@ -230,6 +243,216 @@ def balCodePreimagesValidFunction : String :=
   ".Lbce_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp)\n" ++
   "  ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff any legacy transaction data contains PUSH20 <addr>; SELFDESTRUCT.\n" ++
+  "# Reads bv_exec_p/bv_tx_off populated by block_verdict. Malformed or typed\n" ++
+  "# transactions are treated conservatively as no match.\n" ++
+  "bal_txs_contains_push20_selfdestruct:\n" ++
+  "  addi sp, sp, -104\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
+  "  mv s0, a0                  # 20-byte target address ptr\n" ++
+  "  la t0, bv_exec_p; ld s1, 0(t0)\n" ++
+  "  la t0, bv_tx_off; ld s2, 0(t0)\n" ++
+  "  beqz s1, .Lbcs_no\n" ++
+  "  add s3, s1, s2             # tx list ptr\n" ++
+  "  addi a0, s1, 508; jal ra, bgv_u32le\n" ++
+  "  bleu a0, s2, .Lbcs_no\n" ++
+  "  sub s4, a0, s2             # tx list len\n" ++
+  "  li t0, 4; bltu s4, t0, .Lbcs_no\n" ++
+  "  mv a0, s3; jal ra, bgv_u32le\n" ++
+  "  andi t0, a0, 3; bnez t0, .Lbcs_no\n" ++
+  "  srli s5, a0, 2             # tx count\n" ++
+  "  beqz s5, .Lbcs_no\n" ++
+  "  li t0, 16; bgtu s5, t0, .Lbcs_no\n" ++
+  "  slli t0, s5, 2; bgtu t0, s4, .Lbcs_no\n" ++
+  "  li s6, 0                   # tx index\n" ++
+  ".Lbcs_tx_loop:\n" ++
+  "  beq s6, s5, .Lbcs_no\n" ++
+  "  slli t0, s6, 2; add a0, s3, t0; jal ra, bgv_u32le\n" ++
+  "  mv s7, a0                  # item offset\n" ++
+  "  addi t0, s6, 1\n" ++
+  "  beq t0, s5, .Lbcs_last_tx\n" ++
+  "  slli t1, t0, 2; add a0, s3, t1; jal ra, bgv_u32le\n" ++
+  "  j .Lbcs_have_next\n" ++
+  ".Lbcs_last_tx:\n" ++
+  "  mv a0, s4\n" ++
+  ".Lbcs_have_next:\n" ++
+  "  bltu a0, s7, .Lbcs_next_tx\n" ++
+  "  sub s8, a0, s7             # tx len\n" ++
+  "  add s9, s3, s7             # tx ptr\n" ++
+  "  mv a0, s9; mv a1, s8; la a2, bsg_tx_type; la a3, bsg_tx_inner\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lbcs_next_tx\n" ++
+  "  la t0, bsg_tx_type; ld t1, 0(t0); bnez t1, .Lbcs_next_tx\n" ++
+  "  mv a0, s9; mv a1, s8; li a2, 5; la a3, bsg_data_off; la a4, bsg_data_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbcs_next_tx\n" ++
+  "  la t0, bsg_data_off; ld t1, 0(t0); add s10, s9, t1\n" ++
+  "  la t0, bsg_data_len; ld t2, 0(t0)\n" ++
+  "  li t3, 22; bltu t2, t3, .Lbcs_next_tx\n" ++
+  "  sub t4, t2, t3             # max start offset\n" ++
+  "  li t5, 0                   # scan offset\n" ++
+  ".Lbcs_scan_loop:\n" ++
+  "  bgtu t5, t4, .Lbcs_next_tx\n" ++
+  "  add t6, s10, t5\n" ++
+  "  lbu t0, 0(t6); li t1, 0x73; bne t0, t1, .Lbcs_advance_scan\n" ++
+  "  li t0, 0                   # address byte index\n" ++
+  ".Lbcs_addr_loop:\n" ++
+  "  li t1, 20; beq t0, t1, .Lbcs_check_opcode\n" ++
+  "  add t2, t6, t0; lbu t2, 1(t2)\n" ++
+  "  add t3, s0, t0; lbu t3, 0(t3)\n" ++
+  "  bne t2, t3, .Lbcs_advance_scan\n" ++
+  "  addi t0, t0, 1; j .Lbcs_addr_loop\n" ++
+  ".Lbcs_check_opcode:\n" ++
+  "  lbu t0, 21(t6); li t1, 0xff\n" ++
+  "  beq t0, t1, .Lbcs_yes\n" ++
+  ".Lbcs_advance_scan:\n" ++
+  "  addi t5, t5, 1; j .Lbcs_scan_loop\n" ++
+  ".Lbcs_next_tx:\n" ++
+  "  addi s6, s6, 1; j .Lbcs_tx_loop\n" ++
+  ".Lbcs_yes:\n" ++
+  "  li a0, 1; j .Lbcs_ret\n" ++
+  ".Lbcs_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbcs_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
+  "  addi sp, sp, 104\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff target equals CREATE(tx.to, 0) for a legacy tx and witness\n" ++
+  "# bytecode contains a CREATE opcode. This recognizes CREATE-collision BAL\n" ++
+  "# touches, which read account metadata but not the bytecode preimage.\n" ++
+  "bal_txs_contains_create_collision_touch:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp)\n" ++
+  "  mv s0, a0                  # 20-byte target address ptr\n" ++
+  "  mv s1, a1                  # witness.codes ptr\n" ++
+  "  mv s2, a2                  # witness.codes len\n" ++
+  "  jal ra, bal_codes_contains_create_opcode\n" ++
+  "  beqz a0, .Lbcc_no\n" ++
+  "  la t0, bv_exec_p; ld s3, 0(t0)\n" ++
+  "  la t0, bv_tx_off; ld s4, 0(t0)\n" ++
+  "  beqz s3, .Lbcc_no\n" ++
+  "  add s5, s3, s4             # tx list ptr\n" ++
+  "  addi a0, s3, 508; jal ra, bgv_u32le\n" ++
+  "  bleu a0, s4, .Lbcc_no\n" ++
+  "  sub s6, a0, s4             # tx list len\n" ++
+  "  li t0, 4; bltu s6, t0, .Lbcc_no\n" ++
+  "  mv a0, s5; jal ra, bgv_u32le\n" ++
+  "  andi t0, a0, 3; bnez t0, .Lbcc_no\n" ++
+  "  srli s7, a0, 2             # tx count\n" ++
+  "  beqz s7, .Lbcc_no\n" ++
+  "  li t0, 16; bgtu s7, t0, .Lbcc_no\n" ++
+  "  slli t0, s7, 2; bgtu t0, s6, .Lbcc_no\n" ++
+  "  li s8, 0                   # tx index\n" ++
+  ".Lbcc_tx_loop:\n" ++
+  "  beq s8, s7, .Lbcc_no\n" ++
+  "  slli t0, s8, 2; add a0, s5, t0; jal ra, bgv_u32le\n" ++
+  "  mv s9, a0                  # item offset\n" ++
+  "  addi t0, s8, 1\n" ++
+  "  beq t0, s7, .Lbcc_last_tx\n" ++
+  "  slli t1, t0, 2; add a0, s5, t1; jal ra, bgv_u32le\n" ++
+  "  j .Lbcc_have_next\n" ++
+  ".Lbcc_last_tx:\n" ++
+  "  mv a0, s6\n" ++
+  ".Lbcc_have_next:\n" ++
+  "  bltu a0, s9, .Lbcc_next_tx\n" ++
+  "  sub t2, a0, s9             # tx len\n" ++
+  "  add t3, s5, s9             # tx ptr\n" ++
+  "  la t0, bsg_change_ptr; sd t3, 0(t0); la t0, bsg_change_item_len; sd t2, 0(t0)\n" ++
+  "  mv a0, t3; mv a1, t2; la a2, bsg_tx_type; la a3, bsg_tx_inner\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lbcc_next_tx\n" ++
+  "  la t0, bsg_tx_type; ld t1, 0(t0); bnez t1, .Lbcc_next_tx\n" ++
+  "  la t0, bsg_change_ptr; ld t3, 0(t0); la t0, bsg_change_item_len; ld t2, 0(t0)\n" ++
+  "  mv a0, t3; mv a1, t2; li a2, 3; la a3, bsg_to_off; la a4, bsg_to_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbcc_next_tx\n" ++
+  "  la t0, bsg_change_ptr; ld t3, 0(t0)\n" ++
+  "  la t0, bsg_to_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbcc_next_tx\n" ++
+  "  la t0, bsg_to_off; ld t1, 0(t0); add t3, t3, t1\n" ++
+  "  la t0, bsr_kbuf            # RLP([to, 0]) buffer\n" ++
+  "  li t1, 0xd6; sb t1, 0(t0)\n" ++
+  "  li t1, 0x94; sb t1, 1(t0)\n" ++
+  "  li t1, 0\n" ++
+  ".Lbcc_copy_to:\n" ++
+  "  li t2, 20; beq t1, t2, .Lbcc_hash_create\n" ++
+  "  add t4, t3, t1; lbu t4, 0(t4)\n" ++
+  "  add t5, t0, t1; sb t4, 2(t5)\n" ++
+  "  addi t1, t1, 1; j .Lbcc_copy_to\n" ++
+  ".Lbcc_hash_create:\n" ++
+  "  li t1, 0x80; sb t1, 22(t0)\n" ++
+  "  mv a0, t0; li a1, 23; la a2, bbcv_code_hash; jal ra, zkvm_keccak256\n" ++
+  "  la t0, bbcv_code_hash; addi t0, t0, 12\n" ++
+  "  li t1, 0\n" ++
+  ".Lbcc_cmp_addr:\n" ++
+  "  li t2, 20; beq t1, t2, .Lbcc_yes\n" ++
+  "  add t3, t0, t1; lbu t3, 0(t3)\n" ++
+  "  add t4, s0, t1; lbu t4, 0(t4)\n" ++
+  "  bne t3, t4, .Lbcc_next_tx\n" ++
+  "  addi t1, t1, 1; j .Lbcc_cmp_addr\n" ++
+  ".Lbcc_next_tx:\n" ++
+  "  addi s8, s8, 1; j .Lbcc_tx_loop\n" ++
+  ".Lbcc_yes:\n" ++
+  "  li a0, 1; j .Lbcc_ret\n" ++
+  ".Lbcc_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbcc_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff any witness code byte is CREATE (0xf0).\n" ++
+  "bal_codes_contains_create_opcode:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra, 0(sp); sd s3, 8(sp); sd s4, 16(sp); sd s5, 24(sp)\n" ++
+  "  sd s6, 32(sp); sd s7, 40(sp)\n" ++
+  "  beqz s2, .Lbcco_no\n" ++
+  "  mv a0, s1; jal ra, bgv_u32le\n" ++
+  "  andi t0, a0, 3; bnez t0, .Lbcco_no\n" ++
+  "  srli s3, a0, 2             # code count\n" ++
+  "  beqz s3, .Lbcco_no\n" ++
+  "  li s4, 0                   # code index\n" ++
+  ".Lbcco_elem_loop:\n" ++
+  "  beq s4, s3, .Lbcco_no\n" ++
+  "  slli t3, s4, 2; add a0, s1, t3; jal ra, bgv_u32le\n" ++
+  "  mv s5, a0                  # element offset\n" ++
+  "  addi t3, s4, 1\n" ++
+  "  beq t3, s3, .Lbcco_last\n" ++
+  "  slli t5, t3, 2; add a0, s1, t5; jal ra, bgv_u32le\n" ++
+  "  j .Lbcco_have_end\n" ++
+  ".Lbcco_last:\n" ++
+  "  mv a0, s2\n" ++
+  ".Lbcco_have_end:\n" ++
+  "  bltu a0, s5, .Lbcco_next_elem\n" ++
+  "  add s6, s1, s5; sub s7, a0, s5\n" ++
+  ".Lbcco_scan:\n" ++
+  "  beqz s7, .Lbcco_next_elem\n" ++
+  "  lbu a0, 0(s6); li t3, 0xf0; beq a0, t3, .Lbcco_yes\n" ++
+  "  addi s6, s6, 1; addi s7, s7, -1; j .Lbcco_scan\n" ++
+  ".Lbcco_next_elem:\n" ++
+  "  addi s4, s4, 1; j .Lbcco_elem_loop\n" ++
+  ".Lbcco_yes:\n" ++
+  "  li a0, 1; j .Lbcco_ret\n" ++
+  ".Lbcco_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbcco_ret:\n" ++
+  "  ld ra, 0(sp); ld s3, 8(sp); ld s4, 16(sp); ld s5, 24(sp)\n" ++
+  "  ld s6, 32(sp); ld s7, 40(sp)\n" ++
   "  addi sp, sp, 56\n" ++
   "  ret"
 

@@ -70,6 +70,40 @@ This wrapper counts and runs the `witness_codes_extcodehash_only` and
 filter's current selected count, so future cases added to those filters are
 covered automatically.
 
+Run the 1,000-block windows immediately after `random_statetest`:
+
+```bash
+scripts/codegen-eest-post-random-window-check.sh --jobs 8
+scripts/codegen-eest-post-random-window-2-check.sh --jobs 8
+scripts/codegen-eest-post-random-window-3-check.sh --jobs 8
+scripts/codegen-eest-post-random-window-4-check.sh --jobs 8
+```
+
+The first starts at `--skip 17085` (`16582 + 503`), the second starts at
+`--skip 18085`, the third starts at `--skip 19085`, and the fourth starts at
+`--skip 20085`. Each checks `--limit 1000` with a `--min-full 1000`
+regression threshold.
+
+Run the current BAL replay frontier around the EIP-7002 withdrawal-request
+cluster:
+
+```bash
+scripts/codegen-eest-bal-replay-frontier-check.sh --jobs 4
+```
+
+This filters to `withdrawal_requests`, starts at local `--skip 83`, checks
+`--limit 20`, and stops after the two known conservative misses. With parallel
+jobs, the number of completed passes before the stop point depends on
+scheduling. Use `scripts/eest-bal-replay-report.py --details` after a run to
+inspect the BAL row shape for the selected inputs.
+
+To inspect only the completed frontier misses from the latest run:
+
+```bash
+uv run --directory execution-specs --quiet python3 \
+  ../scripts/eest-bal-replay-report.py --failures-only --details
+```
+
 Run a large batch:
 
 ```bash
@@ -123,6 +157,23 @@ Use `--quiet-passes` (or `EEST_QUIET_PASSES=1`) to suppress per-case
 `PASS(full)` lines while still printing every `FAIL` and `ERROR` plus the final
 summary. This is useful for large `--jobs 32 --max-failures N` searches after a
 long passing prefix. `--show-passes` restores the default verbose pass output.
+
+## Focused Verdict Probe
+
+For verdict-only debugging, use the smaller probe harness:
+
+```bash
+scripts/codegen-zisk-stateless-verdict-check.sh \
+  --filter validation_codes_missing \
+  --limit 100 \
+  --max-failures 5 \
+  --steps 200000000
+```
+
+In this probe, `--max-failures N` stops after N `ERROR`, false-positive, or
+unexpected `DIFF` rows. Conservative misses (`verdict=0 exp=1`) are still
+reported, but they do not count toward this cap because they are not unsound
+acceptances.
 
 ## Outputs
 

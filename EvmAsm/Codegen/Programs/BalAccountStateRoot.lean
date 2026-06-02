@@ -8,7 +8,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
+import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.MptDeleteAcc
@@ -160,6 +162,8 @@ def ziskBalAccountStateRootPrologue : String :=
   mptDeleteAccFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   accountIsEip161EmptyFunction ++ "\n" ++
+  balAccountHasStateChangeFunction ++ "\n" ++
+  balAccountIsModeledSystemFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
@@ -180,6 +184,7 @@ def ziskBalAccountStateRootPrologue : String :=
 def ziskBalAccountStateRootDataSection : String :=
   ziskMptStateRootInsDataSection ++ "\n" ++
   ".balign 8\n" ++
+  ziskBalAccountHasStateChangeDataSection ++
   "aab_enc_len:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "aab_enc:\n  .zero 64\n" ++
@@ -238,16 +243,6 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_storage_delete_index:\n  .zero 8\n" ++
   "baap_storage_root_ptr:\n  .zero 8\n" ++
   "baap_walk_val_len:\n  .zero 8\n" ++
-  "mdacc_witness_len:\n  .zero 8\n" ++
-  "mdacc_survivor_nibble:\n  .zero 8\n" ++
-  "mdacc_child_ptr:\n  .zero 8\n" ++
-  "mdacc_child_len:\n  .zero 8\n" ++
-  "mdacc_leaf_path_len:\n  .zero 8\n" ++
-  "mdacc_ext_path_len:\n  .zero 8\n" ++
-  "mdacc_leaf_value_ptr:\n  .zero 8\n" ++
-  "mdacc_leaf_value_len:\n  .zero 8\n" ++
-  "mee_path_off:\n  .zero 8\n" ++
-  "mee_path_len:\n  .zero 8\n" ++
   "baap_item_off:\n  .zero 8\n" ++
   "baap_item_len:\n  .zero 8\n" ++
   "baap_slot_changes_off:\n  .zero 8\n" ++
@@ -274,10 +269,11 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_tmp2:\n  .zero 512\n" ++
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
-  "baap_storage_desc:\n  .zero 2560\n" ++
-  "baap_storage_paths:\n  .zero 4096\n" ++
-  "baap_storage_delete_paths:\n  .zero 4096\n" ++
-  "baap_storage_values:\n  .zero 4096\n" ++
+  "baap_walk_val:\n  .zero 128\n" ++
+  "baap_storage_desc:\n  .zero 20480\n" ++
+  "baap_storage_paths:\n  .zero 32768\n" ++
+  "baap_storage_delete_paths:\n  .zero 32768\n" ++
+  "baap_storage_values:\n  .zero 32768\n" ++
   "mdacc_leaf_path:\n  .zero 128\n" ++
   "mdacc_collapsed_path:\n  .zero 128\n" ++
   "bacp_off:\n  .zero 8\n" ++
@@ -305,9 +301,13 @@ def ziskBalAccountStateRootDataSection : String :=
   "basr_paths:\n  .zero 262144\n" ++     -- 4096 * 64
   "basr_values:\n  .zero 1048576\n" ++   -- 4096 * 256
   "basr_accounts:\n  .zero 1048576\n" ++ -- 4096 * 256
+  ziskBalAccountIsModeledSystemDataSection ++ "\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
+  "bara_bal_end:\n  .zero 8\n" ++
+  "bara_next_item:\n  .zero 8\n" ++
+  "bara_skip_modeled_system:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bara_path:\n  .zero 64\n" ++
   "bara_acct:\n  .zero 256\n" ++
