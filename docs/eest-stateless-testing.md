@@ -131,6 +131,19 @@ scripts/codegen-eest-stateless-check.sh \
   --steps 400000000
 ```
 
+The same cap experiment can be run against the focused verdict probe, which
+emits debug counters instead of the full stateless output:
+
+```bash
+scripts/codegen-zisk-stateless-verdict-check.sh \
+  --filter withdrawal_requests \
+  --skip 87 \
+  --limit 1 \
+  --bsr-witness-cap 262144 \
+  --bsr-bal-cap 1024 \
+  --steps 2000000000
+```
+
 Run a large batch:
 
 ```bash
