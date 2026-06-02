@@ -312,13 +312,16 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
   let basicPrecompileCallTail
       (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
     -- Stack top at entry is the call gas word. The destination
-    -- address is the next word for both CALL and STATICCALL.
+    -- address is the next word for both CALL and STATICCALL. EVM
+    -- address operands are masked to the low 160 bits: limb 1 and
+    -- the low 32 bits of limb 2 participate in precompile dispatch,
+    -- while bits 160..255 are ignored.
     "  ld x14, 32(x12)\n" ++
     "  ld x15, 40(x12)\n" ++
     "  bnez x15, 1f\n" ++
     "  ld x15, 48(x12)\n" ++
-    "  bnez x15, 1f\n" ++
-    "  ld x15, 56(x12)\n" ++
+    "  slli x15, x15, 32\n" ++
+    "  srli x15, x15, 32\n" ++
     "  bnez x15, 1f\n" ++
     "  li x15, 1\n" ++
     "  bltu x14, x15, 1f\n" ++
