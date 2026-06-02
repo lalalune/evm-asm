@@ -136,6 +136,9 @@ def statelessVerdictV2GuestClosure : String :=
   codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
+  addressFromPubkeyFunction ++ "\n" ++
+  enrgU32leFunction ++ "\n" ++
+  eip7702NonceReuseGuardFunction ++ "\n" ++
   statelessVerdictV2Function
 
 /-- Data section for the embedded verdict closure. -/
