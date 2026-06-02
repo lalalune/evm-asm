@@ -208,6 +208,26 @@ def emitDispatcherPrologue : String :=
   "  jalr x1, x7, 0\n" ++
   "  j .dispatch_loop"
 
+/-- Emit an exceptional-halt exit block: zero the result bytes at
+    `OUTPUT[0..32]` (no return data), tag `halt_kind = kind` at
+    `OUTPUT + 32`, then `j .exit_no_epilogue` (the universal exit join,
+    bypassing `evmAddEpilogue` which would force `halt_kind = 0` and a
+    stack-top result). Reached only via `j <label>`.
+
+    `halt_kind` scheme (`OUTPUT + 32`, u64 LE):
+    `0` STOP/unspecified · `1` RETURN · `2` REVERT · `3` INVALID (0xfe) ·
+    `4` invalid JUMP/JUMPI dest (M15.5) · `5` SELFDESTRUCT (0xff). -/
+def emitExceptionalExit (label : String) (kind : Nat) : String :=
+  s!"{label}:\n" ++
+  "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
+  "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
+  "  sd x0, 8(x16)\n" ++            -- (exceptional/return-data-free halt,
+  "  sd x0, 16(x16)\n" ++           --  surfaced deterministically)
+  "  sd x0, 24(x16)\n" ++
+  s!"  li x17, {kind}\n" ++         -- halt_kind
+  "  sd x17, 32(x16)\n" ++
+  "  j .exit_no_epilogue\n"
+
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
@@ -233,24 +253,19 @@ def emitDispatcherEpilogue
   zkvmKeccak256Function ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
-  -- M15.5: invalid-jump exceptional halt. JUMP/JUMPI route here (via
-  -- `jumpValidityTail`'s `bne x17, x18, .exit_invalid`) when
-  -- code[dest] != 0x5b. Tag halt_kind = 4 — distinct from 0=STOP /
-  -- 1=RETURN / 2=REVERT (M23) — then join the universal exit. The
-  -- result bytes at OUTPUT[0..32] stay zero (no RETURN ran), which is
-  -- correct for an exceptional halt with no return data. Reached only
-  -- via `j .exit_invalid`; `h_invalid`'s `j .exit_label` above skips
-  -- this block, and it ends with `j .exit_no_epilogue` so it never
-  -- falls through into exitBody.
-  ".exit_invalid:\n" ++
-  "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
-  "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
-  "  sd x0, 8(x16)\n" ++            -- (no RETURN ran on this path, so
-  "  sd x0, 16(x16)\n" ++           --  surface empty return data
-  "  sd x0, 24(x16)\n" ++           --  deterministically)
-  "  li x17, 4\n" ++                -- halt_kind = 4 (invalid jump)
-  "  sd x17, 32(x16)\n" ++
-  "  j .exit_no_epilogue\n" ++
+  -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
+  -- `j .exit_label` above skips them, and each ends with
+  -- `j .exit_no_epilogue` so none fall through into exitBody). Each
+  -- zero-fills the result and tags a distinct halt_kind so callers can
+  -- tell STOP / RETURN / REVERT / INVALID / invalid-jump / SELFDESTRUCT
+  -- apart at OUTPUT + 32.
+  --   .exit_invalid     (4) — M15.5 invalid JUMP/JUMPI dest
+  --                            (`jumpValidityTail`'s `bne … .exit_invalid`)
+  --   .exit_invalid_op  (3) — M23.5 INVALID opcode (0xfe)
+  --   .exit_selfdestruct(5) — M23.5 SELFDESTRUCT (0xff)
+  emitExceptionalExit ".exit_invalid" 4 ++
+  emitExceptionalExit ".exit_invalid_op" 3 ++
+  emitExceptionalExit ".exit_selfdestruct" 5 ++
   ".exit_label:\n" ++
   emitProgram exitBody ++ "\n" ++
   ".exit_no_epilogue:\n" ++
