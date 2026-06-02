@@ -28,7 +28,9 @@ open EvmAsm.Rv64
       +0 account_ptr | +8 account_len | +16 is_insert.
 
     Found accounts are copied into the caller-provided arena with is_insert=0.
-    Missing accounts use the canonical empty account RLP with is_insert=1. -/
+    Missing accounts use the canonical empty account RLP with is_insert=1.
+    Read-only BAL rows are recorded as the canonical empty account RLP with
+    is_insert=3 so descriptor construction can skip re-classifying them. -/
 def balAccountRecordArrayFunction : String :=
   "bal_account_record_array:\n" ++
   "  addi sp, sp, -112\n" ++
@@ -55,7 +57,7 @@ def balAccountRecordArrayFunction : String :=
   "  jal ra, bal_account_has_state_change\n" ++
   "  li t0, 1; beq a0, t0, .Lbara_changed\n" ++
   "  bnez a0, .Lbara_fail\n" ++
-  "  la s9, bara_empty_account; li t1, 70; li t2, 1; j .Lbara_record\n" ++
+  "  la s9, bara_empty_account; li t1, 70; li t2, 3; j .Lbara_record\n" ++
   ".Lbara_changed:\n" ++
   "  la t0, bara_item_off; ld t0, 0(t0); add a0, s3, t0\n" ++
   "  la t0, bara_item_len; ld a1, 0(t0)\n" ++
