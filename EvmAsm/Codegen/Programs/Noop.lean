@@ -2,7 +2,7 @@
   EvmAsm.Codegen.Programs.Noop
 
   M18 stack-pop / push-zero / halt no-op handler builders. These
-  20 opcodes share the same "trusted bytecode, no host state model"
+  16 opcodes share the same "trusted bytecode, no host state model"
   shape: pop the right number of EVM stack words, optionally push
   32 zero bytes, advance PC by 1 (or halt). Lifted out of
   `Programs/Evm.lean` per the file-size guard at the bottom of
@@ -10,13 +10,13 @@
 
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
-  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, MSIZE, GAS
+  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, GAS (MSIZE has a real implementation in Programs/Evm.lean)
   - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
-    EXTCODEHASH, BLOCKHASH
+    EXTCODEHASH (BLOBHASH and BLOCKHASH have real implementations in Programs/Evm.lean)
   - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
     RETURNDATACOPY, MCOPY
 
-  All 20 opcodes ship with at least one spec-incompliance (returns
+  All 16 opcodes ship with at least one spec-incompliance (returns
   zero / drops side effects) because the dispatcher has no model
   for the relevant state (accounts, calldata, block history, blob
   context, return-data buffers). Trusted bytecode that avoids
@@ -48,9 +48,13 @@ open EvmAsm.Rv64
       5. Jump to `.exit_no_epilogue` (the M23-added label that
          skips `evmAddEpilogue`'s clobbering stack-top copy).
 
-    INVALID (0xfe) and SELFDESTRUCT (0xff) continue to flow through
-    `.exit_label` → `evmAddEpilogue`, inheriting `halt_kind = 0`.
-    A follow-up PR can tag them with distinct kinds (3 / 4).
+    **M23.5 update**: INVALID (0xfe) and SELFDESTRUCT (0xff) no longer
+    flow through `.exit_label` → `evmAddEpilogue` (which would surface
+    the stack top + `halt_kind = 0`, indistinguishable from STOP).
+    INVALID jumps to `.exit_invalid_op` (`halt_kind = 3`, exceptional
+    halt) and SELFDESTRUCT to `.exit_selfdestruct` (`halt_kind = 5`,
+    normal halt) — both via the shared `emitExceptionalExit` blocks,
+    which zero the result (no return data) and tag the distinct kind.
 
     ### EVM stack contracts (RETURN / REVERT)
 
@@ -151,16 +155,17 @@ def haltHandlers : List OpcodeHandlerSpec :=
         "  ld x17, 480(x20)\n" ++         -- eventLogCheckpointOff
         "  sd x17, 472(x20)\n" ++         -- eventLogLengthOff = checkpoint
         "  j .exit_no_epilogue" }
-  , -- INVALID (M18 no-op, deferred halt-kind tagging). Flows through
-    -- .exit_label → evmAddEpilogue → halt_kind = 0.
+  , -- INVALID (0xfe). M23.5: exceptional halt — zero result +
+    -- halt_kind = 3 via the dispatcher's .exit_invalid_op block.
     { label := "h_INVALID", opcodes := [0xfe]
     , body := []
-    , tail := .custom "  j .exit_label" }
-  , -- SELFDESTRUCT (M18 no-op, deferred halt-kind tagging). Pops 1
-    -- (recipient address). Flows through .exit_label.
+    , tail := .custom "  j .exit_invalid_op" }
+  , -- SELFDESTRUCT (0xff). Pops 1 (recipient address). M23.5: normal
+    -- halt with no return data — zero result + halt_kind = 5 via the
+    -- dispatcher's .exit_selfdestruct block.
     { label := "h_SELFDESTRUCT", opcodes := [0xff]
     , body := []
-    , tail := .custom "  addi x12, x12, 32\n  j .exit_label" } ]
+    , tail := .custom "  addi x12, x12, 32\n  j .exit_selfdestruct" } ]
 
 /-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE, MSIZE, GAS).
     Each opcode pushes a single 32-byte zero value onto
@@ -186,15 +191,12 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
     , body := pushZeroBody, tail := .advanceAndRet 1 }
-  , { label := "h_MSIZE", opcodes := [0x59]
-    , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_GAS", opcodes := [0x5a]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE,
-    EXTCODEHASH, BLOCKHASH). Each opcode pops one 32-byte
-    input (e.g., an address or index) and pushes a 32-byte zero
-    value. Net EVM stack delta = 0.
+/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE, EXTCODEHASH).
+    Each opcode pops one 32-byte input (e.g., an address) and pushes a
+    32-byte zero value. Net EVM stack delta = 0.
 
     Body (4 instructions): overwrite the popped slot with 32 zero
     bytes — same shape as M17's `SLOAD`/`TLOAD`. No `x12` movement
@@ -204,12 +206,17 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     - BALANCE always returns 0 (no account state model).
     - EXTCODESIZE / EXTCODEHASH always return 0 (no external account
       model).
-    - BLOCKHASH always returns 0 (no block history).
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
     `Programs/Evm.lean`). It reads real calldata bytes from the
-    `ziskemu -i` input region. -/
+    `ziskemu -i` input region.
+
+    **M28 update**: BLOBHASH (0x49) was moved to `blobContextHandlers`
+    in `Programs/Evm.lean` with a real blob-hash-list implementation.
+
+    **M29 update**: BLOCKHASH (0x40) was moved to `blockHashHandlers`
+    in `Programs/Evm.lean` with a real block-history implementation. -/
 def popPushZeroHandlers : List OpcodeHandlerSpec :=
   let body : Program :=
     SD .x12 .x0 0 ;;
@@ -221,17 +228,14 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_EXTCODESIZE", opcodes := [0x3b]
     , body := body, tail := .advanceAndRet 1 }
   , { label := "h_EXTCODEHASH", opcodes := [0x3f]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_BLOCKHASH", opcodes := [0x40]
     , body := body, tail := .advanceAndRet 1 } ]
 
-/-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY,
-    MCOPY). Each opcode pops 3 or 4 stack values and would copy
+/-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY).
+    Each opcode pops 3 or 4 stack values and would copy
     bytes into EVM memory. As no-ops we just drop the stack args.
 
     Body: a single `ADDI .x12 .x12 (popBytes)`. CODECOPY /
-    RETURNDATACOPY / MCOPY pop 3 words = 96 bytes; EXTCODECOPY pops
-    4 = 128.
+    RETURNDATACOPY pop 3 words = 96 bytes; EXTCODECOPY pops 4 = 128.
 
     **Known limitations**: the copies are dropped on the floor.
     Programs that copy into EVM memory and then MLOAD see whatever
@@ -252,9 +256,6 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 128)
     , tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATACOPY", opcodes := [0x3e]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
-    , tail := .advanceAndRet 1 }
-  , { label := "h_MCOPY", opcodes := [0x5e]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
     , tail := .advanceAndRet 1 } ]
 
@@ -312,13 +313,16 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
   let basicPrecompileCallTail
       (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
     -- Stack top at entry is the call gas word. The destination
-    -- address is the next word for both CALL and STATICCALL.
+    -- address is the next word for both CALL and STATICCALL. EVM
+    -- address operands are masked to the low 160 bits: limb 1 and
+    -- the low 32 bits of limb 2 participate in precompile dispatch,
+    -- while bits 160..255 are ignored.
     "  ld x14, 32(x12)\n" ++
     "  ld x15, 40(x12)\n" ++
     "  bnez x15, 1f\n" ++
     "  ld x15, 48(x12)\n" ++
-    "  bnez x15, 1f\n" ++
-    "  ld x15, 56(x12)\n" ++
+    "  slli x15, x15, 32\n" ++
+    "  srli x15, x15, 32\n" ++
     "  bnez x15, 1f\n" ++
     "  li x15, 1\n" ++
     "  bltu x14, x15, 1f\n" ++

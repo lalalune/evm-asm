@@ -191,11 +191,14 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee trailer slot = 0
   "  sd x0, 520(x20)\n" ++
   "  sd x0, 528(x20)\n" ++
   "  sd x0, 536(x20)\n" ++
   "  sd x0, 544(x20)\n" ++         -- M28: blobHashCount = 0
+  "  sd x0, 552(x20)\n" ++         -- M29: currentBlockNumber = 0
+  "  sd x0, 560(x20)\n" ++         -- M29: blockHashCount = 0
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -204,6 +207,26 @@ def emitDispatcherPrologue : String :=
   "  ld x7, 0(x6)\n" ++
   "  jalr x1, x7, 0\n" ++
   "  j .dispatch_loop"
+
+/-- Emit an exceptional-halt exit block: zero the result bytes at
+    `OUTPUT[0..32]` (no return data), tag `halt_kind = kind` at
+    `OUTPUT + 32`, then `j .exit_no_epilogue` (the universal exit join,
+    bypassing `evmAddEpilogue` which would force `halt_kind = 0` and a
+    stack-top result). Reached only via `j <label>`.
+
+    `halt_kind` scheme (`OUTPUT + 32`, u64 LE):
+    `0` STOP/unspecified · `1` RETURN · `2` REVERT · `3` INVALID (0xfe) ·
+    `4` invalid JUMP/JUMPI dest (M15.5) · `5` SELFDESTRUCT (0xff). -/
+def emitExceptionalExit (label : String) (kind : Nat) : String :=
+  s!"{label}:\n" ++
+  "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
+  "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
+  "  sd x0, 8(x16)\n" ++            -- (exceptional/return-data-free halt,
+  "  sd x0, 16(x16)\n" ++           --  surfaced deterministically)
+  "  sd x0, 24(x16)\n" ++
+  s!"  li x17, {kind}\n" ++         -- halt_kind
+  "  sd x17, 32(x16)\n" ++
+  "  j .exit_no_epilogue\n"
 
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
@@ -230,24 +253,19 @@ def emitDispatcherEpilogue
   zkvmKeccak256Function ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
-  -- M15.5: invalid-jump exceptional halt. JUMP/JUMPI route here (via
-  -- `jumpValidityTail`'s `bne x17, x18, .exit_invalid`) when
-  -- code[dest] != 0x5b. Tag halt_kind = 4 — distinct from 0=STOP /
-  -- 1=RETURN / 2=REVERT (M23) — then join the universal exit. The
-  -- result bytes at OUTPUT[0..32] stay zero (no RETURN ran), which is
-  -- correct for an exceptional halt with no return data. Reached only
-  -- via `j .exit_invalid`; `h_invalid`'s `j .exit_label` above skips
-  -- this block, and it ends with `j .exit_no_epilogue` so it never
-  -- falls through into exitBody.
-  ".exit_invalid:\n" ++
-  "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
-  "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
-  "  sd x0, 8(x16)\n" ++            -- (no RETURN ran on this path, so
-  "  sd x0, 16(x16)\n" ++           --  surface empty return data
-  "  sd x0, 24(x16)\n" ++           --  deterministically)
-  "  li x17, 4\n" ++                -- halt_kind = 4 (invalid jump)
-  "  sd x17, 32(x16)\n" ++
-  "  j .exit_no_epilogue\n" ++
+  -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
+  -- `j .exit_label` above skips them, and each ends with
+  -- `j .exit_no_epilogue` so none fall through into exitBody). Each
+  -- zero-fills the result and tags a distinct halt_kind so callers can
+  -- tell STOP / RETURN / REVERT / INVALID / invalid-jump / SELFDESTRUCT
+  -- apart at OUTPUT + 32.
+  --   .exit_invalid     (4) — M15.5 invalid JUMP/JUMPI dest
+  --                            (`jumpValidityTail`'s `bne … .exit_invalid`)
+  --   .exit_invalid_op  (3) — M23.5 INVALID opcode (0xfe)
+  --   .exit_selfdestruct(5) — M23.5 SELFDESTRUCT (0xff)
+  emitExceptionalExit ".exit_invalid" 4 ++
+  emitExceptionalExit ".exit_invalid_op" 3 ++
+  emitExceptionalExit ".exit_selfdestruct" 5 ++
   ".exit_label:\n" ++
   emitProgram exitBody ++ "\n" ++
   ".exit_no_epilogue:\n" ++
@@ -392,12 +410,17 @@ def emitDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 552\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 568\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells up to env+480
-                          -- + M28 BLOBBASEFEE word at env+512 and BLOBHASH count at env+544
+                          -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
+                          -- + M28 blobHashCount at env+544
+                          -- + M29 BLOCKHASH current/count at env+552/+560
   ".balign 8\n" ++
   "evm_blob_hashes:\n" ++
   "  .zero 512\n" ++      -- M28: bounded 16 × 32-byte tx blob versioned hashes
+  ".balign 8\n" ++
+  "evm_block_hashes:\n" ++
+  "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
@@ -490,6 +513,14 @@ def emitRuntimeDispatcherPrologue : String :=
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
+  "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee[0] = 0 (overwritten by trailer load below)
+  "  sd x0, 520(x20)\n" ++         -- M28: blobBaseFee[1] = 0
+  "  sd x0, 528(x20)\n" ++         -- M28: blobBaseFee[2] = 0
+  "  sd x0, 536(x20)\n" ++         -- M28: blobBaseFee[3] = 0
+  "  sd x0, 544(x20)\n" ++         -- M28: blobHashCount = 0 (overwritten by trailer load below)
+  "  sd x0, 552(x20)\n" ++         -- M29: currentBlockNumber = 0 (overwritten by trailer load below)
+  "  sd x0, 560(x20)\n" ++         -- M29: blockHashCount = 0
   "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
   "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
   ".preload_expand_loop:\n" ++
@@ -527,7 +558,7 @@ def emitRuntimeDispatcherPrologue : String :=
   "  j .preload_expand_loop\n" ++
   ".preload_expand_done:\n" ++
   -- M28: x5 now points at the blob-base-fee trailer. Copy the 32-byte
-  -- EVM-stack word into a separate env slot; opcode 0x4a loads it.
+  -- EVM-stack word into env+512..+540; opcode 0x4a loads it from there.
   "  ld x8, 0(x5)\n" ++
   "  sd x8, 512(x20)\n" ++
   "  ld x8, 8(x5)\n" ++
@@ -564,6 +595,36 @@ def emitRuntimeDispatcherPrologue : String :=
   "  addi x6, x6, -1\n" ++
   "  j .blob_hash_copy_loop\n" ++
   ".blob_hash_copy_done:\n" ++
+  -- M29: BLOCKHASH context trailer follows blob hash table:
+  --   u64 current_block_number
+  --   u64 block_hash_count
+  --   count × 32-byte hashes, in increasing block-number order.
+  -- The table is clamped to the EVM window size (256 ancestors).
+  "  ld x6, 0(x5)\n" ++            -- x6 = current block number
+  "  sd x6, 552(x20)\n" ++
+  "  ld x6, 8(x5)\n" ++            -- x6 = source hash count
+  "  li x7, 256\n" ++
+  "  bgeu x7, x6, .blockhash_count_ok\n" ++
+  "  mv x6, x7\n" ++
+  ".blockhash_count_ok:\n" ++
+  "  sd x6, 560(x20)\n" ++
+  "  addi x5, x5, 16\n" ++         -- x5 = first source hash
+  "  la x7, evm_block_hashes\n" ++
+  ".blockhash_copy_loop:\n" ++
+  "  beqz x6, .blockhash_copy_done\n" ++
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 0(x7)\n" ++
+  "  ld x8, 8(x5)\n" ++
+  "  sd x8, 8(x7)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 16(x7)\n" ++
+  "  ld x8, 24(x5)\n" ++
+  "  sd x8, 24(x7)\n" ++
+  "  addi x5, x5, 32\n" ++
+  "  addi x7, x7, 32\n" ++
+  "  addi x6, x6, -1\n" ++
+  "  j .blockhash_copy_loop\n" ++
+  ".blockhash_copy_done:\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -588,12 +649,17 @@ def emitRuntimeDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 552\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 568\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells up to env+480
-                          -- + M28 BLOBBASEFEE word at env+512 and BLOBHASH count at env+544
+                          -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
+                          -- + M28 blobHashCount at env+544
+                          -- + M29 BLOCKHASH current/count at env+552/+560
   ".balign 8\n" ++
   "evm_blob_hashes:\n" ++
   "  .zero 512\n" ++      -- M28: bounded 16 × 32-byte tx blob versioned hashes
+  ".balign 8\n" ++
+  "evm_block_hashes:\n" ++
+  "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
