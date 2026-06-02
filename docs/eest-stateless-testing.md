@@ -79,11 +79,11 @@ cluster:
 scripts/codegen-eest-bal-replay-frontier-check.sh --jobs 4
 ```
 
-This starts at `--skip 21417`, checks `--limit 10`, and stops after the two
-known conservative misses. With parallel jobs, the number of completed passes
-before the stop point depends on scheduling. Use
-`scripts/eest-bal-replay-report.py --details` after a run to inspect the BAL row
-shape for the selected inputs.
+This filters to `withdrawal_requests`, starts at local `--skip 83`, checks
+`--limit 20`, and stops after the two known conservative misses. With parallel
+jobs, the number of completed passes before the stop point depends on
+scheduling. Use `scripts/eest-bal-replay-report.py --details` after a run to
+inspect the BAL row shape for the selected inputs.
 
 Run a large batch:
 
