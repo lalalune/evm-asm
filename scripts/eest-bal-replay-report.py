@@ -11,6 +11,10 @@ Recommended:
 After an EEST harness run, restrict the report to completed failures/errors:
   uv run --directory execution-specs --quiet python3 \
     ../scripts/eest-bal-replay-report.py --failures-only --details
+
+Model a proposed `block_state_root` witness cap:
+  uv run --directory execution-specs --quiet python3 \
+    ../scripts/eest-bal-replay-report.py --failures-only --bsr-cap 65536
 """
 
 from __future__ import annotations
@@ -78,7 +82,11 @@ WITHDRAWAL_REQUEST_ADDRESS = "00000961ef480eb55e80d19ad83579a64c007002"
 BLOCK_STATE_ROOT_WITNESS_CAP = 32768
 
 
-def summarize(input_path: Path) -> tuple[dict[str, int], list[dict[str, str]]]:
+def summarize(
+    input_path: Path,
+    *,
+    bsr_cap: int,
+) -> tuple[dict[str, int], list[dict[str, str]]]:
     stateless_input, payload, bal = decode_bal(input_path)
     summary = {
         "input_len": input_path.stat().st_size - 8,
@@ -102,9 +110,7 @@ def summarize(input_path: Path) -> tuple[dict[str, int], list[dict[str, str]]]:
         "code_witness_bytes": sum(4 + len(code) for code in stateless_input.witness.codes),
         "txs": len(payload.transactions),
     }
-    summary["over_bsr_cap"] = int(
-        summary["state_witness_bytes"] > BLOCK_STATE_ROOT_WITNESS_CAP
-    )
+    summary["over_bsr_cap"] = int(summary["state_witness_bytes"] > bsr_cap)
     details: list[dict[str, str]] = []
 
     for row, account_changes in enumerate(bal):
@@ -201,10 +207,18 @@ def main() -> int:
         action="store_true",
         help="only include completed harness ERROR or non-full-match cases",
     )
+    parser.add_argument(
+        "--bsr-cap",
+        type=int,
+        default=BLOCK_STATE_ROOT_WITNESS_CAP,
+        help="block_state_root witness cap used for over_bsr_cap",
+    )
     args = parser.parse_args()
 
     if args.limit < 0:
         parser.error("--limit must be nonnegative")
+    if args.bsr_cap < 0:
+        parser.error("--bsr-cap must be nonnegative")
     if not args.manifest.is_file():
         raise SystemExit(f"manifest not found: {args.manifest}")
     results_dir = args.results_dir or args.manifest.parent
@@ -274,7 +288,7 @@ def main() -> int:
             ):
                 continue
 
-            summary, details = summarize(Path(input_file))
+            summary, details = summarize(Path(input_file), bsr_cap=args.bsr_cap)
             print(
                 "\t".join(
                     [
