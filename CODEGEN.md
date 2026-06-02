@@ -40,7 +40,7 @@ untouched. Generated artifacts go in `gen-out/` (gitignored).
 | `EvmAsm/Codegen/Layout.lean` | `HaltConv` enum, halt stubs, `_start` preamble, `.option norvc`, `MEM_START`/`MEM_END` constants, `BuildUnit` struct + `emitBuildUnit`/`emitDataLabel` helpers. |
 | `EvmAsm/Codegen/Dispatch.lean` | M5b dispatcher scaffolding: `OpcodeHandlerSpec` (optional `preBody` for x10-clobbering handlers + optional `postBodyLabel` for M9's trampoline pattern) + `HandlerTail` types, `emitDispatcherPrologue`/`Epilogue`/`DataSection` and `buildDispatchUnit` helpers. M8.5 adds the parallel runtime-bytecode helpers (`emitRuntimeDispatcherPrologue` / `emitRuntimeDispatcherDataSection` / `buildRuntimeDispatchUnit`) that read bytecode from `INPUT_ADDR + INPUT_DATA_OFFSET` at runtime. Pure (no IO). |
 | `EvmAsm/Codegen/Programs.lean` | `BuildUnit` lookup hub: `lookupProgram`, `knownProgramNames`, plus the `statelessGuestUnit` build target. Imports every `BuildUnit` defined under `Programs/`. The actual M5b opcode-handler registry (`tinyInterpRegistry`) and the `BuildUnit`s for `evm_add` / `evm_div` / `evm_mod` / `input_echo` / `runtime_dispatcher` / `tiny_interp_*` now live in `Programs/Evm.lean` (see next row). |
-| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `envHandlers` (13 simple environment opcodes ADDRESS/CALLER/.../BASEFEE, M12), `calldataHandlers` (CALLDATASIZE, M13), `controlFlowHandlers` (JUMPDEST from M14; JUMP/JUMPI/PC added in M15), `hashHandlers` (KECCAK256 via ECALL bridge from M16), `logHandlers` (LOG0–LOG4 as stack-pop no-ops, M17), `storageHandlers` (SLOAD/SSTORE/TLOAD/TSTORE as no-op stack ops with empty-storage semantics, M17), `haltHandlers`/`pushZeroHandlers`/`popPushZeroHandlers`/`copyNoopHandlers` (M18 — 20 trivial no-ops covering RETURN/REVERT/INVALID/SELFDESTRUCT + 5 push-zero + 6 pop+push-zero + 5 copy-no-op opcodes; defined in `Programs/Noop.lean`), `childFrameHandlers` (M19 — 6 child-frame opcodes CREATE/CALL/CALLCODE/DELEGATECALL/CREATE2/STATICCALL as pop-N + push-zero no-ops; also in `Programs/Noop.lean`), `arithNoopHandlers` (M20 — MULMOD + EXP as pop-N + push-zero no-ops; in `Programs/Noop.lean`), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable, M10), and `stopHandler`. Total: **149 wired opcodes — 🎯 100% of the 149-byte EVM space**. Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
+| `EvmAsm/Codegen/Programs/` | Execution-layer programs supporting the Stateless guest (40+ files): Account / Block / Chain / Header / Mpt / Tx / Receipt / Bloom / RLP read / SSZ / U256 / etc. Plus `Programs/Evm.lean` — the M5b opcode handler registry **`tinyInterpRegistry`** at `Programs/Evm.lean:666`, composed from `pushHandlers` (PUSH0..32), `dupHandlers` (DUP1..16), `swapHandlers` (SWAP1..16), `singletonHandlers` (19 fixed-shape opcodes incl. SHL/SAR from M11), `memoryHandlers` (MLOAD/MSTORE/MSTORE8, M7), `envHandlers` (13 simple environment opcodes ADDRESS/CALLER/.../BASEFEE, M12), `calldataHandlers` (CALLDATASIZE, M13), `controlFlowHandlers` (JUMPDEST from M14; JUMP/JUMPI/PC added in M15), `hashHandlers` (KECCAK256 via ECALL bridge from M16), `logHandlers` (LOG0–LOG4 as stack-pop no-ops, M17), `storageHandlers` (SLOAD/SSTORE/TLOAD/TSTORE as no-op stack ops with empty-storage semantics, M17), `haltHandlers`/`pushZeroHandlers`/`popPushZeroHandlers`/`copyNoopHandlers` (M18 — 20 trivial no-ops covering RETURN/REVERT/INVALID/SELFDESTRUCT + 5 push-zero + 6 pop+push-zero + 5 copy-no-op opcodes; defined in `Programs/Noop.lean`), `childFrameHandlers` (M19 — 6 child-frame opcodes CREATE/CALL/CALLCODE/DELEGATECALL/CREATE2/STATICCALL as pop-N + push-zero no-ops; also in `Programs/Noop.lean`), `arithNoopHandlers` (MULMOD as a pop-N + push-zero no-op; in `Programs/Noop.lean` — EXP graduated to a real body in M27), `divModHandlers` (DIV/MOD, M8), `signedDivModHandlers` (SDIV/SMOD via trampoline, M9), `selfCallingHandlers` (ADDMOD via inline-callable from M10; EXP via inline-callable `_fixed_fixed` body from M27), and `stopHandler`. Total: **149 wired opcodes — 🎯 100% of the 149-byte EVM space**. Also hosts shared helpers (`advancePc`, `copy64`, `evmAddEpilogue`, `evmDivPatched`/`evmModPatched`/`evmSdivPatched`/`evmSmodPatched` for the DIV/MOD/SDIV/SMOD NOP-splice). |
 | `EvmAsm/Codegen/Proofs/` | Codegen-proofs scaffolding (post-M10). `RegistryInvariants.lean` (Phase 1) — 6 `decide`-checked theorems about `tinyInterpRegistry`'s structural well-formedness (Nodup on opcodes/labels, byte bounds, jump-table coverage). `HandlerSpecs.lean` (Phase 4) — reusable `cleanRetHandlerSpec` template + **13 concrete handler-level `cpsTripleWithin` instances** for clean-shape singletons (ADD, POP, SUB, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT). Phases 2, 3, 5 + the remaining Phase 4 instances are still future work. |
 | `EvmAsm/Codegen/Tests/Cases.lean` | Per-opcode regression test registry: `OpcodeTestCase` struct + `opcodeTestCases` list (**59 cases** as of M20). Wraps each bytecode through the M5b dispatcher for end-to-end ziskemu validation. |
 | `EvmAsm/Codegen/Cli.lean` | Argument parsing (`--program`, `--test-case`, `--list-test-cases`, `--halt`, `--out`, `--asm-only`). |
@@ -2014,6 +2014,76 @@ unchanged — they don't assert on `OUTPUT[56..]` and the
 dedup-and-emit only writes within that previously-unused
 range). `scripts/check-progress.sh` exits 0. Build clean
 (`lake build EvmAsm.Codegen` exits 0).
+
+### M27 — Real EXP (0x0a): graduate from no-op to verified body — **DONE (2026-06-02)**
+
+(Numbered M27 to leave room for the real LOG-event-capture work that
+landed after M25 in git — commit `7a160eec2` — but was not given its own
+doc milestone.)
+
+EXP (0x0a) graduates from the M20 `arithNoopHandlers` no-op to its real
+verified body, routed through `selfCallingHandlers` with the same
+inline-callable pattern as ADDMOD (M10).
+
+**The blocker was a real bug, not an upstream gap.** The `_fixed` EXP body
+(`EvmAsm/Evm64/Exp/Program.lean`) moved the exponent *cursor* to
+callee-saved `x19`, but left the per-limb *counter* in `x6` — which
+`mul_callable` (= `evm_mul ;; cc_ret`) clobbers ~51× per call. Since the
+squaring / conditional-multiply blocks call `mul_callable` mid-iteration,
+`x6` was garbage on the next bit-test, producing wrong results / an
+infinite reload loop (documented in `scripts/codegen-evm_exp-property-check.sh`).
+The earlier "x16 is also unsafe" note was stale — `evm_mul` touches none
+of `x16/x18/x19/x22`.
+
+**Delivered:**
+- **`EvmAsm/Evm64/Exp/Program.lean`** — new `_fixed_fixed` family
+  (`exp_prologue_fixed_fixed`, `exp_msb_bit_test_block_fixed_fixed`,
+  `exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed`,
+  `evm_exp_msb_saved_bit_two_mul_fixed_fixed[_canonical]` + length
+  theorems). Pure register substitution `x6 → x22` (s6, callee-saved); all
+  instruction counts and byte offsets identical to `_fixed`, so the
+  canonical branch/MUL offsets carry over.
+- **`EvmAsm/Codegen/Programs/Evm.lean`** — `evmExpComposed` =
+  `evm_exp_..._fixed_fixed_canonical 200 92 ;; JAL x0 +260 ;; mul_callable`,
+  mirroring `evmAddmodComposed`. MUL-call offsets shift +4 (196→200,
+  88→92) because the 4-byte skip-JAL pushes `mul_callable` to body byte
+  340; the skip-JAL (260 = 4 + 256) carries the loop-exit fall-through
+  past the callable to the tail (`exp_epilogue` has no trailing jump). New
+  `h_EXP` entry in `selfCallingHandlers` with
+  `preBody := "mv x14, x10\n  la x2, exp_scratch"` and a custom `expTail`
+  (`mv x10, x14; la sp, lp64_sp_top; addi x10, x10, 1; j .dispatch_loop`).
+  Removed EXP from `arithNoopHandlers` (MULMOD stays).
+- **`EvmAsm/Codegen/Dispatch.lean`** — both data sections gain a 32-byte
+  `exp_scratch:` region. The EXP body uses `x2`(sp)+0..24 as its result
+  accumulator; the dispatcher's `sp = lp64_sp_top` is the top of a
+  down-growing stack immediately followed by the jump table, so `sp+0..24`
+  would corrupt opcode-handler entries 0–3 (incl. STOP). `h_EXP` repoints
+  `x2` at `exp_scratch` and its tail restores `sp`.
+- **`EvmAsm/Codegen/Programs/ExpProperty.lean`** — `evm_exp_from_input`
+  upgraded to the `_fixed_fixed` body + skip-JAL (it was doubly broken: the
+  x6 clobber *and* `exp_epilogue` falling straight into `mul_callable`).
+  `scripts/codegen-evm_exp-property-check.sh` now validates random
+  `(base, exponent)` pairs against Python `pow(base, exp, 2**256)`.
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — replaced the `exp_pop2` no-op
+  case with two real cases: `exp_basic` (2³=8, exercises cond-multiply)
+  and `exp_zero` (5⁰=1, exercises the per-limb counter reload across all
+  4 limbs via 256 squarings). Total cases 76 → 77.
+
+**Known limitation (documented in `evmExpComposed`):** the verified EXP
+body uses `x12+64..120` (deeper-stack direction) as MUL factor scratch —
+fine when EXP's operands are the shallowest live elements (true for the
+test cases and the standalone harness's reserved `operands_ram+64..127`),
+but it overwrites deeper stack slots if EXP runs with a deeper stack. A
+full-domain dispatcher fix would give the body a dedicated MUL-scratch
+base register instead of reusing `x12`. `RegistryInvariants` counts are
+unchanged (149) — EXP was already counted; it only moved lists.
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all **77 cases
+PASS** (`exp_basic`, `exp_zero` included). `scripts/codegen-evm_exp-property-check.sh
+--count=30` exits 0 (all 30 random cases match Python `pow`).
+`scripts/check-progress.sh` exits 0. Build clean (`lake build EvmAsm.Codegen`
+exits 0).
 
 ### Sequencing
 
