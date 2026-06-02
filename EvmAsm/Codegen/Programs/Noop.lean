@@ -456,27 +456,17 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
       placeholder in `EvmAsm/Evm64/MulMod/Program.lean` (slice
       evm-asm-m4wu unscheduled). A future PR will swap in the
       real Knuth-style 512-bit + reduce-by-N body once it lands.
-    - **EXP** always returns 0. **The verified body actually
-      exists** (`evm_exp_msb_saved_bit_two_mul_fixed` in
-      `EvmAsm/Evm64/Exp/Program.lean`, x19-callee-saved cursor
-      design; ~84 instructions). The M21 PR after this one will
-      wire it via the M10-style inline-callable composition
-      pattern (~300–500 LOC: embed `mul_callable` in the
-      dispatcher epilogue, pin JAL offsets for the squaring +
-      conditional-multiply calls, use M9-style trampoline tail).
+    - **EXP** graduated from a no-op to a real verified body and now
+      lives in `selfCallingHandlers` (`EvmAsm/Codegen/Programs/Evm.lean`)
+      as `evmExpComposed`, using the `_fixed_fixed` body variant
+      (per-limb counter moved from `x6` to callee-saved `x22` so it
+      survives `mul_callable`). Only MULMOD remains a no-op here.
 
-    Trusted bytecode that doesn't depend on MULMOD / EXP results
-    continues to work correctly. -/
+    Trusted bytecode that doesn't depend on MULMOD results continues
+    to work correctly. -/
 def arithNoopHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_MULMOD", opcodes := [0x09]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 64) ;;
-              SD .x12 .x0 0 ;;
-              SD .x12 .x0 8 ;;
-              SD .x12 .x0 16 ;;
-              SD .x12 .x0 24
-    , tail := .advanceAndRet 1 }
-  , { label := "h_EXP", opcodes := [0x0a]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 32) ;;
               SD .x12 .x0 0 ;;
               SD .x12 .x0 8 ;;
               SD .x12 .x0 16 ;;
