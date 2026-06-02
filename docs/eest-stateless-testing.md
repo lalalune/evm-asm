@@ -235,6 +235,16 @@ dbg=[bv_fail=... header=... state=... bal_count=... bsr_fail=... change_count=..
 `bacv`, `baap`, and `sri` fields expose the lower-level account, storage, and
 state-read helpers.
 
+For receipt/log-specific misses, generate a triage map that links likely
+blockers to focused beads:
+
+```bash
+scripts/eest-receipt-log-frontier-report.py --run-dir gen-out/eest-run --limit 100
+```
+
+See [`eest-receipt-log-frontier.md`](eest-receipt-log-frontier.md) for the
+class definitions and owner beads.
+
 Run a large batch:
 
 ```bash
