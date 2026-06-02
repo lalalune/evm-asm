@@ -39,6 +39,7 @@ import EvmAsm.EL.Bn254G1AddEcallBridge
 import EvmAsm.EL.Bn254G1MulEcallBridge
 import EvmAsm.EL.Bn254PairingEcallBridge
 import EvmAsm.EL.KzgPointEvalEcallBridge
+import EvmAsm.EL.ModexpEcallBridge
 import EvmAsm.EL.Secp256r1VerifyEcallBridge
 
 namespace EvmAsm.Stateless.VM.Precompiles
@@ -323,6 +324,213 @@ theorem emptyOutput_length :
     emptyOutput.length = 0 := rfl
 
 end BN254
+
+namespace Modexp
+
+abbrev AcceleratorInput := EvmAsm.EL.ModexpInputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.ModexpResultBridge.AcceleratorResult
+
+/-- MODEXP precompile address. -/
+def address : Nat := 0x05
+
+/-- Osaka/EIP-7823 maximum byte length for base, exponent, and modulus. -/
+def maxComponentLength : Nat := 1024
+
+/-- MODEXP call-data header size: base length, exponent length, modulus length. -/
+def headerLength : Nat := 96
+
+/-- Executable-spec `buffer_read(data, start, size)` with zero padding. -/
+def bufferRead (data : ByteList) (start size : Nat) : ByteList :=
+  (List.range size).map fun i =>
+    match data[start + i]? with
+    | some b => b
+    | none => 0
+
+/-- Decode a big-endian unsigned integer from a byte list. -/
+def natFromBytesBE (bytes : ByteList) : Nat :=
+  EvmAsm.EL.RLP.Nat.fromBytesBE bytes
+
+/-- Read a 32-byte big-endian length field from MODEXP call data. -/
+def readLength (data : ByteList) (offset : Nat) : Nat :=
+  natFromBytesBE (bufferRead data offset 32)
+
+def baseLength (data : ByteList) : Nat :=
+  readLength data 0
+
+def exponentLength (data : ByteList) : Nat :=
+  readLength data 32
+
+def modulusLength (data : ByteList) : Nat :=
+  readLength data 64
+
+def exponentStart (data : ByteList) : Nat :=
+  headerLength + baseLength data
+
+def modulusStart (data : ByteList) : Nat :=
+  exponentStart data + exponentLength data
+
+def exponentHead (data : ByteList) : Nat :=
+  natFromBytesBE (bufferRead data (exponentStart data) (min 32 (exponentLength data)))
+
+/-- EIP-2565/Osaka multiplication complexity. -/
+def complexity (baseLen modulusLen : Nat) : Nat :=
+  let maxLen := max baseLen modulusLen
+  let words := (maxLen + 7) / 8
+  if maxLen > 32 then 2 * words * words else 16
+
+/-- EIP-2565/Osaka adjusted exponent iteration count. -/
+def iterations (exponentLen exponentHead : Nat) : Nat :=
+  let count :=
+    if exponentLen ≤ 32 ∧ exponentHead = 0 then
+      0
+    else if exponentLen ≤ 32 then
+      exponentHead.log2
+    else
+      16 * (exponentLen - 32) + exponentHead.log2
+  max count 1
+
+/-- Osaka MODEXP gas cost from execution-specs `modexp.gas_cost`. -/
+def gasCost (baseLen modulusLen exponentLen exponentHead : Nat) : Nat :=
+  max 500 (complexity baseLen modulusLen * iterations exponentLen exponentHead)
+
+def gasCostFromCallData (data : ByteList) : Nat :=
+  gasCost (baseLength data) (modulusLength data) (exponentLength data) (exponentHead data)
+
+def componentLengthsValid (data : ByteList) : Prop :=
+  baseLength data ≤ maxComponentLength ∧
+  exponentLength data ≤ maxComponentLength ∧
+  modulusLength data ≤ maxComponentLength
+
+def componentLengthsValidBool (data : ByteList) : Bool :=
+  baseLength data ≤ maxComponentLength &&
+  exponentLength data ≤ maxComponentLength &&
+  modulusLength data ≤ maxComponentLength
+
+def acceleratorInputFromCallData (data : ByteList) : AcceleratorInput :=
+  { base := bufferRead data headerLength (baseLength data)
+    exp := bufferRead data (exponentStart data) (exponentLength data)
+    modulus := bufferRead data (modulusStart data) (modulusLength data) }
+
+/-- Result surface exposed to the caller by the pure MODEXP framing layer.
+
+`exceptional = true` represents Osaka's pre-gas length-cap halt. Otherwise
+`gasCharged` is the decoded MODEXP gas cost and `output` is the precompile
+return data. -/
+structure Result where
+  exceptional : Bool
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+def exceptionalResult : Result :=
+  { exceptional := true
+    status := .efail
+    output := []
+    gasCharged := 0 }
+
+def execute
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (data : ByteList) : Result :=
+  if componentLengthsValidBool data then
+    let gas := gasCostFromCallData data
+    if baseLength data = 0 ∧ modulusLength data = 0 then
+      { exceptional := false
+        status := .eok
+        output := []
+        gasCharged := gas }
+    else
+      let result := EvmAsm.EL.ModexpEcallBridge.executeModexpEcall accelerator
+        (EvmAsm.EL.ModexpEcallBridge.requestFromInput
+          (acceleratorInputFromCallData data))
+      match result.status with
+      | .eok =>
+          { exceptional := false
+            status := result.status
+            output := result.output.bytes
+            gasCharged := gas }
+      | .efail =>
+          { exceptional := false
+            status := result.status
+            output := []
+            gasCharged := gas }
+  else
+    exceptionalResult
+
+@[simp] theorem bufferRead_length (data : ByteList) (start size : Nat) :
+    (bufferRead data start size).length = size := by
+  simp [bufferRead]
+
+@[simp] theorem bufferRead_zero (data : ByteList) (start : Nat) :
+    bufferRead data start 0 = [] := rfl
+
+theorem acceleratorInputFromCallData_base_length (data : ByteList) :
+    (acceleratorInputFromCallData data).base.length = baseLength data := by
+  simp [acceleratorInputFromCallData]
+
+theorem acceleratorInputFromCallData_exp_length (data : ByteList) :
+    (acceleratorInputFromCallData data).exp.length = exponentLength data := by
+  simp [acceleratorInputFromCallData]
+
+theorem acceleratorInputFromCallData_modulus_length (data : ByteList) :
+    (acceleratorInputFromCallData data).modulus.length = modulusLength data := by
+  simp [acceleratorInputFromCallData]
+
+@[simp] theorem complexity_small (baseLen modulusLen : Nat)
+    (h_max : max baseLen modulusLen ≤ 32) :
+    complexity baseLen modulusLen = 16 := by
+  simp [complexity, Nat.not_lt.mpr h_max]
+
+@[simp] theorem iterations_zero_head (exponentLen : Nat)
+    (h_len : exponentLen ≤ 32) :
+    iterations exponentLen 0 = 1 := by
+  simp [iterations, h_len]
+
+theorem gasCost_minimum (baseLen modulusLen exponentLen exponentHead : Nat) :
+    500 ≤ gasCost baseLen modulusLen exponentLen exponentHead := by
+  simp [gasCost]
+
+theorem gasCost_zero_lengths :
+    gasCost 0 0 0 0 = 500 := rfl
+
+theorem gasCost_one_byte_small_exp :
+    gasCost 1 1 1 1 = 500 := rfl
+
+@[simp] theorem execute_badLengths
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (data : ByteList)
+    (h_valid : componentLengthsValidBool data = false) :
+    execute accelerator data = exceptionalResult := by
+  simp [execute, h_valid]
+
+@[simp] theorem execute_zero_base_zero_modulus
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (data : ByteList)
+    (h_valid : componentLengthsValidBool data = true)
+    (h_base : baseLength data = 0)
+    (h_modulus : modulusLength data = 0) :
+    execute accelerator data =
+      { exceptional := false
+        status := .eok
+        output := []
+        gasCharged := gasCostFromCallData data } := by
+  simp [execute, h_valid, h_base, h_modulus]
+
+@[simp] theorem execute_gasCharged_valid
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (data : ByteList)
+    (h_valid : componentLengthsValidBool data = true) :
+    (execute accelerator data).gasCharged = gasCostFromCallData data := by
+  by_cases h_zero : baseLength data = 0 ∧ modulusLength data = 0
+  · simp [execute, h_valid, h_zero.1, h_zero.2]
+  · have h_not : ¬ (baseLength data = 0 ∧ modulusLength data = 0) := h_zero
+    cases h_status :
+        (EvmAsm.EL.ModexpEcallBridge.executeModexpEcall accelerator
+          (EvmAsm.EL.ModexpEcallBridge.requestFromInput
+            (acceleratorInputFromCallData data))).status <;>
+      simp [execute, h_valid, h_not, h_status]
+
+end Modexp
 
 namespace KzgPointEvaluation
 
