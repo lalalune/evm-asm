@@ -27,6 +27,7 @@ precompile gas or call/create gas.
 | Witness-backed state reads | `evm-asm-fhsxz.2.4.2.58` | `sload_non_const` | Replaces local/stub reads for `BALANCE`, `SLOAD`, `EXTCODE*`, and account existence. |
 | General post-state root | `evm-asm-fhsxz.2.4.2.59` | `sstore_non_const` | Recomputes nonce, balance, storage root, code hash, creation, and deletion effects. |
 | Opcode dispatcher | `evm-asm-fhsxz.2.4.2.60` | `frontier/opcodes` | Runs bytecode fixtures through the EVM dispatcher instead of postponing opcode classes. |
+| EIP-6780 SELFDESTRUCT | `evm-asm-fhsxz.2.4.2.60.6.2` | `eip6780_selfdestruct` | Tracks Cancun SELFDESTRUCT creation/deletion, balance-transfer, revert, CREATE2 collision, and post-state effects. Frontier: [`docs/eest-eip6780-selfdestruct-frontier.md`](eest-eip6780-selfdestruct-frontier.md). |
 | Call/create frames | `evm-asm-fhsxz.2.4.2.61` | `stCallCodes` | Adds child contexts, returndata, revert propagation, value transfer, and frame gas. |
 | Precompile dispatch | `evm-asm-fhsxz.2.4.2.62` | `frontier/precompiles` | Adds gas and return-data framing for identity, ecrecover, modexp, BN128, BLAKE2, BLS, and later precompiles. Matrix: [`docs/eest-precompile-frontier.md`](eest-precompile-frontier.md). |
 | Receipts/logs/bloom | `evm-asm-fhsxz.2.4.2.63` | `log0_non_const` | Produces receipts, cumulative gas, logs, and blooms after transaction execution. |
