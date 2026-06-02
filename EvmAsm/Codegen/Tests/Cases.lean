@@ -241,6 +241,12 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mstore8_basic"
       bytecode       := "0x60, 0xff, 0x60, 0x00, 0x53, 0x60, 0x00, 0x51, 0x00"
       expectedOutHex := "00000000000000000000000000000000000000000000000000000000000000ff" }
+  , -- PUSH1 0x40; MLOAD; MSIZE; STOP
+    -- MLOAD touches memory[0x40..0x60), so MSIZE reports the rounded
+    -- active size 0x60.
+    { name           := "mload_updates_msize"
+      bytecode       := "0x60, 0x40, 0x51, 0x59, 0x00"
+      expectedOutHex := "6000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M12 simple environment opcodes (ADDRESS, CALLER, …)
     -- The evm_env data region is zero-initialised by the dispatcher's
     -- .data section. Each test confirms the handler routes through
@@ -379,8 +385,8 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- `opcodeTestCases` (test `tstore_tload_round_trip`, which
     -- additionally asserts the transient log_length surface).
     -- ## M18 trivial no-op handlers (94.6% coverage milestone)
-    -- 20 opcodes across 4 builders: haltHandlers (4), pushZeroHandlers
-    -- (5), popPushZeroHandlers (6), copyNoopHandlers (5). One
+    -- 16 opcodes across 4 builders: haltHandlers (4), pushZeroHandlers
+    -- (4), popPushZeroHandlers (5), copyNoopHandlers (3). One
     -- representative test per builder + an INVALID smoke.
   , -- PUSH1 0xff; PUSH1 0x11; PUSH1 0x22; RETURN
     -- RETURN(offset=0x22, size=0x11) reads 0x11 bytes from
@@ -415,12 +421,29 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0xab, 0x31, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x01; PUSH1 0x02; PUSH1 0x03; MCOPY; PUSH1 0x42; STOP
-    -- MCOPY pops 3 args (no-op copy); PUSH1 0x42 lands on the empty
-    -- stack. Expected: 0x42 in low limb. Smoke test for
-    -- copyNoopHandlers.
+    -- MCOPY pops 3 args; PUSH1 0x42 lands on the empty stack.
     { name           := "mcopy_pop3"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x5e, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+  , -- MSTORE8 writes 0xab at memory[0]; MCOPY(dest=1, src=0, len=1)
+    -- copies that byte to memory[1]. MLOAD(0) observes bytes 0 and 1.
+    { name           := "mcopy_copies_byte"
+      bytecode       := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0x60, 0x01, 0x5e, 0x60, 0x00, 0x51, 0x00"
+      expectedOutHex := "000000000000000000000000000000000000000000000000000000000000abab" }
+  , -- MCOPY(dest=0x40, src=0, len=1) expands memory to 0x60.
+    { name           := "mcopy_msize_dest_range"
+      bytecode       := "0x60, 0x01, 0x60, 0x00, 0x60, 0x40, 0x5e, 0x59, 0x00"
+      expectedOutHex := "6000000000000000000000000000000000000000000000000000000000000000" }
+  , -- MCOPY(dest=0, src=0x40, len=1) expands memory to 0x60 from
+    -- the read range as required by EIP-5656.
+    { name           := "mcopy_msize_source_range"
+      bytecode       := "0x60, 0x01, 0x60, 0x40, 0x60, 0x00, 0x5e, 0x59, 0x00"
+      expectedOutHex := "6000000000000000000000000000000000000000000000000000000000000000" }
+  , -- MCOPY with len=0 does not expand memory even with non-zero
+    -- source and destination offsets.
+    { name           := "mcopy_zero_length_keeps_msize"
+      bytecode       := "0x60, 0x00, 0x60, 0x80, 0x60, 0xff, 0x5e, 0x59, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M19/M27 child-frame opcodes (CREATE/CALL/CALLCODE/
     -- DELEGATECALL/CREATE2/STATICCALL). CREATE-family and
     -- non-precompile CALL-family targets remain pop-N + push-zero

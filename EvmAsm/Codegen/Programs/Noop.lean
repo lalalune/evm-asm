@@ -2,7 +2,7 @@
   EvmAsm.Codegen.Programs.Noop
 
   M18 stack-pop / push-zero / halt no-op handler builders. These
-  20 opcodes share the same "trusted bytecode, no host state model"
+  16 opcodes share the same "trusted bytecode, no host state model"
   shape: pop the right number of EVM stack words, optionally push
   32 zero bytes, advance PC by 1 (or halt). Lifted out of
   `Programs/Evm.lean` per the file-size guard at the bottom of
@@ -10,14 +10,12 @@
 
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
-  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, BLOBBASEFEE,
-    MSIZE, GAS
-  - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
+  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, BLOBBASEFEE, GAS
+  - `popPushZeroHandlers` — BALANCE, EXTCODESIZE,
     EXTCODEHASH, BLOCKHASH, BLOBHASH
-  - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
-    RETURNDATACOPY, MCOPY
+  - `copyNoopHandlers` — CODECOPY, EXTCODECOPY, RETURNDATACOPY
 
-  All 20 opcodes ship with at least one spec-incompliance (returns
+  All 16 opcodes ship with at least one spec-incompliance (returns
   zero / drops side effects) because the dispatcher has no model
   for the relevant state (accounts, calldata, block history, blob
   context, return-data buffers). Trusted bytecode that avoids
@@ -164,7 +162,7 @@ def haltHandlers : List OpcodeHandlerSpec :=
     , tail := .custom "  addi x12, x12, 32\n  j .exit_label" } ]
 
 /-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE, BLOBBASEFEE,
-    MSIZE, GAS). Each opcode pushes a single 32-byte zero value onto
+    GAS). Each opcode pushes a single 32-byte zero value onto
     the EVM stack — no input, no output content.
 
     Body (5 instructions): decrement `x12` by 32 (push), then write
@@ -175,8 +173,6 @@ def haltHandlers : List OpcodeHandlerSpec :=
     - RETURNDATASIZE pushes 0 (no caller return-data buffer).
     - BLOBBASEFEE pushes 0 (no Dencun blob context in our `EvmEnv`
       yet).
-    - MSIZE pushes 0 (memory-expansion bookkeeping deferred to
-      issue #99).
     - GAS pushes 0 (no gas metering in the dispatcher). -/
 def pushZeroHandlers : List OpcodeHandlerSpec :=
   let pushZeroBody : Program :=
@@ -190,8 +186,6 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
     , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_BLOBBASEFEE", opcodes := [0x4a]
-    , body := pushZeroBody, tail := .advanceAndRet 1 }
-  , { label := "h_MSIZE", opcodes := [0x59]
     , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_GAS", opcodes := [0x5a]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
@@ -233,13 +227,12 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_BLOBHASH", opcodes := [0x49]
     , body := body, tail := .advanceAndRet 1 } ]
 
-/-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY,
-    MCOPY). Each opcode pops 3 or 4 stack values and would copy
+/-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY).
+    Each opcode pops 3 or 4 stack values and would copy
     bytes into EVM memory. As no-ops we just drop the stack args.
 
     Body: a single `ADDI .x12 .x12 (popBytes)`. CODECOPY /
-    RETURNDATACOPY / MCOPY pop 3 words = 96 bytes; EXTCODECOPY pops
-    4 = 128.
+    RETURNDATACOPY pop 3 words = 96 bytes; EXTCODECOPY pops 4 = 128.
 
     **Known limitations**: the copies are dropped on the floor.
     Programs that copy into EVM memory and then MLOAD see whatever
@@ -260,9 +253,6 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 128)
     , tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATACOPY", opcodes := [0x3e]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
-    , tail := .advanceAndRet 1 }
-  , { label := "h_MCOPY", opcodes := [0x5e]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
     , tail := .advanceAndRet 1 } ]
 

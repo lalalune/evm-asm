@@ -707,14 +707,12 @@ bodies clobber `x10` as a JAL-target scratch.
   and `jumpTable_non_invalid_count`) from 91 → 93. Discharged by
   `decide` / `set_option maxRecDepth 2048 in decide` as before.
 
-**MSIZE (0x59) deferred.** The verified `evm_msize` Program exists
-(`EvmAsm/Evm64/MSize/Program.lean`, slice 6 of issue #99) and is a
-pure read of a memory-size cell, but slices 1–5 — updating that cell
-from MLOAD/MSTORE/MSTORE8 on memory expansion — have not shipped:
-`evm_mload` / `evm_mstore` / `evm_mstore8` take no `sizeReg`
-parameter and never reference `sizeLoc`. Wiring MSIZE today would
-push a 4-limb zero regardless of EVM-memory touches. Drop into
-`memoryHandlers` once issue #99 slices 1–5 land.
+**MSIZE (0x59) runtime slice.** The dispatcher maintains an
+active-memory-size cell in `evm_env` and wires MSIZE to push it as a
+low-u64 EVM word. MLOAD, MSTORE, MSTORE8, CALLDATACOPY, and MCOPY
+update that cell with 32-byte EVM rounding. This is a concrete
+runtime path, not the verified `evm_msize` Program yet, and exact
+memory gas / OOG behavior is still deferred.
 
 **EXP (0x0a) still blocked** pending the upstream
 `evm_exp_msb_saved_bit_two_mul_fixed_fixed` callee-saved variant.
@@ -1042,7 +1040,7 @@ Crosses the **90% coverage milestone** (135/149) and reaches
 verified body), EXP (blocked upstream), and the **6 child-frame
 opcodes** (CALL/CREATE family — the real gap to 100%).
 
-**Why no-ops.** Each of the 20 opcodes ships with at least one
+**Why no-ops.** Each of the remaining 16 opcodes ships with at least one
 spec-incompliance because the dispatcher has no model for the
 relevant state (accounts, calldata, block history, blob context,
 return-data buffers). Trusted bytecode that doesn't depend on
@@ -1056,19 +1054,19 @@ guardrail at the bottom of `Programs.lean`:
   INVALID (0xfe), SELFDESTRUCT (0xff). `body := []` + `.custom`
   tail that inlines the right `addi x12, x12, …` pop and
   `j .exit_label`.
-- **`pushZeroHandlers` (5 entries)**: CODESIZE (0x38),
-  RETURNDATASIZE (0x3d), BLOBBASEFEE (0x4a), MSIZE (0x59), GAS
-  (0x5a). 5-instruction body: decrement `x12` by 32 (push), then
+- **`pushZeroHandlers` (4 entries)**: CODESIZE (0x38),
+  RETURNDATASIZE (0x3d), BLOBBASEFEE (0x4a), GAS (0x5a).
+  5-instruction body: decrement `x12` by 32 (push), then
   4 × `SD .x12 .x0 …` (zero limbs).
-- **`popPushZeroHandlers` (6 entries)**: BALANCE (0x31),
-  CALLDATALOAD (0x35), EXTCODESIZE (0x3b), EXTCODEHASH (0x3f),
-  BLOCKHASH (0x40), BLOBHASH (0x49). Same shape as M17 SLOAD:
+- **`popPushZeroHandlers` (5 entries)**: BALANCE (0x31),
+  EXTCODESIZE (0x3b), EXTCODEHASH (0x3f), BLOCKHASH (0x40),
+  BLOBHASH (0x49). Same shape as M17 SLOAD:
   net stack delta 0; 4 × `SD .x12 .x0 …` overwrites the popped
   slot with zeros.
-- **`copyNoopHandlers` (5 entries)**: CALLDATACOPY (0x37),
-  CODECOPY (0x39), EXTCODECOPY (0x3c), RETURNDATACOPY (0x3e),
-  MCOPY (0x5e). 1-instruction body: `ADDI .x12 .x12 96` (or 128
-  for EXTCODECOPY's 4-pop).
+- **`copyNoopHandlers` (3 entries)**: CODECOPY (0x39),
+  EXTCODECOPY (0x3c), RETURNDATACOPY (0x3e). 1-instruction body:
+  `ADDI .x12 .x12 96` (or 128 for EXTCODECOPY's 4-pop). CALLDATACOPY
+  and MCOPY have since moved to concrete runtime handlers.
 
 `EvmAsm/Codegen/Proofs/RegistryInvariants.lean` counts bumped
 121 → 141. All 6 invariant theorems now use `set_option
@@ -1088,8 +1086,8 @@ entries). Phase 1 recompile ~16 s, well under the 30 s budget.
   state).
 - CALLDATALOAD / CALLDATACOPY read empty calldata.
 - CODESIZE / CODECOPY / RETURNDATASIZE / RETURNDATACOPY /
-  EXTCODECOPY / MCOPY return / copy zero data.
-- BLOBBASEFEE / GAS / MSIZE always 0.
+  EXTCODECOPY return / copy zero data.
+- BLOBBASEFEE / GAS always 0.
 - RETURN / REVERT halt with whatever's at EVM stack top after
   the pop (deterministic if the program pre-pushes a known
   value).

@@ -191,6 +191,7 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -452,6 +453,7 @@ def emitRuntimeDispatcherPrologue : String :=
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
   "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
   ".preload_expand_loop:\n" ++
