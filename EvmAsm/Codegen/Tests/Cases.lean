@@ -421,10 +421,13 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mcopy_pop3"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x5e, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
-    -- ## M19 child-frame opcodes (CREATE/CALL/CALLCODE/DELEGATECALL/
-    -- CREATE2/STATICCALL) — wired as pop-N + push-zero no-ops.
-    -- Each opcode pops the EVM-spec input count and writes 32 zero
-    -- bytes to the new top-of-stack slot ("call failed" / "address 0").
+    -- ## M19/M27 child-frame opcodes (CREATE/CALL/CALLCODE/
+    -- DELEGATECALL/CREATE2/STATICCALL). CREATE-family and
+    -- non-precompile CALL-family targets remain pop-N + push-zero
+    -- no-ops. M27 adds a basic precompile frame surface for CALL /
+    -- STATICCALL to addresses 0x01..0x04; those stubs push success =
+    -- 1 so later PRs can hang per-precompile returndata bodies off
+    -- the recognized branch.
     -- Three representative test cases spanning the net-pop spectrum
     -- (CREATE = 2, STATICCALL = 5, CALL = 6).
   , -- PUSH1 0x01; PUSH1 0x02; PUSH1 0x03; CREATE; PUSH1 0x42; STOP
@@ -451,6 +454,19 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "staticcall_pop6_push_zero"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xfa, 0x60, 0xab, 0x00"
       expectedOutHex := "ab00000000000000000000000000000000000000000000000000000000000000" }
+  , -- CALL to basic precompile address 0x04 (IDENTITY) reaches the
+    -- precompile-specific frame stub and pushes success = 1. Stack
+    -- args are pushed bottom-to-top: out_size, out_off, in_size,
+    -- in_off, value, to, gas.
+    { name           := "call_identity_precompile_stub_success"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- STATICCALL to basic precompile address 0x04 reaches the same
+    -- frame surface. Args: out_size, out_off, in_size, in_off, to,
+    -- gas.
+    { name           := "staticcall_identity_precompile_stub_success"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
     -- ## M20 arithmetic no-ops (MULMOD, EXP) — the LAST TWO unwired
     -- opcodes; M20 brings tinyInterpRegistry to 100% coverage 🎯.
     -- Both ship as placeholders; real upgrades follow in M21+.
