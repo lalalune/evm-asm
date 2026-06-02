@@ -106,6 +106,15 @@ scripts/codegen-eest-bal-replay-frontier-check.sh \
   --steps 400000000
 ```
 
+The checked version of that experiment is:
+
+```bash
+scripts/codegen-eest-bal-replay-frontier-64k-check.sh
+```
+
+It requires the current `19/20` full-match frontier and leaves the large
+170 KiB witness case as the remaining conservative miss.
+
 Run a large batch:
 
 ```bash
