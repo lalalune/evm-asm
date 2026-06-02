@@ -143,5 +143,3 @@ def statelessVerdictV2GuestData : String :=
   ziskStatelessVerdictV2DataSection
 
 end EvmAsm.Codegen
-
-end EvmAsm.Codegen
