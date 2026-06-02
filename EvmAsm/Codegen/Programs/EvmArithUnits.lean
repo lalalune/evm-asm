@@ -87,6 +87,26 @@ def evmDivFromInputUnit : BuildUnit := {
   dataAsm     := evmDivFromInputDataSection
 }
 
+/-! ## evm_div_v5 — DIV executable using the v5 div128 subroutine -/
+
+def evmDivV5Unit : BuildUnit := {
+  body        := evmDivV5Patched ++ evmAddEpilogue
+  prologueAsm := evmDivPrologue
+  dataAsm     := evmDivDataSection
+}
+
+def evm_div_v5_from_input : Program :=
+  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
+  copy64 .x12 .x5 .x6 ++
+  evmDivV5Patched ++
+  evmAddEpilogue
+
+def evmDivV5FromInputUnit : BuildUnit := {
+  body        := evm_div_v5_from_input
+  prologueAsm := evmDivFromInputPrologue
+  dataAsm     := evmDivFromInputDataSection
+}
+
 /-! ## evm_mod — M2 first MOD end-to-end through ziskemu
 
     Same calling convention and scratch layout as `evm_div`. `evm_mod`
