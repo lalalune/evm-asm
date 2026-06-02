@@ -38,6 +38,7 @@
 import EvmAsm.EL.Bn254G1AddEcallBridge
 import EvmAsm.EL.Bn254G1MulEcallBridge
 import EvmAsm.EL.Bn254PairingEcallBridge
+import EvmAsm.EL.KzgPointEvalEcallBridge
 import EvmAsm.EL.Secp256r1VerifyEcallBridge
 
 namespace EvmAsm.Stateless.VM.Precompiles
@@ -322,6 +323,232 @@ theorem emptyOutput_length :
     emptyOutput.length = 0 := rfl
 
 end BN254
+
+namespace KzgPointEvaluation
+
+abbrev MemoryReader := EvmAsm.EL.KzgPointEvalInputBridge.MemoryReader
+abbrev Bytes32 := EvmAsm.EL.KzgPointEvalInputBridge.Bytes32
+abbrev AcceleratorInput := EvmAsm.EL.KzgPointEvalInputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.KzgPointEvalResultBridge.AcceleratorResult
+
+/-- EVM precompile address for EIP-4844 KZG point evaluation. -/
+def address : Nat := 0x0a
+
+/-- Osaka/BPO executable-spec fixed gas cost for KZG point evaluation. -/
+def gasCost : Nat := 50000
+
+/-- KZG point evaluation consumes exactly 192 bytes. -/
+def inputLength : Nat := 192
+
+def versionedHashOffset : Nat := 0
+def zOffset : Nat := 32
+def yOffset : Nat := 64
+def commitmentOffset : Nat := 96
+def proofOffset : Nat := 144
+
+/-- `U256(4096).to_be_bytes32()`, i.e. `FIELD_ELEMENTS_PER_BLOB`. -/
+def fieldElementsPerBlobOutput : ByteList :=
+  List.replicate 30 (0 : Byte) ++ [0x10, 0x00]
+
+/-- `U256(BLS_MODULUS).to_be_bytes32()` from execution-specs. -/
+def blsModulusOutput : ByteList :=
+  [ 0x73, 0xed, 0xa7, 0x53, 0x29, 0x9d, 0x7d, 0x48
+  , 0x33, 0x39, 0xd8, 0x08, 0x09, 0xa1, 0xd8, 0x05
+  , 0x53, 0xbd, 0xa4, 0x02, 0xff, 0xfe, 0x5b, 0xfe
+  , 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01 ]
+
+/-- Successful KZG point evaluation returns `FIELD_ELEMENTS_PER_BLOB || BLS_MODULUS`. -/
+def successOutput : ByteList :=
+  fieldElementsPerBlobOutput ++ blsModulusOutput
+
+/-- Invalid length, invalid hash/proof, or accelerator failure returns no bytes. -/
+def emptyOutput : ByteList := []
+
+/--
+Result surface exposed by the pure precompile framing layer. `exceptional`
+records execution-spec `KZGProofError` cases; later CALL/STATICCALL wiring can
+translate that into the enclosing EVM failure semantics.
+-/
+structure Result where
+  exceptional : Bool
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+/-- The versioned hash is the first 32 bytes of the precompile payload. -/
+def versionedHashFromCallData (memory : MemoryReader) (dataStart : Nat) : Bytes32 :=
+  EvmAsm.EL.KzgPointEvalInputBridge.bytes32FromMemory
+    memory (dataStart + versionedHashOffset)
+
+/--
+Build the accelerator input from the EVM call data. The executable spec first
+checks `len(data) == 192`; callers must guard this helper with that exact
+length check. Field starts mirror `point_evaluation.py`.
+-/
+def acceleratorInputFromCallData (memory : MemoryReader) (dataStart : Nat) :
+    AcceleratorInput :=
+  EvmAsm.EL.KzgPointEvalInputBridge.kzgPointEvalInputFromMemory
+    memory
+    (dataStart + commitmentOffset)
+    (dataStart + zOffset)
+    (dataStart + yOffset)
+    (dataStart + proofOffset)
+
+/-- Convert the accelerator proof-verification result to EVM return data. -/
+def outputFromVerified (verified : Bool) : ByteList :=
+  if verified then successOutput else emptyOutput
+
+/--
+Pure KZG point-evaluation precompile framing. This models the executable-spec
+guards and return-data shape:
+
+* input length must be exactly 192 bytes;
+* the supplied `versionedHashIsValid` hook checks
+  `kzg_commitment_to_versioned_hash(commitment) == versioned_hash`;
+* the supplied accelerator verifies `(commitment, z, y, proof)`;
+* success returns `FIELD_ELEMENTS_PER_BLOB || BLS_MODULUS`.
+-/
+def execute
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) : Result :=
+  if dataLength = inputLength then
+    let input := acceleratorInputFromCallData memory dataStart
+    let versionedHash := versionedHashFromCallData memory dataStart
+    if versionedHashIsValid versionedHash input then
+      let request := EvmAsm.EL.KzgPointEvalEcallBridge.requestFromInput input
+      let result := EvmAsm.EL.KzgPointEvalEcallBridge.executeKzgPointEvalEcall
+        accelerator request
+      match result.status with
+      | .eok =>
+          { exceptional := !result.output.verified
+            status := if result.output.verified then .eok else .efail
+            output := outputFromVerified result.output.verified
+            gasCharged := gasCost }
+      | .efail =>
+          { exceptional := true
+            status := result.status
+            output := emptyOutput
+            gasCharged := gasCost }
+    else
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := gasCost }
+  else
+    { exceptional := true
+      status := .efail
+      output := emptyOutput
+      gasCharged := 0 }
+
+theorem fieldElementsPerBlobOutput_length :
+    fieldElementsPerBlobOutput.length = 32 := by
+  native_decide
+
+theorem blsModulusOutput_length :
+    blsModulusOutput.length = 32 := by
+  native_decide
+
+theorem successOutput_length :
+    successOutput.length = 64 := by
+  native_decide
+
+theorem emptyOutput_length :
+    emptyOutput.length = 0 := rfl
+
+@[simp] theorem outputFromVerified_true :
+    outputFromVerified true = successOutput := rfl
+
+@[simp] theorem outputFromVerified_false :
+    outputFromVerified false = emptyOutput := rfl
+
+@[simp] theorem execute_badLength
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_length : dataLength ≠ inputLength) :
+    execute versionedHashIsValid accelerator memory dataStart dataLength =
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := 0 } := by
+  simp [execute, h_length]
+
+@[simp] theorem execute_invalidVersionedHash
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_hash :
+      versionedHashIsValid
+        (versionedHashFromCallData memory dataStart)
+        (acceleratorInputFromCallData memory dataStart) = false) :
+    execute versionedHashIsValid accelerator memory dataStart inputLength =
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := gasCost } := by
+  simp [execute, inputLength, h_hash]
+
+@[simp] theorem execute_output_verified
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_hash :
+      versionedHashIsValid
+        (versionedHashFromCallData memory dataStart)
+        (acceleratorInputFromCallData memory dataStart) = true)
+    (h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok)
+    (h_verified :
+      (accelerator (acceleratorInputFromCallData memory dataStart)).output.verified = true) :
+    (execute versionedHashIsValid accelerator memory dataStart inputLength).output =
+      successOutput := by
+  simp [execute, inputLength, h_hash, h_status, h_verified,
+    EvmAsm.EL.KzgPointEvalEcallBridge.executeKzgPointEvalEcall,
+    EvmAsm.EL.KzgPointEvalEcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_unverified
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_hash :
+      versionedHashIsValid
+        (versionedHashFromCallData memory dataStart)
+        (acceleratorInputFromCallData memory dataStart) = true)
+    (h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok)
+    (h_verified :
+      (accelerator (acceleratorInputFromCallData memory dataStart)).output.verified = false) :
+    (execute versionedHashIsValid accelerator memory dataStart inputLength).output =
+      emptyOutput := by
+  simp [execute, inputLength, h_hash, h_status, h_verified,
+    EvmAsm.EL.KzgPointEvalEcallBridge.executeKzgPointEvalEcall,
+    EvmAsm.EL.KzgPointEvalEcallBridge.requestFromInput]
+
+@[simp] theorem execute_gasCharged
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (execute versionedHashIsValid accelerator memory dataStart dataLength).gasCharged =
+      if dataLength = inputLength then gasCost else 0 := by
+  by_cases h_length : dataLength = inputLength
+  · subst dataLength
+    cases h_hash :
+        versionedHashIsValid
+          (versionedHashFromCallData memory dataStart)
+          (acceleratorInputFromCallData memory dataStart)
+    · simp [execute, inputLength, h_hash]
+    · cases h_status :
+          (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+        cases h_verified :
+          (accelerator (acceleratorInputFromCallData memory dataStart)).output.verified <;>
+        simp [execute, inputLength, h_hash, h_status, h_verified,
+          EvmAsm.EL.KzgPointEvalEcallBridge.executeKzgPointEvalEcall,
+          EvmAsm.EL.KzgPointEvalEcallBridge.requestFromInput]
+  · simp [execute, h_length]
+
+end KzgPointEvaluation
 
 namespace P256Verify
 
