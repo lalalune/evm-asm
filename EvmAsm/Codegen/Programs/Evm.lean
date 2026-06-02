@@ -703,8 +703,8 @@ def blobContextHandlers : List OpcodeHandlerSpec :=
 /-- M29 BLOCKHASH handler backed by the runtime block-history trailer.
 
     Runtime input supplies:
-      - `env + 544`: current block number (`cur`, u64)
-      - `env + 552`: number of loaded recent hashes (`count`, clamped to 256)
+      - `env + 552`: current block number (`cur`, u64)
+      - `env + 560`: number of loaded recent hashes (`count`, clamped to 256)
       - `evm_block_hashes`: `count` 32-byte hashes in increasing block-number
         order, matching execution-specs' `block_env.block_hashes`.
 
@@ -728,10 +728,10 @@ def blockHashHandlers : List OpcodeHandlerSpec :=
         "  ld x14, 24(x12)\n" ++
         "  bnez x14, .Lblockhash_zero\n" ++
         "  ld x14, 0(x12)\n" ++       -- x14 = target block number
-        "  ld x15, 544(x20)\n" ++     -- x15 = current block number (env+544, past M28 blobBaseFee)
+        "  ld x15, 552(x20)\n" ++     -- x15 = current block number (env+552)
         "  bgeu x14, x15, .Lblockhash_zero\n" ++
         "  sub x16, x15, x14\n" ++    -- x16 = cur - target, strictly positive
-        "  ld x17, 552(x20)\n" ++     -- x17 = loaded hash count (env+552)
+        "  ld x17, 560(x20)\n" ++     -- x17 = loaded hash count (env+560)
         "  bgtu x16, x17, .Lblockhash_zero\n" ++
         "  sub x17, x17, x16\n" ++    -- index = count - age
         "  slli x17, x17, 5\n" ++     -- index × 32
