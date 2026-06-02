@@ -45,6 +45,7 @@ import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 
 import EvmAsm.Codegen.Programs.Evm
+import EvmAsm.Codegen.Programs.EvmArithUnits
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
@@ -1372,6 +1373,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean",
     "EvmAsm/Codegen/Programs/Bloom.lean",
     "EvmAsm/Codegen/Programs/Evm.lean",
+    "EvmAsm/Codegen/Programs/EvmArithUnits.lean",
     "EvmAsm/Codegen/Programs/ExpProperty.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
     "EvmAsm/Codegen/Programs/HashProbes.lean",
