@@ -27,7 +27,8 @@ zkVM standards: `EvmAsm/Evm64/zkvm-standards/` (submodule).
 > PUSH0–32, DUP1–16, SWAP1–16, 17 clean-shape singletons, MLOAD/MSTORE/
 > MSTORE8 (M7), DIV/MOD (M8), runtime-bytecode dispatcher (M8.5),
 > SDIV/SMOD via trampoline (M9), and ADDMOD via inline-callable (M10).
-> EXP is deferred pending an upstream callee-saved variant. Codegen-
+> EXP via inline-callable `_fixed_fixed` body (M27; per-limb counter
+> moved x6→x22 so it survives `mul_callable`). Codegen-
 > proofs **Phase 1 (registry invariants)** and the first 13/91
 > instances of **Phase 4 (handler-level `cpsTripleWithin` specs via
 > `cleanRetHandlerSpec`)** have landed under

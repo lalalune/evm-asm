@@ -191,6 +191,11 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee trailer slot = 0
+  "  sd x0, 520(x20)\n" ++
+  "  sd x0, 528(x20)\n" ++
+  "  sd x0, 536(x20)\n" ++
+  "  sd x0, 544(x20)\n" ++         -- M28: blobHashCount = 0
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -225,6 +230,24 @@ def emitDispatcherEpilogue
   zkvmKeccak256Function ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
+  -- M15.5: invalid-jump exceptional halt. JUMP/JUMPI route here (via
+  -- `jumpValidityTail`'s `bne x17, x18, .exit_invalid`) when
+  -- code[dest] != 0x5b. Tag halt_kind = 4 — distinct from 0=STOP /
+  -- 1=RETURN / 2=REVERT (M23) — then join the universal exit. The
+  -- result bytes at OUTPUT[0..32] stay zero (no RETURN ran), which is
+  -- correct for an exceptional halt with no return data. Reached only
+  -- via `j .exit_invalid`; `h_invalid`'s `j .exit_label` above skips
+  -- this block, and it ends with `j .exit_no_epilogue` so it never
+  -- falls through into exitBody.
+  ".exit_invalid:\n" ++
+  "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
+  "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
+  "  sd x0, 8(x16)\n" ++            -- (no RETURN ran on this path, so
+  "  sd x0, 16(x16)\n" ++           --  surface empty return data
+  "  sd x0, 24(x16)\n" ++           --  deterministically)
+  "  li x17, 4\n" ++                -- halt_kind = 4 (invalid jump)
+  "  sd x17, 32(x16)\n" ++
+  "  j .exit_no_epilogue\n" ++
   ".exit_label:\n" ++
   emitProgram exitBody ++ "\n" ++
   ".exit_no_epilogue:\n" ++
@@ -369,8 +392,12 @@ def emitDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 552\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells up to env+480
+                          -- + M28 BLOBBASEFEE word at env+512 and BLOBHASH count at env+544
+  ".balign 8\n" ++
+  "evm_blob_hashes:\n" ++
+  "  .zero 512\n" ++      -- M28: bounded 16 × 32-byte tx blob versioned hashes
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
@@ -383,6 +410,15 @@ def emitDispatcherDataSection
   "lp64_stack:\n" ++
   "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
   "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
+  ".balign 8\n" ++
+  "exp_scratch:\n" ++
+  "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
+                          -- verified EXP body uses `x2`(sp)+0..24 as its running
+                          -- accumulator; the dispatcher's `sp` points at
+                          -- `lp64_sp_top` (top of a down-growing stack), so
+                          -- `sp+0..24` would scribble into the jump table.
+                          -- h_EXP's preBody repoints `x2` here and its tail
+                          -- restores `sp = lp64_sp_top`.
   emitJumpTable registry
 
 /-! ## Runtime-bytecode dispatcher (M8.5)
@@ -439,6 +475,8 @@ def emitRuntimeDispatcherPrologue : String :=
   --
   -- Input layout (unchanged from M22 `pack-bytecode.py --storage`):
   --   <u64 slot_count> followed by slot_count × (key:32, value:32)
+  --   then a 32-byte BLOBBASEFEE word (M28; zero by default),
+  --   u64 blob_hash_count, and blob_hash_count × 32-byte words.
   -- Output layout (Option A):
   --   STATE_TRACKER_AREA + i*128 = (addrHash=0:32, slotKey:32,
   --                                 original=value:32, current=value:32)
@@ -488,6 +526,44 @@ def emitRuntimeDispatcherPrologue : String :=
   "  addi x6, x6, -1\n" ++
   "  j .preload_expand_loop\n" ++
   ".preload_expand_done:\n" ++
+  -- M28: x5 now points at the blob-base-fee trailer. Copy the 32-byte
+  -- EVM-stack word into a separate env slot; opcode 0x4a loads it.
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 512(x20)\n" ++
+  "  ld x8, 8(x5)\n" ++
+  "  sd x8, 520(x20)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 528(x20)\n" ++
+  "  ld x8, 24(x5)\n" ++
+  "  sd x8, 536(x20)\n" ++
+  "  addi x5, x5, 32\n" ++         -- x5 = &(blob_hash_count)
+  "  ld x6, 0(x5)\n" ++            -- x6 = source blob_hash_count
+  -- Static runtime table cap: enough for current protocol limits, and
+  -- explicit truncation keeps the copy bounded if malformed test input
+  -- claims more entries. Full EEST plumbing should reject impossible
+  -- protocol configs before launch when this cap is insufficient.
+  "  li x7, 16\n" ++
+  "  bleu x6, x7, .blob_hash_count_ok\n" ++
+  "  mv x6, x7\n" ++
+  ".blob_hash_count_ok:\n" ++
+  "  sd x6, 544(x20)\n" ++         -- env.blobHashCount = min(count, 16)
+  "  addi x5, x5, 8\n" ++          -- x5 = first blob hash word
+  "  la x7, evm_blob_hashes\n" ++
+  ".blob_hash_copy_loop:\n" ++
+  "  beqz x6, .blob_hash_copy_done\n" ++
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 0(x7)\n" ++
+  "  ld x8, 8(x5)\n" ++
+  "  sd x8, 8(x7)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 16(x7)\n" ++
+  "  ld x8, 24(x5)\n" ++
+  "  sd x8, 24(x7)\n" ++
+  "  addi x5, x5, 32\n" ++
+  "  addi x7, x7, 32\n" ++
+  "  addi x6, x6, -1\n" ++
+  "  j .blob_hash_copy_loop\n" ++
+  ".blob_hash_copy_done:\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -512,8 +588,12 @@ def emitRuntimeDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 552\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells up to env+480
+                          -- + M28 BLOBBASEFEE word at env+512 and BLOBHASH count at env+544
+  ".balign 8\n" ++
+  "evm_blob_hashes:\n" ++
+  "  .zero 512\n" ++      -- M28: bounded 16 × 32-byte tx blob versioned hashes
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
@@ -526,6 +606,15 @@ def emitRuntimeDispatcherDataSection
   "lp64_stack:\n" ++
   "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
   "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
+  ".balign 8\n" ++
+  "exp_scratch:\n" ++
+  "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
+                          -- verified EXP body uses `x2`(sp)+0..24 as its running
+                          -- accumulator; the dispatcher's `sp` points at
+                          -- `lp64_sp_top` (top of a down-growing stack), so
+                          -- `sp+0..24` would scribble into the jump table.
+                          -- h_EXP's preBody repoints `x2` here and its tail
+                          -- restores `sp = lp64_sp_top`.
   emitJumpTable registry
 
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.
