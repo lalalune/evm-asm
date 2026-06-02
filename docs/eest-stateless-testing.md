@@ -240,11 +240,16 @@ scripts/codegen-zisk-stateless-verdict-check.sh \
 ```
 
 Each verdict line prints the fixture's block gas limit separately from the
-path, followed by named debug counters from `OUTPUT_BASE + 8` onward:
+path, followed by named debug counters from fixed 8-byte output slots:
 
 ```text
 dbg=[bv_fail=... header=... state=... bal_count=... bsr_fail=... change_count=... witness_len=... baacd_fail=... bacv_fail=... baap_fail=... sri_index=... sri_mode=... sri_status=...]
 ```
+
+The main EEST harness uses the same fixed-size probe automatically on
+`successful_validation` mismatches and appends its decoded slots to the `FAIL`
+line. Disable that rerun with `--no-verdict-debug` or `EEST_VERDICT_DEBUG=0`
+when only the canonical 105-byte stateless output comparison is wanted.
 
 `bv_fail` is the top-level block-verdict failure code. `bsr_fail` and
 `bal_count` classify the block-state-root replay path, while the `baacd`,
