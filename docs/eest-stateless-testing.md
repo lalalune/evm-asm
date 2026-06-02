@@ -104,13 +104,15 @@ uv run --directory execution-specs --quiet python3 \
   ../scripts/eest-bal-replay-report.py --failures-only --details
 ```
 
-The report includes `state_witness_bytes` and `over_bsr_cap`; the latter marks
-inputs whose state witness exceeds the current 32 KiB `block_state_root` cap.
-Pass `--bsr-cap N` to model a different proposed cap in that column.
+The report includes `state_witness_bytes`, `over_bsr_cap`, `bal_rows`, and
+`over_bsr_bal_cap`; the cap columns mark inputs whose state witness or BAL row
+count exceeds the current `block_state_root` caps. Pass `--bsr-cap N` and
+`--bsr-bal-cap N` to model different proposed caps in those columns.
 
-To run a focused harness experiment with a proposed guest-side witness cap,
-pass `--bsr-witness-cap N`. The default guest remains unchanged; the harness
-patches the emitted assembly and relinks only for that run:
+To run a focused harness experiment with proposed guest-side replay caps, pass
+`--bsr-witness-cap N` for the block-state-root witness-byte cap or
+`--bsr-bal-cap N` for the BAL row cap. The default guest remains unchanged; the
+harness patches the emitted assembly and relinks only for that run:
 
 ```bash
 scripts/codegen-eest-bal-replay-frontier-check.sh \
@@ -126,6 +128,20 @@ scripts/codegen-eest-bal-replay-frontier-64k-check.sh
 
 It requires the current `19/20` full-match frontier and leaves the large
 170 KiB witness case as the remaining conservative miss.
+
+To probe the large remaining case past both known caps:
+
+```bash
+scripts/codegen-eest-stateless-check.sh \
+  --filter withdrawal_requests \
+  --skip 83 \
+  --limit 20 \
+  --jobs 4 \
+  --quiet-passes \
+  --bsr-witness-cap 262144 \
+  --bsr-bal-cap 1024 \
+  --steps 400000000
+```
 
 Run a large batch:
 
