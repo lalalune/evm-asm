@@ -30,6 +30,16 @@ class Surface:
 
 SURFACES: tuple[Surface, ...] = (
     Surface(
+        key="scenarios",
+        title="frontier scenario matrices",
+        bead="evm-asm-fhsxz.2.4.2.54.2",
+        default_filter="frontier/scenarios/scenarios/scenarios",
+        patterns=(
+            "frontier/scenarios/scenarios/scenarios",
+            "frontier/scenarios/test_scenarios",
+        ),
+    ),
+    Surface(
         key="tx",
         title="simple tx/value transfer",
         bead="evm-asm-fhsxz.2.4.2.56",
