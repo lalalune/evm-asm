@@ -84,6 +84,32 @@ The table is intentionally path-based: if a bridge module is renamed or split,
 this table should be updated in the same PR so downstream readers can trace
 from the C symbol to the Lean payload and ECALL surface.
 
+## Installed ziskemu backend notes
+
+The zkvm-standards row above is the desired ABI surface, not proof that the
+locally installed `ziskemu` has a concrete backend for every symbol. As of the
+2026-06-02 local installation used for EEST work:
+
+- `zkvm_sha256` is implemented in this repo as a guest wrapper around
+  ziskemu's SHA-256 compression intrinsic at CSR `0x805`; see
+  `EvmAsm/Codegen/Programs/HashBridge.lean` and
+  `scripts/codegen-zisk-zkvm-sha256-check.sh`.
+- `zkvm_keccak256` is similarly implemented as a guest sponge wrapper around
+  ziskemu's Keccak-f[1600] primitive.
+- No named RIPEMD160 backend is present in the local zisk sources. Searches for
+  `ripemd`, `RIPEMD`, `zkvm_ripemd`, and `ripemd160` under
+  `/home/zksecurity/.zisk/zisk` and `/home/zksecurity/zisk` find no callable
+  symbol or implementation file.
+- ziskemu's `emulator-asm` tree does contain a "precompile results" stream/cache
+  facility, but that path replays externally supplied result words. It is not a
+  RIPEMD160 computation backend and is not exposed by the `ziskemu` CLI used by
+  the current codegen/EEST scripts.
+
+Therefore, RIPEMD160 dispatch should not be wired as if a backend already
+exists. The next implementation slice must either add/prove a concrete zisk
+RIPEMD160 backend path, or explicitly implement RIPEMD160 in the guest and test
+it against Ethereum's `hashlib.new("ripemd160", data)` behavior.
+
 ## Calling convention
 
 The guest follows LP64 as documented in
