@@ -139,6 +139,23 @@ Use `--quiet-passes` (or `EEST_QUIET_PASSES=1`) to suppress per-case
 summary. This is useful for large `--jobs 32 --max-failures N` searches after a
 long passing prefix. `--show-passes` restores the default verbose pass output.
 
+## Focused Verdict Probe
+
+For verdict-only debugging, use the smaller probe harness:
+
+```bash
+scripts/codegen-zisk-stateless-verdict-check.sh \
+  --filter validation_codes_missing \
+  --limit 100 \
+  --max-failures 5 \
+  --steps 200000000
+```
+
+In this probe, `--max-failures N` stops after N `ERROR`, false-positive, or
+unexpected `DIFF` rows. Conservative misses (`verdict=0 exp=1`) are still
+reported, but they do not count toward this cap because they are not unsound
+acceptances.
+
 ## Outputs
 
 The current run directory is recreated each time:
