@@ -139,6 +139,7 @@ def statelessVerdictV2GuestClosure : String :=
   eip8037TxGasGateFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
+  addressComputeCreate2Function ++ "\n" ++
   enrgU32leFunction ++ "\n" ++
   eip7702NonceReuseGuardFunction ++ "\n" ++
   statelessVerdictV2Function

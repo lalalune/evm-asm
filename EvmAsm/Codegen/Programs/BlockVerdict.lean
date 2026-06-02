@@ -1022,6 +1022,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip8037TxGasGateFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
+  addressComputeCreate2Function ++ "\n" ++
   enrgU32leFunction ++ "\n" ++
   eip7702NonceReuseGuardFunction ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
@@ -1155,6 +1156,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bbcv_code_hash:\n  .zero 32\n" ++
   "bbcv_sender_addr:\n  .zero 32\n" ++
   "bbcv_create_addr:\n  .zero 32\n" ++
+  "bbcv_create2_salt:\n  .zero 32\n" ++
+  "ac2_inner_digest:\n  .zero 32\n" ++
+  "ac2_outer_digest:\n  .zero 32\n" ++
+  "ac2_preimage:\n  .zero 88\n" ++
   "ac_buffer:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "ac_nonce_be:\n  .zero 8\n" ++
