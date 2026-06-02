@@ -451,6 +451,7 @@ def balAccountApplyPostFieldsFunction : String :=
     Output layout:
       OUTPUT+0   : new account RLP length
       OUTPUT+8   : new account RLP bytes
+      OUTPUT+240 : internal fail code (0 on success)
       OUTPUT+248 : status -/
 def ziskBalAccountApplyPostFieldsPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -463,6 +464,7 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   "  li a4, 0xa0010008           # out account bytes at OUTPUT+8\n" ++
   "  li a5, 0xa0010000           # out account length at OUTPUT+0\n" ++
   "  jal ra, bal_account_apply_post_fields\n" ++
+  "  la t1, baap_fail_code; ld t2, 0(t1); li t0, 0xa00100f0; sd t2, 0(t0)   # fail_code at OUTPUT+240\n" ++
   "  li t0, 0xa00100f8; sd a0, 0(t0)   # status at OUTPUT+248\n" ++
   "  j .Lbaap_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
@@ -564,16 +566,6 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_storage_delete_index:\n  .zero 8\n" ++
   "baap_storage_root_ptr:\n  .zero 8\n" ++
   "baap_walk_val_len:\n  .zero 8\n" ++
-  "mdacc_witness_len:\n  .zero 8\n" ++
-  "mdacc_survivor_nibble:\n  .zero 8\n" ++
-  "mdacc_child_ptr:\n  .zero 8\n" ++
-  "mdacc_child_len:\n  .zero 8\n" ++
-  "mdacc_leaf_path_len:\n  .zero 8\n" ++
-  "mdacc_ext_path_len:\n  .zero 8\n" ++
-  "mdacc_leaf_value_ptr:\n  .zero 8\n" ++
-  "mdacc_leaf_value_len:\n  .zero 8\n" ++
-  "mee_path_off:\n  .zero 8\n" ++
-  "mee_path_len:\n  .zero 8\n" ++
   "baap_item_off:\n  .zero 8\n" ++
   "baap_item_len:\n  .zero 8\n" ++
   "baap_slot_changes_off:\n  .zero 8\n" ++
@@ -605,8 +597,6 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_storage_paths:\n  .zero 32768\n" ++
   "baap_storage_delete_paths:\n  .zero 32768\n" ++
   "baap_storage_values:\n  .zero 32768\n" ++
-  "mdacc_leaf_path:\n  .zero 128\n" ++
-  "mdacc_collapsed_path:\n  .zero 128\n" ++
   "baap_out_pad:\n  .zero 8"
 
 def ziskBalAccountApplyPostFieldsProbeUnit : BuildUnit := {
