@@ -49,6 +49,14 @@ structure OpcodeTestCase where
   /-- Optional BLOBHASH versioned-hash list (M28). Format is comma or
       space-separated 32-byte hex blobs. Empty string = no blob hashes. -/
   blobHashes     : String := ""
+  /-- Optional current block number for BLOCKHASH runtime context
+      (M29). Decimal or 0x-prefixed u64 string. Empty string means
+      use the packer's default current block 0. -/
+  blockNumber    : String := ""
+  /-- Optional recent ancestor hashes for BLOCKHASH runtime context
+      (M29), in increasing block-number order, as comma/space-
+      separated 32-byte hex hashes. Empty string = no recent hashes. -/
+  blockHashes    : String := ""
   /-- Optional expected halt-kind at `OUTPUT_ADDR + 32` (M23).
       16 hex chars = 8-byte LE u64 (e.g. `"0100000000000000"` for
       RETURN = 1, `"0200000000000000"` for REVERT = 2). Empty
@@ -271,6 +279,40 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "env_field_offset_distinct"
       bytecode       := "0x42, 0x43, 0x03, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M29 BLOCKHASH runtime context
+    -- Current block number = 500. Recent hashes are supplied in
+    -- increasing block-number order for blocks 497, 498, 499.
+  , -- BLOCKHASH(499) returns the parent hash.
+    { name           := "blockhash_parent"
+      bytecode       := "0x61, 0x01, 0xf3, 0x40, 0x00"
+      expectedOutHex := "201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(498) selects the older in-window ancestor.
+    { name           := "blockhash_historical"
+      bytecode       := "0x61, 0x01, 0xf2, 0x40, 0x00"
+      expectedOutHex := "2222222222222222222222222222222222222222222222222222222222222222"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(current) returns 0 even with recent hashes loaded.
+    { name           := "blockhash_current_zero"
+      bytecode       := "0x61, 0x01, 0xf4, 0x40, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(future) returns 0.
+    { name           := "blockhash_future_zero"
+      bytecode       := "0x61, 0x01, 0xf5, 0x40, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(496) is older than the supplied recent-hash table, so
+    -- the runtime path returns 0 instead of reading outside the table.
+    { name           := "blockhash_missing_zero"
+      bytecode       := "0x61, 0x01, 0xf0, 0x40, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
     -- ## M13 calldata-context opcode (CALLDATASIZE)
     -- The calldata-length cell at evm_env + 424 is zero-initialised by the
     -- dispatcher's .data section, so CALLDATASIZE pushes 32 zero bytes.
