@@ -58,6 +58,15 @@ This wrapper runs two windows, `--limit 200` and then `--skip 200 --limit 500`,
 with `--min-full` thresholds and `--max-failures 1`. The split keeps the
 second window directly reproducible without re-running the first prefix.
 
+Run the 1,000-block window immediately after `random_statetest`:
+
+```bash
+scripts/codegen-eest-post-random-window-check.sh --jobs 8
+```
+
+This starts at `--skip 17085` (`16582 + 503`) and checks `--limit 1000` with a
+`--min-full 1000` regression threshold.
+
 Run a large batch:
 
 ```bash
