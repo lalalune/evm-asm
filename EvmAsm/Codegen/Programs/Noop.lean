@@ -12,7 +12,7 @@
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
   - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, MSIZE, GAS
   - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
-    EXTCODEHASH, BLOCKHASH, BLOBHASH
+    EXTCODEHASH, BLOCKHASH
   - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
     RETURNDATACOPY, MCOPY
 
@@ -192,7 +192,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
 /-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE,
-    EXTCODEHASH, BLOCKHASH, BLOBHASH). Each opcode pops one 32-byte
+    EXTCODEHASH, BLOCKHASH). Each opcode pops one 32-byte
     input (e.g., an address or index) and pushes a 32-byte zero
     value. Net EVM stack delta = 0.
 
@@ -205,7 +205,6 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     - EXTCODESIZE / EXTCODEHASH always return 0 (no external account
       model).
     - BLOCKHASH always returns 0 (no block history).
-    - BLOBHASH always returns 0 (no Dencun blob context).
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
@@ -224,8 +223,6 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_EXTCODEHASH", opcodes := [0x3f]
     , body := body, tail := .advanceAndRet 1 }
   , { label := "h_BLOCKHASH", opcodes := [0x40]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_BLOBHASH", opcodes := [0x49]
     , body := body, tail := .advanceAndRet 1 } ]
 
 /-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY,

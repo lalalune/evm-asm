@@ -59,13 +59,14 @@ SKIPPED=0
 # `--list-test-cases` emits TSV with optional runtime-input columns.
 # This legacy runner bakes bytecode into `.data` and has no input
 # trailer, so it skips cases that require calldata, storage preload, or
-# nonzero blob-base-fee input.
+# nonzero blob context input.
 while IFS= read -r line; do
   name=$(printf '%s' "$line" | cut -f1)
   expected=$(printf '%s' "$line" | cut -f2)
   calldata=$(printf '%s' "$line" | cut -f4)
   storage=$(printf '%s' "$line" | cut -f5)
   blob_base_fee=$(printf '%s' "$line" | cut -f6)
+  blob_hashes=$(printf '%s' "$line" | cut -f7)
   if [[ -z "$name" || -z "$expected" ]]; then
     echo
     echo "==> SKIP: malformed --list-test-cases line"
@@ -73,7 +74,7 @@ while IFS= read -r line; do
     continue
   fi
 
-  if [[ -n "${calldata:-}" || -n "${storage:-}" || -n "${blob_base_fee:-}" ]]; then
+  if [[ -n "${calldata:-}" || -n "${storage:-}" || -n "${blob_base_fee:-}" || -n "${blob_hashes:-}" ]]; then
     echo
     echo "==> SKIP: $name requires runtime input trailer"
     SKIPPED=$((SKIPPED + 1))
