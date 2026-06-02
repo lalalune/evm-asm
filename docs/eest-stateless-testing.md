@@ -63,11 +63,14 @@ Run the 1,000-block windows immediately after `random_statetest`:
 ```bash
 scripts/codegen-eest-post-random-window-check.sh --jobs 8
 scripts/codegen-eest-post-random-window-2-check.sh --jobs 8
+scripts/codegen-eest-post-random-window-3-check.sh --jobs 8
 ```
 
 The first starts at `--skip 17085` (`16582 + 503`) and checks `--limit 1000`.
-The second starts at `--skip 18085` and checks the next `--limit 1000`. Both
-use a `--min-full 1000` regression threshold.
+The second starts at `--skip 18085` and checks the next `--limit 1000`; both
+use a `--min-full 1000` regression threshold. The third starts at `--skip
+19085` and currently uses `--min-full 999`, with the remaining known
+conservative miss in `exp_power256`.
 
 Run a large batch:
 
