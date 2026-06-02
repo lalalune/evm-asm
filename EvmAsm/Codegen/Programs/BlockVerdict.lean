@@ -38,6 +38,7 @@ import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
+import EvmAsm.Codegen.Programs.RequestsHash
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -834,6 +835,13 @@ def statelessVerdictV2Function : String :=
   "  sd s4, 0(s3); la t0, svf_wd_len; ld t1, 0(t0); sd t1, 8(s3)\n" ++
   "  addi s2, s2, 44; addi s4, s4, 72; addi s3, s3, 16; addi s5, s5, 1; j .Lv2_wl\n" ++
   ".Lv2_wd:\n" ++
+  "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0     # execution_requests offset\n" ++
+  "  addi a0, s0, 4;  jal ra, bgv_u32le; mv s4, a0     # witness offset = NPR end\n" ++
+  "  addi a0, s0, 16; add a0, a0, s3                   # er section start\n" ++
+  "  sub a1, s4, s3; addi a1, a1, -16                  # er section len\n" ++
+  "  la a2, erh_requests_hash\n" ++
+  "  jal ra, execution_requests_hash\n" ++
+  "  bnez a0, .Lv2_zero\n" ++
   "  la t1, sv_params\n" ++
   "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)\n" ++
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)\n" ++
@@ -842,7 +850,7 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_zero32;         sd t0, 32(t1)\n" ++
   "  la t0, svf_zero32;         sd t0, 40(t1)\n" ++
   "  addi t0, s0, 24;           sd t0, 48(t1)\n" ++
-  "  la t0, svf_zero32;         sd t0, 56(t1)\n" ++
+  "  la t0, erh_requests_hash;  sd t0, 56(t1)\n" ++
   "  la t0, svf_descriptors;    sd t0, 64(t1)\n" ++
   "  la t0, svf_wds_count;      ld t0, 0(t0); sd t0, 72(t1)\n" ++
   "  la t0, svf_witness;        ld t0, 0(t0); sd t0, 80(t1)\n" ++
@@ -882,7 +890,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, sri_fail_mode; ld t2, 0(t1); sd t2, 96(t0)\n" ++
   "  la t1, sri_fail_status; ld t2, 0(t1); sd t2, 104(t0)\n" ++
   "  j .Lv2_pdone\n" ++
-  -- the full stateless_verdict closure (verbatim):
+  zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
@@ -946,6 +954,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   validateHeaderRlpPairFunction ++ "\n" ++
   bhrRevLeBeFunction ++ "\n" ++
   blockHeaderSszToRlpFunction ++ "\n" ++
+  executionRequestsHashFunction ++ "\n" ++
   step2VerdictFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   ephU32leFunction ++ "\n" ++
@@ -999,7 +1008,7 @@ def ziskStatelessVerdictV2Prologue : String :=
 
 def ziskStatelessVerdictV2DataSection : String :=
   ziskStatelessVerdictDataSection ++ "\n" ++
-  -- single_leaf scratch:
+  executionRequestsHashDataSection ++ "\n" ++
   ".balign 8\n" ++
   "sltr_field_len:\n  .zero 8\n" ++
   "sltr_nibble_count:\n  .zero 8\n" ++
@@ -1028,7 +1037,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
   "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
   "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21\n" ++
-  -- system_write_descriptors output:
   ".balign 32\n" ++
   "swd_2935_slot:\n  .zero 32\n" ++
   ".balign 32\n" ++
@@ -1046,7 +1054,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "swd_4788_vlen:\n  .zero 8\n" ++
   "swd_4788_root_vlen:\n  .zero 8\n" ++
   "swd_ts_be8:\n  .zero 8\n" ++
-  -- block_state_root scratch:
   ".balign 8\n" ++
   "bsr_root_p:\n  .zero 8\n" ++
   "bsr_wit_p:\n  .zero 8\n" ++
@@ -1081,7 +1088,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0x00, 0x0F, 0x3d, 0xf6, 0xD7, 0x32, 0x80, 0x7E\n" ++
   "  .byte 0xf1, 0x31, 0x9f, 0xB7, 0xB8, 0xbB, 0x85, 0x22\n" ++
   "  .byte 0xd0, 0xBe, 0xac, 0x02\n" ++
-  -- bal_gas_valid scratch (bal_gas_valid + block_verdict's BAL navigation):
   ".balign 8\n" ++
   "bgv_count:\n  .zero 8\n" ++
   "bgv_off:\n  .zero 8\n" ++
@@ -1102,7 +1108,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "svf_headers_ptr:\n  .zero 8\n" ++
   "svf_headers_len:\n  .zero 8\n" ++
   "svf_headers_count:\n  .zero 8\n" ++
-  -- account_at_address / extcodesize_at_header_state_root scratch:
   "bbcv_count:\n  .zero 8\n" ++
   "bbcv_off:\n  .zero 8\n" ++
   "bbcv_size:\n  .zero 8\n" ++
@@ -1152,7 +1157,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "vh_extracted_parent_hash:\n" ++
   "  .zero 32\n" ++
-  -- eip8037_tx_gas_gate scratch:
   "bsg_count:\n  .zero 8\n" ++
   "bsg_off:\n  .zero 8\n" ++
   "bsg_len:\n  .zero 8\n" ++
@@ -1189,7 +1193,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "sri_fail_index:\n  .zero 8\n" ++
   "sri_fail_mode:\n  .zero 8\n" ++
   "sri_fail_status:\n  .zero 8\n" ++
-  -- BAL account replay scratch (bal_account_state_root_auto and callees):
   "bpf_list_off:\n  .zero 8\n" ++
   "bpf_list_len:\n  .zero 8\n" ++
   "bpf_list_ptr:\n  .zero 8\n" ++
@@ -1300,8 +1303,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
   "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
   ".balign 8\n" ++
-  -- fresh-account RLP [nonce=0, balance=0, storageRoot=EMPTY_TRIE, codeHash=EMPTY_CODE].
-  -- Keep this immutable template before the mutable insert scratch buffers.
   ".balign 8\n" ++
   "bsr_empty_account:\n" ++
   "  .byte 0xf8,0x44,0x80,0x80,0xa0\n" ++
@@ -1314,8 +1315,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0x92,0x7e,0x7d,0xb2,0xdc,0xc7,0x03,0xc0\n" ++
   "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
   "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
-  -- account INSERT engine scratch (mpt_insert_walk_db / mpt_insert_acc /
-  -- mpt_state_root_ins; the node DB + mset_*/mlnen_*/mw_* are already in the base):
   ".balign 8\n" ++
   "iw_empty_trie_root:\n" ++
   "  .byte 0x56,0xe8,0x1f,0x17,0x1b,0xcc,0x55,0xa6\n" ++
@@ -1371,7 +1370,7 @@ def ziskStatelessVerdictV2DataSection : String :=
 def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskStatelessVerdictV2Prologue
-  dataAsm     := ziskStatelessVerdictV2DataSection
+  dataAsm     := ziskStatelessVerdictV2DataSection ++ "\n" ++ executionRequestsHashShaDataSection
 }
 
 /-- The full stateless_verdict_v2 asm closure for embedding in the GUEST epilogue,
@@ -1439,6 +1438,7 @@ def statelessVerdictV2GuestClosure : String :=
   validateHeaderRlpPairFunction ++ "\n" ++
   bhrRevLeBeFunction ++ "\n" ++
   blockHeaderSszToRlpFunction ++ "\n" ++
+  executionRequestsHashFunction ++ "\n" ++
   step2VerdictFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   ephU32leFunction ++ "\n" ++
@@ -1490,9 +1490,7 @@ def statelessVerdictV2GuestClosure : String :=
   eip8037TxGasGateFunction ++ "\n" ++
   statelessVerdictV2Function
 
-/-- The data section the guest needs for the embedded verdict closure (same as the
-    probe's, MINUS zk3_state / rfu_offset / rfu_length which the guest data already
-    defines — those are removed from the guest data section to avoid dup labels). -/
+/-- Data section for the embedded verdict closure. -/
 def statelessVerdictV2GuestData : String :=
   ziskStatelessVerdictV2DataSection
 
