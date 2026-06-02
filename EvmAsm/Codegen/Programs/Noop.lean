@@ -290,17 +290,18 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
     we drop everything.
 
     **M27 update**: CALL / STATICCALL now recognize target
-    addresses 0x01..0x04 as the basic precompile frame surface and
-    push success = 1. The per-precompile bodies are still stubs in
-    this slice; follow-up PRs wire IDENTITY / SHA256 / RIPEMD160 /
-    ECRECOVER output semantics.
+    addresses 0x01..0x04 as the basic precompile frame surface.
+    IDENTITY (0x04) copies input bytes to caller output memory and
+    pushes success = 1. The crypto precompiles 0x01..0x03 remain
+    success stubs in this slice; follow-up PRs wire SHA256 /
+    RIPEMD160 / ECRECOVER output semantics.
 
     **Known limitations** (documented in CODEGEN.md M19 narrative):
     - Non-precompile CALL / CALLCODE / DELEGATECALL / STATICCALL
       still return 0 (= "call failed"). No actual sub-frame
       execution.
-    - Basic precompile CALL / STATICCALL targets currently return
-      success without producing returndata.
+    - Basic crypto precompile CALL / STATICCALL targets currently
+      return success without producing returndata.
     - CREATE / CREATE2 always return address 0 (= "deployment
       failed"). The would-be deployed code is not executed.
     - No frame stack / recursion. The dispatcher doesn't push a
@@ -316,7 +317,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
               SD .x12 .x0 16 ;;
               SD .x12 .x0 24
     , tail := .advanceAndRet 1 }
-  let basicPrecompileCallTail (netPopBytes : Nat) : String :=
+  let basicPrecompileCallTail
+      (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
     -- Stack top at entry is the call gas word. The destination
     -- address is the next word for both CALL and STATICCALL.
     "  ld x14, 32(x12)\n" ++
@@ -334,6 +336,46 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
+    "  li x16, 4\n" ++
+    "  bne x14, x16, 7f\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  sd x17, 8(x15)\n" ++       -- returndata length = full input size
+    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add x18, x13, x18\n" ++    -- x18 = identity input bytes
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++    -- x19 = caller output bytes
+    -- Copy up to 64 bytes of returndata into the shared frame.
+    "  mv x22, x18\n" ++
+    "  addi x23, x15, 16\n" ++
+    "  mv x24, x17\n" ++
+    "  li x16, 64\n" ++
+    "  bgeu x16, x24, 2f\n" ++
+    "  mv x24, x16\n" ++
+    "2:\n" ++
+    "  beqz x24, 4f\n" ++
+    "3:\n" ++
+    "  lbu x16, 0(x22)\n" ++
+    "  sb x16, 0(x23)\n" ++
+    "  addi x22, x22, 1\n" ++
+    "  addi x23, x23, 1\n" ++
+    "  addi x24, x24, -1\n" ++
+    "  bnez x24, 3b\n" ++
+    -- Copy min(input_size, output_size) bytes to caller memory.
+    "4:\n" ++
+    "  mv x22, x17\n" ++
+    "  ld x23, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  bgeu x23, x22, 5f\n" ++
+    "  mv x22, x23\n" ++
+    "5:\n" ++
+    "  beqz x22, 7f\n" ++
+    "6:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 6b\n" ++
+    "7:\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  li x14, 1\n" ++
     "  sd x14, 0(x12)\n" ++
@@ -357,14 +399,14 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
   , { label := "h_CALL"
     , opcodes := [0xf1]
     , body := []
-    , tail := .custom (basicPrecompileCallTail 192) }
+    , tail := .custom (basicPrecompileCallTail 192 96 128 160 192) }
   , mkHandler "h_CALLCODE"      0xf2 192
   , mkHandler "h_DELEGATECALL"  0xf4 160
   , mkHandler "h_CREATE2"       0xf5 96
   , { label := "h_STATICCALL"
     , opcodes := [0xfa]
     , body := []
-    , tail := .custom (basicPrecompileCallTail 160) } ]
+    , tail := .custom (basicPrecompileCallTail 160 64 96 128 160) } ]
 
 /-- M20 arithmetic no-op handlers (MULMOD, EXP). The last two
     unwired opcodes shipped as placeholders to **hit 100% opcode
