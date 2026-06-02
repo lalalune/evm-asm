@@ -15,7 +15,7 @@ open EvmAsm.Rv64
 /-! ## bal_account_is_modeled_system
 
     a0 = AccountChanges RLP ptr   a1 = AccountChanges RLP length
-    a0 (output) = 1 modeled system row / 0 other row / 2 parse failure.
+    a0 (output) = 1 EIP-2935 row / 2 EIP-4788 row / 0 other row / 3 parse failure.
 
     The verdict already replays EIP-2935 and EIP-4788 system writes before BAL
     post-state replay, so those BAL rows can be skipped in that verdict path. -/
@@ -31,21 +31,23 @@ def balAccountIsModeledSystemFunction : String :=
   "  la t0, bams_addr_off; ld t0, 0(t0); add t0, s0, t0; la t5, bams_addr_ptr; sd t0, 0(t5)\n" ++
   "  la t1, bams_addr_2935; li t2, 20\n" ++
   ".Lbams_cmp_2935:\n" ++
-  "  beqz t2, .Lbams_yes\n" ++
+  "  beqz t2, .Lbams_yes_2935\n" ++
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbams_try_4788\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbams_cmp_2935\n" ++
   ".Lbams_try_4788:\n" ++
   "  la t5, bams_addr_ptr; ld t0, 0(t5); la t1, bams_addr_4788; li t2, 20\n" ++
   ".Lbams_cmp_4788:\n" ++
-  "  beqz t2, .Lbams_yes\n" ++
+  "  beqz t2, .Lbams_yes_4788\n" ++
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbams_no\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbams_cmp_4788\n" ++
-  ".Lbams_yes:\n" ++
+  ".Lbams_yes_2935:\n" ++
   "  li a0, 1; j .Lbams_ret\n" ++
+  ".Lbams_yes_4788:\n" ++
+  "  li a0, 2; j .Lbams_ret\n" ++
   ".Lbams_no:\n" ++
   "  li a0, 0; j .Lbams_ret\n" ++
   ".Lbams_parse_fail:\n" ++
-  "  li a0, 2\n" ++
+  "  li a0, 3\n" ++
   ".Lbams_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
   "  addi sp, sp, 32\n" ++

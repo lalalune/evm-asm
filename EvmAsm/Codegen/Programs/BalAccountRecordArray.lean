@@ -78,6 +78,7 @@ def balAccountRecordArrayFunction : String :=
   "  mv a0, s9; la t0, bara_item_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_account_is_modeled_system\n" ++
   "  li t0, 1; beq a0, t0, .Lbara_modeled_system\n" ++
+  "  li t0, 2; beq a0, t0, .Lbara_modeled_system\n" ++
   "  bnez a0, .Lbara_fail\n" ++
   ".Lbara_walk_changed:\n" ++
   "  mv a0, s9; la t0, bara_item_len; ld a1, 0(t0)\n" ++

@@ -15,11 +15,6 @@
     stateless_verdict_v2: the real-SSZ glue (= stateless_verdict_from_ssz) but
       calling block_verdict (system writes included) instead of step2_verdict.
 
-  Conservative throughout: any walk miss or unsupported trie shape -> status != 0
-  -> verdict 0 (a MISS, never a false positive). Reuses the stateless_verdict
-  asm closure + data verbatim and adds the
-  StorageWrite / SystemWrites / single_leaf functions.
-
   Static block_state_root arenas are sized from execution-specs limits; see
   docs/agents/eest-static-layout.md for the BAL/gas-limit layout rules.
 -/
@@ -42,7 +37,7 @@ import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
-
+import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -248,8 +243,8 @@ def blockStateRootFunction : String :=
   ".Lbsr_bal_copy:\n" ++
   "  la t6, bsr_bal_count; ld t6, 0(t6); beq s0, t6, .Lbsr_bal_copied\n" ++
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
-  "  ld t4, 16(t3); li t5, 3; beq t4, t5, .Lbsr_bal_copy_next\n" ++
-  ".Lbsr_bal_copy_changed:\n" ++
+  "  ld t4, 16(t3); li t5, 3; beq t4, t5, .Lbsr_bal_copy_load_item\n" ++
+  ".Lbsr_bal_copy_load_item:\n" ++
   "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0); mv a2, s0\n" ++
   "  la a3, baada_item_off; la a4, baada_item_len\n" ++
   "  jal ra, rlp_list_nth_item; bnez a0, .Lbsr_cons_bal_desc\n" ++
@@ -258,7 +253,8 @@ def blockStateRootFunction : String :=
   "  la t1, baada_item_len; ld a3, 0(t1); ld a4, 16(t3)\n" ++
   "  la t0, bsr_bal_item_ptr; sd a2, 0(t0); la t0, bsr_bal_item_len; sd a3, 0(t0)\n" ++
   "  mv a0, a2; mv a1, a3; jal ra, bal_account_is_modeled_system\n" ++
-  "  li t0, 1; beq a0, t0, .Lbsr_bal_copy_next; bnez a0, .Lbsr_cons_bal_desc\n" ++
+  "  li t0, 1; beq a0, t0, .Lbsr_bal_copy_system2935\n  li t0, 2; beq a0, t0, .Lbsr_bal_copy_system4788\n  bnez a0, .Lbsr_cons_bal_desc\n" ++
+  "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n  ld t4, 16(t3); li t5, 3; beq t4, t5, .Lbsr_bal_copy_next\n" ++
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
   "  ld a0, 0(t3); ld a1, 8(t3); la t0, bsr_bal_item_ptr; ld a2, 0(t0); la t0, bsr_bal_item_len; ld a3, 0(t0); ld a4, 16(t3)\n" ++
   "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a5, t3, t2\n" ++
@@ -268,6 +264,8 @@ def blockStateRootFunction : String :=
   "  addi s1, s1, 1\n" ++
   ".Lbsr_bal_copy_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_bal_copy\n" ++
+  ".Lbsr_bal_copy_system2935:\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); li a2, 0\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
+  ".Lbsr_bal_copy_system4788:\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); li a2, 1\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copied:\n" ++
   "  la t6, bsr_bal_count; ld t6, 0(t6); bnez t6, .Lbsr_apply\n" ++
   ".Lbsr_bal_done:\n" ++
@@ -982,6 +980,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   balAccountIsModeledSystemFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
+  bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
@@ -1474,6 +1473,7 @@ def statelessVerdictV2GuestClosure : String :=
   balAccountIsModeledSystemFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
+  bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
