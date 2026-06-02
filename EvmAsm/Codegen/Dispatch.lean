@@ -108,6 +108,17 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
   "opcode_handlers:\n" ++
   String.intercalate "\n" entries
 
+/-- Shared scratch for the CALL/STATICCALL precompile frame surface.
+    Follow-up precompile bodies can write returndata bytes here before
+    copying them into caller memory. Layout:
+      +0  status / success word
+      +8  returndata length
+      +16 first 64 bytes of returndata scratch. -/
+def emitPrecompileFrameData : String :=
+  ".balign 8\n" ++
+  "evm_precompile_frame:\n" ++
+  "  .zero 80\n"
+
 /-- Dispatcher prologue: init EVM pointers (`x10` = code, `x12` =
     stack top, `x13` = EVM memory base) and enter the main
     fetch/decode/dispatch loop. Each iteration loads the opcode byte
@@ -346,6 +357,7 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  emitPrecompileFrameData ++
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
@@ -487,6 +499,7 @@ def emitRuntimeDispatcherDataSection
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  emitPrecompileFrameData ++
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
