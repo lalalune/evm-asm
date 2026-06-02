@@ -23,12 +23,14 @@ import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
 import EvmAsm.Evm64.Env.Program
 import EvmAsm.Evm64.Eq.Program
+import EvmAsm.Evm64.Exp.Program
 import EvmAsm.Evm64.Gt.Program
 import EvmAsm.Evm64.IsZero.Program
 import EvmAsm.Evm64.Lt.Program
 import EvmAsm.Evm64.MLoad.Program
 import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
+import EvmAsm.Evm64.Multiply.Callable
 import EvmAsm.Evm64.Multiply.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
@@ -547,11 +549,13 @@ def envHandlers : List OpcodeHandlerSpec :=
   this runtime dispatcher receives that already-computed 256-bit word in the
   `pack-bytecode.py --blob-base-fee` input trailer and copies it to `evm_env+512`.
 
-  `BLOBHASH` (0x49) remains in `popPushZeroHandlers` until a follow-up slice
-  adds an indexed table for `tx_env.blob_versioned_hashes`, including the
-  execution-specs out-of-range-zero behavior. -/
+  `BLOBHASH` (0x49) reads `tx_env.blob_versioned_hashes[index]` from the
+  bounded `evm_blob_hashes` table. The runtime prologue copies up to 16
+  entries from `pack-bytecode.py --blob-hashes` and stores the copied count at
+  `evm_env+544`; indexes outside that count, or indexes with nonzero high
+  limbs, push zero per execution-specs. -/
 def blobContextHandlers : List OpcodeHandlerSpec :=
-  let body : Program :=
+  let blobBaseFeeBody : Program :=
     ADDI .x12 .x12 (-32) ;;
     LD .x15 .x20 (BitVec.ofNat 12 512) ;;
     SD .x12 .x15 0 ;;
@@ -563,8 +567,42 @@ def blobContextHandlers : List OpcodeHandlerSpec :=
     SD .x12 .x15 24
   [ { label := "h_BLOBBASEFEE"
     , opcodes := [0x4a]
-    , body := body
+    , body := blobBaseFeeBody
     , tail := .advanceAndRet 1 } ]
+  ++
+  [ { label := "h_BLOBHASH"
+    , opcodes := [0x49]
+    , body := []
+    , tail := .custom <|
+        "  ld x14, 8(x12)\n" ++          -- high limbs must be zero
+        "  bnez x14, .Lblobhash_zero\n" ++
+        "  ld x14, 16(x12)\n" ++
+        "  bnez x14, .Lblobhash_zero\n" ++
+        "  ld x14, 24(x12)\n" ++
+        "  bnez x14, .Lblobhash_zero\n" ++
+        "  ld x14, 0(x12)\n" ++          -- x14 = low u64 index
+        "  ld x15, 544(x20)\n" ++        -- x15 = copied blob_hash_count
+        "  bgeu x14, x15, .Lblobhash_zero\n" ++
+        "  slli x14, x14, 5\n" ++        -- 32 bytes per versioned hash
+        "  la x15, evm_blob_hashes\n" ++
+        "  add x15, x15, x14\n" ++
+        "  ld x16, 0(x15)\n" ++
+        "  sd x16, 0(x12)\n" ++
+        "  ld x16, 8(x15)\n" ++
+        "  sd x16, 8(x12)\n" ++
+        "  ld x16, 16(x15)\n" ++
+        "  sd x16, 16(x12)\n" ++
+        "  ld x16, 24(x15)\n" ++
+        "  sd x16, 24(x12)\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret\n" ++
+        ".Lblobhash_zero:\n" ++
+        "  sd x0, 0(x12)\n" ++
+        "  sd x0, 8(x12)\n" ++
+        "  sd x0, 16(x12)\n" ++
+        "  sd x0, 24(x12)\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret" } ]
 
 /-- M29 BLOCKHASH handler backed by the runtime block-history trailer.
 
@@ -1019,15 +1057,16 @@ def signedDivModHandlers : List OpcodeHandlerSpec :=
     `signedDivModTail` helper. It also clobbers `x10` via the
     inline mod callable, so `preBody` saves `x10` to `x14`.
 
-    EXP (0x0a) was planned for this milestone but is deferred. The
-    `evm_exp_msb_saved_bit_two_mul_fixed` wrapper uses `x6` and
-    `x16` as per-limb counter / limb pointer, but those are LP64
-    caller-saved registers — `mul_callable` clobbers `x6` 39 times
-    per call. The "fix" only addresses `x19` (cursor) clobber, not
-    `x6`/`x16`. A complete fix requires a `_fixed_fixed` variant
-    using callee-saved registers (e.g. `x20`/`x21`) for the
-    per-limb counter and limb pointer; until that lands upstream,
-    EXP can't run through the dispatcher. -/
+    EXP (0x0a) now rides the same self-calling pattern via
+    `evmExpComposed` below, using the `_fixed_fixed` body variant.
+    The earlier deferral note was that `mul_callable` clobbers `x6`
+    (the EXP loop's per-limb counter) — the `_fixed` variant only
+    moved the `x19` cursor to a callee-saved register, leaving the
+    `x6` counter to be corrupted mid-iteration. `_fixed_fixed`
+    (`EvmAsm/Evm64/Exp/Program.lean`) moves the counter to `x22`
+    (s6, callee-saved, untouched by `evm_mul`/`cc_ret`), so EXP now
+    runs correctly through the dispatcher. (The limb pointer `x16`
+    was never the problem — `evm_mul` doesn't touch it.) -/
 
 /-- ADDMOD handler body. **Skips `evm_addmod_epilogue` deliberately**:
     the verified `evm_addmod` composes prologue + phase1_carry +
@@ -1059,6 +1098,49 @@ def evmAddmodComposed : Program :=
   single (Instr.JAL .x0 (1376 : BitVec 21)) ;;
   EvmAsm.Evm64.evm_mod_callable_v4
 
+/-- EXP (0x0a) handler body: the double-fixed verified EXP body inlined
+    with `mul_callable`, mirroring `evmAddmodComposed`.
+
+    Composition:
+      - `evm_exp_..._fixed_fixed_canonical 200 92`: 84 instr (336 B). The
+        two interior `JAL .x1` MUL-call sites target `mul_callable`.
+      - skip-JAL `JAL .x0 +260`: 1 instr (4 B) at byte 336 — jumps past
+        the inlined callable to the handler tail (260 = 4 + 256).
+      - `mul_callable`: 64 instr (256 B) at byte 340.
+
+    **MUL-call offsets shift +4 vs the standalone `evm_exp_from_input`.**
+    There, `mul_callable` sits immediately after the body (byte 336), so
+    the canonical offsets are 196 / 88. Here the 4-byte skip-JAL pushes
+    `mul_callable` to byte 340, so the squaring / cond-multiply JAL sites
+    (at body bytes 140 / 248) need offsets `340-140 = 200` and
+    `340-248 = 92`. The internal branch offsets (cond-mul skip BEQ,
+    loop-back BNE) are unaffected — they stay inside the 336-byte body
+    and use the canonical `_fixed` values.
+
+    The skip-JAL is required because EXP's loop exits by *falling through*
+    `exp_epilogue` (which has no trailing jump); without it, control would
+    run straight into `mul_callable`. ADDMOD doesn't need this shape
+    because its single MUL call is the last thing before the callable.
+
+    Net `x12` advance: `exp_epilogue` does one `ADDI x12, x12, 32` (pops 2,
+    pushes 1); the per-iteration call marshal/un-marshal nets zero. -/
+def evmExpComposed : Program :=
+  EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_fixed_canonical
+    (200 : BitVec 21) (92 : BitVec 21) ;;
+  single (Instr.JAL .x0 (260 : BitVec 21)) ;;
+  EvmAsm.Evm64.mul_callable
+
+/-- Tail for EXP (0x0a): like `signedDivModTail` (the inner `JAL .x1` into
+    `mul_callable` clobbers `x1`, so `ret` would jump to garbage → use
+    `j .dispatch_loop`), plus a `la sp, lp64_sp_top` to restore the LP64
+    stack pointer that h_EXP's `preBody` repointed at `exp_scratch` for the
+    EXP body's result accumulator. -/
+private def expTail : HandlerTail :=
+  .custom ("  mv x10, x14\n" ++
+           "  la sp, lp64_sp_top\n" ++
+           "  addi x10, x10, 1\n" ++
+           "  j .dispatch_loop")
+
 /-- M10 self-calling handlers. Currently just ADDMOD; EXP is
     deferred (see the milestone-header comment). Reuses
     `signedDivModTail` because the wrapper's inner `JAL .x1` into
@@ -1069,7 +1151,12 @@ def selfCallingHandlers : List OpcodeHandlerSpec :=
       opcodes       := [0x08]
       preBody       := "  mv x14, x10"
       body          := evmAddmodComposed
-      tail          := signedDivModTail } ]
+      tail          := signedDivModTail }
+  , { label         := "h_EXP"
+      opcodes       := [0x0a]
+      preBody       := "  mv x14, x10\n  la x2, exp_scratch"
+      body          := evmExpComposed
+      tail          := expTail } ]
 
 /-- STOP: transitions out of the dispatcher loop instead of returning
     to it. The body is empty; the dispatcher's `jalr` lands on

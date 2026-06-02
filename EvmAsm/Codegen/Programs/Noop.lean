@@ -12,7 +12,7 @@
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
   - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, MSIZE, GAS
   - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
-    EXTCODEHASH, BLOBHASH
+    EXTCODEHASH, BLOBHASH, BLOCKHASH
   - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
     RETURNDATACOPY, MCOPY
 
@@ -192,7 +192,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
 /-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE,
-    EXTCODEHASH, BLOBHASH). Each opcode pops one 32-byte
+    EXTCODEHASH, BLOBHASH, BLOCKHASH). Each opcode pops one 32-byte
     input (e.g., an address or index) and pushes a 32-byte zero
     value. Net EVM stack delta = 0.
 
@@ -205,6 +205,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     - EXTCODESIZE / EXTCODEHASH always return 0 (no external account
       model).
     - BLOBHASH always returns 0 (no Dencun blob context).
+    - BLOCKHASH always returns 0 (no block history).
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
@@ -223,6 +224,8 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_EXTCODEHASH", opcodes := [0x3f]
     , body := body, tail := .advanceAndRet 1 }
   , { label := "h_BLOBHASH", opcodes := [0x49]
+    , body := body, tail := .advanceAndRet 1 }
+  , { label := "h_BLOCKHASH", opcodes := [0x40]
     , body := body, tail := .advanceAndRet 1 } ]
 
 /-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY,
@@ -453,27 +456,17 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
       placeholder in `EvmAsm/Evm64/MulMod/Program.lean` (slice
       evm-asm-m4wu unscheduled). A future PR will swap in the
       real Knuth-style 512-bit + reduce-by-N body once it lands.
-    - **EXP** always returns 0. **The verified body actually
-      exists** (`evm_exp_msb_saved_bit_two_mul_fixed` in
-      `EvmAsm/Evm64/Exp/Program.lean`, x19-callee-saved cursor
-      design; ~84 instructions). The M21 PR after this one will
-      wire it via the M10-style inline-callable composition
-      pattern (~300–500 LOC: embed `mul_callable` in the
-      dispatcher epilogue, pin JAL offsets for the squaring +
-      conditional-multiply calls, use M9-style trampoline tail).
+    - **EXP** graduated from a no-op to a real verified body and now
+      lives in `selfCallingHandlers` (`EvmAsm/Codegen/Programs/Evm.lean`)
+      as `evmExpComposed`, using the `_fixed_fixed` body variant
+      (per-limb counter moved from `x6` to callee-saved `x22` so it
+      survives `mul_callable`). Only MULMOD remains a no-op here.
 
-    Trusted bytecode that doesn't depend on MULMOD / EXP results
-    continues to work correctly. -/
+    Trusted bytecode that doesn't depend on MULMOD results continues
+    to work correctly. -/
 def arithNoopHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_MULMOD", opcodes := [0x09]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 64) ;;
-              SD .x12 .x0 0 ;;
-              SD .x12 .x0 8 ;;
-              SD .x12 .x0 16 ;;
-              SD .x12 .x0 24
-    , tail := .advanceAndRet 1 }
-  , { label := "h_EXP", opcodes := [0x0a]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 32) ;;
               SD .x12 .x0 0 ;;
               SD .x12 .x0 8 ;;
               SD .x12 .x0 16 ;;

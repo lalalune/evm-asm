@@ -195,8 +195,9 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 520(x20)\n" ++
   "  sd x0, 528(x20)\n" ++
   "  sd x0, 536(x20)\n" ++
-  "  sd x0, 544(x20)\n" ++         -- M29: currentBlockNumber = 0
-  "  sd x0, 552(x20)\n" ++         -- M29: blockHashCount = 0
+  "  sd x0, 544(x20)\n" ++         -- M28: blobHashCount = 0
+  "  sd x0, 552(x20)\n" ++         -- M29: currentBlockNumber = 0
+  "  sd x0, 560(x20)\n" ++         -- M29: blockHashCount = 0
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -375,10 +376,14 @@ def emitDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 560\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 568\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells up to env+480
                           -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
-                          -- + M29 BLOCKHASH current/count at env+544/+552
+                          -- + M28 blobHashCount at env+544
+                          -- + M29 BLOCKHASH current/count at env+552/+560
+  ".balign 8\n" ++
+  "evm_blob_hashes:\n" ++
+  "  .zero 512\n" ++      -- M28: bounded 16 × 32-byte tx blob versioned hashes
   ".balign 8\n" ++
   "evm_block_hashes:\n" ++
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
@@ -394,6 +399,15 @@ def emitDispatcherDataSection
   "lp64_stack:\n" ++
   "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
   "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
+  ".balign 8\n" ++
+  "exp_scratch:\n" ++
+  "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
+                          -- verified EXP body uses `x2`(sp)+0..24 as its running
+                          -- accumulator; the dispatcher's `sp` points at
+                          -- `lp64_sp_top` (top of a down-growing stack), so
+                          -- `sp+0..24` would scribble into the jump table.
+                          -- h_EXP's preBody repoints `x2` here and its tail
+                          -- restores `sp = lp64_sp_top`.
   emitJumpTable registry
 
 /-! ## Runtime-bytecode dispatcher (M8.5)
@@ -450,7 +464,8 @@ def emitRuntimeDispatcherPrologue : String :=
   --
   -- Input layout (unchanged from M22 `pack-bytecode.py --storage`):
   --   <u64 slot_count> followed by slot_count × (key:32, value:32)
-  --   then a 32-byte BLOBBASEFEE word (M28; zero by default)
+  --   then a 32-byte BLOBBASEFEE word (M28; zero by default),
+  --   u64 blob_hash_count, and blob_hash_count × 32-byte words.
   -- Output layout (Option A):
   --   STATE_TRACKER_AREA + i*128 = (addrHash=0:32, slotKey:32,
   --                                 original=value:32, current=value:32)
@@ -468,8 +483,9 @@ def emitRuntimeDispatcherPrologue : String :=
   "  sd x0, 520(x20)\n" ++         -- M28: blobBaseFee[1] = 0
   "  sd x0, 528(x20)\n" ++         -- M28: blobBaseFee[2] = 0
   "  sd x0, 536(x20)\n" ++         -- M28: blobBaseFee[3] = 0
-  "  sd x0, 544(x20)\n" ++         -- M29: currentBlockNumber = 0 (overwritten by trailer load below)
-  "  sd x0, 552(x20)\n" ++         -- M29: blockHashCount = 0
+  "  sd x0, 544(x20)\n" ++         -- M28: blobHashCount = 0 (overwritten by trailer load below)
+  "  sd x0, 552(x20)\n" ++         -- M29: currentBlockNumber = 0 (overwritten by trailer load below)
+  "  sd x0, 560(x20)\n" ++         -- M29: blockHashCount = 0
   "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
   "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
   ".preload_expand_loop:\n" ++
@@ -516,20 +532,47 @@ def emitRuntimeDispatcherPrologue : String :=
   "  sd x8, 528(x20)\n" ++
   "  ld x8, 24(x5)\n" ++
   "  sd x8, 536(x20)\n" ++
-  "  addi x5, x5, 32\n" ++          -- x5 = BLOCKHASH context trailer
-  -- M29: BLOCKHASH context trailer follows blob-base-fee:
+  "  addi x5, x5, 32\n" ++         -- x5 = &(blob_hash_count)
+  "  ld x6, 0(x5)\n" ++            -- x6 = source blob_hash_count
+  -- Static runtime table cap: enough for current protocol limits, and
+  -- explicit truncation keeps the copy bounded if malformed test input
+  -- claims more entries. Full EEST plumbing should reject impossible
+  -- protocol configs before launch when this cap is insufficient.
+  "  li x7, 16\n" ++
+  "  bleu x6, x7, .blob_hash_count_ok\n" ++
+  "  mv x6, x7\n" ++
+  ".blob_hash_count_ok:\n" ++
+  "  sd x6, 544(x20)\n" ++         -- env.blobHashCount = min(count, 16)
+  "  addi x5, x5, 8\n" ++          -- x5 = first blob hash word
+  "  la x7, evm_blob_hashes\n" ++
+  ".blob_hash_copy_loop:\n" ++
+  "  beqz x6, .blob_hash_copy_done\n" ++
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 0(x7)\n" ++
+  "  ld x8, 8(x5)\n" ++
+  "  sd x8, 8(x7)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 16(x7)\n" ++
+  "  ld x8, 24(x5)\n" ++
+  "  sd x8, 24(x7)\n" ++
+  "  addi x5, x5, 32\n" ++
+  "  addi x7, x7, 32\n" ++
+  "  addi x6, x6, -1\n" ++
+  "  j .blob_hash_copy_loop\n" ++
+  ".blob_hash_copy_done:\n" ++
+  -- M29: BLOCKHASH context trailer follows blob hash table:
   --   u64 current_block_number
   --   u64 block_hash_count
   --   count × 32-byte hashes, in increasing block-number order.
   -- The table is clamped to the EVM window size (256 ancestors).
   "  ld x6, 0(x5)\n" ++            -- x6 = current block number
-  "  sd x6, 544(x20)\n" ++
+  "  sd x6, 552(x20)\n" ++
   "  ld x6, 8(x5)\n" ++            -- x6 = source hash count
   "  li x7, 256\n" ++
   "  bgeu x7, x6, .blockhash_count_ok\n" ++
   "  mv x6, x7\n" ++
   ".blockhash_count_ok:\n" ++
-  "  sd x6, 552(x20)\n" ++
+  "  sd x6, 560(x20)\n" ++
   "  addi x5, x5, 16\n" ++         -- x5 = first source hash
   "  la x7, evm_block_hashes\n" ++
   ".blockhash_copy_loop:\n" ++
@@ -571,10 +614,14 @@ def emitRuntimeDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 560\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 568\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells up to env+480
                           -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
-                          -- + M29 BLOCKHASH current/count at env+544/+552
+                          -- + M28 blobHashCount at env+544
+                          -- + M29 BLOCKHASH current/count at env+552/+560
+  ".balign 8\n" ++
+  "evm_blob_hashes:\n" ++
+  "  .zero 512\n" ++      -- M28: bounded 16 × 32-byte tx blob versioned hashes
   ".balign 8\n" ++
   "evm_block_hashes:\n" ++
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
@@ -590,6 +637,15 @@ def emitRuntimeDispatcherDataSection
   "lp64_stack:\n" ++
   "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
   "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
+  ".balign 8\n" ++
+  "exp_scratch:\n" ++
+  "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
+                          -- verified EXP body uses `x2`(sp)+0..24 as its running
+                          -- accumulator; the dispatcher's `sp` points at
+                          -- `lp64_sp_top` (top of a down-growing stack), so
+                          -- `sp+0..24` would scribble into the jump table.
+                          -- h_EXP's preBody repoints `x2` here and its tail
+                          -- restores `sp = lp64_sp_top`.
   emitJumpTable registry
 
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.

@@ -58,16 +58,17 @@ FAILED=()
 SKIPPED=0
 # `--list-test-cases` emits an optional-field TSV. The baked-bytecode
 # runner has no runtime input trailer, so cases that need calldata,
-# storage, nonzero blob-base-fee, or block-history context must run through
-# codegen-opcodes-runtime-check.sh instead.
+# storage, nonzero blob-base-fee, blob-hashes, or block-history context
+# must run through codegen-opcodes-runtime-check.sh instead.
 while IFS= read -r line; do
   name=$(printf '%s' "$line" | cut -f1)
   expected=$(printf '%s' "$line" | cut -f2)
   calldata=$(printf '%s' "$line" | cut -f4)
   storage=$(printf '%s' "$line" | cut -f5)
   blob_base_fee=$(printf '%s' "$line" | cut -f6)
-  block_number=$(printf '%s' "$line" | cut -f7)
-  block_hashes=$(printf '%s' "$line" | cut -f8)
+  blob_hashes=$(printf '%s' "$line" | cut -f7)
+  block_number=$(printf '%s' "$line" | cut -f8)
+  block_hashes=$(printf '%s' "$line" | cut -f9)
 
   if [[ -z "$name" || -z "$expected" ]]; then
     echo
@@ -76,7 +77,7 @@ while IFS= read -r line; do
     continue
   fi
 
-  if [[ -n "${calldata:-}" || -n "${storage:-}" || -n "${blob_base_fee:-}" || -n "${block_number:-}" || -n "${block_hashes:-}" ]]; then
+  if [[ -n "${calldata:-}" || -n "${storage:-}" || -n "${blob_base_fee:-}" || -n "${blob_hashes:-}" || -n "${block_number:-}" || -n "${block_hashes:-}" ]]; then
     echo
     echo "==> SKIP: $name (requires runtime input trailer)"
     SKIPPED=$((SKIPPED + 1))
