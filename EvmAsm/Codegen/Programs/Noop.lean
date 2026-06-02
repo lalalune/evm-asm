@@ -289,9 +289,18 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
     Yellow Paper; for our no-op the ordering doesn't matter because
     we drop everything.
 
+    **M27 update**: CALL / STATICCALL now recognize target
+    addresses 0x01..0x04 as the basic precompile frame surface and
+    push success = 1. The per-precompile bodies are still stubs in
+    this slice; follow-up PRs wire IDENTITY / SHA256 / RIPEMD160 /
+    ECRECOVER output semantics.
+
     **Known limitations** (documented in CODEGEN.md M19 narrative):
-    - CALL / CALLCODE / DELEGATECALL / STATICCALL always return 0
-      (= "call failed"). No actual sub-frame execution.
+    - Non-precompile CALL / CALLCODE / DELEGATECALL / STATICCALL
+      still return 0 (= "call failed"). No actual sub-frame
+      execution.
+    - Basic precompile CALL / STATICCALL targets currently return
+      success without producing returndata.
     - CREATE / CREATE2 always return address 0 (= "deployment
       failed"). The would-be deployed code is not executed.
     - No frame stack / recursion. The dispatcher doesn't push a
@@ -307,12 +316,55 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
               SD .x12 .x0 16 ;;
               SD .x12 .x0 24
     , tail := .advanceAndRet 1 }
+  let basicPrecompileCallTail (netPopBytes : Nat) : String :=
+    -- Stack top at entry is the call gas word. The destination
+    -- address is the next word for both CALL and STATICCALL.
+    "  ld x14, 32(x12)\n" ++
+    "  ld x15, 40(x12)\n" ++
+    "  bnez x15, 1f\n" ++
+    "  ld x15, 48(x12)\n" ++
+    "  bnez x15, 1f\n" ++
+    "  ld x15, 56(x12)\n" ++
+    "  bnez x15, 1f\n" ++
+    "  li x15, 1\n" ++
+    "  bltu x14, x15, 1f\n" ++
+    "  li x15, 4\n" ++
+    "  bltu x15, x14, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+    "  li x14, 1\n" ++
+    "  sd x14, 0(x12)\n" ++
+    "  sd x0, 8(x12)\n" ++
+    "  sd x0, 16(x12)\n" ++
+    "  sd x0, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  ret\n" ++
+    "1:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  sd x0, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+    "  sd x0, 0(x12)\n" ++
+    "  sd x0, 8(x12)\n" ++
+    "  sd x0, 16(x12)\n" ++
+    "  sd x0, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  ret"
   [ mkHandler "h_CREATE"        0xf0 64
-  , mkHandler "h_CALL"          0xf1 192
+  , { label := "h_CALL"
+    , opcodes := [0xf1]
+    , body := []
+    , tail := .custom (basicPrecompileCallTail 192) }
   , mkHandler "h_CALLCODE"      0xf2 192
   , mkHandler "h_DELEGATECALL"  0xf4 160
   , mkHandler "h_CREATE2"       0xf5 96
-  , mkHandler "h_STATICCALL"    0xfa 160 ]
+  , { label := "h_STATICCALL"
+    , opcodes := [0xfa]
+    , body := []
+    , tail := .custom (basicPrecompileCallTail 160) } ]
 
 /-- M20 arithmetic no-op handlers (MULMOD, EXP). The last two
     unwired opcodes shipped as placeholders to **hit 100% opcode
