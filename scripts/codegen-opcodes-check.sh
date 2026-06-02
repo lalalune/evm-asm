@@ -58,15 +58,16 @@ FAILED=()
 SKIPPED=0
 # `--list-test-cases` emits an optional-field TSV. The baked-bytecode
 # runner has no runtime input trailer, so cases that need calldata,
-# storage, or block-history context must run through
+# storage, nonzero blob-base-fee, or block-history context must run through
 # codegen-opcodes-runtime-check.sh instead.
 while IFS= read -r line; do
   name=$(printf '%s' "$line" | cut -f1)
   expected=$(printf '%s' "$line" | cut -f2)
   calldata=$(printf '%s' "$line" | cut -f4)
   storage=$(printf '%s' "$line" | cut -f5)
-  block_number=$(printf '%s' "$line" | cut -f6)
-  block_hashes=$(printf '%s' "$line" | cut -f7)
+  blob_base_fee=$(printf '%s' "$line" | cut -f6)
+  block_number=$(printf '%s' "$line" | cut -f7)
+  block_hashes=$(printf '%s' "$line" | cut -f8)
 
   if [[ -z "$name" || -z "$expected" ]]; then
     echo
@@ -75,7 +76,7 @@ while IFS= read -r line; do
     continue
   fi
 
-  if [[ -n "${calldata:-}" || -n "${storage:-}" || -n "${block_number:-}" || -n "${block_hashes:-}" ]]; then
+  if [[ -n "${calldata:-}" || -n "${storage:-}" || -n "${blob_base_fee:-}" || -n "${block_number:-}" || -n "${block_hashes:-}" ]]; then
     echo
     echo "==> SKIP: $name (requires runtime input trailer)"
     SKIPPED=$((SKIPPED + 1))
@@ -87,7 +88,7 @@ while IFS= read -r line; do
   lake exe codegen --test-case "$name" --halt linux93 -o "gen-out/$name"
 
   echo "==> ziskemu -e gen-out/$name.elf -o gen-out/$name.output"
-  "$ZISKEMU" -e "gen-out/$name.elf" -o "gen-out/$name.output" -n 200000 \
+  "$ZISKEMU" -e "gen-out/$name.elf" -o "gen-out/$name.output" -n 500000 \
     >"gen-out/$name.emu.log" 2>&1
 
   actual="$(xxd -p -c 64 -l 32 "gen-out/$name.output" | tr -d '\n')"
@@ -107,8 +108,12 @@ done <"$LIST_FILE"
 
 echo
 if [[ ${#FAILED[@]} -eq 0 ]]; then
-  RUN=$((TOTAL - SKIPPED))
-  echo "==> ALL PASS ($RUN run, $SKIPPED skipped runtime-input case(s))"
+  if [[ "$SKIPPED" -eq 0 ]]; then
+    echo "==> ALL PASS ($TOTAL case(s))"
+  else
+    RUN=$((TOTAL - SKIPPED))
+    echo "==> ALL PASS ($RUN run, $SKIPPED skipped runtime-input case(s))"
+  fi
   exit 0
 else
   echo "==> FAIL: ${#FAILED[@]} of $TOTAL case(s) failed:"

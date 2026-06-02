@@ -540,11 +540,37 @@ def envHandlers : List OpcodeHandlerSpec :=
   , { label := "h_SELFBALANCE", opcodes := [0x47], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .selfBalance, tail := .advanceAndRet 1 }
   , { label := "h_BASEFEE"    , opcodes := [0x48], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .baseFee    , tail := .advanceAndRet 1 } ]
 
+/-! ## M28 blob-context opcodes
+
+  `BLOBBASEFEE` (0x4a) is an Amsterdam/Cancun context opcode. The
+  executable spec computes it as `calculate_blob_gas_price(block_env.excess_blob_gas)`;
+  this runtime dispatcher receives that already-computed 256-bit word in the
+  `pack-bytecode.py --blob-base-fee` input trailer and copies it to `evm_env+512`.
+
+  `BLOBHASH` (0x49) remains in `popPushZeroHandlers` until a follow-up slice
+  adds an indexed table for `tx_env.blob_versioned_hashes`, including the
+  execution-specs out-of-range-zero behavior. -/
+def blobContextHandlers : List OpcodeHandlerSpec :=
+  let body : Program :=
+    ADDI .x12 .x12 (-32) ;;
+    LD .x15 .x20 (BitVec.ofNat 12 512) ;;
+    SD .x12 .x15 0 ;;
+    LD .x15 .x20 (BitVec.ofNat 12 520) ;;
+    SD .x12 .x15 8 ;;
+    LD .x15 .x20 (BitVec.ofNat 12 528) ;;
+    SD .x12 .x15 16 ;;
+    LD .x15 .x20 (BitVec.ofNat 12 536) ;;
+    SD .x12 .x15 24
+  [ { label := "h_BLOBBASEFEE"
+    , opcodes := [0x4a]
+    , body := body
+    , tail := .advanceAndRet 1 } ]
+
 /-- M29 BLOCKHASH handler backed by the runtime block-history trailer.
 
     Runtime input supplies:
-      - `env + 512`: current block number (`cur`, u64)
-      - `env + 520`: number of loaded recent hashes (`count`, clamped to 256)
+      - `env + 544`: current block number (`cur`, u64)
+      - `env + 552`: number of loaded recent hashes (`count`, clamped to 256)
       - `evm_block_hashes`: `count` 32-byte hashes in increasing block-number
         order, matching execution-specs' `block_env.block_hashes`.
 
@@ -553,7 +579,9 @@ def envHandlers : List OpcodeHandlerSpec :=
       - target >= cur -> zero
       - cur - target > count -> zero
       - otherwise copy `block_hashes[count - (cur - target)]` into the
-        popped stack slot. -/
+        popped stack slot.
+
+    Note: env+512..+543 is occupied by BLOBBASEFEE (M28). -/
 def blockHashHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_BLOCKHASH"
     , opcodes := [0x40]
@@ -566,10 +594,10 @@ def blockHashHandlers : List OpcodeHandlerSpec :=
         "  ld x14, 24(x12)\n" ++
         "  bnez x14, .Lblockhash_zero\n" ++
         "  ld x14, 0(x12)\n" ++       -- x14 = target block number
-        "  ld x15, 512(x20)\n" ++     -- x15 = current block number
+        "  ld x15, 544(x20)\n" ++     -- x15 = current block number (env+544, past M28 blobBaseFee)
         "  bgeu x14, x15, .Lblockhash_zero\n" ++
         "  sub x16, x15, x14\n" ++    -- x16 = cur - target, strictly positive
-        "  ld x17, 520(x20)\n" ++     -- x17 = loaded hash count
+        "  ld x17, 552(x20)\n" ++     -- x17 = loaded hash count (env+552)
         "  bgtu x16, x17, .Lblockhash_zero\n" ++
         "  sub x17, x17, x16\n" ++    -- index = count - age
         "  slli x17, x17, 5\n" ++     -- index × 32
@@ -1057,7 +1085,7 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ envHandlers ++ blockHashHandlers ++ calldataHandlers ++
+  memoryHandlers ++ envHandlers ++ blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   storageHandlers ++ haltHandlers ++ pushZeroHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
