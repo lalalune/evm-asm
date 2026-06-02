@@ -84,6 +84,17 @@ The first starts at `--skip 17085` (`16582 + 503`), the second starts at
 `--skip 20085`. Each checks `--limit 1000` with a `--min-full 1000`
 regression threshold.
 
+Run the focused EXP opcode regression:
+
+```bash
+scripts/codegen-eest-exp-power256-check.sh
+```
+
+This checks the Amsterdam `exp_power256` state-test fixture and requires a full
+105-byte stateless output match. Override `EEST_EXP_POWER256_JOBS` or
+`EEST_EXP_POWER256_STEPS` for this wrapper without changing the broader harness
+defaults.
+
 Run the current BAL replay frontier around the EIP-7002 withdrawal-request
 cluster:
 
@@ -104,9 +115,81 @@ uv run --directory execution-specs --quiet python3 \
   ../scripts/eest-bal-replay-report.py --failures-only --details
 ```
 
-The report includes `state_witness_bytes` and `over_bsr_cap`; the latter marks
-inputs whose state witness exceeds the current 32 KiB `block_state_root` cap.
-Pass `--bsr-cap N` to model a different proposed cap in that column.
+The report includes `state_witness_bytes`, `over_bsr_cap`, `bal_rows`, and
+`over_bsr_bal_cap`; the cap columns mark inputs whose state witness or BAL row
+count exceeds the current `block_state_root` caps. Pass `--bsr-cap N` and
+`--bsr-bal-cap N` to model different proposed arena caps in those columns. The
+guest default is a 64 KiB state-witness cap. That is an implementation cap for
+the current EEST harness, not a protocol maximum.
+
+The BSR scratch layout was reviewed against the local `execution-specs`
+checkout. The hard protocol/test limits that matter for the current layout are:
+Prague/Amsterdam withdrawal requests cap at 16 per payload
+(`execution-specs/src/ethereum/forks/amsterdam/stateless_ssz.py`), Osaka block
+RLP size caps at 8,388,608 bytes
+(`execution-specs/src/ethereum/forks/osaka/fork.py`), Osaka transaction gas
+caps at 16,777,216 (`execution-specs/src/ethereum/forks/osaka/transactions.py`),
+and EVM code/initcode caps are 24 KiB / 48 KiB
+(`execution-specs/src/ethereum/forks/osaka/vm/interpreter.py`). Amsterdam BAL
+validation is gas-derived rather than a fixed row count: the accepted item count
+is at most `block_gas_limit / 2000`, where items are account addresses plus
+unique storage keys
+(`execution-specs/src/ethereum/forks/amsterdam/block_access_lists.py` and
+`execution-specs/src/ethereum/forks/amsterdam/vm/gas.py`).
+
+The guest uses bounded arenas rather than dynamic host memory. `block_state_root`
+first applies the Amsterdam gas-derived BAL budget, then applies its current
+static layout sized for the execution-specs default 120,000,000 block gas limit.
+The harness reads the block gas limit from the converted SSZ input manifest and
+errors before launching `ziskemu` when a fixture needs a larger layout/ELF.
+Larger gas-valid BALs need a streaming/chunked replay path or a separately built
+larger static layout.
+
+To run a focused harness experiment with different guest-side replay caps, pass
+`--bsr-witness-cap N` for the block-state-root witness-byte cap or
+`--bsr-bal-cap N` to add a lower BAL-row cap after the Amsterdam gas-derived
+budget. The harness patches the emitted assembly and relinks only for that run:
+
+```bash
+scripts/codegen-eest-bal-replay-frontier-check.sh \
+  --steps 400000000
+```
+
+The checked version of that experiment is:
+
+```bash
+scripts/codegen-eest-bal-replay-frontier-64k-check.sh
+```
+
+It requires the current `19/20` full-match frontier and leaves the large
+170 KiB witness case as the remaining conservative miss.
+
+To probe the large remaining case past both known caps:
+
+```bash
+scripts/codegen-eest-stateless-check.sh \
+  --filter withdrawal_requests \
+  --skip 83 \
+  --limit 20 \
+  --jobs 4 \
+  --quiet-passes \
+  --bsr-witness-cap 262144 \
+  --bsr-bal-cap 1024 \
+  --steps 400000000
+```
+
+The same cap experiment can be run against the focused verdict probe, which
+emits debug counters instead of the full stateless output:
+
+```bash
+scripts/codegen-zisk-stateless-verdict-check.sh \
+  --filter withdrawal_requests \
+  --skip 87 \
+  --limit 1 \
+  --bsr-witness-cap 262144 \
+  --bsr-bal-cap 1024 \
+  --steps 2000000000
+```
 
 Run a large batch:
 
@@ -181,11 +264,15 @@ acceptances.
 
 ## Outputs
 
-The current run directory is recreated each time:
+Each harness invocation writes to a fresh run directory so concurrent EEST
+searches do not clobber each other's manifests or case outputs:
 
 ```text
-gen-out/eest-run/
+gen-out/eest-run/run-<timestamp>-<pid>/
 ```
+
+Set `EEST_RUN_DIR=/path/to/dir` to force a stable directory for a single
+reproducible run; that directory is recreated at the start of the invocation.
 
 Important files:
 
@@ -194,7 +281,9 @@ Important files:
 - `<case>.output`: raw guest output.
 - `<case>.emu.log`: ziskemu stdout/stderr.
 - `<case>.result.tsv`: per-case harness status and output hex.
-- `gen-out/eest-baseline.txt`: run summary for the latest harness execution.
+- `stateless_guest.{s,o,elf}`: guest artifacts for this invocation.
+- `eest-baseline.txt`: run summary for this invocation.
+- `gen-out/eest-baseline.txt`: copy of the latest harness summary.
 
 The summary reports:
 

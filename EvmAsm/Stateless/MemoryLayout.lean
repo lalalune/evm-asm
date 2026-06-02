@@ -25,14 +25,15 @@
                                [+ 8..16]  LE u64 length of first record
                                [+16..]    SSZ-encoded SszStatelessInput
   0x80000000 .. 0xa0000000   .text + .rodata + .bss (ELF `-Ttext=0x80000000`)
-  0xa0000000 .. 0xa0010000   .data (`-Tdata=0xa0000000`; small operand
-                             seeds for existing build units)
+  0xa5000000 .. 0xb0000000   .data (`-Tdata=0xa5000000`; static tables,
+                             fixed data, and BSR/BAL arenas)
   0xa0010000 .. 0xa0020000   OUTPUT_ADDR (64 KiB, public output)
                                [+ 0..N]   SSZ-encoded
                                           SszStatelessValidationResult
-  0xa0020000 .. 0xc0000000   working RAM (decoded structures, DBs,
+  0xa0020000 .. 0xa5000000   working RAM (decoded structures, DBs,
                              frames) -- the Stateless guest claims this
-                             tail of ziskemu's RAM region.
+                             lower tail of ziskemu's RAM region.
+  0xb0000000 .. 0xb2000000   .sszscratch NOBITS merkleization scratch
   ```
 
   `INPUT_ADDR`, `INPUT_DATA_OFFSET`, and `OUTPUT_ADDR` mirror the
@@ -44,7 +45,7 @@
   the verified `isValidMemAddr` predicate as of issue #5164 -- see
   `EvmAsm/Rv64/Basic.lean` for the disjunctive definition.
 
-  ## Working-RAM sub-regions (0xa0020000 .. 0xc0000000)
+  ## Working-RAM sub-regions (0xa0020000 .. 0xa5000000)
 
   Each anchor is the start of a region whose size is sized at codegen
   time. Sizes will be tightened as modules land; for now we reserve
@@ -122,11 +123,11 @@ def SHA256_SCRATCH          : Word := 0xa1b90000
     They are instead emitted into a dedicated NOBITS section placed by
     the linker at `SSZ_SCRATCH_BASE` (see `Driver.lean`'s
     `--section-start=.sszscratch=...`). NOBITS keeps the multi-MiB
-    reservation out of the ELF file. The region sits above the
-    working-RAM anchors and the stack, and fully inside the verified
+    reservation out of the ELF file. The region sits above `.data`, clear of
+    the working-RAM anchors and the stack, and fully inside the verified
     RAM zone `RAM_MEM_START..RAM_MEM_END` (`0xa0000000..0xc0000000`),
     so `isValidMemAddr` already accepts it (no proof changes). -/
-def SSZ_SCRATCH_BASE        : Word := 0xa2000000
-def SSZ_SCRATCH_SIZE        : Nat  := 0x02000000  -- 32 MiB (0xa2000000..0xa4000000)
+def SSZ_SCRATCH_BASE        : Word := 0xb0000000
+def SSZ_SCRATCH_SIZE        : Nat  := 0x02000000  -- 32 MiB (0xb0000000..0xb2000000)
 
 end EvmAsm.Stateless
