@@ -229,11 +229,15 @@ acceptances.
 
 ## Outputs
 
-The current run directory is recreated each time:
+Each harness invocation writes to a fresh run directory so concurrent EEST
+searches do not clobber each other's manifests or case outputs:
 
 ```text
-gen-out/eest-run/
+gen-out/eest-run/run-<timestamp>-<pid>/
 ```
+
+Set `EEST_RUN_DIR=/path/to/dir` to force a stable directory for a single
+reproducible run; that directory is recreated at the start of the invocation.
 
 Important files:
 
@@ -242,7 +246,9 @@ Important files:
 - `<case>.output`: raw guest output.
 - `<case>.emu.log`: ziskemu stdout/stderr.
 - `<case>.result.tsv`: per-case harness status and output hex.
-- `gen-out/eest-baseline.txt`: run summary for the latest harness execution.
+- `stateless_guest.{s,o,elf}`: guest artifacts for this invocation.
+- `eest-baseline.txt`: run summary for this invocation.
+- `gen-out/eest-baseline.txt`: copy of the latest harness summary.
 
 The summary reports:
 

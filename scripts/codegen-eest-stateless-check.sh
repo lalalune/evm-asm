@@ -61,6 +61,12 @@
 #     --min-root N       exit 1 if fewer than N root matches (regression gate)
 #     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
 #
+# Environment:
+#   EEST_RUN_DIR         explicit conversion/result directory. When unset, each
+#                        invocation uses a unique subdirectory under
+#                        gen-out/eest-run so concurrent harness runs do not
+#                        clobber each other.
+#
 # Exit:
 #   0 -- ran to completion (baseline mode), or all --min-* thresholds met
 #   1 -- build/convert failure, no fixtures, or a --min-{succ,full,root} regression
@@ -286,6 +292,16 @@ fi
 
 mkdir -p gen-out
 
+if [[ -n "${EEST_RUN_DIR:-}" ]]; then
+  RUN_DIR="$EEST_RUN_DIR"
+else
+  RUN_DIR="$REPO_ROOT/gen-out/eest-run/run-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+fi
+rm -rf "$RUN_DIR"
+mkdir -p "$RUN_DIR"
+GUEST_PREFIX="$RUN_DIR/stateless_guest"
+GUEST_ELF="$GUEST_PREFIX.elf"
+
 echo "==> lake build codegen"
 lake build codegen
 
@@ -307,9 +323,9 @@ resolve_riscv_tool() {
 }
 
 patch_bsr_caps_and_relink() {
-  local asm="gen-out/stateless_guest.s"
-  local obj="gen-out/stateless_guest.o"
-  local elf="gen-out/stateless_guest.elf"
+  local asm="$GUEST_PREFIX.s"
+  local obj="$GUEST_PREFIX.o"
+  local elf="$GUEST_ELF"
   local old_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 32768; bgtu a2, t1, .Lbsr_cons_change_cap"
   local new_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, $BSR_WITNESS_CAP; bgtu a2, t1, .Lbsr_cons_change_cap"
   local old_bal="  li t1, 512; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap"
@@ -346,17 +362,14 @@ if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
   [[ -n "$BSR_WITNESS_CAP" ]] && cap_note="bsr_witness_cap=$BSR_WITNESS_CAP"
   [[ -n "$BSR_BAL_CAP" ]] && cap_note="${cap_note:+$cap_note, }bsr_bal_cap=$BSR_BAL_CAP"
   echo "==> emit stateless_guest assembly (experimental $cap_note)"
-  lake exe codegen --program stateless_guest --halt linux93 -o gen-out/stateless_guest --asm-only
+  lake exe codegen --program stateless_guest --halt linux93 -o "$GUEST_PREFIX" --asm-only
   patch_bsr_caps_and_relink
 else
   echo "==> emit stateless_guest ELF"
-  lake exe codegen --program stateless_guest --halt linux93 -o gen-out/stateless_guest
+  lake exe codegen --program stateless_guest --halt linux93 -o "$GUEST_PREFIX"
 fi
 
 # --- convert fixtures -> ziskemu inputs + manifest --------------------------
-RUN_DIR="$REPO_ROOT/gen-out/eest-run"
-rm -rf "$RUN_DIR"
-mkdir -p "$RUN_DIR"
 conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
 [[ "$SKIP" != "0" ]] && conv_args+=(--skip "$SKIP")
 [[ "$ALL" -eq 0 ]] && conv_args+=(--limit "$LIMIT")
@@ -365,6 +378,7 @@ selection="$([[ $ALL -eq 1 ]] && echo all || echo "limit=$LIMIT")"
 [[ "$SKIP" != "0" ]] && selection="$selection, skip=$SKIP"
 [[ -n "$FILTER" ]] && selection="$selection, filter=$FILTER"
 echo "==> convert fixtures (tag=$TAG, $selection)"
+echo "    run dir: $RUN_DIR"
 python3 scripts/eest-stateless-to-input.py "${conv_args[@]}"
 
 MANIFEST="$RUN_DIR/manifest.tsv"
@@ -382,7 +396,7 @@ run_case() {
   local tmp_result="$result.tmp.$$"
   local actual_hex
 
-  if ! "$ZISKEMU" -e gen-out/stateless_guest.elf -i "$input" -o "$out" \
+  if ! "$ZISKEMU" -e "$GUEST_ELF" -i "$input" -o "$out" \
         -n "$STEPS" >"$log" 2>&1 </dev/null; then
     printf 'ERROR\texit\n' > "$tmp_result"
     mv "$tmp_result" "$result"
@@ -552,7 +566,7 @@ fi
 
 ran=$((total - err))
 # --- summary + baseline file ------------------------------------------------
-BASELINE="$REPO_ROOT/gen-out/eest-baseline.txt"
+BASELINE="$RUN_DIR/eest-baseline.txt"
 {
   echo "EEST stateless-guest baseline"
   echo "  generated:   $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -575,6 +589,8 @@ BASELINE="$REPO_ROOT/gen-out/eest-baseline.txt"
 } | tee "$BASELINE"
 
 echo "==> wrote baseline: $BASELINE"
+cp "$BASELINE" "$REPO_ROOT/gen-out/eest-baseline.txt"
+echo "==> updated latest baseline: $REPO_ROOT/gen-out/eest-baseline.txt"
 
 rc=0
 if [[ -n "$MIN_SUCC" && "$succ" -lt "$MIN_SUCC" ]]; then
