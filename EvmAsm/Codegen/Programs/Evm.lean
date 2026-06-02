@@ -369,6 +369,30 @@ def evmSdivPatched : Program :=
 def evmSmodPatched : Program :=
   (EvmAsm.Evm64.evm_smod : List Instr).drop 1
 
+/-- `EvmAsm.Evm64.evm_div_v5` with the NOP exit slot patched to skip the
+    longer 85-instruction v5 div128 subroutine. -/
+def evmDivV5Patched : Program :=
+  (EvmAsm.Evm64.evm_div_v5 : List Instr).take 267 ++
+  [Instr.JAL .x0 (344 : BitVec 21)] ++
+  (EvmAsm.Evm64.evm_div_v5 : List Instr).drop 268
+
+/-- `EvmAsm.Evm64.evm_mod_v5` with the same v5 NOP-splice as
+    `evmDivV5Patched`. -/
+def evmModV5Patched : Program :=
+  (EvmAsm.Evm64.evm_mod_v5 : List Instr).take 267 ++
+  [Instr.JAL .x0 (344 : BitVec 21)] ++
+  (EvmAsm.Evm64.evm_mod_v5 : List Instr).drop 268
+
+/-- `EvmAsm.Evm64.evm_sdiv_v5` with the leading save-ra block removed for
+    trampoline-style handlers. -/
+def evmSdivV5Patched : Program :=
+  (EvmAsm.Evm64.evm_sdiv_v5 : List Instr).drop 1
+
+/-- `EvmAsm.Evm64.evm_smod_v5` with the leading save-ra block removed for
+    trampoline-style handlers. -/
+def evmSmodV5Patched : Program :=
+  (EvmAsm.Evm64.evm_smod_v5 : List Instr).drop 1
+
 /-! ## tiny_interp_dispatch — M5b runtime fetch/decode/dispatch loop
 
     Same EVM bytecodes as M5a, but routed through an actual RISC-V

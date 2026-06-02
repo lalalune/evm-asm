@@ -536,16 +536,12 @@ def lookupProgram : String → Option BuildUnit
   | "evm_add"                   => some evmAddUnit
   | "evm_div"                   => some evmDivUnit
   | "evm_div_from_input"        => some evmDivFromInputUnit
-  | "evm_mod"                   => some evmModUnit
-  | "evm_mod_from_input"        => some evmModFromInputUnit
-  | "evm_sdiv"                  => some evmSdivV4Unit
-  | "evm_sdiv_from_input"       => some evmSdivV4FromInputUnit
-  | "evm_sdiv_v4"               => some evmSdivV4Unit
-  | "evm_sdiv_v4_from_input"    => some evmSdivV4FromInputUnit
-  | "evm_smod"                  => some evmSmodUnit
-  | "evm_smod_from_input"       => some evmSmodFromInputUnit
-  | "evm_smod_v4"               => some evmSmodV4Unit
-  | "evm_smod_v4_from_input"    => some evmSmodV4FromInputUnit
+  | "evm_mod_v5"                => some evmModV5Unit
+  | "evm_mod_v5_from_input"     => some evmModV5FromInputUnit
+  | "evm_sdiv_v5"               => some evmSdivV5Unit
+  | "evm_sdiv_v5_from_input"    => some evmSdivV5FromInputUnit
+  | "evm_smod_v5"               => some evmSmodV5Unit
+  | "evm_smod_v5_from_input"    => some evmSmodV5FromInputUnit
   | "input_echo"                => some inputEchoUnit
   | "evm_exp_from_input"        => some evmExpFromInputUnit
   | "evm_add_from_input"        => some evmAddFromInputUnit
@@ -841,12 +837,12 @@ def lookupProgram : String → Option BuildUnit
 
 /-- List of known program names, for use in CLI usage strings. -/
 def knownProgramNames : List String :=
-  ["smoke", "evm_add", "evm_div", "evm_mod", "evm_sdiv", "evm_sdiv_v4", "input_echo",
+  ["smoke", "evm_add", "evm_div", "evm_mod_v5",
+   "evm_sdiv_v5", "input_echo",
    "evm_exp_from_input",
-   "evm_add_from_input", "evm_div_from_input", "evm_mod_from_input",
-   "evm_sdiv_from_input", "evm_sdiv_v4_from_input",
-   "evm_smod", "evm_smod_from_input",
-   "evm_smod_v4", "evm_smod_v4_from_input",
+   "evm_add_from_input", "evm_div_from_input", "evm_mod_v5_from_input",
+   "evm_sdiv_v5_from_input",
+   "evm_smod_v5", "evm_smod_v5_from_input",
    "tiny_interp_add", "tiny_interp_add2",
    "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2",
    "runtime_dispatcher",
