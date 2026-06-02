@@ -96,6 +96,16 @@ The report includes `state_witness_bytes` and `over_bsr_cap`; the latter marks
 inputs whose state witness exceeds the current 32 KiB `block_state_root` cap.
 Pass `--bsr-cap N` to model a different proposed cap in that column.
 
+To run a focused harness experiment with a proposed guest-side witness cap,
+pass `--bsr-witness-cap N`. The default guest remains unchanged; the harness
+patches the emitted assembly and relinks only for that run:
+
+```bash
+scripts/codegen-eest-bal-replay-frontier-check.sh \
+  --bsr-witness-cap 65536 \
+  --steps 400000000
+```
+
 Run a large batch:
 
 ```bash
