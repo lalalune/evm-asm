@@ -48,9 +48,13 @@ open EvmAsm.Rv64
       5. Jump to `.exit_no_epilogue` (the M23-added label that
          skips `evmAddEpilogue`'s clobbering stack-top copy).
 
-    INVALID (0xfe) and SELFDESTRUCT (0xff) continue to flow through
-    `.exit_label` → `evmAddEpilogue`, inheriting `halt_kind = 0`.
-    A follow-up PR can tag them with distinct kinds (3 / 4).
+    **M23.5 update**: INVALID (0xfe) and SELFDESTRUCT (0xff) no longer
+    flow through `.exit_label` → `evmAddEpilogue` (which would surface
+    the stack top + `halt_kind = 0`, indistinguishable from STOP).
+    INVALID jumps to `.exit_invalid_op` (`halt_kind = 3`, exceptional
+    halt) and SELFDESTRUCT to `.exit_selfdestruct` (`halt_kind = 5`,
+    normal halt) — both via the shared `emitExceptionalExit` blocks,
+    which zero the result (no return data) and tag the distinct kind.
 
     ### EVM stack contracts (RETURN / REVERT)
 
@@ -151,16 +155,17 @@ def haltHandlers : List OpcodeHandlerSpec :=
         "  ld x17, 480(x20)\n" ++         -- eventLogCheckpointOff
         "  sd x17, 472(x20)\n" ++         -- eventLogLengthOff = checkpoint
         "  j .exit_no_epilogue" }
-  , -- INVALID (M18 no-op, deferred halt-kind tagging). Flows through
-    -- .exit_label → evmAddEpilogue → halt_kind = 0.
+  , -- INVALID (0xfe). M23.5: exceptional halt — zero result +
+    -- halt_kind = 3 via the dispatcher's .exit_invalid_op block.
     { label := "h_INVALID", opcodes := [0xfe]
     , body := []
-    , tail := .custom "  j .exit_label" }
-  , -- SELFDESTRUCT (M18 no-op, deferred halt-kind tagging). Pops 1
-    -- (recipient address). Flows through .exit_label.
+    , tail := .custom "  j .exit_invalid_op" }
+  , -- SELFDESTRUCT (0xff). Pops 1 (recipient address). M23.5: normal
+    -- halt with no return data — zero result + halt_kind = 5 via the
+    -- dispatcher's .exit_selfdestruct block.
     { label := "h_SELFDESTRUCT", opcodes := [0xff]
     , body := []
-    , tail := .custom "  addi x12, x12, 32\n  j .exit_label" } ]
+    , tail := .custom "  addi x12, x12, 32\n  j .exit_selfdestruct" } ]
 
 /-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE, MSIZE, GAS).
     Each opcode pushes a single 32-byte zero value onto
