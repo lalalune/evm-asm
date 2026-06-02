@@ -10,10 +10,11 @@
 
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
-  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, BLOBBASEFEE, GAS
-  - `popPushZeroHandlers` — BALANCE, EXTCODESIZE,
-    EXTCODEHASH, BLOCKHASH, BLOBHASH
-  - `copyNoopHandlers` — CODECOPY, EXTCODECOPY, RETURNDATACOPY
+  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, MSIZE, GAS
+  - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
+    EXTCODEHASH (BLOBHASH and BLOCKHASH have real implementations in Programs/Evm.lean)
+  - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
+    RETURNDATACOPY, MCOPY
 
   All 16 opcodes ship with at least one spec-incompliance (returns
   zero / drops side effects) because the dispatcher has no model
@@ -161,8 +162,8 @@ def haltHandlers : List OpcodeHandlerSpec :=
     , body := []
     , tail := .custom "  addi x12, x12, 32\n  j .exit_label" } ]
 
-/-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE, BLOBBASEFEE,
-    GAS). Each opcode pushes a single 32-byte zero value onto
+/-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE, MSIZE, GAS).
+    Each opcode pushes a single 32-byte zero value onto
     the EVM stack — no input, no output content.
 
     Body (5 instructions): decrement `x12` by 32 (push), then write
@@ -171,8 +172,8 @@ def haltHandlers : List OpcodeHandlerSpec :=
     **Known limitations** (documented in CODEGEN.md M18 narrative):
     - CODESIZE pushes 0 instead of the running code's length.
     - RETURNDATASIZE pushes 0 (no caller return-data buffer).
-    - BLOBBASEFEE pushes 0 (no Dencun blob context in our `EvmEnv`
-      yet).
+    - MSIZE pushes 0 (memory-expansion bookkeeping deferred to
+      issue #99).
     - GAS pushes 0 (no gas metering in the dispatcher). -/
 def pushZeroHandlers : List OpcodeHandlerSpec :=
   let pushZeroBody : Program :=
@@ -185,15 +186,14 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
     , body := pushZeroBody, tail := .advanceAndRet 1 }
-  , { label := "h_BLOBBASEFEE", opcodes := [0x4a]
+  , { label := "h_MSIZE", opcodes := [0x59]
     , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_GAS", opcodes := [0x5a]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE,
-    EXTCODEHASH, BLOCKHASH, BLOBHASH). Each opcode pops one 32-byte
-    input (e.g., an address or index) and pushes a 32-byte zero
-    value. Net EVM stack delta = 0.
+/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE, EXTCODEHASH).
+    Each opcode pops one 32-byte input (e.g., an address) and pushes a
+    32-byte zero value. Net EVM stack delta = 0.
 
     Body (4 instructions): overwrite the popped slot with 32 zero
     bytes — same shape as M17's `SLOAD`/`TLOAD`. No `x12` movement
@@ -203,13 +203,17 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     - BALANCE always returns 0 (no account state model).
     - EXTCODESIZE / EXTCODEHASH always return 0 (no external account
       model).
-    - BLOCKHASH always returns 0 (no block history).
-    - BLOBHASH always returns 0 (no Dencun blob context).
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
     `Programs/Evm.lean`). It reads real calldata bytes from the
-    `ziskemu -i` input region. -/
+    `ziskemu -i` input region.
+
+    **M28 update**: BLOBHASH (0x49) was moved to `blobContextHandlers`
+    in `Programs/Evm.lean` with a real blob-hash-list implementation.
+
+    **M29 update**: BLOCKHASH (0x40) was moved to `blockHashHandlers`
+    in `Programs/Evm.lean` with a real block-history implementation. -/
 def popPushZeroHandlers : List OpcodeHandlerSpec :=
   let body : Program :=
     SD .x12 .x0 0 ;;
@@ -221,10 +225,6 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_EXTCODESIZE", opcodes := [0x3b]
     , body := body, tail := .advanceAndRet 1 }
   , { label := "h_EXTCODEHASH", opcodes := [0x3f]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_BLOCKHASH", opcodes := [0x40]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_BLOBHASH", opcodes := [0x49]
     , body := body, tail := .advanceAndRet 1 } ]
 
 /-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY).
@@ -310,13 +310,16 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
   let basicPrecompileCallTail
       (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
     -- Stack top at entry is the call gas word. The destination
-    -- address is the next word for both CALL and STATICCALL.
+    -- address is the next word for both CALL and STATICCALL. EVM
+    -- address operands are masked to the low 160 bits: limb 1 and
+    -- the low 32 bits of limb 2 participate in precompile dispatch,
+    -- while bits 160..255 are ignored.
     "  ld x14, 32(x12)\n" ++
     "  ld x15, 40(x12)\n" ++
     "  bnez x15, 1f\n" ++
     "  ld x15, 48(x12)\n" ++
-    "  bnez x15, 1f\n" ++
-    "  ld x15, 56(x12)\n" ++
+    "  slli x15, x15, 32\n" ++
+    "  srli x15, x15, 32\n" ++
     "  bnez x15, 1f\n" ++
     "  li x15, 1\n" ++
     "  bltu x14, x15, 1f\n" ++
@@ -451,27 +454,17 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
       placeholder in `EvmAsm/Evm64/MulMod/Program.lean` (slice
       evm-asm-m4wu unscheduled). A future PR will swap in the
       real Knuth-style 512-bit + reduce-by-N body once it lands.
-    - **EXP** always returns 0. **The verified body actually
-      exists** (`evm_exp_msb_saved_bit_two_mul_fixed` in
-      `EvmAsm/Evm64/Exp/Program.lean`, x19-callee-saved cursor
-      design; ~84 instructions). The M21 PR after this one will
-      wire it via the M10-style inline-callable composition
-      pattern (~300–500 LOC: embed `mul_callable` in the
-      dispatcher epilogue, pin JAL offsets for the squaring +
-      conditional-multiply calls, use M9-style trampoline tail).
+    - **EXP** graduated from a no-op to a real verified body and now
+      lives in `selfCallingHandlers` (`EvmAsm/Codegen/Programs/Evm.lean`)
+      as `evmExpComposed`, using the `_fixed_fixed` body variant
+      (per-limb counter moved from `x6` to callee-saved `x22` so it
+      survives `mul_callable`). Only MULMOD remains a no-op here.
 
-    Trusted bytecode that doesn't depend on MULMOD / EXP results
-    continues to work correctly. -/
+    Trusted bytecode that doesn't depend on MULMOD results continues
+    to work correctly. -/
 def arithNoopHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_MULMOD", opcodes := [0x09]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 64) ;;
-              SD .x12 .x0 0 ;;
-              SD .x12 .x0 8 ;;
-              SD .x12 .x0 16 ;;
-              SD .x12 .x0 24
-    , tail := .advanceAndRet 1 }
-  , { label := "h_EXP", opcodes := [0x0a]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 32) ;;
               SD .x12 .x0 0 ;;
               SD .x12 .x0 8 ;;
               SD .x12 .x0 16 ;;

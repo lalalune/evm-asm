@@ -10,8 +10,10 @@ import EvmAsm.EL.CreateAddressExecutableBridge
 import EvmAsm.EL.CreateArgsBridge
 import EvmAsm.EL.CreateInitcodeBridge
 import EvmAsm.EL.CreateEffects
+import EvmAsm.EL.CreatedAccounts
 import EvmAsm.EL.CreateCollision
 import EvmAsm.EL.CreateCollisionResult
+import EvmAsm.EL.CreatePrecheck
 import EvmAsm.EL.CreateResultBridge
 import EvmAsm.EL.CreateStackExecutionBridge
 import EvmAsm.EL.Logs
@@ -29,6 +31,7 @@ import EvmAsm.EL.Sha256ResultBridge
 import EvmAsm.EL.Blake2fInputBridge
 import EvmAsm.EL.Blake2fResultBridge
 import EvmAsm.EL.Blake2fEcallBridge
+import EvmAsm.EL.Blake2fPrecompileDispatch
 import EvmAsm.EL.KeccakStatusBridge
 import EvmAsm.EL.Secp256k1VerifyInputBridge
 import EvmAsm.EL.Secp256k1VerifyResultBridge
@@ -115,6 +118,7 @@ import EvmAsm.EL.CallOutputBridge
 import EvmAsm.EL.CallStackBridge
 import EvmAsm.EL.CallResultEffectsBridge
 import EvmAsm.EL.CallExecutionBridge
+import EvmAsm.EL.CallPrecheck
 import EvmAsm.EL.CallStackExecutionBridge
 import EvmAsm.EL.CallOutputMemory
 import EvmAsm.EL.CallOutputArgsMemory

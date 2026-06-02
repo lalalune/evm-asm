@@ -118,18 +118,20 @@ def main (args : List String) : IO UInt32 := do
           -- as long as it uses `read -r name expected` (extra fields
           -- just get dropped).
           for tc in Tests.opcodeTestCases do
-            -- M21..M26: 11-column TSV. Columns:
+            -- M21..M29: 15-column TSV. Columns:
             --   1 name, 2 expectedOutHex, 3 bytecode, 4 calldata,
-            --   5 storage, 6 expectedHaltKind,
-            --   7 expectedPersistentLogLength (M24),
-            --   8 expectedTransientLogLength (M24),
-            --   9 expectedPostStorage (M25 — slot data at OUTPUT+56),
-            --   10 expectedEventLogCount (M26 — OUTPUT+56),
-            --   11 expectedEventLogFirst (M26 — descriptor at OUTPUT+64).
+            --   5 storage, 6 blobBaseFee (M28), 7 blobHashes (M28),
+            --   8 blockNumber (M29), 9 blockHashes (M29),
+            --   10 expectedHaltKind,
+            --   11 expectedPersistentLogLength (M24),
+            --   12 expectedTransientLogLength (M24),
+            --   13 expectedPostStorage (M25 — slot data at OUTPUT+56),
+            --   14 expectedEventLogCount (M26 — OUTPUT+56),
+            --   15 expectedEventLogFirst (M26 — descriptor at OUTPUT+64).
             -- All cols beyond 3 are optional; the bash runner asserts
             -- only the ones with non-empty values.
             IO.println
-              s!"{tc.name}\t{tc.expectedOutHex}\t{tc.bytecode}\t{tc.calldata}\t{tc.storage}\t{tc.expectedHaltKind}\t{tc.expectedPersistentLogLength}\t{tc.expectedTransientLogLength}\t{tc.expectedPostStorage}\t{tc.expectedEventLogCount}\t{tc.expectedEventLogFirst}"
+              s!"{tc.name}\t{tc.expectedOutHex}\t{tc.bytecode}\t{tc.calldata}\t{tc.storage}\t{tc.blobBaseFee}\t{tc.blobHashes}\t{tc.blockNumber}\t{tc.blockHashes}\t{tc.expectedHaltKind}\t{tc.expectedPersistentLogLength}\t{tc.expectedTransientLogLength}\t{tc.expectedPostStorage}\t{tc.expectedEventLogCount}\t{tc.expectedEventLogFirst}"
           return 0
       | .program => do
           match lookupProgram opts.target with

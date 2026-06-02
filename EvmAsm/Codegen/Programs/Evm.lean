@@ -23,12 +23,14 @@ import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
 import EvmAsm.Evm64.Env.Program
 import EvmAsm.Evm64.Eq.Program
+import EvmAsm.Evm64.Exp.Program
 import EvmAsm.Evm64.Gt.Program
 import EvmAsm.Evm64.IsZero.Program
 import EvmAsm.Evm64.Lt.Program
 import EvmAsm.Evm64.MLoad.Program
 import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
+import EvmAsm.Evm64.Multiply.Callable
 import EvmAsm.Evm64.Multiply.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
@@ -589,6 +591,123 @@ def envHandlers : List OpcodeHandlerSpec :=
   , { label := "h_SELFBALANCE", opcodes := [0x47], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .selfBalance, tail := .advanceAndRet 1 }
   , { label := "h_BASEFEE"    , opcodes := [0x48], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .baseFee    , tail := .advanceAndRet 1 } ]
 
+/-! ## M28 blob-context opcodes
+
+  `BLOBBASEFEE` (0x4a) is an Amsterdam/Cancun context opcode. The
+  executable spec computes it as `calculate_blob_gas_price(block_env.excess_blob_gas)`;
+  this runtime dispatcher receives that already-computed 256-bit word in the
+  `pack-bytecode.py --blob-base-fee` input trailer and copies it to `evm_env+512`.
+
+  `BLOBHASH` (0x49) reads `tx_env.blob_versioned_hashes[index]` from the
+  bounded `evm_blob_hashes` table. The runtime prologue copies up to 16
+  entries from `pack-bytecode.py --blob-hashes` and stores the copied count at
+  `evm_env+544`; indexes outside that count, or indexes with nonzero high
+  limbs, push zero per execution-specs. -/
+def blobContextHandlers : List OpcodeHandlerSpec :=
+  let blobBaseFeeBody : Program :=
+    ADDI .x12 .x12 (-32) ;;
+    LD .x15 .x20 (BitVec.ofNat 12 512) ;;
+    SD .x12 .x15 0 ;;
+    LD .x15 .x20 (BitVec.ofNat 12 520) ;;
+    SD .x12 .x15 8 ;;
+    LD .x15 .x20 (BitVec.ofNat 12 528) ;;
+    SD .x12 .x15 16 ;;
+    LD .x15 .x20 (BitVec.ofNat 12 536) ;;
+    SD .x12 .x15 24
+  [ { label := "h_BLOBBASEFEE"
+    , opcodes := [0x4a]
+    , body := blobBaseFeeBody
+    , tail := .advanceAndRet 1 } ]
+  ++
+  [ { label := "h_BLOBHASH"
+    , opcodes := [0x49]
+    , body := []
+    , tail := .custom <|
+        "  ld x14, 8(x12)\n" ++          -- high limbs must be zero
+        "  bnez x14, .Lblobhash_zero\n" ++
+        "  ld x14, 16(x12)\n" ++
+        "  bnez x14, .Lblobhash_zero\n" ++
+        "  ld x14, 24(x12)\n" ++
+        "  bnez x14, .Lblobhash_zero\n" ++
+        "  ld x14, 0(x12)\n" ++          -- x14 = low u64 index
+        "  ld x15, 544(x20)\n" ++        -- x15 = copied blob_hash_count
+        "  bgeu x14, x15, .Lblobhash_zero\n" ++
+        "  slli x14, x14, 5\n" ++        -- 32 bytes per versioned hash
+        "  la x15, evm_blob_hashes\n" ++
+        "  add x15, x15, x14\n" ++
+        "  ld x16, 0(x15)\n" ++
+        "  sd x16, 0(x12)\n" ++
+        "  ld x16, 8(x15)\n" ++
+        "  sd x16, 8(x12)\n" ++
+        "  ld x16, 16(x15)\n" ++
+        "  sd x16, 16(x12)\n" ++
+        "  ld x16, 24(x15)\n" ++
+        "  sd x16, 24(x12)\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret\n" ++
+        ".Lblobhash_zero:\n" ++
+        "  sd x0, 0(x12)\n" ++
+        "  sd x0, 8(x12)\n" ++
+        "  sd x0, 16(x12)\n" ++
+        "  sd x0, 24(x12)\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret" } ]
+
+/-- M29 BLOCKHASH handler backed by the runtime block-history trailer.
+
+    Runtime input supplies:
+      - `env + 544`: current block number (`cur`, u64)
+      - `env + 552`: number of loaded recent hashes (`count`, clamped to 256)
+      - `evm_block_hashes`: `count` 32-byte hashes in increasing block-number
+        order, matching execution-specs' `block_env.block_hashes`.
+
+    The handler implements Amsterdam `block_hash` behavior for u64 targets:
+      - nonzero high limbs in the target word -> zero
+      - target >= cur -> zero
+      - cur - target > count -> zero
+      - otherwise copy `block_hashes[count - (cur - target)]` into the
+        popped stack slot.
+
+    Note: env+512..+543 is occupied by BLOBBASEFEE (M28). -/
+def blockHashHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_BLOCKHASH"
+    , opcodes := [0x40]
+    , body := []
+    , tail := .custom <|
+        "  ld x14, 8(x12)\n" ++
+        "  bnez x14, .Lblockhash_zero\n" ++
+        "  ld x14, 16(x12)\n" ++
+        "  bnez x14, .Lblockhash_zero\n" ++
+        "  ld x14, 24(x12)\n" ++
+        "  bnez x14, .Lblockhash_zero\n" ++
+        "  ld x14, 0(x12)\n" ++       -- x14 = target block number
+        "  ld x15, 544(x20)\n" ++     -- x15 = current block number (env+544, past M28 blobBaseFee)
+        "  bgeu x14, x15, .Lblockhash_zero\n" ++
+        "  sub x16, x15, x14\n" ++    -- x16 = cur - target, strictly positive
+        "  ld x17, 552(x20)\n" ++     -- x17 = loaded hash count (env+552)
+        "  bgtu x16, x17, .Lblockhash_zero\n" ++
+        "  sub x17, x17, x16\n" ++    -- index = count - age
+        "  slli x17, x17, 5\n" ++     -- index × 32
+        "  la x18, evm_block_hashes\n" ++
+        "  add x18, x18, x17\n" ++
+        "  ld x19, 0(x18)\n" ++
+        "  sd x19, 0(x12)\n" ++
+        "  ld x19, 8(x18)\n" ++
+        "  sd x19, 8(x12)\n" ++
+        "  ld x19, 16(x18)\n" ++
+        "  sd x19, 16(x12)\n" ++
+        "  ld x19, 24(x18)\n" ++
+        "  sd x19, 24(x12)\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret\n" ++
+        ".Lblockhash_zero:\n" ++
+        "  sd x0, 0(x12)\n" ++
+        "  sd x0, 8(x12)\n" ++
+        "  sd x0, 16(x12)\n" ++
+        "  sd x0, 24(x12)\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret" } ]
+
 /-- M13 calldata-context opcodes. Sibling to `envHandlers` — reads the
     `callDataLenOff = 424` cell from the same env block that M12
     initialises via `la x20, evm_env`.
@@ -696,6 +815,16 @@ def mcopyHandlers : List OpcodeHandlerSpec :=
         "  addi x10, x10, 1\n" ++
         "  ret" } ]
 
+/-- Shared tail for JUMP / JUMPI: the verified body left `code[dest]`
+    (or the `0x5b` sentinel for a not-taken JUMPI) in `x17`. If it
+    isn't a JUMPDEST byte, route to `.exit_invalid` (M15.5 exceptional
+    halt); otherwise `ret` to the dispatch loop, which re-reads the
+    (now-validated) target byte. `x18` is a free scratch temp. -/
+private def jumpValidityTail : HandlerTail :=
+  .custom ("  li x18, 0x5b\n" ++
+           "  bne x17, x18, .exit_invalid\n" ++
+           "  ret")
+
 /-- M14 / M15 control-flow opcodes.
 
     - **JUMPDEST (0x5b, M14)** — no-op marker. Empty body +
@@ -716,11 +845,13 @@ def mcopyHandlers : List OpcodeHandlerSpec :=
     registers `x14`/`x15`/`x16` are caller-saved per the existing
     convention.
 
-    **M15 known limitation**: JUMP / JUMPI do NOT validate the
-    destination is a JUMPDEST byte. A spec-compliant EVM rejects
-    invalid jumps; ours unconditionally follows them. Trusted test
-    programs only jump to real JUMPDESTs. A follow-on PR will
-    inline the `LBU + BEQ 0x5b` check. -/
+    **M15.5 JUMPDEST-validity (Level 1)**: JUMP / JUMPI now load
+    `code[dest]` into `x17` (the verified bodies do this; JUMPI's
+    not-taken path writes the sentinel `0x5b`). `jumpValidityTail`
+    compares `x17` to `0x5b` and routes a mismatch to the
+    dispatcher's `.exit_invalid` (exceptional halt, `halt_kind = 4`).
+    Level 2 (pushdata-aware bitmap) is still future work — see the
+    `ControlFlow/Program.lean` docstring. -/
 def controlFlowHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_JUMPDEST"
     , opcodes := [0x5b]
@@ -728,12 +859,12 @@ def controlFlowHandlers : List OpcodeHandlerSpec :=
     , tail    := .advanceAndRet 1 }
   , { label := "h_JUMP"
     , opcodes := [0x56]
-    , body    := EvmAsm.Evm64.ControlFlow.evm_jump .x21 .x14
-    , tail    := .custom "  ret" }
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jump .x21 .x14 .x17
+    , tail    := jumpValidityTail }
   , { label := "h_JUMPI"
     , opcodes := [0x57]
-    , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x14 .x15 .x16
-    , tail    := .custom "  ret" }
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x14 .x15 .x16 .x17
+    , tail    := jumpValidityTail }
   , { label := "h_PC"
     , opcodes := [0x58]
     , body    := EvmAsm.Evm64.ControlFlow.evm_pc .x21 .x14
@@ -1034,15 +1165,16 @@ def signedDivModHandlers : List OpcodeHandlerSpec :=
     `signedDivModTail` helper. It also clobbers `x10` via the
     inline mod callable, so `preBody` saves `x10` to `x14`.
 
-    EXP (0x0a) was planned for this milestone but is deferred. The
-    `evm_exp_msb_saved_bit_two_mul_fixed` wrapper uses `x6` and
-    `x16` as per-limb counter / limb pointer, but those are LP64
-    caller-saved registers — `mul_callable` clobbers `x6` 39 times
-    per call. The "fix" only addresses `x19` (cursor) clobber, not
-    `x6`/`x16`. A complete fix requires a `_fixed_fixed` variant
-    using callee-saved registers (e.g. `x20`/`x21`) for the
-    per-limb counter and limb pointer; until that lands upstream,
-    EXP can't run through the dispatcher. -/
+    EXP (0x0a) now rides the same self-calling pattern via
+    `evmExpComposed` below, using the `_fixed_fixed` body variant.
+    The earlier deferral note was that `mul_callable` clobbers `x6`
+    (the EXP loop's per-limb counter) — the `_fixed` variant only
+    moved the `x19` cursor to a callee-saved register, leaving the
+    `x6` counter to be corrupted mid-iteration. `_fixed_fixed`
+    (`EvmAsm/Evm64/Exp/Program.lean`) moves the counter to `x22`
+    (s6, callee-saved, untouched by `evm_mul`/`cc_ret`), so EXP now
+    runs correctly through the dispatcher. (The limb pointer `x16`
+    was never the problem — `evm_mul` doesn't touch it.) -/
 
 /-- ADDMOD handler body. **Skips `evm_addmod_epilogue` deliberately**:
     the verified `evm_addmod` composes prologue + phase1_carry +
@@ -1074,6 +1206,49 @@ def evmAddmodComposed : Program :=
   single (Instr.JAL .x0 (1376 : BitVec 21)) ;;
   EvmAsm.Evm64.evm_mod_callable_v4
 
+/-- EXP (0x0a) handler body: the double-fixed verified EXP body inlined
+    with `mul_callable`, mirroring `evmAddmodComposed`.
+
+    Composition:
+      - `evm_exp_..._fixed_fixed_canonical 200 92`: 84 instr (336 B). The
+        two interior `JAL .x1` MUL-call sites target `mul_callable`.
+      - skip-JAL `JAL .x0 +260`: 1 instr (4 B) at byte 336 — jumps past
+        the inlined callable to the handler tail (260 = 4 + 256).
+      - `mul_callable`: 64 instr (256 B) at byte 340.
+
+    **MUL-call offsets shift +4 vs the standalone `evm_exp_from_input`.**
+    There, `mul_callable` sits immediately after the body (byte 336), so
+    the canonical offsets are 196 / 88. Here the 4-byte skip-JAL pushes
+    `mul_callable` to byte 340, so the squaring / cond-multiply JAL sites
+    (at body bytes 140 / 248) need offsets `340-140 = 200` and
+    `340-248 = 92`. The internal branch offsets (cond-mul skip BEQ,
+    loop-back BNE) are unaffected — they stay inside the 336-byte body
+    and use the canonical `_fixed` values.
+
+    The skip-JAL is required because EXP's loop exits by *falling through*
+    `exp_epilogue` (which has no trailing jump); without it, control would
+    run straight into `mul_callable`. ADDMOD doesn't need this shape
+    because its single MUL call is the last thing before the callable.
+
+    Net `x12` advance: `exp_epilogue` does one `ADDI x12, x12, 32` (pops 2,
+    pushes 1); the per-iteration call marshal/un-marshal nets zero. -/
+def evmExpComposed : Program :=
+  EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_fixed_canonical
+    (200 : BitVec 21) (92 : BitVec 21) ;;
+  single (Instr.JAL .x0 (260 : BitVec 21)) ;;
+  EvmAsm.Evm64.mul_callable
+
+/-- Tail for EXP (0x0a): like `signedDivModTail` (the inner `JAL .x1` into
+    `mul_callable` clobbers `x1`, so `ret` would jump to garbage → use
+    `j .dispatch_loop`), plus a `la sp, lp64_sp_top` to restore the LP64
+    stack pointer that h_EXP's `preBody` repointed at `exp_scratch` for the
+    EXP body's result accumulator. -/
+private def expTail : HandlerTail :=
+  .custom ("  mv x10, x14\n" ++
+           "  la sp, lp64_sp_top\n" ++
+           "  addi x10, x10, 1\n" ++
+           "  j .dispatch_loop")
+
 /-- M10 self-calling handlers. Currently just ADDMOD; EXP is
     deferred (see the milestone-header comment). Reuses
     `signedDivModTail` because the wrapper's inner `JAL .x1` into
@@ -1084,7 +1259,12 @@ def selfCallingHandlers : List OpcodeHandlerSpec :=
       opcodes       := [0x08]
       preBody       := "  mv x14, x10"
       body          := evmAddmodComposed
-      tail          := signedDivModTail } ]
+      tail          := signedDivModTail }
+  , { label         := "h_EXP"
+      opcodes       := [0x0a]
+      preBody       := "  mv x14, x10\n  la x2, exp_scratch"
+      body          := evmExpComposed
+      tail          := expTail } ]
 
 /-- STOP: transitions out of the dispatcher loop instead of returning
     to it. The body is empty; the dispatcher's `jalr` lands on
@@ -1100,7 +1280,8 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ memoryMetadataHandlers ++ envHandlers ++ calldataHandlers ++
+  memoryHandlers ++ memoryMetadataHandlers ++ envHandlers ++
+  blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
@@ -1160,286 +1341,5 @@ def runtimeDispatcherUnit : BuildUnit :=
     remain correct because we only replaced the NOP, not the
     subroutine's position relative to its callers. -/
 
-/-- Dividend as four LE limbs. 2^64, exercises the phase-B n=2 cascade
-    plus the normalize/loop path (not an early-exit). -/
-def evmDivDividend : List UInt64 := [0, 1, 0, 0]
-
-/-- Divisor as four LE limbs. 2. -/
-def evmDivDivisor : List UInt64 := [2, 0, 0, 0]
-
-/-- Expected quotient = 2^64 / 2 = 2^63, LE limbs. The actual on-disk
-    expected hex is asserted by `scripts/codegen-evm_div-check.sh`; this
-    constant is documentation. -/
-def evmDivExpectedQuotient : List UInt64 := [0x8000000000000000, 0, 0, 0]
-
-/-- Same `la x12, operands` as ADD — points the EVM stack pointer at
-    the dividend, with the divisor packed directly after it. -/
-def evmDivPrologue : String :=
-  "  la x12, operands"
-
-/-- `.data` section: 256 bytes of zero-filled scratch labeled
-    `div_scratch:` *first*, then `operands:` with dividend ++ divisor
-    (eight LE dwords). The scratch comes first so that `x12 - 160..-8`
-    (the DIV body's scratch range, encoded as unsigned 12-bit offsets
-    `3936..4088`) falls inside writable RAM.
-
-    Written as raw asm rather than `emitDataLabel` because the layout
-    mixes `.zero` and `.dword`. -/
-def evmDivDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "div_scratch:\n" ++
-  "  .zero 256\n" ++
-  ".balign 8\n" ++
-  "operands:\n" ++
-  String.intercalate "\n"
-    ((evmDivDividend ++ evmDivDivisor).map emitDword)
-
-def evmDivUnit : BuildUnit := {
-  body        := evmDivPatched ++ evmAddEpilogue
-  prologueAsm := evmDivPrologue
-  dataAsm     := evmDivDataSection
-}
-
-/-! ## evm_div_from_input — M4 prover-supplied DIV operands
-
-    Same wrapping as `evmDivUnit`, but operands arrive at runtime from
-    the ziskemu `-i` input region instead of being baked into `.data`.
-    Lets one ELF cover many test vectors. Layout is identical to
-    `evm_add_from_input` plus the 256 B `div_scratch:` block in front
-    of `operands_ram:`. -/
-
-def evm_div_from_input : Program :=
-  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
-  copy64 .x12 .x5 .x6 ++
-  evmDivPatched ++
-  evmAddEpilogue
-
-def evmDivFromInputPrologue : String :=
-  "  la x12, operands_ram"
-
-/-- `.data` section: 256 B of writable `div_scratch:` *before*
-    `operands_ram:` (64 B reserved zero, overwritten at runtime). -/
-def evmDivFromInputDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "div_scratch:\n" ++
-  "  .zero 256\n" ++
-  ".balign 8\n" ++
-  "operands_ram:\n" ++
-  "  .zero 64"
-
-def evmDivFromInputUnit : BuildUnit := {
-  body        := evm_div_from_input
-  prologueAsm := evmDivFromInputPrologue
-  dataAsm     := evmDivFromInputDataSection
-}
-
-/-! ## evm_mod — M2 first MOD end-to-end through ziskemu
-
-    Same calling convention and scratch layout as `evm_div`. `evm_mod`
-    differs only in the epilogue: `divK_mod_epilogue` copies `u[0..3]`
-    (the de-normalized remainder) to `sp+32..64` instead of `q[0..3]`.
-    The body structure (NOP "exit PC" at index 267 followed by the
-    75-instruction `divK_div128_v4` subroutine) is identical, so the
-    same NOP-splice fix applies. Like `evm_div`, `evm_mod` is not yet
-    proven correct in Lean — the scripts under `scripts/codegen-evm_mod*`
-    provide empirical confirmation by running on ziskemu. -/
-
-/-- Dividend as four LE limbs. 2^64, exercises the phase-B n=1 cascade
-    on the divisor (b=3, limb 0 only) plus the loop body. -/
-def evmModDividend : List UInt64 := [0, 1, 0, 0]
-
-/-- Divisor as four LE limbs. 3. -/
-def evmModDivisor : List UInt64 := [3, 0, 0, 0]
-
-/-- Expected remainder = 2^64 mod 3 = 1 (since 2^64 = 3·6148914691236517205 + 1). -/
-def evmModExpectedRemainder : List UInt64 := [1, 0, 0, 0]
-
-def evmModPrologue : String :=
-  "  la x12, operands"
-
-def evmModDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "div_scratch:\n" ++
-  "  .zero 256\n" ++
-  ".balign 8\n" ++
-  "operands:\n" ++
-  String.intercalate "\n"
-    ((evmModDividend ++ evmModDivisor).map emitDword)
-
-def evmModUnit : BuildUnit := {
-  body        := evmModPatched ++ evmAddEpilogue
-  prologueAsm := evmModPrologue
-  dataAsm     := evmModDataSection
-}
-
-/-! ## evm_mod_from_input — M4 prover-supplied MOD operands
-
-    Same wrapping as `evmModUnit`, but operands arrive at runtime from
-    the ziskemu `-i` input region (mirrors `evm_div_from_input`). -/
-
-def evm_mod_from_input : Program :=
-  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
-  copy64 .x12 .x5 .x6 ++
-  evmModPatched ++
-  evmAddEpilogue
-
-def evmModFromInputPrologue : String :=
-  "  la x12, operands_ram"
-
-def evmModFromInputDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "div_scratch:\n" ++
-  "  .zero 256\n" ++
-  ".balign 8\n" ++
-  "operands_ram:\n" ++
-  "  .zero 64"
-
-def evmModFromInputUnit : BuildUnit := {
-  body        := evm_mod_from_input
-  prologueAsm := evmModFromInputPrologue
-  dataAsm     := evmModFromInputDataSection
-}
-
-/-! ## evm_sdiv_v4 — signed DIV end-to-end through ziskemu
-
-    `evm_sdiv_v4` uses the SDIV sign-handling wrapper and the corrected v4
-    unsigned callable divider. Unlike standalone DIV/MOD, the wrapper returns
-    via the caller return address saved in `x18`, so codegen seeds `x1` with a
-    raw-asm label immediately after the verified body. -/
-
-def evmSdivV4Dividend : List UInt64 := [0xffffffffffffff9c, 0xffffffffffffffff,
-  0xffffffffffffffff, 0xffffffffffffffff]
-
-def evmSdivV4Divisor : List UInt64 := [7, 0, 0, 0]
-
-def evmSdivV4ExpectedQuotient : List UInt64 := [0xfffffffffffffff2,
-  0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff]
-
-def evmSdivV4Prologue : String :=
-  "  la x1, after_sdiv\n" ++
-  "  la x12, operands"
-
-def evmSdivV4Epilogue : String :=
-  "after_sdiv:\n" ++ emitProgram evmAddEpilogue
-
-def evmSdivV4DataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "div_scratch:\n" ++
-  "  .zero 256\n" ++
-  ".balign 8\n" ++
-  "operands:\n" ++
-  String.intercalate "\n"
-    ((evmSdivV4Dividend ++ evmSdivV4Divisor).map emitDword)
-
-def evmSdivV4Unit : BuildUnit := {
-  body        := EvmAsm.Evm64.evm_sdiv_v4
-  prologueAsm := evmSdivV4Prologue
-  epilogueAsm := evmSdivV4Epilogue
-  dataAsm     := evmSdivV4DataSection
-}
-
-/-! ## evm_sdiv_v4_from_input — prover-supplied signed DIV operands -/
-
-def evm_sdiv_v4_from_input : Program :=
-  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
-  copy64 .x12 .x5 .x6 ++
-  EvmAsm.Evm64.evm_sdiv_v4
-
-def evmSdivV4FromInputPrologue : String :=
-  "  la x1, after_sdiv\n" ++
-  "  la x12, operands_ram"
-
-def evmSdivV4FromInputDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "div_scratch:\n" ++
-  "  .zero 256\n" ++
-  ".balign 8\n" ++
-  "operands_ram:\n" ++
-  "  .zero 64"
-
-def evmSdivV4FromInputUnit : BuildUnit := {
-  body        := evm_sdiv_v4_from_input
-  prologueAsm := evmSdivV4FromInputPrologue
-  epilogueAsm := evmSdivV4Epilogue
-  dataAsm     := evmSdivV4FromInputDataSection
-}
-
-/-! ## evm_smod_v4 — signed MOD end-to-end through ziskemu -/
-
-def evmSmodV4Dividend : List UInt64 := [0xffffffffffffff9c, 0xffffffffffffffff,
-  0xffffffffffffffff, 0xffffffffffffffff]
-
-def evmSmodV4Divisor : List UInt64 := [7, 0, 0, 0]
-
-def evmSmodV4ExpectedRemainder : List UInt64 := [0xfffffffffffffffd,
-  0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff]
-
-def evmSmodV4Prologue : String :=
-  "  la x1, after_smod\n" ++
-  "  la x12, operands"
-
-def evmSmodV4Epilogue : String :=
-  "after_smod:\n" ++ emitProgram evmAddEpilogue
-
-def evmSmodV4DataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "div_scratch:\n" ++
-  "  .zero 256\n" ++
-  ".balign 8\n" ++
-  "operands:\n" ++
-  String.intercalate "\n"
-    ((evmSmodV4Dividend ++ evmSmodV4Divisor).map emitDword)
-
-def evmSmodV4Unit : BuildUnit := {
-  body        := EvmAsm.Evm64.evm_smod
-  prologueAsm := evmSmodV4Prologue
-  epilogueAsm := evmSmodV4Epilogue
-  dataAsm     := evmSmodV4DataSection
-}
-
-def evmSmodUnit : BuildUnit := evmSmodV4Unit
-
-/-! ## evm_smod_v4_from_input — prover-supplied signed MOD operands -/
-
-def evm_smod_v4_from_input : Program :=
-  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
-  copy64 .x12 .x5 .x6 ++
-  EvmAsm.Evm64.evm_smod
-
-def evm_smod_from_input : Program := evm_smod_v4_from_input
-
-def evmSmodV4FromInputPrologue : String :=
-  "  la x1, after_smod\n" ++
-  "  la x12, operands_ram"
-
-def evmSmodV4FromInputDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "div_scratch:\n" ++
-  "  .zero 256\n" ++
-  ".balign 8\n" ++
-  "operands_ram:\n" ++
-  "  .zero 64"
-
-def evmSmodV4FromInputUnit : BuildUnit := {
-  body        := evm_smod_v4_from_input
-  prologueAsm := evmSmodV4FromInputPrologue
-  epilogueAsm := evmSmodV4Epilogue
-  dataAsm     := evmSmodV4FromInputDataSection
-}
-
-def evmSmodFromInputUnit : BuildUnit := {
-  body        := evm_smod_from_input
-  prologueAsm := evmSmodV4FromInputPrologue
-  epilogueAsm := evmSmodV4Epilogue
-  dataAsm     := evmSmodV4FromInputDataSection
-}
 
 end EvmAsm.Codegen

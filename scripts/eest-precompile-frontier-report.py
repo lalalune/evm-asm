@@ -30,11 +30,19 @@ class Family:
 FAMILIES: tuple[Family, ...] = (
     Family(
         "warming",
-        "Precompile account warming / absence",
-        "0x01..0x14, 0x100",
+        "Precompile account warming",
+        "active precompiles",
         "VM call gas/account-access path before dispatch",
         BEAD,
-        ("precompile_warming", "precompile_absence"),
+        ("precompile_warming",),
+    ),
+    Family(
+        "absence",
+        "Precompile absence",
+        "0x01..0x101 excluding active precompiles",
+        "Absent-account CALL semantics before dispatch",
+        "evm-asm-fhsxz.2.4.2.62.2.6",
+        ("precompile_absence",),
     ),
     Family(
         "ecrecover",
