@@ -85,6 +85,13 @@ jobs, the number of completed passes before the stop point depends on
 scheduling. Use `scripts/eest-bal-replay-report.py --details` after a run to
 inspect the BAL row shape for the selected inputs.
 
+To inspect only the completed frontier misses from the latest run:
+
+```bash
+uv run --directory execution-specs --quiet python3 \
+  ../scripts/eest-bal-replay-report.py --failures-only --details
+```
+
 Run a large batch:
 
 ```bash

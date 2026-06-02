@@ -7,6 +7,10 @@ gen-out/eest-run/manifest.tsv.
 Recommended:
   uv run --directory execution-specs --quiet python3 \
     ../scripts/eest-bal-replay-report.py --details --filter withdrawal_requests
+
+After an EEST harness run, restrict the report to completed failures/errors:
+  uv run --directory execution-specs --quiet python3 \
+    ../scripts/eest-bal-replay-report.py --failures-only --details
 """
 
 from __future__ import annotations
@@ -144,6 +148,20 @@ def summarize(input_path: Path) -> tuple[dict[str, int], list[dict[str, str]]]:
     return summary, details
 
 
+def result_is_failure(
+    results_dir: Path,
+    label: str,
+    expected_hex: str,
+) -> bool:
+    result = results_dir / f"{label}.result.tsv"
+    if not result.is_file():
+        return False
+    status, actual = result.read_text().rstrip("\n").split("\t", 1)
+    if status != "OK":
+        return True
+    return actual[:210] != expected_hex[:210]
+
+
 def main() -> int:
     root = repo_root()
     add_execution_specs_to_path(root)
@@ -153,6 +171,12 @@ def main() -> int:
         "--manifest",
         type=Path,
         default=root / "gen-out" / "eest-run" / "manifest.tsv",
+    )
+    parser.add_argument(
+        "--results-dir",
+        type=Path,
+        default=None,
+        help="directory containing *.result.tsv (default: manifest parent)",
     )
     parser.add_argument(
         "--filter",
@@ -165,12 +189,18 @@ def main() -> int:
         action="store_true",
         help="print one extra row per changed BAL account",
     )
+    parser.add_argument(
+        "--failures-only",
+        action="store_true",
+        help="only include completed harness ERROR or non-full-match cases",
+    )
     args = parser.parse_args()
 
     if args.limit < 0:
         parser.error("--limit must be nonnegative")
     if not args.manifest.is_file():
         raise SystemExit(f"manifest not found: {args.manifest}")
+    results_dir = args.results_dir or args.manifest.parent
 
     metric_columns = [
         "kind",
@@ -209,10 +239,14 @@ def main() -> int:
     printed = 0
     with args.manifest.open() as f:
         for line in f:
-            label, input_file, _expected_hex, _succ_bit, _input_len, relpath = (
+            label, input_file, expected_hex, _succ_bit, _input_len, relpath = (
                 line.rstrip("\n").split("\t", 5)
             )
             if args.filter and args.filter not in label and args.filter not in relpath:
+                continue
+            if args.failures_only and not result_is_failure(
+                results_dir, label, expected_hex
+            ):
                 continue
 
             summary, details = summarize(Path(input_file))
