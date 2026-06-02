@@ -45,6 +45,23 @@ that happens, treat the ELF memory map as part of the layout: keep linked
 The current stateless guest layout puts `.data` at `0xa5000000` and
 `.sszscratch` at `0xb0000000`, both inside the verified RAM zone.
 
+## State Witness Caps
+
+The `block_state_root` witness-length guard is different from the BAL row and
+state-change arena caps. The witness bytes are carried in the EEST input and
+searched by the MPT helpers; simply raising the guard does not allocate a larger
+`.data` arena, but it can expose execution-time blowups from repeated linear
+witness scans.
+
+Before changing the default witness cap, run both the full stateless harness and
+the fixed-size verdict probe on the exact frontier that motivated the change.
+For example, EIP-7251 `consolidation_requests.json` selected index 138 has
+`witness_len=204888`: the default 64 KiB cap gives a conservative
+`bsr_fail=111`, while an experimental 256 KiB cap reaches
+`EmulationNoCompleted` even in the verdict probe at 2B steps. That means the
+next implementation frontier is replay/indexing performance, not only a larger
+constant.
+
 ## Launch-Time Layout Compatibility
 
 If a static layout supports only up to a chosen maximum block gas limit, the
