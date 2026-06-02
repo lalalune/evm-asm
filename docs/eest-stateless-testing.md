@@ -72,6 +72,19 @@ The first starts at `--skip 17085` (`16582 + 503`), the second starts at
 `--skip 20085`. Each checks `--limit 1000` with a `--min-full 1000`
 regression threshold.
 
+Run the current BAL replay frontier around the EIP-7002 withdrawal-request
+cluster:
+
+```bash
+scripts/codegen-eest-bal-replay-frontier-check.sh --jobs 4
+```
+
+This starts at `--skip 21417`, checks `--limit 10`, and stops after the two
+known conservative misses. With parallel jobs, the number of completed passes
+before the stop point depends on scheduling. Use
+`scripts/eest-bal-replay-report.py --details` after a run to inspect the BAL row
+shape for the selected inputs.
+
 Run a large batch:
 
 ```bash
