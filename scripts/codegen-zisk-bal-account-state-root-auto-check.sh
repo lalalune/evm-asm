@@ -55,21 +55,44 @@ EMPTY_TRIE = bytes.fromhex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc00162
 EMPTY_CODE = bytes.fromhex("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 
 
-def account_rlp(nonce: int, balance: int) -> bytes:
-    return rlp_list([rlp_int(nonce), rlp_int(balance), rlp_bytes(EMPTY_TRIE), rlp_bytes(EMPTY_CODE)])
+def account_rlp(
+    nonce: int,
+    balance: int,
+    storage_root: bytes = EMPTY_TRIE,
+    code_hash: bytes = EMPTY_CODE,
+) -> bytes:
+    return rlp_list([rlp_int(nonce), rlp_int(balance), rlp_bytes(storage_root), rlp_bytes(code_hash)])
 
 
 def change_pair(index: int, value: bytes) -> bytes:
     return rlp_list([rlp_int(index), value])
 
 
-def account_change(address: bytes, balance_changes=None, nonce_changes=None) -> bytes:
+def storage_root_single(slot: int, value: bytes) -> bytes:
+    slot_path = account_path(slot.to_bytes(32, "big"))
+    return keccak256(leaf_node(slot_path, rlp_bytes(value)))
+
+
+def account_change(
+    address: bytes,
+    storage_changes=None,
+    balance_changes=None,
+    nonce_changes=None,
+    code_changes=None,
+) -> bytes:
+    storage_changes = storage_changes or []
     balance_changes = balance_changes or []
     nonce_changes = nonce_changes or []
+    code_changes = code_changes or []
+    sc = [
+        rlp_list([rlp_int(slot), rlp_list([change_pair(i, rlp_bytes(v)) for i, v in changes])])
+        for slot, changes in storage_changes
+    ]
     bc = [change_pair(i, rlp_int(v)) for i, v in balance_changes]
     nc = [change_pair(i, rlp_int(v)) for i, v in nonce_changes]
-    return rlp_list([rlp_bytes(address), rlp_list([]), rlp_list([]),
-                     rlp_list(bc), rlp_list(nc), rlp_list([])])
+    cc = [change_pair(i, rlp_bytes(v)) for i, v in code_changes]
+    return rlp_list([rlp_bytes(address), rlp_list(sc), rlp_list([]),
+                     rlp_list(bc), rlp_list(nc), rlp_list(cc)])
 
 
 def account_path(address: bytes) -> list[int]:
@@ -170,6 +193,38 @@ with open(f"{outdir}/basra_modify_insert.input", "wb") as f:
 with open(f"{outdir}/basra_modify_insert.expected", "w") as f:
     f.write(expected.hex())
 print(f"basra_modify_insert slots={present_path[0]},{missing_path[0]} expected={expected.hex()[:16]}..")
+
+full_addr = bytes.fromhex("102030405060708090a0b0c0d0e0f00112233445")
+full_path = account_path(full_addr)
+full_old_account = account_rlp(4, 11)
+full_code = bytes.fromhex("602a60005260206000f3")
+full_storage_value = bytes.fromhex("1234")
+full_new_storage_root = storage_root_single(3, full_storage_value)
+full_new_account = account_rlp(9, 123456, full_new_storage_root, keccak256(full_code))
+full_old_leaf = leaf_node(full_path[1:], full_old_account)
+full_new_leaf = leaf_node(full_path[1:], full_new_account)
+full_slots = [b"\x80"] * 16
+full_slots[full_path[0]] = node_ref(full_old_leaf)
+full_root = branch_node(full_slots)
+full_root_hash = keccak256(full_root)
+full_post_slots = list(full_slots)
+full_post_slots[full_path[0]] = node_ref(full_new_leaf)
+full_expected = keccak256(branch_node(full_post_slots))
+
+full_bal_list = rlp_list([
+    account_change(
+        full_addr,
+        storage_changes=[(3, [(2, full_storage_value)])],
+        balance_changes=[(3, 123456)],
+        nonce_changes=[(4, 9)],
+        code_changes=[(5, full_code)],
+    ),
+])
+with open(f"{outdir}/basra_full_post_fields.input", "wb") as f:
+    f.write(build_input(full_root_hash, ssz_section([full_root, full_old_leaf]), full_bal_list, 1))
+with open(f"{outdir}/basra_full_post_fields.expected", "w") as f:
+    f.write(full_expected.hex())
+print(f"basra_full_post_fields slot={full_path[0]} expected={full_expected.hex()[:16]}..")
 PYGEN
 
 echo "==> lake build codegen"
@@ -179,19 +234,23 @@ echo "==> emit zisk_bal_account_state_root_auto probe ELF"
 lake exe codegen --program zisk_bal_account_state_root_auto --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_bal_account_state_root_auto"
 
-out="$VDIR/basra_modify_insert.output"
-"$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_state_root_auto.elf" \
-  -i "$VDIR/basra_modify_insert.input" -o "$out" -n 12000000 >/dev/null 2>&1 </dev/null
-status="$(od -An -tu8 -j 32 -N 8 "$out" | tr -d ' \n')"
-actual="$(xxd -p -s 0 -l 32 "$out" | tr -d '\n')"
-expected="$(cat "$VDIR/basra_modify_insert.expected")"
-if [[ "$status" == "0" && "$actual" == "$expected" ]]; then
-  echo "  PASS   basra_modify_insert root=${actual:0:16}.."
-  echo "==> PASS: bal_account_state_root_auto matches reference"
-else
-  echo "  FAIL   basra_modify_insert status=$status"
-  echo "    expected: $expected"
-  echo "    actual:   $actual"
-  echo "==> FAIL"
-  exit 1
-fi
+fail=0
+for name in basra_modify_insert basra_full_post_fields; do
+  out="$VDIR/$name.output"
+  "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_state_root_auto.elf" \
+    -i "$VDIR/$name.input" -o "$out" -n 30000000 >/dev/null 2>&1 </dev/null \
+    || { echo "  ERROR  $name"; fail=1; continue; }
+  status="$(od -An -tu8 -j 32 -N 8 "$out" | tr -d ' \n')"
+  actual="$(xxd -p -s 0 -l 32 "$out" | tr -d '\n')"
+  expected="$(cat "$VDIR/$name.expected")"
+  if [[ "$status" == "0" && "$actual" == "$expected" ]]; then
+    echo "  PASS   $name root=${actual:0:16}.."
+  else
+    echo "  FAIL   $name status=$status"
+    echo "    expected: $expected"
+    echo "    actual:   $actual"
+    fail=1
+  fi
+done
+[[ "$fail" -eq 0 ]] && echo "==> PASS: bal_account_state_root_auto matches reference" \
+  || { echo "==> FAIL"; exit 1; }
