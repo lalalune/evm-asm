@@ -1,22 +1,47 @@
 #!/usr/bin/env bash
 # Run the EEST random_statetest stateless-guest regression windows.
 #
-# The zkevm@v0.4.0 random_statetest class has 503 stateless blocks. Split it
-# into two windows so reruns can resume from the second half without starting
-# from the beginning.
+# Discover the current random_statetest count and run every selected block in
+# fixed-size windows. This keeps the gate complete if new random_statetest
+# fixtures are added to a future EEST tag.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_RANDOM_JOBS:-${EEST_JOBS:-auto}}"
 STEPS="${EEST_RANDOM_STEPS:-${EEST_STEPS:-200000000}}"
+WINDOW="${EEST_RANDOM_WINDOW:-200}"
+
+if ! [[ "$WINDOW" =~ ^[0-9]+$ ]] || [[ "$WINDOW" -lt 1 ]]; then
+  echo "EEST_RANDOM_WINDOW must be a positive integer (got: $WINDOW)" >&2
+  exit 1
+fi
+
+FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
+[[ -d "$FX" ]] || { echo "fixtures not found at $FX (run scripts/eest-fetch-fixtures.sh '$TAG')" >&2; exit 1; }
+
+COUNT_DIR="$(pwd)/gen-out/eest-random-count"
+rm -rf "$COUNT_DIR"
+mkdir -p "$COUNT_DIR"
+
+echo "==> count random_statetest fixtures (tag=$TAG)"
+python3 scripts/eest-stateless-to-input.py \
+  --fixtures-dir "$FX" \
+  --out-dir "$COUNT_DIR" \
+  --filter random_statetest \
+  >/dev/null
+
+MANIFEST="$COUNT_DIR/manifest.tsv"
+[[ -s "$MANIFEST" ]] || { echo "no random_statetest stateless blocks selected" >&2; exit 1; }
+TOTAL="$(wc -l < "$MANIFEST" | tr -d ' ')"
+echo "==> random_statetest selected: $TOTAL"
 
 run_window() {
   local name="$1"
   local skip="$2"
   local limit="$3"
-  local min_full="$4"
-  shift 4
+  shift 3
 
   echo "==> random_statetest ${name}: skip=${skip} limit=${limit}"
   scripts/codegen-eest-stateless-check.sh \
@@ -26,12 +51,20 @@ run_window() {
     --jobs "$JOBS" \
     --quiet-passes \
     --max-failures 1 \
-    --min-full "$min_full" \
+    --min-full "$limit" \
     --steps "$STEPS" \
     "$@"
 }
 
-run_window "prefix" 0 200 200 "$@"
-run_window "suffix" 200 500 303 "$@"
+skip=0
+window_index=1
+while [[ "$skip" -lt "$TOTAL" ]]; do
+  remaining=$((TOTAL - skip))
+  limit="$WINDOW"
+  [[ "$remaining" -lt "$limit" ]] && limit="$remaining"
+  run_window "window-$window_index" "$skip" "$limit" "$@"
+  skip=$((skip + limit))
+  window_index=$((window_index + 1))
+done
 
-echo "==> PASS: random_statetest EEST regression windows full-match"
+echo "==> PASS: random_statetest EEST regression windows full-match ($TOTAL case(s))"
