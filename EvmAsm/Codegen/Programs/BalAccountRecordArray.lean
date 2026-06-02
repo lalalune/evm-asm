@@ -45,22 +45,30 @@ def balAccountRecordArrayFunction : String :=
   "  mv s5, a5                   # n\n" ++
   "  mv s6, a6                   # records out base\n" ++
   "  mv s7, a7                   # account arena cursor\n" ++
+  "  add t0, s3, s4              # BAL end\n" ++
+  "  la t1, bara_bal_end; sd t0, 0(t1)\n" ++
+  "  bgeu s3, t0, .Lbara_fail\n" ++
+  "  lbu t2, 0(s3); li t3, 0xc0; bltu t2, t3, .Lbara_fail\n" ++
+  "  li t3, 0xf8; bltu t2, t3, .Lbara_short_outer\n" ++
+  "  li t3, 0xf7; sub t4, t2, t3; addi t4, t4, 1; add s9, s3, t4; j .Lbara_have_cursor\n" ++
+  ".Lbara_short_outer:\n" ++
+  "  addi s9, s3, 1\n" ++
+  ".Lbara_have_cursor:\n" ++
   "  li s8, 0                    # i\n" ++
   ".Lbara_loop:\n" ++
   "  beq s8, s5, .Lbara_ok\n" ++
-  "  mv a0, s3; mv a1, s4; mv a2, s8\n" ++
-  "  la a3, bara_item_off; la a4, bara_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbara_fail\n" ++
-  "  la t0, bara_item_off; ld t0, 0(t0); add a0, s3, t0\n" ++
-  "  la t0, bara_item_len; ld a1, 0(t0)\n" ++
+  "  la t0, bara_bal_end; ld t0, 0(t0); bgeu s9, t0, .Lbara_fail\n" ++
+  "  mv a0, s9; jal ra, rlp_item_size; mv t6, a0\n" ++
+  "  add t0, s9, t6; la t1, bara_bal_end; ld t1, 0(t1); bgtu t0, t1, .Lbara_fail\n" ++
+  "  la t1, bara_next_item; sd t0, 0(t1)\n" ++
+  "  la t1, bara_item_len; sd t6, 0(t1)\n" ++
+  "  mv a0, s9; mv a1, t6\n" ++
   "  jal ra, bal_account_has_state_change\n" ++
   "  li t0, 1; beq a0, t0, .Lbara_changed\n" ++
   "  bnez a0, .Lbara_fail\n" ++
   "  la s9, bara_empty_account; li t1, 70; li t2, 3; j .Lbara_record\n" ++
   ".Lbara_changed:\n" ++
-  "  la t0, bara_item_off; ld t0, 0(t0); add a0, s3, t0\n" ++
-  "  la t0, bara_item_len; ld a1, 0(t0)\n" ++
+  "  mv a0, s9; la t0, bara_item_len; ld a1, 0(t0)\n" ++
   "  la a2, bara_path\n" ++
   "  jal ra, bal_account_path\n" ++
   "  bnez a0, .Lbara_fail\n" ++
@@ -84,6 +92,7 @@ def balAccountRecordArrayFunction : String :=
   "  slli t0, s8, 4; slli t3, s8, 3; add t0, t0, t3; add t0, s6, t0\n" ++
   "  sd s7, 0(t0); sd t1, 8(t0); sd t2, 16(t0)\n" ++
   "  add s7, s7, t1; addi s7, s7, 7; andi s7, s7, -8\n" ++
+  "  la t0, bara_next_item; ld s9, 0(t0)\n" ++
   "  addi s8, s8, 1\n" ++
   "  j .Lbara_loop\n" ++
   ".Lbara_ok:\n" ++
@@ -129,6 +138,7 @@ def ziskBalAccountRecordArrayPrologue : String :=
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   hpDecodeNibblesFunction ++ "\n" ++
   bytesToNibblesFunction ++ "\n" ++
@@ -146,6 +156,8 @@ def ziskBalAccountRecordArrayDataSection : String :=
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
+  "bara_bal_end:\n  .zero 8\n" ++
+  "bara_next_item:\n  .zero 8\n" ++
   "bacp_off:\n  .zero 8\n" ++
   "bacp_len:\n  .zero 8\n" ++
   ".balign 32\n" ++

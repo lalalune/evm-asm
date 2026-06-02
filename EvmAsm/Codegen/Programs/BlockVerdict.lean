@@ -1279,6 +1279,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
+  "bara_bal_end:\n  .zero 8\n" ++
+  "bara_next_item:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bara_path:\n  .zero 64\n" ++
   "bara_acct:\n  .zero 256\n" ++
