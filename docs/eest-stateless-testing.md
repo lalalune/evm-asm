@@ -92,6 +92,9 @@ uv run --directory execution-specs --quiet python3 \
   ../scripts/eest-bal-replay-report.py --failures-only --details
 ```
 
+The report includes `state_witness_bytes` and `over_bsr_cap`; the latter marks
+inputs whose state witness exceeds the current 32 KiB `block_state_root` cap.
+
 Run a large batch:
 
 ```bash
