@@ -42,6 +42,10 @@ structure OpcodeTestCase where
       string = no preload (table starts empty; SSTORE may grow
       it; SLOAD against an unset key returns zero). -/
   storage        : String := ""
+  /-- Optional BLOBBASEFEE value (M28). Format is a u256 hex integer;
+      the runtime input packer serializes it in EVM-stack byte order.
+      Empty string = zero blob base fee. -/
+  blobBaseFee    : String := ""
   /-- Optional expected halt-kind at `OUTPUT_ADDR + 32` (M23).
       16 hex chars = 8-byte LE u64 (e.g. `"0100000000000000"` for
       RETURN = 1, `"0200000000000000"` for REVERT = 2). Empty
@@ -379,8 +383,8 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- `opcodeTestCases` (test `tstore_tload_round_trip`, which
     -- additionally asserts the transient log_length surface).
     -- ## M18 trivial no-op handlers (94.6% coverage milestone)
-    -- 20 opcodes across 4 builders: haltHandlers (4), pushZeroHandlers
-    -- (5), popPushZeroHandlers (6), copyNoopHandlers (5). One
+    -- 19 opcodes across 4 builders: haltHandlers (4), pushZeroHandlers
+    -- (4), popPushZeroHandlers (6), copyNoopHandlers (5). One
     -- representative test per builder + an INVALID smoke.
   , -- PUSH1 0xff; PUSH1 0x11; PUSH1 0x22; RETURN
     -- RETURN(offset=0x22, size=0x11) reads 0x11 bytes from
@@ -408,6 +412,14 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "gas_push_zero"
       bytecode       := "0x5a, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- BLOBBASEFEE; STOP with blob_base_fee = 0x1234. Amsterdam
+    -- execution-specs computes this from block_env.excess_blob_gas;
+    -- the runtime dispatcher receives the already-computed value in
+    -- the input trailer and exposes it through evm_env.
+    { name           := "blobbasefee_from_input"
+      bytecode       := "0x4a, 0x00"
+      blobBaseFee    := "0x1234"
+      expectedOutHex := "3412000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0xab; BALANCE; STOP — BALANCE pops the pushed 0xab as
     -- the address and overwrites with 0. Expected: 0 in low limb.
     -- Smoke test for popPushZeroHandlers.
