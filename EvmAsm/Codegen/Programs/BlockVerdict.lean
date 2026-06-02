@@ -267,10 +267,7 @@ def blockStateRootFunction : String :=
   "  la t6, bsr_bal_count; ld t6, 0(t6); bnez t6, .Lbsr_apply\n" ++
   ".Lbsr_bal_done:\n" ++
   "  # withdrawal changes: change counter s1 starts after system/BAL changes.\n" ++
-  "  # The change index is DECOUPLED from the withdrawal index (s0): a withdrawal\n" ++
-  "  # whose delta is 0 (amount 0) is a no-op on state -- an absent recipient is\n" ++
-  "  # created-then-cleared per EIP-161 -- so it is SKIPPED without advancing the\n" ++
-  "  # change counter. (Foundation for delta accumulation + account insert.)\n" ++
+  "  # Zero-amount withdrawals are no-ops and do not advance the change counter.\n" ++
   "  li s0, 0                     # withdrawal index\n" ++
   ".Lbsr_wl:\n" ++
   "  beq s0, s4, .Lbsr_apply\n" ++
@@ -332,6 +329,7 @@ def blockStateRootFunction : String :=
   ".Lbsr_wl_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_wl\n" ++
   ".Lbsr_apply:\n" ++
+  "  la t0, bsr_change_count; sd s1, 0(t0)\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la a3, bsr_changes; mv a4, s1; mv a5, s5     # change count = s1 (40-byte recs)\n" ++
   "  jal ra, mpt_state_root_ins\n" ++
@@ -872,6 +870,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_state_status; ld t2, 0(t1); sd t2, 24(t0)\n" ++
   "  la t1, bsr_bal_count; ld t2, 0(t1); sd t2, 32(t0)\n" ++
   "  la t1, bsr_fail_code; ld t2, 0(t1); sd t2, 40(t0)\n" ++
+  "  la t1, bsr_change_count; ld t2, 0(t1); sd t2, 48(t0)\n" ++
+  "  la t1, bsr_wl_v; ld t2, 0(t1); sd t2, 56(t0)\n" ++
   "  la t1, baacd_fail_code; ld t2, 0(t1); sd t2, 64(t0)\n" ++
   "  la t1, bacv_fail_code; ld t2, 0(t1); sd t2, 72(t0)\n" ++
   "  la t1, baap_fail_code; ld t2, 0(t1); sd t2, 80(t0)\n" ++
@@ -1182,6 +1182,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_worst_state:\n  .zero 8\n" ++
   "bsg_prior_state:\n  .zero 8\n" ++
   "bsr_fail_code:\n  .zero 8\n" ++
+  "bsr_change_count:\n  .zero 8\n" ++
   "sri_cur_mode:\n  .zero 8\n" ++
   "sri_fail_index:\n  .zero 8\n" ++
   "sri_fail_mode:\n  .zero 8\n" ++
