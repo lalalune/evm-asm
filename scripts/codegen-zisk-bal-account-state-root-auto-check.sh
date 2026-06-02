@@ -134,6 +134,16 @@ def build_input(root_hash, witness, bal_list, n):
     return bytes(body)
 
 
+def storage_trie_one_slot(slot_idx: bytes, value: int):
+    path = []
+    for b in keccak256(slot_idx):
+        path.append(b >> 4)
+        path.append(b & 0x0f)
+    value_rlp = rlp_bytes(minimal_be(value))
+    leaf = leaf_node(path, value_rlp)
+    return keccak256(leaf), leaf
+
+
 present_addr = bytes.fromhex("c0f6dc9e5836f54caadbf59cc69346c508e1992b")
 present_path = account_path(present_addr)
 for i in range(2, 256):
@@ -170,6 +180,61 @@ with open(f"{outdir}/basra_modify_insert.input", "wb") as f:
 with open(f"{outdir}/basra_modify_insert.expected", "w") as f:
     f.write(expected.hex())
 print(f"basra_modify_insert slots={present_path[0]},{missing_path[0]} expected={expected.hex()[:16]}..")
+
+# A second vector covers the general post-state account value shape used by
+# execution-specs: storage writes first produce a new storage_root, then the
+# account leaf is rewritten with nonce, balance, storage_root, and code_hash.
+full_addr = bytes.fromhex("abababababababababababababababababababab")
+full_path = account_path(full_addr)
+slot_key = (123).to_bytes(32, "big")
+old_storage_root, old_storage_leaf = storage_trie_one_slot(slot_key, 0x11)
+new_storage_root, new_storage_leaf = storage_trie_one_slot(slot_key, 0x2222)
+old_code = b"\x60\x00"
+new_code = b"\x60\x2a\x60\x00\x52"
+old_full_account = rlp_list([
+    rlp_int(3),
+    rlp_int(4),
+    rlp_bytes(old_storage_root),
+    rlp_bytes(keccak256(old_code)),
+])
+new_full_account = rlp_list([
+    rlp_int(9),
+    rlp_int(10 ** 12),
+    rlp_bytes(new_storage_root),
+    rlp_bytes(keccak256(new_code)),
+])
+old_full_leaf = leaf_node(full_path, old_full_account)
+new_full_leaf = leaf_node(full_path, new_full_account)
+full_root_hash = keccak256(old_full_leaf)
+full_expected = keccak256(new_full_leaf)
+full_bal_list = rlp_list([
+    rlp_list([
+        rlp_bytes(full_addr),
+        rlp_list([
+            rlp_list([
+                rlp_bytes(slot_key),
+                rlp_list([
+                    change_pair(3, rlp_int(0x11)),
+                    change_pair(4, rlp_int(0x2222)),
+                ]),
+            ]),
+        ]),
+        rlp_list([]),
+        rlp_list([change_pair(5, rlp_int(10 ** 12))]),
+        rlp_list([change_pair(6, rlp_int(9))]),
+        rlp_list([rlp_list([rlp_int(7), rlp_bytes(new_code)])]),
+    ]),
+])
+with open(f"{outdir}/basra_full_fields.input", "wb") as f:
+    f.write(build_input(
+        full_root_hash,
+        ssz_section([old_full_leaf, old_storage_leaf]),
+        full_bal_list,
+        1,
+    ))
+with open(f"{outdir}/basra_full_fields.expected", "w") as f:
+    f.write(full_expected.hex())
+print(f"basra_full_fields expected={full_expected.hex()[:16]}..")
 PYGEN
 
 echo "==> lake build codegen"
@@ -179,19 +244,22 @@ echo "==> emit zisk_bal_account_state_root_auto probe ELF"
 lake exe codegen --program zisk_bal_account_state_root_auto --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_bal_account_state_root_auto"
 
-out="$VDIR/basra_modify_insert.output"
-"$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_state_root_auto.elf" \
-  -i "$VDIR/basra_modify_insert.input" -o "$out" -n 12000000 >/dev/null 2>&1 </dev/null
-status="$(od -An -tu8 -j 32 -N 8 "$out" | tr -d ' \n')"
-actual="$(xxd -p -s 0 -l 32 "$out" | tr -d '\n')"
-expected="$(cat "$VDIR/basra_modify_insert.expected")"
-if [[ "$status" == "0" && "$actual" == "$expected" ]]; then
-  echo "  PASS   basra_modify_insert root=${actual:0:16}.."
-  echo "==> PASS: bal_account_state_root_auto matches reference"
-else
-  echo "  FAIL   basra_modify_insert status=$status"
-  echo "    expected: $expected"
-  echo "    actual:   $actual"
-  echo "==> FAIL"
-  exit 1
-fi
+for case_name in basra_modify_insert basra_full_fields; do
+  out="$VDIR/$case_name.output"
+  "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_state_root_auto.elf" \
+    -i "$VDIR/$case_name.input" -o "$out" -n 12000000 >/dev/null 2>&1 </dev/null
+  status="$(od -An -tu8 -j 32 -N 8 "$out" | tr -d ' \n')"
+  actual="$(xxd -p -s 0 -l 32 "$out" | tr -d '\n')"
+  expected="$(cat "$VDIR/$case_name.expected")"
+  if [[ "$status" == "0" && "$actual" == "$expected" ]]; then
+    echo "  PASS   $case_name root=${actual:0:16}.."
+  else
+    echo "  FAIL   $case_name status=$status"
+    echo "    expected: $expected"
+    echo "    actual:   $actual"
+    echo "==> FAIL"
+    exit 1
+  fi
+done
+
+echo "==> PASS: bal_account_state_root_auto matches reference"
