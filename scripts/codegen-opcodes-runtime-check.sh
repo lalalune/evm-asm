@@ -70,7 +70,7 @@ while IFS= read -r line; do
   # (tab is treated as IFS-whitespace), which silently shifts the
   # storage column into the calldata slot when calldata is empty.
   # `cut -f` preserves empty fields, so we slice each column
-  # explicitly. Order matches `--list-test-cases` 12-column TSV
+  # explicitly. Order matches `--list-test-cases` 13-column TSV
   # (M23 added col 6; M24 added cols 7 and 8 for the log-length
   # assertions; M25 added col 9 for the post-state slot dump; M26
   # added cols 10 and 11 for receipt event-log capture).
@@ -80,12 +80,13 @@ while IFS= read -r line; do
   calldata=$(printf '%s' "$line" | cut -f4)
   storage=$(printf '%s' "$line" | cut -f5)
   blob_base_fee=$(printf '%s' "$line" | cut -f6)
-  expected_halt_kind=$(printf '%s' "$line" | cut -f7)
-  expected_persistent_log_length=$(printf '%s' "$line" | cut -f8)
-  expected_transient_log_length=$(printf '%s' "$line" | cut -f9)
-  expected_post_storage=$(printf '%s' "$line" | cut -f10)
-  expected_event_log_count=$(printf '%s' "$line" | cut -f11)
-  expected_event_log_first=$(printf '%s' "$line" | cut -f12)
+  env=$(printf '%s' "$line" | cut -f7)
+  expected_halt_kind=$(printf '%s' "$line" | cut -f8)
+  expected_persistent_log_length=$(printf '%s' "$line" | cut -f9)
+  expected_transient_log_length=$(printf '%s' "$line" | cut -f10)
+  expected_post_storage=$(printf '%s' "$line" | cut -f11)
+  expected_event_log_count=$(printf '%s' "$line" | cut -f12)
+  expected_event_log_first=$(printf '%s' "$line" | cut -f13)
 
   if [[ -z "$name" || -z "$expected" || -z "$bytecode_csv" ]]; then
     echo
@@ -110,6 +111,9 @@ while IFS= read -r line; do
   fi
   if [[ -n "${blob_base_fee:-}" ]]; then
     pack_args+=(--blob-base-fee "$blob_base_fee")
+  fi
+  if [[ -n "${env:-}" ]]; then
+    pack_args+=(--env "$env")
   fi
   "$PYTHON" scripts/pack-bytecode.py ${pack_args[@]+"${pack_args[@]}"} "$bytecode_csv" "gen-out/$name.input"
 

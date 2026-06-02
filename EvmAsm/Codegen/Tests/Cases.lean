@@ -46,6 +46,12 @@ structure OpcodeTestCase where
       the runtime input packer serializes it in EVM-stack byte order.
       Empty string = zero blob base fee. -/
   blobBaseFee    : String := ""
+  /-- Optional simple environment values (M29). Format is comma- or
+      whitespace-separated `field=hex` pairs accepted by
+      `scripts/pack-bytecode.py --env`, e.g.
+      `"caller=0x1234,timestamp=0x2a"`. Empty string = every simple
+      env opcode reads zero, preserving the pre-M29 behavior. -/
+  env            : String := ""
   /-- Optional expected halt-kind at `OUTPUT_ADDR + 32` (M23).
       16 hex chars = 8-byte LE u64 (e.g. `"0100000000000000"` for
       RETURN = 1, `"0200000000000000"` for REVERT = 2). Empty
@@ -268,6 +274,24 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "env_field_offset_distinct"
       bytecode       := "0x42, 0x43, 0x03, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- CALLER; STOP with nonzero runtime env. The packer appends the
+    -- M29 simple-env trailer and the runtime dispatcher copies it into
+    -- evm_env before executing bytecode.
+    { name           := "caller_from_input_env"
+      bytecode       := "0x33, 0x00"
+      expectedOutHex := "3412000000000000000000000000000000000000000000000000000000000000"
+      env            := "caller=0x1234" }
+  , -- TIMESTAMP; STOP with nonzero runtime env.
+    { name           := "timestamp_from_input_env"
+      bytecode       := "0x42, 0x00"
+      expectedOutHex := "2a00000000000000000000000000000000000000000000000000000000000000"
+      env            := "timestamp=0x2a" }
+  , -- BASEFEE; STOP with nonzero runtime env. This is distinct from
+    -- BLOBBASEFEE's separate M28 trailer slot at env+512.
+    { name           := "basefee_from_input_env"
+      bytecode       := "0x48, 0x00"
+      expectedOutHex := "efbe000000000000000000000000000000000000000000000000000000000000"
+      env            := "base_fee=0xbeef" }
     -- ## M13 calldata-context opcode (CALLDATASIZE)
     -- The calldata-length cell at evm_env + 424 is zero-initialised by the
     -- dispatcher's .data section, so CALLDATASIZE pushes 32 zero bytes.

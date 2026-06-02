@@ -22,11 +22,18 @@ M28 extension: optionally append a fourth segment carrying the
 BLOBBASEFEE value as one EVM stack word. The dispatcher prologue copies
 it into `evm_env`; opcode 0x4a reads it from there. Defaults to zero.
 
+M29 extension: optionally append a fifth segment carrying the 13 simple
+environment opcode words in `EvmEnv` 32-byte slot order. The dispatcher
+prologue copies those words into `evm_env` so ADDRESS, ORIGIN, CALLER,
+CALLVALUE, GASPRICE, COINBASE, TIMESTAMP, NUMBER, PREVRANDAO, GASLIMIT,
+CHAINID, SELFBALANCE, and BASEFEE can read nonzero runtime values.
+
 Usage:
     pack-bytecode.py "0x60, 0x02, 0x60, 0x0a, 0x04, 0x00" output.bin
     pack-bytecode.py --calldata "0xdeadbeef" "0x36, 0x00" output.bin
     pack-bytecode.py --storage "(0x00, 0xdead)" "0x60, 0x00, 0x54, 0x00" output.bin
     pack-bytecode.py --blob-base-fee 0x1234 "0x4a, 0x00" output.bin
+    pack-bytecode.py --env "caller=0x1234,timestamp=0x2a" "0x33, 0x00" output.bin
     echo "0x60, 0x00" | pack-bytecode.py - output.bin
 
 Output layout:
@@ -41,6 +48,7 @@ Output layout:
     following          <slot_count × 64-byte (key, value)>   (M22)
                        <zero pad to 8-byte boundary>
     next 32 bytes      <blob_base_fee as EVM stack word>      (M28)
+    next 416 bytes     <13 simple env words in evm_env order> (M29)
 
 ziskemu prepends 8 more bytes of its own metadata when loading,
 landing the bytecode-length prefix at INPUT_ADDR+8 and the bytecode
@@ -56,11 +64,49 @@ a zero-length calldata segment appended, which preserves the M17
 Pre-M22 callers that don't pass --storage get a zero-length storage
 segment appended (SLOAD returns 0, SSTORE appends to an empty table).
 Pre-M28 callers that don't pass --blob-base-fee get a zero word.
+Pre-M29 callers that don't pass --env get zero words for every simple
+environment opcode.
 """
 import argparse
 import re
 import struct
 import sys
+
+ENV_FIELDS = [
+    "address",
+    "self_balance",
+    "caller",
+    "call_value",
+    "origin",
+    "gas_price",
+    "coinbase",
+    "timestamp",
+    "number",
+    "prevrandao",
+    "gas_limit",
+    "base_fee",
+    "chain_id",
+]
+
+ENV_ALIASES = {
+    "selfbalance": "self_balance",
+    "self_balance": "self_balance",
+    "callvalue": "call_value",
+    "call_value": "call_value",
+    "tx_origin": "origin",
+    "gasprice": "gas_price",
+    "gas_price": "gas_price",
+    "prev_randao": "prevrandao",
+    "prevrandao": "prevrandao",
+    "gaslimit": "gas_limit",
+    "gas_limit": "gas_limit",
+    "basefee": "base_fee",
+    "base_fee": "base_fee",
+    "chainid": "chain_id",
+    "chain_id": "chain_id",
+}
+
+ENV_ALIASES.update({field: field for field in ENV_FIELDS})
 
 
 def parse_csv(csv: str) -> bytes:
@@ -126,6 +172,32 @@ def parse_storage(storage_arg: str) -> list[tuple[bytes, bytes]]:
     return out
 
 
+def parse_env(env_arg: str) -> dict[str, bytes]:
+    """Parse a simple-env trailer spec into field -> stack-word bytes.
+
+    Supported form: comma- or whitespace-separated `field=0xVALUE` pairs.
+    Field names accept opcode-style spellings (`CALLVALUE`, `SELFBALANCE`)
+    and snake_case names (`call_value`, `self_balance`).
+    """
+    s = env_arg.strip()
+    if not s:
+        return {}
+    out: dict[str, bytes] = {}
+    for item in re.split(r"[\s,]+", s):
+        if not item:
+            continue
+        if "=" not in item:
+            raise ValueError(f"bad --env item {item!r}; expected field=0xVALUE")
+        raw_name, raw_value = item.split("=", 1)
+        key = raw_name.strip().lower().replace("-", "_")
+        field = ENV_ALIASES.get(key)
+        if field is None:
+            known = ", ".join(ENV_FIELDS)
+            raise ValueError(f"unknown --env field {raw_name!r}; known fields: {known}")
+        out[field] = _to_stack_bytes(raw_value)
+    return out
+
+
 def _to_stack_bytes(hex_blob: str) -> bytes:
     """Decode a hex blob (with optional 0x prefix) as a u256 integer
     and serialize as 32 bytes in EVM-stack representation: 4 LE u64
@@ -177,6 +249,15 @@ def main() -> int:
         help="Optional BLOBBASEFEE value as a u256 hex integer. Serialized "
              "in EVM-stack byte order. Defaults to zero.",
     )
+    parser.add_argument(
+        "--env",
+        default="",
+        help="Optional simple environment values as comma- or whitespace-"
+             "separated field=hex pairs, e.g. 'caller=0x1234,timestamp=0x2a'. "
+             "Fields are address, self_balance, caller, call_value, origin, "
+             "gas_price, coinbase, timestamp, number, prevrandao, gas_limit, "
+             "base_fee, chain_id. Defaults to zero for every field.",
+    )
     args = parser.parse_args()
 
     csv = sys.stdin.read() if args.bytecode == "-" else args.bytecode
@@ -184,6 +265,8 @@ def main() -> int:
     calldata = parse_calldata(args.calldata)
     storage_pairs = parse_storage(args.storage)
     blob_base_fee = _to_stack_bytes(args.blob_base_fee) if args.blob_base_fee.strip() else b"\x00" * 32
+    env_words = {field: b"\x00" * 32 for field in ENV_FIELDS}
+    env_words.update(parse_env(args.env))
 
     # Bytecode segment: 8B LE length prefix + bytes, padded to 8-byte boundary
     # so the calldata-length cell that follows is aligned.
@@ -206,6 +289,10 @@ def main() -> int:
     # M28 blob-context trailer: 32-byte BLOBBASEFEE word in stack
     # representation. It is naturally 8-byte aligned after the storage segment.
     packed += blob_base_fee
+
+    # M29 simple environment trailer: 13 stack words in `evm_env` layout order.
+    for field in ENV_FIELDS:
+        packed += env_words[field]
 
     if args.output == "-":
         sys.stdout.buffer.write(packed)

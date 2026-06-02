@@ -513,6 +513,22 @@ def emitRuntimeDispatcherPrologue : String :=
   "  sd x8, 528(x20)\n" ++
   "  ld x8, 24(x5)\n" ++
   "  sd x8, 536(x20)\n" ++
+  -- M29: the optional simple-env trailer follows BLOBBASEFEE and
+  -- carries 13 contiguous 32-byte slots matching `EvmEnv` layout
+  -- offsets 0..415: ADDRESS, SELFBALANCE, CALLER, CALLVALUE, ORIGIN,
+  -- GASPRICE, COINBASE, TIMESTAMP, NUMBER, PREVRANDAO, GASLIMIT,
+  -- BASEFEE, CHAINID. Copying all 416 bytes preserves zero defaults
+  -- when the packer emits its default all-zero trailer.
+  "  addi x5, x5, 32\n" ++         -- x5 = simple-env trailer start
+  "  mv x6, x20\n" ++              -- x6 = evm_env destination
+  "  li x7, 52\n" ++               -- 13 words × 4 dwords
+  ".env_trailer_copy_loop:\n" ++
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 0(x6)\n" ++
+  "  addi x5, x5, 8\n" ++
+  "  addi x6, x6, 8\n" ++
+  "  addi x7, x7, -1\n" ++
+  "  bnez x7, .env_trailer_copy_loop\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
