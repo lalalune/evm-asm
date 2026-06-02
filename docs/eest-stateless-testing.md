@@ -211,6 +211,18 @@ scripts/codegen-zisk-stateless-verdict-check.sh \
   --steps 2000000000
 ```
 
+Each verdict line prints the fixture's block gas limit separately from the
+path, followed by named debug counters from `OUTPUT_BASE + 8` onward:
+
+```text
+dbg=[bv_fail=... header=... state=... bal_count=... bsr_fail=... change_count=... witness_len=... baacd_fail=... bacv_fail=... baap_fail=... sri_index=... sri_mode=... sri_status=...]
+```
+
+`bv_fail` is the top-level block-verdict failure code. `bsr_fail` and
+`bal_count` classify the block-state-root replay path, while the `baacd`,
+`bacv`, `baap`, and `sri` fields expose the lower-level account, storage, and
+state-read helpers.
+
 Run a large batch:
 
 ```bash

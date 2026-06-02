@@ -147,8 +147,52 @@ python3 scripts/eest-stateless-to-input.py "${conv_args[@]}"
 MANIFEST="$RUN_DIR/manifest.tsv"
 [[ -s "$MANIFEST" ]] || { echo "no blocks selected" >&2; exit 1; }
 
+format_dbg() {
+  local out="$1"
+  local raw
+  local -a labels=(
+    bv_fail
+    header
+    state
+    bal_count
+    bsr_fail
+    change_count
+    witness_len
+    baacd_fail
+    bacv_fail
+    baap_fail
+    sri_index
+    sri_mode
+    sri_status
+  )
+  local -a words=()
+  local i value dbg=""
+
+  raw="$(od -An -v -tu8 -j 8 -N 104 "$out" 2>/dev/null | xargs || true)"
+  read -r -a words <<< "$raw"
+  for i in "${!labels[@]}"; do
+    value="${words[$i]:-?}"
+    dbg="${dbg:+$dbg }${labels[$i]}=$value"
+  done
+  echo "$dbg"
+}
+
+case_suffix() {
+  local block_gas_limit="$1"
+  local relpath="$2"
+  if [[ "$block_gas_limit" =~ ^[0-9]+$ ]]; then
+    echo "gas=$block_gas_limit  $relpath"
+  else
+    echo "$relpath"
+  fi
+}
+
 total=0 match=0 miss=0 fp=0 err=0
-while IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath; do
+while IFS=$'\t' read -r label input expected_hex succ_bit input_len block_gas_limit relpath _extra; do
+  if [[ -z "${relpath:-}" ]]; then
+    relpath="$block_gas_limit"
+    block_gas_limit=""
+  fi
   total=$((total + 1))
   out="$RUN_DIR/$label.vout"
   if ! "$ZISKEMU" -e gen-out/zisk_stateless_verdict_v2.elf -i "$input" -o "$out" \
@@ -157,15 +201,16 @@ while IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath; do
   fi
   v="$(od -An -tu1 -j 0 -N 1 "$out" 2>/dev/null | tr -d ' \n')"
   [[ -z "$v" ]] && { err=$((err + 1)); echo "  ERROR(short)  $relpath"; continue; }
-  dbg="$(od -An -v -tu8 -j 8 -N 80 "$out" 2>/dev/null | xargs || true)"
+  dbg="$(format_dbg "$out")"
+  suffix="$(case_suffix "$block_gas_limit" "$relpath")"
   if [[ "$v" == "$succ_bit" ]]; then
-    match=$((match + 1)); echo "  MATCH  verdict=$v exp=$succ_bit dbg=[$dbg]  $relpath"
+    match=$((match + 1)); echo "  MATCH  verdict=$v exp=$succ_bit dbg=[$dbg]  $suffix"
   elif [[ "$v" == "0" && "$succ_bit" == "1" ]]; then
-    miss=$((miss + 1)); echo "  miss   verdict=0 exp=1 (conservative) dbg=[$dbg]  $relpath"
+    miss=$((miss + 1)); echo "  miss   verdict=0 exp=1 (conservative) dbg=[$dbg]  $suffix"
   elif [[ "$v" == "1" && "$succ_bit" == "0" ]]; then
-    fp=$((fp + 1)); echo "  ** FALSE POSITIVE ** verdict=1 exp=0 dbg=[$dbg]  $relpath"
+    fp=$((fp + 1)); echo "  ** FALSE POSITIVE ** verdict=1 exp=0 dbg=[$dbg]  $suffix"
   else
-    echo "  DIFF   verdict=$v exp=$succ_bit dbg=[$dbg]  $relpath"
+    echo "  DIFF   verdict=$v exp=$succ_bit dbg=[$dbg]  $suffix"
   fi
 done < "$MANIFEST"
 
