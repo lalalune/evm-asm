@@ -421,10 +421,13 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mcopy_pop3"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x5e, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
-    -- ## M19 child-frame opcodes (CREATE/CALL/CALLCODE/DELEGATECALL/
-    -- CREATE2/STATICCALL) — wired as pop-N + push-zero no-ops.
-    -- Each opcode pops the EVM-spec input count and writes 32 zero
-    -- bytes to the new top-of-stack slot ("call failed" / "address 0").
+    -- ## M19/M27 child-frame opcodes (CREATE/CALL/CALLCODE/
+    -- DELEGATECALL/CREATE2/STATICCALL). CREATE-family and
+    -- non-precompile CALL-family targets remain pop-N + push-zero
+    -- no-ops. M27 adds a basic precompile frame surface for CALL /
+    -- STATICCALL to addresses 0x01..0x04; those stubs push success =
+    -- 1 so later PRs can hang per-precompile returndata bodies off
+    -- the recognized branch.
     -- Three representative test cases spanning the net-pop spectrum
     -- (CREATE = 2, STATICCALL = 5, CALL = 6).
   , -- PUSH1 0x01; PUSH1 0x02; PUSH1 0x03; CREATE; PUSH1 0x42; STOP
@@ -451,6 +454,51 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "staticcall_pop6_push_zero"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xfa, 0x60, 0xab, 0x00"
       expectedOutHex := "ab00000000000000000000000000000000000000000000000000000000000000" }
+  , -- CALL to basic precompile address 0x04 (IDENTITY) reaches the
+    -- precompile-specific frame stub and pushes success = 1. Stack
+    -- args are pushed bottom-to-top: out_size, out_off, in_size,
+    -- in_off, value, to, gas.
+    { name           := "call_identity_precompile_stub_success"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- STATICCALL to basic precompile address 0x04 reaches the same
+    -- frame surface. Args: out_size, out_off, in_size, in_off, to,
+    -- gas.
+    { name           := "staticcall_identity_precompile_stub_success"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- IDENTITY via CALL copies three input bytes from memory[0..3)
+    -- into caller output memory[0x40..0x43). POP drops the success
+    -- word; RETURN exposes the copied bytes directly.
+    { name             := "call_identity_precompile_copies_memory"
+      bytecode         := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x01, 0x53, 0x60, 0xcc, 0x60, 0x02, 0x53, 0x60, 0x03, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x03, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "aabbcc0000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000" }
+  , -- STATICCALL to IDENTITY with output_size=2 and input_size=3
+    -- copies only the short caller output buffer. Returning three
+    -- bytes from the output region proves the third byte remains zero.
+    { name             := "staticcall_identity_precompile_short_output"
+      bytecode         := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x01, 0x53, 0x60, 0xcc, 0x60, 0x02, 0x53, 0x60, 0x02, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x03, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "aabb000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000" }
+  , -- STATICCALL to SHA256 over empty input writes the canonical
+    -- sha256("") digest to caller memory.
+    { name             := "staticcall_sha256_precompile_empty"
+      bytecode         := "0x60, 0x20, 0x60, 0x40, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      expectedHaltKind := "0100000000000000" }
+  , -- CALL to SHA256 over memory[0..3) = "abc".
+    { name             := "call_sha256_precompile_abc"
+      bytecode         := "0x60, 0x61, 0x60, 0x00, 0x53, 0x60, 0x62, 0x60, 0x01, 0x53, 0x60, 0x63, 0x60, 0x02, 0x53, 0x60, 0x20, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      expectedHaltKind := "0100000000000000" }
+  , -- CALLDATACOPY loads 200 bytes of 0xaa into memory, then CALL
+    -- hashes it through SHA256. This covers the multi-block path.
+    { name             := "call_sha256_precompile_aa200"
+      bytecode         := "0x60, 0xc8, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x20, 0x60, 0x40, 0x60, 0xc8, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      calldata         := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      expectedOutHex   := "605ed279d0a1af786c79054f9424d196ed6a1f0331100a923d711885d42099bb"
+      expectedHaltKind := "0100000000000000" }
     -- ## M20 arithmetic no-ops (MULMOD, EXP) — the LAST TWO unwired
     -- opcodes; M20 brings tinyInterpRegistry to 100% coverage 🎯.
     -- Both ship as placeholders; real upgrades follow in M21+.

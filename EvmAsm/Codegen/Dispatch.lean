@@ -108,6 +108,37 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
   "opcode_handlers:\n" ++
   String.intercalate "\n" entries
 
+/-- Shared scratch for the CALL/STATICCALL precompile frame surface.
+    Follow-up precompile bodies can write returndata bytes here before
+    copying them into caller memory. Layout:
+      +0  status / success word
+      +8  returndata length
+      +16 first 64 bytes of returndata scratch. -/
+def emitPrecompileFrameData : String :=
+  ".balign 8\n" ++
+  "evm_precompile_frame:\n" ++
+  "  .zero 80\n"
+
+/-- Scratch buffers used by `zkvm_sha256`. The wrapper expects these
+    labels to exist in the dispatcher's data section. -/
+def emitSha256Data : String :=
+  ".balign 8\n" ++
+  "sha256_w_iv:\n" ++
+  "  .quad 0xbb67ae856a09e667\n" ++
+  "  .quad 0xa54ff53a3c6ef372\n" ++
+  "  .quad 0x9b05688c510e527f\n" ++
+  "  .quad 0x5be0cd191f83d9ab\n" ++
+  ".balign 8\n" ++
+  "sha256_w_state:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "sha256_w_input:\n" ++
+  "  .zero 64\n" ++
+  ".balign 8\n" ++
+  "sha256_w_params:\n" ++
+  "  .quad sha256_w_state\n" ++
+  "  .quad sha256_w_input\n"
+
 /-- Dispatcher prologue: init EVM pointers (`x10` = code, `x12` =
     stack top, `x13` = EVM memory base) and enter the main
     fetch/decode/dispatch loop. Each iteration loads the opcode byte
@@ -184,16 +215,13 @@ def emitDispatcherPrologue : String :=
 def emitDispatcherEpilogue
     (registry : List OpcodeHandlerSpec) (exitBody : Program) : String :=
   String.intercalate "\n" (registry.map OpcodeHandlerSpec.emitSubroutine) ++ "\n" ++
-  -- M16: the keccak subroutine sits BETWEEN the handler subroutines
+  -- M16/M27: hash subroutines sit BETWEEN the handler subroutines
   -- and the `h_invalid:` / `.exit_label:` blocks so it's reachable only
-  -- via `jal x1, zkvm_keccak256` (not by fall-through from exitBody).
+  -- via explicit `jal`s (not by fall-through from exitBody).
   -- Each handler subroutine ends with `ret` / `j .dispatch_loop`, so
-  -- they don't fall through into this label. The subroutine itself
-  -- ends with `ret`, returning to whoever JAL'd it. Provides label
-  -- `zkvm_keccak256` for `hashHandlers` (M16: KECCAK256; M17+: LOG /
-  -- precompiles). Wraps Zisk's `csrs 0x800, a0` accelerator
-  -- (`.4byte 0x80052073`) as a sponge-mode loop. Inputs via LP64
-  -- a0/a1/a2; uses the dispatcher-side `zk3_state` data label.
+  -- they don't fall through into these labels. The subroutines end
+  -- with `ret`, returning to whoever JAL'd them.
+  zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
@@ -346,6 +374,8 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  emitPrecompileFrameData ++
+  emitSha256Data ++
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
@@ -496,6 +526,8 @@ def emitRuntimeDispatcherDataSection
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  emitPrecompileFrameData ++
+  emitSha256Data ++
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
