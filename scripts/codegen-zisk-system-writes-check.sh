@@ -36,11 +36,12 @@ for line in man:
     ep=outer[60:]
     number=int.from_bytes(ep[404:412],"little"); ts=int.from_bytes(ep[428:436],"little")
     ph=ep[0:32]
-    s2935=((number-1)& ((1<<64)-1)).to_bytes(32,"big")
+    s2935=(((number-1) & ((1<<64)-1)) % 8191).to_bytes(32,"big")
     v2935=ph.lstrip(b"\x00") or b""
-    s4788=ts.to_bytes(32,"big")
+    ts_slot=ts % 8191
+    s4788=ts_slot.to_bytes(32,"big")
     v4788=ts.to_bytes(8,"big").lstrip(b"\x00") or b""
-    s4788r=(ts + 8191).to_bytes(32,"big")
+    s4788r=(ts_slot + 8191).to_bytes(32,"big")
     v4788r=outer[24:56].lstrip(b"\x00") or b""
     out.append("\t".join([f[0], inp, s2935.hex(), v2935.hex(), s4788.hex(), v4788.hex(), s4788r.hex(), v4788r.hex()]))
 open(sys.argv[1]+".exp","w").write("\n".join(out)+"\n")
