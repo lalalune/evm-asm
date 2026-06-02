@@ -24,6 +24,13 @@ transaction's BLOBHASH versioned-hash list. The dispatcher prologue
 copies these into blob-context slots; opcodes 0x4a / 0x49 read them.
 Both default to zero/empty.
 
+M29 extension: optionally append a fifth segment carrying BLOCKHASH
+runtime context: current block number plus recent ancestor hashes in
+increasing block-number order. The dispatcher prologue copies up to
+256 hashes into a bounded table. BLOCKHASH(target) uses the Amsterdam
+execution-spec window rule: target must be older than the current block
+and within the supplied recent-hash list, otherwise it returns zero.
+
 Usage:
     pack-bytecode.py "0x60, 0x02, 0x60, 0x0a, 0x04, 0x00" output.bin
     pack-bytecode.py --calldata "0xdeadbeef" "0x36, 0x00" output.bin
@@ -46,6 +53,11 @@ Output layout:
     next 32 bytes      <blob_base_fee as EVM stack word>      (M28)
     next 8 bytes       <8-byte LE u64 blob_hash_count>        (M28)
     following          <count × 32-byte versioned hash words> (M28)
+    next 8 bytes       <8-byte LE u64 current_block_number>  (M29)
+    next 8 bytes       <8-byte LE u64 block_hash_count>      (M29)
+    following          <count × 32-byte recent hashes>       (M29)
+                       Hashes are passed as normal big-endian hex and
+                       serialized in EVM-stack byte order.
 
 ziskemu prepends 8 more bytes of its own metadata when loading,
 landing the bytecode-length prefix at INPUT_ADDR+8 and the bytecode
@@ -62,6 +74,8 @@ Pre-M22 callers that don't pass --storage get a zero-length storage
 segment appended (SLOAD returns 0, SSTORE appends to an empty table).
 Pre-M28 callers that don't pass --blob-base-fee / --blob-hashes get
 a zero word and an empty versioned-hash list.
+Pre-M29 callers that don't pass --block-hashes get current block 0 and
+an empty recent-hash table (BLOCKHASH returns 0).
 """
 import argparse
 import re
@@ -153,6 +167,29 @@ def parse_blob_hashes(blob_hashes_arg: str) -> list[bytes]:
     return out
 
 
+def parse_block_hashes(block_hashes_arg: str) -> list[bytes]:
+    """Parse --block-hashes into EVM-stack byte order hashes.
+
+    Supported forms:
+    - Empty: returns [].
+    - Comma or whitespace separated hex blobs, each exactly 32 bytes
+      after optional 0x prefix.
+    """
+    s = block_hashes_arg.strip()
+    if not s:
+        return []
+    tokens = re.findall(r"0[xX][0-9a-fA-F]+|[0-9a-fA-F]+", s)
+    if not tokens:
+        raise ValueError(f"no hashes in --block-hashes: {block_hashes_arg!r}")
+    out: list[bytes] = []
+    for token in tokens:
+        raw = token[2:] if token.startswith(("0x", "0X")) else token
+        if len(raw) != 64:
+            raise ValueError(f"block hash must be exactly 32 bytes: {token!r}")
+        out.append(bytes.fromhex(raw)[::-1])
+    return out
+
+
 def _to_stack_bytes(hex_blob: str) -> bytes:
     """Decode a hex blob (with optional 0x prefix) as a u256 integer
     and serialize as 32 bytes in EVM-stack representation: 4 LE u64
@@ -210,6 +247,19 @@ def main() -> int:
         help="Optional comma/space-separated BLOBHASH versioned hashes. Each "
              "entry is a 32-byte hex blob serialized in EVM-stack byte order.",
     )
+    parser.add_argument(
+        "--block-number",
+        default="0",
+        help="Current block number for BLOCKHASH context. Accepts decimal "
+             "or 0x-prefixed integer. Defaults to 0.",
+    )
+    parser.add_argument(
+        "--block-hashes",
+        default="",
+        help="Optional recent ancestor hashes for BLOCKHASH, in increasing "
+             "block-number order. Pass comma/space-separated 32-byte hex "
+             "hashes. Defaults to empty.",
+    )
     args = parser.parse_args()
 
     csv = sys.stdin.read() if args.bytecode == "-" else args.bytecode
@@ -218,6 +268,10 @@ def main() -> int:
     storage_pairs = parse_storage(args.storage)
     blob_base_fee = _to_stack_bytes(args.blob_base_fee) if args.blob_base_fee.strip() else b"\x00" * 32
     blob_hashes = parse_blob_hashes(args.blob_hashes)
+    current_block_number = int(args.block_number, 0)
+    if current_block_number < 0 or current_block_number > 0xFFFFFFFFFFFFFFFF:
+        raise ValueError("--block-number must fit in u64")
+    block_hashes = parse_block_hashes(args.block_hashes)
 
     # Bytecode segment: 8B LE length prefix + bytes, padded to 8-byte boundary
     # so the calldata-length cell that follows is aligned.
@@ -242,6 +296,14 @@ def main() -> int:
     packed += struct.pack("<Q", len(blob_hashes))
     for blob_hash in blob_hashes:
         packed += blob_hash
+
+    # M29 BLOCKHASH context: current block number + bounded recent
+    # ancestor hashes. The dispatcher clamps the count to 256.
+    packed += struct.pack("<Q", current_block_number)
+    packed += struct.pack("<Q", len(block_hashes))
+    for block_hash in block_hashes:
+        packed += block_hash
+    packed = pad_to_8(packed)
 
     if args.output == "-":
         sys.stdout.buffer.write(packed)
