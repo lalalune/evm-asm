@@ -536,13 +536,26 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mulmod_pop3"
       bytecode       := "0x60, 0x03, 0x60, 0x05, 0x60, 0x07, 0x09, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
-  , -- PUSH1 0x02; PUSH1 0x03; EXP; PUSH1 0xff; STOP
-    -- EXP pops 2 (base, exponent), pushes 1 (result = 0). Net pop =
-    -- 1 = +32 bytes. PUSH1 0xff lands on the 1-deep stack and
-    -- replaces the zero result. Expected: 0xff.
-    { name           := "exp_pop2"
-      bytecode       := "0x60, 0x02, 0x60, 0x03, 0x0a, 0x60, 0xff, 0x00"
-      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+  , -- ## EXP (0x0a) — real verified body via selfCallingHandlers
+    -- (evmExpComposed, _fixed_fixed x6→x22 counter fix). EVM EXP pops
+    -- `a` (base, top of stack) then `exponent`; result = a ** exponent.
+    -- Top of stack = last-pushed = x12+0 = base; second = exponent.
+    --
+    -- PUSH1 0x03; PUSH1 0x02; EXP; STOP — base=2 (top), exponent=3 → 2**3 = 8.
+    -- Exercises the conditional-multiply path (exponent 3 = ...011 has
+    -- set bits → mul_callable is JAL'd for both squaring and cond-mul,
+    -- the path that clobbered x6 before the fix).
+    { name           := "exp_basic"
+      bytecode       := "0x60, 0x03, 0x60, 0x02, 0x0a, 0x00"
+      expectedOutHex := "0800000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; PUSH1 0x05; EXP; STOP — base=5 (top), exponent=0 → 5**0 = 1.
+    -- Exponent 0 has no set bits, so the loop only squares (result stays
+    -- at the prologue's accumulator init of 1) across all 256 bits — a
+    -- strong exercise of the per-limb counter reload across all 4 limbs
+    -- (the exact x22 state that mul_callable used to corrupt as x6).
+    { name           := "exp_zero"
+      bytecode       := "0x60, 0x00, 0x60, 0x05, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;

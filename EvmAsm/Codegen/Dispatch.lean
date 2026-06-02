@@ -392,6 +392,15 @@ def emitDispatcherDataSection
   "lp64_stack:\n" ++
   "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
   "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
+  ".balign 8\n" ++
+  "exp_scratch:\n" ++
+  "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
+                          -- verified EXP body uses `x2`(sp)+0..24 as its running
+                          -- accumulator; the dispatcher's `sp` points at
+                          -- `lp64_sp_top` (top of a down-growing stack), so
+                          -- `sp+0..24` would scribble into the jump table.
+                          -- h_EXP's preBody repoints `x2` here and its tail
+                          -- restores `sp = lp64_sp_top`.
   emitJumpTable registry
 
 /-! ## Runtime-bytecode dispatcher (M8.5)
@@ -579,6 +588,15 @@ def emitRuntimeDispatcherDataSection
   "lp64_stack:\n" ++
   "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
   "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
+  ".balign 8\n" ++
+  "exp_scratch:\n" ++
+  "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
+                          -- verified EXP body uses `x2`(sp)+0..24 as its running
+                          -- accumulator; the dispatcher's `sp` points at
+                          -- `lp64_sp_top` (top of a down-growing stack), so
+                          -- `sp+0..24` would scribble into the jump table.
+                          -- h_EXP's preBody repoints `x2` here and its tail
+                          -- restores `sp = lp64_sp_top`.
   emitJumpTable registry
 
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.
