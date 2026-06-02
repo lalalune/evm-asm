@@ -10,6 +10,11 @@ The harness builds `stateless_guest`, converts EEST `zkevm` fixture blocks
 into `ziskemu -i` inputs, runs each selected input, and compares the 105-byte
 guest output with the fixture's `statelessOutputBytes`.
 
+For missing-feature scheduling, see
+[`docs/eest-feature-surfaces.md`](eest-feature-surfaces.md). It maps EEST
+fixture classes to the active transaction, gas, state, opcode, call/create,
+precompile, and receipt/log feature beads.
+
 ## Prerequisites
 
 Install the normal codegen requirements from the README: Lean/Lake,
