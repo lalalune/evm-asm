@@ -354,6 +354,7 @@ def ziskMptDeleteAccPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
   "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
+  "  jal ra, mpt_resolve_cache_reset\n" ++
   "  li t0, 0x40000000\n" ++
   "  ld a2, 8(t0)                # witness_len\n" ++
   "  ld a4, 16(t0)               # path_len\n" ++
@@ -369,6 +370,7 @@ def ziskMptDeleteAccPrologue : String :=
   witnessLookupByHashFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
