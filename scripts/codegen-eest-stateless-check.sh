@@ -45,6 +45,9 @@
 #     --bsr-witness-cap N
 #                        experimental: patch the emitted block_state_root
 #                        witness cap before relinking (default: guest default)
+#     --bsr-bal-cap N
+#                        experimental: patch the emitted block_state_root
+#                        BAL row cap before relinking (default: guest default)
 #     --job-mem-mib N|auto
 #                        memory budget per ziskemu job (default $EEST_JOB_MEM_MIB
 #                        or auto). Auto is derived from the ziskemu build:
@@ -82,6 +85,7 @@ MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
 MAX_FAILURES=""
 QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
 BSR_WITNESS_CAP="${EEST_BSR_WITNESS_CAP:-}"
+BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
@@ -104,6 +108,7 @@ Options:
   --quiet-passes           suppress per-case PASS(full) lines
   --show-passes            print per-case PASS(full) lines, overriding EEST_QUIET_PASSES
   --bsr-witness-cap N      experimental: run with a proposed block_state_root witness cap
+  --bsr-bal-cap N          experimental: run with a proposed block_state_root BAL row cap
   --job-mem-mib N|auto     memory budget per ziskemu job
   --min-succ N             exit 1 if fewer than N succ-bit matches
   --min-full N             exit 1 if fewer than N full matches
@@ -135,6 +140,7 @@ while [[ $# -gt 0 ]]; do
     --quiet-passes) QUIET_PASSES=1; shift ;;
     --show-passes) QUIET_PASSES=0; shift ;;
     --bsr-witness-cap) require_arg "$1" "${2:-}"; BSR_WITNESS_CAP="$2"; shift 2 ;;
+    --bsr-bal-cap) require_arg "$1" "${2:-}"; BSR_BAL_CAP="$2"; shift 2 ;;
     --job-mem-mib) require_arg "$1" "${2:-}"; JOB_MEM_MIB="$2"; shift 2 ;;
     --min-succ) require_arg "$1" "${2:-}"; MIN_SUCC="$2"; shift 2 ;;
     --min-full) require_arg "$1" "${2:-}"; MIN_FULL="$2"; shift 2 ;;
@@ -166,6 +172,10 @@ if [[ -n "$MAX_FAILURES" ]] && { ! [[ "$MAX_FAILURES" =~ ^[0-9]+$ ]] || [[ "$MAX
 fi
 if [[ -n "$BSR_WITNESS_CAP" ]] && ! [[ "$BSR_WITNESS_CAP" =~ ^[0-9]+$ ]]; then
   echo "--bsr-witness-cap must be a nonnegative integer when set (got: $BSR_WITNESS_CAP)" >&2
+  exit 1
+fi
+if [[ -n "$BSR_BAL_CAP" ]] && ! [[ "$BSR_BAL_CAP" =~ ^[0-9]+$ ]]; then
+  echo "--bsr-bal-cap must be a nonnegative integer when set (got: $BSR_BAL_CAP)" >&2
   exit 1
 fi
 if ! [[ "$QUIET_PASSES" =~ ^(0|1|true|false|yes|no)$ ]]; then
@@ -296,26 +306,31 @@ resolve_riscv_tool() {
   echo "$1"
 }
 
-patch_bsr_witness_cap_and_relink() {
+patch_bsr_caps_and_relink() {
   local asm="gen-out/stateless_guest.s"
   local obj="gen-out/stateless_guest.o"
   local elf="gen-out/stateless_guest.elf"
-  local old="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 32768; bgtu a2, t1, .Lbsr_cons_change_cap"
-  local new="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, $BSR_WITNESS_CAP; bgtu a2, t1, .Lbsr_cons_change_cap"
-  local matches as_tool ld_tool
+  local old_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 32768; bgtu a2, t1, .Lbsr_cons_change_cap"
+  local new_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, $BSR_WITNESS_CAP; bgtu a2, t1, .Lbsr_cons_change_cap"
+  local old_bal="  li t1, 512; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap"
+  local new_bal="  li t1, $BSR_BAL_CAP; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap"
+  local as_tool ld_tool
 
-  matches="$(grep -F -c "$old" "$asm" || true)"
-  if [[ "$matches" != "1" ]]; then
-    echo "expected exactly one block_state_root witness-cap instruction, found $matches" >&2
-    exit 1
-  fi
-  python3 - "$asm" "$old" "$new" <<'PYPATCH'
+  python3 - "$asm" "$BSR_WITNESS_CAP" "$old_witness" "$new_witness" "$BSR_BAL_CAP" "$old_bal" "$new_bal" <<'PYPATCH'
 import sys
-path, old, new = sys.argv[1:]
+path, witness_cap, old_witness, new_witness, bal_cap, old_bal, new_bal = sys.argv[1:]
 text = open(path, "r", encoding="utf-8").read()
-if text.count(old) != 1:
-    raise SystemExit("unexpected block_state_root witness-cap match count")
-open(path, "w", encoding="utf-8").write(text.replace(old, new, 1))
+replacements = []
+if witness_cap:
+    replacements.append(("block_state_root witness-cap", old_witness, new_witness))
+if bal_cap:
+    replacements.append(("block_state_root BAL row-cap", old_bal, new_bal))
+for label, old, new in replacements:
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"expected exactly one {label} instruction, found {count}")
+    text = text.replace(old, new, 1)
+open(path, "w", encoding="utf-8").write(text)
 PYPATCH
 
   as_tool="$(resolve_riscv_tool RISCV_AS riscv64-unknown-elf-as riscv64-elf-as)"
@@ -326,10 +341,13 @@ PYPATCH
     -nostdlib --no-relax -o "$elf" "$obj"
 }
 
-if [[ -n "$BSR_WITNESS_CAP" ]]; then
-  echo "==> emit stateless_guest assembly (experimental bsr_witness_cap=$BSR_WITNESS_CAP)"
+if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
+  cap_note=""
+  [[ -n "$BSR_WITNESS_CAP" ]] && cap_note="bsr_witness_cap=$BSR_WITNESS_CAP"
+  [[ -n "$BSR_BAL_CAP" ]] && cap_note="${cap_note:+$cap_note, }bsr_bal_cap=$BSR_BAL_CAP"
+  echo "==> emit stateless_guest assembly (experimental $cap_note)"
   lake exe codegen --program stateless_guest --halt linux93 -o gen-out/stateless_guest --asm-only
-  patch_bsr_witness_cap_and_relink
+  patch_bsr_caps_and_relink
 else
   echo "==> emit stateless_guest ELF"
   lake exe codegen --program stateless_guest --halt linux93 -o gen-out/stateless_guest
