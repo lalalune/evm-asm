@@ -157,6 +157,16 @@ def build_input(root_hash, witness, bal_list, n):
     return bytes(body)
 
 
+def storage_trie_one_slot(slot_idx: bytes, value: int):
+    path = []
+    for b in keccak256(slot_idx):
+        path.append(b >> 4)
+        path.append(b & 0x0f)
+    value_rlp = rlp_bytes(minimal_be(value))
+    leaf = leaf_node(path, value_rlp)
+    return keccak256(leaf), leaf
+
+
 present_addr = bytes.fromhex("c0f6dc9e5836f54caadbf59cc69346c508e1992b")
 present_path = account_path(present_addr)
 for i in range(2, 256):
@@ -225,6 +235,61 @@ with open(f"{outdir}/basra_full_post_fields.input", "wb") as f:
 with open(f"{outdir}/basra_full_post_fields.expected", "w") as f:
     f.write(full_expected.hex())
 print(f"basra_full_post_fields slot={full_path[0]} expected={full_expected.hex()[:16]}..")
+
+# A second vector covers the general post-state account value shape used by
+# execution-specs: storage writes first produce a new storage_root, then the
+# account leaf is rewritten with nonce, balance, storage_root, and code_hash.
+raw_addr = bytes.fromhex("abababababababababababababababababababab")
+raw_path = account_path(raw_addr)
+slot_key = (123).to_bytes(32, "big")
+old_storage_root, old_storage_leaf = storage_trie_one_slot(slot_key, 0x11)
+new_storage_root, new_storage_leaf = storage_trie_one_slot(slot_key, 0x2222)
+old_code = b"\x60\x00"
+new_code = b"\x60\x2a\x60\x00\x52"
+old_raw_account = rlp_list([
+    rlp_int(3),
+    rlp_int(4),
+    rlp_bytes(old_storage_root),
+    rlp_bytes(keccak256(old_code)),
+])
+new_raw_account = rlp_list([
+    rlp_int(9),
+    rlp_int(10 ** 12),
+    rlp_bytes(new_storage_root),
+    rlp_bytes(keccak256(new_code)),
+])
+old_raw_leaf = leaf_node(raw_path, old_raw_account)
+new_raw_leaf = leaf_node(raw_path, new_raw_account)
+raw_root_hash = keccak256(old_raw_leaf)
+raw_expected = keccak256(new_raw_leaf)
+raw_bal_list = rlp_list([
+    rlp_list([
+        rlp_bytes(raw_addr),
+        rlp_list([
+            rlp_list([
+                rlp_bytes(slot_key),
+                rlp_list([
+                    change_pair(3, rlp_int(0x11)),
+                    change_pair(4, rlp_int(0x2222)),
+                ]),
+            ]),
+        ]),
+        rlp_list([]),
+        rlp_list([change_pair(5, rlp_int(10 ** 12))]),
+        rlp_list([change_pair(6, rlp_int(9))]),
+        rlp_list([rlp_list([rlp_int(7), rlp_bytes(new_code)])]),
+    ]),
+])
+with open(f"{outdir}/basra_full_fields_raw.input", "wb") as f:
+    f.write(build_input(
+        raw_root_hash,
+        ssz_section([old_raw_leaf, old_storage_leaf]),
+        raw_bal_list,
+        1,
+    ))
+with open(f"{outdir}/basra_full_fields_raw.expected", "w") as f:
+    f.write(raw_expected.hex())
+print(f"basra_full_fields_raw expected={raw_expected.hex()[:16]}..")
 PYGEN
 
 echo "==> lake build codegen"
@@ -235,7 +300,7 @@ lake exe codegen --program zisk_bal_account_state_root_auto --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_bal_account_state_root_auto"
 
 fail=0
-for name in basra_modify_insert basra_full_post_fields; do
+for name in basra_modify_insert basra_full_post_fields basra_full_fields_raw; do
   out="$VDIR/$name.output"
   "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_state_root_auto.elf" \
     -i "$VDIR/$name.input" -o "$out" -n 30000000 >/dev/null 2>&1 </dev/null \

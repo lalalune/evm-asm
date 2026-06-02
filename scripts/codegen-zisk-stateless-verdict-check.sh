@@ -16,7 +16,10 @@
 # (expected; not a soundness failure). A DIFF where verdict=1 vs exp=0 would be
 # a FALSE POSITIVE (a real bug) -- flagged loudly.
 #
-# Usage: codegen-zisk-stateless-verdict-check.sh [--filter SUB] [--limit N]
+# Usage:
+#   codegen-zisk-stateless-verdict-check.sh [--filter SUB] [--limit N]
+#     --max-failures N         stop after N ERROR/FALSE-POSITIVE/DIFF results
+#     --stop-after-failures N  alias for --max-failures
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
@@ -25,14 +28,55 @@ TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 FILTER="eip4895"
 LIMIT=30
 STEPS="${EEST_STEPS:-50000000}"
+MAX_FAILURES=""
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  scripts/codegen-zisk-stateless-verdict-check.sh [options]
+
+Options:
+  --filter SUBSTR          only fixtures whose relpath contains SUBSTR
+  --limit N                cap to N probe invocations (default 30)
+  --steps N                ziskemu max steps (default $EEST_STEPS or 50000000)
+  --max-failures N         stop after N ERROR/FALSE-POSITIVE/DIFF results
+  --stop-after-failures N  alias for --max-failures
+  -h, --help               show this help
+USAGE
+}
+
+require_arg() {
+  local opt="$1"
+  if [[ $# -lt 2 || -z "${2:-}" ]]; then
+    echo "$opt requires an argument" >&2
+    usage >&2
+    exit 1
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --filter) FILTER="$2"; shift 2 ;;
-    --limit)  LIMIT="$2";  shift 2 ;;
-    --steps)  STEPS="$2";  shift 2 ;;
-    *) echo "unknown arg: $1" >&2; exit 1 ;;
+    -h|--help) usage; exit 0 ;;
+    --filter) require_arg "$1" "${2:-}"; FILTER="$2"; shift 2 ;;
+    --limit)  require_arg "$1" "${2:-}"; LIMIT="$2";  shift 2 ;;
+    --steps)  require_arg "$1" "${2:-}"; STEPS="$2";  shift 2 ;;
+    --max-failures|--stop-after-failures) require_arg "$1" "${2:-}"; MAX_FAILURES="$2"; shift 2 ;;
+    *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
+
+if ! [[ "$LIMIT" =~ ^[0-9]+$ ]] || [[ "$LIMIT" -lt 1 ]]; then
+  echo "--limit must be a positive integer (got: $LIMIT)" >&2
+  exit 1
+fi
+if ! [[ "$STEPS" =~ ^[0-9]+$ ]] || [[ "$STEPS" -lt 1 ]]; then
+  echo "--steps must be a positive integer (got: $STEPS)" >&2
+  exit 1
+fi
+if [[ -n "$MAX_FAILURES" ]] && { ! [[ "$MAX_FAILURES" =~ ^[0-9]+$ ]] || [[ "$MAX_FAILURES" -lt 1 ]]; }; then
+  echo "--max-failures must be a positive integer when set (got: $MAX_FAILURES)" >&2
+  exit 1
+fi
 
 ZISKEMU="${ZISKEMU:-}"
 if [[ -z "$ZISKEMU" ]]; then
@@ -57,16 +101,27 @@ python3 scripts/eest-stateless-to-input.py --fixtures-dir "$FX" --out-dir "$RUN_
 MANIFEST="$RUN_DIR/manifest.tsv"
 [[ -s "$MANIFEST" ]] || { echo "no blocks selected" >&2; exit 1; }
 
-total=0 match=0 miss=0 fp=0 err=0
+total=0 match=0 miss=0 fp=0 err=0 diff=0 stopEarly=0
+
+failure_limit_reached() {
+  [[ -n "$MAX_FAILURES" && $((err + fp + diff)) -ge "$MAX_FAILURES" ]]
+}
+
 while IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath; do
   total=$((total + 1))
   out="$RUN_DIR/$label.vout"
   if ! "$ZISKEMU" -e gen-out/zisk_stateless_verdict_v2.elf -i "$input" -o "$out" \
         -n "$STEPS" >/dev/null 2>&1 </dev/null; then
-    err=$((err + 1)); echo "  ERROR(exit)   $relpath"; continue
+    err=$((err + 1)); echo "  ERROR(exit)   $relpath"
+    if failure_limit_reached; then stopEarly=1; break; fi
+    continue
   fi
   v="$(od -An -tu1 -j 0 -N 1 "$out" 2>/dev/null | tr -d ' \n')"
-  [[ -z "$v" ]] && { err=$((err + 1)); echo "  ERROR(short)  $relpath"; continue; }
+  if [[ -z "$v" ]]; then
+    err=$((err + 1)); echo "  ERROR(short)  $relpath"
+    if failure_limit_reached; then stopEarly=1; break; fi
+    continue
+  fi
   dbg="$(od -An -v -tu8 -j 8 -N 80 "$out" 2>/dev/null | xargs || true)"
   if [[ "$v" == "$succ_bit" ]]; then
     match=$((match + 1)); echo "  MATCH  verdict=$v exp=$succ_bit dbg=[$dbg]  $relpath"
@@ -74,16 +129,23 @@ while IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath; do
     miss=$((miss + 1)); echo "  miss   verdict=0 exp=1 (conservative) dbg=[$dbg]  $relpath"
   elif [[ "$v" == "1" && "$succ_bit" == "0" ]]; then
     fp=$((fp + 1)); echo "  ** FALSE POSITIVE ** verdict=1 exp=0 dbg=[$dbg]  $relpath"
+    if failure_limit_reached; then stopEarly=1; break; fi
   else
+    diff=$((diff + 1))
     echo "  DIFF   verdict=$v exp=$succ_bit dbg=[$dbg]  $relpath"
+    if failure_limit_reached; then stopEarly=1; break; fi
   fi
 done < "$MANIFEST"
 
+if [[ "$stopEarly" -eq 1 ]]; then
+  echo "==> stopped after $((err + fp + diff)) failure(s) (--max-failures $MAX_FAILURES)"
+fi
 echo "============================================================"
 echo "stateless_verdict on real $FILTER fixtures: total=$total"
 echo "  MATCH (verdict==expected):        $match"
 echo "  conservative miss (v=0 exp=1):    $miss"
 echo "  FALSE POSITIVE (v=1 exp=0):       $fp"
+echo "  unexpected DIFF:                  $diff"
 echo "  errors:                           $err"
 if [[ "$fp" -gt 0 ]]; then
   echo "==> FAIL: false positives present (unsound)"; exit 1
