@@ -64,11 +64,13 @@ Run the 1,000-block windows immediately after `random_statetest`:
 scripts/codegen-eest-post-random-window-check.sh --jobs 8
 scripts/codegen-eest-post-random-window-2-check.sh --jobs 8
 scripts/codegen-eest-post-random-window-3-check.sh --jobs 8
+scripts/codegen-eest-post-random-window-4-check.sh --jobs 8
 ```
 
 The first starts at `--skip 17085` (`16582 + 503`), the second starts at
-`--skip 18085`, and the third starts at `--skip 19085`. Each checks
-`--limit 1000` with a `--min-full 1000` regression threshold.
+`--skip 18085`, the third starts at `--skip 19085`, and the fourth starts at
+`--skip 20085`. Each checks `--limit 1000` with a `--min-full 1000`
+regression threshold.
 
 Run a large batch:
 
