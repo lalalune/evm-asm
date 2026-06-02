@@ -371,7 +371,26 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- of jumping to the (out-of-bounds) dest.
     { name           := "jumpi_not_taken"
       bytecode       := "0x60, 0x00, 0x60, 0xff, 0x57, 0x60, 0x42, 0x00"
-      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
+      -- M15.5: confirm the not-taken JUMPI sentinel path does NOT
+      -- spuriously trip the validity check — it halts normally (STOP,
+      -- halt_kind 0) with 0x42, not the invalid-jump halt_kind 4.
+      expectedHaltKind := "0000000000000000" }
+    -- ## M15.5 JUMPDEST-validity (Level 1): invalid jumps exceptionally
+    -- halt with halt_kind = 4 and empty (zero) return data.
+  , -- PUSH1 0x00; JUMP — dest = 0 → code[0] = 0x60 (PUSH1), not 0x5b.
+    -- Invalid jump → .exit_invalid → halt_kind 4, result = 0.
+    { name             := "jump_invalid_dest"
+      bytecode         := "0x60, 0x00, 0x56"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
+  , -- PUSH1 0x01 (cond); PUSH1 0x00 (dest); JUMPI — cond != 0 so the
+    -- jump is taken to dest = 0; code[0] = 0x60, not 0x5b → invalid.
+    -- Exercises the JUMPI taken-path validity load (halt_kind 4).
+    { name             := "jumpi_taken_invalid"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x57"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
     -- ## M16 hash opcode (KECCAK256 via ECALL bridge to Zisk accelerator)
     -- KECCAK256 pops offset (top of stack) and size (next word), hashes the
     -- memory[offset..offset+size] region, pushes the 32-byte digest.
@@ -559,6 +578,18 @@ def opcodeTestCases : List OpcodeTestCase :=
   , -- CALL to SHA256 over memory[0..3) = "abc".
     { name             := "call_sha256_precompile_abc"
       bytecode         := "0x60, 0x61, 0x60, 0x00, 0x53, 0x60, 0x62, 0x60, 0x01, 0x53, 0x60, 0x63, 0x60, 0x02, 0x53, 0x60, 0x20, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      expectedHaltKind := "0100000000000000" }
+  , -- CALL to SHA256 with address 0x02 + 2^160. The EVM masks
+    -- external addresses to the low 160 bits, so this must dispatch
+    -- exactly like precompile address 0x02.
+    { name             := "call_sha256_precompile_masked_high_address"
+      bytecode         := "0x60, 0x61, 0x60, 0x00, 0x53, 0x60, 0x62, 0x60, 0x01, 0x53, 0x60, 0x63, 0x60, 0x02, 0x53, 0x60, 0x20, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x74, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      expectedHaltKind := "0100000000000000" }
+  , -- STATICCALL follows the same low-160 address masking rule.
+    { name             := "staticcall_sha256_precompile_masked_high_address"
+      bytecode         := "0x60, 0x61, 0x60, 0x00, 0x53, 0x60, 0x62, 0x60, 0x01, 0x53, 0x60, 0x63, 0x60, 0x02, 0x53, 0x60, 0x20, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x74, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
       expectedOutHex   := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
       expectedHaltKind := "0100000000000000" }
   , -- CALLDATACOPY loads 200 bytes of 0xaa into memory, then CALL
