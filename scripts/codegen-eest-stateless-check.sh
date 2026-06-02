@@ -99,6 +99,9 @@ MIN_FULL=""
 MIN_ROOT=""
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 NO_BUILD="${EEST_NO_BUILD:-0}"
+USER_GUEST_ELF="${GUEST_ELF:-}"
+VERDICT_DEBUG="${EEST_VERDICT_DEBUG:-1}"
+VERDICT_DEBUG_ELF=""
 
 usage() {
   cat <<'USAGE'
@@ -124,6 +127,7 @@ Options:
   --min-root N             exit 1 if fewer than N root matches
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
   --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
+  --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
   --run-dir DIR            use DIR instead of gen-out/eest-run (enables parallel invocations)
   -h, --help               show this help
 USAGE
@@ -159,6 +163,7 @@ while [[ $# -gt 0 ]]; do
     --tag) require_arg "$1" "${2:-}"; TAG="$2"; shift 2 ;;
     --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
+    --no-verdict-debug) VERDICT_DEBUG=0; shift ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -177,6 +182,10 @@ if [[ "$JOB_MEM_MIB" != "auto" ]] && { ! [[ "$JOB_MEM_MIB" =~ ^[0-9]+$ ]] || [[ 
 fi
 if [[ "$JOB_CPU_THREADS" != "auto" ]] && { ! [[ "$JOB_CPU_THREADS" =~ ^[0-9]+$ ]] || [[ "$JOB_CPU_THREADS" -lt 1 ]]; }; then
   echo "EEST_JOB_CPU_THREADS must be a positive integer or auto (got: $JOB_CPU_THREADS)" >&2
+  exit 1
+fi
+if [[ "$VERDICT_DEBUG" != "0" && "$VERDICT_DEBUG" != "1" ]]; then
+  echo "EEST_VERDICT_DEBUG must be 0 or 1 (got: $VERDICT_DEBUG)" >&2
   exit 1
 fi
 if [[ -n "$MAX_FAILURES" ]] && { ! [[ "$MAX_FAILURES" =~ ^[0-9]+$ ]] || [[ "$MAX_FAILURES" -lt 1 ]]; }; then
@@ -332,15 +341,12 @@ resolve_riscv_tool() {
   echo "$1"
 }
 
-patch_bsr_caps_and_relink() {
-  local asm="$GUEST_PREFIX.s"
-  local obj="$GUEST_PREFIX.o"
-  local elf="$GUEST_ELF"
+patch_bsr_caps_asm() {
+  local asm="$1"
   local old_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 65536; bgtu a2, t1, .Lbsr_cons_change_cap"
   local new_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, $BSR_WITNESS_CAP; bgtu a2, t1, .Lbsr_cons_change_cap"
   local old_bal="  li t0, 2000; divu t1, a0, t0; la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap"
   local new_bal="  li t0, 2000; divu t1, a0, t0; la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; li t1, $BSR_BAL_CAP; bgtu t6, t1, .Lbsr_cons_change_cap"
-  local as_tool ld_tool
 
   python3 - "$asm" "$BSR_WITNESS_CAP" "$old_witness" "$new_witness" "$BSR_BAL_CAP" "$old_bal" "$new_bal" <<'PYPATCH'
 import sys
@@ -358,6 +364,15 @@ for label, old, new in replacements:
     text = text.replace(old, new, 1)
 open(path, "w", encoding="utf-8").write(text)
 PYPATCH
+}
+
+patch_bsr_caps_and_relink() {
+  local asm="$GUEST_PREFIX.s"
+  local obj="$GUEST_PREFIX.o"
+  local elf="$GUEST_ELF"
+  local as_tool ld_tool
+
+  patch_bsr_caps_asm "$asm"
 
   as_tool="$(resolve_riscv_tool RISCV_AS riscv64-unknown-elf-as riscv64-elf-as)"
   ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
@@ -384,8 +399,88 @@ if [[ "$NO_BUILD" -eq 0 ]]; then
   fi
 else
   echo "==> skipping build (--no-build)"
-  GUEST_ELF="${GUEST_ELF:-$REPO_ROOT/gen-out/stateless_guest.elf}"
+  GUEST_ELF="${USER_GUEST_ELF:-$REPO_ROOT/gen-out/stateless_guest.elf}"
+  if [[ ! -f "$GUEST_ELF" ]]; then
+    echo "--no-build requested, but stateless_guest ELF does not exist: $GUEST_ELF" >&2
+    echo "set GUEST_ELF=/path/to/stateless_guest.elf or run without --no-build" >&2
+    exit 1
+  fi
 fi
+
+format_verdict_debug() {
+  local out="$1"
+  local raw
+  local -a labels=(
+    verdict
+    bv_fail
+    header
+    state
+    bal_count
+    bsr_fail
+    change_count
+    witness_len
+    baacd_fail
+    bacv_fail
+    baap_fail
+    sri_index
+    sri_mode
+    sri_status
+    block_rlp_len
+  )
+  local -a words=()
+  local i value dbg=""
+
+  raw="$(od -An -v -tu8 -N 120 "$out" 2>/dev/null | xargs || true)"
+  read -r -a words <<< "$raw"
+  for i in "${!labels[@]}"; do
+    value="${words[$i]:-?}"
+    dbg="${dbg:+$dbg }${labels[$i]}=$value"
+  done
+  echo "$dbg"
+}
+
+ensure_verdict_debug_probe() {
+  local prefix asm obj as_tool ld_tool cap_note
+  [[ "$VERDICT_DEBUG" -eq 1 ]] || return 1
+  if [[ -n "$VERDICT_DEBUG_ELF" ]]; then
+    return 0
+  fi
+  prefix="$RUN_DIR/zisk_stateless_verdict_v2_debug"
+  asm="$prefix.s"
+  obj="$prefix.o"
+  VERDICT_DEBUG_ELF="$prefix.elf"
+  if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
+    cap_note=""
+    [[ -n "$BSR_WITNESS_CAP" ]] && cap_note="bsr_witness_cap=$BSR_WITNESS_CAP"
+    [[ -n "$BSR_BAL_CAP" ]] && cap_note="${cap_note:+$cap_note, }bsr_bal_cap=$BSR_BAL_CAP"
+    echo "==> emit verdict debug probe (experimental $cap_note)" >&2
+    lake exe codegen --program zisk_stateless_verdict_v2 --halt linux93 -o "$prefix" --asm-only >/dev/null
+    patch_bsr_caps_asm "$asm"
+    as_tool="$(resolve_riscv_tool RISCV_AS riscv64-unknown-elf-as riscv64-elf-as)"
+    ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
+    "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
+    "$ld_tool" -Ttext=0x80000000 -Tdata=0xa5000000 \
+      --section-start=.sszscratch=0xb0000000 \
+      -nostdlib --no-relax -o "$VERDICT_DEBUG_ELF" "$obj"
+  else
+    echo "==> emit verdict debug probe" >&2
+    lake exe codegen --program zisk_stateless_verdict_v2 --halt linux93 -o "$prefix" >/dev/null
+  fi
+}
+
+verdict_debug_for_case() {
+  local label="$1"
+  local input="$2"
+  local out="$RUN_DIR/$label.verdict-debug.output"
+  local log="$RUN_DIR/$label.verdict-debug.log"
+  ensure_verdict_debug_probe || return 0
+  if ! "$ZISKEMU" -e "$VERDICT_DEBUG_ELF" -i "$input" -o "$out" \
+        -n "$STEPS" >"$log" 2>&1 </dev/null; then
+    echo "verdict_debug_error=exit"
+    return 0
+  fi
+  format_verdict_debug "$out"
+}
 
 # --- convert fixtures -> ziskemu inputs + manifest --------------------------
 conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
@@ -502,7 +597,12 @@ classify_case_result() {
     # differs -- i.e. this block is exactly one field (the NPR root) from
     # a full match. This is the precise "distance to crown jewel" metric.
     [[ "$s" == "succ" && "$t" == "tail" && "$r" == "----" ]] && rod=$((rod + 1))
-    echo "  FAIL [$r/$s/$t]  $relpath (succ guest=${actual_hex:64:2} exp=${exp:64:2})"
+    local dbg=""
+    if [[ "${actual_hex:64:2}" != "${exp:64:2}" ]]; then
+      dbg="$(verdict_debug_for_case "$label" "$input")"
+      [[ -n "$dbg" ]] && dbg=" dbg=[$dbg]"
+    fi
+    echo "  FAIL [$r/$s/$t]  $relpath (succ guest=${actual_hex:64:2} exp=${exp:64:2})$dbg"
   fi
   return 0
 }
