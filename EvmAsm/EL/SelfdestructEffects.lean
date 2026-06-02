@@ -18,6 +18,17 @@ structure SelfdestructEffect where
   state : WorldState
   sideEffects : CallSideEffects
 
+/-- Convert a pure SELFDESTRUCT effect into a message-call result. The status
+    decides whether the caller-visible layer commits the state/effects or
+    restores/clears them. -/
+def callResultFromEffect
+    (effect : SelfdestructEffect) (status : CallStatus) (gasRemaining : Nat) :
+    CallResult :=
+  { status := status
+    state := effect.state
+    output := []
+    gasRemaining := gasRemaining }
+
 /-- Post-Cancun SELFDESTRUCT transfers the account balance to the beneficiary
     and touches the beneficiary, but it does not schedule account deletion.
     Distinctive token: SelfdestructEffects.postCancunSelfdestructEffect. -/
@@ -227,6 +238,164 @@ theorem eip6780SelfdestructEffect_preExisting_beneficiaryBalance?
       some (beneficiaryBalance + accountBalance) :=
   postCancunSelfdestructEffect_beneficiaryBalance?
     accountBalance beneficiaryBalance h_beneficiary h_ne
+
+theorem callResultFromEffect_status
+    (effect : SelfdestructEffect) (status : CallStatus) (gasRemaining : Nat) :
+    (callResultFromEffect effect status gasRemaining).status = status := rfl
+
+theorem callResultFromEffect_state
+    (effect : SelfdestructEffect) (status : CallStatus) (gasRemaining : Nat) :
+    (callResultFromEffect effect status gasRemaining).state = effect.state := rfl
+
+theorem callResultFromEffect_output
+    (effect : SelfdestructEffect) (status : CallStatus) (gasRemaining : Nat) :
+    (callResultFromEffect effect status gasRemaining).output = [] := rfl
+
+theorem selfdestruct_committedState_success
+    (input : MessageCallExecution.CallExecutionInput)
+    (effect : SelfdestructEffect) (gasRemaining : Nat) :
+    MessageCallExecution.committedState input
+        (callResultFromEffect effect .success gasRemaining) =
+      effect.state := rfl
+
+theorem selfdestruct_committedState_revert
+    (input : MessageCallExecution.CallExecutionInput)
+    (effect : SelfdestructEffect) (gasRemaining : Nat) :
+    MessageCallExecution.committedState input
+        (callResultFromEffect effect .revert gasRemaining) =
+      input.state := rfl
+
+theorem selfdestruct_committedState_failure
+    (input : MessageCallExecution.CallExecutionInput)
+    (effect : SelfdestructEffect) (gasRemaining : Nat) :
+    MessageCallExecution.committedState input
+        (callResultFromEffect effect .failure gasRemaining) =
+      input.state := rfl
+
+theorem selfdestruct_visibleSideEffects_success
+    (effect : SelfdestructEffect) (gasRemaining : Nat) :
+    MessageCallExecution.visibleSideEffects
+        (callResultFromEffect effect .success gasRemaining)
+        effect.sideEffects =
+      effect.sideEffects := rfl
+
+theorem selfdestruct_visibleSideEffects_revert
+    (effect : SelfdestructEffect) (gasRemaining : Nat) :
+    MessageCallExecution.visibleSideEffects
+        (callResultFromEffect effect .revert gasRemaining)
+        effect.sideEffects =
+      MessageCallExecution.CallSideEffects.empty := rfl
+
+theorem selfdestruct_visibleSideEffects_failure
+    (effect : SelfdestructEffect) (gasRemaining : Nat) :
+    MessageCallExecution.visibleSideEffects
+        (callResultFromEffect effect .failure gasRemaining)
+        effect.sideEffects =
+      MessageCallExecution.CallSideEffects.empty := rfl
+
+theorem selfdestruct_messageCallOutput_success
+    (effect : SelfdestructEffect) (gasRemaining : Nat) :
+    MessageCallExecution.messageCallOutput_fromResult
+        (callResultFromEffect effect .success gasRemaining)
+        effect.sideEffects =
+      { gasLeft := gasRemaining
+        refundCounter := effect.sideEffects.refundCounter
+        logs := effect.sideEffects.logs
+        accountsToDelete := effect.sideEffects.accountsToDelete
+        touchedAccounts := effect.sideEffects.touchedAccounts
+        status := .success } := rfl
+
+theorem selfdestruct_messageCallOutput_revert
+    (effect : SelfdestructEffect) (gasRemaining : Nat) :
+    MessageCallExecution.messageCallOutput_fromResult
+        (callResultFromEffect effect .revert gasRemaining)
+        effect.sideEffects =
+      { gasLeft := gasRemaining
+        refundCounter := 0
+        logs := LogState.empty
+        accountsToDelete := []
+        touchedAccounts := []
+        status := .revert } := rfl
+
+theorem selfdestruct_messageCallOutput_failure
+    (effect : SelfdestructEffect) (gasRemaining : Nat) :
+    MessageCallExecution.messageCallOutput_fromResult
+        (callResultFromEffect effect .failure gasRemaining)
+        effect.sideEffects =
+      { gasLeft := gasRemaining
+        refundCounter := 0
+        logs := LogState.empty
+        accountsToDelete := []
+        touchedAccounts := []
+        status := .failure } := rfl
+
+theorem eip6780SelfdestructEffect_revert_stateRestored
+    (input : MessageCallExecution.CallExecutionInput)
+    (state : WorldState) (account beneficiary : Address)
+    (accountBalance beneficiaryBalance : Word256) (createdInSameTx : Bool)
+    (gasRemaining : Nat) :
+    MessageCallExecution.committedState input
+        (callResultFromEffect
+          (eip6780SelfdestructEffect
+            state account beneficiary accountBalance beneficiaryBalance createdInSameTx)
+          .revert
+          gasRemaining) =
+      input.state := rfl
+
+theorem eip6780SelfdestructEffect_failure_stateRestored
+    (input : MessageCallExecution.CallExecutionInput)
+    (state : WorldState) (account beneficiary : Address)
+    (accountBalance beneficiaryBalance : Word256) (createdInSameTx : Bool)
+    (gasRemaining : Nat) :
+    MessageCallExecution.committedState input
+        (callResultFromEffect
+          (eip6780SelfdestructEffect
+            state account beneficiary accountBalance beneficiaryBalance createdInSameTx)
+          .failure
+          gasRemaining) =
+      input.state := rfl
+
+theorem eip6780SelfdestructEffect_revert_accountsToDeleteCleared
+    (state : WorldState) (account beneficiary : Address)
+    (accountBalance beneficiaryBalance : Word256) (createdInSameTx : Bool)
+    (gasRemaining : Nat) :
+    (MessageCallExecution.messageCallOutput_fromResult
+        (callResultFromEffect
+          (eip6780SelfdestructEffect
+            state account beneficiary accountBalance beneficiaryBalance createdInSameTx)
+          .revert
+          gasRemaining)
+        (eip6780SelfdestructEffect
+          state account beneficiary accountBalance beneficiaryBalance createdInSameTx).sideEffects).accountsToDelete =
+      [] := rfl
+
+theorem eip6780SelfdestructEffect_revert_touchedAccountsCleared
+    (state : WorldState) (account beneficiary : Address)
+    (accountBalance beneficiaryBalance : Word256) (createdInSameTx : Bool)
+    (gasRemaining : Nat) :
+    (MessageCallExecution.messageCallOutput_fromResult
+        (callResultFromEffect
+          (eip6780SelfdestructEffect
+            state account beneficiary accountBalance beneficiaryBalance createdInSameTx)
+          .revert
+          gasRemaining)
+        (eip6780SelfdestructEffect
+          state account beneficiary accountBalance beneficiaryBalance createdInSameTx).sideEffects).touchedAccounts =
+      [] := rfl
+
+theorem eip6780SelfdestructEffect_revert_logsCleared
+    (state : WorldState) (account beneficiary : Address)
+    (accountBalance beneficiaryBalance : Word256) (createdInSameTx : Bool)
+    (gasRemaining : Nat) :
+    (MessageCallExecution.messageCallOutput_fromResult
+        (callResultFromEffect
+          (eip6780SelfdestructEffect
+            state account beneficiary accountBalance beneficiaryBalance createdInSameTx)
+          .revert
+          gasRemaining)
+        (eip6780SelfdestructEffect
+          state account beneficiary accountBalance beneficiaryBalance createdInSameTx).sideEffects).logs =
+      LogState.empty := rfl
 
 end SelfdestructEffects
 
