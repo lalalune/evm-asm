@@ -1,16 +1,14 @@
 /-
   EvmAsm.Stateless.VM.Precompiles
 
-  Dispatch for precompile addresses (0x01..0x14 + 0x100 for
-  P256VERIFY). All precompile calls in the stateless guest route
-  here, and **every dispatch routes to `unimplemented_exit`**
-  with the precompile-specific reason code.
+  Dispatch and pure framing helpers for precompile addresses
+  (0x01..0x14 + 0x100 for P256VERIFY).
 
-  ## Why precompiles are out of scope
+  ## Implementation status
 
   Per the project plan (see `~/.claude/plans/please-cut-a-branch-warm-wand.md`
-  and `PLAN.md` "Stateless Guest"), precompile dispatch is
-  explicitly out of scope for the first pass:
+  and `PLAN.md` "Stateless Guest"), precompile dispatch started as
+  an unimplemented frontier:
 
   - ECRECOVER, SHA-256, RIPEMD-160, IDENTITY, MODEXP
   - ALT_BN128 ADD / MUL / PAIRING (BN254)
@@ -19,8 +17,10 @@
   - BLS12-381 G1/G2 ADD/MSM, PAIRING, MAP
   - SECP256R1_VERIFY (P256)
 
-  Each call site triggers `REASON_PRECOMPILE + addr` per the
-  reason-code table in `Stateless/Unimplemented.lean`.
+  Unsupported concrete call sites still trigger `REASON_PRECOMPILE + addr`
+  per the reason-code table in `Stateless/Unimplemented.lean`. Implemented
+  slices in this file expose pure EVM return-data/gas framing first, then
+  later CALL/STATICCALL wiring can call those helpers.
 
   ## What's NOT in this file
 
@@ -33,15 +33,850 @@
   in PR-K12). See `docs/execution-specs-feedback.md` #1 for the
   cost-picture discussion.
 
-  ## PR-K12 status
-
-  Scaffold only.
 -/
+
+import EvmAsm.EL.Bn254G1AddEcallBridge
+import EvmAsm.EL.Bn254G1MulEcallBridge
+import EvmAsm.EL.Bn254PairingEcallBridge
+import EvmAsm.EL.KzgPointEvalEcallBridge
+import EvmAsm.EL.ModexpEcallBridge
+import EvmAsm.EL.Secp256r1VerifyEcallBridge
 
 namespace EvmAsm.Stateless.VM.Precompiles
 
--- TODO(stateless-vm): expose `precompile_dispatch(address, ...)
--- -> unimplemented_exit(REASON_PRECOMPILE + address)`. Trivial
--- dispatcher.
+abbrev Byte := EvmAsm.EL.Byte
+abbrev ByteList := List Byte
+abbrev ZkvmStatus := EvmAsm.Accelerators.ZkvmStatus
+
+namespace BN254
+
+/-- Gas constants for the BN254 precompiles at a fork. -/
+structure GasSchedule where
+  ecadd : Nat
+  ecmul : Nat
+  pairingBase : Nat
+  pairingPerPoint : Nat
+  deriving Repr
+
+/-- Byzantium gas schedule from execution-specs. -/
+def byzantiumGasSchedule : GasSchedule :=
+  { ecadd := 500
+    ecmul := 40000
+    pairingBase := 100000
+    pairingPerPoint := 80000 }
+
+/-- Istanbul-and-later gas schedule, still current in Osaka/BPO forks. -/
+def currentGasSchedule : GasSchedule :=
+  { ecadd := 150
+    ecmul := 6000
+    pairingBase := 45000
+    pairingPerPoint := 34000 }
+
+/-- BN254 G1 addition precompile address. -/
+def addAddress : Nat := 0x06
+
+/-- BN254 G1 scalar multiplication precompile address. -/
+def mulAddress : Nat := 0x07
+
+/-- BN254 pairing precompile address. -/
+def pairingAddress : Nat := 0x08
+
+/-- BN254 add reads two 64-byte G1 points, with EVM `buffer_read` zero padding. -/
+def addInputLength : Nat := 128
+
+/-- BN254 mul reads one 64-byte G1 point and one 32-byte scalar. -/
+def mulInputLength : Nat := 96
+
+/-- BN254 pairing consumes 192-byte G1/G2 pairs. -/
+def pairingPairLength : Nat := 192
+
+/-- `U256(1).to_be_bytes32()`. -/
+def successWordOutput : ByteList :=
+  List.replicate 31 (0 : Byte) ++ [1]
+
+/-- `U256(0).to_be_bytes32()`. -/
+def zeroWordOutput : ByteList :=
+  List.replicate 32 (0 : Byte)
+
+/-- Invalid point, malformed pairing length, or accelerator failure returns no bytes. -/
+def emptyOutput : ByteList := []
+
+structure Result where
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+namespace Add
+
+abbrev MemoryReader := EvmAsm.EL.Bn254G1AddInputBridge.MemoryReader
+abbrev AcceleratorInput := EvmAsm.EL.Bn254G1AddInputBridge.AcceleratorInput
+abbrev AcceleratorOutput := EvmAsm.EL.Bn254G1AddResultBridge.AcceleratorOutput
+
+def acceleratorInputFromCallData (memory : MemoryReader) (dataStart : Nat) :
+    AcceleratorInput :=
+  EvmAsm.EL.Bn254G1AddInputBridge.bn254G1AddInputFromMemory
+    memory dataStart (dataStart + 64)
+
+def execute
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → ZkvmStatus × AcceleratorOutput)
+    (memory : MemoryReader) (dataStart : Nat) : Result :=
+  let result := accelerator (acceleratorInputFromCallData memory dataStart)
+  match result.1 with
+  | .eok =>
+      { status := result.1
+        output := EvmAsm.EL.Bn254G1AddResultBridge.outputBytesList result.2
+        gasCharged := schedule.ecadd }
+  | .efail =>
+      { status := result.1, output := emptyOutput, gasCharged := schedule.ecadd }
+
+@[simp] theorem execute_status
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → ZkvmStatus × AcceleratorOutput)
+    (memory : MemoryReader) (dataStart : Nat) :
+    (execute schedule accelerator memory dataStart).status =
+      (accelerator (acceleratorInputFromCallData memory dataStart)).1 := by
+  cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).1 <;>
+    simp [execute, h_status]
+
+@[simp] theorem execute_output_eok
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → ZkvmStatus × AcceleratorOutput)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).1 = .eok) :
+    (execute schedule accelerator memory dataStart).output =
+      EvmAsm.EL.Bn254G1AddResultBridge.outputBytesList
+        (accelerator (acceleratorInputFromCallData memory dataStart)).2 := by
+  simp [execute, h_status]
+
+@[simp] theorem execute_output_efail
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → ZkvmStatus × AcceleratorOutput)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).1 = .efail) :
+    (execute schedule accelerator memory dataStart).output = emptyOutput := by
+  simp [execute, h_status]
+
+@[simp] theorem execute_gasCharged
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → ZkvmStatus × AcceleratorOutput)
+    (memory : MemoryReader) (dataStart : Nat) :
+    (execute schedule accelerator memory dataStart).gasCharged = schedule.ecadd := by
+  cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).1 <;>
+    simp [execute, h_status]
+
+end Add
+
+namespace Mul
+
+abbrev MemoryReader := EvmAsm.EL.Bn254G1MulInputBridge.MemoryReader
+abbrev AcceleratorInput := EvmAsm.EL.Bn254G1MulInputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.Bn254G1MulResultBridge.AcceleratorResult
+
+def acceleratorInputFromCallData (memory : MemoryReader) (dataStart : Nat) :
+    AcceleratorInput :=
+  EvmAsm.EL.Bn254G1MulInputBridge.bn254G1MulInputFromMemory
+    memory dataStart (dataStart + 64)
+
+def execute
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat) : Result :=
+  let result := accelerator (acceleratorInputFromCallData memory dataStart)
+  match result.status with
+  | .eok =>
+      { status := result.status
+        output := EvmAsm.EL.Bn254G1MulResultBridge.g1PointBytesList result.output.point
+        gasCharged := schedule.ecmul }
+  | .efail =>
+      { status := result.status, output := emptyOutput, gasCharged := schedule.ecmul }
+
+@[simp] theorem execute_status
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat) :
+    (execute schedule accelerator memory dataStart).status =
+      (accelerator (acceleratorInputFromCallData memory dataStart)).status := by
+  cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+    simp [execute, h_status]
+
+@[simp] theorem execute_output_eok
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok) :
+    (execute schedule accelerator memory dataStart).output =
+      EvmAsm.EL.Bn254G1MulResultBridge.g1PointBytesList
+        (accelerator (acceleratorInputFromCallData memory dataStart)).output.point := by
+  simp [execute, h_status]
+
+@[simp] theorem execute_output_efail
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .efail) :
+    (execute schedule accelerator memory dataStart).output = emptyOutput := by
+  simp [execute, h_status]
+
+@[simp] theorem execute_gasCharged
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat) :
+    (execute schedule accelerator memory dataStart).gasCharged = schedule.ecmul := by
+  cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+    simp [execute, h_status]
+
+end Mul
+
+namespace Pairing
+
+abbrev MemoryReader := EvmAsm.EL.Bn254PairingInputBridge.MemoryReader
+abbrev AcceleratorInput := EvmAsm.EL.Bn254PairingInputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.Bn254PairingResultBridge.AcceleratorResult
+
+def numPairs (dataLength : Nat) : Nat :=
+  dataLength / pairingPairLength
+
+def gasCharged (schedule : GasSchedule) (dataLength : Nat) : Nat :=
+  schedule.pairingBase + schedule.pairingPerPoint * numPairs dataLength
+
+def acceleratorInputFromCallData
+    (memory : MemoryReader) (dataStart dataLength : Nat) : AcceleratorInput :=
+  EvmAsm.EL.Bn254PairingInputBridge.bn254PairingInputFromMemory
+    memory dataStart (numPairs dataLength)
+
+def outputFromVerified (verified : Bool) : ByteList :=
+  if verified then successWordOutput else zeroWordOutput
+
+def execute
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) : Result :=
+  if dataLength % pairingPairLength = 0 then
+    let input := acceleratorInputFromCallData memory dataStart dataLength
+    let result := accelerator input
+    match result.status with
+    | .eok =>
+        { status := result.status
+          output := outputFromVerified result.output.verified
+          gasCharged := gasCharged schedule dataLength }
+    | .efail =>
+        { status := result.status
+          output := emptyOutput
+          gasCharged := gasCharged schedule dataLength }
+  else
+    { status := .efail
+      output := emptyOutput
+      gasCharged := gasCharged schedule dataLength }
+
+@[simp] theorem outputFromVerified_true :
+    outputFromVerified true = successWordOutput := rfl
+
+@[simp] theorem outputFromVerified_false :
+    outputFromVerified false = zeroWordOutput := rfl
+
+@[simp] theorem execute_badLength
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_length : dataLength % pairingPairLength ≠ 0) :
+    execute schedule accelerator memory dataStart dataLength =
+      { status := .efail
+        output := emptyOutput
+        gasCharged := gasCharged schedule dataLength } := by
+  simp [execute, h_length]
+
+@[simp] theorem execute_status_validLength
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_length : dataLength % pairingPairLength = 0) :
+    (execute schedule accelerator memory dataStart dataLength).status =
+      (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status := by
+  cases h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status <;>
+    simp [execute, h_length, h_status]
+
+@[simp] theorem execute_gasCharged
+    (schedule : GasSchedule)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (execute schedule accelerator memory dataStart dataLength).gasCharged =
+      gasCharged schedule dataLength := by
+  by_cases h_length : dataLength % pairingPairLength = 0
+  · cases h_status :
+        (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status <;>
+      simp [execute, h_length, h_status]
+  · simp [execute, h_length]
+
+end Pairing
+
+theorem successWordOutput_length :
+    successWordOutput.length = 32 := by
+  simp [successWordOutput]
+
+theorem zeroWordOutput_length :
+    zeroWordOutput.length = 32 := by
+  simp [zeroWordOutput]
+
+theorem emptyOutput_length :
+    emptyOutput.length = 0 := rfl
+
+end BN254
+
+namespace Modexp
+
+abbrev AcceleratorInput := EvmAsm.EL.ModexpInputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.ModexpResultBridge.AcceleratorResult
+
+/-- MODEXP precompile address. -/
+def address : Nat := 0x05
+
+/-- Osaka/EIP-7823 maximum byte length for base, exponent, and modulus. -/
+def maxComponentLength : Nat := 1024
+
+/-- MODEXP call-data header size: base length, exponent length, modulus length. -/
+def headerLength : Nat := 96
+
+/-- Executable-spec `buffer_read(data, start, size)` with zero padding. -/
+def bufferRead (data : ByteList) (start size : Nat) : ByteList :=
+  (List.range size).map fun i =>
+    match data[start + i]? with
+    | some b => b
+    | none => 0
+
+/-- Decode a big-endian unsigned integer from a byte list. -/
+def natFromBytesBE (bytes : ByteList) : Nat :=
+  EvmAsm.EL.RLP.Nat.fromBytesBE bytes
+
+/-- Read a 32-byte big-endian length field from MODEXP call data. -/
+def readLength (data : ByteList) (offset : Nat) : Nat :=
+  natFromBytesBE (bufferRead data offset 32)
+
+def baseLength (data : ByteList) : Nat :=
+  readLength data 0
+
+def exponentLength (data : ByteList) : Nat :=
+  readLength data 32
+
+def modulusLength (data : ByteList) : Nat :=
+  readLength data 64
+
+def exponentStart (data : ByteList) : Nat :=
+  headerLength + baseLength data
+
+def modulusStart (data : ByteList) : Nat :=
+  exponentStart data + exponentLength data
+
+def exponentHead (data : ByteList) : Nat :=
+  natFromBytesBE (bufferRead data (exponentStart data) (min 32 (exponentLength data)))
+
+/-- EIP-2565/Osaka multiplication complexity. -/
+def complexity (baseLen modulusLen : Nat) : Nat :=
+  let maxLen := max baseLen modulusLen
+  let words := (maxLen + 7) / 8
+  if maxLen > 32 then 2 * words * words else 16
+
+/-- EIP-2565/Osaka adjusted exponent iteration count. -/
+def iterations (exponentLen exponentHead : Nat) : Nat :=
+  let count :=
+    if exponentLen ≤ 32 ∧ exponentHead = 0 then
+      0
+    else if exponentLen ≤ 32 then
+      exponentHead.log2
+    else
+      16 * (exponentLen - 32) + exponentHead.log2
+  max count 1
+
+/-- Osaka MODEXP gas cost from execution-specs `modexp.gas_cost`. -/
+def gasCost (baseLen modulusLen exponentLen exponentHead : Nat) : Nat :=
+  max 500 (complexity baseLen modulusLen * iterations exponentLen exponentHead)
+
+def gasCostFromCallData (data : ByteList) : Nat :=
+  gasCost (baseLength data) (modulusLength data) (exponentLength data) (exponentHead data)
+
+def componentLengthsValid (data : ByteList) : Prop :=
+  baseLength data ≤ maxComponentLength ∧
+  exponentLength data ≤ maxComponentLength ∧
+  modulusLength data ≤ maxComponentLength
+
+def componentLengthsValidBool (data : ByteList) : Bool :=
+  baseLength data ≤ maxComponentLength &&
+  exponentLength data ≤ maxComponentLength &&
+  modulusLength data ≤ maxComponentLength
+
+def acceleratorInputFromCallData (data : ByteList) : AcceleratorInput :=
+  { base := bufferRead data headerLength (baseLength data)
+    exp := bufferRead data (exponentStart data) (exponentLength data)
+    modulus := bufferRead data (modulusStart data) (modulusLength data) }
+
+/-- Result surface exposed to the caller by the pure MODEXP framing layer.
+
+`exceptional = true` represents Osaka's pre-gas length-cap halt. Otherwise
+`gasCharged` is the decoded MODEXP gas cost and `output` is the precompile
+return data. -/
+structure Result where
+  exceptional : Bool
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+def exceptionalResult : Result :=
+  { exceptional := true
+    status := .efail
+    output := []
+    gasCharged := 0 }
+
+def execute
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (data : ByteList) : Result :=
+  if componentLengthsValidBool data then
+    let gas := gasCostFromCallData data
+    if baseLength data = 0 ∧ modulusLength data = 0 then
+      { exceptional := false
+        status := .eok
+        output := []
+        gasCharged := gas }
+    else
+      let result := EvmAsm.EL.ModexpEcallBridge.executeModexpEcall accelerator
+        (EvmAsm.EL.ModexpEcallBridge.requestFromInput
+          (acceleratorInputFromCallData data))
+      match result.status with
+      | .eok =>
+          { exceptional := false
+            status := result.status
+            output := result.output.bytes
+            gasCharged := gas }
+      | .efail =>
+          { exceptional := false
+            status := result.status
+            output := []
+            gasCharged := gas }
+  else
+    exceptionalResult
+
+@[simp] theorem bufferRead_length (data : ByteList) (start size : Nat) :
+    (bufferRead data start size).length = size := by
+  simp [bufferRead]
+
+@[simp] theorem bufferRead_zero (data : ByteList) (start : Nat) :
+    bufferRead data start 0 = [] := rfl
+
+theorem acceleratorInputFromCallData_base_length (data : ByteList) :
+    (acceleratorInputFromCallData data).base.length = baseLength data := by
+  simp [acceleratorInputFromCallData]
+
+theorem acceleratorInputFromCallData_exp_length (data : ByteList) :
+    (acceleratorInputFromCallData data).exp.length = exponentLength data := by
+  simp [acceleratorInputFromCallData]
+
+theorem acceleratorInputFromCallData_modulus_length (data : ByteList) :
+    (acceleratorInputFromCallData data).modulus.length = modulusLength data := by
+  simp [acceleratorInputFromCallData]
+
+@[simp] theorem complexity_small (baseLen modulusLen : Nat)
+    (h_max : max baseLen modulusLen ≤ 32) :
+    complexity baseLen modulusLen = 16 := by
+  simp [complexity, Nat.not_lt.mpr h_max]
+
+@[simp] theorem iterations_zero_head (exponentLen : Nat)
+    (h_len : exponentLen ≤ 32) :
+    iterations exponentLen 0 = 1 := by
+  simp [iterations, h_len]
+
+theorem gasCost_minimum (baseLen modulusLen exponentLen exponentHead : Nat) :
+    500 ≤ gasCost baseLen modulusLen exponentLen exponentHead := by
+  simp [gasCost]
+
+theorem gasCost_zero_lengths :
+    gasCost 0 0 0 0 = 500 := rfl
+
+theorem gasCost_one_byte_small_exp :
+    gasCost 1 1 1 1 = 500 := rfl
+
+@[simp] theorem execute_badLengths
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (data : ByteList)
+    (h_valid : componentLengthsValidBool data = false) :
+    execute accelerator data = exceptionalResult := by
+  simp [execute, h_valid]
+
+@[simp] theorem execute_zero_base_zero_modulus
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (data : ByteList)
+    (h_valid : componentLengthsValidBool data = true)
+    (h_base : baseLength data = 0)
+    (h_modulus : modulusLength data = 0) :
+    execute accelerator data =
+      { exceptional := false
+        status := .eok
+        output := []
+        gasCharged := gasCostFromCallData data } := by
+  simp [execute, h_valid, h_base, h_modulus]
+
+@[simp] theorem execute_gasCharged_valid
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (data : ByteList)
+    (h_valid : componentLengthsValidBool data = true) :
+    (execute accelerator data).gasCharged = gasCostFromCallData data := by
+  by_cases h_zero : baseLength data = 0 ∧ modulusLength data = 0
+  · simp [execute, h_valid, h_zero.1, h_zero.2]
+  · have h_not : ¬ (baseLength data = 0 ∧ modulusLength data = 0) := h_zero
+    cases h_status :
+        (EvmAsm.EL.ModexpEcallBridge.executeModexpEcall accelerator
+          (EvmAsm.EL.ModexpEcallBridge.requestFromInput
+            (acceleratorInputFromCallData data))).status <;>
+      simp [execute, h_valid, h_not, h_status]
+
+end Modexp
+
+namespace KzgPointEvaluation
+
+abbrev MemoryReader := EvmAsm.EL.KzgPointEvalInputBridge.MemoryReader
+abbrev Bytes32 := EvmAsm.EL.KzgPointEvalInputBridge.Bytes32
+abbrev AcceleratorInput := EvmAsm.EL.KzgPointEvalInputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.KzgPointEvalResultBridge.AcceleratorResult
+
+/-- EVM precompile address for EIP-4844 KZG point evaluation. -/
+def address : Nat := 0x0a
+
+/-- Osaka/BPO executable-spec fixed gas cost for KZG point evaluation. -/
+def gasCost : Nat := 50000
+
+/-- KZG point evaluation consumes exactly 192 bytes. -/
+def inputLength : Nat := 192
+
+def versionedHashOffset : Nat := 0
+def zOffset : Nat := 32
+def yOffset : Nat := 64
+def commitmentOffset : Nat := 96
+def proofOffset : Nat := 144
+
+/-- `U256(4096).to_be_bytes32()`, i.e. `FIELD_ELEMENTS_PER_BLOB`. -/
+def fieldElementsPerBlobOutput : ByteList :=
+  List.replicate 30 (0 : Byte) ++ [0x10, 0x00]
+
+/-- `U256(BLS_MODULUS).to_be_bytes32()` from execution-specs. -/
+def blsModulusOutput : ByteList :=
+  [ 0x73, 0xed, 0xa7, 0x53, 0x29, 0x9d, 0x7d, 0x48
+  , 0x33, 0x39, 0xd8, 0x08, 0x09, 0xa1, 0xd8, 0x05
+  , 0x53, 0xbd, 0xa4, 0x02, 0xff, 0xfe, 0x5b, 0xfe
+  , 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01 ]
+
+/-- Successful KZG point evaluation returns `FIELD_ELEMENTS_PER_BLOB || BLS_MODULUS`. -/
+def successOutput : ByteList :=
+  fieldElementsPerBlobOutput ++ blsModulusOutput
+
+/-- Invalid length, invalid hash/proof, or accelerator failure returns no bytes. -/
+def emptyOutput : ByteList := []
+
+/--
+Result surface exposed by the pure precompile framing layer. `exceptional`
+records execution-spec `KZGProofError` cases; later CALL/STATICCALL wiring can
+translate that into the enclosing EVM failure semantics.
+-/
+structure Result where
+  exceptional : Bool
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+/-- The versioned hash is the first 32 bytes of the precompile payload. -/
+def versionedHashFromCallData (memory : MemoryReader) (dataStart : Nat) : Bytes32 :=
+  EvmAsm.EL.KzgPointEvalInputBridge.bytes32FromMemory
+    memory (dataStart + versionedHashOffset)
+
+/--
+Build the accelerator input from the EVM call data. The executable spec first
+checks `len(data) == 192`; callers must guard this helper with that exact
+length check. Field starts mirror `point_evaluation.py`.
+-/
+def acceleratorInputFromCallData (memory : MemoryReader) (dataStart : Nat) :
+    AcceleratorInput :=
+  EvmAsm.EL.KzgPointEvalInputBridge.kzgPointEvalInputFromMemory
+    memory
+    (dataStart + commitmentOffset)
+    (dataStart + zOffset)
+    (dataStart + yOffset)
+    (dataStart + proofOffset)
+
+/-- Convert the accelerator proof-verification result to EVM return data. -/
+def outputFromVerified (verified : Bool) : ByteList :=
+  if verified then successOutput else emptyOutput
+
+/--
+Pure KZG point-evaluation precompile framing. This models the executable-spec
+guards and return-data shape:
+
+* input length must be exactly 192 bytes;
+* the supplied `versionedHashIsValid` hook checks
+  `kzg_commitment_to_versioned_hash(commitment) == versioned_hash`;
+* the supplied accelerator verifies `(commitment, z, y, proof)`;
+* success returns `FIELD_ELEMENTS_PER_BLOB || BLS_MODULUS`.
+-/
+def execute
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) : Result :=
+  if dataLength = inputLength then
+    let input := acceleratorInputFromCallData memory dataStart
+    let versionedHash := versionedHashFromCallData memory dataStart
+    if versionedHashIsValid versionedHash input then
+      let request := EvmAsm.EL.KzgPointEvalEcallBridge.requestFromInput input
+      let result := EvmAsm.EL.KzgPointEvalEcallBridge.executeKzgPointEvalEcall
+        accelerator request
+      match result.status with
+      | .eok =>
+          { exceptional := !result.output.verified
+            status := if result.output.verified then .eok else .efail
+            output := outputFromVerified result.output.verified
+            gasCharged := gasCost }
+      | .efail =>
+          { exceptional := true
+            status := result.status
+            output := emptyOutput
+            gasCharged := gasCost }
+    else
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := gasCost }
+  else
+    { exceptional := true
+      status := .efail
+      output := emptyOutput
+      gasCharged := 0 }
+
+theorem fieldElementsPerBlobOutput_length :
+    fieldElementsPerBlobOutput.length = 32 := by
+  native_decide
+
+theorem blsModulusOutput_length :
+    blsModulusOutput.length = 32 := by
+  native_decide
+
+theorem successOutput_length :
+    successOutput.length = 64 := by
+  native_decide
+
+theorem emptyOutput_length :
+    emptyOutput.length = 0 := rfl
+
+@[simp] theorem outputFromVerified_true :
+    outputFromVerified true = successOutput := rfl
+
+@[simp] theorem outputFromVerified_false :
+    outputFromVerified false = emptyOutput := rfl
+
+@[simp] theorem execute_badLength
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_length : dataLength ≠ inputLength) :
+    execute versionedHashIsValid accelerator memory dataStart dataLength =
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := 0 } := by
+  simp [execute, h_length]
+
+@[simp] theorem execute_invalidVersionedHash
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_hash :
+      versionedHashIsValid
+        (versionedHashFromCallData memory dataStart)
+        (acceleratorInputFromCallData memory dataStart) = false) :
+    execute versionedHashIsValid accelerator memory dataStart inputLength =
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := gasCost } := by
+  simp [execute, inputLength, h_hash]
+
+@[simp] theorem execute_output_verified
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_hash :
+      versionedHashIsValid
+        (versionedHashFromCallData memory dataStart)
+        (acceleratorInputFromCallData memory dataStart) = true)
+    (h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok)
+    (h_verified :
+      (accelerator (acceleratorInputFromCallData memory dataStart)).output.verified = true) :
+    (execute versionedHashIsValid accelerator memory dataStart inputLength).output =
+      successOutput := by
+  simp [execute, inputLength, h_hash, h_status, h_verified,
+    EvmAsm.EL.KzgPointEvalEcallBridge.executeKzgPointEvalEcall,
+    EvmAsm.EL.KzgPointEvalEcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_unverified
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_hash :
+      versionedHashIsValid
+        (versionedHashFromCallData memory dataStart)
+        (acceleratorInputFromCallData memory dataStart) = true)
+    (h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok)
+    (h_verified :
+      (accelerator (acceleratorInputFromCallData memory dataStart)).output.verified = false) :
+    (execute versionedHashIsValid accelerator memory dataStart inputLength).output =
+      emptyOutput := by
+  simp [execute, inputLength, h_hash, h_status, h_verified,
+    EvmAsm.EL.KzgPointEvalEcallBridge.executeKzgPointEvalEcall,
+    EvmAsm.EL.KzgPointEvalEcallBridge.requestFromInput]
+
+@[simp] theorem execute_gasCharged
+    (versionedHashIsValid : Bytes32 → AcceleratorInput → Bool)
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (execute versionedHashIsValid accelerator memory dataStart dataLength).gasCharged =
+      if dataLength = inputLength then gasCost else 0 := by
+  by_cases h_length : dataLength = inputLength
+  · subst dataLength
+    cases h_hash :
+        versionedHashIsValid
+          (versionedHashFromCallData memory dataStart)
+          (acceleratorInputFromCallData memory dataStart)
+    · simp [execute, inputLength, h_hash]
+    · cases h_status :
+          (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+        cases h_verified :
+          (accelerator (acceleratorInputFromCallData memory dataStart)).output.verified <;>
+        simp [execute, inputLength, h_hash, h_status, h_verified,
+          EvmAsm.EL.KzgPointEvalEcallBridge.executeKzgPointEvalEcall,
+          EvmAsm.EL.KzgPointEvalEcallBridge.requestFromInput]
+  · simp [execute, h_length]
+
+end KzgPointEvaluation
+
+namespace P256Verify
+
+abbrev MemoryReader := EvmAsm.EL.Secp256r1VerifyInputBridge.MemoryReader
+abbrev AcceleratorInput := EvmAsm.EL.Secp256r1VerifyInputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.Secp256r1VerifyResultBridge.AcceleratorResult
+
+/-- EVM precompile address for P256VERIFY / secp256r1 verification. -/
+def address : Nat := 0x100
+
+/-- Osaka/BPO executable-spec gas cost for P256VERIFY. -/
+def gasCost : Nat := 6900
+
+/-- P256VERIFY consumes exactly five 32-byte fields. -/
+def inputLength : Nat := 160
+
+/-- Successful P256VERIFY returns `left_pad_zero_bytes(b"\x01", 32)`. -/
+def successOutput : ByteList :=
+  List.replicate 31 (0 : Byte) ++ [1]
+
+/-- Invalid input, invalid signature, or accelerator failure returns no bytes. -/
+def emptyOutput : ByteList := []
+
+/-- Result surface exposed to the caller by the pure precompile framing layer. -/
+structure Result where
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+/--
+Build the fixed accelerator input fields from the EVM call data. The executable
+spec first checks `len(data) == 160`; callers must guard this helper with that
+length check. Field starts mirror `p256verify.py`: msg, r, s, qx, qy.
+-/
+def acceleratorInputFromCallData (memory : MemoryReader) (dataStart : Nat) :
+    AcceleratorInput :=
+  EvmAsm.EL.Secp256r1VerifyInputBridge.secp256r1VerifyInputFromMemory
+    memory dataStart (dataStart + 32) (dataStart + 96)
+
+/-- Convert a successful accelerator boolean to the EVM return-data bytes. -/
+def outputFromVerified (verified : Bool) : ByteList :=
+  if verified then successOutput else emptyOutput
+
+/--
+Pure P256VERIFY precompile framing. This models the EVM-side guards and
+return-data shape; scalar bounds, curve membership, and signature validation are
+part of the supplied accelerator model, matching the existing secp256r1 bridge.
+-/
+def execute
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) : Result :=
+  if dataLength = inputLength then
+    let input := acceleratorInputFromCallData memory dataStart
+    let result := accelerator input
+    match result.status with
+    | .eok =>
+        { status := result.status
+          output := outputFromVerified result.output.verified
+          gasCharged := gasCost }
+    | .efail =>
+        { status := result.status, output := emptyOutput, gasCharged := gasCost }
+  else
+    { status := .eok, output := emptyOutput, gasCharged := gasCost }
+
+theorem successOutput_length :
+    successOutput.length = 32 := by
+  simp [successOutput]
+
+theorem emptyOutput_length :
+    emptyOutput.length = 0 := rfl
+
+@[simp] theorem outputFromVerified_true :
+    outputFromVerified true = successOutput := rfl
+
+@[simp] theorem outputFromVerified_false :
+    outputFromVerified false = emptyOutput := rfl
+
+@[simp] theorem execute_badLength
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_length : dataLength ≠ inputLength) :
+    execute accelerator memory dataStart dataLength =
+      { status := .eok, output := emptyOutput, gasCharged := gasCost } := by
+  simp [execute, h_length]
+
+@[simp] theorem execute_status
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat) :
+    (execute accelerator memory dataStart inputLength).status =
+      (accelerator (acceleratorInputFromCallData memory dataStart)).status := by
+  cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+    simp [execute, inputLength, h_status]
+
+@[simp] theorem execute_output_eok
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok) :
+    (execute accelerator memory dataStart inputLength).output =
+      outputFromVerified
+        (accelerator (acceleratorInputFromCallData memory dataStart)).output.verified := by
+  simp [execute, inputLength, h_status]
+
+@[simp] theorem execute_output_efail
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .efail) :
+    (execute accelerator memory dataStart inputLength).output = emptyOutput := by
+  simp [execute, inputLength, h_status]
+
+@[simp] theorem execute_gasCharged
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (execute accelerator memory dataStart dataLength).gasCharged = gasCost := by
+  by_cases h_length : dataLength = inputLength
+  · subst dataLength
+    cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+      simp [execute, inputLength, h_status]
+  · simp [execute, h_length]
+
+end P256Verify
 
 end EvmAsm.Stateless.VM.Precompiles

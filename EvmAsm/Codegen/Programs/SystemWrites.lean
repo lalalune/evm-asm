@@ -19,9 +19,8 @@
 
   The slot index is the 32-byte big-endian storage key; the stored value is the
   MINIMAL big-endian word (leading zeros stripped) — what the storage trie leaf's
-  rlp(value) wants. The slot is derived as `number-1` / `timestamp` directly
-  (correct while < 8191, which holds for the EEST single/few-block fixtures; a
-  larger index would just yield a non-matching recompute -> conservative miss).
+  rlp(value) wants. The storage slot is reduced modulo the 8191-entry history
+  buffer before encoding the 32-byte big-endian storage key.
 
   Outputs feed account_apply_storage_slot (one per system contract) in the
   verdict's state recompute.
@@ -110,21 +109,23 @@ def systemWriteDescriptorsFunction : String :=
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
   "  mv s0, a0                   # SSZ_BASE\n" ++
   "  addi s1, s0, 60             # exec_payload\n" ++
-  "  # ---- EIP-2935: slot = number-1, value = parent_hash ----\n" ++
+  "  # ---- EIP-2935: slot = (number-1) % 8191, value = parent_hash ----\n" ++
   "  addi a0, s1, 404; jal ra, swd_read_u64le\n" ++
   "  addi a0, a0, -1             # number - 1\n" ++
+  "  li t0, 8191; remu a0, a0, t0\n" ++
   "  la a1, swd_2935_slot; jal ra, swd_write_be32_u64\n" ++
   "  mv a0, s1; li a1, 32; la a2, swd_2935_val; la a3, swd_2935_vlen\n" ++
   "  jal ra, swd_minimal_copy\n" ++
-  "  # ---- EIP-4788: slot = timestamp, value = timestamp ----\n" ++
+  "  # ---- EIP-4788: slot = timestamp % 8191, value = timestamp ----\n" ++
   "  addi a0, s1, 428; jal ra, swd_read_u64le\n" ++
   "  mv s2, a0                   # timestamp\n" ++
+  "  li t0, 8191; remu a0, a0, t0\n" ++
   "  la a1, swd_4788_slot; jal ra, swd_write_be32_u64\n" ++
   "  mv a0, s2; la a1, swd_ts_be8; jal ra, swd_write_be8\n" ++
   "  la a0, swd_ts_be8; li a1, 8; la a2, swd_4788_val; la a3, swd_4788_vlen\n" ++
   "  jal ra, swd_minimal_copy\n" ++
   "  # ---- EIP-4788: slot = timestamp + 8191, value = parent_beacon_block_root ----\n" ++
-  "  mv a0, s2; li t0, 8191; add a0, a0, t0\n" ++
+  "  mv a0, s2; li t0, 8191; remu a0, a0, t0; add a0, a0, t0\n" ++
   "  la a1, swd_4788_root_slot; jal ra, swd_write_be32_u64\n" ++
   "  addi a0, s0, 24; li a1, 32; la a2, swd_4788_root_val; la a3, swd_4788_root_vlen\n" ++
   "  jal ra, swd_minimal_copy\n" ++

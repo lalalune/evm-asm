@@ -24,7 +24,7 @@ import EvmAsm.Evm64.Lt.Program
 import EvmAsm.Evm64.MLoad.Program
 import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
--- import EvmAsm.Evm64.Multiply.Callable -- only needed by EXP (deferred)
+import EvmAsm.Evm64.Multiply.Callable -- EXP's inline mul_callable (Programs/Evm.lean)
 import EvmAsm.Evm64.Multiply.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
@@ -45,6 +45,8 @@ import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 
 import EvmAsm.Codegen.Programs.Evm
+import EvmAsm.Codegen.Programs.EvmArithUnits
+import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
@@ -82,6 +84,7 @@ import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.BlockAccessListHash
+import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StorageRoot
 import EvmAsm.Codegen.Programs.MptInternal
@@ -340,6 +343,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bal_account_change_descriptor" => some ziskBalAccountChangeDescriptorProbeUnit
   | "zisk_bal_account_nth_descriptor" => some ziskBalAccountNthDescriptorProbeUnit
   | "zisk_bal_account_descriptor_array" => some ziskBalAccountDescriptorArrayProbeUnit
+  | "zisk_bal_account_final_descriptor_array" => some ziskBalAccountFinalDescriptorArrayProbeUnit
   | "zisk_bal_account_state_root" => some ziskBalAccountStateRootProbeUnit
   | "zisk_bal_account_state_root_auto" => some ziskBalAccountStateRootAutoProbeUnit
   | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit
@@ -1150,6 +1154,7 @@ def knownProgramNames : List String :=
    "zisk_bal_account_change_descriptor",
    "zisk_bal_account_nth_descriptor",
    "zisk_bal_account_descriptor_array",
+   "zisk_bal_account_final_descriptor_array",
    "zisk_bal_account_state_root",
    "zisk_bal_account_state_root_auto",
    "zisk_bal_account_record_array",
@@ -1355,6 +1360,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BlockBody.lean",
     "EvmAsm/Codegen/Programs/BlockEmpty.lean",
     "EvmAsm/Codegen/Programs/BlockRoots.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean",
     "EvmAsm/Codegen/Programs/BlockValidate.lean",
     "EvmAsm/Codegen/Programs/Chain.lean",
     "EvmAsm/Codegen/Programs/ChainAggregator.lean",
@@ -1367,7 +1373,9 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/ChainValidateBlob.lean",
     "EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean",
     "EvmAsm/Codegen/Programs/Bloom.lean",
+    "EvmAsm/Codegen/Programs/Clz.lean",
     "EvmAsm/Codegen/Programs/Evm.lean",
+    "EvmAsm/Codegen/Programs/EvmArithUnits.lean",
     "EvmAsm/Codegen/Programs/ExpProperty.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
     "EvmAsm/Codegen/Programs/HashProbes.lean",

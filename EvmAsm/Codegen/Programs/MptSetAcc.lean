@@ -15,7 +15,7 @@
                           (hash, len, bytes) so later updates can find it.
     * `node_db_lookup`  — linear scan of the DB by 32-byte keccak.
     * `mpt_node_resolve`— resolve a node hash to an ABSOLUTE pointer, trying
-                          the witness (SSZ section) first, then the DB.
+                          the appended DB first, then the witness (SSZ section).
     * `mpt_set_record_walk_db` — like `mpt_set_record_walk` but resolves via
                           witness+DB and records ABSOLUTE node ptrs (an
                           on-path ancestor can live in the DB, so a
@@ -108,30 +108,29 @@ def nodeDbLookupFunction : String :=
   "  li a0, 1\n" ++
   "  ret"
 
-/-! ## mpt_node_resolve -- hash -> absolute node ptr (witness, then DB)
+/-! ## mpt_node_resolve -- hash -> absolute node ptr (DB, then witness)
 
     a0 = witness ptr, a1 = witness_len, a2 = target hash ptr,
     a3 = out_ptr ptr (ABSOLUTE), a4 = out_len ptr. a0 = 0 / 1. Tries the
-    witness SSZ section first (witness_lookup_by_hash returns a section
-    offset, converted to absolute here), then the appended DB. -/
+    appended DB first, then the witness SSZ section (witness_lookup_by_hash
+    returns a section offset, converted to absolute here). -/
 def mptNodeResolveFunction : String :=
   "mpt_node_resolve:\n" ++
   "  addi sp, sp, -48\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
   "  sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  mv a0, s2; mv a1, s3; mv a2, s4\n" ++
+  "  jal ra, node_db_lookup\n" ++
+  "  beqz a0, .Lres_ret\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
   "  la a3, mset_res_off; la a4, mset_res_len\n" ++
   "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lres_db\n" ++
+  "  bnez a0, .Lres_ret\n" ++
   "  la t0, mset_res_off; ld t1, 0(t0); add t1, s0, t1   # abs = witness + off\n" ++
   "  sd t1, 0(s3)\n" ++
   "  la t0, mset_res_len; ld t1, 0(t0); sd t1, 0(s4)\n" ++
   "  li a0, 0\n" ++
-  "  j .Lres_ret\n" ++
-  ".Lres_db:\n" ++
-  "  mv a0, s2; mv a1, s3; mv a2, s4\n" ++
-  "  jal ra, node_db_lookup\n" ++
   ".Lres_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  ld s3, 32(sp); ld s4, 40(sp)\n" ++
@@ -141,7 +140,7 @@ def mptNodeResolveFunction : String :=
 /-! ## mpt_set_record_walk_db -- record-walk resolving via witness+DB
 
     Same descent as `mpt_set_record_walk`, but every node hash is resolved
-    via `mpt_node_resolve` (witness then DB), and the recorded node pointer
+    via `mpt_node_resolve` (DB then witness), and the recorded node pointer
     is ABSOLUTE (a multi-update ancestor may live in the DB). Reuses the
     mw_* / mnk_* helper scratch. ABI matches mpt_set_record_walk:
     a0=root_hash, a1=witness, a2=witness_len, a3=path, a4=path_len,
@@ -282,7 +281,7 @@ def mptSetRecordWalkDbFunction : String :=
 
 /-! ## mpt_set_acc -- value-only update that APPENDS new nodes to the DB
 
-    Like `mpt_set` but (a) the descent resolves via witness+DB, (b) every
+    Like `mpt_set` but (a) the descent resolves via DB+witness, (b) every
     re-encoded node (leaf + each spliced ancestor) is appended to the DB so
     a subsequent `mpt_set_acc` (threaded on the returned root) can traverse
     the updated trie. Reuses the merged mset_node / mset_ref / mset_stack /
