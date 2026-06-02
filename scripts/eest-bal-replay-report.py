@@ -75,6 +75,7 @@ MODELED_SYSTEM_ADDRESSES = {
     "000f3df6d732807ef1319fb7b8bb8522d0beac02",
 }
 WITHDRAWAL_REQUEST_ADDRESS = "00000961ef480eb55e80d19ad83579a64c007002"
+BLOCK_STATE_ROOT_WITNESS_CAP = 32768
 
 
 def summarize(input_path: Path) -> tuple[dict[str, int], list[dict[str, str]]]:
@@ -95,9 +96,15 @@ def summarize(input_path: Path) -> tuple[dict[str, int], list[dict[str, str]]]:
         "nonce_changes": 0,
         "code_changes": 0,
         "state_nodes": len(stateless_input.witness.state),
+        "state_witness_bytes": sum(4 + len(node) for node in stateless_input.witness.state),
+        "over_bsr_cap": 0,
         "codes": len(stateless_input.witness.codes),
+        "code_witness_bytes": sum(4 + len(code) for code in stateless_input.witness.codes),
         "txs": len(payload.transactions),
     }
+    summary["over_bsr_cap"] = int(
+        summary["state_witness_bytes"] > BLOCK_STATE_ROOT_WITNESS_CAP
+    )
     details: list[dict[str, str]] = []
 
     for row, account_changes in enumerate(bal):
@@ -202,9 +209,7 @@ def main() -> int:
         raise SystemExit(f"manifest not found: {args.manifest}")
     results_dir = args.results_dir or args.manifest.parent
 
-    metric_columns = [
-        "kind",
-        "label",
+    summary_columns = [
         "input_len",
         "bal_bytes",
         "bal_rows",
@@ -220,8 +225,28 @@ def main() -> int:
         "nonce_changes",
         "code_changes",
         "state_nodes",
+        "state_witness_bytes",
+        "over_bsr_cap",
         "codes",
+        "code_witness_bytes",
         "txs",
+    ]
+    detail_columns = [
+        "row",
+        "address",
+        "modeled_system",
+        "withdrawal_request",
+        "storage_slots",
+        "storage_writes",
+        "storage_reads",
+        "balance_changes",
+        "nonce_changes",
+        "code_changes",
+    ]
+    metric_columns = [
+        "kind",
+        "label",
+        *summary_columns,
         "row",
         "address",
         "modeled_system",
@@ -255,8 +280,8 @@ def main() -> int:
                     [
                         "summary",
                         label,
-                        *[str(summary[column]) for column in metric_columns[2:19]],
-                        *[""] * 10,
+                        *[str(summary[column]) for column in summary_columns],
+                        *[""] * len(detail_columns),
                         relpath,
                     ]
                 )
@@ -268,17 +293,8 @@ def main() -> int:
                             [
                                 "detail",
                                 label,
-                                *[""] * 17,
-                                detail["row"],
-                                detail["address"],
-                                detail["modeled_system"],
-                                detail["withdrawal_request"],
-                                detail["storage_slots"],
-                                detail["storage_writes"],
-                                detail["storage_reads"],
-                                detail["balance_changes"],
-                                detail["nonce_changes"],
-                                detail["code_changes"],
+                                *[""] * len(summary_columns),
+                                *[detail[column] for column in detail_columns],
                                 relpath,
                             ]
                         )
