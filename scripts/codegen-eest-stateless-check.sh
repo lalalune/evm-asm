@@ -77,11 +77,13 @@ JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
 JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
 MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
 MAX_FAILURES=""
+RUN_DIR_OVERRIDE=""
 QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+NO_BUILD="${EEST_NO_BUILD:-0}"
 
 usage() {
   cat <<'USAGE'
@@ -104,6 +106,8 @@ Options:
   --min-full N             exit 1 if fewer than N full matches
   --min-root N             exit 1 if fewer than N root matches
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
+  --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
+  --run-dir DIR            use DIR instead of gen-out/eest-run (enables parallel invocations)
   -h, --help               show this help
 USAGE
 }
@@ -134,6 +138,8 @@ while [[ $# -gt 0 ]]; do
     --min-full) require_arg "$1" "${2:-}"; MIN_FULL="$2"; shift 2 ;;
     --min-root) require_arg "$1" "${2:-}"; MIN_ROOT="$2"; shift 2 ;;
     --tag) require_arg "$1" "${2:-}"; TAG="$2"; shift 2 ;;
+    --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
+    --no-build) NO_BUILD=1; shift ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -266,14 +272,18 @@ fi
 
 mkdir -p gen-out
 
-echo "==> lake build codegen"
-lake build codegen
+if [[ "$NO_BUILD" -eq 0 ]]; then
+  echo "==> lake build codegen"
+  lake build codegen
 
-echo "==> emit stateless_guest ELF"
-lake exe codegen --program stateless_guest --halt linux93 -o gen-out/stateless_guest
+  echo "==> emit stateless_guest ELF"
+  lake exe codegen --program stateless_guest --halt linux93 -o gen-out/stateless_guest
+else
+  echo "==> skipping build (--no-build)"
+fi
 
 # --- convert fixtures -> ziskemu inputs + manifest --------------------------
-RUN_DIR="$REPO_ROOT/gen-out/eest-run"
+RUN_DIR="${RUN_DIR_OVERRIDE:-$REPO_ROOT/gen-out/eest-run}"
 rm -rf "$RUN_DIR"
 mkdir -p "$RUN_DIR"
 conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
