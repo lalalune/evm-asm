@@ -4,7 +4,9 @@
   RISC-V helpers for EIP-7934 block RLP size enforcement. The main helper
   computes the exact canonical `len(rlp.encode(Block(...)))` from the SSZ
   ExecutionPayload shape consumed by the stateless guest, plus the caller's
-  already rebuilt header RLP length.
+  already rebuilt header RLP length. This assumes the stateless input represents
+  the same block that execution-specs validates; see
+  `docs/execution-specs-feedback.md` for the EIP-7934 fixture-equivalence note.
 -/
 
 import EvmAsm.Rv64.Program
