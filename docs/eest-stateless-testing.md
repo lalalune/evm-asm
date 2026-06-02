@@ -143,6 +143,16 @@ scripts/codegen-eest-stateless-check.sh \
   --steps 400000000
 ```
 
+For receipt/log-specific misses, generate a triage map that links likely
+blockers to focused beads:
+
+```bash
+scripts/eest-receipt-log-frontier-report.py --run-dir gen-out/eest-run --limit 100
+```
+
+See [`eest-receipt-log-frontier.md`](eest-receipt-log-frontier.md) for the
+class definitions and owner beads.
+
 Run a large batch:
 
 ```bash
