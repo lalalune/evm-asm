@@ -31,6 +31,7 @@ import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
+import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
@@ -249,6 +250,11 @@ def blockStateRootFunction : String :=
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
   "  ld a0, 0(t3); ld a1, 8(t3); la t0, bsr_bal_start; ld t0, 0(t0); la t1, baada_item_off; ld t1, 0(t1); add a2, t0, t1\n" ++
   "  la t1, baada_item_len; ld a3, 0(t1); ld a4, 16(t3)\n" ++
+  "  la t0, bsr_bal_item_ptr; sd a2, 0(t0); la t0, bsr_bal_item_len; sd a3, 0(t0)\n" ++
+  "  mv a0, a2; mv a1, a3; jal ra, bal_account_is_modeled_system\n" ++
+  "  li t0, 1; beq a0, t0, .Lbsr_bal_copy_next; bnez a0, .Lbsr_cons_bal_desc\n" ++
+  "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
+  "  ld a0, 0(t3); ld a1, 8(t3); la t0, bsr_bal_item_ptr; ld a2, 0(t0); la t0, bsr_bal_item_len; ld a3, 0(t0); ld a4, 16(t3)\n" ++
   "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a5, t3, t2\n" ++
   "  slli t2, s1, 6; la t3, basr_paths; add a6, t3, t2\n" ++
   "  slli t2, s1, 8; la t3, basr_values; add a7, t3, t2\n" ++
@@ -865,8 +871,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_state_status; ld t2, 0(t1); sd t2, 24(t0)\n" ++
   "  la t1, bsr_bal_count; ld t2, 0(t1); sd t2, 32(t0)\n" ++
   "  la t1, bsr_fail_code; ld t2, 0(t1); sd t2, 40(t0)\n" ++
-  "  la t1, baada_fail_code; ld t2, 0(t1); sd t2, 48(t0)\n" ++
-  "  la t1, baada_fail_index; ld t2, 0(t1); sd t2, 56(t0)\n" ++
   "  la t1, baacd_fail_code; ld t2, 0(t1); sd t2, 64(t0)\n" ++
   "  la t1, bacv_fail_code; ld t2, 0(t1); sd t2, 72(t0)\n" ++
   "  la t1, baap_fail_code; ld t2, 0(t1); sd t2, 80(t0)\n" ++
@@ -968,10 +972,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
-  balAccountDescriptorArrayFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
-  balAccountStateRootFunction ++ "\n" ++
-  balAccountStateRootAutoFunction ++ "\n" ++
+  balAccountIsModeledSystemFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
@@ -1048,7 +1050,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_bal_start:\n  .zero 8\n" ++
   "bsr_bal_len:\n  .zero 8\n" ++
   "bsr_bal_count:\n  .zero 8\n" ++
-  "bsr_cur_desc:\n  .zero 8\n" ++
   "bsr_exec_p:\n  .zero 8\n" ++
   "bsr_tx_off:\n  .zero 8\n" ++
   "bsr_pathp:\n  .zero 8\n" ++
@@ -1056,6 +1057,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_tmplen:\n  .zero 8\n" ++
   "bsr_prev_desc:\n  .zero 8\n" ++
   "bsr_prev_acct:\n  .zero 8\n" ++ ziskBalAccountHasStateChangeDataSection ++
+  "bsr_bal_item_ptr:\n  .zero 8\n" ++
+  "bsr_bal_item_len:\n  .zero 8\n" ++
+  ziskBalAccountIsModeledSystemDataSection ++
   ".balign 32\n" ++
   "bsr_kbuf:\n  .zero 32\n" ++
   "bsr_delta:\n  .zero 32\n" ++
@@ -1269,10 +1273,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bacv_fail_code:\n  .zero 8\n" ++
   "baada_item_off:\n  .zero 8\n" ++
   "baada_item_len:\n  .zero 8\n" ++
-  "baada_fail_code:\n  .zero 8\n" ++
-  "baada_fail_index:\n  .zero 8\n" ++
   "basr_records:\n  .zero 98304\n" ++    -- 4096 * 24
-  "basr_desc:\n  .zero 163840\n" ++     -- 4096 * 40
   "basr_paths:\n  .zero 262144\n" ++     -- 4096 * 64
   "basr_values:\n  .zero 1048576\n" ++   -- 4096 * 256
   "basr_accounts:\n  .zero 1048576\n" ++ -- 4096 * 256
@@ -1466,10 +1467,8 @@ def statelessVerdictV2GuestClosure : String :=
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
-  balAccountDescriptorArrayFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
-  balAccountStateRootFunction ++ "\n" ++
-  balAccountStateRootAutoFunction ++ "\n" ++
+  balAccountIsModeledSystemFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
