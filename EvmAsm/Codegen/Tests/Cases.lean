@@ -113,6 +113,12 @@ structure OpcodeTestCase where
         - +224..256: CALLER context word
       Empty string = don't assert. -/
   expectedEventLogFirst : String := ""
+  /-- Optional gas limit (M30), decimal or 0x-hex, passed to
+      `pack-bytecode.py --gas`. Empty = use the packer default
+      (30,000,000). Set a small value to exercise the out-of-gas path
+      (the dispatch loop charges each opcode's static base cost; an
+      underflow halts with `expectedHaltKind = 6`). -/
+  gasLimit : String := ""
 
 /-- Registry of test cases. M5a/M5b's two original bytecodes are
     migrated as `add_basic` / `add_chain`; M6b adds ~20 more — one
@@ -521,11 +527,23 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0xff, 0xff"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0500000000000000" }
-  , -- GAS; STOP — GAS pushes 0 (no gas metering); STOP halts.
-    -- Expected: 0 in low limb. Smoke test for pushZeroHandlers.
-    { name           := "gas_push_zero"
+  , -- ## M30 gas metering (first slice)
+    -- GAS; STOP with an explicit 1000-gas limit. The dispatch loop
+    -- charges GAS's own static cost (BASE = 2) BEFORE h_GAS runs, so
+    -- GAS pushes the post-charge remaining 998 = 0x3e6; STOP (cost 0)
+    -- surfaces it. (Replaces the pre-M30 `gas_push_zero` no-op test.)
+    { name           := "gas_opcode_sufficient"
       bytecode       := "0x5a, 0x00"
-      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+      expectedOutHex := "e603000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1000" }
+  , -- PUSH1 0x01; STOP with a 2-gas limit. PUSH1's static cost is 3 > 2,
+    -- so the dispatch loop's gas charge underflows on the very first
+    -- opcode → out-of-gas exceptional halt (halt_kind = 6, zero result).
+    { name             := "gas_opcode_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "2" }
   , -- BLOBBASEFEE; STOP with blob_base_fee = 0x1234. Amsterdam
     -- execution-specs computes this from block_env.excess_blob_gas;
     -- the runtime dispatcher receives the already-computed value in

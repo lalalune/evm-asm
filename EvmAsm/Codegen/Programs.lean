@@ -243,6 +243,7 @@ import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
 import EvmAsm.Codegen.Programs.SszParentHeader
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BlockVerdict
+import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
@@ -1438,7 +1439,8 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean",
     "EvmAsm/Codegen/Programs/SszParentHeader.lean",
     "EvmAsm/Codegen/Programs/StatelessVerdict.lean",
-    "EvmAsm/Codegen/Programs/BlockVerdict.lean"
+    "EvmAsm/Codegen/Programs/BlockVerdict.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdictV2.lean"
   ]
   for path in paths do
     let contents ← IO.FS.readFile path
