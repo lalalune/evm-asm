@@ -291,16 +291,16 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
 
     **M27 update**: CALL / STATICCALL now recognize target
     addresses 0x01..0x04 as the basic precompile frame surface.
-    IDENTITY (0x04) copies input bytes to caller output memory and
-    pushes success = 1. The crypto precompiles 0x01..0x03 remain
-    success stubs in this slice; follow-up PRs wire SHA256 /
-    RIPEMD160 / ECRECOVER output semantics.
+    SHA256 (0x02) hashes input bytes through `zkvm_sha256`,
+    IDENTITY (0x04) copies input bytes to caller output memory, and
+    both push success = 1. ECRECOVER / RIPEMD160 remain success
+    stubs in this slice; follow-up PRs wire their output semantics.
 
     **Known limitations** (documented in CODEGEN.md M19 narrative):
     - Non-precompile CALL / CALLCODE / DELEGATECALL / STATICCALL
       still return 0 (= "call failed"). No actual sub-frame
       execution.
-    - Basic crypto precompile CALL / STATICCALL targets currently
+    - ECRECOVER / RIPEMD160 CALL / STATICCALL targets currently
       return success without producing returndata.
     - CREATE / CREATE2 always return address 0 (= "deployment
       failed"). The would-be deployed code is not executed.
@@ -336,6 +336,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
+    "  li x16, 2\n" ++
+    "  beq x14, x16, 8f\n" ++
     "  li x16, 4\n" ++
     "  bne x14, x16, 7f\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
@@ -383,7 +385,40 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  sd x0, 16(x12)\n" ++
     "  sd x0, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
-    "  ret\n" ++
+    "  j .dispatch_loop\n" ++
+    -- SHA256: digest = sha256(memory[in_offset .. in_offset+in_size)).
+    -- The wrapper uses the LP64 a0/a1/a2 registers, so save the
+    -- dispatcher code and stack pointers before setting up arguments.
+    "8:\n" ++
+    "  li x16, 32\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld a1, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x18\n" ++
+    "  addi a2, x15, 16\n" ++
+    "  jal x1, zkvm_sha256\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  ld x23, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x22, 32\n" ++
+    "  bgeu x23, x22, 9f\n" ++
+    "  mv x22, x23\n" ++
+    "9:\n" ++
+    "  beqz x22, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "10:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 10b\n" ++
+    "  j 7b\n" ++
     "1:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  sd x0, 0(x15)\n" ++
@@ -394,7 +429,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  sd x0, 16(x12)\n" ++
     "  sd x0, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
-    "  ret"
+    "  j .dispatch_loop"
   [ mkHandler "h_CREATE"        0xf0 64
   , { label := "h_CALL"
     , opcodes := [0xf1]

@@ -481,6 +481,24 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x01, 0x53, 0x60, 0xcc, 0x60, 0x02, 0x53, 0x60, 0x02, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x03, 0x60, 0x40, 0xf3"
       expectedOutHex   := "aabb000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0100000000000000" }
+  , -- STATICCALL to SHA256 over empty input writes the canonical
+    -- sha256("") digest to caller memory.
+    { name             := "staticcall_sha256_precompile_empty"
+      bytecode         := "0x60, 0x20, 0x60, 0x40, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      expectedHaltKind := "0100000000000000" }
+  , -- CALL to SHA256 over memory[0..3) = "abc".
+    { name             := "call_sha256_precompile_abc"
+      bytecode         := "0x60, 0x61, 0x60, 0x00, 0x53, 0x60, 0x62, 0x60, 0x01, 0x53, 0x60, 0x63, 0x60, 0x02, 0x53, 0x60, 0x20, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      expectedHaltKind := "0100000000000000" }
+  , -- CALLDATACOPY loads 200 bytes of 0xaa into memory, then CALL
+    -- hashes it through SHA256. This covers the multi-block path.
+    { name             := "call_sha256_precompile_aa200"
+      bytecode         := "0x60, 0xc8, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x20, 0x60, 0x40, 0x60, 0xc8, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      calldata         := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      expectedOutHex   := "605ed279d0a1af786c79054f9424d196ed6a1f0331100a923d711885d42099bb"
+      expectedHaltKind := "0100000000000000" }
     -- ## M20 arithmetic no-ops (MULMOD, EXP) — the LAST TWO unwired
     -- opcodes; M20 brings tinyInterpRegistry to 100% coverage 🎯.
     -- Both ship as placeholders; real upgrades follow in M21+.
