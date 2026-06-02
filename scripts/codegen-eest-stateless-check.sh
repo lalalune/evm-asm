@@ -89,6 +89,7 @@ JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
 JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
 MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
 MAX_FAILURES=""
+RUN_DIR_OVERRIDE=""
 QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
 BSR_WITNESS_CAP="${EEST_BSR_WITNESS_CAP:-}"
 BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
@@ -97,6 +98,7 @@ MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+NO_BUILD="${EEST_NO_BUILD:-0}"
 
 usage() {
   cat <<'USAGE'
@@ -121,6 +123,8 @@ Options:
   --min-full N             exit 1 if fewer than N full matches
   --min-root N             exit 1 if fewer than N root matches
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
+  --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
+  --run-dir DIR            use DIR instead of gen-out/eest-run (enables parallel invocations)
   -h, --help               show this help
 USAGE
 }
@@ -153,6 +157,8 @@ while [[ $# -gt 0 ]]; do
     --min-full) require_arg "$1" "${2:-}"; MIN_FULL="$2"; shift 2 ;;
     --min-root) require_arg "$1" "${2:-}"; MIN_ROOT="$2"; shift 2 ;;
     --tag) require_arg "$1" "${2:-}"; TAG="$2"; shift 2 ;;
+    --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
+    --no-build) NO_BUILD=1; shift ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -297,7 +303,9 @@ fi
 
 mkdir -p gen-out
 
-if [[ -n "${EEST_RUN_DIR:-}" ]]; then
+if [[ -n "${RUN_DIR_OVERRIDE:-}" ]]; then
+  RUN_DIR="$RUN_DIR_OVERRIDE"
+elif [[ -n "${EEST_RUN_DIR:-}" ]]; then
   RUN_DIR="$EEST_RUN_DIR"
 else
   RUN_DIR="$REPO_ROOT/gen-out/eest-run/run-$(date -u +%Y%m%dT%H%M%SZ)-$$"
@@ -306,9 +314,6 @@ rm -rf "$RUN_DIR"
 mkdir -p "$RUN_DIR"
 GUEST_PREFIX="$RUN_DIR/stateless_guest"
 GUEST_ELF="$GUEST_PREFIX.elf"
-
-echo "==> lake build codegen"
-lake build codegen
 
 resolve_riscv_tool() {
   local env_var="$1"; shift
@@ -362,16 +367,24 @@ PYPATCH
     -nostdlib --no-relax -o "$elf" "$obj"
 }
 
-if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
-  cap_note=""
-  [[ -n "$BSR_WITNESS_CAP" ]] && cap_note="bsr_witness_cap=$BSR_WITNESS_CAP"
-  [[ -n "$BSR_BAL_CAP" ]] && cap_note="${cap_note:+$cap_note, }bsr_bal_cap=$BSR_BAL_CAP"
-  echo "==> emit stateless_guest assembly (experimental $cap_note)"
-  lake exe codegen --program stateless_guest --halt linux93 -o "$GUEST_PREFIX" --asm-only
-  patch_bsr_caps_and_relink
+if [[ "$NO_BUILD" -eq 0 ]]; then
+  echo "==> lake build codegen"
+  lake build codegen
+
+  if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
+    cap_note=""
+    [[ -n "$BSR_WITNESS_CAP" ]] && cap_note="bsr_witness_cap=$BSR_WITNESS_CAP"
+    [[ -n "$BSR_BAL_CAP" ]] && cap_note="${cap_note:+$cap_note, }bsr_bal_cap=$BSR_BAL_CAP"
+    echo "==> emit stateless_guest assembly (experimental $cap_note)"
+    lake exe codegen --program stateless_guest --halt linux93 -o "$GUEST_PREFIX" --asm-only
+    patch_bsr_caps_and_relink
+  else
+    echo "==> emit stateless_guest ELF"
+    lake exe codegen --program stateless_guest --halt linux93 -o "$GUEST_PREFIX"
+  fi
 else
-  echo "==> emit stateless_guest ELF"
-  lake exe codegen --program stateless_guest --halt linux93 -o "$GUEST_PREFIX"
+  echo "==> skipping build (--no-build)"
+  GUEST_ELF="${GUEST_ELF:-$REPO_ROOT/gen-out/stateless_guest.elf}"
 fi
 
 # --- convert fixtures -> ziskemu inputs + manifest --------------------------
