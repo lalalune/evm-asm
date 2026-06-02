@@ -12,7 +12,7 @@
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
   - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, MSIZE, GAS
   - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
-    EXTCODEHASH, BLOCKHASH
+    EXTCODEHASH (BLOBHASH and BLOCKHASH have real implementations in Programs/Evm.lean)
   - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
     RETURNDATACOPY, MCOPY
 
@@ -196,10 +196,9 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_GAS", opcodes := [0x5a]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE,
-    EXTCODEHASH, BLOCKHASH). Each opcode pops one 32-byte
-    input (e.g., an address or index) and pushes a 32-byte zero
-    value. Net EVM stack delta = 0.
+/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE, EXTCODEHASH).
+    Each opcode pops one 32-byte input (e.g., an address) and pushes a
+    32-byte zero value. Net EVM stack delta = 0.
 
     Body (4 instructions): overwrite the popped slot with 32 zero
     bytes — same shape as M17's `SLOAD`/`TLOAD`. No `x12` movement
@@ -209,12 +208,17 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     - BALANCE always returns 0 (no account state model).
     - EXTCODESIZE / EXTCODEHASH always return 0 (no external account
       model).
-    - BLOCKHASH always returns 0 (no block history).
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
     `Programs/Evm.lean`). It reads real calldata bytes from the
-    `ziskemu -i` input region. -/
+    `ziskemu -i` input region.
+
+    **M28 update**: BLOBHASH (0x49) was moved to `blobContextHandlers`
+    in `Programs/Evm.lean` with a real blob-hash-list implementation.
+
+    **M29 update**: BLOCKHASH (0x40) was moved to `blockHashHandlers`
+    in `Programs/Evm.lean` with a real block-history implementation. -/
 def popPushZeroHandlers : List OpcodeHandlerSpec :=
   let body : Program :=
     SD .x12 .x0 0 ;;
@@ -226,8 +230,6 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_EXTCODESIZE", opcodes := [0x3b]
     , body := body, tail := .advanceAndRet 1 }
   , { label := "h_EXTCODEHASH", opcodes := [0x3f]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_BLOCKHASH", opcodes := [0x40]
     , body := body, tail := .advanceAndRet 1 } ]
 
 /-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY,
@@ -317,13 +319,16 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
   let basicPrecompileCallTail
       (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
     -- Stack top at entry is the call gas word. The destination
-    -- address is the next word for both CALL and STATICCALL.
+    -- address is the next word for both CALL and STATICCALL. EVM
+    -- address operands are masked to the low 160 bits: limb 1 and
+    -- the low 32 bits of limb 2 participate in precompile dispatch,
+    -- while bits 160..255 are ignored.
     "  ld x14, 32(x12)\n" ++
     "  ld x15, 40(x12)\n" ++
     "  bnez x15, 1f\n" ++
     "  ld x15, 48(x12)\n" ++
-    "  bnez x15, 1f\n" ++
-    "  ld x15, 56(x12)\n" ++
+    "  slli x15, x15, 32\n" ++
+    "  srli x15, x15, 32\n" ++
     "  bnez x15, 1f\n" ++
     "  li x15, 1\n" ++
     "  bltu x14, x15, 1f\n" ++
