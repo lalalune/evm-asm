@@ -84,6 +84,34 @@ The table is intentionally path-based: if a bridge module is renamed or split,
 this table should be updated in the same PR so downstream readers can trace
 from the C symbol to the Lean payload and ECALL surface.
 
+## Installed ziskemu backend notes
+
+The zkvm-standards rows above describe the desired ABI surface. They do not, by
+themselves, prove that the locally installed `ziskemu` has a concrete backend
+for every symbol.
+
+As of the 2026-06-02 local installation used for EEST work, ECRECOVER is only
+partially supported at the zisk layer:
+
+- ziskemu has secp256k1 point-add and point-double primitives
+  (`_opcode_secp256k1_add`, `_opcode_secp256k1_dbl`) in
+  `/home/zksecurity/.zisk/zisk/emulator-asm/src/emu.c`.
+- zisk's C library has `secp256k1_ecdsa_verify` in
+  `/home/zksecurity/.zisk/zisk/lib-c/c/src/ec/ec.cpp`. This computes the
+  ECDSA verification point from a known public key. It is not public-key
+  recovery from `(msg_hash, v, r, s)`.
+- The precompile-results hint parser in
+  `/home/zksecurity/.zisk/zisk/emulator-asm/src/client.c` defines
+  `HINTS_TYPE_ECRECOVER`, but its switch case is commented out and explicitly
+  says it is not implemented.
+
+Therefore, EVM precompile address `0x01` should not be wired as if
+`zkvm_secp256k1_ecrecover` is already available. The next backend slice must
+either add/prove a concrete ziskos hint-backed ECRECOVER path, or implement the
+missing recovery wrapper on top of lower-level secp256k1 operations and then
+probe it with valid and invalid vectors from
+`execution-specs/tests/frontier/precompiles/test_ecrecover.py`.
+
 ## Calling convention
 
 The guest follows LP64 as documented in
