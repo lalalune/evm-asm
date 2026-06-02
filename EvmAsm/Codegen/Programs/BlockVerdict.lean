@@ -1,22 +1,10 @@
 /-
   EvmAsm.Codegen.Programs.BlockVerdict
 
-  Step (d) of bead evm-asm-fhsxz.2.4.2.5 — the FULL state-transition verdict that
-  composes the EIP-2935 + EIP-4788 system-contract storage writes with the
-  withdrawal balance credits into ONE post-state-root recompute. This is what
-  turns the verified bricks into actual EEST withdrawal full-matches.
-
-    block_state_root: system_write_descriptors -> for each of the 2 system
-      contracts: walk the pre-state account, account_apply_storage_slot_acc,
-      record a state-trie change; then the withdrawal changes (walk + account_add_balance);
-      then mpt_state_root over ALL changes -> post-state root.
-    block_verdict: block_header_ssz_to_rlp + validate_header_rlp_pair +
-      block_state_root + memcmp(recomputed, payload.state_root).
-    stateless_verdict_v2: the real-SSZ glue (= stateless_verdict_from_ssz) but
-      calling block_verdict (system writes included) instead of step2_verdict.
-
-  Static block_state_root arenas are sized from execution-specs limits; see
-  docs/agents/eest-static-layout.md for the BAL/gas-limit layout rules.
+  Full state-transition verdict: rebuild header RLP, validate header pair,
+  recompute post-state root with system writes + BAL + withdrawals, and compare
+  against the payload state root. Static block_state_root arenas are sized from
+  execution-specs limits; see docs/agents/eest-static-layout.md.
 -/
 
 import EvmAsm.Rv64.Program
@@ -38,6 +26,7 @@ import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
+import EvmAsm.Codegen.Programs.BlockRlpSize
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -219,8 +208,7 @@ def blockStateRootFunction : String :=
   "  # system change 1 = EIP-4788 (timestamp + parent-root slots in one account)\n" ++
   "  li a4, 1\n" ++
   "  jal ra, bsr_beacon_change; bnez a0, .Lbsr_cons_sys4788\n" ++
-  "  # BAL account changes are tx-execution account post-values. Append them before\n" ++
-  "  # withdrawals so withdrawal credits can update a BAL-touched account in place.\n" ++
+  "  # BAL account changes are tx-execution account post-values.\n" ++
   "  li s1, 2                     # change counter (2 system changes already recorded)\n" ++
   "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
@@ -235,8 +223,7 @@ def blockStateRootFunction : String :=
   "  li t0, 1; la t1, bara_skip_modeled_system; sd t0, 0(t1)\n" ++
   "  la a6, basr_records; la a7, basr_accounts\n" ++
   "  jal ra, bal_account_record_array; bnez a0, .Lbsr_cons_bal_records\n" ++
-  "  # `bal_account_apply_post_fields` may replay BAL storage changes through\n" ++
-  "  # `account_apply_storage_slot_acc`, which reads the shared witness globals.\n" ++
+  "  # BAL storage replay reads the shared witness globals.\n" ++
   "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
   "  li s0, 0                     # scan BAL records; append only changed accounts\n" ++
@@ -662,6 +649,11 @@ def blockVerdictFunction : String :=
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
   "  jal ra, block_header_ssz_to_rlp\n" ++
+  "  ld a0, 0(s0); la t0, sv_this_rlp_len; ld a1, 0(t0); mv a2, s3\n" ++
+  "  jal ra, block_rlp_rebuilt_size\n" ++
+  "  bnez a0, .Lbv_block_rlp_parse_fail\n" ++
+  "  la t0, bv_block_rlp_len; sd a1, 0(t0)\n" ++
+  "  li t1, 0x800000; bgtu a1, t1, .Lbv_block_rlp_limit_fail\n" ++
   "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0); ld a2, 8(s0); ld a3, 16(s0)\n" ++
   "  jal ra, validate_header_rlp_pair\n" ++
   "  mv s1, a0\n" ++
@@ -775,6 +767,10 @@ def blockVerdictFunction : String :=
   "  li t0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_code_preimage_fail:\n" ++
   "  li t0, 11; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_block_rlp_parse_fail:\n" ++
+  "  li t0, 12; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_block_rlp_limit_fail:\n" ++
+  "  li t0, 13; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip8037_gas_fail:\n" ++
   "  addi t0, a0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
@@ -881,6 +877,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, sri_fail_index; ld t2, 0(t1); sd t2, 88(t0)\n" ++
   "  la t1, sri_fail_mode; ld t2, 0(t1); sd t2, 96(t0)\n" ++
   "  la t1, sri_fail_status; ld t2, 0(t1); sd t2, 104(t0)\n" ++
+  "  la t1, bv_block_rlp_len; ld t2, 0(t1); sd t2, 112(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   -- the full stateless_verdict closure (verbatim):
   zkvmKeccak256Function ++ "\n" ++
@@ -946,6 +943,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   validateHeaderRlpPairFunction ++ "\n" ++
   bhrRevLeBeFunction ++ "\n" ++
   blockHeaderSszToRlpFunction ++ "\n" ++
+  rlpBytesEncodedSizeFunction ++ "\n" ++
+  rlpListEncodedSizeFunction ++ "\n" ++
+  blockRlpRebuiltSizeFunction ++ "\n" ++
   step2VerdictFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   ephU32leFunction ++ "\n" ++
@@ -999,7 +999,6 @@ def ziskStatelessVerdictV2Prologue : String :=
 
 def ziskStatelessVerdictV2DataSection : String :=
   ziskStatelessVerdictDataSection ++ "\n" ++
-  -- single_leaf scratch:
   ".balign 8\n" ++
   "sltr_field_len:\n  .zero 8\n" ++
   "sltr_nibble_count:\n  .zero 8\n" ++
@@ -1028,7 +1027,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
   "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
   "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21\n" ++
-  -- system_write_descriptors output:
   ".balign 32\n" ++
   "swd_2935_slot:\n  .zero 32\n" ++
   ".balign 32\n" ++
@@ -1046,7 +1044,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "swd_4788_vlen:\n  .zero 8\n" ++
   "swd_4788_root_vlen:\n  .zero 8\n" ++
   "swd_ts_be8:\n  .zero 8\n" ++
-  -- block_state_root scratch:
   ".balign 8\n" ++
   "bsr_root_p:\n  .zero 8\n" ++
   "bsr_wit_p:\n  .zero 8\n" ++
@@ -1081,7 +1078,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0x00, 0x0F, 0x3d, 0xf6, 0xD7, 0x32, 0x80, 0x7E\n" ++
   "  .byte 0xf1, 0x31, 0x9f, 0xB7, 0xB8, 0xbB, 0x85, 0x22\n" ++
   "  .byte 0xd0, 0xBe, 0xac, 0x02\n" ++
-  -- bal_gas_valid scratch (bal_gas_valid + block_verdict's BAL navigation):
   ".balign 8\n" ++
   "bgv_count:\n  .zero 8\n" ++
   "bgv_off:\n  .zero 8\n" ++
@@ -1095,6 +1091,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_fail_code:\n  .zero 8\n" ++
   "bv_header_status:\n  .zero 8\n" ++
   "bv_state_status:\n  .zero 8\n" ++
+  "bv_block_rlp_len:\n  .zero 8\n" ++
+  "brl_item_start:\n  .zero 8\n" ++
+  "brl_item_end:\n  .zero 8\n" ++
+  "brl_wd_len:\n  .zero 8\n" ++
+  "brl_wd_buf:\n  .zero 72\n" ++
   "svf_witness_section:\n  .zero 8\n" ++
   "svf_witness_end:\n  .zero 8\n" ++
   "svf_codes_ptr:\n  .zero 8\n" ++
@@ -1102,7 +1103,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "svf_headers_ptr:\n  .zero 8\n" ++
   "svf_headers_len:\n  .zero 8\n" ++
   "svf_headers_count:\n  .zero 8\n" ++
-  -- account_at_address / extcodesize_at_header_state_root scratch:
   "bbcv_count:\n  .zero 8\n" ++
   "bbcv_off:\n  .zero 8\n" ++
   "bbcv_size:\n  .zero 8\n" ++
@@ -1152,7 +1152,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "vh_extracted_parent_hash:\n" ++
   "  .zero 32\n" ++
-  -- eip8037_tx_gas_gate scratch:
   "bsg_count:\n  .zero 8\n" ++
   "bsg_off:\n  .zero 8\n" ++
   "bsg_len:\n  .zero 8\n" ++
@@ -1189,7 +1188,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "sri_fail_index:\n  .zero 8\n" ++
   "sri_fail_mode:\n  .zero 8\n" ++
   "sri_fail_status:\n  .zero 8\n" ++
-  -- BAL account replay scratch (bal_account_state_root_auto and callees):
   "bpf_list_off:\n  .zero 8\n" ++
   "bpf_list_len:\n  .zero 8\n" ++
   "bpf_list_ptr:\n  .zero 8\n" ++
@@ -1300,8 +1298,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
   "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
   ".balign 8\n" ++
-  -- fresh-account RLP [nonce=0, balance=0, storageRoot=EMPTY_TRIE, codeHash=EMPTY_CODE].
-  -- Keep this immutable template before the mutable insert scratch buffers.
   ".balign 8\n" ++
   "bsr_empty_account:\n" ++
   "  .byte 0xf8,0x44,0x80,0x80,0xa0\n" ++
@@ -1314,8 +1310,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0x92,0x7e,0x7d,0xb2,0xdc,0xc7,0x03,0xc0\n" ++
   "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
   "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
-  -- account INSERT engine scratch (mpt_insert_walk_db / mpt_insert_acc /
-  -- mpt_state_root_ins; the node DB + mset_*/mlnen_*/mw_* are already in the base):
   ".balign 8\n" ++
   "iw_empty_trie_root:\n" ++
   "  .byte 0x56,0xe8,0x1f,0x17,0x1b,0xcc,0x55,0xa6\n" ++
@@ -1439,6 +1433,9 @@ def statelessVerdictV2GuestClosure : String :=
   validateHeaderRlpPairFunction ++ "\n" ++
   bhrRevLeBeFunction ++ "\n" ++
   blockHeaderSszToRlpFunction ++ "\n" ++
+  rlpBytesEncodedSizeFunction ++ "\n" ++
+  rlpListEncodedSizeFunction ++ "\n" ++
+  blockRlpRebuiltSizeFunction ++ "\n" ++
   step2VerdictFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   ephU32leFunction ++ "\n" ++
