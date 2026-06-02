@@ -230,6 +230,24 @@ def emitDispatcherEpilogue
   zkvmKeccak256Function ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
+  -- M15.5: invalid-jump exceptional halt. JUMP/JUMPI route here (via
+  -- `jumpValidityTail`'s `bne x17, x18, .exit_invalid`) when
+  -- code[dest] != 0x5b. Tag halt_kind = 4 — distinct from 0=STOP /
+  -- 1=RETURN / 2=REVERT (M23) — then join the universal exit. The
+  -- result bytes at OUTPUT[0..32] stay zero (no RETURN ran), which is
+  -- correct for an exceptional halt with no return data. Reached only
+  -- via `j .exit_invalid`; `h_invalid`'s `j .exit_label` above skips
+  -- this block, and it ends with `j .exit_no_epilogue` so it never
+  -- falls through into exitBody.
+  ".exit_invalid:\n" ++
+  "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
+  "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
+  "  sd x0, 8(x16)\n" ++            -- (no RETURN ran on this path, so
+  "  sd x0, 16(x16)\n" ++           --  surface empty return data
+  "  sd x0, 24(x16)\n" ++           --  deterministically)
+  "  li x17, 4\n" ++                -- halt_kind = 4 (invalid jump)
+  "  sd x17, 32(x16)\n" ++
+  "  j .exit_no_epilogue\n" ++
   ".exit_label:\n" ++
   emitProgram exitBody ++ "\n" ++
   ".exit_no_epilogue:\n" ++

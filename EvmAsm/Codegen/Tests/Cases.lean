@@ -329,7 +329,26 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- of jumping to the (out-of-bounds) dest.
     { name           := "jumpi_not_taken"
       bytecode       := "0x60, 0x00, 0x60, 0xff, 0x57, 0x60, 0x42, 0x00"
-      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
+      -- M15.5: confirm the not-taken JUMPI sentinel path does NOT
+      -- spuriously trip the validity check — it halts normally (STOP,
+      -- halt_kind 0) with 0x42, not the invalid-jump halt_kind 4.
+      expectedHaltKind := "0000000000000000" }
+    -- ## M15.5 JUMPDEST-validity (Level 1): invalid jumps exceptionally
+    -- halt with halt_kind = 4 and empty (zero) return data.
+  , -- PUSH1 0x00; JUMP — dest = 0 → code[0] = 0x60 (PUSH1), not 0x5b.
+    -- Invalid jump → .exit_invalid → halt_kind 4, result = 0.
+    { name             := "jump_invalid_dest"
+      bytecode         := "0x60, 0x00, 0x56"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
+  , -- PUSH1 0x01 (cond); PUSH1 0x00 (dest); JUMPI — cond != 0 so the
+    -- jump is taken to dest = 0; code[0] = 0x60, not 0x5b → invalid.
+    -- Exercises the JUMPI taken-path validity load (halt_kind 4).
+    { name             := "jumpi_taken_invalid"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x57"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
     -- ## M16 hash opcode (KECCAK256 via ECALL bridge to Zisk accelerator)
     -- KECCAK256 pops offset (top of stack) and size (next word), hashes the
     -- memory[offset..offset+size] region, pushes the 32-byte digest.
