@@ -49,6 +49,20 @@ structure OpcodeTestCase where
   /-- Optional BLOBHASH versioned-hash list (M28). Format is comma or
       space-separated 32-byte hex blobs. Empty string = no blob hashes. -/
   blobHashes     : String := ""
+  /-- Optional current block number for BLOCKHASH runtime context
+      (M29). Decimal or 0x-prefixed u64 string. Empty string means
+      use the packer's default current block 0. -/
+  blockNumber    : String := ""
+  /-- Optional recent ancestor hashes for BLOCKHASH runtime context
+      (M29), in increasing block-number order, as comma/space-
+      separated 32-byte hex hashes. Empty string = no recent hashes. -/
+  blockHashes    : String := ""
+  /-- Optional simple environment values. Format is comma- or
+      whitespace-separated `field=hex` pairs accepted by
+      `scripts/pack-bytecode.py --env`, e.g.
+      `"caller=0x1234,timestamp=0x2a"`. Empty string = every simple
+      env opcode reads zero, preserving the pre-env-trailer behavior. -/
+  env            : String := ""
   /-- Optional expected halt-kind at `OUTPUT_ADDR + 32` (M23).
       16 hex chars = 8-byte LE u64 (e.g. `"0100000000000000"` for
       RETURN = 1, `"0200000000000000"` for REVERT = 2). Empty
@@ -260,6 +274,12 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mstore8_basic"
       bytecode       := "0x60, 0xff, 0x60, 0x00, 0x53, 0x60, 0x00, 0x51, 0x00"
       expectedOutHex := "00000000000000000000000000000000000000000000000000000000000000ff" }
+  , -- PUSH1 0x40; MLOAD; MSIZE; STOP
+    -- MLOAD touches memory[0x40..0x60), so MSIZE reports the rounded
+    -- active size 0x60.
+    { name           := "mload_updates_msize"
+      bytecode       := "0x60, 0x40, 0x51, 0x59, 0x00"
+      expectedOutHex := "6000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M12 simple environment opcodes (ADDRESS, CALLER, …)
     -- The evm_env data region is zero-initialised by the dispatcher's
     -- .data section. Each test confirms the handler routes through
@@ -283,6 +303,58 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "env_field_offset_distinct"
       bytecode       := "0x42, 0x43, 0x03, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M29 BLOCKHASH runtime context
+    -- Current block number = 500. Recent hashes are supplied in
+    -- increasing block-number order for blocks 497, 498, 499.
+  , -- BLOCKHASH(499) returns the parent hash.
+    { name           := "blockhash_parent"
+      bytecode       := "0x61, 0x01, 0xf3, 0x40, 0x00"
+      expectedOutHex := "201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(498) selects the older in-window ancestor.
+    { name           := "blockhash_historical"
+      bytecode       := "0x61, 0x01, 0xf2, 0x40, 0x00"
+      expectedOutHex := "2222222222222222222222222222222222222222222222222222222222222222"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(current) returns 0 even with recent hashes loaded.
+    { name           := "blockhash_current_zero"
+      bytecode       := "0x61, 0x01, 0xf4, 0x40, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(future) returns 0.
+    { name           := "blockhash_future_zero"
+      bytecode       := "0x61, 0x01, 0xf5, 0x40, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(496) is older than the supplied recent-hash table, so
+    -- the runtime path returns 0 instead of reading outside the table.
+    { name           := "blockhash_missing_zero"
+      bytecode       := "0x61, 0x01, 0xf0, 0x40, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- CALLER; STOP with nonzero runtime env. The packer appends the
+    -- simple-env trailer and the runtime dispatcher copies it into
+    -- evm_env before executing bytecode.
+    { name           := "caller_from_input_env"
+      bytecode       := "0x33, 0x00"
+      expectedOutHex := "3412000000000000000000000000000000000000000000000000000000000000"
+      env            := "caller=0x1234" }
+  , -- TIMESTAMP; STOP with nonzero runtime env.
+    { name           := "timestamp_from_input_env"
+      bytecode       := "0x42, 0x00"
+      expectedOutHex := "2a00000000000000000000000000000000000000000000000000000000000000"
+      env            := "timestamp=0x2a" }
+  , -- BASEFEE; STOP with nonzero runtime env. This is distinct from
+    -- BLOBBASEFEE's separate M28 trailer slot at env+512.
+    { name           := "basefee_from_input_env"
+      bytecode       := "0x48, 0x00"
+      expectedOutHex := "efbe000000000000000000000000000000000000000000000000000000000000"
+      env            := "base_fee=0xbeef" }
     -- ## M13 calldata-context opcode (CALLDATASIZE)
     -- The calldata-length cell at evm_env + 424 is zero-initialised by the
     -- dispatcher's .data section, so CALLDATASIZE pushes 32 zero bytes.
@@ -434,13 +506,21 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0xff, 0x60, 0x11, 0x60, 0x22, 0xf3"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0100000000000000" }
-  , -- PUSH1 0xff; PUSH1 0x42; INVALID — INVALID just halts; top of
-    -- stack = 0x42. Expected: 0x42 in low limb. Confirms
-    -- haltHandlers.INVALID routes 0xfe (instead of falling through to
-    -- the h_invalid catch-all unchanged).
-    { name           := "invalid_halt"
-      bytecode       := "0x60, 0xff, 0x60, 0x42, 0xfe"
-      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0xff; PUSH1 0x42; INVALID. M23.5: INVALID is an exceptional
+    -- halt — it surfaces zero result data (no return data) and tags
+    -- halt_kind = 3, instead of the pre-M23.5 behavior of leaking the
+    -- stack top (0x42) via evmAddEpilogue with halt_kind = 0.
+    { name             := "invalid_halt"
+      bytecode         := "0x60, 0xff, 0x60, 0x42, 0xfe"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0300000000000000" }
+  , -- PUSH1 0xff; SELFDESTRUCT. M23.5: SELFDESTRUCT is a normal halt
+    -- with no return data — zero result + halt_kind = 5 (distinct from
+    -- STOP=0 and INVALID=3). Pops 1 word (recipient address).
+    { name             := "selfdestruct_halt"
+      bytecode         := "0x60, 0xff, 0xff"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0500000000000000" }
   , -- GAS; STOP — GAS pushes 0 (no gas metering); STOP halts.
     -- Expected: 0 in low limb. Smoke test for pushZeroHandlers.
     { name           := "gas_push_zero"
@@ -473,12 +553,29 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0xab, 0x31, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x01; PUSH1 0x02; PUSH1 0x03; MCOPY; PUSH1 0x42; STOP
-    -- MCOPY pops 3 args (no-op copy); PUSH1 0x42 lands on the empty
-    -- stack. Expected: 0x42 in low limb. Smoke test for
-    -- copyNoopHandlers.
+    -- MCOPY pops 3 args; PUSH1 0x42 lands on the empty stack.
     { name           := "mcopy_pop3"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x5e, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+  , -- MSTORE8 writes 0xab at memory[0]; MCOPY(dest=1, src=0, len=1)
+    -- copies that byte to memory[1]. MLOAD(0) observes bytes 0 and 1.
+    { name           := "mcopy_copies_byte"
+      bytecode       := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0x60, 0x01, 0x5e, 0x60, 0x00, 0x51, 0x00"
+      expectedOutHex := "000000000000000000000000000000000000000000000000000000000000abab" }
+  , -- MCOPY(dest=0x40, src=0, len=1) expands memory to 0x60.
+    { name           := "mcopy_msize_dest_range"
+      bytecode       := "0x60, 0x01, 0x60, 0x00, 0x60, 0x40, 0x5e, 0x59, 0x00"
+      expectedOutHex := "6000000000000000000000000000000000000000000000000000000000000000" }
+  , -- MCOPY(dest=0, src=0x40, len=1) expands memory to 0x60 from
+    -- the read range as required by EIP-5656.
+    { name           := "mcopy_msize_source_range"
+      bytecode       := "0x60, 0x01, 0x60, 0x40, 0x60, 0x00, 0x5e, 0x59, 0x00"
+      expectedOutHex := "6000000000000000000000000000000000000000000000000000000000000000" }
+  , -- MCOPY with len=0 does not expand memory even with non-zero
+    -- source and destination offsets.
+    { name           := "mcopy_zero_length_keeps_msize"
+      bytecode       := "0x60, 0x00, 0x60, 0x80, 0x60, 0xff, 0x5e, 0x59, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M19/M27 child-frame opcodes (CREATE/CALL/CALLCODE/
     -- DELEGATECALL/CREATE2/STATICCALL). CREATE-family and
     -- non-precompile CALL-family targets remain pop-N + push-zero
