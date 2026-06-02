@@ -274,10 +274,10 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_tmp2:\n  .zero 512\n" ++
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
-  "baap_storage_desc:\n  .zero 5120\n" ++
-  "baap_storage_paths:\n  .zero 8192\n" ++
-  "baap_storage_delete_paths:\n  .zero 8192\n" ++
-  "baap_storage_values:\n  .zero 8192\n" ++
+  "baap_storage_desc:\n  .zero 20480\n" ++
+  "baap_storage_paths:\n  .zero 32768\n" ++
+  "baap_storage_delete_paths:\n  .zero 32768\n" ++
+  "baap_storage_values:\n  .zero 32768\n" ++
   "mdacc_leaf_path:\n  .zero 128\n" ++
   "mdacc_collapsed_path:\n  .zero 128\n" ++
   "bacp_off:\n  .zero 8\n" ++
