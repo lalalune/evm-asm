@@ -10,6 +10,7 @@ import EvmAsm.EL.CreateAddressExecutableBridge
 import EvmAsm.EL.CreateArgsBridge
 import EvmAsm.EL.CreateInitcodeBridge
 import EvmAsm.EL.CreateEffects
+import EvmAsm.EL.CreatedAccounts
 import EvmAsm.EL.CreateCollision
 import EvmAsm.EL.CreateCollisionResult
 import EvmAsm.EL.CreatePrecheck
