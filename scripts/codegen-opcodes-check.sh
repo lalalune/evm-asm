@@ -55,14 +55,28 @@ fi
 echo "==> running $TOTAL test case(s)"
 
 FAILED=()
-# `--list-test-cases` emits TSV with `<name>\t<expected>\t<bytecode>`
-# since M8.5; this legacy runner only needs name+expected, so we drop
-# the 3rd column into `_bytecode_unused` to keep `read` honest.
-while IFS=$'\t' read -r name expected _bytecode_unused; do
+SKIPPED=0
+# `--list-test-cases` emits TSV with optional runtime-input columns.
+# This legacy runner bakes bytecode into `.data` and has no input
+# trailer, so it skips cases that require calldata, storage preload, or
+# nonzero blob-base-fee input.
+while IFS= read -r line; do
+  name=$(printf '%s' "$line" | cut -f1)
+  expected=$(printf '%s' "$line" | cut -f2)
+  calldata=$(printf '%s' "$line" | cut -f4)
+  storage=$(printf '%s' "$line" | cut -f5)
+  blob_base_fee=$(printf '%s' "$line" | cut -f6)
   if [[ -z "$name" || -z "$expected" ]]; then
     echo
     echo "==> SKIP: malformed --list-test-cases line"
     FAILED+=("${name:-<unknown>} (malformed-tsv)")
+    continue
+  fi
+
+  if [[ -n "${calldata:-}" || -n "${storage:-}" || -n "${blob_base_fee:-}" ]]; then
+    echo
+    echo "==> SKIP: $name requires runtime input trailer"
+    SKIPPED=$((SKIPPED + 1))
     continue
   fi
 
@@ -71,7 +85,7 @@ while IFS=$'\t' read -r name expected _bytecode_unused; do
   lake exe codegen --test-case "$name" --halt linux93 -o "gen-out/$name"
 
   echo "==> ziskemu -e gen-out/$name.elf -o gen-out/$name.output"
-  "$ZISKEMU" -e "gen-out/$name.elf" -o "gen-out/$name.output" -n 200000 \
+  "$ZISKEMU" -e "gen-out/$name.elf" -o "gen-out/$name.output" -n 500000 \
     >"gen-out/$name.emu.log" 2>&1
 
   actual="$(xxd -p -c 64 -l 32 "gen-out/$name.output" | tr -d '\n')"
@@ -91,7 +105,11 @@ done <"$LIST_FILE"
 
 echo
 if [[ ${#FAILED[@]} -eq 0 ]]; then
-  echo "==> ALL PASS ($TOTAL case(s))"
+  if [[ "$SKIPPED" -eq 0 ]]; then
+    echo "==> ALL PASS ($TOTAL case(s))"
+  else
+    echo "==> ALL PASS ($((TOTAL - SKIPPED)) run, $SKIPPED skipped runtime-input case(s))"
+  fi
   exit 0
 else
   echo "==> FAIL: ${#FAILED[@]} of $TOTAL case(s) failed:"

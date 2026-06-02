@@ -18,10 +18,15 @@ M22 extension: optionally append a third segment carrying a list of
 them into a writable in-`.data` slot table; SLOAD / SSTORE read /
 mutate the table via linear scan.
 
+M28 extension: optionally append a fourth segment carrying the
+BLOBBASEFEE value as one EVM stack word. The dispatcher prologue copies
+it into `evm_env`; opcode 0x4a reads it from there. Defaults to zero.
+
 Usage:
     pack-bytecode.py "0x60, 0x02, 0x60, 0x0a, 0x04, 0x00" output.bin
     pack-bytecode.py --calldata "0xdeadbeef" "0x36, 0x00" output.bin
     pack-bytecode.py --storage "(0x00, 0xdead)" "0x60, 0x00, 0x54, 0x00" output.bin
+    pack-bytecode.py --blob-base-fee 0x1234 "0x4a, 0x00" output.bin
     echo "0x60, 0x00" | pack-bytecode.py - output.bin
 
 Output layout:
@@ -35,6 +40,7 @@ Output layout:
     next 8 bytes       <8-byte LE u64 slot_count>            (M22)
     following          <slot_count × 64-byte (key, value)>   (M22)
                        <zero pad to 8-byte boundary>
+    next 32 bytes      <blob_base_fee as EVM stack word>      (M28)
 
 ziskemu prepends 8 more bytes of its own metadata when loading,
 landing the bytecode-length prefix at INPUT_ADDR+8 and the bytecode
@@ -49,6 +55,7 @@ a zero-length calldata segment appended, which preserves the M17
 "CALLDATA opcodes are no-op" behavior for existing test cases.
 Pre-M22 callers that don't pass --storage get a zero-length storage
 segment appended (SLOAD returns 0, SSTORE appends to an empty table).
+Pre-M28 callers that don't pass --blob-base-fee get a zero word.
 """
 import argparse
 import re
@@ -164,12 +171,19 @@ def main() -> int:
              "interpreted as a u256 integer and serialized in EVM-stack "
              "byte order. Defaults to empty (no preload).",
     )
+    parser.add_argument(
+        "--blob-base-fee",
+        default="",
+        help="Optional BLOBBASEFEE value as a u256 hex integer. Serialized "
+             "in EVM-stack byte order. Defaults to zero.",
+    )
     args = parser.parse_args()
 
     csv = sys.stdin.read() if args.bytecode == "-" else args.bytecode
     bytecode = parse_csv(csv)
     calldata = parse_calldata(args.calldata)
     storage_pairs = parse_storage(args.storage)
+    blob_base_fee = _to_stack_bytes(args.blob_base_fee) if args.blob_base_fee.strip() else b"\x00" * 32
 
     # Bytecode segment: 8B LE length prefix + bytes, padded to 8-byte boundary
     # so the calldata-length cell that follows is aligned.
@@ -188,6 +202,10 @@ def main() -> int:
     for key, value in storage_pairs:
         packed += key + value
     packed = pad_to_8(packed)
+
+    # M28 blob-context trailer: 32-byte BLOBBASEFEE word in stack
+    # representation. It is naturally 8-byte aligned after the storage segment.
+    packed += blob_base_fee
 
     if args.output == "-":
         sys.stdout.buffer.write(packed)
