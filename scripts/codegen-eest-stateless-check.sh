@@ -92,6 +92,7 @@ MAX_FAILURES=""
 QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
 BSR_WITNESS_CAP="${EEST_BSR_WITNESS_CAP:-}"
 BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
+BSR_MAX_BLOCK_GAS_LIMIT="${EEST_BSR_MAX_BLOCK_GAS_LIMIT:-120000000}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
@@ -114,7 +115,7 @@ Options:
   --quiet-passes           suppress per-case PASS(full) lines
   --show-passes            print per-case PASS(full) lines, overriding EEST_QUIET_PASSES
   --bsr-witness-cap N      experimental: run with a proposed block_state_root witness cap
-  --bsr-bal-cap N          experimental: run with a proposed block_state_root BAL row cap
+  --bsr-bal-cap N          experimental: add a lower block_state_root BAL row cap
   --job-mem-mib N|auto     memory budget per ziskemu job
   --min-succ N             exit 1 if fewer than N succ-bit matches
   --min-full N             exit 1 if fewer than N full matches
@@ -182,6 +183,10 @@ if [[ -n "$BSR_WITNESS_CAP" ]] && ! [[ "$BSR_WITNESS_CAP" =~ ^[0-9]+$ ]]; then
 fi
 if [[ -n "$BSR_BAL_CAP" ]] && ! [[ "$BSR_BAL_CAP" =~ ^[0-9]+$ ]]; then
   echo "--bsr-bal-cap must be a nonnegative integer when set (got: $BSR_BAL_CAP)" >&2
+  exit 1
+fi
+if ! [[ "$BSR_MAX_BLOCK_GAS_LIMIT" =~ ^[0-9]+$ ]] || [[ "$BSR_MAX_BLOCK_GAS_LIMIT" -lt 1 ]]; then
+  echo "EEST_BSR_MAX_BLOCK_GAS_LIMIT must be a positive integer (got: $BSR_MAX_BLOCK_GAS_LIMIT)" >&2
   exit 1
 fi
 if ! [[ "$QUIET_PASSES" =~ ^(0|1|true|false|yes|no)$ ]]; then
@@ -326,10 +331,10 @@ patch_bsr_caps_and_relink() {
   local asm="$GUEST_PREFIX.s"
   local obj="$GUEST_PREFIX.o"
   local elf="$GUEST_ELF"
-  local old_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 32768; bgtu a2, t1, .Lbsr_cons_change_cap"
+  local old_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 65536; bgtu a2, t1, .Lbsr_cons_change_cap"
   local new_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, $BSR_WITNESS_CAP; bgtu a2, t1, .Lbsr_cons_change_cap"
-  local old_bal="  li t1, 512; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap"
-  local new_bal="  li t1, $BSR_BAL_CAP; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap"
+  local old_bal="  li t0, 2000; divu t1, a0, t0; la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap"
+  local new_bal="  li t0, 2000; divu t1, a0, t0; la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; li t1, $BSR_BAL_CAP; bgtu t6, t1, .Lbsr_cons_change_cap"
   local as_tool ld_tool
 
   python3 - "$asm" "$BSR_WITNESS_CAP" "$old_witness" "$new_witness" "$BSR_BAL_CAP" "$old_bal" "$new_bal" <<'PYPATCH'
@@ -352,8 +357,8 @@ PYPATCH
   as_tool="$(resolve_riscv_tool RISCV_AS riscv64-unknown-elf-as riscv64-elf-as)"
   ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
   "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
-  "$ld_tool" -Ttext=0x80000000 -Tdata=0xa0100000 \
-    --section-start=.sszscratch=0xa2000000 \
+  "$ld_tool" -Ttext=0x80000000 -Tdata=0xa5000000 \
+    --section-start=.sszscratch=0xb0000000 \
     -nostdlib --no-relax -o "$elf" "$obj"
 }
 
@@ -388,14 +393,19 @@ selectedCount="${#manifestLines[@]}"
 
 run_case() {
   local line="$1"
-  local label input expected_hex succ_bit input_len relpath
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit relpath
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.emu.log"
   local result="$RUN_DIR/$label.result.tsv"
   local tmp_result="$result.tmp.$$"
   local actual_hex
 
+  if [[ "$gas_limit" -gt "$BSR_MAX_BLOCK_GAS_LIMIT" ]]; then
+    printf 'ERROR\tstatic_layout_gas_limit:%s>%s\n' "$gas_limit" "$BSR_MAX_BLOCK_GAS_LIMIT" > "$tmp_result"
+    mv "$tmp_result" "$result"
+    return 0
+  fi
   if ! "$ZISKEMU" -e "$GUEST_ELF" -i "$input" -o "$out" \
         -n "$STEPS" >"$log" 2>&1 </dev/null; then
     printf 'ERROR\texit\n' > "$tmp_result"
@@ -434,8 +444,8 @@ total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0
 classify_case_result() {
   local line="$1"
   local require_result="${2:-0}"
-  local label input expected_hex succ_bit input_len relpath result status actual_hex exp r s t
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex exp r s t
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
   if [[ -n "${classifiedLabels[$label]+x}" ]]; then
     return 0
   fi
@@ -458,6 +468,7 @@ classify_case_result() {
     case "$actual_hex" in
       exit) echo "  ERROR(exit)   $relpath" ;;
       short:*) echo "  ERROR(short)  $relpath (${actual_hex#short:} hex chars)" ;;
+      static_layout_gas_limit:*) echo "  ERROR(layout) $relpath (gas_limit ${actual_hex#static_layout_gas_limit:})" ;;
       *) echo "  ERROR($actual_hex) $relpath" ;;
     esac
     return 0
