@@ -54,9 +54,21 @@ Run the complete `random_statetest` regression class for `zkevm@v0.4.0`:
 scripts/codegen-eest-random-statetest-check.sh --jobs 8
 ```
 
-This wrapper runs two windows, `--limit 200` and then `--skip 200 --limit 500`,
-with `--min-full` thresholds and `--max-failures 1`. The split keeps the
-second window directly reproducible without re-running the first prefix.
+This wrapper first counts the selected `random_statetest` blocks for the active
+fixture tag, then loops over every block in fixed-size windows with
+`--min-full` set to the actual chunk size and `--max-failures 1`. Set
+`EEST_RANDOM_WINDOW=N` to change the default 200-case window size.
+
+Run the literal EXTCODEHASH missing-code regression filters:
+
+```bash
+scripts/codegen-eest-literal-extcodehash-check.sh --jobs 4
+```
+
+This wrapper counts and runs the `witness_codes_extcodehash_only` and
+`witness_codes_extcode_delegated_eoa` filters with `--min-full` set to each
+filter's current selected count, so future cases added to those filters are
+covered automatically.
 
 Run the 1,000-block windows immediately after `random_statetest`:
 
@@ -232,6 +244,23 @@ Use `--quiet-passes` (or `EEST_QUIET_PASSES=1`) to suppress per-case
 `PASS(full)` lines while still printing every `FAIL` and `ERROR` plus the final
 summary. This is useful for large `--jobs 32 --max-failures N` searches after a
 long passing prefix. `--show-passes` restores the default verbose pass output.
+
+## Focused Verdict Probe
+
+For verdict-only debugging, use the smaller probe harness:
+
+```bash
+scripts/codegen-zisk-stateless-verdict-check.sh \
+  --filter validation_codes_missing \
+  --limit 100 \
+  --max-failures 5 \
+  --steps 200000000
+```
+
+In this probe, `--max-failures N` stops after N `ERROR`, false-positive, or
+unexpected `DIFF` rows. Conservative misses (`verdict=0 exp=1`) are still
+reported, but they do not count toward this cap because they are not unsound
+acceptances.
 
 ## Outputs
 
