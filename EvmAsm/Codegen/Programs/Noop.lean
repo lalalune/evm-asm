@@ -144,10 +144,13 @@ def haltHandlers : List OpcodeHandlerSpec :=
         -- prologue (post-preload); transient log resets to 0
         -- (transient storage starts empty at tx start). RETURN /
         -- STOP / INVALID / SELFDESTRUCT do NOT roll back — they
-        -- commit successfully.
+        -- commit successfully. M26 also restores receipt event logs
+        -- to the transaction checkpoint.
         "  ld x17, 456(x20)\n" ++         -- persistentLogCheckpointOff
         "  sd x17, 448(x20)\n" ++         -- persistentLogLengthOff = checkpoint
         "  sd x0, 464(x20)\n" ++          -- transientLogLengthOff = 0
+        "  ld x17, 480(x20)\n" ++         -- eventLogCheckpointOff
+        "  sd x17, 472(x20)\n" ++         -- eventLogLengthOff = checkpoint
         "  j .exit_no_epilogue" }
   , -- INVALID (M18 no-op, deferred halt-kind tagging). Flows through
     -- .exit_label → evmAddEpilogue → halt_kind = 0.
