@@ -10,7 +10,7 @@
 
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
-  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, MSIZE, GAS
+  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, GAS (MSIZE has a real implementation in Programs/Evm.lean)
   - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
     EXTCODEHASH (BLOBHASH and BLOCKHASH have real implementations in Programs/Evm.lean)
   - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
@@ -190,8 +190,6 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_CODESIZE", opcodes := [0x38]
     , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
-    , body := pushZeroBody, tail := .advanceAndRet 1 }
-  , { label := "h_MSIZE", opcodes := [0x59]
     , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_GAS", opcodes := [0x5a]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
