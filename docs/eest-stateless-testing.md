@@ -48,6 +48,16 @@ scripts/codegen-eest-stateless-check.sh \
   --steps 200000000
 ```
 
+Run the complete `random_statetest` regression class for `zkevm@v0.4.0`:
+
+```bash
+scripts/codegen-eest-random-statetest-check.sh --jobs 8
+```
+
+This wrapper runs two windows, `--limit 200` and then `--skip 200 --limit 500`,
+with `--min-full` thresholds and `--max-failures 1`. The split keeps the
+second window directly reproducible without re-running the first prefix.
+
 Run a large batch:
 
 ```bash
