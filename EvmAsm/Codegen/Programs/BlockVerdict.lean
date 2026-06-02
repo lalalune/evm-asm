@@ -28,6 +28,7 @@ import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.RequestsHash
+import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -751,6 +752,12 @@ def blockVerdictFunction : String :=
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  jal ra, eip8037_tx_gas_gate\n" ++
   "  bnez a0, .Lbv_eip8037_gas_fail\n" ++
+  "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
+  "  mv a1, s3\n" ++
+  "  la t2, bv_bal_start; ld a2, 0(t2)\n" ++
+  "  la t2, bv_bal_len; ld a3, 0(t2)\n" ++
+  "  jal ra, eip7702_nonce_reuse_guard\n" ++
+  "  bnez a0, .Lbv_eip7702_nonce_reuse_fail\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_cmp_mismatch:\n" ++
   "  li t0, 1; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
@@ -774,6 +781,8 @@ def blockVerdictFunction : String :=
   "  li t0, 13; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip8037_gas_fail:\n" ++
   "  addi t0, a0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_eip7702_nonce_reuse_fail:\n" ++
+  "  li t0, 14; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -1003,6 +1012,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
+  addressFromPubkeyFunction ++ "\n" ++
+  enrgU32leFunction ++ "\n" ++
+  eip7702NonceReuseGuardFunction ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
   ".Lv2_pdone:"
 
@@ -1102,6 +1114,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_header_status:\n  .zero 8\n" ++
   "bv_state_status:\n  .zero 8\n" ++
   "bv_block_rlp_len:\n  .zero 8\n" ++
+  eip7702NonceReuseGuardDataSection ++
   "brl_item_start:\n  .zero 8\n" ++
   "brl_item_end:\n  .zero 8\n" ++
   "brl_wd_len:\n  .zero 8\n" ++

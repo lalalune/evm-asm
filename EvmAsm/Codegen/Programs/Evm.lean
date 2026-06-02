@@ -369,6 +369,30 @@ def evmSdivPatched : Program :=
 def evmSmodPatched : Program :=
   (EvmAsm.Evm64.evm_smod : List Instr).drop 1
 
+/-- `EvmAsm.Evm64.evm_div_v5` with the NOP exit slot patched to skip the
+    longer 85-instruction v5 div128 subroutine. -/
+def evmDivV5Patched : Program :=
+  (EvmAsm.Evm64.evm_div_v5 : List Instr).take 267 ++
+  [Instr.JAL .x0 (344 : BitVec 21)] ++
+  (EvmAsm.Evm64.evm_div_v5 : List Instr).drop 268
+
+/-- `EvmAsm.Evm64.evm_mod_v5` with the same v5 NOP-splice as
+    `evmDivV5Patched`. -/
+def evmModV5Patched : Program :=
+  (EvmAsm.Evm64.evm_mod_v5 : List Instr).take 267 ++
+  [Instr.JAL .x0 (344 : BitVec 21)] ++
+  (EvmAsm.Evm64.evm_mod_v5 : List Instr).drop 268
+
+/-- `EvmAsm.Evm64.evm_sdiv_v5` with the leading save-ra block removed for
+    trampoline-style handlers. -/
+def evmSdivV5Patched : Program :=
+  (EvmAsm.Evm64.evm_sdiv_v5 : List Instr).drop 1
+
+/-- `EvmAsm.Evm64.evm_smod_v5` with the leading save-ra block removed for
+    trampoline-style handlers. -/
+def evmSmodV5Patched : Program :=
+  (EvmAsm.Evm64.evm_smod_v5 : List Instr).drop 1
+
 /-! ## tiny_interp_dispatch — M5b runtime fetch/decode/dispatch loop
 
     Same EVM bytecodes as M5a, but routed through an actual RISC-V
@@ -557,6 +581,26 @@ def memoryMetadataHandlers : List OpcodeHandlerSpec :=
         "  addi x10, x10, 1\n" ++
         "  ret" } ]
 
+/-- M30: GAS (0x5a) pushes the dispatcher-maintained remaining gas
+    (env+568, charged per-opcode by the dispatch loop). Mirrors the
+    MSIZE handler — read the env cell, push it as a 256-bit word (low
+    limb = remaining gas, high limbs 0). The loop charges GAS's own
+    cost (BASE = 2) *before* this handler runs, so the pushed value
+    already reflects it, matching EVM semantics. -/
+def gasHandlers : List OpcodeHandlerSpec :=
+  [ { label   := "h_GAS"
+      opcodes := [0x5a]
+      body    := []
+      tail    := .custom <|
+        "  addi x12, x12, -32\n" ++
+        "  ld x14, 568(x20)\n" ++       -- env.gasRemaining (M30)
+        "  sd x14, 0(x12)\n" ++
+        "  sd x0, 8(x12)\n" ++
+        "  sd x0, 16(x12)\n" ++
+        "  sd x0, 24(x12)\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret" } ]
+
 /-- M12 simple environment opcodes (13 of them, one record each).
 
     All 13 share the verified body
@@ -659,8 +703,8 @@ def blobContextHandlers : List OpcodeHandlerSpec :=
 /-- M29 BLOCKHASH handler backed by the runtime block-history trailer.
 
     Runtime input supplies:
-      - `env + 544`: current block number (`cur`, u64)
-      - `env + 552`: number of loaded recent hashes (`count`, clamped to 256)
+      - `env + 552`: current block number (`cur`, u64)
+      - `env + 560`: number of loaded recent hashes (`count`, clamped to 256)
       - `evm_block_hashes`: `count` 32-byte hashes in increasing block-number
         order, matching execution-specs' `block_env.block_hashes`.
 
@@ -684,10 +728,10 @@ def blockHashHandlers : List OpcodeHandlerSpec :=
         "  ld x14, 24(x12)\n" ++
         "  bnez x14, .Lblockhash_zero\n" ++
         "  ld x14, 0(x12)\n" ++       -- x14 = target block number
-        "  ld x15, 544(x20)\n" ++     -- x15 = current block number (env+544, past M28 blobBaseFee)
+        "  ld x15, 552(x20)\n" ++     -- x15 = current block number (env+552)
         "  bgeu x14, x15, .Lblockhash_zero\n" ++
         "  sub x16, x15, x14\n" ++    -- x16 = cur - target, strictly positive
-        "  ld x17, 552(x20)\n" ++     -- x17 = loaded hash count (env+552)
+        "  ld x17, 560(x20)\n" ++     -- x17 = loaded hash count (env+560)
         "  bgtu x16, x17, .Lblockhash_zero\n" ++
         "  sub x17, x17, x16\n" ++    -- index = count - age
         "  slli x17, x17, 5\n" ++     -- index × 32
@@ -1283,7 +1327,7 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ memoryMetadataHandlers ++ envHandlers ++
+  memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++

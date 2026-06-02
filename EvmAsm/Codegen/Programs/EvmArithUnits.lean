@@ -87,6 +87,26 @@ def evmDivFromInputUnit : BuildUnit := {
   dataAsm     := evmDivFromInputDataSection
 }
 
+/-! ## evm_div_v5 — DIV executable using the v5 div128 subroutine -/
+
+def evmDivV5Unit : BuildUnit := {
+  body        := evmDivV5Patched ++ evmAddEpilogue
+  prologueAsm := evmDivPrologue
+  dataAsm     := evmDivDataSection
+}
+
+def evm_div_v5_from_input : Program :=
+  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
+  copy64 .x12 .x5 .x6 ++
+  evmDivV5Patched ++
+  evmAddEpilogue
+
+def evmDivV5FromInputUnit : BuildUnit := {
+  body        := evm_div_v5_from_input
+  prologueAsm := evmDivFromInputPrologue
+  dataAsm     := evmDivFromInputDataSection
+}
+
 /-! ## evm_mod — M2 first MOD end-to-end through ziskemu
 
     Same calling convention and scratch layout as `evm_div`. `evm_mod`
@@ -156,6 +176,26 @@ def evmModFromInputUnit : BuildUnit := {
   dataAsm     := evmModFromInputDataSection
 }
 
+/-! ## evm_mod_v5 — MOD executable using the v5 div128 subroutine -/
+
+def evmModV5Unit : BuildUnit := {
+  body        := evmModV5Patched ++ evmAddEpilogue
+  prologueAsm := evmModPrologue
+  dataAsm     := evmModDataSection
+}
+
+def evm_mod_v5_from_input : Program :=
+  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
+  copy64 .x12 .x5 .x6 ++
+  evmModV5Patched ++
+  evmAddEpilogue
+
+def evmModV5FromInputUnit : BuildUnit := {
+  body        := evm_mod_v5_from_input
+  prologueAsm := evmModFromInputPrologue
+  dataAsm     := evmModFromInputDataSection
+}
+
 /-! ## evm_sdiv_v4 — signed DIV end-to-end through ziskemu
 
     `evm_sdiv_v4` uses the SDIV sign-handling wrapper and the corrected v4
@@ -217,6 +257,27 @@ def evmSdivV4FromInputDataSection : String :=
 
 def evmSdivV4FromInputUnit : BuildUnit := {
   body        := evm_sdiv_v4_from_input
+  prologueAsm := evmSdivV4FromInputPrologue
+  epilogueAsm := evmSdivV4Epilogue
+  dataAsm     := evmSdivV4FromInputDataSection
+}
+
+/-! ## evm_sdiv_v5 — signed DIV executable using the v5 unsigned callable -/
+
+def evmSdivV5Unit : BuildUnit := {
+  body        := EvmAsm.Evm64.evm_sdiv_v5
+  prologueAsm := evmSdivV4Prologue
+  epilogueAsm := evmSdivV4Epilogue
+  dataAsm     := evmSdivV4DataSection
+}
+
+def evm_sdiv_v5_from_input : Program :=
+  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
+  copy64 .x12 .x5 .x6 ++
+  EvmAsm.Evm64.evm_sdiv_v5
+
+def evmSdivV5FromInputUnit : BuildUnit := {
+  body        := evm_sdiv_v5_from_input
   prologueAsm := evmSdivV4FromInputPrologue
   epilogueAsm := evmSdivV4Epilogue
   dataAsm     := evmSdivV4FromInputDataSection
@@ -289,6 +350,27 @@ def evmSmodV4FromInputUnit : BuildUnit := {
 
 def evmSmodFromInputUnit : BuildUnit := {
   body        := evm_smod_from_input
+  prologueAsm := evmSmodV4FromInputPrologue
+  epilogueAsm := evmSmodV4Epilogue
+  dataAsm     := evmSmodV4FromInputDataSection
+}
+
+/-! ## evm_smod_v5 — signed MOD executable using the v5 unsigned callable -/
+
+def evmSmodV5Unit : BuildUnit := {
+  body        := EvmAsm.Evm64.evm_smod_v5
+  prologueAsm := evmSmodV4Prologue
+  epilogueAsm := evmSmodV4Epilogue
+  dataAsm     := evmSmodV4DataSection
+}
+
+def evm_smod_v5_from_input : Program :=
+  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
+  copy64 .x12 .x5 .x6 ++
+  EvmAsm.Evm64.evm_smod_v5
+
+def evmSmodV5FromInputUnit : BuildUnit := {
+  body        := evm_smod_v5_from_input
   prologueAsm := evmSmodV4FromInputPrologue
   epilogueAsm := evmSmodV4Epilogue
   dataAsm     := evmSmodV4FromInputDataSection
