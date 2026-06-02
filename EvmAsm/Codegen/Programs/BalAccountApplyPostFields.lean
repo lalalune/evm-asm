@@ -478,6 +478,7 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   witnessLookupByHashFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   hpDecodeNibblesFunction ++ "\n" ++

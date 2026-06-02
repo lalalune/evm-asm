@@ -107,6 +107,7 @@ def ziskMptIndexedTrieRootSmallPrologue : String :=
   witnessLookupByHashFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++

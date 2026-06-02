@@ -186,6 +186,7 @@ def balAccountDescriptorArrayDeps : String :=
   witnessLookupByHashFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
