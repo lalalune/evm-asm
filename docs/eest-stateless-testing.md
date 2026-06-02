@@ -152,6 +152,17 @@ scripts/codegen-eest-bal-replay-frontier-64k-check.sh
 It requires the current `19/20` full-match frontier and leaves the large
 170 KiB witness case as the remaining conservative miss.
 
+To expose the next blocker behind that conservative miss, run:
+
+```bash
+scripts/codegen-eest-bal-large-witness-frontier-check.sh
+```
+
+This selects the single large-witness withdrawal-request case, raises the
+experimental block-state-root witness cap to 256 KiB, and stops after the first
+reported failure or error. The current blocker is an emulator non-completion
+before the guest writes stateless output, even with a 2B-step cap.
+
 To probe the large remaining case past both known caps:
 
 ```bash
