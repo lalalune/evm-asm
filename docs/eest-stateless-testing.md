@@ -10,6 +10,11 @@ The harness builds `stateless_guest`, converts EEST `zkevm` fixture blocks
 into `ziskemu -i` inputs, runs each selected input, and compares the 105-byte
 guest output with the fixture's `statelessOutputBytes`.
 
+For missing-feature scheduling, see
+[`docs/eest-feature-surfaces.md`](eest-feature-surfaces.md). It maps EEST
+fixture classes to the active transaction, gas, state, opcode, call/create,
+precompile, and receipt/log feature beads.
+
 ## Prerequisites
 
 Install the normal codegen requirements from the README: Lean/Lake,
@@ -95,6 +100,22 @@ This checks the Amsterdam `exp_power256` state-test fixture and requires a full
 `EEST_EXP_POWER256_STEPS` for this wrapper without changing the broader harness
 defaults.
 
+Run a fast EIP-2929 precompile-warming frontier:
+
+```bash
+scripts/codegen-eest-precompile-warming-frontier-check.sh
+```
+
+This selects the first `precompile_warming` fixture. The executable-spec source
+is `execution-specs/tests/berlin/eip2929_gas_cost_increases/test_precompile_warming.py`:
+it runs a transaction whose contract measures `BALANCE` gas for precompile
+addresses across a fork transition, then checks the resulting storage. The
+current guest gets the stateless root and tail correct for this case, but the
+success bit is still `0` instead of the expected `1`, making it a quick
+transaction/opcode frontier distinct from the BAL large-witness non-completion.
+Override `EEST_PRECOMPILE_WARMING_JOBS` or `EEST_PRECOMPILE_WARMING_STEPS`
+for this wrapper without changing the broader harness defaults.
+
 Run the current BAL replay frontier around the EIP-7002 withdrawal-request
 cluster:
 
@@ -164,6 +185,17 @@ scripts/codegen-eest-bal-replay-frontier-64k-check.sh
 It requires the current `19/20` full-match frontier and leaves the large
 170 KiB witness case as the remaining conservative miss.
 
+To expose the next blocker behind that conservative miss, run:
+
+```bash
+scripts/codegen-eest-bal-large-witness-frontier-check.sh
+```
+
+This selects the single large-witness withdrawal-request case, raises the
+experimental block-state-root witness cap to 256 KiB, and stops after the first
+reported failure or error. The current blocker is an emulator non-completion
+before the guest writes stateless output, even with a 2B-step cap.
+
 To probe the large remaining case past both known caps:
 
 ```bash
@@ -190,6 +222,28 @@ scripts/codegen-zisk-stateless-verdict-check.sh \
   --bsr-bal-cap 1024 \
   --steps 2000000000
 ```
+
+Each verdict line prints the fixture's block gas limit separately from the
+path, followed by named debug counters from `OUTPUT_BASE + 8` onward:
+
+```text
+dbg=[bv_fail=... header=... state=... bal_count=... bsr_fail=... change_count=... witness_len=... baacd_fail=... bacv_fail=... baap_fail=... sri_index=... sri_mode=... sri_status=...]
+```
+
+`bv_fail` is the top-level block-verdict failure code. `bsr_fail` and
+`bal_count` classify the block-state-root replay path, while the `baacd`,
+`bacv`, `baap`, and `sri` fields expose the lower-level account, storage, and
+state-read helpers.
+
+For receipt/log-specific misses, generate a triage map that links likely
+blockers to focused beads:
+
+```bash
+scripts/eest-receipt-log-frontier-report.py --run-dir gen-out/eest-run --limit 100
+```
+
+See [`eest-receipt-log-frontier.md`](eest-receipt-log-frontier.md) for the
+class definitions and owner beads.
 
 Run a large batch:
 
