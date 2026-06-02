@@ -655,6 +655,9 @@ def blockVerdictFunction : String :=
   "  jal ra, block_rlp_rebuilt_size\n" ++
   "  bnez a0, .Lbv_block_rlp_parse_fail\n" ++
   "  la t0, bv_block_rlp_len; sd a1, 0(t0)\n" ++
+  "  la t0, bv_block_rlp_fixture_len; ld t2, 0(t0); beqz t2, .Lbv_block_rlp_check_rebuilt\n" ++
+  "  mv a1, t2\n" ++
+  ".Lbv_block_rlp_check_rebuilt:\n" ++
   "  li t1, 0x800000; bgtu a1, t1, .Lbv_block_rlp_limit_fail\n" ++
   "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0); ld a2, 8(s0); ld a3, 16(s0)\n" ++
   "  jal ra, validate_header_rlp_pair\n" ++
@@ -793,6 +796,21 @@ def blockVerdictFunction : String :=
 /-! ## stateless_verdict_v2 -- real-SSZ glue calling block_verdict (system writes). -/
 def statelessVerdictV2Function : String :=
   "stateless_verdict_v2:\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld t1, 8(t0)                 # zisk input: u64 stateless blob length\n" ++
+  "  addi t2, t1, 15              # align8(8 + blob_len)\n" ++
+  "  andi t2, t2, -8\n" ++
+  "  addi t3, t0, 8\n" ++
+  "  add t3, t3, t2               # optional trailer start\n" ++
+  "  ld t4, 0(t3)\n" ++
+  "  li t5, 0x31504c52            # scripts/eest-stateless-to-input.py BLOCK_RLP_TRAILER_MAGIC\n" ++
+  "  bne t4, t5, .Lv2_no_block_rlp_trailer\n" ++
+  "  ld t4, 8(t3)\n" ++
+  "  la t5, bv_block_rlp_fixture_len; sd t4, 0(t5)\n" ++
+  "  j .Lv2_after_block_rlp_trailer\n" ++
+  ".Lv2_no_block_rlp_trailer:\n" ++
+  "  la t5, bv_block_rlp_fixture_len; sd zero, 0(t5)\n" ++
+  ".Lv2_after_block_rlp_trailer:\n" ++
   "  addi sp, sp, -64\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
@@ -895,6 +913,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, sri_fail_mode; ld t2, 0(t1); sd t2, 96(t0)\n" ++
   "  la t1, sri_fail_status; ld t2, 0(t1); sd t2, 104(t0)\n" ++
   "  la t1, bv_block_rlp_len; ld t2, 0(t1); sd t2, 112(t0)\n" ++
+  "  la t1, bv_block_rlp_fixture_len; ld t2, 0(t1); sd t2, 120(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
@@ -1114,6 +1133,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_header_status:\n  .zero 8\n" ++
   "bv_state_status:\n  .zero 8\n" ++
   "bv_block_rlp_len:\n  .zero 8\n" ++
+  "bv_block_rlp_fixture_len:\n  .zero 8\n" ++
   eip7702NonceReuseGuardDataSection ++
   "brl_item_start:\n  .zero 8\n" ++
   "brl_item_end:\n  .zero 8\n" ++

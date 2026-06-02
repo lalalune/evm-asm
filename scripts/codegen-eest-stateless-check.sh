@@ -427,11 +427,12 @@ format_verdict_debug() {
     sri_mode
     sri_status
     block_rlp_len
+    fixture_block_rlp_len
   )
   local -a words=()
   local i value dbg=""
 
-  raw="$(od -An -v -tu8 -N 120 "$out" 2>/dev/null | xargs || true)"
+  raw="$(od -An -v -tu8 -N 128 "$out" 2>/dev/null | xargs || true)"
   read -r -a words <<< "$raw"
   for i in "${!labels[@]}"; do
     value="${words[$i]:-?}"
@@ -502,8 +503,8 @@ selectedCount="${#manifestLines[@]}"
 
 run_case() {
   local line="$1"
-  local label input expected_hex succ_bit input_len gas_limit relpath
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit block_rlp_len relpath
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit block_rlp_len relpath <<< "$line"
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.emu.log"
   local result="$RUN_DIR/$label.result.tsv"
@@ -553,8 +554,8 @@ total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0
 classify_case_result() {
   local line="$1"
   local require_result="${2:-0}"
-  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex exp r s t
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit block_rlp_len relpath result status actual_hex exp r s t
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit block_rlp_len relpath <<< "$line"
   if [[ -n "${classifiedLabels[$label]+x}" ]]; then
     return 0
   fi

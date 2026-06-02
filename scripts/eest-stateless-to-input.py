@@ -14,10 +14,14 @@ This tool walks a directory of such fixtures and, for every block that
 has ``statelessInputBytes``, writes a ziskemu ``-i`` input file in the
 exact layout ``scripts/stateless-gen-input.py`` uses
 (``<u64 LE length><blob><zero pad to 8>``), and emits a TSV manifest
-that the harness (``codegen-eest-stateless-check.sh``) iterates.
+that the harness (``codegen-eest-stateless-check.sh``) iterates. When a fixture
+block carries raw block RLP, the input file also carries an auxiliary trailer:
+``u64 magic, u64 block_rlp_len, block_rlp_bytes, zero pad to 8``. The guest's
+legacy SSZ pointer remains unchanged; RISC-V code can opt into the trailer by
+checking the magic at the end of the padded SSZ blob.
 
 Manifest columns (tab-separated, one row per guest invocation):
-  label  input_file  expected_hex  succ_bit  input_len  block_gas_limit  fixture_relpath
+  label  input_file  expected_hex  succ_bit  input_len  block_gas_limit  block_rlp_len  fixture_relpath
 
 Usage:
   eest-stateless-to-input.py --fixtures-dir DIR --out-dir DIR
@@ -38,11 +42,18 @@ import sys
 from pathlib import Path
 
 
-def pack_ziskemu_input(blob: bytes) -> bytes:
-    """Mirror scripts/stateless-gen-input.py: 8-byte LE length, blob, pad to 8."""
+BLOCK_RLP_TRAILER_MAGIC = 0x31504C52  # "RLP1", little-endian u64
+
+
+def pack_ziskemu_input(blob: bytes, block_rlp: bytes = b"") -> bytes:
+    """Mirror scripts/stateless-gen-input.py, with an optional block-RLP trailer."""
     total = 8 + len(blob)
     pad = (-total) % 8
-    return struct.pack("<Q", len(blob)) + blob + (b"\x00" * pad)
+    packed = struct.pack("<Q", len(blob)) + blob + (b"\x00" * pad)
+    if not block_rlp:
+        return packed
+    trailer = struct.pack("<QQ", BLOCK_RLP_TRAILER_MAGIC, len(block_rlp)) + block_rlp
+    return packed + trailer + (b"\x00" * ((-len(trailer)) % 8))
 
 
 def sanitize(s: str) -> str:
@@ -59,7 +70,7 @@ def stateless_input_block_gas_limit(blob: bytes) -> int:
 
 
 def iter_blocks(fixture_path: Path):
-    """Yield (label, input_bytes, expected_bytes, block_gas_limit) for each stateless block."""
+    """Yield (label, input_bytes, expected_bytes, block_gas_limit, block_rlp) per block."""
     try:
         doc = json.loads(fixture_path.read_text())
     except (json.JSONDecodeError, OSError) as exc:  # corrupt / unreadable
@@ -82,11 +93,13 @@ def iter_blocks(fixture_path: Path):
                 ib = bytes.fromhex(sib[2:] if sib.startswith("0x") else sib)
                 ob = bytes.fromhex(sob[2:] if sob.startswith("0x") else sob)
                 gas_limit = stateless_input_block_gas_limit(ib)
+                rlp_hex = blk.get("rlp") or ""
+                block_rlp = bytes.fromhex(rlp_hex[2:] if rlp_hex.startswith("0x") else rlp_hex) if rlp_hex else b""
             except ValueError as exc:
                 print(f"  warn: bad hex in {fixture_path}: {exc}", file=sys.stderr)
                 continue
             label = sanitize(f"{short}#b{bi}")
-            yield label, ib, ob, gas_limit
+            yield label, ib, ob, gas_limit, block_rlp
 
 
 def main() -> int:
@@ -122,7 +135,7 @@ def main() -> int:
             relpath = str(fp.relative_to(fixtures_dir))
             if args.filter and args.filter not in relpath:
                 continue
-            for label, ib, ob, gas_limit in iter_blocks(fp):
+            for label, ib, ob, gas_limit, block_rlp in iter_blocks(fp):
                 if selected < args.skip:
                     selected += 1
                     continue
@@ -148,7 +161,7 @@ def main() -> int:
                 used_labels.add(uniq)
 
                 input_file = out_dir / f"{uniq}.input"
-                input_file.write_bytes(pack_ziskemu_input(ib))
+                input_file.write_bytes(pack_ziskemu_input(ib, block_rlp))
                 succ_bit = ob[32] if len(ob) > 32 else -1
                 mf.write(
                     "\t".join(
@@ -159,6 +172,7 @@ def main() -> int:
                             str(succ_bit),
                             str(len(ib)),
                             str(gas_limit),
+                            str(len(block_rlp)),
                             relpath,
                         ]
                     )
