@@ -108,6 +108,31 @@ def nodeDbLookupFunction : String :=
   "  li a0, 1\n" ++
   "  ret"
 
+/-! ## mpt_resolve_cache_reset -- clear the witness-node resolver cache.
+
+    The cache is direct-mapped and stores only successful witness-section
+    resolutions. It is reset alongside the appended node DB so cached absolute
+    input pointers never cross probe/block invocations. -/
+def mptResolveCacheResetFunction : String :=
+  "mpt_resolve_cache_reset:\n" ++
+  "  la t0, mset_res_cache_valid\n" ++
+  "  li t1, 4096\n" ++
+  ".Lmrc_reset_loop:\n" ++
+  "  beqz t1, .Lmrc_reset_done\n" ++
+  "  sd zero, 0(t0)\n" ++
+  "  addi t0, t0, 8\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  j .Lmrc_reset_loop\n" ++
+  ".Lmrc_reset_done:\n" ++
+  "  ret"
+
+/-- Backing storage for `mpt_node_resolve`'s direct-mapped witness cache. -/
+def mptResolveCacheDataSection : String :=
+  ".balign 8\n" ++
+  "mset_res_cache_valid:\n  .zero 32768\n" ++
+  ".balign 32\n" ++
+  "mset_res_cache_data:\n  .zero 196608"
+
 /-! ## mpt_node_resolve -- hash -> absolute node ptr (DB, then witness)
 
     a0 = witness ptr, a1 = witness_len, a2 = target hash ptr,
@@ -123,6 +148,24 @@ def mptNodeResolveFunction : String :=
   "  mv a0, s2; mv a1, s3; mv a2, s4\n" ++
   "  jal ra, node_db_lookup\n" ++
   "  beqz a0, .Lres_ret\n" ++
+  "  # Direct-mapped cache for witness-section resolutions. DB lookup wins;\n" ++
+  "  # the cache only avoids repeated scans of the immutable witness list.\n" ++
+  "  lbu t0, 0(s2)\n" ++
+  "  lbu t1, 1(s2); slli t1, t1, 8; or t0, t0, t1; li t2, 4095; and t0, t0, t2\n" ++
+  "  la t1, mset_res_cache_valid\n" ++
+  "  slli t2, t0, 3; add t1, t1, t2\n" ++
+  "  ld t2, 0(t1); beqz t2, .Lres_cache_miss\n" ++
+  "  slli t2, t0, 5; slli t3, t0, 4; add t2, t2, t3   # 48 * index\n" ++
+  "  la t3, mset_res_cache_data; add t2, t3, t2\n" ++
+  "  ld t3,  0(t2); ld t4,  0(s2); bne t3, t4, .Lres_cache_miss\n" ++
+  "  ld t3,  8(t2); ld t4,  8(s2); bne t3, t4, .Lres_cache_miss\n" ++
+  "  ld t3, 16(t2); ld t4, 16(s2); bne t3, t4, .Lres_cache_miss\n" ++
+  "  ld t3, 24(t2); ld t4, 24(s2); bne t3, t4, .Lres_cache_miss\n" ++
+  "  ld t3, 32(t2); sd t3, 0(s3)\n" ++
+  "  ld t3, 40(t2); sd t3, 0(s4)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lres_ret\n" ++
+  ".Lres_cache_miss:\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
   "  la a3, mset_res_off; la a4, mset_res_len\n" ++
   "  jal ra, witness_lookup_by_hash\n" ++
@@ -130,6 +173,17 @@ def mptNodeResolveFunction : String :=
   "  la t0, mset_res_off; ld t1, 0(t0); add t1, s0, t1   # abs = witness + off\n" ++
   "  sd t1, 0(s3)\n" ++
   "  la t0, mset_res_len; ld t1, 0(t0); sd t1, 0(s4)\n" ++
+  "  lbu t0, 0(s2)\n" ++
+  "  lbu t1, 1(s2); slli t1, t1, 8; or t0, t0, t1; li t2, 4095; and t0, t0, t2\n" ++
+  "  slli t2, t0, 5; slli t3, t0, 4; add t2, t2, t3   # 48 * index\n" ++
+  "  la t3, mset_res_cache_data; add t2, t3, t2\n" ++
+  "  ld t3,  0(s2); sd t3,  0(t2)\n" ++
+  "  ld t3,  8(s2); sd t3,  8(t2)\n" ++
+  "  ld t3, 16(s2); sd t3, 16(t2)\n" ++
+  "  ld t3, 24(s2); sd t3, 24(t2)\n" ++
+  "  ld t3, 0(s3); sd t3, 32(t2)\n" ++
+  "  ld t3, 0(s4); sd t3, 40(t2)\n" ++
+  "  la t1, mset_res_cache_valid; slli t3, t0, 3; add t1, t1, t3; li t3, 1; sd t3, 0(t1)\n" ++
   "  li a0, 0\n" ++
   ".Lres_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
@@ -380,6 +434,7 @@ def ziskMptSetAccPrologue : String :=
   "  # init node DB: count = 0, top = &mset_db_data.\n" ++
   "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
   "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
+  "  jal ra, mpt_resolve_cache_reset\n" ++
   "  # ---- update 1 ----\n" ++
   "  li t0, 0x40000000\n" ++
   "  ld a2, 8(t0)                # witness_len\n" ++
@@ -436,6 +491,7 @@ def ziskMptSetAccPrologue : String :=
   mptSpliceSlotFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++
@@ -456,6 +512,7 @@ def ziskMptSetAccDataSection : String :=
   "mset_rw_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "mset_db_hash:\n  .zero 32\n" ++
+  mptResolveCacheDataSection ++ "\n" ++
   ".balign 32\n" ++
   "mset_tmproot:\n  .zero 32\n" ++
   ".balign 8\n" ++
@@ -508,6 +565,7 @@ def mptStateRootFunction : String :=
   "  # init node DB\n" ++
   "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
   "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
+  "  jal ra, mpt_resolve_cache_reset\n" ++
   "  li s5, 0                    # i\n" ++
   ".Lsr_loop:\n" ++
   "  beq s5, s3, .Lsr_done\n" ++
@@ -598,6 +656,7 @@ def ziskMptStateRootPrologue : String :=
   mptSpliceSlotFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++
