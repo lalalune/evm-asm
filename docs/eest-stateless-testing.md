@@ -116,6 +116,22 @@ transaction/opcode frontier distinct from the BAL large-witness non-completion.
 Override `EEST_PRECOMPILE_WARMING_JOBS` or `EEST_PRECOMPILE_WARMING_STEPS`
 for this wrapper without changing the broader harness defaults.
 
+To see the broader precompile fixture frontier, including families not selected
+by the narrow warming probe, run:
+
+```bash
+scripts/eest-precompile-frontier-report.py --markdown
+```
+
+After any `scripts/codegen-eest-stateless-check.sh` run, the same command also
+reads the latest `manifest.tsv` and `*.result.tsv` files under `gen-out/eest-run`
+(including the harness's `run-*` subdirectories) and groups completed
+full/root/success/tail outcomes by precompile family. The report is a coverage
+matrix, not a success claim: today
+`EvmAsm/Stateless/VM/Precompiles.lean` still routes precompile dispatch to the
+unimplemented frontier, while the reusable accelerator payload/ECALL bridges
+are tracked from [`docs/zkvm-accelerators-interface.md`](zkvm-accelerators-interface.md).
+
 Run the current BAL replay frontier around the EIP-7002 withdrawal-request
 cluster:
 
