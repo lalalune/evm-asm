@@ -19,6 +19,11 @@ that the harness (``codegen-eest-stateless-check.sh``) iterates.
 Manifest columns (tab-separated, one row per guest invocation):
   label  input_file  expected_hex  succ_bit  input_len  block_gas_limit  fixture_relpath
 
+When fixture blocks carry their canonical RLP encoding, the converter also
+writes ``rlp-limit.tsv`` next to the manifest:
+
+  label  block_rlp_len  exceeds_eip7934_limit
+
 Usage:
   eest-stateless-to-input.py --fixtures-dir DIR --out-dir DIR
                              [--manifest FILE] [--skip N] [--limit N]
@@ -36,6 +41,8 @@ import os
 import struct
 import sys
 from pathlib import Path
+
+MAX_RLP_BLOCK_SIZE = 8_388_608
 
 
 def pack_ziskemu_input(blob: bytes) -> bytes:
@@ -58,8 +65,17 @@ def stateless_input_block_gas_limit(blob: bytes) -> int:
     return int.from_bytes(blob[off:end], "little")
 
 
+def block_rlp_len(blk: dict) -> int:
+    rlp_hex = blk.get("rlp")
+    if not isinstance(rlp_hex, str):
+        return -1
+    if rlp_hex.startswith("0x"):
+        rlp_hex = rlp_hex[2:]
+    return len(bytes.fromhex(rlp_hex))
+
+
 def iter_blocks(fixture_path: Path):
-    """Yield (label, input_bytes, expected_bytes, block_gas_limit) for each stateless block."""
+    """Yield stateless block metadata for each runnable EEST block."""
     try:
         doc = json.loads(fixture_path.read_text())
     except (json.JSONDecodeError, OSError) as exc:  # corrupt / unreadable
@@ -82,11 +98,12 @@ def iter_blocks(fixture_path: Path):
                 ib = bytes.fromhex(sib[2:] if sib.startswith("0x") else sib)
                 ob = bytes.fromhex(sob[2:] if sob.startswith("0x") else sob)
                 gas_limit = stateless_input_block_gas_limit(ib)
+                rlp_len = block_rlp_len(blk)
             except ValueError as exc:
                 print(f"  warn: bad hex in {fixture_path}: {exc}", file=sys.stderr)
                 continue
             label = sanitize(f"{short}#b{bi}")
-            yield label, ib, ob, gas_limit
+            yield label, ib, ob, gas_limit, rlp_len
 
 
 def main() -> int:
@@ -108,6 +125,7 @@ def main() -> int:
     out_dir: Path = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = args.manifest or (out_dir / "manifest.tsv")
+    rlp_limit_path = out_dir / "rlp-limit.tsv"
 
     json_files = sorted(
         p for p in fixtures_dir.rglob("*.json")
@@ -117,12 +135,12 @@ def main() -> int:
     selected = 0
     n = 0
     used_labels: set[str] = set()
-    with manifest_path.open("w") as mf:
+    with manifest_path.open("w") as mf, rlp_limit_path.open("w") as rf:
         for fp in json_files:
             relpath = str(fp.relative_to(fixtures_dir))
             if args.filter and args.filter not in relpath:
                 continue
-            for label, ib, ob, gas_limit in iter_blocks(fp):
+            for label, ib, ob, gas_limit, rlp_len in iter_blocks(fp):
                 if selected < args.skip:
                     selected += 1
                     continue
@@ -149,6 +167,9 @@ def main() -> int:
 
                 input_file = out_dir / f"{uniq}.input"
                 input_file.write_bytes(pack_ziskemu_input(ib))
+                exceeds_rlp_limit = int(
+                    rlp_len > MAX_RLP_BLOCK_SIZE if rlp_len >= 0 else False
+                )
                 succ_bit = ob[32] if len(ob) > 32 else -1
                 mf.write(
                     "\t".join(
@@ -162,6 +183,10 @@ def main() -> int:
                             relpath,
                         ]
                     )
+                    + "\n"
+                )
+                rf.write(
+                    "\t".join([uniq, str(rlp_len), str(exceeds_rlp_limit)])
                     + "\n"
                 )
                 n += 1

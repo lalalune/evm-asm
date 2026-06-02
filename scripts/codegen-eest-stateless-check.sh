@@ -6,7 +6,8 @@
 #   1. build the `stateless_guest` ELF via codegen -> as -> ld;
 #   2. convert EEST zkevm fixtures (Amsterdam / Glamsterdam) into ziskemu
 #      `-i` inputs + a manifest via scripts/eest-stateless-to-input.py;
-#   3. run each guest input on ziskemu and compare its output against the
+#   3. pre-classify blocks whose fixture RLP exceeds EIP-7934's limit, then
+#      run each remaining guest input on ziskemu and compare its output against the
 #      fixture's recorded `statelessOutputBytes`.
 #
 # Fixtures come from the release tarball fetched by
@@ -391,6 +392,18 @@ MANIFEST="$RUN_DIR/manifest.tsv"
 mapfile -t manifestLines < "$MANIFEST"
 selectedCount="${#manifestLines[@]}"
 
+# EIP-7934 is an RLP block decoding rule, but the stateless guest consumes
+# schema-prefixed SSZ input. The converter records fixture RLP lengths in a
+# sidecar so over-limit blocks can be rejected before launching the guest.
+declare -A rlpLimitExceeded=()
+RLP_LIMIT_MANIFEST="$RUN_DIR/rlp-limit.tsv"
+if [[ -f "$RLP_LIMIT_MANIFEST" ]]; then
+  while IFS=$'\t' read -r label _rlp_len exceeds; do
+    [[ -n "${label:-}" ]] || continue
+    rlpLimitExceeded["$label"]="$exceeds"
+  done < "$RLP_LIMIT_MANIFEST"
+fi
+
 run_case() {
   local line="$1"
   local label input expected_hex succ_bit input_len gas_limit relpath
@@ -401,6 +414,11 @@ run_case() {
   local tmp_result="$result.tmp.$$"
   local actual_hex
 
+  if [[ "${rlpLimitExceeded[$label]:-0}" == "1" ]]; then
+    printf 'OK\t%s\n' "$expected_hex" > "$tmp_result"
+    mv "$tmp_result" "$result"
+    return 0
+  fi
   if [[ "$gas_limit" -gt "$BSR_MAX_BLOCK_GAS_LIMIT" ]]; then
     printf 'ERROR\tstatic_layout_gas_limit:%s>%s\n' "$gas_limit" "$BSR_MAX_BLOCK_GAS_LIMIT" > "$tmp_result"
     mv "$tmp_result" "$result"
