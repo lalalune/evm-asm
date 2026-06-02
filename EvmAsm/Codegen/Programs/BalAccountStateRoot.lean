@@ -8,6 +8,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.MptStateRootIns
@@ -160,6 +161,7 @@ def ziskBalAccountStateRootPrologue : String :=
   mptDeleteAccFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   accountIsEip161EmptyFunction ++ "\n" ++
+  balAccountHasStateChangeFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
@@ -180,6 +182,7 @@ def ziskBalAccountStateRootPrologue : String :=
 def ziskBalAccountStateRootDataSection : String :=
   ziskMptStateRootInsDataSection ++ "\n" ++
   ".balign 8\n" ++
+  ziskBalAccountHasStateChangeDataSection ++
   "aab_enc_len:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "aab_enc:\n  .zero 64\n" ++

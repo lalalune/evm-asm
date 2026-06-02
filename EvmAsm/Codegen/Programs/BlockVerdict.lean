@@ -207,7 +207,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_wit_p;  sd a1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;   sd a2, 0(t0)\n" ++
   "  la t0, bsr_ssz_p;  sd a6, 0(t0)\n" ++
-  "  la t0, bsr_fail_code; sd zero, 0(t0)\n" ++
+  "  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 32768; bgtu a2, t1, .Lbsr_cons_change_cap\n" ++
   "  mv s3, a3                   # wds descriptors\n" ++
   "  mv s4, a4                   # n_wds\n" ++
   "  mv s5, a5                   # out_root\n" ++
@@ -228,7 +228,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
   "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
-  "  add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
+  "  li t1, 512; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
   "  la a6, basr_records; la a7, basr_accounts\n" ++
@@ -953,7 +953,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   swrRevLeBeFunction ++ "\n" ++
   sszWithdrawalToRlpFunction ++ "\n" ++
   statelessVerdictFromSszFunction ++ "\n" ++
-  -- NEW: single_leaf + storage + system + block verdict:
   singleLeafTrieRootFunction ++ "\n" ++
   storageRootSingleSlotFunction ++ "\n" ++
   accountSetStorageRootFunction ++ "\n" ++
@@ -966,6 +965,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   systemWriteDescriptorsFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   accountIsEip161EmptyFunction ++ "\n" ++
+  balAccountHasStateChangeFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
@@ -1059,7 +1059,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_acct_len:\n  .zero 8\n" ++
   "bsr_tmplen:\n  .zero 8\n" ++
   "bsr_prev_desc:\n  .zero 8\n" ++
-  "bsr_prev_acct:\n  .zero 8\n" ++
+  "bsr_prev_acct:\n  .zero 8\n" ++ ziskBalAccountHasStateChangeDataSection ++
   ".balign 32\n" ++
   "bsr_kbuf:\n  .zero 32\n" ++
   "bsr_delta:\n  .zero 32\n" ++
@@ -1461,6 +1461,7 @@ def statelessVerdictV2GuestClosure : String :=
   systemWriteDescriptorsFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   accountIsEip161EmptyFunction ++ "\n" ++
+  balAccountHasStateChangeFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++

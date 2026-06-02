@@ -8,6 +8,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalAccountPath
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
@@ -49,6 +50,13 @@ def balAccountRecordArrayFunction : String :=
   "  la a3, bara_item_off; la a4, bara_item_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbara_fail\n" ++
+  "  la t0, bara_item_off; ld t0, 0(t0); add a0, s3, t0\n" ++
+  "  la t0, bara_item_len; ld a1, 0(t0)\n" ++
+  "  jal ra, bal_account_has_state_change\n" ++
+  "  li t0, 1; beq a0, t0, .Lbara_changed\n" ++
+  "  bnez a0, .Lbara_fail\n" ++
+  "  la s9, bara_empty_account; li t1, 70; li t2, 1; j .Lbara_record\n" ++
+  ".Lbara_changed:\n" ++
   "  la t0, bara_item_off; ld t0, 0(t0); add a0, s3, t0\n" ++
   "  la t0, bara_item_len; ld a1, 0(t0)\n" ++
   "  la a2, bara_path\n" ++
@@ -118,17 +126,20 @@ def ziskBalAccountRecordArrayPrologue : String :=
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   hpDecodeNibblesFunction ++ "\n" ++
   bytesToNibblesFunction ++ "\n" ++
   msetMemcpyFunction ++ "\n" ++
   mptWalkFunction ++ "\n" ++
+  balAccountHasStateChangeFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
   ".Lbara_pdone:"
 
 def ziskBalAccountRecordArrayDataSection : String :=
   ziskMptWalkDataSection ++ "\n" ++
+  ziskBalAccountHasStateChangeDataSection ++ "\n" ++
   ".balign 8\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
