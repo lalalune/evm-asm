@@ -13,19 +13,19 @@ fi
 
 VDIR="$REPO_ROOT/gen-out/mpt-set"
 echo "==> generate BAL account apply-post-field vectors"
-python3 - "$VDIR" <<'PYGEN'
+uv run --directory execution-specs --quiet python3 - "$VDIR" <<'PYGEN'
 import os
 import struct
 import sys
+from ethereum.merkle_patricia_trie import Trie, trie_set, root
+from ethereum_types.bytes import Bytes32
+from ethereum_types.numeric import U256
 
 outdir = sys.argv[1]
 os.makedirs(outdir, exist_ok=True)
 
 EMPTY_ROOT = bytes.fromhex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 EMPTY_CODE_HASH = bytes.fromhex("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
-SLOT_1_VALUE_7_ROOT = bytes.fromhex("2e7827dc2c61c322f13f77e6f25dd18844ccc48426dde70301d2d57d138fced8")
-SLOTS_1_2_VALUES_7_9_ROOT = bytes.fromhex("d4768ae8d8aaa8da763864dd76573bdc5d107ac968eb886393419033cc66dac7")
-SLOT_2_VALUE_9_ROOT = bytes.fromhex("ae2775a33ad618be6c0743c3902b06bc4d218ba6186818a6ebdd2ae0826cfd6b")
 
 
 def minimal_be(n: int) -> bytes:
@@ -57,6 +57,13 @@ def rlp_int(n: int) -> bytes:
 
 def account_rlp(nonce: int, balance: int, storage_root: bytes = EMPTY_ROOT) -> bytes:
     return rlp_list([rlp_int(nonce), rlp_int(balance), rlp_bytes(storage_root), rlp_bytes(EMPTY_CODE_HASH)])
+
+
+def storage_root(slots: dict[int, int]) -> bytes:
+    trie = Trie(secured=True, default=U256(0))
+    for slot, value in slots.items():
+        trie_set(trie, Bytes32(slot.to_bytes(32, "big")), U256(value))
+    return bytes(root(trie))
 
 
 def change_pair(index: int, value: bytes) -> bytes:
@@ -100,19 +107,19 @@ cases = [
         "baap_storage_only",
         base,
         bal_account_change_rlp(addr, storage_changes=[(1, [(1, 7)])]),
-        account_rlp(1, 5, SLOT_1_VALUE_7_ROOT),
+        account_rlp(1, 5, storage_root({1: 7})),
     ),
     (
         "baap_two_storage",
         base,
         bal_account_change_rlp(addr, storage_changes=[(1, [(1, 7)]), (2, [(2, 9)])]),
-        account_rlp(1, 5, SLOTS_1_2_VALUES_7_9_ROOT),
+        account_rlp(1, 5, storage_root({1: 7, 2: 9})),
     ),
     (
         "baap_two_storage_one_zero",
         base,
         bal_account_change_rlp(addr, storage_changes=[(1, [(1, 0)]), (2, [(2, 9)])]),
-        account_rlp(1, 5, SLOT_2_VALUE_9_ROOT),
+        account_rlp(1, 5, storage_root({2: 9})),
     ),
     (
         "baap_two_storage_all_zero",
@@ -128,6 +135,10 @@ for name, account, account_change, expected in cases:
     with open(f"{outdir}/{name}.expected", "w") as f:
         f.write(expected.hex())
     print(f"{name:18} account_len={len(account)} expected_len={len(expected)}")
+
+with open(f"{outdir}/baap_cases.txt", "w") as f:
+    for name, _, _, _ in cases:
+        f.write(f"{name}\n")
 PYGEN
 
 echo "==> lake build codegen"
@@ -138,24 +149,26 @@ lake exe codegen --program zisk_bal_account_apply_post_fields --halt linux93 \
   -o "$REPO_ROOT/gen-out/zisk_bal_account_apply_post_fields"
 
 fail=0
-for name in baap_noop baap_balance baap_nonce baap_both baap_zero_balance baap_storage_only baap_two_storage baap_two_storage_one_zero baap_two_storage_all_zero; do
+while IFS= read -r name; do
+  [[ -n "$name" ]] || continue
   out="$VDIR/$name.output"
   "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_apply_post_fields.elf" \
     -i "$VDIR/$name.input" -o "$out" -n 2000000 >/dev/null 2>&1 </dev/null \
     || { echo "  ERROR  $name"; fail=1; continue; }
   status="$(od -An -tu8 -j 248 -N 8 "$out" | tr -d ' \n')"
+  fail_code="$(od -An -tu8 -j 240 -N 8 "$out" | tr -d ' \n')"
   got_len="$(od -An -tu8 -j 0 -N 8 "$out" | tr -d ' \n')"
   expected="$(cat "$VDIR/$name.expected")"
   got="$(xxd -p -s 8 -l "$got_len" "$out" | tr -d '\n')"
   exp_len=$(( ${#expected} / 2 ))
   if [[ "$status" == "0" && "$got_len" == "$exp_len" && "$got" == "$expected" ]]; then
-    echo "  PASS   $name  len=$got_len"
+    echo "  PASS   $name  len=$got_len fail_code=$fail_code"
   else
-    echo "  FAIL   $name status=$status"
+    echo "  FAIL   $name status=$status fail_code=$fail_code"
     echo "    expected: len=$exp_len rlp=$expected"
     echo "    actual:   len=$got_len rlp=$got"
     fail=1
   fi
-done
+done < "$VDIR/baap_cases.txt"
 [[ "$fail" -eq 0 ]] && echo "==> PASS: bal_account_apply_post_fields matches reference" \
   || { echo "==> FAIL"; exit 1; }

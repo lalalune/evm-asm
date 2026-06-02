@@ -340,6 +340,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bal_account_change_descriptor" => some ziskBalAccountChangeDescriptorProbeUnit
   | "zisk_bal_account_nth_descriptor" => some ziskBalAccountNthDescriptorProbeUnit
   | "zisk_bal_account_descriptor_array" => some ziskBalAccountDescriptorArrayProbeUnit
+  | "zisk_bal_account_final_descriptor_array" => some ziskBalAccountFinalDescriptorArrayProbeUnit
   | "zisk_bal_account_state_root" => some ziskBalAccountStateRootProbeUnit
   | "zisk_bal_account_state_root_auto" => some ziskBalAccountStateRootAutoProbeUnit
   | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit
@@ -1150,6 +1151,7 @@ def knownProgramNames : List String :=
    "zisk_bal_account_change_descriptor",
    "zisk_bal_account_nth_descriptor",
    "zisk_bal_account_descriptor_array",
+   "zisk_bal_account_final_descriptor_array",
    "zisk_bal_account_state_root",
    "zisk_bal_account_state_root_auto",
    "zisk_bal_account_record_array",

@@ -10,6 +10,11 @@ The harness builds `stateless_guest`, converts EEST `zkevm` fixture blocks
 into `ziskemu -i` inputs, runs each selected input, and compares the 105-byte
 guest output with the fixture's `statelessOutputBytes`.
 
+For missing-feature scheduling, see
+[`docs/eest-feature-surfaces.md`](eest-feature-surfaces.md). It maps EEST
+fixture classes to the active transaction, gas, state, opcode, call/create,
+precompile, and receipt/log feature beads.
+
 ## Prerequisites
 
 Install the normal codegen requirements from the README: Lean/Lake,
@@ -84,6 +89,33 @@ The first starts at `--skip 17085` (`16582 + 503`), the second starts at
 `--skip 20085`. Each checks `--limit 1000` with a `--min-full 1000`
 regression threshold.
 
+Run the focused EXP opcode regression:
+
+```bash
+scripts/codegen-eest-exp-power256-check.sh
+```
+
+This checks the Amsterdam `exp_power256` state-test fixture and requires a full
+105-byte stateless output match. Override `EEST_EXP_POWER256_JOBS` or
+`EEST_EXP_POWER256_STEPS` for this wrapper without changing the broader harness
+defaults.
+
+Run a fast EIP-2929 precompile-warming frontier:
+
+```bash
+scripts/codegen-eest-precompile-warming-frontier-check.sh
+```
+
+This selects the first `precompile_warming` fixture. The executable-spec source
+is `execution-specs/tests/berlin/eip2929_gas_cost_increases/test_precompile_warming.py`:
+it runs a transaction whose contract measures `BALANCE` gas for precompile
+addresses across a fork transition, then checks the resulting storage. The
+current guest gets the stateless root and tail correct for this case, but the
+success bit is still `0` instead of the expected `1`, making it a quick
+transaction/opcode frontier distinct from the BAL large-witness non-completion.
+Override `EEST_PRECOMPILE_WARMING_JOBS` or `EEST_PRECOMPILE_WARMING_STEPS`
+for this wrapper without changing the broader harness defaults.
+
 Run the current BAL replay frontier around the EIP-7002 withdrawal-request
 cluster:
 
@@ -107,16 +139,40 @@ uv run --directory execution-specs --quiet python3 \
 The report includes `state_witness_bytes`, `over_bsr_cap`, `bal_rows`, and
 `over_bsr_bal_cap`; the cap columns mark inputs whose state witness or BAL row
 count exceeds the current `block_state_root` caps. Pass `--bsr-cap N` and
-`--bsr-bal-cap N` to model different proposed caps in those columns.
+`--bsr-bal-cap N` to model different proposed arena caps in those columns. The
+guest default is a 64 KiB state-witness cap. That is an implementation cap for
+the current EEST harness, not a protocol maximum.
 
-To run a focused harness experiment with proposed guest-side replay caps, pass
+The BSR scratch layout was reviewed against the local `execution-specs`
+checkout. The hard protocol/test limits that matter for the current layout are:
+Prague/Amsterdam withdrawal requests cap at 16 per payload
+(`execution-specs/src/ethereum/forks/amsterdam/stateless_ssz.py`), Osaka block
+RLP size caps at 8,388,608 bytes
+(`execution-specs/src/ethereum/forks/osaka/fork.py`), Osaka transaction gas
+caps at 16,777,216 (`execution-specs/src/ethereum/forks/osaka/transactions.py`),
+and EVM code/initcode caps are 24 KiB / 48 KiB
+(`execution-specs/src/ethereum/forks/osaka/vm/interpreter.py`). Amsterdam BAL
+validation is gas-derived rather than a fixed row count: the accepted item count
+is at most `block_gas_limit / 2000`, where items are account addresses plus
+unique storage keys
+(`execution-specs/src/ethereum/forks/amsterdam/block_access_lists.py` and
+`execution-specs/src/ethereum/forks/amsterdam/vm/gas.py`).
+
+The guest uses bounded arenas rather than dynamic host memory. `block_state_root`
+first applies the Amsterdam gas-derived BAL budget, then applies its current
+static layout sized for the execution-specs default 120,000,000 block gas limit.
+The harness reads the block gas limit from the converted SSZ input manifest and
+errors before launching `ziskemu` when a fixture needs a larger layout/ELF.
+Larger gas-valid BALs need a streaming/chunked replay path or a separately built
+larger static layout.
+
+To run a focused harness experiment with different guest-side replay caps, pass
 `--bsr-witness-cap N` for the block-state-root witness-byte cap or
-`--bsr-bal-cap N` for the BAL row cap. The default guest remains unchanged; the
-harness patches the emitted assembly and relinks only for that run:
+`--bsr-bal-cap N` to add a lower BAL-row cap after the Amsterdam gas-derived
+budget. The harness patches the emitted assembly and relinks only for that run:
 
 ```bash
 scripts/codegen-eest-bal-replay-frontier-check.sh \
-  --bsr-witness-cap 65536 \
   --steps 400000000
 ```
 
@@ -128,6 +184,17 @@ scripts/codegen-eest-bal-replay-frontier-64k-check.sh
 
 It requires the current `19/20` full-match frontier and leaves the large
 170 KiB witness case as the remaining conservative miss.
+
+To expose the next blocker behind that conservative miss, run:
+
+```bash
+scripts/codegen-eest-bal-large-witness-frontier-check.sh
+```
+
+This selects the single large-witness withdrawal-request case, raises the
+experimental block-state-root witness cap to 256 KiB, and stops after the first
+reported failure or error. The current blocker is an emulator non-completion
+before the guest writes stateless output, even with a 2B-step cap.
 
 To probe the large remaining case past both known caps:
 
@@ -142,6 +209,31 @@ scripts/codegen-eest-stateless-check.sh \
   --bsr-bal-cap 1024 \
   --steps 400000000
 ```
+
+The same cap experiment can be run against the focused verdict probe, which
+emits debug counters instead of the full stateless output:
+
+```bash
+scripts/codegen-zisk-stateless-verdict-check.sh \
+  --filter withdrawal_requests \
+  --skip 87 \
+  --limit 1 \
+  --bsr-witness-cap 262144 \
+  --bsr-bal-cap 1024 \
+  --steps 2000000000
+```
+
+Each verdict line prints the fixture's block gas limit separately from the
+path, followed by named debug counters from `OUTPUT_BASE + 8` onward:
+
+```text
+dbg=[bv_fail=... header=... state=... bal_count=... bsr_fail=... change_count=... witness_len=... baacd_fail=... bacv_fail=... baap_fail=... sri_index=... sri_mode=... sri_status=...]
+```
+
+`bv_fail` is the top-level block-verdict failure code. `bsr_fail` and
+`bal_count` classify the block-state-root replay path, while the `baacd`,
+`bacv`, `baap`, and `sri` fields expose the lower-level account, storage, and
+state-read helpers.
 
 For receipt/log-specific misses, generate a triage map that links likely
 blockers to focused beads:
@@ -226,11 +318,15 @@ acceptances.
 
 ## Outputs
 
-The current run directory is recreated each time:
+Each harness invocation writes to a fresh run directory so concurrent EEST
+searches do not clobber each other's manifests or case outputs:
 
 ```text
-gen-out/eest-run/
+gen-out/eest-run/run-<timestamp>-<pid>/
 ```
+
+Set `EEST_RUN_DIR=/path/to/dir` to force a stable directory for a single
+reproducible run; that directory is recreated at the start of the invocation.
 
 Important files:
 
@@ -239,7 +335,9 @@ Important files:
 - `<case>.output`: raw guest output.
 - `<case>.emu.log`: ziskemu stdout/stderr.
 - `<case>.result.tsv`: per-case harness status and output hex.
-- `gen-out/eest-baseline.txt`: run summary for the latest harness execution.
+- `stateless_guest.{s,o,elf}`: guest artifacts for this invocation.
+- `eest-baseline.txt`: run summary for this invocation.
+- `gen-out/eest-baseline.txt`: copy of the latest harness summary.
 
 The summary reports:
 

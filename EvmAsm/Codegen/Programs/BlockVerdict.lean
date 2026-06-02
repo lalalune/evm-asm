@@ -19,6 +19,9 @@
   -> verdict 0 (a MISS, never a false positive). Reuses the stateless_verdict
   asm closure + data verbatim and adds the
   StorageWrite / SystemWrites / single_leaf functions.
+
+  Static block_state_root arenas are sized from execution-specs limits; see
+  docs/agents/eest-static-layout.md for the BAL/gas-limit layout rules.
 -/
 
 import EvmAsm.Rv64.Program
@@ -208,7 +211,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_wit_p;  sd a1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;   sd a2, 0(t0)\n" ++
   "  la t0, bsr_ssz_p;  sd a6, 0(t0)\n" ++
-  "  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 32768; bgtu a2, t1, .Lbsr_cons_change_cap\n" ++
+  "  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 65536; bgtu a2, t1, .Lbsr_cons_change_cap\n" ++
   "  mv s3, a3                   # wds descriptors\n" ++
   "  mv s4, a4                   # n_wds\n" ++
   "  mv s5, a5                   # out_root\n" ++
@@ -229,7 +232,9 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
   "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
-  "  li t1, 512; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
+  "  la t0, bsr_exec_p; ld a0, 0(t0); addi a0, a0, 412; jal ra, bgv_u64le\n" ++
+  "  li t0, 120000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n" ++
+  "  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 60018; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
   "  li t0, 1; la t1, bara_skip_modeled_system; sd t0, 0(t1)\n" ++
@@ -303,7 +308,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_prev_desc; ld t0, 0(t0); la t1, bsr_tmplen; ld t1, 0(t1); sd t1, 24(t0)\n" ++
   "  j .Lbsr_wl_next\n" ++
   ".Lbsr_no_dup:\n" ++
-  "  li t0, 4096; bge s1, t0, .Lbsr_cons_change_cap # cap to the change-buffer size\n" ++
+  "  li t0, 60018; bge s1, t0, .Lbsr_cons_change_cap # cap to the change-buffer size\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  slli t1, s1, 6; la t2, bsr_paths; add a3, t2, t1; li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
   "  jal ra, mpt_walk\n" ++
@@ -1066,9 +1071,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_delta:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bsr_acct:\n  .zero 256\n" ++
-  "bsr_paths:\n  .zero 262144\n" ++       -- 4096 * 64
-  "bsr_newaccts:\n  .zero 524288\n" ++     -- 4096 * 128
-  "bsr_changes:\n  .zero 163840\n" ++      -- 4096 * 40 (40-byte recs w/ is_insert)
+  "bsr_paths:\n  .zero 3841152\nbsr_newaccts:\n  .zero 7682304\nbsr_changes:\n  .zero 2400720\n" ++
   ".balign 32\n" ++
   "bsr_addr_2935:\n" ++
   "  .byte 0x00, 0x00, 0xF9, 0x08, 0x27, 0xF1, 0xC5, 0x3a\n" ++
@@ -1251,10 +1254,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
   "baap_walk_val:\n  .zero 128\n" ++
-  "baap_storage_desc:\n  .zero 20480\n" ++
-  "baap_storage_paths:\n  .zero 32768\n" ++
-  "baap_storage_delete_paths:\n  .zero 32768\n" ++
-  "baap_storage_values:\n  .zero 32768\n" ++
+  "baap_storage_desc:\n  .zero 2400000\n" ++
+  "baap_storage_paths:\n  .zero 3840000\n" ++
+  "baap_storage_delete_paths:\n  .zero 3840000\n" ++
+  "baap_storage_values:\n  .zero 3840000\n" ++
   "mdacc_leaf_path:\n  .zero 128\n" ++
   "mdacc_collapsed_path:\n  .zero 128\n" ++
   "bacp_off:\n  .zero 8\n" ++
@@ -1275,10 +1278,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bacv_fail_code:\n  .zero 8\n" ++
   "baada_item_off:\n  .zero 8\n" ++
   "baada_item_len:\n  .zero 8\n" ++
-  "basr_records:\n  .zero 98304\n" ++    -- 4096 * 24
-  "basr_paths:\n  .zero 262144\n" ++     -- 4096 * 64
-  "basr_values:\n  .zero 1048576\n" ++   -- 4096 * 256
-  "basr_accounts:\n  .zero 1048576\n" ++ -- 4096 * 256
+  "basr_records:\n  .zero 1440432\nbasr_paths:\n  .zero 3841152\nbasr_values:\n  .zero 15364608\nbasr_accounts:\n  .zero 15364608\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
