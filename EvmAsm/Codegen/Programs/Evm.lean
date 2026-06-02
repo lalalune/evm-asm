@@ -600,6 +600,16 @@ def calldataHandlers : List OpcodeHandlerSpec :=
                    .x20 .x13 .x14 .x15 .x16 .x17 .x18 .x19
     , tail    := .advanceAndRet 1 } ]
 
+/-- Shared tail for JUMP / JUMPI: the verified body left `code[dest]`
+    (or the `0x5b` sentinel for a not-taken JUMPI) in `x17`. If it
+    isn't a JUMPDEST byte, route to `.exit_invalid` (M15.5 exceptional
+    halt); otherwise `ret` to the dispatch loop, which re-reads the
+    (now-validated) target byte. `x18` is a free scratch temp. -/
+private def jumpValidityTail : HandlerTail :=
+  .custom ("  li x18, 0x5b\n" ++
+           "  bne x17, x18, .exit_invalid\n" ++
+           "  ret")
+
 /-- M14 / M15 control-flow opcodes.
 
     - **JUMPDEST (0x5b, M14)** — no-op marker. Empty body +
@@ -620,11 +630,13 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     registers `x14`/`x15`/`x16` are caller-saved per the existing
     convention.
 
-    **M15 known limitation**: JUMP / JUMPI do NOT validate the
-    destination is a JUMPDEST byte. A spec-compliant EVM rejects
-    invalid jumps; ours unconditionally follows them. Trusted test
-    programs only jump to real JUMPDESTs. A follow-on PR will
-    inline the `LBU + BEQ 0x5b` check. -/
+    **M15.5 JUMPDEST-validity (Level 1)**: JUMP / JUMPI now load
+    `code[dest]` into `x17` (the verified bodies do this; JUMPI's
+    not-taken path writes the sentinel `0x5b`). `jumpValidityTail`
+    compares `x17` to `0x5b` and routes a mismatch to the
+    dispatcher's `.exit_invalid` (exceptional halt, `halt_kind = 4`).
+    Level 2 (pushdata-aware bitmap) is still future work — see the
+    `ControlFlow/Program.lean` docstring. -/
 def controlFlowHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_JUMPDEST"
     , opcodes := [0x5b]
@@ -632,12 +644,12 @@ def controlFlowHandlers : List OpcodeHandlerSpec :=
     , tail    := .advanceAndRet 1 }
   , { label := "h_JUMP"
     , opcodes := [0x56]
-    , body    := EvmAsm.Evm64.ControlFlow.evm_jump .x21 .x14
-    , tail    := .custom "  ret" }
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jump .x21 .x14 .x17
+    , tail    := jumpValidityTail }
   , { label := "h_JUMPI"
     , opcodes := [0x57]
-    , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x14 .x15 .x16
-    , tail    := .custom "  ret" }
+    , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x14 .x15 .x16 .x17
+    , tail    := jumpValidityTail }
   , { label := "h_PC"
     , opcodes := [0x58]
     , body    := EvmAsm.Evm64.ControlFlow.evm_pc .x21 .x14

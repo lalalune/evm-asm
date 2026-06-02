@@ -898,8 +898,8 @@ computation). Lifts wired opcode count **108 → 111** (74.5% of the
 **Known limitation: no JUMPDEST-validity check.** The verified
 bodies in this PR unconditionally follow the popped destination.
 A spec-compliant EVM rejects invalid jumps; ours doesn't. Trusted
-test programs all jump to real JUMPDEST bytes. A follow-on PR
-will inline the `LBU + BEQ 0x5b` check.
+test programs all jump to real JUMPDEST bytes. **Resolved (Level 1)
+in M15.5** — the inline `LBU` + `0x5b` check; see that section.
 
 **Other limitations** (same trust model):
 - 256-bit `dest` is truncated to its low 64 bits. EVM jumps with
@@ -914,6 +914,60 @@ will inline the `LBU + BEQ 0x5b` check.
 cases PASS. `scripts/check-progress.sh` exits 0. Legacy
 `scripts/codegen-opcodes-check.sh` also exits 0. Pre-existing
 scripts unchanged.
+
+### M15.5 — JUMPDEST-validity check (Level 1) — **DONE (2026-06-02)**
+
+Closes the M15 known limitation (JUMP/JUMPI unconditionally followed the
+popped destination). A spec-compliant EVM exceptionally halts on a jump to
+a non-JUMPDEST byte; this adds that check. Numbered M15.5 (the follow-on the
+M15 section + the `ControlFlow/Program.lean` docstring both promised) to avoid
+colliding with the M26–M29 numbers reserved for the stateless-track roadmap.
+
+**Scope — Level 1 (`code[dest] == 0x5b` byte check).** Rejects jumps to any
+non-JUMPDEST byte. **Level 2 (deferred):** a `0x5b` inside PUSH immediate data
+is still wrongly accepted; full compliance needs a pushdata-aware
+valid-jumpdest bitmap built by scanning the bytecode at dispatch entry — a
+separate, larger slice. Level 1 already eliminates the dangerous
+"follow garbage past the bytecode into `.data`" cases.
+
+**Dual-use.** The byte *load* lives in the verified `evm_jump`/`evm_jumpi`
+bodies, so the stateless guest's VM (which is designed to plug in these
+bodies) inherits it; only the host-specific halt *routing* is in the codegen
+handler tail.
+
+**Delivered:**
+- **`EvmAsm/Evm64/ControlFlow/Program.lean`** — `evm_jump` (3→4 instr) and
+  `evm_jumpi` (13→15 instr) gain a `validityReg` parameter. `evm_jump` appends
+  `LBU validityReg, 0(x10)` (load `code[dest]`). `evm_jumpi` loads `code[dest]`
+  on the *taken* path and writes the sentinel `0x5b` into `validityReg` on the
+  *not-taken* path (so the downstream check is a no-op for fall-through); the
+  two internal offsets are re-pinned (`BEQ` 12→16, `JAL` 8→12). No specs to
+  update — these bodies have no `cpsTriple` proofs yet.
+- **`EvmAsm/Codegen/Programs/Evm.lean`** — `controlFlowHandlers` passes `.x17`
+  as `validityReg` and swaps JUMP/JUMPI's `.custom "  ret"` tails for the
+  shared `jumpValidityTail` (`li x18, 0x5b ; bne x17, x18, .exit_invalid ;
+  ret`). `x17`/`x18` are free scratch.
+- **`EvmAsm/Codegen/Dispatch.lean`** — `emitDispatcherEpilogue` gains an
+  `.exit_invalid:` label that zero-fills `OUTPUT[0..32]` and tags
+  `halt_kind = 4` (distinct from 0=STOP / 1=RETURN / 2=REVERT, M23) then joins
+  `.exit_no_epilogue`. Reached only via `j .exit_invalid`; placed so it never
+  falls through into `exitBody`.
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — `jump_invalid_dest` (`PUSH1 0x00;
+  JUMP` → `code[0]=0x60≠0x5b`) and `jumpi_taken_invalid` (taken JUMPI to byte 0)
+  both assert `halt_kind = 4` + zero result; `jumpi_not_taken` gains a
+  `halt_kind = 0` assertion confirming the sentinel path doesn't spuriously
+  halt. Existing `jump_forward` / `jumpi_taken` (which jump to real JUMPDEST
+  bytes) still pass. Total cases 82 → 85.
+
+**Known limitations:** Level 2 (pushdata-aware bitmap) deferred. 256-bit `dest`
+still truncated to its low 64 bits (M15 caveat, unchanged). `RegistryInvariants`
+counts unchanged (149 — JUMP/JUMPI stay in `controlFlowHandlers`).
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all **85 cases PASS**
+(82 prior + `jump_invalid_dest` + `jumpi_taken_invalid` + the `jumpi_not_taken`
+halt-kind assertion). `scripts/check-progress.sh` exits 0. `lake build
+EvmAsm.Codegen` clean.
 
 ### M16 — KECCAK256 via ECALL bridge (first precompile pattern) — **DONE (2026-05-27)**
 
