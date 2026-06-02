@@ -237,26 +237,22 @@ def blockStateRootFunction : String :=
   "  # `account_apply_storage_slot_acc`, which reads the shared witness globals.\n" ++
   "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
-  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0); la a2, basr_records\n" ++
-  "  la t0, bsr_bal_count; ld a3, 0(t0); la a4, basr_desc; la a5, basr_paths; la a6, basr_values\n" ++
-  "  jal ra, bal_account_descriptor_array; bnez a0, .Lbsr_cons_bal_desc\n" ++
-  "  li s0, 0                     # scan BAL descriptors; copy only changed accounts\n" ++
+  "  li s0, 0                     # scan BAL records; append only changed accounts\n" ++
   ".Lbsr_bal_copy:\n" ++
   "  la t6, bsr_bal_count; ld t6, 0(t6); beq s0, t6, .Lbsr_bal_copied\n" ++
-  "  slli t0, s0, 5; slli t1, s0, 3; add t0, t0, t1; la t2, basr_desc; add t0, t2, t0\n" ++
-  "  la t5, bsr_cur_desc; sd t0, 0(t5)\n" ++
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
-  "  ld t4, 24(t0); ld t5, 8(t3); bne t4, t5, .Lbsr_bal_copy_changed\n" ++
-  "  ld t4, 16(t0); ld t5, 0(t3); ld t6, 24(t0)\n" ++
-  ".Lbsr_bal_eq_loop:\n" ++
-  "  beqz t6, .Lbsr_bal_copy_next\n" ++
-  "  lbu a0, 0(t4); lbu a1, 0(t5); bne a0, a1, .Lbsr_bal_copy_changed\n" ++
-  "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbsr_bal_eq_loop\n" ++
+  "  ld t4, 16(t3); li t5, 3; beq t4, t5, .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copy_changed:\n" ++
-  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add t2, t3, t2\n" ++
-  "  la t0, bsr_cur_desc; ld t0, 0(t0)\n" ++
-  "  ld t3, 0(t0); sd t3, 0(t2); ld t3, 8(t0); sd t3, 8(t2); ld t3, 16(t0); sd t3, 16(t2)\n" ++
-  "  ld t3, 24(t0); sd t3, 24(t2); ld t3, 32(t0); sd t3, 32(t2)\n" ++
+  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0); mv a2, s0\n" ++
+  "  la a3, baada_item_off; la a4, baada_item_len\n" ++
+  "  jal ra, rlp_list_nth_item; bnez a0, .Lbsr_cons_bal_desc\n" ++
+  "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
+  "  ld a0, 0(t3); ld a1, 8(t3); la t0, bsr_bal_start; ld t0, 0(t0); la t1, baada_item_off; ld t1, 0(t1); add a2, t0, t1\n" ++
+  "  la t1, baada_item_len; ld a3, 0(t1); ld a4, 16(t3)\n" ++
+  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a5, t3, t2\n" ++
+  "  slli t2, s1, 6; la t3, basr_paths; add a6, t3, t2\n" ++
+  "  slli t2, s1, 8; la t3, basr_values; add a7, t3, t2\n" ++
+  "  jal ra, bal_account_change_descriptor; bnez a0, .Lbsr_cons_bal_desc\n" ++
   "  addi s1, s1, 1\n" ++
   ".Lbsr_bal_copy_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_bal_copy\n" ++
