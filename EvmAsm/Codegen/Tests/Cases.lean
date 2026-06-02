@@ -467,6 +467,20 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "staticcall_identity_precompile_stub_success"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- IDENTITY via CALL copies three input bytes from memory[0..3)
+    -- into caller output memory[0x40..0x43). POP drops the success
+    -- word; RETURN exposes the copied bytes directly.
+    { name             := "call_identity_precompile_copies_memory"
+      bytecode         := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x01, 0x53, 0x60, 0xcc, 0x60, 0x02, 0x53, 0x60, 0x03, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x03, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "aabbcc0000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000" }
+  , -- STATICCALL to IDENTITY with output_size=2 and input_size=3
+    -- copies only the short caller output buffer. Returning three
+    -- bytes from the output region proves the third byte remains zero.
+    { name             := "staticcall_identity_precompile_short_output"
+      bytecode         := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x01, 0x53, 0x60, 0xcc, 0x60, 0x02, 0x53, 0x60, 0x02, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x03, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "aabb000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000" }
     -- ## M20 arithmetic no-ops (MULMOD, EXP) — the LAST TWO unwired
     -- opcodes; M20 brings tinyInterpRegistry to 100% coverage 🎯.
     -- Both ship as placeholders; real upgrades follow in M21+.
