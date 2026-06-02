@@ -95,6 +95,22 @@ This checks the Amsterdam `exp_power256` state-test fixture and requires a full
 `EEST_EXP_POWER256_STEPS` for this wrapper without changing the broader harness
 defaults.
 
+Run a fast EIP-2929 precompile-warming frontier:
+
+```bash
+scripts/codegen-eest-precompile-warming-frontier-check.sh
+```
+
+This selects the first `precompile_warming` fixture. The executable-spec source
+is `execution-specs/tests/berlin/eip2929_gas_cost_increases/test_precompile_warming.py`:
+it runs a transaction whose contract measures `BALANCE` gas for precompile
+addresses across a fork transition, then checks the resulting storage. The
+current guest gets the stateless root and tail correct for this case, but the
+success bit is still `0` instead of the expected `1`, making it a quick
+transaction/opcode frontier distinct from the BAL large-witness non-completion.
+Override `EEST_PRECOMPILE_WARMING_JOBS` or `EEST_PRECOMPILE_WARMING_STEPS`
+for this wrapper without changing the broader harness defaults.
+
 Run the current BAL replay frontier around the EIP-7002 withdrawal-request
 cluster:
 
