@@ -1603,8 +1603,11 @@ OUTPUT_ADDR (0xa0010000):
               0 = STOP / unspecified (set by evmAddEpilogue)
               1 = RETURN
               2 = REVERT
-              (INVALID, SELFDESTRUCT inherit 0 in M23 — distinct
-               tagging deferred to a follow-up)
+              3 = INVALID (0xfe)            — M23.5
+              4 = invalid JUMP/JUMPI dest   — M15.5
+              5 = SELFDESTRUCT (0xff)       — M23.5
+              (M23 originally left INVALID/SELFDESTRUCT at 0; M15.5 added
+               4, M23.5 added 3/5 — all six kinds are now distinct.)
   +40..256  <unused, room for future surfaces>
 ```
 
@@ -1724,6 +1727,39 @@ flow through `.exit_label → evmAddEpilogue → halt stub`:
 **68 cases PASS** (64 pre-M23 + 4 updated/new; 3 new RETURN/
 REVERT cases all assert halt_kind). `scripts/check-progress.sh`
 exits 0. Build clean (`lake build EvmAsm.Codegen` exits 0).
+
+### M23.5 — distinct INVALID / SELFDESTRUCT halt kinds — **DONE (2026-06-02)**
+
+Completes the exceptional-halt-tagging story started by M23 (RETURN/REVERT
+halt kinds) and M15.5 (invalid-jump `halt_kind = 4`). INVALID (0xfe) and
+SELFDESTRUCT (0xff) previously routed through `.exit_label → evmAddEpilogue`,
+surfacing the EVM stack top + `halt_kind = 0` — indistinguishable from STOP.
+Now they surface zero result data (no return data) and a distinct kind, so a
+caller / EEST-style check can tell all six halt outcomes apart.
+
+**halt_kind scheme (finalized, `OUTPUT + 32`):** `0` STOP · `1` RETURN ·
+`2` REVERT · `3` INVALID (M23.5) · `4` invalid JUMP/JUMPI dest (M15.5) ·
+`5` SELFDESTRUCT (M23.5). INVALID is an exceptional halt (success=false);
+SELFDESTRUCT is a normal halt (success=true); both have empty return data.
+
+**Delivered:**
+- **`EvmAsm/Codegen/Dispatch.lean`** — factor M15.5's inline `.exit_invalid`
+  block into a reusable `emitExceptionalExit (label) (kind)` helper (zero-fill
+  `OUTPUT[0..32]` + tag `halt_kind` + `j .exit_no_epilogue`), and emit three
+  labels via it: `.exit_invalid` (4), `.exit_invalid_op` (3), `.exit_selfdestruct`
+  (5). No behavior change for the existing `.exit_invalid`.
+- **`EvmAsm/Codegen/Programs/Noop.lean`** — `haltHandlers`: INVALID tail
+  `j .exit_invalid_op`; SELFDESTRUCT tail `addi x12, x12, 32 ; j .exit_selfdestruct`
+  (keeps the 1-word pop). Docstring updated.
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — `invalid_halt` updated (result was the
+  leaked stack-top `0x42`; now zero + `halt_kind = 3`); new `selfdestruct_halt`
+  (`PUSH1 0xff; SELFDESTRUCT` → zero + `halt_kind = 5`).
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all **90 cases PASS**
+(all six halt kinds asserted distinct: RETURN=1, REVERT=2, INVALID=3,
+invalid-jump=4, SELFDESTRUCT=5, STOP=0). `scripts/check-progress.sh` exits 0.
+`lake build EvmAsm.Codegen` clean; `RegistryInvariants` unchanged (149).
 
 ### M24 — Storage on Option A: append-log + journal + real TLOAD/TSTORE — **DONE (2026-05-29)**
 

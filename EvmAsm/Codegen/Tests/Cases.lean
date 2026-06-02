@@ -464,13 +464,21 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0xff, 0x60, 0x11, 0x60, 0x22, 0xf3"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0100000000000000" }
-  , -- PUSH1 0xff; PUSH1 0x42; INVALID — INVALID just halts; top of
-    -- stack = 0x42. Expected: 0x42 in low limb. Confirms
-    -- haltHandlers.INVALID routes 0xfe (instead of falling through to
-    -- the h_invalid catch-all unchanged).
-    { name           := "invalid_halt"
-      bytecode       := "0x60, 0xff, 0x60, 0x42, 0xfe"
-      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0xff; PUSH1 0x42; INVALID. M23.5: INVALID is an exceptional
+    -- halt — it surfaces zero result data (no return data) and tags
+    -- halt_kind = 3, instead of the pre-M23.5 behavior of leaking the
+    -- stack top (0x42) via evmAddEpilogue with halt_kind = 0.
+    { name             := "invalid_halt"
+      bytecode         := "0x60, 0xff, 0x60, 0x42, 0xfe"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0300000000000000" }
+  , -- PUSH1 0xff; SELFDESTRUCT. M23.5: SELFDESTRUCT is a normal halt
+    -- with no return data — zero result + halt_kind = 5 (distinct from
+    -- STOP=0 and INVALID=3). Pops 1 word (recipient address).
+    { name             := "selfdestruct_halt"
+      bytecode         := "0x60, 0xff, 0xff"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0500000000000000" }
   , -- GAS; STOP — GAS pushes 0 (no gas metering); STOP halts.
     -- Expected: 0 in low limb. Smoke test for pushZeroHandlers.
     { name           := "gas_push_zero"
