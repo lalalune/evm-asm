@@ -17,17 +17,22 @@
 # a FALSE POSITIVE (a real bug) -- flagged loudly.
 #
 # Usage:
-#   codegen-zisk-stateless-verdict-check.sh [--filter SUB] [--limit N]
+#   codegen-zisk-stateless-verdict-check.sh [--filter SUB] [--skip N] [--limit N]
 #     --max-failures N         stop after N ERROR/FALSE-POSITIVE/DIFF results
 #     --stop-after-failures N  alias for --max-failures
+#     --bsr-witness-cap N      override BSR witness cap (experiment)
+#     --bsr-bal-cap N          override BSR BAL row cap (experiment)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 FILTER="eip4895"
+SKIP=0
 LIMIT=30
 STEPS="${EEST_STEPS:-50000000}"
+BSR_WITNESS_CAP="${EEST_BSR_WITNESS_CAP:-}"
+BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
 MAX_FAILURES=""
 
 usage() {
@@ -37,10 +42,13 @@ Usage:
 
 Options:
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
+  --skip N                 skip first N fixtures
   --limit N                cap to N probe invocations (default 30)
   --steps N                ziskemu max steps (default $EEST_STEPS or 50000000)
   --max-failures N         stop after N ERROR/FALSE-POSITIVE/DIFF results
   --stop-after-failures N  alias for --max-failures
+  --bsr-witness-cap N      override BSR witness cap (experiment)
+  --bsr-bal-cap N          override BSR BAL row cap (experiment)
   -h, --help               show this help
 USAGE
 }
@@ -58,12 +66,20 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --filter) require_arg "$1" "${2:-}"; FILTER="$2"; shift 2 ;;
+    --skip)   require_arg "$1" "${2:-}"; SKIP="$2";   shift 2 ;;
     --limit)  require_arg "$1" "${2:-}"; LIMIT="$2";  shift 2 ;;
     --steps)  require_arg "$1" "${2:-}"; STEPS="$2";  shift 2 ;;
     --max-failures|--stop-after-failures) require_arg "$1" "${2:-}"; MAX_FAILURES="$2"; shift 2 ;;
+    --bsr-witness-cap) require_arg "$1" "${2:-}"; BSR_WITNESS_CAP="$2"; shift 2 ;;
+    --bsr-bal-cap)     require_arg "$1" "${2:-}"; BSR_BAL_CAP="$2";     shift 2 ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
+
+if ! [[ "$SKIP" =~ ^[0-9]+$ ]]; then
+  echo "--skip must be a nonnegative integer (got: $SKIP)" >&2
+  exit 1
+fi
 
 if ! [[ "$LIMIT" =~ ^[0-9]+$ ]] || [[ "$LIMIT" -lt 1 ]]; then
   echo "--limit must be a positive integer (got: $LIMIT)" >&2
@@ -75,6 +91,14 @@ if ! [[ "$STEPS" =~ ^[0-9]+$ ]] || [[ "$STEPS" -lt 1 ]]; then
 fi
 if [[ -n "$MAX_FAILURES" ]] && { ! [[ "$MAX_FAILURES" =~ ^[0-9]+$ ]] || [[ "$MAX_FAILURES" -lt 1 ]]; }; then
   echo "--max-failures must be a positive integer when set (got: $MAX_FAILURES)" >&2
+  exit 1
+fi
+if [[ -n "$BSR_WITNESS_CAP" ]] && ! [[ "$BSR_WITNESS_CAP" =~ ^[0-9]+$ ]]; then
+  echo "--bsr-witness-cap must be a nonnegative integer when set (got: $BSR_WITNESS_CAP)" >&2
+  exit 1
+fi
+if [[ -n "$BSR_BAL_CAP" ]] && ! [[ "$BSR_BAL_CAP" =~ ^[0-9]+$ ]]; then
+  echo "--bsr-bal-cap must be a nonnegative integer when set (got: $BSR_BAL_CAP)" >&2
   exit 1
 fi
 
@@ -90,14 +114,81 @@ FX="${EEST_FIXTURES_DIR:-$REPO_ROOT/gen-out/eest-fixtures/$TAG/fixtures/fixtures
 
 echo "==> lake build codegen"
 lake build codegen >/dev/null
-echo "==> emit zisk_stateless_verdict_v2 probe ELF"
-lake exe codegen --program zisk_stateless_verdict_v2 --halt linux93 -o gen-out/zisk_stateless_verdict_v2 >/dev/null
+
+resolve_riscv_tool() {
+  local env_var="$1"; shift
+  local from_env="${!env_var:-}"
+  local candidate
+  if [[ -n "$from_env" ]]; then
+    echo "$from_env"
+    return 0
+  fi
+  for candidate in "$@"; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      command -v "$candidate"
+      return 0
+    fi
+  done
+  echo "$1"
+}
+
+patch_bsr_caps_and_relink() {
+  local asm="gen-out/zisk_stateless_verdict_v2.s"
+  local obj="gen-out/zisk_stateless_verdict_v2.o"
+  local elf="gen-out/zisk_stateless_verdict_v2.elf"
+  local old_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 32768; bgtu a2, t1, .Lbsr_cons_change_cap"
+  local new_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, $BSR_WITNESS_CAP; bgtu a2, t1, .Lbsr_cons_change_cap"
+  local old_bal="  li t1, 512; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap"
+  local new_bal="  li t1, $BSR_BAL_CAP; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 4096; bgtu t0, t1, .Lbsr_cons_change_cap"
+  local as_tool ld_tool
+
+  python3 - "$asm" "$BSR_WITNESS_CAP" "$old_witness" "$new_witness" "$BSR_BAL_CAP" "$old_bal" "$new_bal" <<'PYPATCH'
+import sys
+path, witness_cap, old_witness, new_witness, bal_cap, old_bal, new_bal = sys.argv[1:]
+text = open(path, "r", encoding="utf-8").read()
+replacements = []
+if witness_cap:
+    replacements.append(("block_state_root witness-cap", old_witness, new_witness))
+if bal_cap:
+    replacements.append(("block_state_root BAL row-cap", old_bal, new_bal))
+for label, old, new in replacements:
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"expected exactly one {label} instruction, found {count}")
+    text = text.replace(old, new, 1)
+open(path, "w", encoding="utf-8").write(text)
+PYPATCH
+
+  as_tool="$(resolve_riscv_tool RISCV_AS riscv64-unknown-elf-as riscv64-elf-as)"
+  ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
+  "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
+  "$ld_tool" -Ttext=0x80000000 -Tdata=0xa0100000 \
+    --section-start=.sszscratch=0xa2000000 \
+    -nostdlib --no-relax -o "$elf" "$obj"
+}
+
+if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
+  cap_note=""
+  [[ -n "$BSR_WITNESS_CAP" ]] && cap_note="bsr_witness_cap=$BSR_WITNESS_CAP"
+  [[ -n "$BSR_BAL_CAP" ]] && cap_note="${cap_note:+$cap_note, }bsr_bal_cap=$BSR_BAL_CAP"
+  echo "==> emit zisk_stateless_verdict_v2 probe assembly (experimental $cap_note)"
+  lake exe codegen --program zisk_stateless_verdict_v2 --halt linux93 -o gen-out/zisk_stateless_verdict_v2 --asm-only >/dev/null
+  patch_bsr_caps_and_relink
+else
+  echo "==> emit zisk_stateless_verdict_v2 probe ELF"
+  lake exe codegen --program zisk_stateless_verdict_v2 --halt linux93 -o gen-out/zisk_stateless_verdict_v2 >/dev/null
+fi
 
 RUN_DIR="$REPO_ROOT/gen-out/verdict-run"
 rm -rf "$RUN_DIR"; mkdir -p "$RUN_DIR"
-echo "==> convert fixtures (tag=$TAG, filter=$FILTER, limit=$LIMIT)"
-python3 scripts/eest-stateless-to-input.py --fixtures-dir "$FX" --out-dir "$RUN_DIR" \
-  --limit "$LIMIT" --filter "$FILTER"
+selection="filter=$FILTER, limit=$LIMIT"
+conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR" --limit "$LIMIT" --filter "$FILTER")
+if [[ "$SKIP" != "0" ]]; then
+  selection="$selection, skip=$SKIP"
+  conv_args+=(--skip "$SKIP")
+fi
+echo "==> convert fixtures (tag=$TAG, $selection)"
+python3 scripts/eest-stateless-to-input.py "${conv_args[@]}"
 MANIFEST="$RUN_DIR/manifest.tsv"
 [[ -s "$MANIFEST" ]] || { echo "no blocks selected" >&2; exit 1; }
 
