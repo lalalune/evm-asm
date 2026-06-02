@@ -20,7 +20,8 @@ columns describe only the latest harness selection.
 
 | Family | Address | Backend / missing piece | Bead |
 |--------|---------|-------------------------|------|
-| Precompile account warming / absence | `0x01..0x14`, `0x100` | VM call gas/account-access path before dispatch | `evm-asm-fhsxz.2.4.2.62.1` |
+| Precompile account warming | active precompiles | VM call gas/account-access path before dispatch | `evm-asm-fhsxz.2.4.2.62.1` |
+| Precompile absence | `0x01..0x101` excluding active precompiles | absent-account CALL semantics before dispatch | `evm-asm-fhsxz.2.4.2.62.2.6` |
 | ECRECOVER | `0x01` | `zkvm_secp256k1_ecrecover` bridge exists; stateless dispatch missing | `evm-asm-fhsxz.2.4.2.62.2` |
 | SHA256 | `0x02` | `zkvm_sha256` bridge exists; stateless dispatch missing | `evm-asm-fhsxz.2.4.2.62.2` |
 | RIPEMD160 | `0x03` | `zkvm_ripemd160` bridge exists at the desired ABI level, but the local ziskemu installation has no named RIPEMD160 backend; backend/probe required before dispatch | `evm-asm-fhsxz.2.4.2.62.2` |
@@ -32,6 +33,30 @@ columns describe only the latest harness selection.
 | BLS12-381 | `0x0b..0x11` | `zkvm_bls12_*` bridges exist; call framing missing | `evm-asm-fhsxz.2.4.2.62.3` |
 | P256VERIFY | `0x100` | `zkvm_secp256r1_verify` bridge exists; call framing missing | `evm-asm-fhsxz.2.4.2.62.3` |
 | CALL/STATICCALL/revert/create interactions with precompiles | mixed | VM call/create/revert semantics plus dispatch | `evm-asm-fhsxz.2.4.2.62.1` |
+
+## Precompile absence frontier
+
+`execution-specs/tests/frontier/precompiles/test_precompile_absence.py`
+generates the Amsterdam fixture at:
+
+```text
+gen-out/eest-fixtures/zkevm@v0.4.0/fixtures/fixtures/blockchain_tests/for_amsterdam/frontier/precompiles/precompile_absence/precompile_absence.json
+```
+
+The cached fixture has three stateless blocks, one each for empty, 31-byte, and
+32-byte calldata. For every address from `0x01` through `0x101`, the generator
+skips active fork precompiles and emits:
+
+- `SSTORE(address, CALL(gas=0, address=address, args_size=calldata_size))`
+  with expected value `1`.
+- `SSTORE(address + 2^64, RETURNDATASIZE)` with expected value `0` when
+  `RETURNDATASIZE` is valid for the fork.
+
+This means the blocker is not a cryptographic backend. The guest must classify
+inactive near-zero addresses as ordinary absent accounts before precompile
+dispatch: a zero-value `CALL` to an absent account succeeds, has empty return
+data, and leaves `RETURNDATASIZE = 0`. Only active fork precompile addresses
+should route to precompile dispatch/gas/output handling.
 
 ## ECRECOVER framing contract
 
