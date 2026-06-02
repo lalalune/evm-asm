@@ -10,8 +10,7 @@
 
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
-  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, BLOBBASEFEE,
-    MSIZE, GAS
+  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, MSIZE, GAS
   - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
     EXTCODEHASH, BLOCKHASH, BLOBHASH
   - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
@@ -163,8 +162,8 @@ def haltHandlers : List OpcodeHandlerSpec :=
     , body := []
     , tail := .custom "  addi x12, x12, 32\n  j .exit_label" } ]
 
-/-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE, BLOBBASEFEE,
-    MSIZE, GAS). Each opcode pushes a single 32-byte zero value onto
+/-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE, MSIZE, GAS).
+    Each opcode pushes a single 32-byte zero value onto
     the EVM stack — no input, no output content.
 
     Body (5 instructions): decrement `x12` by 32 (push), then write
@@ -173,8 +172,6 @@ def haltHandlers : List OpcodeHandlerSpec :=
     **Known limitations** (documented in CODEGEN.md M18 narrative):
     - CODESIZE pushes 0 instead of the running code's length.
     - RETURNDATASIZE pushes 0 (no caller return-data buffer).
-    - BLOBBASEFEE pushes 0 (no Dencun blob context in our `EvmEnv`
-      yet).
     - MSIZE pushes 0 (memory-expansion bookkeeping deferred to
       issue #99).
     - GAS pushes 0 (no gas metering in the dispatcher). -/
@@ -188,8 +185,6 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_CODESIZE", opcodes := [0x38]
     , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
-    , body := pushZeroBody, tail := .advanceAndRet 1 }
-  , { label := "h_BLOBBASEFEE", opcodes := [0x4a]
     , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_MSIZE", opcodes := [0x59]
     , body := pushZeroBody, tail := .advanceAndRet 1 }

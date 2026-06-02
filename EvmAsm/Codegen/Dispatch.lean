@@ -191,6 +191,10 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee trailer slot = 0
+  "  sd x0, 520(x20)\n" ++
+  "  sd x0, 528(x20)\n" ++
+  "  sd x0, 536(x20)\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -369,8 +373,9 @@ def emitDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 544\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells up to env+480
+                          -- + M28 BLOBBASEFEE word at env+512
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
@@ -448,6 +453,7 @@ def emitRuntimeDispatcherPrologue : String :=
   --
   -- Input layout (unchanged from M22 `pack-bytecode.py --storage`):
   --   <u64 slot_count> followed by slot_count × (key:32, value:32)
+  --   then a 32-byte BLOBBASEFEE word (M28; zero by default)
   -- Output layout (Option A):
   --   STATE_TRACKER_AREA + i*128 = (addrHash=0:32, slotKey:32,
   --                                 original=value:32, current=value:32)
@@ -497,6 +503,16 @@ def emitRuntimeDispatcherPrologue : String :=
   "  addi x6, x6, -1\n" ++
   "  j .preload_expand_loop\n" ++
   ".preload_expand_done:\n" ++
+  -- M28: x5 now points at the blob-base-fee trailer. Copy the 32-byte
+  -- EVM-stack word into a separate env slot; opcode 0x4a loads it.
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 512(x20)\n" ++
+  "  ld x8, 8(x5)\n" ++
+  "  sd x8, 520(x20)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 528(x20)\n" ++
+  "  ld x8, 24(x5)\n" ++
+  "  sd x8, 536(x20)\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -521,8 +537,9 @@ def emitRuntimeDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 544\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells up to env+480
+                          -- + M28 BLOBBASEFEE word at env+512
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors

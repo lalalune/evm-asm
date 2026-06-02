@@ -118,18 +118,19 @@ def main (args : List String) : IO UInt32 := do
           -- as long as it uses `read -r name expected` (extra fields
           -- just get dropped).
           for tc in Tests.opcodeTestCases do
-            -- M21..M26: 11-column TSV. Columns:
+            -- M21..M28: 12-column TSV. Columns:
             --   1 name, 2 expectedOutHex, 3 bytecode, 4 calldata,
-            --   5 storage, 6 expectedHaltKind,
-            --   7 expectedPersistentLogLength (M24),
-            --   8 expectedTransientLogLength (M24),
-            --   9 expectedPostStorage (M25 — slot data at OUTPUT+56),
-            --   10 expectedEventLogCount (M26 — OUTPUT+56),
-            --   11 expectedEventLogFirst (M26 — descriptor at OUTPUT+64).
+            --   5 storage, 6 blobBaseFee,
+            --   7 expectedHaltKind,
+            --   8 expectedPersistentLogLength (M24),
+            --   9 expectedTransientLogLength (M24),
+            --   10 expectedPostStorage (M25 — slot data at OUTPUT+56),
+            --   11 expectedEventLogCount (M26 — OUTPUT+56),
+            --   12 expectedEventLogFirst (M26 — descriptor at OUTPUT+64).
             -- All cols beyond 3 are optional; the bash runner asserts
             -- only the ones with non-empty values.
             IO.println
-              s!"{tc.name}\t{tc.expectedOutHex}\t{tc.bytecode}\t{tc.calldata}\t{tc.storage}\t{tc.expectedHaltKind}\t{tc.expectedPersistentLogLength}\t{tc.expectedTransientLogLength}\t{tc.expectedPostStorage}\t{tc.expectedEventLogCount}\t{tc.expectedEventLogFirst}"
+              s!"{tc.name}\t{tc.expectedOutHex}\t{tc.bytecode}\t{tc.calldata}\t{tc.storage}\t{tc.blobBaseFee}\t{tc.expectedHaltKind}\t{tc.expectedPersistentLogLength}\t{tc.expectedTransientLogLength}\t{tc.expectedPostStorage}\t{tc.expectedEventLogCount}\t{tc.expectedEventLogFirst}"
           return 0
       | .program => do
           match lookupProgram opts.target with
