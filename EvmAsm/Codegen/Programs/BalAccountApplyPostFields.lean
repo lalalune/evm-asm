@@ -360,7 +360,9 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la t0, baap_storage_delete_index; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_delete_paths; add a3, t2, t1\n" ++
   "  li a4, 64; la a7, aps_newsroot\n" ++
   "  jal ra, mpt_delete_acc\n" ++
-  "  bnez a0, .Lbaap_fail_storage_delete\n" ++
+  "  beqz a0, .Lbaap_multi_delete_ok\n" ++
+  "  li t0, 1; bne a0, t0, .Lbaap_fail_storage_delete\n" ++
+  ".Lbaap_multi_delete_ok:\n" ++
   "  la t0, baap_storage_delete_index; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  j .Lbaap_multi_delete_loop\n" ++
   ".Lbaap_multi_delete_init:\n" ++
@@ -390,7 +392,9 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la t0, baap_storage_delete_index; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_delete_paths; add a3, t2, t1\n" ++
   "  li a4, 64; la a7, aps_newsroot\n" ++
   "  jal ra, mpt_delete_acc\n" ++
-  "  bnez a0, .Lbaap_fail_storage_delete_only\n" ++
+  "  beqz a0, .Lbaap_multi_delete_only_ok\n" ++
+  "  li t0, 1; bne a0, t0, .Lbaap_fail_storage_delete_only\n" ++
+  ".Lbaap_multi_delete_only_ok:\n" ++
   "  la t0, baap_storage_delete_index; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  j .Lbaap_multi_delete_only_loop\n" ++
   ".Lbaap_nonce:\n" ++
