@@ -10,7 +10,7 @@
 
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
-  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, GAS (MSIZE has a real implementation in Programs/Evm.lean)
+  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE (MSIZE and GAS have real implementations in Programs/Evm.lean)
   - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
     EXTCODEHASH (BLOBHASH and BLOCKHASH have real implementations in Programs/Evm.lean)
   - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
@@ -167,9 +167,11 @@ def haltHandlers : List OpcodeHandlerSpec :=
     , body := []
     , tail := .custom "  addi x12, x12, 32\n  j .exit_selfdestruct" } ]
 
-/-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE, MSIZE, GAS).
+/-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE).
     Each opcode pushes a single 32-byte zero value onto
     the EVM stack — no input, no output content.
+    (MSIZE and GAS graduated to real env-cell-reading handlers in
+    Programs/Evm.lean.)
 
     Body (5 instructions): decrement `x12` by 32 (push), then write
     four 8-byte zero limbs via `SD .x12 .x0 …`.
@@ -178,8 +180,7 @@ def haltHandlers : List OpcodeHandlerSpec :=
     - CODESIZE pushes 0 instead of the running code's length.
     - RETURNDATASIZE pushes 0 (no caller return-data buffer).
     - MSIZE pushes 0 (memory-expansion bookkeeping deferred to
-      issue #99).
-    - GAS pushes 0 (no gas metering in the dispatcher). -/
+      issue #99). -/
 def pushZeroHandlers : List OpcodeHandlerSpec :=
   let pushZeroBody : Program :=
     ADDI .x12 .x12 (-32) ;;
@@ -187,11 +188,11 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     SD .x12 .x0 8 ;;
     SD .x12 .x0 16 ;;
     SD .x12 .x0 24
+  -- GAS (0x5a) graduated to a real handler in Programs/Evm.lean (M30) —
+  -- it pushes env.gasRemaining maintained by the dispatch-loop gas charge.
   [ { label := "h_CODESIZE", opcodes := [0x38]
     , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
-    , body := pushZeroBody, tail := .advanceAndRet 1 }
-  , { label := "h_GAS", opcodes := [0x5a]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
 /-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE, EXTCODEHASH).

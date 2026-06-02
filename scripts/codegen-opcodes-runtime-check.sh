@@ -90,6 +90,7 @@ while IFS= read -r line; do
   expected_post_storage=$(printf '%s' "$line" | cut -f14)
   expected_event_log_count=$(printf '%s' "$line" | cut -f15)
   expected_event_log_first=$(printf '%s' "$line" | cut -f16)
+  gas_limit=$(printf '%s' "$line" | cut -f17)
 
   if [[ -z "$name" || -z "$expected" || -z "$bytecode_csv" ]]; then
     echo
@@ -126,6 +127,9 @@ while IFS= read -r line; do
   fi
   if [[ -n "${env:-}" ]]; then
     pack_args+=(--env "$env")
+  fi
+  if [[ -n "${gas_limit:-}" ]]; then
+    pack_args+=(--gas "$gas_limit")
   fi
   "$PYTHON" scripts/pack-bytecode.py ${pack_args[@]+"${pack_args[@]}"} "$bytecode_csv" "gen-out/$name.input"
 
