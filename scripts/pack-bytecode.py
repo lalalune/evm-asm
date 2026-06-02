@@ -66,6 +66,7 @@ Output layout:
                        Hashes are passed as normal big-endian hex and
                        serialized in EVM-stack byte order.
     next 416 bytes     <13 simple env words in evm_env order>
+    next 8 bytes       <8-byte LE u64 gas limit>             (M30)
 
 ziskemu prepends 8 more bytes of its own metadata when loading,
 landing the bytecode-length prefix at INPUT_ADDR+8 and the bytecode
@@ -341,6 +342,14 @@ def main() -> int:
              "gas_price, coinbase, timestamp, number, prevrandao, gas_limit, "
              "base_fee, chain_id. Defaults to zero for every field.",
     )
+    parser.add_argument(
+        "--gas",
+        default="30000000",
+        help="Gas limit for the run (M30). Accepts decimal or 0x-prefixed "
+             "integer; must fit in u64. The dispatch loop charges each "
+             "opcode's static base cost against this; underflow halts with "
+             "halt_kind = 6. Defaults to 30,000,000.",
+    )
     args = parser.parse_args()
 
     csv = sys.stdin.read() if args.bytecode == "-" else args.bytecode
@@ -355,6 +364,9 @@ def main() -> int:
     block_hashes = parse_block_hashes(args.block_hashes)
     env_words = {field: b"\x00" * 32 for field in ENV_FIELDS}
     env_words.update(parse_env(args.env))
+    gas_limit = int(args.gas, 0)
+    if gas_limit < 0 or gas_limit > 0xFFFFFFFFFFFFFFFF:
+        raise ValueError("--gas must fit in u64")
 
     # Bytecode segment: 8B LE length prefix + bytes, padded to 8-byte boundary
     # so the calldata-length cell that follows is aligned.
@@ -391,6 +403,10 @@ def main() -> int:
     # M29 simple environment trailer: 13 stack words in `evm_env` layout order.
     for field in ENV_FIELDS:
         packed += env_words[field]
+
+    # M30 gas-limit trailer: 8B LE u64, read by the runtime prologue into
+    # env.gasRemaining (env+568). Keeps the file a multiple of 8.
+    packed += struct.pack("<Q", gas_limit)
 
     if args.output == "-":
         sys.stdout.buffer.write(packed)
