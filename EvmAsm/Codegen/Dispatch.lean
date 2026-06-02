@@ -158,6 +158,8 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 448(x20)\n" ++         -- env.persistentLogLengthOff = 0
   "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
+  "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
+  "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++
@@ -279,7 +281,29 @@ def emitDispatcherEpilogue
   "6:\n" ++                         -- loop step
   "  addi x15, x15, -1\n" ++
   "  bnez x15, 1b\n" ++
-  "4:\n"                            -- done — fall through to halt stub
+  "4:\n" ++                         -- done — surface first LOG event, then halt
+  -- M26: event LOG capture test surface. If receipt event logs
+  -- exist, this intentionally reuses the storage diagnostic window:
+  --   OUTPUT+56       : event log count (u64 LE)
+  --   OUTPUT+64..256  : first event descriptor prefix
+  -- Current opcode probes assert either storage post-state or LOG
+  -- capture, not both. A future wider receipt-output ABI should
+  -- carry both without sharing this test-only window.
+  "  li x16, 0xa0010000\n" ++
+  "  ld x17, 472(x20)\n" ++
+  "  beqz x17, 8f\n" ++
+  "  sd x17, 56(x16)\n" ++
+  "  la x18, evm_event_logs\n" ++
+  "  addi x19, x16, 64\n" ++
+  "  li x21, 192\n" ++
+  "7:\n" ++
+  "  lbu x22, 0(x18)\n" ++
+  "  sb x22, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x21, x21, -1\n" ++
+  "  bnez x21, 7b\n" ++
+  "8:\n"                            -- done — fall through to halt stub
 
 /-- `.data` section layout (starts at `0xa0000000` per
     `Driver.lean`'s `-Tdata=...`):
@@ -318,7 +342,10 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
-                          -- + M22/M24 log-state cells up to env+472 (envSize = 472)
+                          -- + M22/M24/M26 log-state cells up to env+480
+  ".balign 8\n" ++
+  "evm_event_logs:\n" ++
+  "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
@@ -393,6 +420,8 @@ def emitRuntimeDispatcherPrologue : String :=
   "  sd x6, 448(x20)\n" ++         -- env.persistentLogLengthOff = preload count
   "  sd x6, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = preload count
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
+  "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
+  "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
   "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
   "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
   ".preload_expand_loop:\n" ++
@@ -454,7 +483,10 @@ def emitRuntimeDispatcherDataSection
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
-                          -- + M22/M24 log-state cells up to env+472 (envSize = 472)
+                          -- + M22/M24/M26 log-state cells up to env+480
+  ".balign 8\n" ++
+  "evm_event_logs:\n" ++
+  "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer

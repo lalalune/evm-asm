@@ -73,6 +73,25 @@ structure OpcodeTestCase where
       M22's `--storage` packer and the existing storage-test
       `expectedOutHex` values. Empty string = don't assert. -/
   expectedPostStorage : String := ""
+  /-- Optional expected receipt event-log count at
+      `OUTPUT_ADDR + 56` (M26). 16 hex chars = 8-byte LE u64.
+      This shares the storage post-state diagnostic window; tests
+      should assert one surface or the other. Empty string = don't
+      assert. -/
+  expectedEventLogCount : String := ""
+  /-- Optional expected prefix of the first event-log descriptor at
+      `OUTPUT_ADDR + 64` (M26). Hex string of arbitrary length;
+      runner reads `len/2` bytes and compares. Layout begins:
+        - +0: u64 topic count
+        - +8: u64 memory offset
+        - +16: u64 memory size
+        - +24: u64 copied data length
+        - +32..160: four topic slots in stack-word byte order
+        - +160..192: first up to 32 copied memory bytes
+        - +192..224: ADDRESS context word
+        - +224..256: CALLER context word
+      Empty string = don't assert. -/
+  expectedEventLogFirst : String := ""
 
 /-- Registry of test cases. M5a/M5b's two original bytecodes are
     migrated as `add_basic` / `add_chain`; M6b adds ~20 more — one
@@ -316,22 +335,43 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "keccak256_empty"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x20, 0x00"
       expectedOutHex := "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470" }
-    -- ## M17 LOG opcodes (LOG0-LOG4) — wired as stack-pop no-ops.
-    -- LOGn pops (2+n) 256-bit words and advances PC; the EVM event
-    -- is dropped (no host log syscall yet).
+    -- ## M26 LOG opcodes (LOG0-LOG4) — bounded event capture.
+    -- LOGn pops (2+n) 256-bit words, advances PC, and appends a
+    -- 256-byte descriptor to the dispatcher's receipt-event buffer.
   , -- PUSH1 0x11; PUSH1 0x22; LOG0; PUSH1 0x33; STOP — LOG0 pops the
     -- two pushed words; PUSH1 0x33 lands on the now-empty stack.
-    -- Confirms byte 0xa0 routes correctly and stack delta is +64.
-    { name           := "log0_pop"
-      bytecode       := "0x60, 0x11, 0x60, 0x22, 0xa0, 0x60, 0x33, 0x00"
-      expectedOutHex := "3300000000000000000000000000000000000000000000000000000000000000" }
+    -- Also checks descriptor header: topics=0, offset=0x22,
+    -- size=0x11, copied data length=0x11.
+    { name                   := "log0_pop"
+      bytecode               := "0x60, 0x11, 0x60, 0x22, 0xa0, 0x60, 0x33, 0x00"
+      expectedOutHex         := "3300000000000000000000000000000000000000000000000000000000000000"
+      expectedEventLogCount  := "0100000000000000"
+      expectedEventLogFirst  := "0000000000000000220000000000000011000000000000001100000000000000" }
   , -- PUSH1 0x01..0x06; LOG4; PUSH1 0xff; STOP — LOG4 pops the six
     -- pushed words (offset + size + 4 topics); PUSH1 0xff lands on
     -- the now-empty stack. Confirms byte 0xa4 routes correctly and
-    -- stack delta is +192.
-    { name           := "log4_pop"
-      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xa4, 0x60, 0xff, 0x00"
-      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+    -- stack delta is +192. The descriptor records offset=6,
+    -- size=5, and topics 4,3,2,1 in stack-pop order.
+    { name                   := "log4_pop"
+      bytecode               := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xa4, 0x60, 0xff, 0x00"
+      expectedOutHex         := "ff00000000000000000000000000000000000000000000000000000000000000"
+      expectedEventLogCount  := "0100000000000000"
+      expectedEventLogFirst  := "04000000000000000600000000000000050000000000000005000000000000000400000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000" }
+  , -- MSTORE8 writes 0xab at memory[0]; LOG2 then captures offset=0,
+    -- size=1, topics 0x11 and 0x22, and data prefix byte 0xab.
+    { name                   := "log2_captures_topic_and_data"
+      bytecode               := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x22, 0x60, 0x11, 0x60, 0x01, 0x60, 0x00, 0xa2, 0x60, 0x00, 0x00"
+      expectedOutHex         := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedEventLogCount  := "0100000000000000"
+      expectedEventLogFirst  := "02000000000000000000000000000000010000000000000001000000000000001100000000000000000000000000000000000000000000000000000000000000220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ab00000000000000000000000000000000000000000000000000000000000000" }
+  , -- Seventeen empty LOG0s exceed the static 16-entry cap. The 17th
+    -- handler exits with halt_kind=4 and leaves the visible event
+    -- count at 16; it must not silently drop the event and continue.
+    { name                   := "log0_overflow_status"
+      bytecode               := "0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x00"
+      expectedOutHex         := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind       := "0400000000000000"
+      expectedEventLogCount  := "1000000000000000" }
     -- ## M17 / M22 / M24 transient storage (TLOAD/TSTORE)
     -- M24 graduated TLOAD/TSTORE from M17 no-ops to real Option A
     -- transient storage: a separate append-log at 0xa0830000.
