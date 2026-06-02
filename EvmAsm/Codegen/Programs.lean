@@ -673,6 +673,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_sload_at_block_hash_address" => some ziskSloadAtBlockHashAddressProbeUnit
   | "zisk_storage_root_present_in_witness_storage" => some ziskStorageRootPresentInWitnessStorageProbeUnit
   | "zisk_witness_storage_keccak_at_index" => some ziskWitnessStorageKeccakAtIndexProbeUnit
+  | "zisk_witness_lookup_by_hash_indexed" => some ziskWitnessLookupByHashIndexedProbeUnit
   | "zisk_witness_codes_keccak_at_index" => some ziskWitnessCodesKeccakAtIndexProbeUnit
   | "zisk_state_account_with_spec_default" => some ziskStateAccountWithSpecDefaultProbeUnit
   | "zisk_state_extract_storage_root_for_address" => some ziskStateExtractStorageRootForAddressProbeUnit
@@ -969,6 +970,7 @@ def knownProgramNames : List String :=
    "zisk_sload_at_block_hash_address",
    "zisk_storage_root_present_in_witness_storage",
    "zisk_witness_storage_keccak_at_index",
+   "zisk_witness_lookup_by_hash_indexed",
    "zisk_witness_codes_keccak_at_index",
    "zisk_state_account_with_spec_default",
    "zisk_state_extract_storage_root_for_address",
