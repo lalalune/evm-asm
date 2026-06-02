@@ -564,16 +564,6 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_storage_delete_index:\n  .zero 8\n" ++
   "baap_storage_root_ptr:\n  .zero 8\n" ++
   "baap_walk_val_len:\n  .zero 8\n" ++
-  "mdacc_witness_len:\n  .zero 8\n" ++
-  "mdacc_survivor_nibble:\n  .zero 8\n" ++
-  "mdacc_child_ptr:\n  .zero 8\n" ++
-  "mdacc_child_len:\n  .zero 8\n" ++
-  "mdacc_leaf_path_len:\n  .zero 8\n" ++
-  "mdacc_ext_path_len:\n  .zero 8\n" ++
-  "mdacc_leaf_value_ptr:\n  .zero 8\n" ++
-  "mdacc_leaf_value_len:\n  .zero 8\n" ++
-  "mee_path_off:\n  .zero 8\n" ++
-  "mee_path_len:\n  .zero 8\n" ++
   "baap_item_off:\n  .zero 8\n" ++
   "baap_item_len:\n  .zero 8\n" ++
   "baap_slot_changes_off:\n  .zero 8\n" ++
@@ -605,8 +595,6 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_storage_paths:\n  .zero 32768\n" ++
   "baap_storage_delete_paths:\n  .zero 32768\n" ++
   "baap_storage_values:\n  .zero 32768\n" ++
-  "mdacc_leaf_path:\n  .zero 128\n" ++
-  "mdacc_collapsed_path:\n  .zero 128\n" ++
   "baap_out_pad:\n  .zero 8"
 
 def ziskBalAccountApplyPostFieldsProbeUnit : BuildUnit := {
