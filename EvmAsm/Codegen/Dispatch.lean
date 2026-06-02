@@ -191,6 +191,7 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee trailer slot = 0
   "  sd x0, 520(x20)\n" ++
   "  sd x0, 528(x20)\n" ++
@@ -512,6 +513,7 @@ def emitRuntimeDispatcherPrologue : String :=
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee[0] = 0 (overwritten by trailer load below)
   "  sd x0, 520(x20)\n" ++         -- M28: blobBaseFee[1] = 0
   "  sd x0, 528(x20)\n" ++         -- M28: blobBaseFee[2] = 0
@@ -623,6 +625,20 @@ def emitRuntimeDispatcherPrologue : String :=
   "  addi x6, x6, -1\n" ++
   "  j .blockhash_copy_loop\n" ++
   ".blockhash_copy_done:\n" ++
+  -- Simple-env trailer: 13 contiguous 32-byte slots matching `EvmEnv`
+  -- layout offsets 0..415: ADDRESS, SELFBALANCE, CALLER, CALLVALUE,
+  -- ORIGIN, GASPRICE, COINBASE, TIMESTAMP, NUMBER, PREVRANDAO,
+  -- GASLIMIT, BASEFEE, CHAINID. Copying all 416 bytes preserves zero
+  -- defaults when the packer emits its default all-zero trailer.
+  "  mv x6, x20\n" ++              -- x6 = evm_env destination
+  "  li x7, 52\n" ++               -- 13 words × 4 dwords
+  ".env_trailer_copy_loop:\n" ++
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 0(x6)\n" ++
+  "  addi x5, x5, 8\n" ++
+  "  addi x6, x6, 8\n" ++
+  "  addi x7, x7, -1\n" ++
+  "  bnez x7, .env_trailer_copy_loop\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  la x6, opcode_handlers\n" ++

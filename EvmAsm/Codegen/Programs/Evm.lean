@@ -445,6 +445,32 @@ def swapHandlers : List OpcodeHandlerSpec :=
 private def x10RestoreAdvance1 : HandlerTail :=
   .custom "  mv x10, x9\n  addi x10, x10, 1\n  ret"
 
+/-- Dispatcher env offset used by the concrete runtime handlers for
+    active memory size in bytes. The env data block is 512 bytes, and
+    offsets 472 / 480 are already used by event-log metadata. -/
+private def activeMemorySizeOff : Nat := 488
+
+/-- Inline asm that updates the runtime `MSIZE` high-water mark from
+    one memory access `(offset, length)`, using low u64 limbs. If
+    `length = 0`, the EVM does not expand memory even for large
+    offsets. -/
+private def updateActiveMemorySizeAsm
+    (tag offsetReg lengthReg roundedReg currentReg maskReg : String) : String :=
+  "  beqz " ++ lengthReg ++ ", .Lmemsize_" ++ tag ++ "_done\n" ++
+  "  add " ++ roundedReg ++ ", " ++ offsetReg ++ ", " ++ lengthReg ++ "\n" ++
+  "  addi " ++ roundedReg ++ ", " ++ roundedReg ++ ", 31\n" ++
+  "  li " ++ maskReg ++ ", -32\n" ++
+  "  and " ++ roundedReg ++ ", " ++ roundedReg ++ ", " ++ maskReg ++ "\n" ++
+  "  ld " ++ currentReg ++ ", " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
+  "  bgeu " ++ currentReg ++ ", " ++ roundedReg ++ ", .Lmemsize_" ++ tag ++ "_done\n" ++
+  "  sd " ++ roundedReg ++ ", " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
+  ".Lmemsize_" ++ tag ++ "_done:\n"
+
+private def updateActiveMemorySizeConstAsm
+    (tag offsetReg tmpLengthReg roundedReg currentReg maskReg : String) (length : Nat) : String :=
+  "  li " ++ tmpLengthReg ++ ", " ++ toString length ++ "\n" ++
+  updateActiveMemorySizeAsm tag offsetReg tmpLengthReg roundedReg currentReg maskReg
+
 /-- Fixed-shape singleton opcodes: parameter-free verified `Program`s
     that fit the standard `<body>` + `addi x10, x10, 1` + `ret` ABI.
 
@@ -491,19 +517,42 @@ def memoryHandlers : List OpcodeHandlerSpec :=
     -- scratch: offReg=x15, byteReg=x16, accReg=x17, addrReg=x18.
     { label   := "h_MLOAD"
       opcodes := [0x51]
+      preBody := "  ld x15, 0(x12)\n" ++
+                 updateActiveMemorySizeConstAsm "mload" "x15" "x16" "x17" "x18" "x19" 32
       body    := EvmAsm.Evm64.evm_mload .x15 .x16 .x17 .x18 .x13
       tail    := .advanceAndRet 1 }
   , -- MSTORE: pop offset + value, write 32 bytes BE to memory.
     -- valReg=x14 (scratch; placeholder per evm_mstore docstring).
     { label   := "h_MSTORE"
       opcodes := [0x52]
+      preBody := "  ld x15, 0(x12)\n" ++
+                 updateActiveMemorySizeConstAsm "mstore" "x15" "x16" "x17" "x18" "x19" 32
       body    := EvmAsm.Evm64.evm_mstore .x15 .x14 .x16 .x17 .x18 .x13
       tail    := .advanceAndRet 1 }
   , -- MSTORE8: pop offset + value, write 1 byte to memory.
     { label   := "h_MSTORE8"
       opcodes := [0x53]
+      preBody := "  ld x15, 0(x12)\n" ++
+                 updateActiveMemorySizeConstAsm "mstore8" "x15" "x16" "x17" "x18" "x19" 1
       body    := EvmAsm.Evm64.evm_mstore8 .x15 .x14 .x18 .x13
       tail    := .advanceAndRet 1 } ]
+
+/-- MSIZE pushes the dispatcher-maintained active memory size. It is
+    updated by the concrete memory handlers in this file using the
+    EVM's 32-byte rounding rule. -/
+def memoryMetadataHandlers : List OpcodeHandlerSpec :=
+  [ { label   := "h_MSIZE"
+      opcodes := [0x59]
+      body    := []
+      tail    := .custom <|
+        "  addi x12, x12, -32\n" ++
+        "  ld x14, " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
+        "  sd x14, 0(x12)\n" ++
+        "  sd x0, 8(x12)\n" ++
+        "  sd x0, 16(x12)\n" ++
+        "  sd x0, 24(x12)\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret" } ]
 
 /-- M12 simple environment opcodes (13 of them, one record each).
 
@@ -715,9 +764,56 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     -- (M7); the remaining 6 args are caller-saved scratch.
     { label   := "h_CALLDATACOPY"
     , opcodes := [0x37]
+    , preBody := "  ld x14, 0(x12)\n" ++
+                 "  ld x15, 64(x12)\n" ++
+                 updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18"
     , body    := EvmAsm.Evm64.Calldata.evm_calldatacopy
                    .x20 .x13 .x14 .x15 .x16 .x17 .x18 .x19
     , tail    := .advanceAndRet 1 } ]
+
+/-- EIP-5656 MCOPY for the concrete dispatcher. The handler consumes
+    low u64 limbs for `(dest, src, length)`, updates MSIZE for both
+    read and write ranges, then performs `memmove`-style byte copying
+    so overlapping ranges are handled correctly. Gas charging and
+    256-bit overflow/OOG detection are tracked separately. -/
+def mcopyHandlers : List OpcodeHandlerSpec :=
+  [ { label   := "h_MCOPY"
+      opcodes := [0x5e]
+      body    := []
+      tail    := .custom <|
+        "  ld x14, 0(x12)\n" ++          -- destination offset
+        "  ld x15, 32(x12)\n" ++         -- source offset
+        "  ld x16, 64(x12)\n" ++         -- length
+        "  addi x12, x12, 96\n" ++
+        "  beqz x16, .Lmcopy_done\n" ++
+        updateActiveMemorySizeAsm "mcopy_src" "x15" "x16" "x17" "x18" "x19" ++
+        updateActiveMemorySizeAsm "mcopy_dst" "x14" "x16" "x17" "x18" "x19" ++
+        "  add x17, x13, x14\n" ++       -- destination pointer
+        "  add x18, x13, x15\n" ++       -- source pointer
+        "  add x19, x15, x16\n" ++       -- source end offset
+        "  bleu x14, x15, .Lmcopy_forward\n" ++
+        "  bgeu x14, x19, .Lmcopy_forward\n" ++
+        "  add x17, x17, x16\n" ++
+        "  add x18, x18, x16\n" ++
+        ".Lmcopy_backward_loop:\n" ++
+        "  beqz x16, .Lmcopy_done\n" ++
+        "  addi x17, x17, -1\n" ++
+        "  addi x18, x18, -1\n" ++
+        "  lbu x19, 0(x18)\n" ++
+        "  sb x19, 0(x17)\n" ++
+        "  addi x16, x16, -1\n" ++
+        "  j .Lmcopy_backward_loop\n" ++
+        ".Lmcopy_forward:\n" ++
+        "  beqz x16, .Lmcopy_done\n" ++
+        "  lbu x19, 0(x18)\n" ++
+        "  sb x19, 0(x17)\n" ++
+        "  addi x18, x18, 1\n" ++
+        "  addi x17, x17, 1\n" ++
+        "  addi x16, x16, -1\n" ++
+        "  j .Lmcopy_forward\n" ++
+        ".Lmcopy_done:\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret" } ]
 
 /-- Shared tail for JUMP / JUMPI: the verified body left `code[dest]`
     (or the `0x5b` sentinel for a not-taken JUMPI) in `x17`. If it
@@ -1184,9 +1280,10 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ envHandlers ++ blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
+  memoryHandlers ++ memoryMetadataHandlers ++ envHandlers ++
+  blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
-  storageHandlers ++ haltHandlers ++ pushZeroHandlers ++
+  storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
   arithNoopHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]
