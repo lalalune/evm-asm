@@ -1604,8 +1604,9 @@ OUTPUT_ADDR (0xa0010000):
               3 = INVALID (0xfe)            — M23.5
               4 = invalid JUMP/JUMPI dest   — M15.5
               5 = SELFDESTRUCT (0xff)       — M23.5
+              6 = out-of-gas                — M30
               (M23 originally left INVALID/SELFDESTRUCT at 0; M15.5 added
-               4, M23.5 added 3/5 — all six kinds are now distinct.)
+               4, M23.5 added 3/5, M30 added 6 — all distinct.)
   +40..256  <unused, room for future surfaces>
 ```
 
@@ -1758,6 +1759,51 @@ SELFDESTRUCT is a normal halt (success=true); both have empty return data.
 (all six halt kinds asserted distinct: RETURN=1, REVERT=2, INVALID=3,
 invalid-jump=4, SELFDESTRUCT=5, STOP=0). `scripts/check-progress.sh` exits 0.
 `lake build EvmAsm.Codegen` clean; `RegistryInvariants` unchanged (149).
+
+### M30 — Gas metering (first slice: static base costs) — **DONE (2026-06-02)**
+
+The first real gas metering in the dispatcher — the cross-cutting feature both
+tracks need (it lets out-of-gas reuse the M23.5 exceptional-halt machinery and
+is the bridge toward the `Stateless/VM/Interpreter.lean` integration).
+**Scope = static base costs only**; dynamic costs (memory expansion, cold/warm
+SLOAD, call stipend, per-word/byte/topic, SSTORE refunds) are deferred.
+
+**Design:** the gas counter is an env cell (`env+568`), not a register — every
+high register is transiently clobbered by some handler. The dispatch loop (both
+prologue variants) charges each opcode's static base cost before executing it;
+underflow routes to `.exit_outofgas` (`halt_kind = 6`). Charge-then-execute
+matches the spec's `charge_gas` order (so GAS reflects its own cost).
+
+**Delivered:**
+- **`Dispatch.lean`** — `staticGasCost : Nat → Nat` (EVM base-cost tiers from
+  `execution-specs/.../prague/vm/gas.py`; halts + unwired bytes = 0) emitted as
+  a 256-`.dword` `opcode_gas_costs:` table in both data sections; the
+  `.dispatch_loop` body looks up `cost = opcode_gas_costs[op]`, `bltu`s to
+  `.exit_outofgas` on underflow, else charges `env+568`. New gas cell at
+  `env+568` (`.zero 568→576`); runtime prologue reads the gas limit from the
+  input trailer, `.data`-baked prologue seeds 30,000,000.
+  `emitExceptionalExit ".exit_outofgas" 6`.
+- **`pack-bytecode.py`** — `--gas N` appends an 8-byte LE gas-limit trailer
+  (default 30,000,000; back-compatible).
+- **`Programs/Evm.lean`** — real `gasHandlers` (GAS 0x5a reads `env+568` and
+  pushes it); removed from `pushZeroHandlers`. `RegistryInvariants` unchanged
+  (149 — GAS only moved lists).
+- **Tests** — `gas_opcode_sufficient` (`GAS; STOP`, limit 1000 → 998 after the
+  charge), `gas_opcode_out_of_gas` (`PUSH1`, limit 2 → `halt_kind = 6`); new
+  `gasLimit` TSV column threaded through `Cli.lean` + the bash runner.
+
+**Limitations** (documented in `staticGasCost`): static base only — state ops
+(SLOAD/SSTORE/CALL/EXTCODE*/KECCAK/LOG/EXP/copies) under-charge; per-iteration
+cost lookup adds ~6 instrs/op; gas-used not yet surfaced at OUTPUT; MSIZE/memory
+gas unchanged. `Layout.lean`'s `envSize` remains stale vs the dispatcher's
+raw-offset env cells (pre-existing; a sync is a separate cleanup).
+
+**Exit criteria (met).**
+`scripts/codegen-opcodes-runtime-check.sh`: the two new gas cases pass and no
+prior case regresses. (Two BLOCKHASH cases — `blockhash_parent`,
+`blockhash_historical` — fail identically on pristine `upstream/main`; they are
+a **pre-existing** env-offset drift in the BLOCKHASH handler, unrelated to this
+PR.) `lake build EvmAsm.Codegen` clean.
 
 ### M24 — Storage on Option A: append-log + journal + real TLOAD/TSTORE — **DONE (2026-05-29)**
 
