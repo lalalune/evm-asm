@@ -47,6 +47,7 @@ import EvmAsm.Evm64.Swap.Program
 import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.Noop
 import EvmAsm.Codegen.Programs.Storage
 
@@ -392,14 +393,15 @@ def evmSmodPatched : Program :=
                               and the table base on every iteration,
                               so no preservation needed)
 
-    Coverage (M6b): 81 opcodes wired —
+    Coverage (M6b): 82 opcodes wired —
       - **PUSH0..PUSH32** (33) via `pushHandlers`
       - **DUP1..DUP16** (16) via `dupHandlers`
       - **SWAP1..SWAP16** (16) via `swapHandlers`
-      - **16 fixed-shape singletons** via `singletonHandlers`:
+      - **17 fixed-shape singletons** via `singletonHandlers`:
         SUB, MUL, SIGNEXTEND, AND, OR, XOR, NOT, LT, GT, SLT, SGT,
-        EQ, ISZERO, BYTE, SHR, POP — each a parameter-free verified
-        `Program` with the standard `<body>` + `addi x10, x10, 1` +
+        EQ, ISZERO, BYTE, CLZ, SHR, POP — CLZ is currently a bounded
+        raw RV64IM handler; the others are parameter-free verified
+        `Program`s with the standard `<body>` + `addi x10, x10, 1` +
         `ret` ABI.
       - **STOP** via `stopHandler` (jumps to `.exit_label` instead
         of returning to the dispatcher).
@@ -473,6 +475,7 @@ def singletonHandlers : List OpcodeHandlerSpec :=
   , { label := "h_SHL"        , opcodes := [0x1b], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_shl       , tail := x10RestoreAdvance1 }
   , { label := "h_SHR"        , opcodes := [0x1c], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_shr       , tail := x10RestoreAdvance1 }
   , { label := "h_SAR"        , opcodes := [0x1d], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_sar       , tail := x10RestoreAdvance1 }
+  , { label := "h_CLZ"        , opcodes := [0x1e], body := []                         , tail := clzTail }
   , { label := "h_POP"        , opcodes := [0x50], body := EvmAsm.Evm64.evm_pop       , tail := .advanceAndRet 1 } ]
 
 /-- M7 memory opcodes. Register-parameterized; the dispatcher
