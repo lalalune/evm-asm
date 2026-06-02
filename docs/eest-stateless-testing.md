@@ -107,16 +107,40 @@ uv run --directory execution-specs --quiet python3 \
 The report includes `state_witness_bytes`, `over_bsr_cap`, `bal_rows`, and
 `over_bsr_bal_cap`; the cap columns mark inputs whose state witness or BAL row
 count exceeds the current `block_state_root` caps. Pass `--bsr-cap N` and
-`--bsr-bal-cap N` to model different proposed caps in those columns.
+`--bsr-bal-cap N` to model different proposed arena caps in those columns. The
+guest default is a 64 KiB state-witness cap. That is an implementation cap for
+the current EEST harness, not a protocol maximum.
 
-To run a focused harness experiment with proposed guest-side replay caps, pass
+The BSR scratch layout was reviewed against the local `execution-specs`
+checkout. The hard protocol/test limits that matter for the current layout are:
+Prague/Amsterdam withdrawal requests cap at 16 per payload
+(`execution-specs/src/ethereum/forks/amsterdam/stateless_ssz.py`), Osaka block
+RLP size caps at 8,388,608 bytes
+(`execution-specs/src/ethereum/forks/osaka/fork.py`), Osaka transaction gas
+caps at 16,777,216 (`execution-specs/src/ethereum/forks/osaka/transactions.py`),
+and EVM code/initcode caps are 24 KiB / 48 KiB
+(`execution-specs/src/ethereum/forks/osaka/vm/interpreter.py`). Amsterdam BAL
+validation is gas-derived rather than a fixed row count: the accepted item count
+is at most `block_gas_limit / 2000`, where items are account addresses plus
+unique storage keys
+(`execution-specs/src/ethereum/forks/amsterdam/block_access_lists.py` and
+`execution-specs/src/ethereum/forks/amsterdam/vm/gas.py`).
+
+The guest uses bounded arenas rather than dynamic host memory. `block_state_root`
+first applies the Amsterdam gas-derived BAL budget, then applies its current
+static layout sized for the execution-specs default 120,000,000 block gas limit.
+The harness reads the block gas limit from the converted SSZ input manifest and
+errors before launching `ziskemu` when a fixture needs a larger layout/ELF.
+Larger gas-valid BALs need a streaming/chunked replay path or a separately built
+larger static layout.
+
+To run a focused harness experiment with different guest-side replay caps, pass
 `--bsr-witness-cap N` for the block-state-root witness-byte cap or
-`--bsr-bal-cap N` for the BAL row cap. The default guest remains unchanged; the
-harness patches the emitted assembly and relinks only for that run:
+`--bsr-bal-cap N` to add a lower BAL-row cap after the Amsterdam gas-derived
+budget. The harness patches the emitted assembly and relinks only for that run:
 
 ```bash
 scripts/codegen-eest-bal-replay-frontier-check.sh \
-  --bsr-witness-cap 65536 \
   --steps 400000000
 ```
 

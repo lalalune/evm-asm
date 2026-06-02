@@ -296,9 +296,13 @@ def main() -> int:
     printed = 0
     with args.manifest.open() as f:
         for line in f:
-            label, input_file, expected_hex, _succ_bit, _input_len, relpath = (
-                line.rstrip("\n").split("\t", 5)
-            )
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) == 6:
+                label, input_file, expected_hex, _succ_bit, _input_len, relpath = parts
+            elif len(parts) == 7:
+                label, input_file, expected_hex, _succ_bit, _input_len, _gas_limit, relpath = parts
+            else:
+                raise SystemExit(f"bad manifest row with {len(parts)} columns: {line!r}")
             if args.filter and args.filter not in label and args.filter not in relpath:
                 continue
             if args.failures_only and not result_is_failure(

@@ -304,6 +304,12 @@ doc only when its trigger applies** — they are reference material, not require
   existentials, `xperm` scaling, double-addback (`_da`) postcondition pattern.
   **Load when:** a specific proof symptom matches a section heading (use the index at the top
   of that file). Do not read top-to-bottom — these are deep recipes for narrow situations.
+- [`docs/agents/eest-static-layout.md`](docs/agents/eest-static-layout.md) — Lessons for
+  EEST stateless static memory layouts: derive capacities from execution-specs protocol/test
+  limits, handle BAL's gas-derived item budget, and reject layout-incompatible fixtures before
+  launching the guest.
+  **Load when:** changing `stateless_guest`, `block_state_root`, BAL replay, EEST manifest
+  conversion, or static `.data` arenas used by EEST codegen programs.
 
 Companion files (already separate, unchanged):
 - [`TACTICS.md`](TACTICS.md) — user-facing tactic reference.
