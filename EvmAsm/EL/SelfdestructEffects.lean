@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.EL.CallValueTransfer
+import EvmAsm.EL.CreatedAccounts
 import EvmAsm.EL.MessageCallExecution
 
 namespace EvmAsm.EL
@@ -238,6 +239,58 @@ theorem eip6780SelfdestructEffect_preExisting_beneficiaryBalance?
       some (beneficiaryBalance + accountBalance) :=
   postCancunSelfdestructEffect_beneficiaryBalance?
     accountBalance beneficiaryBalance h_beneficiary h_ne
+
+theorem eip6780SelfdestructEffect_accountsToDelete_fromCreatedSet_created
+    (state : WorldState) (created : CreatedAccounts.CreatedAccountSet)
+    (account beneficiary : Address)
+    (accountBalance beneficiaryBalance : Word256)
+    (h_created : CreatedAccounts.createdInSameTx created account = true) :
+    (eip6780SelfdestructEffect
+        state account beneficiary accountBalance beneficiaryBalance
+        (CreatedAccounts.createdInSameTx created account)).sideEffects.accountsToDelete =
+      [account] := by
+  rw [h_created]
+  exact eip6780SelfdestructEffect_sameTx_accountsToDelete
+    state account beneficiary accountBalance beneficiaryBalance
+
+theorem eip6780SelfdestructEffect_accountsToDelete_fromCreatedSet_preExisting
+    (state : WorldState) (created : CreatedAccounts.CreatedAccountSet)
+    (account beneficiary : Address)
+    (accountBalance beneficiaryBalance : Word256)
+    (h_not_created : CreatedAccounts.createdInSameTx created account = false) :
+    (eip6780SelfdestructEffect
+        state account beneficiary accountBalance beneficiaryBalance
+        (CreatedAccounts.createdInSameTx created account)).sideEffects.accountsToDelete =
+      [] := by
+  rw [h_not_created]
+  exact eip6780SelfdestructEffect_preExisting_accountsToDelete
+    state account beneficiary accountBalance beneficiaryBalance
+
+theorem eip6780SelfdestructEffect_state_fromCreatedSet_created_deleted
+    (state : WorldState) (created : CreatedAccounts.CreatedAccountSet)
+    (account beneficiary : Address)
+    (accountBalance beneficiaryBalance : Word256)
+    (h_created : CreatedAccounts.createdInSameTx created account = true) :
+    WorldState.getAccount
+        (eip6780SelfdestructEffect
+          state account beneficiary accountBalance beneficiaryBalance
+          (CreatedAccounts.createdInSameTx created account)).state
+        account =
+      none := by
+  rw [h_created]
+  exact eip6780SelfdestructEffect_sameTx_accountDeleted
+    state account beneficiary accountBalance beneficiaryBalance
+
+theorem eip6780SelfdestructEffect_fromEmptyCreatedSet_accountsToDelete
+    (state : WorldState) (account beneficiary : Address)
+    (accountBalance beneficiaryBalance : Word256) :
+    (eip6780SelfdestructEffect
+        state account beneficiary accountBalance beneficiaryBalance
+        (CreatedAccounts.createdInSameTx CreatedAccounts.empty account)).sideEffects.accountsToDelete =
+      [] := by
+  rw [CreatedAccounts.createdInSameTx_empty]
+  exact eip6780SelfdestructEffect_preExisting_accountsToDelete
+    state account beneficiary accountBalance beneficiaryBalance
 
 theorem callResultFromEffect_status
     (effect : SelfdestructEffect) (status : CallStatus) (gasRemaining : Nat) :
