@@ -138,6 +138,7 @@ def statelessVerdictV2GuestClosure : String :=
   balCodePreimagesValidFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
+  addressComputeCreateFunction ++ "\n" ++
   enrgU32leFunction ++ "\n" ++
   eip7702NonceReuseGuardFunction ++ "\n" ++
   statelessVerdictV2Function
