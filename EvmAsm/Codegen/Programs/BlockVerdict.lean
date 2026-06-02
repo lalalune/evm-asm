@@ -27,6 +27,7 @@ import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockRlpSize
+import EvmAsm.Codegen.Programs.RequestsHash
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -830,6 +831,13 @@ def statelessVerdictV2Function : String :=
   "  sd s4, 0(s3); la t0, svf_wd_len; ld t1, 0(t0); sd t1, 8(s3)\n" ++
   "  addi s2, s2, 44; addi s4, s4, 72; addi s3, s3, 16; addi s5, s5, 1; j .Lv2_wl\n" ++
   ".Lv2_wd:\n" ++
+  "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0     # execution_requests offset\n" ++
+  "  addi a0, s0, 4;  jal ra, bgv_u32le; mv s4, a0     # witness offset = NPR end\n" ++
+  "  addi a0, s0, 16; add a0, a0, s3                   # er section start\n" ++
+  "  sub a1, s4, s3; addi a1, a1, -16                  # er section len\n" ++
+  "  la a2, erh_requests_hash\n" ++
+  "  jal ra, execution_requests_hash\n" ++
+  "  bnez a0, .Lv2_zero\n" ++
   "  la t1, sv_params\n" ++
   "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)\n" ++
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)\n" ++
@@ -838,7 +846,7 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_zero32;         sd t0, 32(t1)\n" ++
   "  la t0, svf_zero32;         sd t0, 40(t1)\n" ++
   "  addi t0, s0, 24;           sd t0, 48(t1)\n" ++
-  "  la t0, svf_zero32;         sd t0, 56(t1)\n" ++
+  "  la t0, erh_requests_hash;  sd t0, 56(t1)\n" ++
   "  la t0, svf_descriptors;    sd t0, 64(t1)\n" ++
   "  la t0, svf_wds_count;      ld t0, 0(t0); sd t0, 72(t1)\n" ++
   "  la t0, svf_witness;        ld t0, 0(t0); sd t0, 80(t1)\n" ++
@@ -879,7 +887,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, sri_fail_status; ld t2, 0(t1); sd t2, 104(t0)\n" ++
   "  la t1, bv_block_rlp_len; ld t2, 0(t1); sd t2, 112(t0)\n" ++
   "  j .Lv2_pdone\n" ++
-  -- the full stateless_verdict closure (verbatim):
+  zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
@@ -946,6 +954,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   rlpBytesEncodedSizeFunction ++ "\n" ++
   rlpListEncodedSizeFunction ++ "\n" ++
   blockRlpRebuiltSizeFunction ++ "\n" ++
+  executionRequestsHashFunction ++ "\n" ++
   step2VerdictFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   ephU32leFunction ++ "\n" ++
@@ -999,6 +1008,7 @@ def ziskStatelessVerdictV2Prologue : String :=
 
 def ziskStatelessVerdictV2DataSection : String :=
   ziskStatelessVerdictDataSection ++ "\n" ++
+  executionRequestsHashDataSection ++ "\n" ++
   ".balign 8\n" ++
   "sltr_field_len:\n  .zero 8\n" ++
   "sltr_nibble_count:\n  .zero 8\n" ++
@@ -1362,135 +1372,5 @@ def ziskStatelessVerdictV2DataSection : String :=
   "mxne_hp_buf:\n  .zero 1024\n" ++
   "mxne_payload_buf:\n  .zero 16384\n"
 
-def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStatelessVerdictV2Prologue
-  dataAsm     := ziskStatelessVerdictV2DataSection
-}
-
-/-- The full stateless_verdict_v2 asm closure for embedding in the GUEST epilogue,
-    OMITTING rlp_list_nth_item + rlp_field_to_u64 (the guest already defines those,
-    so they would be duplicate labels). The guest jal's `stateless_verdict_v2` and
-    writes its bit to OUTPUT[32]. -/
-def statelessVerdictV2GuestClosure : String :=
-  zkvmKeccak256Function ++ "\n" ++
-  witnessLookupByHashFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
-  mptNodeKindFunction ++ "\n" ++
-  mptBranchChildFunction ++ "\n" ++
-  hpDecodeNibblesFunction ++ "\n" ++
-  hpEncodeNibblesFunction ++ "\n" ++
-  rlpEncodeBytesFunction ++ "\n" ++
-  rlpEncodeUintBeFunction ++ "\n" ++
-  rlpEncodeListPrefixFunction ++ "\n" ++
-  rlpItemSizeFunction ++ "\n" ++
-  rlpItemSpanFunction ++ "\n" ++
-  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
-  mptNodeSlotEncodeFunction ++ "\n" ++
-  bytesToNibblesFunction ++ "\n" ++
-  u256FromU64BeFunction ++ "\n" ++
-  u256MulU64BeFunction ++ "\n" ++
-  u256DivU64BeFunction ++ "\n" ++
-  u256IsZeroFunction ++ "\n" ++
-  u256AddBeFunction ++ "\n" ++
-  u256SubBeFunction ++ "\n" ++
-  u256EqFunction ++ "\n" ++
-  withdrawalDecodeFunction ++ "\n" ++
-  withdrawalToPathDeltaFunction ++ "\n" ++
-  msetMemcpyFunction ++ "\n" ++
-  mptSpliceSlotFunction ++ "\n" ++
-  accountAddBalanceFunction ++ "\n" ++
-  mptWalkFunction ++ "\n" ++
-  mptLookupByKeyFunction ++ "\n" ++
-  accountDecodeFunction ++ "\n" ++
-  accountAtAddressFunction ++ "\n" ++
-  extcodesizeAtHeaderStateRootFunction ++ "\n" ++
-  nodeDbAppendFunction ++ "\n" ++
-  nodeDbLookupFunction ++ "\n" ++
-  mptNodeResolveFunction ++ "\n" ++
-  mptSetRecordWalkDbFunction ++ "\n" ++
-  mptSetAccFunction ++ "\n" ++
-  mptDeleteWalkDbFunction ++ "\n" ++
-  mptExtensionExtractFunction ++ "\n" ++
-  mptDeleteAccFunction ++ "\n" ++
-  mptStateRootFunction ++ "\n" ++
-  mptLeafExtractFunction ++ "\n" ++
-  mptExtensionNodeEncodeFunction ++ "\n" ++
-  mptInsertWalkDbFunction ++ "\n" ++
-  mptInsertAccFunction ++ "\n" ++
-  mptStateRootInsFunction ++ "\n" ++
-  withdrawalsStateRootFunction ++ "\n" ++
-  validateHeaderBasicFunction ++ "\n" ++
-  checkGasLimitFunction ++ "\n" ++
-  headerValidatePostMergeFunction ++ "\n" ++
-  headerValidateExtraDataLengthFunction ++ "\n" ++
-  eip1559CalcBaseFeePerGasFunction ++ "\n" ++
-  headerValidateBaseFeeFunction ++ "\n" ++
-  validateHeaderFullFunction ++ "\n" ++
-  headerExtendedDecodeFunction ++ "\n" ++
-  headersParentHashFunction ++ "\n" ++
-  headerValidateParentHashFunction ++ "\n" ++
-  validateHeaderRlpPairFunction ++ "\n" ++
-  bhrRevLeBeFunction ++ "\n" ++
-  blockHeaderSszToRlpFunction ++ "\n" ++
-  rlpBytesEncodedSizeFunction ++ "\n" ++
-  rlpListEncodedSizeFunction ++ "\n" ++
-  blockRlpRebuiltSizeFunction ++ "\n" ++
-  step2VerdictFunction ++ "\n" ++
-  headerExtractStateRootFunction ++ "\n" ++
-  ephU32leFunction ++ "\n" ++
-  extractParentHeaderAndStateRootFunction ++ "\n" ++
-  spwU32leFunction ++ "\n" ++
-  extractPayloadAndWithdrawalsFunction ++ "\n" ++
-  swsU32leFunction ++ "\n" ++
-  extractWitnessStateSectionFunction ++ "\n" ++
-  swrRevLeBeFunction ++ "\n" ++
-  sszWithdrawalToRlpFunction ++ "\n" ++
-  statelessVerdictFromSszFunction ++ "\n" ++
-  singleLeafTrieRootFunction ++ "\n" ++
-  storageRootSingleSlotFunction ++ "\n" ++
-  accountSetStorageRootFunction ++ "\n" ++
-  accountApplyStorageSlotFunction ++ "\n" ++
-  accountApplyStorageSlotAccFunction ++ "\n" ++
-  swdReadU64leFunction ++ "\n" ++
-  swdWriteBe32U64Function ++ "\n" ++
-  swdWriteBe8Function ++ "\n" ++
-  swdMinimalCopyFunction ++ "\n" ++
-  systemWriteDescriptorsFunction ++ "\n" ++
-  accountSetUintFieldFunction ++ "\n" ++
-  accountIsEip161EmptyFunction ++ "\n" ++
-  balAccountHasStateChangeFunction ++ "\n" ++
-  balAccountPathFunction ++ "\n" ++
-  balAccountPostFieldsFunction ++ "\n" ++
-  baapDeleteSingleLeafStorageFunction ++ "\n" ++
-  balAccountApplyPostFieldsFunction ++ "\n" ++
-  balAccountChangeValueFunction ++ "\n" ++
-  balAccountChangeDescriptorFunction ++ "\n" ++
-  balAccountRecordArrayFunction ++ "\n" ++
-  balAccountIsModeledSystemFunction ++ "\n" ++
-  bsrSysChangeFunction ++ "\n" ++
-  bsrBeaconChangeFunction ++ "\n" ++
-  bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
-  blockStateRootFunction ++ "\n" ++
-  publicKeysValidFunction ++ "\n" ++
-  blockVerdictFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
-  txTypeDispatchFunction ++ "\n" ++
-  bgvU32leFunction ++ "\n" ++
-  bgvU64leFunction ++ "\n" ++
-  headersKeccakArrayFunction ++ "\n" ++
-  headersValidateChainFunction ++ "\n" ++
-  balSectionInfoFunction ++ "\n" ++
-  balGasValidFunction ++ "\n" ++
-  codeHashAtHeaderStateRootFunction ++ "\n" ++
-  balCodePreimagesValidFunction ++ "\n" ++
-  eip8037TxGasGateFunction ++ "\n" ++
-  statelessVerdictV2Function
-
-/-- The data section the guest needs for the embedded verdict closure (same as the
-    probe's, MINUS zk3_state / rfu_offset / rfu_length which the guest data already
-    defines — those are removed from the guest data section to avoid dup labels). -/
-def statelessVerdictV2GuestData : String :=
-  ziskStatelessVerdictV2DataSection
 
 end EvmAsm.Codegen

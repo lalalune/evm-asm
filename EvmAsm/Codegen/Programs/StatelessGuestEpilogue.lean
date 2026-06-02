@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BlockVerdict
+import EvmAsm.Codegen.Programs.BlockVerdictV2
 
 namespace EvmAsm.Codegen
 
