@@ -444,6 +444,255 @@ def ziskLogsListBloomAddProbeUnit : BuildUnit := {
   dataAsm     := ziskLogsListBloomAddDataSection
 }
 
+/-! ## captured_logs_bloom_add -- M26 receipt bridge
+
+    Convert the dispatcher's bounded LOG event descriptors into a 256-byte
+    receipt bloom. Each descriptor is 256 bytes:
+      +0  topic count (u64, must be <= 4)
+      +32..160 four 32-byte topic slots in EVM stack-word byte order
+      +192..224 ADDRESS context word in EVM stack-word byte order
+
+    Stack-word byte order is four little-endian u64 limbs, low limb first.
+    Ethereum bloom hashing wants canonical byte order, so this helper reverses
+    the low 20 address bytes and each 32-byte topic into scratch before calling
+    `bloom_add_value`. Descriptor data bytes are intentionally ignored, as data
+    is not part of the Ethereum logs_bloom.
+
+    Calling convention:
+      a0 (input)  : bloom ptr (256 bytes, mutable, in-place OR)
+      a1 (input)  : descriptor base ptr
+      a2 (input)  : descriptor count
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : descriptor count > 16
+        2 : topic count > 4 -/
+def capturedLogsBloomAddFunction : String :=
+  "captured_logs_bloom_add:
+" ++
+  "  addi sp, sp, -64
+" ++
+  "  sd ra,  0(sp)
+" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
+" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)
+" ++
+  "  mv s0, a0                   # bloom ptr
+" ++
+  "  mv s1, a1                   # descriptor base
+" ++
+  "  mv s2, a2                   # descriptor count
+" ++
+  "  li t0, 16
+" ++
+  "  bgtu s2, t0, .Lclba_count_fail
+" ++
+  "  li s3, 0                    # descriptor index
+" ++
+  ".Lclba_log_loop:
+" ++
+  "  bgeu s3, s2, .Lclba_done
+" ++
+  "  slli t0, s3, 8              # i * 256
+" ++
+  "  add s4, s1, t0              # descriptor ptr
+" ++
+  "  ld s5, 0(s4)                # topic count
+" ++
+  "  li t0, 4
+" ++
+  "  bgtu s5, t0, .Lclba_topic_count_fail
+" ++
+  "  # ADDRESS word at descriptor+192. Bloom hashes the low 160 bits in
+" ++
+  "  # canonical big-endian order, so reverse descriptor bytes 0..19.
+" ++
+  "  addi t0, s4, 192
+" ++
+  "  addi t0, t0, 19
+" ++
+  "  la t1, clba_value
+" ++
+  "  li t2, 20
+" ++
+  ".Lclba_addr_rev:
+" ++
+  "  beqz t2, .Lclba_addr_hash
+" ++
+  "  lbu t3, 0(t0)
+" ++
+  "  sb t3, 0(t1)
+" ++
+  "  addi t0, t0, -1
+" ++
+  "  addi t1, t1, 1
+" ++
+  "  addi t2, t2, -1
+" ++
+  "  j .Lclba_addr_rev
+" ++
+  ".Lclba_addr_hash:
+" ++
+  "  mv a0, s0; la a1, clba_value; li a2, 20
+" ++
+  "  jal ra, bloom_add_value
+" ++
+  "  li s6, 0                    # topic index
+" ++
+  ".Lclba_topic_loop:
+" ++
+  "  bgeu s6, s5, .Lclba_next_log
+" ++
+  "  slli t0, s6, 5              # topic offset = 32 + 32*j
+" ++
+  "  addi t0, t0, 32
+" ++
+  "  add t0, s4, t0
+" ++
+  "  addi t0, t0, 31
+" ++
+  "  la t1, clba_value
+" ++
+  "  li t2, 32
+" ++
+  ".Lclba_topic_rev:
+" ++
+  "  beqz t2, .Lclba_topic_hash
+" ++
+  "  lbu t3, 0(t0)
+" ++
+  "  sb t3, 0(t1)
+" ++
+  "  addi t0, t0, -1
+" ++
+  "  addi t1, t1, 1
+" ++
+  "  addi t2, t2, -1
+" ++
+  "  j .Lclba_topic_rev
+" ++
+  ".Lclba_topic_hash:
+" ++
+  "  mv a0, s0; la a1, clba_value; li a2, 32
+" ++
+  "  jal ra, bloom_add_value
+" ++
+  "  addi s6, s6, 1
+" ++
+  "  j .Lclba_topic_loop
+" ++
+  ".Lclba_next_log:
+" ++
+  "  addi s3, s3, 1
+" ++
+  "  j .Lclba_log_loop
+" ++
+  ".Lclba_done:
+" ++
+  "  li a0, 0
+" ++
+  "  j .Lclba_ret
+" ++
+  ".Lclba_count_fail:
+" ++
+  "  li a0, 1
+" ++
+  "  j .Lclba_ret
+" ++
+  ".Lclba_topic_count_fail:
+" ++
+  "  li a0, 2
+" ++
+  ".Lclba_ret:
+" ++
+  "  ld ra,  0(sp)
+" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
+" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)
+" ++
+  "  addi sp, sp, 64
+" ++
+  "  ret"
+
+/-- `zisk_captured_logs_bloom_add`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : descriptor_count
+      bytes  8..   : descriptor_count * 256 bytes of captured LOG descriptors
+    Output layout:
+      success: bytes 0..256 are the computed bloom.
+      failure: bytes 0..8 contain the nonzero status and the rest is zero. -/
+def ziskCapturedLogsBloomAddPrologue : String :=
+  "  li sp, 0xa0050000
+" ++
+  "  li a3, 0x40000000
+" ++
+  "  ld a2, 8(a3)                # descriptor_count
+" ++
+  "  addi a1, a3, 16             # descriptor base
+" ++
+  "  li a0, 0xa0010000           # output bloom ptr
+" ++
+  "  li t0, 32
+" ++
+  "  mv t1, a0
+" ++
+  ".Lclba_zero:
+" ++
+  "  beqz t0, .Lclba_zero_done
+" ++
+  "  sd x0, 0(t1)
+" ++
+  "  addi t1, t1, 8
+" ++
+  "  addi t0, t0, -1
+" ++
+  "  j .Lclba_zero
+" ++
+  ".Lclba_zero_done:
+" ++
+  "  jal ra, captured_logs_bloom_add
+" ++
+  "  beqz a0, .Lclba_pdone
+" ++
+  "  li t0, 0xa0010000
+" ++
+  "  sd a0, 0(t0)                # failure status; success leaves bloom intact
+" ++
+  "  j .Lclba_pdone
+" ++
+  zkvmKeccak256Function ++ "
+" ++
+  bloomAddValueFunction ++ "
+" ++
+  capturedLogsBloomAddFunction ++ "
+" ++
+  ".Lclba_pdone:"
+
+def ziskCapturedLogsBloomAddDataSection : String :=
+  ".section .data
+" ++
+  ".balign 8
+" ++
+  "zk3_state:
+" ++
+  "  .zero 200
+" ++
+  "bav_hash:
+" ++
+  "  .zero 32
+" ++
+  "clba_value:
+" ++
+  "  .zero 32"
+
+def ziskCapturedLogsBloomAddProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskCapturedLogsBloomAddPrologue
+  dataAsm     := ziskCapturedLogsBloomAddDataSection
+}
+
 /-! ## bloom_or_into -- PR-K151
 
     In-place 256-byte bitwise OR: `dst[i] |= src[i]` for
