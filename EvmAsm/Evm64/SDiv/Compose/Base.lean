@@ -11,6 +11,7 @@
   composing.
 -/
 
+import EvmAsm.Rv64.BitAux
 import EvmAsm.Evm64.SDiv.LimbSpec
 import EvmAsm.Evm64.SDiv.AddrNorm
 import EvmAsm.Evm64.DivMod.CallableV1Legacy
@@ -76,7 +77,7 @@ theorem sdivCode_div_callable_v1_sub {base : Word} :
         exact List.drop_append_length
       rw [h_drop]
       simp only [List.take_length])
-    (by native_decide)
+    (by rw [evm_div_callable_v1_length, evm_sdiv_legacy_length])
     (by
       rw [evm_sdiv_legacy_length]
       norm_num)
@@ -102,7 +103,7 @@ theorem sdivCodeV4_div_callable_sub {base : Word} :
         exact List.drop_append_length
       rw [h_drop]
       simp only [List.take_length])
-    (by native_decide)
+    (by rw [evm_div_callable_v4_length, evm_sdiv_v4_length])
     (by
       rw [evm_sdiv_v4_length]
       norm_num)
@@ -134,7 +135,7 @@ theorem divCall_target_eq_wrapperEndOff (base : Word) :
     (base + divCallOff) + EvmAsm.Rv64.signExtend21 EvmAsm.Evm64.evm_sdivCallOff =
       base + wrapperEndOff := by
   show (base + (192 : Word)) + (92 : Word) = base + (284 : Word)
-  bv_decide
+  bv_omega
 
 /-- Under the standard RV PC-alignment invariant (`base` has its low bit
     clear), the JALR low-bit mask `&&& ~~~1` on the post-`divCall` return
@@ -146,7 +147,7 @@ theorem base_add_resultSignFixOff_andn_one
     (base : Word) (hbase : base &&& 1 = 0) :
     (base + resultSignFixOff) &&& ~~~(1 : Word) = base + resultSignFixOff := by
   show (base + (196 : Word)) &&& ~~~(1 : Word) = base + (196 : Word)
-  bv_decide
+  exact EvmAsm.Rv64.BitAux.word_add_even_andn_one hbase (by decide)
 
 /-- The return address written by the SDIV wrapper's near `divCall` is exactly
     the result-sign-fixup entry, and masking bit 0 for the eventual `JALR`
@@ -158,6 +159,8 @@ theorem divCall_return_andn_one_eq_resultSignFixOff
       base + resultSignFixOff := by
   show (((base + (192 : Word)) + (4 : Word)) &&& ~~~(1 : Word)) =
       base + (196 : Word)
-  bv_decide
+  have hsum : (base + 192 + 4 : Word) = base + 196 := by bv_omega
+  rw [hsum]
+  exact EvmAsm.Rv64.BitAux.word_add_even_andn_one hbase (by decide)
 
 end EvmAsm.Evm64.SDiv.Compose
