@@ -53,6 +53,7 @@ import EvmAsm.EL.Bls12PairingInputBridge
 import EvmAsm.EL.Bls12PairingResultBridge
 import EvmAsm.EL.Bls12PairingEcallBridge
 import EvmAsm.EL.Bls12PairingPrecompileResultBridge
+import EvmAsm.EL.Bls12PairingPrecompileDispatch
 import EvmAsm.EL.Bls12G1AddInputBridge
 import EvmAsm.EL.Bls12G1AddResultBridge
 import EvmAsm.EL.Bls12G1AddEcallBridge
