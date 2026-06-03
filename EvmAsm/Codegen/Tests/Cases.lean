@@ -841,6 +841,12 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "addmod_carry_reduced_sum_subtracts_n"
       bytecode       := "0x60, 0x07, 0x60, 0x07, 0x60, 0x00, 0x19, 0x08, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- Carry-path ADDMOD with live stack words below the arguments.
+    -- The deepest sentinel lands at the old `x12 + 224` temporary frame offset;
+    -- after ADDMOD and five POPs it must still be the top stack word.
+    { name           := "addmod_carry_preserves_deep_stack"
+      bytecode       := "0x60, 0xaa, 0x60, 0x66, 0x60, 0x55, 0x60, 0x44, 0x60, 0x33, 0x60, 0x07, 0x60, 0x01, 0x60, 0x00, 0x19, 0x08, 0x50, 0x50, 0x50, 0x50, 0x50, 0x00"
+      expectedOutHex := "aa00000000000000000000000000000000000000000000000000000000000000" }
     -- ## M21 real calldata (CALLDATASIZE / CALLDATALOAD / CALLDATACOPY)
     -- The dispatcher prologue now populates env.callDataPtrOff (416)
     -- and env.callDataLenOff (424) from the ziskemu `-i` input file.
