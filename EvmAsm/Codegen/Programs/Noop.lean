@@ -11,8 +11,8 @@
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
   - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE (MSIZE and GAS have real implementations in Programs/Evm.lean)
-  - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
-    EXTCODEHASH (BLOBHASH and BLOCKHASH have real implementations in Programs/Evm.lean)
+  - `popPushZeroHandlers` — BALANCE and EXTCODESIZE
+    (EXTCODEHASH, BLOBHASH, and BLOCKHASH have real implementations in Programs/Evm.lean)
   - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
     RETURNDATACOPY, MCOPY
 
@@ -195,7 +195,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE, EXTCODEHASH).
+/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE).
     Each opcode pops one 32-byte input (e.g., an address) and pushes a
     32-byte zero value. Net EVM stack delta = 0.
 
@@ -205,8 +205,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
 
     **Known limitations**:
     - BALANCE always returns 0 (no account state model).
-    - EXTCODESIZE / EXTCODEHASH always return 0 (no external account
-      model).
+    - EXTCODESIZE always returns 0 (no external code-byte model yet).
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
@@ -227,8 +226,6 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_BALANCE", opcodes := [0x31]
     , body := body, tail := .advanceAndRet 1 }
   , { label := "h_EXTCODESIZE", opcodes := [0x3b]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_EXTCODEHASH", opcodes := [0x3f]
     , body := body, tail := .advanceAndRet 1 } ]
 
 /-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY).
