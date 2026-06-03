@@ -89,7 +89,7 @@ theorem exp_boundary_result_word_one :
       (0 : Word) (0 : Word) (0 : Word) = (1 : EvmWord) := by
   unfold expResultWord EvmWord.fromLimbs
   rw [signExtend12_1]
-  bv_decide
+  decide
 
 /-- Stack-shaped boundary bridge with the output slot exposed as the semantic
     EVM word `1`, rather than the raw four-limb epilogue assembly term. -/
@@ -222,8 +222,8 @@ theorem exp_boundary_result_one_full_post_stack_shape_spec_within
     stack-level consumers. -/
 theorem exp_boundary_counter_256 :
     ((0 : Word) + signExtend12 (256 : BitVec 12)) = (256 : Word) := by
-  unfold signExtend12
-  bv_decide
+  rw [EvmAsm.Evm64.Exp.AddrNorm.exp_se12_256]
+  bv_omega
 
 /-- The EXP boundary epilogue advances the EVM stack pointer by one word. -/
 theorem exp_boundary_stack_pointer_advance_32 (evmSp : Word) :
