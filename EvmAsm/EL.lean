@@ -119,6 +119,7 @@ import EvmAsm.EL.CallStackBridge
 import EvmAsm.EL.CallResultEffectsBridge
 import EvmAsm.EL.CallExecutionBridge
 import EvmAsm.EL.CallPrecheck
+import EvmAsm.EL.CallResultMergeBridge
 import EvmAsm.EL.CallStackExecutionBridge
 import EvmAsm.EL.CallOutputMemory
 import EvmAsm.EL.CallOutputArgsMemory
