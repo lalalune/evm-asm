@@ -37,6 +37,7 @@ import EvmAsm.EL.Blake2fEcallBridge
 import EvmAsm.EL.Blake2fPrecompileDispatch
 import EvmAsm.EL.Blake2fPrecompileResultBridge
 import EvmAsm.EL.IdentityPrecompileResultBridge
+import EvmAsm.EL.IdentityPrecompileDispatch
 import EvmAsm.EL.PrecompileCallBridge
 import EvmAsm.EL.PrecompileCallOutputBridge
 import EvmAsm.EL.KeccakStatusBridge
