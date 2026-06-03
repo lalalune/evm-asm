@@ -110,7 +110,7 @@ def runtimeAccountWitnessProbeDataSection : String :=
   "  .zero 0x8000\n" ++
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 624\n" ++
+  "  .zero 640\n" ++
   ".balign 8\n" ++
   "evm_blob_hashes:\n" ++
   "  .zero 512\n" ++

@@ -37,10 +37,10 @@ prologue copies those words into `evm_env` so ADDRESS, ORIGIN, CALLER,
 CALLVALUE, GASPRICE, COINBASE, TIMESTAMP, NUMBER, PREVRANDAO, GASLIMIT,
 CHAINID, SELFBALANCE, and BASEFEE can read nonzero runtime values.
 
-M31 extension: optionally append account-witness context for runtime
-BALANCE/EXTCODE* handlers: parent header RLP, witness.state, and
-witness.codes. The dispatcher stores pointers and lengths in `evm_env`;
-zero header length means no witness context is available.
+M31 extension: optionally append account/storage-witness context for runtime
+BALANCE/EXTCODE*/SLOAD handlers: parent header RLP, witness.state,
+witness.codes, and witness.storage. The dispatcher stores pointers and lengths
+in `evm_env`; zero header length means no witness context is available.
 
 Usage:
     pack-bytecode.py "0x60, 0x02, 0x60, 0x0a, 0x04, 0x00" output.bin
@@ -75,7 +75,8 @@ Output layout:
     next 8 bytes       <8-byte LE u64 parent header RLP len> (M31)
     next 8 bytes       <8-byte LE u64 witness.state len>     (M31)
     next 8 bytes       <8-byte LE u64 witness.codes len>     (M31)
-    following          <header RLP || witness.state || witness.codes>
+    next 8 bytes       <8-byte LE u64 witness.storage len>   (M31)
+    following          <header RLP || witness.state || witness.codes || witness.storage>
 
 ziskemu prepends 8 more bytes of its own metadata when loading,
 landing the bytecode-length prefix at INPUT_ADDR+8 and the bytecode
@@ -97,7 +98,7 @@ an empty recent-hash table (BLOCKHASH returns 0).
 Pre-env callers that don't pass --env get zero words for every simple
 environment opcode.
 Pre-M31 callers that don't pass --state-header-rlp get a zero-length
-account-witness context.
+account/storage-witness context.
 """
 import argparse
 import re
@@ -391,6 +392,12 @@ def main() -> int:
         help="Optional witness.codes SSZ section for EXTCODE* runtime context. "
              "Use @path to read raw bytes from a file.",
     )
+    parser.add_argument(
+        "--witness-storage",
+        default="",
+        help="Optional witness.storage SSZ section for SLOAD runtime context. "
+             "Use @path to read raw bytes from a file.",
+    )
     args = parser.parse_args()
 
     csv = sys.stdin.read() if args.bytecode == "-" else args.bytecode
@@ -411,8 +418,9 @@ def main() -> int:
     state_header_rlp = parse_bytes_arg(args.state_header_rlp)
     witness_state = parse_bytes_arg(args.witness_state)
     witness_codes = parse_bytes_arg(args.witness_codes)
-    if not state_header_rlp and (witness_state or witness_codes):
-        raise ValueError("--witness-state/--witness-codes require --state-header-rlp")
+    witness_storage = parse_bytes_arg(args.witness_storage)
+    if not state_header_rlp and (witness_state or witness_codes or witness_storage):
+        raise ValueError("--witness-state/--witness-codes/--witness-storage require --state-header-rlp")
 
     # Bytecode segment: 8B LE length prefix + bytes, padded to 8-byte boundary
     # so the calldata-length cell that follows is aligned.
@@ -454,12 +462,13 @@ def main() -> int:
     # env.gasRemaining (env+568).
     packed += struct.pack("<Q", gas_limit)
 
-    # M31 account-witness context trailer. The three length cells are always
-    # present so old callers get deterministic zero-context behavior.
+    # M31 account/storage-witness context trailer. The four length cells are
+    # always present so old callers get deterministic zero-context behavior.
     packed += struct.pack("<Q", len(state_header_rlp))
     packed += struct.pack("<Q", len(witness_state))
     packed += struct.pack("<Q", len(witness_codes))
-    packed += state_header_rlp + witness_state + witness_codes
+    packed += struct.pack("<Q", len(witness_storage))
+    packed += state_header_rlp + witness_state + witness_codes + witness_storage
     packed = pad_to_8(packed)
 
     if args.output == "-":

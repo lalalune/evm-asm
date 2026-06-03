@@ -19,6 +19,7 @@
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.EvmOpcodes
 
 namespace EvmAsm.Codegen
 
@@ -220,7 +221,7 @@ These labels match the standalone header-state-root probes in
 `Programs/EvmOpcodes.lean` for `extcodehash_at_header_state_root` and
 its account-trie dependencies. They live in the dispatcher `.data`
 section so BALANCE/EXTCODE* runtime handlers can share one witness-backed
-account lookup surface. -/
+account lookup surface. SLOAD also uses the storage-trie scratch labels in this block. -/
 def emitRuntimeAccountWitnessData : String :=
   ".balign 32\n" ++
   "wlh_scratch_hash:\n" ++
@@ -292,6 +293,9 @@ def emitRuntimeAccountWitnessData : String :=
   "hesr_length:\n" ++
   "  .zero 8\n" ++
   ".balign 32\n" ++
+  "eahsr_address_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
   "eahsr_state_root:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
@@ -302,7 +306,28 @@ def emitRuntimeAccountWitnessData : String :=
   "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
   "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
-  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n"
+  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
+  ".balign 8\n" ++
+  "si_value_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "si_value_scratch:\n" ++
+  "  .zero 256\n" ++
+  ".balign 32\n" ++
+  "sload_address_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sload_slot_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sload_state_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "sload_acct_struct:\n" ++
+  "  .zero 104\n" ++
+  ".balign 32\n" ++
+  "sload_u256:\n" ++
+  "  .zero 32\n"
 
 /-- Dispatcher prologue: init EVM pointers (`x10` = code, `x12` =
     stack top, `x13` = EVM memory base) and enter the main
@@ -432,6 +457,20 @@ def emitDispatcherEpilogue
   -- with `ret`, returning to whoever JAL'd them.
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  mptBranchChildFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
+  mptLookupByKeyFunction ++ "\n" ++
+  accountDecodeFunction ++ "\n" ++
+  accountAtAddressFunction ++ "\n" ++
+  slotDecodeU256Function ++ "\n" ++
+  slotAtIndexFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  sloadAtHeaderStateRootFunction ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
@@ -593,10 +632,10 @@ def emitDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 624\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 640\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells + M28/M29 blob/block
                           -- cells (up to env+560) + M30 gasRemaining at env+568
-                          -- + M31 account-witness context at env+576..616
+                          -- + M31 account/storage-witness context at env+576..632
                           -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
                           -- + M28 blobHashCount at env+544
                           -- + M29 BLOCKHASH current/count at env+552/+560
@@ -826,8 +865,8 @@ def emitRuntimeDispatcherSetup : String :=
   "  addi x6, x6, 8\n" ++
   "  addi x7, x7, -1\n" ++
   "  bnez x7, .env_trailer_copy_loop\n" ++
-  -- M30/M31: gas limit trailer followed by optional account-witness
-  -- context. pack-bytecode.py always appends the three length cells;
+  -- M30/M31: gas limit trailer followed by optional account/storage-witness
+  -- context. pack-bytecode.py always appends the four length cells;
   -- zero header length means no state context is available.
   "  ld x6, 0(x5)\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = input gas limit
@@ -838,12 +877,16 @@ def emitRuntimeDispatcherSetup : String :=
   "  sd x7, 600(x20)\n" ++
   "  ld x8, 16(x5)\n" ++           -- x8 = witness_codes_len
   "  sd x8, 616(x20)\n" ++
-  "  addi x5, x5, 24\n" ++         -- x5 = header ptr
+  "  ld x9, 24(x5)\n" ++           -- x9 = witness_storage_len
+  "  sd x9, 632(x20)\n" ++
+  "  addi x5, x5, 32\n" ++         -- x5 = header ptr
   "  sd x5, 576(x20)\n" ++
   "  add x5, x5, x6\n" ++          -- x5 = witness.state ptr
   "  sd x5, 592(x20)\n" ++
   "  add x5, x5, x7\n" ++          -- x5 = witness.codes ptr
-  "  sd x5, 608(x20)"
+  "  sd x5, 608(x20)\n" ++
+  "  add x5, x5, x8\n" ++          -- x5 = witness.storage ptr
+  "  sd x5, 624(x20)"
 
 /-- Runtime dispatcher prologue: setup plus fetch/decode/dispatch loop. -/
 def emitRuntimeDispatcherPrologue : String :=
@@ -884,10 +927,10 @@ def emitRuntimeDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 624\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 640\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells + M28/M29 blob/block
                           -- cells (up to env+560) + M30 gasRemaining at env+568
-                          -- + M31 account-witness context at env+576..616
+                          -- + M31 account/storage-witness context at env+576..632
                           -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
                           -- + M28 blobHashCount at env+544
                           -- + M29 BLOCKHASH current/count at env+552/+560

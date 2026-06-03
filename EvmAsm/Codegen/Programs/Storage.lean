@@ -49,8 +49,8 @@
   ## Known limitations (documented in CODEGEN.md M24)
 
   - Single-contract only (`addrHash = 0`); multi-contract is M25.
-  - Cold reads of non-preloaded slots return `original = 0`; real
-    EVM reads from the witness MPT (M27).
+  - Cold SLOAD misses consult the runtime storage witness when present;
+    otherwise they keep the deterministic zero fallback used by synthetic tests.
   - 4 MiB per log = ~32K entries each — well past any test workload.
   - Inline asm, not verified bodies. Verified-loop bodies follow later.
 -/
@@ -62,6 +62,73 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+
+/-- Copy the 32-byte EVM stack slot key into natural big-endian order for
+    trie lookup helpers. Stack bytes are little-endian u256 limbs;
+    `slot_at_index` expects a 32-byte big-endian key. -/
+private def sloadWitnessSlotCopy : String :=
+  String.intercalate "" <|
+    (List.range 32).map fun i =>
+      s!"  lbu t2, {31 - i}(x12)\n  sb t2, {i}(t1)\n"
+
+/-- Copy the current contract ADDRESS env word into natural 20-byte address
+    order for account trie lookup. The env word uses the same stack-byte
+    representation as ADDRESS would push. -/
+private def sloadWitnessAddressCopy : String :=
+  String.intercalate "" <|
+    (List.range 20).map fun i =>
+      s!"  lbu t2, {19 - i}(x20)\n  sb t2, {i}(t1)\n"
+
+/-- Copy the helper's natural big-endian u256 result back into the
+    dispatcher's stack-word byte order. -/
+private def sloadWitnessValueCopy : String :=
+  String.intercalate "" <|
+    (List.range 32).map fun i =>
+      s!"  lbu t1, {31 - i}(t0)\n  sb t1, {i}(x12)\n"
+
+/-- Cold-miss fallback for SLOAD. If the runtime account/storage witness
+    trailer is absent, keep the old deterministic zero behavior. If present,
+    query `sload_at_header_state_root` and copy its 32-byte output into the
+    stack slot. Nonzero structural status leaves the helper's pre-zeroed output
+    as zero; block-level witness validation reports malformed witnesses. -/
+private def sloadWitnessMissPreBody : String :=
+  ".Lsload_witness_miss:\n" ++
+  "  ld t0, 584(x20)\n" ++          -- parent header length; zero means no witness context
+  "  beqz t0, .Lsload_zero\n" ++
+  "  la t1, sload_slot_scratch\n" ++
+  sloadWitnessSlotCopy ++
+  "  la t1, sload_address_scratch\n" ++
+  sloadWitnessAddressCopy ++
+  "  addi sp, sp, -32\n" ++
+  "  sd x10, 0(sp)\n" ++
+  "  sd x12, 8(sp)\n" ++
+  "  sd x13, 16(sp)\n" ++
+  "  ld a0, 576(x20)\n" ++         -- header ptr
+  "  ld a1, 584(x20)\n" ++         -- header len
+  "  la a2, sload_address_scratch\n" ++
+  "  la a3, sload_slot_scratch\n" ++
+  "  ld a4, 592(x20)\n" ++         -- witness.state ptr
+  "  ld a5, 600(x20)\n" ++         -- witness.state len
+  "  ld a6, 624(x20)\n" ++         -- witness.storage ptr
+  "  ld a7, 632(x20)\n" ++         -- witness.storage len
+  "  jal ra, sload_at_header_state_root\n" ++
+  "  ld x10, 0(sp)\n" ++
+  "  ld x12, 8(sp)\n" ++
+  "  ld x13, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  la t0, sload_u256\n" ++
+  sloadWitnessValueCopy ++
+  "  j .Lsload_done\n" ++
+  ".Lsload_zero:\n" ++
+  "  sd x0, 0(x12)\n" ++
+  "  sd x0, 8(x12)\n" ++
+  "  sd x0, 16(x12)\n" ++
+  "  sd x0, 24(x12)\n" ++
+  ".Lsload_done:"
+
+private def sloadWitnessTail : HandlerTail :=
+  .custom "  addi x10, x10, 1\n  j .dispatch_loop"
+
 /-- M24 Option A storage handlers. -/
 def storageHandlers : List OpcodeHandlerSpec :=
   [ -- M24 real SLOAD. Scan persistent log from end (last-write-
@@ -70,25 +137,25 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x54]
     , preBody :=
         "  ld x15, 448(x20)\n" ++         -- x15 = persistent log_length
-        "  beqz x15, 4f\n" ++             -- empty log → return 0
+        "  beqz x15, .Lsload_witness_miss\n" ++
         "  li x14, 0xa0630000\n" ++       -- x14 = log base
         "  slli x16, x15, 7\n" ++         -- x16 = log_length * 128
         "  add x14, x14, x16\n" ++        -- x14 = past last entry
-        "1:\n" ++                         -- scan loop iter
+        ".Lsload_scan_loop:\n" ++
         "  addi x14, x14, -128\n" ++      -- x14 = &entry[i]
         -- Compare slotKey [x14+32..x14+64] vs stack key [x12+0..x12+32]
         "  ld x16, 32(x14)\n" ++
         "  ld x17, 0(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
+        "  bne x16, x17, .Lsload_scan_step\n" ++
         "  ld x16, 40(x14)\n" ++
         "  ld x17, 8(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
+        "  bne x16, x17, .Lsload_scan_step\n" ++
         "  ld x16, 48(x14)\n" ++
         "  ld x17, 16(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
+        "  bne x16, x17, .Lsload_scan_step\n" ++
         "  ld x16, 56(x14)\n" ++
         "  ld x17, 24(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
+        "  bne x16, x17, .Lsload_scan_step\n" ++
         -- Match: copy current [x14+96..x14+128] → [x12..x12+32]
         "  ld x16, 96(x14)\n" ++
         "  sd x16, 0(x12)\n" ++
@@ -98,18 +165,13 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  sd x16, 16(x12)\n" ++
         "  ld x16, 120(x14)\n" ++
         "  sd x16, 24(x12)\n" ++
-        "  j 5f\n" ++
-        "3:\n" ++                         -- no match this entry — advance
+        "  j .Lsload_done\n" ++
+        ".Lsload_scan_step:\n" ++
         "  addi x15, x15, -1\n" ++
-        "  bnez x15, 1b\n" ++
-        "4:\n" ++                         -- not found — write zeros
-        "  sd x0, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "5:"
+        "  bnez x15, .Lsload_scan_loop\n" ++
+        sloadWitnessMissPreBody
     , body    := []
-    , tail    := .advanceAndRet 1 }
+    , tail    := sloadWitnessTail }
   , -- M24 real SSTORE. Scan persistent log from end; if found, save
     -- &found.original for the append step. Then ALWAYS append a new
     -- 128-byte entry at log[log_length] with (addrHash=0,
