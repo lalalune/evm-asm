@@ -67,7 +67,7 @@ def mptStateRootInsFunction : String :=
   "  mv a1, s0\n" ++
   "  mv a2, s1\n" ++
   "  la a7, mset_dr_root\n" ++
-  "  li t3, 3; beq t2, t3, .Lsri_after\n" ++
+  "  li t3, 3; beq t2, t3, .Lsri_noop\n" ++
   "  li t3, 2; beq t2, t3, .Lsri_delete\n" ++
   "  beqz t2, .Lsri_modify\n" ++
   "  jal ra, mpt_insert_acc\n" ++
@@ -77,6 +77,9 @@ def mptStateRootInsFunction : String :=
   "  j .Lsri_after\n" ++
   ".Lsri_modify:\n" ++
   "  jal ra, mpt_set_acc\n" ++
+  "  j .Lsri_after\n" ++
+  ".Lsri_noop:\n" ++
+  "  li a0, 0\n" ++
   ".Lsri_after:\n" ++
   "  bnez a0, .Lsri_fail\n" ++
   "  addi s5, s5, 1\n" ++

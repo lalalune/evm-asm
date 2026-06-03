@@ -87,6 +87,7 @@ import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
+import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StorageRoot
@@ -336,6 +337,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bloom_eq" => some ziskBloomEqProbeUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
+  | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit
@@ -836,6 +838,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bloom_add_value" => some ziskBloomAddValueProbeUnit
   | "zisk_log_bloom_add" => some ziskLogBloomAddProbeUnit
   | "zisk_logs_list_bloom_add" => some ziskLogsListBloomAddProbeUnit
+  | "zisk_captured_logs_bloom_add" => some ziskCapturedLogsBloomAddProbeUnit
   | "zisk_bloom_or_into" => some ziskBloomOrIntoProbeUnit
   | "zisk_receipt_extract_logs_bloom" => some ziskReceiptExtractLogsBloomProbeUnit
   | "zisk_header_extract_logs_bloom" => some ziskHeaderExtractLogsBloomProbeUnit
@@ -1143,12 +1146,14 @@ def knownProgramNames : List String :=
    "zisk_bloom_add_value",
    "zisk_log_bloom_add",
    "zisk_logs_list_bloom_add",
+   "zisk_captured_logs_bloom_add",
    "zisk_bloom_or_into",
    "zisk_receipt_extract_logs_bloom",
    "zisk_header_extract_logs_bloom",
    "zisk_bloom_eq",
    "zisk_rlp_encode_u64",
    "zisk_receipt_encode",
+   "zisk_typed_receipt_encode",
    "zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
    "zisk_bal_gas_valid",
@@ -1367,6 +1372,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BlockEmpty.lean",
     "EvmAsm/Codegen/Programs/BlockRoots.lean",
     "EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean",
+    "EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean",
     "EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean",
     "EvmAsm/Codegen/Programs/BlockValidate.lean",
     "EvmAsm/Codegen/Programs/Chain.lean",
