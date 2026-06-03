@@ -878,7 +878,7 @@ theorem evm_sdiv_exact_return_result_stack_spec_within
           (sdivAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
             (divisor.getLimbN 2) (divisor.getLimbN 3))).getLimbN 3)] at hp
       rw [evmStackIs_cons]
-      rw [show (sp + 32 + 32 : Word) = sp + 64 by bv_decide]
+      rw [show (sp + 32 + 32 : Word) = sp + 64 by bv_omega]
       xperm_hyp hp)
     (evm_sdiv_exact_return_stack_tail_spec_within
       vRa vSavedOld sp sDividendOld sDivisorOld
@@ -987,7 +987,7 @@ theorem evm_sdiv_exact_return_result_stack_v4_spec_within
           (sdivAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
             (divisor.getLimbN 2) (divisor.getLimbN 3))).getLimbN 3)] at hp
       rw [evmStackIs_cons]
-      rw [show (sp + 32 + 32 : Word) = sp + 64 by bv_decide]
+      rw [show (sp + 32 + 32 : Word) = sp + 64 by bv_omega]
       xperm_hyp hp)
     (evm_sdiv_exact_return_stack_tail_v4_spec_within
       vRa vSavedOld sp sDividendOld sDivisorOld
