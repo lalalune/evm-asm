@@ -32,7 +32,11 @@ DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 EEST_TAG="$(tr -d ' \n' < scripts/eest-fixture-tag.txt 2>/dev/null || echo unknown)"
 
 CONF_COUNT="$(grep -oE 'allConformanceVectorCount = [0-9]+' \
-  EvmAsm/EL/Conformance/All.lean | head -1 | grep -oE '[0-9]+' || echo 0)"
+  EvmAsm/EL/Conformance/All.lean | head -1 | grep -oE '[0-9]+' || true)"
+if [[ -z "$CONF_COUNT" ]]; then
+  echo "progress-snapshot: failed to parse allConformanceVectorCount" >&2
+  exit 1
+fi
 
 if [[ ! -f PROGRESS.md ]]; then
   echo "progress-snapshot: PROGRESS.md missing; run scripts/progress-report.sh --write" >&2
@@ -66,11 +70,17 @@ eval "$(printf '%s\n' "$REPORT" | awk '
   in_bytes && $0 ~ /\| ✗ notStarted / { n=split($0,c,"|"); gsub(/ /,"",c[n-1]); if(c[n-1]~/^[0-9]+$/) emit("B_NOTSTARTED",c[n-1]) }
 ')"
 
-# Default any unparsed field to 0 so the JSON is always well-formed.
+# Fail loudly if any field failed to parse — do NOT default to 0. A silent 0
+# would be recorded as a real datapoint and later read by progress-velocity.sh
+# as a catastrophic (e.g. 42→0) regression, or could mask a real one (adversarial
+# review). A parse miss means PROGRESS.md drifted in shape and must be fixed.
 for v in E_PROVEN E_COND E_PARTIAL E_EXEC E_NOTSTARTED \
          B_PROVEN B_COND B_PARTIAL B_EXEC B_NOTSTARTED \
          OBL_DONE OBL_BLOCKED OBL_NOTSTARTED; do
-  : "${!v:=0}"
+  if [[ -z "${!v:-}" ]]; then
+    echo "progress-snapshot: failed to parse $v from PROGRESS.md (table shape changed?)" >&2
+    exit 1
+  fi
 done
 
 printf '{'

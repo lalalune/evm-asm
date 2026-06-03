@@ -5,12 +5,22 @@
 #
 # Consumes the JSONL log produced by scripts/progress-snapshot.sh (one record
 # per commit, kept on the `progress-history` orphan branch as history.jsonl).
-# Reports the change between the first and last record and, crucially, fires a
-# non-zero exit if any *monotonic* metric regressed — the DIV-style silent
+# Reports the change between the first and last record and, with `--check`,
+# exits non-zero if any *monotonic* metric regressed — the DIV-style silent
 # `.proven → .partly/.conditional` downgrade that point-in-time PROGRESS.md
 # cannot surface.
 #
-# Deterministic: pure awk over the log. No LLM, no network.
+# Status (Phase 2): this is an ADVISORY / on-demand tool plus a post-merge
+# signal surfaced by .github/workflows/progress-history.yml. It is NOT yet a
+# blocking PR gate — gating belongs with the per-PR scorecard (report R-B1,
+# Phase 4), which can fetch this history at PR time. See PLAN.md follow-up.
+#
+# Robust to schema evolution: a metric absent from the *first* record (e.g. an
+# old datapoint predating `conditionalCount`) is reported `n/a` and skipped, not
+# treated as a 0→N jump — so a schema bump can't manufacture a false regression
+# (or, worse, crash-and-pass).
+#
+# Deterministic: pure sed/grep over the log. No LLM, no network.
 #
 # Usage:
 #   scripts/progress-velocity.sh [history.jsonl]   # default: ./history.jsonl
@@ -31,9 +41,12 @@ if [[ ! -f "$LOG" ]]; then
   exit 2
 fi
 
-# Pull a numeric field from a one-line JSON record (no jq dependency).
-jnum() { sed -E "s/.*\"$2\":([0-9]+).*/\1/" <<<"$1"; }
-jstr() { sed -E "s/.*\"$2\":\"([^\"]*)\".*/\1/" <<<"$1"; }
+# Pull a field from a one-line JSON record (no jq dependency). Both return the
+# EMPTY string when the key is absent — never the whole line — so a missing
+# field is detectable rather than silently poisoning arithmetic. Exact-key
+# match (`"key":`) avoids prefix collisions (notStartedCount vs notStartedBytes).
+jnum() { grep -oE "\"$2\":[0-9]+" <<<"$1" | head -1 | grep -oE '[0-9]+$' || true; }
+jstr() { grep -oE "\"$2\":\"[^\"]*\"" <<<"$1" | head -1 | sed -E 's/.*:"([^"]*)"/\1/' || true; }
 
 FIRST="$(grep -m1 '^{' "$LOG" || true)"
 LAST="$(grep '^{' "$LOG" | tail -1 || true)"
@@ -56,6 +69,13 @@ row() {
   local label="$1" key="$2" monotonic="$3"
   local a b d sign
   a="$(jnum "$FIRST" "$key")"; b="$(jnum "$LAST" "$key")"
+  # Guard against a field absent from either endpoint (schema evolution): report
+  # n/a instead of doing arithmetic on an empty string (which would otherwise
+  # error to stderr yet leave the script exiting 0 — see the adversarial review).
+  if [[ ! "$a" =~ ^[0-9]+$ || ! "$b" =~ ^[0-9]+$ ]]; then
+    printf -- "- %-22s n/a (field absent in an endpoint record)\n" "$label:"
+    return
+  fi
   d=$((b - a))
   if (( d >= 0 )); then sign="+${d}"; else sign="${d}"; fi
   local flag=""

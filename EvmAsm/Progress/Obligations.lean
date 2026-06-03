@@ -171,4 +171,18 @@ theorem blocker_opcodes_in_registry :
 theorem obligation_ids_eq : obligations.map (·.id) = [1, 2, 3, 4, 5, 6, 7, 8, 9] := by
   decide
 
+/-- A `done` obligation must carry a `witness` pointer and have no remaining
+    blockers. This is **not** a kernel proof of closure — `witness` is a
+    human-readable pointer, not an `abbrev`-checked theorem (see the module
+    docstring). What it buys: flipping a status to `done` no longer slips through
+    as a one-token tier edit; the agent must *also* fabricate a witness string
+    and clear the blocker list, a larger and more review-visible diff in a file
+    the tamper scan already watches. Combined with the `…Count_eq` theorems
+    (which force the matching count literal to change too), a false-green
+    `done` flip can't be silent. -/
+theorem done_obligations_well_formed :
+    (obligations.filter (fun o => o.status == .done)).all
+      (fun o => o.witness.isSome && o.blockedBy.isEmpty) = true := by
+  decide
+
 end EvmAsm.Progress.Obligations

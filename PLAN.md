@@ -202,7 +202,13 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     drift-gated `PROGRESS.md` — no build needed) + `scripts/progress-velocity.sh`
     (deltas + monotonic-regression alarm for the DIV-style silent downgrade),
     persisted to a `progress-history` orphan branch by
-    `.github/workflows/progress-history.yml` (mirrors `benchmark-history`).
+    `.github/workflows/progress-history.yml` (mirrors `benchmark-history`), which
+    also surfaces an advisory velocity read in the job summary on each main push.
+    Obligations carry a kernel invariant `done_obligations_well_formed`
+    (`done → witness ∧ no blockers`) so a false-green status flip can't be a
+    one-token edit. **Follow-up (deferred to Phase 4 / R-B1 scorecard):** wire
+    `progress-velocity.sh --check` as a *PR-time* gate (the post-merge workflow
+    can't block a merge); it is advisory-only today.
 - **Proof-ergonomics infra distilled from the purge** (see `GRIND.md` §7):
   - **`signExtend` simprocs + `signext` tactic** (`Rv64/SignExtendSimproc.lean`):
     `reduceSignExtend12/13/21` are `dsimproc_decl`s (definitional, kernel-checkable,
