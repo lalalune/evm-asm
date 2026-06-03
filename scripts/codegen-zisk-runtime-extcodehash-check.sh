@@ -124,10 +124,12 @@ BOB="$(printf 'bb%.0s' $(seq 1 20))"
 FAILED=0
 
 make_case present present "$ALICE" "$ALICE" 7 11 "6001600201"
+make_case balance_only present "$ALICE" "$ALICE" 0 11 ""
+make_case nonce_only present "$ALICE" "$ALICE" 7 0 ""
 make_case empty empty "$ALICE" "$ALICE" 0 0 ""
 make_case missing missing "$BOB" "$ALICE" 7 11 "6000"
 
-for name in present empty missing; do
+for name in present balance_only nonce_only empty missing; do
   echo "==> pack $name"
   scripts/pack-bytecode.py \
     --state-header-rlp "@$RUN_DIR/$name/header.bin" \
