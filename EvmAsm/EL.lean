@@ -14,6 +14,7 @@ import EvmAsm.EL.CreatedAccounts
 import EvmAsm.EL.CreateCollision
 import EvmAsm.EL.CreateCollisionResult
 import EvmAsm.EL.CreatePrecheck
+import EvmAsm.EL.CreateDeploymentBridge
 import EvmAsm.EL.CreateResultBridge
 import EvmAsm.EL.CreateStackExecutionBridge
 import EvmAsm.EL.Logs
