@@ -57,6 +57,7 @@ import EvmAsm.EL.Bls12PairingInputBridge
 import EvmAsm.EL.Bls12PairingResultBridge
 import EvmAsm.EL.Bls12PairingEcallBridge
 import EvmAsm.EL.Bls12PairingPrecompileResultBridge
+import EvmAsm.EL.Bls12PairingPrecompileDispatch
 import EvmAsm.EL.Bls12G1AddInputBridge
 import EvmAsm.EL.Bls12G1AddResultBridge
 import EvmAsm.EL.Bls12G1AddEcallBridge
@@ -69,6 +70,8 @@ import EvmAsm.EL.Bls12G1MsmInputBridge
 import EvmAsm.EL.Bls12G1MsmResultBridge
 import EvmAsm.EL.Bls12G1MsmEcallBridge
 import EvmAsm.EL.Bls12G1PrecompileResultBridge
+import EvmAsm.EL.Bls12G1MsmPrecompileDispatch
+import EvmAsm.EL.Bls12G1AddPrecompileDispatch
 import EvmAsm.EL.KzgPointEvalInputBridge
 import EvmAsm.EL.KzgPointEvalResultBridge
 import EvmAsm.EL.KzgPointEvalEcallBridge
@@ -78,12 +81,15 @@ import EvmAsm.EL.Bls12MapFpToG1InputBridge
 import EvmAsm.EL.Bls12MapFpToG1ResultBridge
 import EvmAsm.EL.Bls12MapFpToG1EcallBridge
 import EvmAsm.EL.Bls12MapPrecompileResultBridge
+import EvmAsm.EL.Bls12MapFp2ToG2PrecompileDispatch
+import EvmAsm.EL.Bls12MapFpToG1PrecompileDispatch
 import EvmAsm.EL.Bn254PairingInputBridge
 import EvmAsm.EL.Bn254PairingResultBridge
 import EvmAsm.EL.Bn254PairingEcallBridge
 import EvmAsm.EL.ModexpInputBridge
 import EvmAsm.EL.ModexpResultBridge
 import EvmAsm.EL.ModexpEcallBridge
+import EvmAsm.EL.ModexpPrecompileDispatch
 import EvmAsm.EL.ModexpPrecompileResultBridge
 import EvmAsm.EL.Ripemd160InputBridge
 import EvmAsm.EL.Ripemd160EcallBridge
@@ -92,6 +98,8 @@ import EvmAsm.EL.Bn254G1MulInputBridge
 import EvmAsm.EL.Bn254G1MulResultBridge
 import EvmAsm.EL.Bn254G1MulEcallBridge
 import EvmAsm.EL.Bn254PrecompileResultBridge
+import EvmAsm.EL.Bn254PairingPrecompileDispatch
+import EvmAsm.EL.Bn254G1MulPrecompileDispatch
 import EvmAsm.EL.Bn254G1AddPrecompileDispatch
 import EvmAsm.EL.Bls12G2MsmInputBridge
 import EvmAsm.EL.Bls12G2MsmResultBridge
@@ -158,3 +166,5 @@ import EvmAsm.EL.Bls12G2AddInputBridge
 import EvmAsm.EL.Bls12G2AddResultBridge
 import EvmAsm.EL.Bls12G2AddEcallBridge
 import EvmAsm.EL.Bls12G2PrecompileResultBridge
+import EvmAsm.EL.Bls12G2MsmPrecompileDispatch
+import EvmAsm.EL.Bls12G2AddPrecompileDispatch
