@@ -263,7 +263,7 @@ def evm_addmod_pow256_prepare_minus_one_mod_args : Program :=
   SD .x12 .x5 120
 
 theorem evm_addmod_pow256_prepare_minus_one_mod_args_length :
-    evm_addmod_pow256_prepare_minus_one_mod_args.length = 13 := by native_decide
+    evm_addmod_pow256_prepare_minus_one_mod_args.length = 13 := by decide
 
 theorem evm_addmod_pow256_prepare_minus_one_mod_args_byte_length :
     4 * evm_addmod_pow256_prepare_minus_one_mod_args.length = 52 := by
@@ -334,7 +334,7 @@ def evm_addmod_pow256_prepare_plus_one_mod_args : Program :=
   SD .x12 .x5 120
 
 theorem evm_addmod_pow256_prepare_plus_one_mod_args_length :
-    evm_addmod_pow256_prepare_plus_one_mod_args.length = 24 := by native_decide
+    evm_addmod_pow256_prepare_plus_one_mod_args.length = 24 := by decide
 
 theorem evm_addmod_pow256_prepare_plus_one_mod_args_byte_length :
     4 * evm_addmod_pow256_prepare_plus_one_mod_args.length = 96 := by
@@ -373,15 +373,15 @@ theorem evm_addmod_pow256_mod_n_byte_length (modOff : BitVec 21) :
 
 -- Concrete pure-oracle checks for the value these runtime blocks materialize.
 
-example : (EvmWord.pow256ModN (0 : EvmWord)).toNat = 0 := by native_decide
+example : (EvmWord.pow256ModN (0 : EvmWord)).toNat = 0 := by decide
 
-example : (EvmWord.pow256ModN (1 : EvmWord)).toNat = 0 := by native_decide
+example : (EvmWord.pow256ModN (1 : EvmWord)).toNat = 0 := by decide
 
-example : (EvmWord.pow256ModN (7 : EvmWord)).toNat = 2 := by native_decide
+example : (EvmWord.pow256ModN (7 : EvmWord)).toNat = 2 := by decide
 
 example :
     (EvmWord.pow256ModN (BitVec.ofNat 256 (2 ^ 128 + 1))).toNat = 1 := by
-  native_decide
+  decide
 
 /-- Phase 2 — zero-store path (taken when `N = 0`).
 
