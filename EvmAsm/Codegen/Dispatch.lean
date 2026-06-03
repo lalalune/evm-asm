@@ -214,6 +214,96 @@ def emitSha256Data : String :=
   "  .quad sha256_w_state\n" ++
   "  .quad sha256_w_input\n"
 
+/-- Scratch labels shared by runtime account-witness helpers.
+
+These labels match the standalone header-state-root probes in
+`Programs/EvmOpcodes.lean` for `extcodehash_at_header_state_root` and
+its account-trie dependencies. They live in the dispatcher `.data`
+section so BALANCE/EXTCODE* runtime handlers can share one witness-backed
+account lookup surface. -/
+def emitRuntimeAccountWitnessData : String :=
+  ".balign 32\n" ++
+  "wlh_scratch_hash:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mnk_dummy_offset:\n" ++
+  "  .zero 8\n" ++
+  "mnk_dummy_length:\n" ++
+  "  .zero 8\n" ++
+  "mnk_path_offset:\n" ++
+  "  .zero 8\n" ++
+  "mnk_path_length:\n" ++
+  "  .zero 8\n" ++
+  "mbc_offset:\n" ++
+  "  .zero 8\n" ++
+  "mbc_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "mw_lookup_hash:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mw_lookup_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_lookup_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "mw_child_buf:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "mw_path_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_path_length:\n" ++
+  "  .zero 8\n" ++
+  "mw_child_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_child_length:\n" ++
+  "  .zero 8\n" ++
+  "mw_value_offset:\n" ++
+  "  .zero 8\n" ++
+  "mw_value_length:\n" ++
+  "  .zero 8\n" ++
+  "mw_nibble_count:\n" ++
+  "  .zero 8\n" ++
+  "mw_is_leaf:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "mw_nibble_buf:\n" ++
+  "  .zero 128\n" ++
+  ".balign 32\n" ++
+  "mlk_keccak_buf:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "mlk_nibble_buf:\n" ++
+  "  .zero 64\n" ++
+  ".balign 8\n" ++
+  "ad_offset:\n" ++
+  "  .zero 8\n" ++
+  "ad_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "aa_value_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "aa_value_scratch:\n" ++
+  "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "hesr_offset:\n" ++
+  "  .zero 8\n" ++
+  "hesr_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "eahsr_state_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "eahsr_acct_struct:\n" ++
+  "  .zero 104\n" ++
+  ".balign 32\n" ++
+  "eahsr_empty_code_hash:\n" ++
+  "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
+  "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
+  "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
+  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n"
+
 /-- Dispatcher prologue: init EVM pointers (`x10` = code, `x12` =
     stack top, `x13` = EVM memory base) and enter the main
     fetch/decode/dispatch loop. Each iteration loads the opcode byte
@@ -503,9 +593,10 @@ def emitDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 576\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 624\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells + M28/M29 blob/block
                           -- cells (up to env+560) + M30 gasRemaining at env+568
+                          -- + M31 account-witness context at env+576..616
                           -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
                           -- + M28 blobHashCount at env+544
                           -- + M29 BLOCKHASH current/count at env+552/+560
@@ -523,10 +614,11 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
+  emitRuntimeAccountWitnessData ++
   ".balign 16\n" ++
   "lp64_stack:\n" ++
-  "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
-  "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
+  "  .zero 262144\n" ++   -- LP64 stack for nested KECCAK/RLP/MPT/account helpers
+  "lp64_sp_top:\n" ++
   ".balign 8\n" ++
   "exp_scratch:\n" ++
   "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
@@ -559,7 +651,7 @@ def emitDispatcherDataSection
     initialised — pointed at the input region instead of an
     in-`.data` label. The hex literal `0x40000010` matches
     `INPUT_ADDR + INPUT_DATA_OFFSET` in `Programs.lean`. -/
-def emitRuntimeDispatcherPrologue : String :=
+def emitRuntimeDispatcherSetup : String :=
   "  la sp, lp64_sp_top\n" ++   -- M16: LP64 stack ptr for ECALL-bridge helpers
                                 -- (e.g. zkvm_keccak256's `addi sp, sp, -32`)
   "  li x10, 0x40000010\n" ++   -- INPUT_ADDR + INPUT_DATA_OFFSET
@@ -734,11 +826,28 @@ def emitRuntimeDispatcherPrologue : String :=
   "  addi x6, x6, 8\n" ++
   "  addi x7, x7, -1\n" ++
   "  bnez x7, .env_trailer_copy_loop\n" ++
-  -- M30: the final input segment is an 8-byte LE u64 gas limit, packed
-  -- after the env trailer by pack-bytecode.py (--gas, default 30M). x5
-  -- points just past the env trailer here.
+  -- M30/M31: gas limit trailer followed by optional account-witness
+  -- context. pack-bytecode.py always appends the three length cells;
+  -- zero header length means no state context is available.
   "  ld x6, 0(x5)\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = input gas limit
+  "  addi x5, x5, 8\n" ++          -- x5 = &(account-witness header_len)
+  "  ld x6, 0(x5)\n" ++            -- x6 = header_len
+  "  sd x6, 584(x20)\n" ++
+  "  ld x7, 8(x5)\n" ++            -- x7 = witness_state_len
+  "  sd x7, 600(x20)\n" ++
+  "  ld x8, 16(x5)\n" ++           -- x8 = witness_codes_len
+  "  sd x8, 616(x20)\n" ++
+  "  addi x5, x5, 24\n" ++         -- x5 = header ptr
+  "  sd x5, 576(x20)\n" ++
+  "  add x5, x5, x6\n" ++          -- x5 = witness.state ptr
+  "  sd x5, 592(x20)\n" ++
+  "  add x5, x5, x7\n" ++          -- x5 = witness.codes ptr
+  "  sd x5, 608(x20)"
+
+/-- Runtime dispatcher prologue: setup plus fetch/decode/dispatch loop. -/
+def emitRuntimeDispatcherPrologue : String :=
+  emitRuntimeDispatcherSetup ++ "\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
@@ -775,9 +884,10 @@ def emitRuntimeDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 576\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 624\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells + M28/M29 blob/block
                           -- cells (up to env+560) + M30 gasRemaining at env+568
+                          -- + M31 account-witness context at env+576..616
                           -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
                           -- + M28 blobHashCount at env+544
                           -- + M29 BLOCKHASH current/count at env+552/+560
@@ -795,10 +905,11 @@ def emitRuntimeDispatcherDataSection
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
+  emitRuntimeAccountWitnessData ++
   ".balign 16\n" ++
   "lp64_stack:\n" ++
-  "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
-  "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
+  "  .zero 262144\n" ++   -- LP64 stack for nested KECCAK/RLP/MPT/account helpers
+  "lp64_sp_top:\n" ++
   ".balign 8\n" ++
   "exp_scratch:\n" ++
   "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
