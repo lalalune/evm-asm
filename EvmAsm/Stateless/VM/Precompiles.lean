@@ -38,6 +38,7 @@
 import EvmAsm.EL.Bn254G1AddEcallBridge
 import EvmAsm.EL.Bn254G1MulEcallBridge
 import EvmAsm.EL.Bn254PairingEcallBridge
+import EvmAsm.EL.Bls12G1MsmEcallBridge
 import EvmAsm.EL.Bls12PairingEcallBridge
 import EvmAsm.EL.KzgPointEvalEcallBridge
 import EvmAsm.EL.ModexpEcallBridge
@@ -534,6 +535,224 @@ theorem gasCost_one_byte_small_exp :
 end Modexp
 
 namespace BLS12
+
+namespace G1Msm
+
+abbrev MemoryReader := EvmAsm.EL.Bls12G1MsmInputBridge.MemoryReader
+abbrev AcceleratorInput := EvmAsm.EL.Bls12G1MsmInputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.Bls12G1MsmResultBridge.AcceleratorResult
+
+/-- EVM precompile address for BLS12-381 G1 MSM. -/
+def address : Nat := 0x0c
+
+/-- Osaka executable-spec G1 MSM call-data item width: 128-byte G1 plus 32-byte scalar. -/
+def lengthPerPair : Nat := 160
+
+/-- Osaka executable-spec `GasCosts.PRECOMPILE_BLS_G1MUL`. -/
+def g1MulGas : Nat := 12000
+
+/-- Osaka executable-spec BLS discount multiplier. -/
+def multiplier : Nat := 1000
+
+/-- Osaka executable-spec max discount for G1 MSM with more than 128 pairs. -/
+def g1MaxDiscount : Nat := 519
+
+/-- Osaka executable-spec `G1_K_DISCOUNT`, indexed by `k - 1` for `1 <= k <= 128`. -/
+def g1KDiscount : List Nat :=
+  [ 1000, 949, 848, 797, 764, 750, 738, 728
+  , 719, 712, 705, 698, 692, 687, 682, 677
+  , 673, 669, 665, 661, 658, 654, 651, 648
+  , 645, 642, 640, 637, 635, 632, 630, 627
+  , 625, 623, 621, 619, 617, 615, 613, 611
+  , 609, 608, 606, 604, 603, 601, 599, 598
+  , 596, 595, 593, 592, 591, 589, 588, 586
+  , 585, 584, 582, 581, 580, 579, 577, 576
+  , 575, 574, 573, 572, 570, 569, 568, 567
+  , 566, 565, 564, 563, 562, 561, 560, 559
+  , 558, 557, 556, 555, 554, 553, 552, 551
+  , 550, 549, 548, 547, 547, 546, 545, 544
+  , 543, 542, 541, 540, 540, 539, 538, 537
+  , 536, 536, 535, 534, 533, 532, 532, 531
+  , 530, 529, 528, 528, 527, 526, 525, 525
+  , 524, 523, 522, 522, 521, 520, 520, 519 ]
+
+/-- Invalid length or accelerator failure returns no bytes. -/
+def emptyOutput : ByteList := []
+
+/--
+Result surface exposed by the pure BLS12-381 G1 MSM framing layer.
+`exceptional = true` records executable-spec `InvalidParameter` cases.
+-/
+structure Result where
+  exceptional : Bool
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+def numPairs (dataLength : Nat) : Nat :=
+  dataLength / lengthPerPair
+
+def validInputLength (dataLength : Nat) : Bool :=
+  dataLength != 0 && dataLength % lengthPerPair == 0
+
+def validInputLengthBool (dataLength : Nat) : Bool :=
+  validInputLength dataLength
+
+def discount (k : Nat) : Nat :=
+  if k = 0 then
+    0
+  else if k <= 128 then
+    g1KDiscount.getD (k - 1) g1MaxDiscount
+  else
+    g1MaxDiscount
+
+def gasCharged (dataLength : Nat) : Nat :=
+  let k := numPairs dataLength
+  k * g1MulGas * discount k / multiplier
+
+def acceleratorInputFromCallData
+    (memory : MemoryReader) (dataStart dataLength : Nat) : AcceleratorInput :=
+  EvmAsm.EL.Bls12G1MsmInputBridge.bls12G1MsmInputFromMemory
+    memory dataStart (numPairs dataLength)
+
+def exceptionalResult : Result :=
+  { exceptional := true
+    status := .efail
+    output := emptyOutput
+    gasCharged := 0 }
+
+/--
+Pure BLS12-381 G1 MSM precompile framing. This owns the EVM-side Osaka length
+and gas rules, then delegates curve arithmetic to the supplied accelerator.
+-/
+def execute
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) : Result :=
+  if validInputLengthBool dataLength then
+    let gas := gasCharged dataLength
+    let input := acceleratorInputFromCallData memory dataStart dataLength
+    let result := EvmAsm.EL.Bls12G1MsmEcallBridge.executeBls12G1MsmEcall accelerator
+      (EvmAsm.EL.Bls12G1MsmEcallBridge.requestFromInput input)
+    match result.status with
+    | .eok =>
+        { exceptional := false
+          status := result.status
+          output := EvmAsm.EL.Bls12G1MsmResultBridge.g1PointBytesList result.output.point
+          gasCharged := gas }
+    | .efail =>
+        { exceptional := false
+          status := result.status
+          output := emptyOutput
+          gasCharged := gas }
+  else
+    exceptionalResult
+
+theorem g1KDiscount_length :
+    g1KDiscount.length = 128 := by
+  native_decide
+
+theorem emptyOutput_length :
+    emptyOutput.length = 0 := rfl
+
+@[simp] theorem validInputLengthBool_zero :
+    validInputLengthBool 0 = false := by
+  simp [validInputLengthBool, validInputLength]
+
+@[simp] theorem validInputLengthBool_bad_mod
+    (dataLength : Nat) (h_mod : dataLength % lengthPerPair ≠ 0) :
+    validInputLengthBool dataLength = false := by
+  simp [validInputLengthBool, validInputLength, h_mod]
+
+@[simp] theorem numPairs_lengthPerPair_mul (k : Nat) :
+    numPairs (lengthPerPair * k) = k := by
+  simp [numPairs, lengthPerPair]
+
+@[simp] theorem discount_zero :
+    discount 0 = 0 := by
+  simp [discount]
+
+@[simp] theorem discount_le_128
+    (k : Nat) (h_pos : k ≠ 0) (h_le : k <= 128) :
+    discount k = g1KDiscount.getD (k - 1) g1MaxDiscount := by
+  simp [discount, h_pos, h_le]
+
+@[simp] theorem discount_gt_128
+    (k : Nat) (h_gt : Not (k <= 128)) :
+    discount k = g1MaxDiscount := by
+  have h_pos : k ≠ 0 := by
+    intro h_zero
+    exact h_gt (by simp [h_zero])
+  simp [discount, h_pos, h_gt]
+
+@[simp] theorem gasCharged_valid_pairs (k : Nat) :
+    gasCharged (lengthPerPair * k) = k * g1MulGas * discount k / multiplier := by
+  simp [gasCharged]
+
+@[simp] theorem acceleratorInputFromCallData_numPairs
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (acceleratorInputFromCallData memory dataStart dataLength).numPairs =
+      numPairs dataLength := by
+  simp [acceleratorInputFromCallData,
+    EvmAsm.EL.Bls12G1MsmInputBridge.bls12G1MsmInputFromMemory_numPairs]
+
+@[simp] theorem execute_badLength
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_valid : validInputLengthBool dataLength = false) :
+    execute accelerator memory dataStart dataLength = exceptionalResult := by
+  simp [execute, h_valid]
+
+@[simp] theorem execute_status_validLength
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_valid : validInputLengthBool dataLength = true) :
+    (execute accelerator memory dataStart dataLength).status =
+      (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status := by
+  cases h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status <;>
+    simp [execute, h_valid, h_status,
+      EvmAsm.EL.Bls12G1MsmEcallBridge.executeBls12G1MsmEcall,
+      EvmAsm.EL.Bls12G1MsmEcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_eok
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_valid : validInputLengthBool dataLength = true)
+    (h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status = .eok) :
+    (execute accelerator memory dataStart dataLength).output =
+      EvmAsm.EL.Bls12G1MsmResultBridge.g1PointBytesList
+        (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).output.point := by
+  simp [execute, h_valid, h_status,
+    EvmAsm.EL.Bls12G1MsmEcallBridge.executeBls12G1MsmEcall,
+    EvmAsm.EL.Bls12G1MsmEcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_efail
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_valid : validInputLengthBool dataLength = true)
+    (h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status = .efail) :
+    (execute accelerator memory dataStart dataLength).output = emptyOutput := by
+  simp [execute, h_valid, h_status,
+    EvmAsm.EL.Bls12G1MsmEcallBridge.executeBls12G1MsmEcall,
+    EvmAsm.EL.Bls12G1MsmEcallBridge.requestFromInput]
+
+@[simp] theorem execute_gasCharged
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (execute accelerator memory dataStart dataLength).gasCharged =
+      if validInputLengthBool dataLength then gasCharged dataLength else 0 := by
+  by_cases h_valid : validInputLengthBool dataLength
+  . cases h_status :
+        (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status <;>
+      simp [execute, h_valid, h_status,
+        EvmAsm.EL.Bls12G1MsmEcallBridge.executeBls12G1MsmEcall,
+        EvmAsm.EL.Bls12G1MsmEcallBridge.requestFromInput]
+  . simp [execute, exceptionalResult, h_valid]
+
+end G1Msm
 
 namespace Pairing
 
