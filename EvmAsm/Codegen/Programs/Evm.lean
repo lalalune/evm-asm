@@ -437,6 +437,19 @@ def evmSmodV5Patched : Program :=
     by `emitDispatcherEpilogue`), which takes the same exit path as
     STOP. -/
 
+/-- Raw dispatcher guard for handlers that read `wordCount` EVM stack
+    words before their verified body runs. The EVM stack grows downward
+    from `evm_stack_top`; a handler needing `n` words requires
+    `x12 <= evm_stack_top - 32*n`. If not, route to the exceptional
+    stack-underflow exit before any body performs unchecked loads. -/
+private def stackUnderflowGuardAsm (wordCount : Nat) : String :=
+  "  la x14, evm_stack_top\n" ++
+  s!"  addi x14, x14, -{wordCount * 32}\n" ++
+  "  bltu x14, x12, .exit_stack_underflow"
+
+private def stackUnderflowGuardSaveX10Asm (wordCount : Nat) : String :=
+  stackUnderflowGuardAsm wordCount ++ "\n  mv x9, x10"
+
 /-- PUSH0..PUSH32. Opcode byte = `0x5f + n`; the handler advances
     `x10` by `1 + n` (one opcode byte + `n` immediate bytes). -/
 def pushHandlers : List OpcodeHandlerSpec :=
@@ -454,6 +467,7 @@ def dupHandlers : List OpcodeHandlerSpec :=
     let n := i + 1
     { label   := s!"h_DUP{n}"
       opcodes := [0x7f + n]
+      preBody := stackUnderflowGuardAsm n
       body    := EvmAsm.Evm64.evm_dup n
       tail    := .advanceAndRet 1 })
 
@@ -465,6 +479,7 @@ def swapHandlers : List OpcodeHandlerSpec :=
     let n := i + 1
     { label   := s!"h_SWAP{n}"
       opcodes := [0x8f + n]
+      preBody := stackUnderflowGuardAsm (n + 1)
       body    := EvmAsm.Evm64.evm_swap n
       tail    := .advanceAndRet 1 })
 
@@ -510,26 +525,26 @@ private def updateActiveMemorySizeConstAsm
     verified opcode body touches) and use `x10RestoreAdvance1` as
     the tail to restore before advancing. -/
 def singletonHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_ADD"        , opcodes := [0x01], body := EvmAsm.Evm64.evm_add       , tail := .advanceAndRet 1 }
-  , { label := "h_MUL"        , opcodes := [0x02], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_mul       , tail := x10RestoreAdvance1 }
-  , { label := "h_SUB"        , opcodes := [0x03], body := EvmAsm.Evm64.evm_sub       , tail := .advanceAndRet 1 }
-  , { label := "h_SIGNEXTEND" , opcodes := [0x0b], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_signextend, tail := x10RestoreAdvance1 }
-  , { label := "h_LT"         , opcodes := [0x10], body := EvmAsm.Evm64.evm_lt        , tail := .advanceAndRet 1 }
-  , { label := "h_GT"         , opcodes := [0x11], body := EvmAsm.Evm64.evm_gt        , tail := .advanceAndRet 1 }
-  , { label := "h_SLT"        , opcodes := [0x12], body := EvmAsm.Evm64.evm_slt       , tail := .advanceAndRet 1 }
-  , { label := "h_SGT"        , opcodes := [0x13], body := EvmAsm.Evm64.evm_sgt       , tail := .advanceAndRet 1 }
-  , { label := "h_EQ"         , opcodes := [0x14], body := EvmAsm.Evm64.evm_eq        , tail := .advanceAndRet 1 }
-  , { label := "h_ISZERO"     , opcodes := [0x15], body := EvmAsm.Evm64.evm_iszero    , tail := .advanceAndRet 1 }
-  , { label := "h_AND"        , opcodes := [0x16], body := EvmAsm.Evm64.evm_and       , tail := .advanceAndRet 1 }
-  , { label := "h_OR"         , opcodes := [0x17], body := EvmAsm.Evm64.evm_or        , tail := .advanceAndRet 1 }
-  , { label := "h_XOR"        , opcodes := [0x18], body := EvmAsm.Evm64.evm_xor       , tail := .advanceAndRet 1 }
-  , { label := "h_NOT"        , opcodes := [0x19], body := EvmAsm.Evm64.evm_not       , tail := .advanceAndRet 1 }
-  , { label := "h_BYTE"       , opcodes := [0x1a], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_byte      , tail := x10RestoreAdvance1 }
-  , { label := "h_SHL"        , opcodes := [0x1b], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_shl       , tail := x10RestoreAdvance1 }
-  , { label := "h_SHR"        , opcodes := [0x1c], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_shr       , tail := x10RestoreAdvance1 }
-  , { label := "h_SAR"        , opcodes := [0x1d], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_sar       , tail := x10RestoreAdvance1 }
-  , { label := "h_CLZ"        , opcodes := [0x1e], body := []                         , tail := clzTail }
-  , { label := "h_POP"        , opcodes := [0x50], body := EvmAsm.Evm64.evm_pop       , tail := .advanceAndRet 1 } ]
+  [ { label := "h_ADD"        , opcodes := [0x01], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_add       , tail := .advanceAndRet 1 }
+  , { label := "h_MUL"        , opcodes := [0x02], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_mul       , tail := x10RestoreAdvance1 }
+  , { label := "h_SUB"        , opcodes := [0x03], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_sub       , tail := .advanceAndRet 1 }
+  , { label := "h_SIGNEXTEND" , opcodes := [0x0b], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_signextend, tail := x10RestoreAdvance1 }
+  , { label := "h_LT"         , opcodes := [0x10], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_lt        , tail := .advanceAndRet 1 }
+  , { label := "h_GT"         , opcodes := [0x11], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_gt        , tail := .advanceAndRet 1 }
+  , { label := "h_SLT"        , opcodes := [0x12], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_slt       , tail := .advanceAndRet 1 }
+  , { label := "h_SGT"        , opcodes := [0x13], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_sgt       , tail := .advanceAndRet 1 }
+  , { label := "h_EQ"         , opcodes := [0x14], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_eq        , tail := .advanceAndRet 1 }
+  , { label := "h_ISZERO"     , opcodes := [0x15], preBody := stackUnderflowGuardAsm 1, body := EvmAsm.Evm64.evm_iszero    , tail := .advanceAndRet 1 }
+  , { label := "h_AND"        , opcodes := [0x16], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_and       , tail := .advanceAndRet 1 }
+  , { label := "h_OR"         , opcodes := [0x17], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_or        , tail := .advanceAndRet 1 }
+  , { label := "h_XOR"        , opcodes := [0x18], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_xor       , tail := .advanceAndRet 1 }
+  , { label := "h_NOT"        , opcodes := [0x19], preBody := stackUnderflowGuardAsm 1, body := EvmAsm.Evm64.evm_not       , tail := .advanceAndRet 1 }
+  , { label := "h_BYTE"       , opcodes := [0x1a], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_byte      , tail := x10RestoreAdvance1 }
+  , { label := "h_SHL"        , opcodes := [0x1b], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_shl       , tail := x10RestoreAdvance1 }
+  , { label := "h_SHR"        , opcodes := [0x1c], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_shr       , tail := x10RestoreAdvance1 }
+  , { label := "h_SAR"        , opcodes := [0x1d], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_sar       , tail := x10RestoreAdvance1 }
+  , { label := "h_CLZ"        , opcodes := [0x1e], preBody := stackUnderflowGuardAsm 1, body := []                         , tail := clzTail }
+  , { label := "h_POP"        , opcodes := [0x50], preBody := stackUnderflowGuardAsm 1, body := EvmAsm.Evm64.evm_pop       , tail := .advanceAndRet 1 } ]
 
 /-- M7 memory opcodes. Register-parameterized; the dispatcher
     prologue sets up `x13 = &evm_memory` (see
@@ -1181,9 +1196,9 @@ def accountWitnessHandlers : List OpcodeHandlerSpec :=
     dispatcher's preserved set, so clobbering it post-handler is fine.
 
     Stack-scratch: `evm_div` writes to negative `x12` offsets down to
-    `-152` bytes (per `divK_*` scratch layout). The dispatcher's
-    256-byte `evm_stack_low` block leaves 192 bytes below `x12`
-    after two PUSH ops — comfortably > 152.
+    `-152` bytes (per `divK_*` scratch layout). The runtime dispatcher's
+    EVM stack arena is sized for the protocol 1024-word depth and includes
+    guard space around the arena for current stack-relative scratch uses.
 
     **SDIV / SMOD are deferred to M8.5 / M9.** Their verified bodies
     end with a "saved-ra-ret" pattern (`JALR x0, x18, 0`) that
@@ -1432,27 +1447,6 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]
-
-def tinyInterpDispatchAddUnit : BuildUnit :=
-  buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode
-
-def tinyInterpDispatchAdd2Unit : BuildUnit :=
-  buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAdd2Bytecode
-
-/-! ## runtime_dispatcher — M8.5 runtime-bytecode dispatcher
-
-    Same `tinyInterpRegistry` and `evmAddEpilogue` as the
-    `tiny_interp_dispatch_*` units, but the dispatcher prologue
-    reads `x10` from `INPUT_ADDR + INPUT_DATA_OFFSET = 0x40000010`
-    instead of an in-`.data` label. One ELF runs any bytecode; the
-    bash test harness packs each per-case bytecode into a
-    ziskemu `-i <file>` payload and reuses the same dispatcher
-    ELF for every case.
-
-    See `EvmAsm/Codegen/Dispatch.lean` for `buildRuntimeDispatchUnit`
-    and the runtime prologue/data-section helpers. -/
-def runtimeDispatcherUnit : BuildUnit :=
-  buildRuntimeDispatchUnit tinyInterpRegistry evmAddEpilogue
 
 /-! ## evm_div — M2 first DIV end-to-end through ziskemu
 
