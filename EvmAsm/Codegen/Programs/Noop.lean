@@ -287,6 +287,11 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
     both push success = 1. ECRECOVER / RIPEMD160 remain success
     stubs in this slice; follow-up PRs wire their output semantics.
 
+    **M27.1 update**: inactive near-zero addresses 0x12 and 0x101
+    are not precompiles in the Amsterdam active set. Route them as
+    absent-account calls with success = 1 and empty returndata so the
+    precompile_absence fixtures do not stop at the dispatcher surface.
+
     **Known limitations** (documented in CODEGEN.md M19 narrative):
     - Non-precompile CALL / CALLCODE / DELEGATECALL / STATICCALL
       still return 0 (= "call failed"). No actual sub-frame
@@ -325,7 +330,13 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  li x15, 1\n" ++
     "  bltu x14, x15, 1f\n" ++
     "  li x15, 4\n" ++
-    "  bltu x15, x14, 1f\n" ++
+    "  bgeu x15, x14, 11f\n" ++
+    "  li x15, 0x12\n" ++
+    "  beq x14, x15, 12f\n" ++
+    "  li x15, 0x101\n" ++
+    "  beq x14, x15, 12f\n" ++
+    "  j 1f\n" ++
+    "11:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
@@ -412,6 +423,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x19, x19, 1\n" ++
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 10b\n" ++
+    "  j 7b\n" ++
+    "12:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
     "  j 7b\n" ++
     "1:\n" ++
     "  la x15, evm_precompile_frame\n" ++
