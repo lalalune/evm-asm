@@ -43,6 +43,7 @@ import EvmAsm.EL.Bls12G2MsmEcallBridge
 import EvmAsm.EL.Bls12PairingEcallBridge
 import EvmAsm.EL.Bls12MapFpToG1EcallBridge
 import EvmAsm.EL.Bls12MapFp2ToG2EcallBridge
+import EvmAsm.EL.Bls12G1AddEcallBridge
 import EvmAsm.EL.Bls12G2AddEcallBridge
 import EvmAsm.EL.KzgPointEvalEcallBridge
 import EvmAsm.EL.ModexpEcallBridge
@@ -1515,6 +1516,152 @@ theorem execute_output_eok_length
 end MapFp2ToG2
 
 
+namespace G1Add
+
+abbrev MemoryReader := EvmAsm.EL.Bls12G1AddInputBridge.MemoryReader
+abbrev AcceleratorInput := EvmAsm.EL.Bls12G1AddInputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.Bls12G1AddResultBridge.AcceleratorResult
+abbrev G1PointBytes := EvmAsm.EL.Bls12G1AddInputBridge.G1PointBytes
+
+/-- EVM precompile address for BLS12-381 G1 addition. -/
+def address : Nat := 0x0b
+
+/-- Osaka executable-spec fixed gas cost for BLS12-381 G1 addition. -/
+def gasCost : Nat := 375
+
+/-- BLS12 G1 ADD consumes exactly two 128-byte EIP-2537 G1 points. -/
+def inputLength : Nat := 256
+
+/-- Offset of the second input point in the EVM call payload. -/
+def p2Offset : Nat := 128
+
+/-- Invalid length, invalid point encoding, or accelerator failure returns no bytes. -/
+def emptyOutput : ByteList := []
+
+/--
+Result surface exposed by the pure BLS12-381 G1 ADD framing layer.
+`exceptional = true` records executable-spec `InvalidParameter` cases.
+-/
+structure Result where
+  exceptional : Bool
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+/-- Convert a 128-byte EIP-2537 G1 point into the accelerator's 96-byte G1 payload. -/
+def g1PointFromEvmBytes (memory : MemoryReader) (pointStart : Nat) : G1PointBytes :=
+  fun i =>
+    let n := i.toNat
+    if n < 48 then
+      memory (pointStart + 16 + n)
+    else
+      memory (pointStart + 64 + 16 + (n - 48))
+
+/--
+Build the accelerator input from EVM call data. The executable spec first checks
+`len(data) == 256`; callers must guard this helper with that exact length check.
+-/
+def acceleratorInputFromCallData (memory : MemoryReader) (dataStart : Nat) :
+    AcceleratorInput :=
+  { p1 := g1PointFromEvmBytes memory dataStart
+    p2 := g1PointFromEvmBytes memory (dataStart + p2Offset) }
+
+/--
+Pure BLS12-381 G1 ADD precompile framing. Point validation and curve arithmetic
+are supplied by the accelerator model.
+-/
+def execute
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) : Result :=
+  if dataLength = inputLength then
+    let input := acceleratorInputFromCallData memory dataStart
+    let result := EvmAsm.EL.Bls12G1AddEcallBridge.executeBls12G1AddEcall accelerator
+      (EvmAsm.EL.Bls12G1AddEcallBridge.requestFromInput input)
+    match result.status with
+    | .eok =>
+        { exceptional := false
+          status := result.status
+          output := EvmAsm.EL.Bls12G1AddResultBridge.g1PointBytesList result.output.point
+          gasCharged := gasCost }
+    | .efail =>
+        { exceptional := true
+          status := result.status
+          output := emptyOutput
+          gasCharged := gasCost }
+  else
+    { exceptional := true
+      status := .efail
+      output := emptyOutput
+      gasCharged := 0 }
+
+theorem emptyOutput_length :
+    emptyOutput.length = 0 := rfl
+
+@[simp] theorem execute_badLength
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_length : dataLength ≠ inputLength) :
+    execute accelerator memory dataStart dataLength =
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := 0 } := by
+  simp [execute, h_length]
+
+@[simp] theorem execute_status
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat) :
+    (execute accelerator memory dataStart inputLength).status =
+      (accelerator (acceleratorInputFromCallData memory dataStart)).status := by
+  cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+    simp [execute, inputLength, h_status,
+      EvmAsm.EL.Bls12G1AddEcallBridge.executeBls12G1AddEcall,
+      EvmAsm.EL.Bls12G1AddEcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_eok
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok) :
+    (execute accelerator memory dataStart inputLength).output =
+      EvmAsm.EL.Bls12G1AddResultBridge.g1PointBytesList
+        (accelerator (acceleratorInputFromCallData memory dataStart)).output.point := by
+  simp [execute, inputLength, h_status,
+    EvmAsm.EL.Bls12G1AddEcallBridge.executeBls12G1AddEcall,
+    EvmAsm.EL.Bls12G1AddEcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_efail
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .efail) :
+    (execute accelerator memory dataStart inputLength).output = emptyOutput := by
+  simp [execute, inputLength, h_status,
+    EvmAsm.EL.Bls12G1AddEcallBridge.executeBls12G1AddEcall,
+    EvmAsm.EL.Bls12G1AddEcallBridge.requestFromInput]
+
+theorem execute_output_eok_length
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok) :
+    (execute accelerator memory dataStart inputLength).output.length = 96 := by
+  simp [execute_output_eok accelerator memory dataStart h_status,
+    EvmAsm.EL.Bls12G1AddResultBridge.g1PointBytesList_length]
+
+@[simp] theorem execute_gasCharged
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (execute accelerator memory dataStart dataLength).gasCharged =
+      if dataLength = inputLength then gasCost else 0 := by
+  by_cases h_length : dataLength = inputLength
+  · subst dataLength
+    cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+      simp [execute, inputLength, h_status,
+        EvmAsm.EL.Bls12G1AddEcallBridge.executeBls12G1AddEcall,
+        EvmAsm.EL.Bls12G1AddEcallBridge.requestFromInput]
+  · simp [execute, h_length]
+
+end G1Add
+
 namespace G2Add
 
 abbrev MemoryReader := EvmAsm.EL.Bls12G2AddInputBridge.MemoryReader
@@ -1664,6 +1811,7 @@ theorem execute_output_eok_length
   · simp [execute, h_length]
 
 end G2Add
+
 
 end BLS12
 
