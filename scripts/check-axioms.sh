@@ -2,7 +2,7 @@
 #
 # check-axioms.sh — kernel-truth audit of the trust base behind every
 # theorem the progress registry (EvmAsm/Progress.lean) classifies as
-# `.proven` or `.partly`.
+# `.proven`, `.conditional`, or `.partly`.
 #
 # Why this exists: PROGRESS.md historically advertised "axiom count = 0",
 # but that number was produced by grepping for the literal `axiom`
@@ -37,9 +37,11 @@
 # stable across rebuilds. Editing a grandfathered proof may change its
 # owner set; rerun `--write-allow` (with review) if so.
 #
-# Scope: the 47 witness theorems referenced by the `@EvmAsm.Evm64.…`
-# abbrevs in EvmAsm/Progress.lean — the proven/partly surface the
-# registry claims. (A broader sweep of all of EvmAsm/ is future work.)
+# Scope: the witness theorems referenced by the `@EvmAsm.Evm64.…`
+# abbrevs in EvmAsm/Progress.lean — the proven/conditional/partly surface
+# the registry claims. Witnesses are discovered by grepping those abbrev
+# refs, not by tier, so the conditional tier needs no logic change here.
+# (A broader sweep of all of EvmAsm/ is future work.)
 #
 # Usage:
 #   scripts/check-axioms.sh                # enforce; exit 1 on a new

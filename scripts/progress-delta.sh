@@ -70,14 +70,18 @@ fi
 
 count_field() {
   local file="$1"
-  local label="$2"   # e.g. "proven", "partial", "execSpec", "notStarted"
+  local label="$2"   # e.g. "proven", "conditional", "partial", "execSpec", "notStarted"
   awk -v lbl="$label" '
-    $0 ~ ("\\| (✅|🟡|⏳|✗) " lbl " *\\|") {
-      # The integer is the last pipe-separated cell on this line.
+    $0 ~ ("\\| (✅|🔶|🟡|⏳|✗) " lbl " *\\|") {
+      # The integer is the last pipe-separated cell on this line. Only
+      # accept a row whose trailing cell is purely numeric: the per-tier
+      # rubric in the template uses the same `| <icon> <tier> | … |` shape
+      # but carries PROSE in that cell, and it renders BEFORE the count
+      # tables. Skip non-numeric matches and keep scanning to the real
+      # count table.
       n = split($0, cells, "|")
-      gsub(/ /, "", cells[n-1])
-      print cells[n-1]
-      exit
+      val = cells[n-1]; gsub(/ /, "", val)
+      if (val ~ /^[0-9]+$/) { print val; exit }
     }
   ' "$file"
 }
@@ -91,11 +95,10 @@ bytes_field() {
   local label="$2"
   awk -v lbl="$label" '
     /^By \*\*opcode byte\*\*/ { in_bytes = 1 }
-    in_bytes && $0 ~ ("\\| (✅|🟡|⏳|✗) " lbl " *\\|") {
+    in_bytes && $0 ~ ("\\| (✅|🔶|🟡|⏳|✗) " lbl " *\\|") {
       n = split($0, cells, "|")
-      gsub(/ /, "", cells[n-1])
-      print cells[n-1]
-      exit
+      val = cells[n-1]; gsub(/ /, "", val)
+      if (val ~ /^[0-9]+$/) { print val; exit }
     }
   ' "$file"
 }
@@ -147,9 +150,9 @@ opcode_tiers() {
   awk '
     BEGIN { in_table = 0 }
     /^### Per-opcode registry/ { in_table = 1; next }
-    in_table && /^\| (✅|🟡|⏳|✗) / {
+    in_table && /^\| (✅|🔶|🟡|⏳|✗) / {
       # Strip the leading icon, then split.
-      sub(/^\| (✅|🟡|⏳|✗) /, "| ", $0)
+      sub(/^\| (✅|🔶|🟡|⏳|✗) /, "| ", $0)
       n = split($0, cells, "|")
       # cells[2] = name, cells[3] = tier
       name = cells[2]; gsub(/^ +| +$/, "", name)
@@ -166,11 +169,13 @@ opcode_tiers() {
 
 # Pulls — base then head — for each tracked scalar.
 B_PROVEN="$(count_field "$TMP_BASE" "proven" 2>/dev/null || echo "")"
+B_CONDITIONAL="$(count_field "$TMP_BASE" "conditional" 2>/dev/null || echo "")"
 B_PARTIAL="$(count_field "$TMP_BASE" "partial" 2>/dev/null || echo "")"
 B_EXECSPEC="$(count_field "$TMP_BASE" "execSpec" 2>/dev/null || echo "")"
 B_NOTSTARTED="$(count_field "$TMP_BASE" "notStarted" 2>/dev/null || echo "")"
 
 H_PROVEN="$(count_field "$TMP_HEAD" "proven" 2>/dev/null || echo "")"
+H_CONDITIONAL="$(count_field "$TMP_HEAD" "conditional" 2>/dev/null || echo "")"
 H_PARTIAL="$(count_field "$TMP_HEAD" "partial" 2>/dev/null || echo "")"
 H_EXECSPEC="$(count_field "$TMP_HEAD" "execSpec" 2>/dev/null || echo "")"
 H_NOTSTARTED="$(count_field "$TMP_HEAD" "notStarted" 2>/dev/null || echo "")"
@@ -263,6 +268,7 @@ fi
 echo "### Count deltas"
 echo
 count_delta_line "proven (entries)"      "$B_PROVEN"        "$H_PROVEN"
+count_delta_line "conditional (entries)" "$B_CONDITIONAL"   "$H_CONDITIONAL"
 count_delta_line "partial (entries)"     "$B_PARTIAL"       "$H_PARTIAL"
 count_delta_line "execSpec (entries)"    "$B_EXECSPEC"      "$H_EXECSPEC"
 count_delta_line "notStarted (entries)"  "$B_NOTSTARTED"    "$H_NOTSTARTED"
