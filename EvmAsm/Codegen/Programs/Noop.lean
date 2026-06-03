@@ -199,13 +199,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     **M32 update**: EXTCODESIZE (0x3b) and BALANCE (0x31) moved to
     witness-backed implementations (`EvmAccountWitness.lean` / `EvmBalance.lean`). -/
 def popPushZeroHandlers : List OpcodeHandlerSpec :=
-  let body : Program :=
-    SD .x12 .x0 0 ;;
-    SD .x12 .x0 8 ;;
-    SD .x12 .x0 16 ;;
-    SD .x12 .x0 24
-  []    , preBody := stackUnderflowGuardAsm 1
-    , body := body, tail := .advanceAndRet 1 } ]
+  []
 
 /-- M18 copy-no-op handler for CODECOPY.
     CODECOPY pops 3 stack words and would copy bytes into EVM memory.
