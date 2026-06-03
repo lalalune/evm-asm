@@ -57,7 +57,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_exact_then_return_normalized_named
         EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)) =
         (vRa &&& ~~~(1 : Word)) := by
     rw [EvmAsm.Rv64.signExtend12_0]
-    bv_decide
+    simp [BitVec.add_zero]
   rw [← hExit]
   exact
     saveRa_signs_abs_signXor_then_divCall_then_return_of_callable_post_noX9_spec_in_sdivCode
@@ -120,7 +120,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_exact_then_return_normalized_named
         EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)) =
         (vRa &&& ~~~(1 : Word)) := by
     rw [EvmAsm.Rv64.signExtend12_0]
-    bv_decide
+    simp [BitVec.add_zero]
   rw [← hExit]
   exact
     saveRa_signs_abs_signXor_then_divCall_then_return_of_callable_post_noX9_spec_in_sdivCodeV4
