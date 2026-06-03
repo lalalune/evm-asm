@@ -1086,6 +1086,95 @@ def logHandlers : List OpcodeHandlerSpec :=
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
     , tail := .advanceAndRet 1 } ]
 
+
+/-! ## Runtime EXTCODECOPY witness opcode
+
+    EXTCODECOPY (0x3c) reads account code bytes through the optional runtime
+    account-witness context and writes directly into `evm_memory`. -/
+
+/-- Copy an EVM stack address word into natural 20-byte address order.
+
+    Stack bytes 0..19 hold the low 160-bit address little-endian; trie lookup
+    helpers expect the big-endian byte string whose keccak selects the account
+    path. `x12` is the EVM stack pointer and `t1` points at
+    `ecc_address_scratch`. -/
+private def extcodecopyWitnessAddressCopy : String :=
+  String.intercalate "" <|
+    (List.range 20).map fun i =>
+      s!"  lbu t2, {19 - i}(x12)\n  sb t2, {i}(t1)\n"
+
+/-- Raw dispatcher handler for EXTCODECOPY backed by
+    `extcodecopy_at_header_state_root`.
+
+    Stack contract from execution-specs Amsterdam `extcodecopy`:
+      top word     : address
+      second word  : memory_start_index
+      third word   : code_start_index
+      fourth word  : size
+
+    The helper writes `size` bytes into `evm_memory + memory_start_index`,
+    zero-padding missing/empty/past-end cases. This handler ignores helper
+    status after the call because the helper pre-zeroes the requested output
+    window before trie/code lookup. -/
+private def extcodecopyWitnessTail : HandlerTail :=
+  .custom <|
+    "  ld x14, 32(x12)\n" ++         -- memory_start_index
+    "  ld x15, 96(x12)\n" ++         -- size
+    updateActiveMemorySizeAsm "extcodecopy" "x14" "x15" "x16" "x17" "x18" ++
+    "  add x19, x13, x14\n" ++       -- output ptr = evm_memory + memory_start
+    "  la t1, ecc_address_scratch\n" ++
+    extcodecopyWitnessAddressCopy ++
+    "  ld t0, 608(x20)\n" ++         -- witness.codes ptr
+    "  la t1, eccp_codes_ptr\n" ++
+    "  sd t0, 0(t1)\n" ++
+    "  ld t0, 616(x20)\n" ++         -- witness.codes len
+    "  la t1, eccp_codes_len\n" ++
+    "  sd t0, 0(t1)\n" ++
+    "  addi sp, sp, -32\n" ++
+    "  sd x10, 0(sp)\n" ++
+    "  sd x12, 8(sp)\n" ++
+    "  sd x13, 16(sp)\n" ++
+    "  ld a0, 576(x20)\n" ++         -- header ptr
+    "  ld a1, 584(x20)\n" ++         -- header len; zero means no witness context
+    "  beqz a1, .Lrt_ecc_no_context\n" ++
+    "  ld a3, 64(x12)\n" ++          -- code_start_index
+    "  la a2, ecc_address_scratch\n" ++
+    "  mv a4, x15\n" ++              -- size
+    "  mv a5, x19\n" ++              -- output buffer
+    "  ld a6, 592(x20)\n" ++         -- witness.state ptr
+    "  ld a7, 600(x20)\n" ++         -- witness.state len
+    "  jal ra, extcodecopy_at_header_state_root\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  ld x13, 16(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  addi x12, x12, 128\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop\n" ++
+    ".Lrt_ecc_no_context:\n" ++
+    "  mv t0, x19\n" ++
+    "  mv t1, x15\n" ++
+    ".Lrt_ecc_zero_loop:\n" ++
+    "  beqz t1, .Lrt_ecc_zero_done\n" ++
+    "  sb zero, 0(t0)\n" ++
+    "  addi t0, t0, 1\n" ++
+    "  addi t1, t1, -1\n" ++
+    "  j .Lrt_ecc_zero_loop\n" ++
+    ".Lrt_ecc_zero_done:\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  ld x13, 16(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  addi x12, x12, 128\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop"
+
+def extcodecopyWitnessHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_EXTCODECOPY"
+    , opcodes := [0x3c]
+    , body := []
+    , tail := extcodecopyWitnessTail } ]
+
 -- M17 / M22 storage handlers (SLOAD, SSTORE, TLOAD, TSTORE) live in
 -- `EvmAsm/Codegen/Programs/Storage.lean` — extracted at M22 (when
 -- the inline-asm scan loops pushed this file past the per-file size
@@ -1330,7 +1419,7 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
-  storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
+  extcodecopyWitnessHandlers ++ storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
   arithNoopHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]

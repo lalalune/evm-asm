@@ -19,6 +19,7 @@
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 
 namespace EvmAsm.Codegen
 
@@ -304,6 +305,9 @@ def emitRuntimeAccountWitnessData : String :=
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
   ".balign 32\n" ++
+  "ecc_address_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
   "ecc_state_root:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
@@ -453,6 +457,18 @@ def emitDispatcherEpilogue
   -- with `ret`, returning to whoever JAL'd them.
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  mptBranchChildFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
+  mptLookupByKeyFunction ++ "\n" ++
+  accountDecodeFunction ++ "\n" ++
+  accountAtAddressFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  extcodecopyAtHeaderStateRootFunction ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
