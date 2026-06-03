@@ -10,8 +10,8 @@
 
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
-  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE (MSIZE and GAS have real implementations in Programs/Evm.lean)
-  - `popPushZeroHandlers` — BALANCE
+  - `pushZeroHandlers` — CODESIZE (MSIZE/GAS and RETURNDATASIZE have real implementations)
+  - `popPushZeroHandlers` — (BALANCE and EXTCODESIZE both have witness-backed implementations)
     (EXTCODEHASH, BLOBHASH, and BLOCKHASH have real implementations in Programs/Evm.lean)
   - `copyNoopHandlers` — CODECOPY
   - `returnDataHandlers` — RETURNDATASIZE and RETURNDATACOPY
@@ -174,7 +174,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_CODESIZE", opcodes := [0x38]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (BALANCE).
+/-- M18 pop-and-push-zero handlers (BALANCE and EXTCODESIZE).
     This opcode pops one 32-byte input (an address) and pushes a 32-byte zero
     value. Net EVM stack delta = 0.
 
@@ -183,7 +183,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     needed.
 
     **Known limitations**:
-    - BALANCE always returns 0 (no account state model).
+    - BALANCE and EXTCODESIZE both have witness-backed implementations.
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
@@ -196,17 +196,15 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     **M29 update**: BLOCKHASH (0x40) was moved to `blockHashHandlers`
     in `Programs/Evm.lean` with a real block-history implementation.
 
-    **M32 update**: EXTCODESIZE (0x3b) was moved to
-    `accountWitnessHandlers` in `Programs/Evm.lean` with a witness-backed
-    implementation. -/
+    **M32 update**: EXTCODESIZE (0x3b) and BALANCE (0x31) moved to
+    witness-backed implementations (`EvmAccountWitness.lean` / `EvmBalance.lean`). -/
 def popPushZeroHandlers : List OpcodeHandlerSpec :=
   let body : Program :=
     SD .x12 .x0 0 ;;
     SD .x12 .x0 8 ;;
     SD .x12 .x0 16 ;;
     SD .x12 .x0 24
-  [ { label := "h_BALANCE", opcodes := [0x31]
-    , preBody := stackUnderflowGuardAsm 1
+  []    , preBody := stackUnderflowGuardAsm 1
     , body := body, tail := .advanceAndRet 1 } ]
 
 /-- M18 copy-no-op handler for CODECOPY.
@@ -337,7 +335,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     { label := lbl
     , opcodes := [op]
     , preBody := stackUnderflowGuardAsm (netPopBytes / evmStackWordBytes + 1) ++
-               "  la x15, evm_precompile_frame\n  sd x0, 8(x15)"
+               "\n  la x15, evm_precompile_frame\n  sd x0, 8(x15)"
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 netPopBytes) ;;
               SD .x12 .x0 0 ;;
               SD .x12 .x0 8 ;;

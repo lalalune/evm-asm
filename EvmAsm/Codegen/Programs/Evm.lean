@@ -49,6 +49,7 @@ import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.Clz
+import EvmAsm.Codegen.Programs.EvmBalance
 import EvmAsm.Codegen.Programs.Noop
 import EvmAsm.Codegen.Programs.EvmAccountWitness
 import EvmAsm.Codegen.Programs.EvmExtcodecopy
@@ -1385,7 +1386,7 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
-  accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
+  balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
   mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++ returnDataHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++

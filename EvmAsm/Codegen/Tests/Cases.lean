@@ -688,9 +688,9 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x01, 0x49, 0x00"
       blobHashes     := "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
-  , -- PUSH1 0xab; BALANCE; STOP — BALANCE pops the pushed 0xab as
-    -- the address and overwrites with 0. Expected: 0 in low limb.
-    -- Smoke test for popPushZeroHandlers.
+  , -- PUSH1 0xab; BALANCE; STOP without an account-witness trailer.
+    -- The witness-backed runtime handler preserves the old no-context
+    -- fallback and overwrites the address with balance 0.
     { name           := "balance_pop_push_zero"
       bytecode       := "0x60, 0xab, 0x31, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
