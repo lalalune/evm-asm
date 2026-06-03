@@ -64,6 +64,19 @@ fixture tag, then loops over every block in fixed-size windows with
 `--min-full` set to the actual chunk size and `--max-failures 1`. Set
 `EEST_RANDOM_WINDOW=N` to change the default 200-case window size.
 
+Run a focused simple value-transfer transaction frontier:
+
+```bash
+scripts/codegen-eest-simple-value-transfer-frontier-check.sh --jobs 1
+```
+
+This wrapper loops over the simple transaction/value-transfer fixture filters
+from the feature-surface report and forwards `--skip`, `--limit`, `--jobs`, and
+`--max-failures` to the stateless harness. It is a baseline probe today: it does
+not claim the selected fixtures pass until the value-transfer validation,
+state-effect, gas-settlement, and post-state integration children under bead
+`evm-asm-fhsxz.2.4.2.56` land.
+
 Run the literal EXTCODEHASH missing-code regression filters:
 
 ```bash
