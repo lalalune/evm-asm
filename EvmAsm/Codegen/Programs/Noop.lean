@@ -457,39 +457,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , body := []
     , tail := .custom (basicPrecompileCallTail 160 64 96 128 160) } ]
 
-/-- M20 arithmetic no-op handlers (MULMOD, EXP). The last two
-    unwired opcodes shipped as placeholders to **hit 100% opcode
-    coverage**. Same pop-N + push-zero pattern as
-    `childFrameHandlers` above, just with smaller pop counts.
+/-- M20 arithmetic no-op handlers.
 
-    | Opcode | Byte | Pops | Pushes | Net pops × 32 |
-    |---|---|---|---|---|
-    | **MULMOD** | 0x09 | 3 (a, b, N) | 1 (result) | 64 |
-    | **EXP**    | 0x0a | 2 (base, exponent) | 1 (result) | 32 |
-
-    Both within the 12-bit signed ADDI immediate range.
-
-    **Known limitations** (documented in CODEGEN.md M20 narrative):
-
-    - **MULMOD** always returns 0. The verified body is a
-      placeholder in `EvmAsm/Evm64/MulMod/Program.lean` (slice
-      evm-asm-m4wu unscheduled). A future PR will swap in the
-      real Knuth-style 512-bit + reduce-by-N body once it lands.
-    - **EXP** graduated from a no-op to a real verified body and now
-      lives in `selfCallingHandlers` (`EvmAsm/Codegen/Programs/Evm.lean`)
-      as `evmExpComposed`, using the `_fixed_fixed` body variant
-      (per-limb counter moved from `x6` to callee-saved `x22` so it
-      survives `mul_callable`). Only MULMOD remains a no-op here.
-
-    Trusted bytecode that doesn't depend on MULMOD results continues
-    to work correctly. -/
-def arithNoopHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_MULMOD", opcodes := [0x09]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64) ;;
-              SD .x12 .x0 0 ;;
-              SD .x12 .x0 8 ;;
-              SD .x12 .x0 16 ;;
-              SD .x12 .x0 24
-    , tail := .advanceAndRet 1 } ]
+    The original M20 placeholders covered MULMOD and EXP. Both have now moved
+    to real dispatcher handlers in `EvmAsm/Codegen/Programs/Evm.lean`, so this
+    list is intentionally empty and remains only to keep the registry assembly
+    expression stable. -/
+def arithNoopHandlers : List OpcodeHandlerSpec := []
 
 end EvmAsm.Codegen

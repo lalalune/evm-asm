@@ -32,6 +32,7 @@ import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
 import EvmAsm.Evm64.Multiply.Callable
 import EvmAsm.Evm64.Multiply.Program
+import EvmAsm.Evm64.MulMod.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
 import EvmAsm.Evm64.Pop.Program
@@ -237,12 +238,11 @@ def evmAddFromInputUnit : BuildUnit := {
     Programs compose under `++` while honoring the `x10` code-pointer
     convention that `evm_push` reads its immediates from.
 
-    Stack layout: 256 bytes of writable scratch ending at label
-    `evm_stack_top`. The EVM stack grows downward; the prologue
-    initializes `x12 = evm_stack_top` and each `evm_push` decrements
-    `x12` by 32 to allocate a new slot. Worst-case depth across both
-    test programs is 2 slots = 64 bytes, so 256 leaves comfortable
-    headroom. -/
+    Stack layout: 256 bytes of writable EVM stack below label
+    `evm_stack_top`, plus a post-top scratch window for opcode bodies that
+    use positive offsets from the live stack pointer. The EVM stack grows
+    downward; the prologue initializes `x12 = evm_stack_top` and each
+    `evm_push` decrements `x12` by 32 to allocate a new slot. -/
 
 /-- Dispatcher glue between unrolled opcode `Program`s: advance the
     EVM code pointer (`x10`) by the byte width of the opcode just
@@ -264,13 +264,13 @@ def tinyInterpPrologue : String :=
   "  la x12, evm_stack_top"
 
 /-- `.data` section: a label `evm_code` holding the bytecode bytes,
-    followed by 256 bytes of writable scratch ending at label
-    `evm_stack_top`. `bytecodeBytes` is a comma-separated `.byte`
-    directive payload (e.g. `"0x60, 0xff, 0x60, 0x01, 0x01, 0x00"`).
+    followed by the writable EVM stack and opcode scratch windows.
+    `bytecodeBytes` is a comma-separated `.byte` directive payload
+    (e.g. `"0x60, 0xff, 0x60, 0x01, 0x01, 0x00"`).
 
     Written as raw asm text rather than `emitDataLabel` because the
     layout is hybrid (`.byte` payload for the bytecode, `.zero` for
-    the stack scratch) — `emitDataLabel` only takes `UInt64` dwords. -/
+    the stack scratch) -- `emitDataLabel` only takes `UInt64` dwords. -/
 def tinyInterpDataSection (bytecodeBytes : String) : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
@@ -279,7 +279,9 @@ def tinyInterpDataSection (bytecodeBytes : String) : String :=
   ".balign 32\n" ++
   "evm_stack_low:\n" ++
   "  .zero 256\n" ++
-  "evm_stack_top:"
+  "evm_stack_top:\n" ++
+  "evm_stack_positive_scratch:\n" ++
+  "  .zero 256"
 
 /-- M5a test case 1: `PUSH1 0xFF; PUSH1 0x01; ADD; STOP`. Expected
     256-bit sum = `0x100`, which as four LE u64 limbs is
@@ -1126,6 +1128,21 @@ def logHandlers : List OpcodeHandlerSpec :=
     needs a trampoline-style wrapper (set `x18` to a per-handler
     "restore" stub before the body runs, splice off the body's
     initial save_ra_block). Tracked as the next codegen PR. -/
+private def mulmodTail : HandlerTail :=
+  .custom <|
+    "  mv x10, x23\n" ++
+    "  mv x13, x21\n" ++
+    "  mv x20, x22\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  ret"
+
+def mulmodHandlers : List OpcodeHandlerSpec :=
+  [ { label   := "h_MULMOD"
+      opcodes := [0x09]
+      preBody := "  mv x23, x10\n  mv x21, x13\n  mv x22, x20"
+      body    := EvmAsm.Evm64.evm_mulmod
+      tail    := mulmodTail } ]
+
 private def divModTail : HandlerTail :=
   .custom "  mv x10, x14\n  addi x10, x10, 1\n  ret"
 
@@ -1332,7 +1349,7 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
-  arithNoopHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
