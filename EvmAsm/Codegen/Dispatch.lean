@@ -318,6 +318,15 @@ def emitRuntimeAccountWitnessData : String :=
   "hesr_length:\n" ++
   "  .zero 8\n" ++
   ".balign 32\n" ++
+  "bal_state_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bal_acct_struct:\n" ++
+  "  .zero 104\n" ++
+  ".balign 32\n" ++
+  "bal_output_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
   "eahsr_state_root:\n" ++
   "  .zero 32\n" ++
   ".balign 32\n" ++
@@ -497,6 +506,7 @@ def emitDispatcherEpilogue
   accountDecodeFunction ++ "\n" ++
   accountAtAddressFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
+  balanceAtHeaderStateRootFunction ++ "\n" ++
   extcodehashAtHeaderStateRootFunction ++ "\n" ++
   extcodecopyAtHeaderStateRootFunction ++ "\n" ++
   "h_invalid:\n" ++
