@@ -64,6 +64,7 @@ import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
+import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
@@ -85,6 +86,7 @@ import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
+import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StorageRoot
@@ -368,6 +370,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_withdrawals_root_one_w" => some ziskBlockValidateWithdrawalsRootOneWProbeUnit
   | "zisk_block_validate_withdrawals_root_two_w" => some ziskBlockValidateWithdrawalsRootTwoWProbeUnit
   | "zisk_block_validate_withdrawals_root_indexed" => some ziskBlockValidateWithdrawalsRootIndexedProbeUnit
+  | "zisk_block_validate_receipts_root_indexed" => some ziskBlockValidateReceiptsRootIndexedProbeUnit
   | "zisk_block_validate_receipts_root_one_receipt" => some ziskBlockValidateReceiptsRootOneReceiptProbeUnit
   | "zisk_block_validate_receipts_root_two_receipts" => some ziskBlockValidateReceiptsRootTwoReceiptsProbeUnit
   | "zisk_block_validate_transactions_root_two_tx" => some ziskBlockValidateTransactionsRootTwoTxProbeUnit
@@ -896,6 +899,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_insert_acc",
    "zisk_mpt_state_root_ins",
    "zisk_mpt_indexed_trie_root_small",
+   "zisk_block_validate_receipts_root_indexed",
    "zisk_mpt_delete_walk_db",
    "zisk_mpt_delete_acc",
    "zisk_mpt_set",
@@ -1365,6 +1369,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BlockEmpty.lean",
     "EvmAsm/Codegen/Programs/BlockRoots.lean",
     "EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean",
+    "EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean",
     "EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean",
     "EvmAsm/Codegen/Programs/BlockValidate.lean",
     "EvmAsm/Codegen/Programs/Chain.lean",
