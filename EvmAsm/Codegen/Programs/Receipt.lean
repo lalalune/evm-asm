@@ -331,4 +331,117 @@ def ziskReceiptEncodeProbeUnit : BuildUnit := {
   dataAsm     := ziskReceiptEncodeDataSection
 }
 
+
+/-! ## typed_receipt_encode -- EIP-2718 envelope helper
+
+    Encode a typed transaction receipt as `type_byte || receipt_encode(...)`.
+    EIP-2718 receipt trie values are the typed envelope bytes, not an RLP list
+    containing the type byte. This helper deliberately delegates the inner
+    payload to `receipt_encode` so status, cumulative gas, logs_bloom, and logs
+    keep exactly the same semantics as legacy receipts.
+
+    Calling convention:
+      a0 (input)  : receipt type byte (1..255; low byte is used)
+      a1 (input)  : status (u64)
+      a2 (input)  : cumulative_gas_used (u64)
+      a3 (input)  : logs_bloom ptr (exactly 256 bytes)
+      a4 (input)  : logs_rlp ptr (pre-encoded list)
+      a5 (input)  : logs_rlp byte length
+      a6 (input)  : output buffer ptr
+      a7 (input)  : u64 out length ptr (total bytes written)
+      ra (input)  : return
+      a0 (output) : 0 (always succeeds). -/
+def typedReceiptEncodeFunction : String :=
+  "typed_receipt_encode:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # type byte\n" ++
+  "  mv s1, a6                   # output ptr\n" ++
+  "  mv s2, a7                   # out length ptr\n" ++
+  "  sb s0, 0(s1)                # envelope type byte\n" ++
+  "  mv s3, a1                   # status\n" ++
+  "  mv s4, a2                   # cumulative gas\n" ++
+  "  mv s5, a3                   # logs bloom ptr\n" ++
+  "  mv s6, a4                   # logs rlp ptr\n" ++
+  "  mv a0, s3\n" ++
+  "  mv a1, s4\n" ++
+  "  mv a2, s5\n" ++
+  "  mv a3, s6\n" ++
+  "  mv a4, a5                   # logs rlp len\n" ++
+  "  addi a5, s1, 1              # inner receipt output after type byte\n" ++
+  "  la a6, tre_inner_len\n" ++
+  "  jal ra, receipt_encode\n" ++
+  "  la t0, tre_inner_len; ld t1, 0(t0)\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  sd t1, 0(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_typed_receipt_encode`: probe BuildUnit.
+    Input layout:
+      bytes   0.. 8 : type byte in low u64
+      bytes   8..16 : status
+      bytes  16..24 : cumulative_gas
+      bytes  24..280: logs_bloom
+      bytes 280..288: logs_rlp_len
+      bytes 288..   : logs_rlp
+    Output layout:
+      bytes  0.. 8 : status
+      bytes  8..16 : bytes_written
+      bytes 16..   : typed receipt bytes, capped by ziskemu output. -/
+def ziskTypedReceiptEncodePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld t0, 8(a3)                # type byte\n" ++
+  "  ld t1, 16(a3)               # status\n" ++
+  "  ld t2, 24(a3)               # cumulative gas\n" ++
+  "  addi t3, a3, 32             # logs bloom ptr\n" ++
+  "  ld t4, 288(a3)              # logs_rlp_len\n" ++
+  "  addi t5, a3, 296            # logs_rlp ptr\n" ++
+  "  mv a0, t0\n" ++
+  "  mv a1, t1\n" ++
+  "  mv a2, t2\n" ++
+  "  mv a3, t3\n" ++
+  "  mv a4, t5\n" ++
+  "  mv a5, t4\n" ++
+  "  li a6, 0xa0010010           # output typed receipt bytes\n" ++
+  "  li a7, 0xa0010008           # out length ptr\n" ++
+  "  jal ra, typed_receipt_encode\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Ltre_pdone\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpEncodeU64Function ++ "\n" ++
+  receiptEncodeFunction ++ "\n" ++
+  typedReceiptEncodeFunction ++ "\n" ++
+  ".Ltre_pdone:"
+
+def ziskTypedReceiptEncodeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "re_cursor:\n" ++
+  "  .zero 8\n" ++
+  "re_field_len:\n" ++
+  "  .zero 8\n" ++
+  "re_total_payload:\n" ++
+  "  .zero 8\n" ++
+  "tre_inner_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "re_payload_buf:\n" ++
+  "  .zero 16384"
+
+def ziskTypedReceiptEncodeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTypedReceiptEncodePrologue
+  dataAsm     := ziskTypedReceiptEncodeDataSection
+}
+
 end EvmAsm.Codegen
