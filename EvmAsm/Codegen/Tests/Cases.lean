@@ -18,6 +18,12 @@ namespace EvmAsm.Codegen.Tests
 
 open EvmAsm.Codegen
 
+private def byteCsv (bytes : List String) : String :=
+  String.intercalate ", " bytes
+
+private def repeatedPush1Bytecode (n : Nat) (value : String) : String :=
+  byteCsv ((List.range n).flatMap (fun _ => ["0x60", value]) ++ ["0x00"])
+
 /-- One per-opcode regression test wrapped around the M5b dispatcher
     (`tinyInterpRegistry`). The bytecode bakes into `.data`; the
     expected output is the first 32 bytes of `OUTPUT_ADDR` (i.e. the
@@ -287,6 +293,12 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "push0_basic"
       bytecode       := "0x5f, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x01 repeated 1024 times; STOP. This reaches the
+    -- protocol stack-depth limit exactly and proves the runtime dispatcher's
+    -- static stack arena is large enough for a valid 1024-word stack.
+    { name           := "push1_depth_1024"
+      bytecode       := repeatedPush1Bytecode 1024 "0x01"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x42; DUP1; ADD; STOP — DUP1 makes stack [0x42, 0x42];
     -- ADD → 0x84.
     { name           := "dup1_basic"
@@ -879,6 +891,12 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "addmod_carry_reduced_sum_subtracts_n"
       bytecode       := "0x60, 0x07, 0x60, 0x07, 0x60, 0x00, 0x19, 0x08, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- Carry-path ADDMOD with live stack words below the arguments.
+    -- The deepest sentinel lands at the old `x12 + 224` temporary frame offset;
+    -- after ADDMOD and five POPs it must still be the top stack word.
+    { name           := "addmod_carry_preserves_deep_stack"
+      bytecode       := "0x60, 0xaa, 0x60, 0x66, 0x60, 0x55, 0x60, 0x44, 0x60, 0x33, 0x60, 0x07, 0x60, 0x01, 0x60, 0x00, 0x19, 0x08, 0x50, 0x50, 0x50, 0x50, 0x50, 0x00"
+      expectedOutHex := "aa00000000000000000000000000000000000000000000000000000000000000" }
     -- ## M21 real calldata (CALLDATASIZE / CALLDATALOAD / CALLDATACOPY)
     -- The dispatcher prologue now populates env.callDataPtrOff (416)
     -- and env.callDataLenOff (424) from the ziskemu `-i` input file.
