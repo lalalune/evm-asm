@@ -694,6 +694,12 @@ def emitDispatcherDataSection
                           -- `lp64_sp_top` (top of a down-growing stack), so
                           -- `sp+0..24` would scribble into the jump table.
                           -- h_EXP's preBody repoints `x2` here and its tail
+  ".balign 32\n" ++
+  "addmod_runtime_scratch:\n" ++
+  "  .zero 128\n" ++      -- ADDMOD (0x08): two callable MOD frames for the carry path.
+  ".balign 8\n" ++
+  "addmod_saved_stack_ptr:\n" ++
+  "  .zero 8\n" ++        -- Original EVM stack pointer across inner MOD calls.
                           -- restores `sp = lp64_sp_top`.
   emitGasCostTable ++ "\n" ++
   emitJumpTable registry
@@ -990,6 +996,12 @@ def emitRuntimeDispatcherDataSection
                           -- `lp64_sp_top` (top of a down-growing stack), so
                           -- `sp+0..24` would scribble into the jump table.
                           -- h_EXP's preBody repoints `x2` here and its tail
+  ".balign 32\n" ++
+  "addmod_runtime_scratch:\n" ++
+  "  .zero 128\n" ++      -- ADDMOD (0x08): two callable MOD frames for the carry path.
+  ".balign 8\n" ++
+  "addmod_saved_stack_ptr:\n" ++
+  "  .zero 8\n" ++        -- Original EVM stack pointer across inner MOD calls.
                           -- restores `sp = lp64_sp_top`.
   emitGasCostTable ++ "\n" ++
   emitJumpTable registry
