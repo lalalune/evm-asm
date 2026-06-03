@@ -34,7 +34,7 @@ which fails the build if any opcode blocker stops naming a real registry entry).
 | 2 | `read_input` / `write_output` per the IO interface | ✅ done | Rv64/SyscallSpecs.lean (codegen M4 wired) |
 | 3 | RLP-decode the (block, witness) input | 🟡 blocked | RV64 RLP decoder phases 1–3 (in progress) |
 | 4 | EVM interpreter loop on the decoded block | 🟡 blocked | codegen M5 (tiny EVM interpreter) not shipped |
-| 5 | Full opcode coverage with verified handlers | 🟡 blocked | `DIV`, `MOD`, `SDIV`, `SMOD`, `ADDMOD`, `MULMOD`, `EXP`, `CALLDATACOPY`, `PUSH2..32`, execSpec-tier opcodes have no RV64 subroutine (axis A.2) |
+| 5 | Full opcode coverage with verified handlers | 🟡 blocked | `MOD`, `SDIV`, `SMOD`, `ADDMOD`, `MULMOD`, `EXP`, `CALLDATACOPY`, `PUSH2..32`, execSpec-tier opcodes have no RV64 subroutine (axis A.2) |
 | 6 | Accelerator ECALL bridges per `zkvm_accelerators.h` | 🟡 blocked | per-precompile EL bridges not yet codegen-wired |
 | 7 | MPT verification of pre-state witness proofs | ✗ not started | — |
 | 8 | Verified post-state root → public output | 🟡 blocked | obligation #4 (interpreter loop), obligation #5 (opcode coverage), obligation #6 (accelerator bridges), obligation #7 (MPT verification) |
@@ -50,7 +50,6 @@ precondition; the excluded domain is **unverified**.
 
 | Opcode | Why not (yet) fully proven |
 |---|---|
-| `DIV` | stack spec parametric over DivStackSpecCase (bzero / n=1,2,3, all require b.getLimbN 3 = 0); n=4 path not covered. Executable evm_div uses divK_div128_v4 (PR #4992, full Knuth Alg D). Full-domain unconditional closure tracked by bead evm-asm-9iqmw / gh-61 |
 | `SDIV` | callable+dispatch shim; evm_sdiv_stack_spec_within conditional on hStack (discharged for divisor=0 and n=1/2/3/n4-call-skip); blocked on DIV/MOD spec-layer migration (bead evm-asm-9iqmw) |
 | `MOD` | stack spec parametric over ModStackSpecCase (bzero / n=1,2,3, all require b.getLimbN 3 = 0); n=4 path not covered. Executable evm_mod uses divK_div128_v4 (PR #4992). Full-domain unconditional closure tracked by bead evm-asm-9iqmw / gh-61 |
 
