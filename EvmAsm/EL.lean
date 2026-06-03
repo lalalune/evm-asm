@@ -60,6 +60,7 @@ import EvmAsm.EL.Bls12G1MsmEcallBridge
 import EvmAsm.EL.KzgPointEvalInputBridge
 import EvmAsm.EL.KzgPointEvalResultBridge
 import EvmAsm.EL.KzgPointEvalEcallBridge
+import EvmAsm.EL.KzgPointEvalPrecompileResultBridge
 import EvmAsm.EL.Bls12MapFpToG1InputBridge
 import EvmAsm.EL.Bls12MapFpToG1ResultBridge
 import EvmAsm.EL.Bls12MapFpToG1EcallBridge
