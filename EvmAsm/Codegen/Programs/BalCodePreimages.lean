@@ -164,6 +164,9 @@ def balCodePreimagesValidFunction : String :=
   "  la t0, bbcv_addr_off; ld t1, 0(t0); add a0, s10, t1; mv a1, s6; mv a2, s7\n" ++
   "  jal ra, bal_txs_contains_create_collision_touch\n" ++
   "  bnez a0, .Lbbcv_next\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a0, s10, t1; mv a1, s6; mv a2, s7; mv a3, s0; mv a4, s1\n" ++
+  "  jal ra, bal_contains_internal_create_collision_touch\n" ++
+  "  bnez a0, .Lbbcv_next\n" ++
   "  j .Lbbcv_missing_code\n" ++
   ".Lbbcv_missing_code:\n" ++
   "  li a0, 1; j .Lbbcv_ret\n" ++
@@ -439,6 +442,81 @@ def balCodePreimagesValidFunction : String :=
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  ld s8, 72(sp); ld s9, 80(sp)\n" ++
   "  addi sp, sp, 96\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff target equals CREATE(creator, pre_nonce) for a BAL creator\n" ++
+  "# row whose nonce increases and witness bytecode contains CREATE. This covers\n" ++
+  "# internal CREATE collision metadata touches without requiring code preimage.\n" ++
+  "bal_contains_internal_create_collision_touch:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s0, a0                  # 20-byte target address ptr\n" ++
+  "  mv s1, a1                  # witness.codes ptr\n" ++
+  "  mv s2, a2                  # witness.codes len\n" ++
+  "  mv s3, a3                  # BAL ptr\n" ++
+  "  mv s4, a4                  # BAL len\n" ++
+  "  jal ra, bal_codes_contains_create_opcode\n" ++
+  "  beqz a0, .Lbicc_no\n" ++
+  "  mv a0, s3; mv a1, s4; la a2, bbcv_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbicc_no\n" ++
+  "  la t0, bbcv_count; ld s5, 0(t0)\n" ++
+  "  li s6, 0                  # BAL row index\n" ++
+  ".Lbicc_row_loop:\n" ++
+  "  beq s6, s5, .Lbicc_no\n" ++
+  "  mv a0, s3; mv a1, s4; mv a2, s6; la a3, bbcv_off; la a4, bbcv_size\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lbicc_next_row\n" ++
+  "  la t0, bbcv_off; ld t1, 0(t0); add s7, s3, t1     # row ptr\n" ++
+  "  la t0, bbcv_size; ld s8, 0(t0)                    # row len\n" ++
+  "  mv a0, s7; mv a1, s8; li a2, 0; la a3, bbcv_addr_off; la a4, bbcv_addr_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbicc_next_row\n" ++
+  "  la t0, bbcv_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbicc_next_row\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add s9, s7, t1 # creator address ptr\n" ++
+  "  mv a0, s7; mv a1, s8; li a2, 4; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbicc_next_row\n" ++
+  "  la t0, bbcv_field_off; ld t1, 0(t0); add s10, s7, t1 # nonce_changes ptr\n" ++
+  "  la t0, bbcv_field_len; ld s11, 0(t0)                  # nonce_changes len\n" ++
+  "  mv a0, s10; mv a1, s11; la a2, bbcv_field_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbicc_next_row\n" ++
+  "  la t0, bbcv_field_count; ld t1, 0(t0); beqz t1, .Lbicc_next_row\n" ++
+  "  # Use the first nonce change: [block_access_index, new_nonce].\n" ++
+  "  mv a0, s10; mv a1, s11; mv a2, zero; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbicc_next_row\n" ++
+  "  la t0, bbcv_field_off; ld t1, 0(t0); add a0, s10, t1\n" ++
+  "  la t0, bbcv_field_len; ld a1, 0(t0); li a2, 1; la a3, bsg_tx_nonce\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lbicc_next_row\n" ++
+  "  la t0, bsg_tx_nonce; ld a1, 0(t0); beqz a1, .Lbicc_next_row\n" ++
+  "  addi a1, a1, -1           # pre_nonce = new_nonce - 1\n" ++
+  "  mv a0, s9; la a2, bbcv_create_addr\n" ++
+  "  jal ra, address_compute_create\n" ++
+  "  la t0, bbcv_create_addr; li t1, 0\n" ++
+  ".Lbicc_cmp_addr:\n" ++
+  "  li t2, 20; beq t1, t2, .Lbicc_yes\n" ++
+  "  add t3, t0, t1; lbu t3, 0(t3)\n" ++
+  "  add t4, s0, t1; lbu t4, 0(t4)\n" ++
+  "  bne t3, t4, .Lbicc_next_row\n" ++
+  "  addi t1, t1, 1; j .Lbicc_cmp_addr\n" ++
+  ".Lbicc_next_row:\n" ++
+  "  addi s6, s6, 1; j .Lbicc_row_loop\n" ++
+  ".Lbicc_yes:\n" ++
+  "  li a0, 1; j .Lbicc_ret\n" ++
+  ".Lbicc_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbicc_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
   "  ret\n" ++
   "\n" ++
   "# Return 1 iff any witness code byte is CREATE (0xf0).\n" ++
