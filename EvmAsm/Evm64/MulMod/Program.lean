@@ -493,10 +493,10 @@ theorem evm_mulmod_reduce512_init_length :
     evm_mulmod_reduce512_init.length = 6 := by decide
 
 theorem evm_mulmod_reduce512_inner_step_length :
-    evm_mulmod_reduce512_inner_step.length = 64 := by decide
+    evm_mulmod_reduce512_inner_step.length = 64 := by set_option maxRecDepth 1000 in decide
 
 theorem evm_mulmod_reduce512_loop_length :
-    evm_mulmod_reduce512_loop.length = 69 := by decide
+    evm_mulmod_reduce512_loop.length = 69 := by set_option maxRecDepth 1000 in decide
 
 theorem evm_mulmod_reduce512_write_result_length :
     evm_mulmod_reduce512_write_result.length = 8 := by decide
@@ -594,7 +594,7 @@ example : runMulMod 1024
     2 0 0 0
     3 0 0 0
     0 0 0 0
-    64 = some (1088, [0, 0, 0, 0]) := by set_option maxRecDepth 1000 in decide
+    64 = some (1088, [0, 0, 0, 0]) := by set_option maxRecDepth 2000 in decide
 
 -- Nonzero end-to-end MULMOD cases execute the 512-iteration reducer loop and
 -- are intentionally covered by ziskemu runtime tests in the dispatcher slice
@@ -661,7 +661,7 @@ example : runMulModProductLayout 1024
     0 0 0 1
     0 1 0 0
     11 0 0 0
-    440 = some (1024, [11, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0]) := by decide
+    440 = some (1024, [11, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0]) := by set_option maxRecDepth 1000 in decide
 
 /-- Carry-heavy product: `(2^256 - 1)^2 = 1 + (2^256 - 2) * 2^256`. -/
 example : runMulModProductLayout 1024
@@ -670,6 +670,6 @@ example : runMulModProductLayout 1024
     13 0 0 0
     440 = some (1024, [13, 0, 0, 0],
       [1, 0, 0, 0],
-      [0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF]) := by decide
+      [0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF]) := by set_option maxRecDepth 1000 in decide
 
 end EvmAsm.Evm64
