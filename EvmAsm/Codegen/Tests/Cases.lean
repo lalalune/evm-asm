@@ -701,16 +701,24 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x50, 0x3d, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-    -- ## M20 arithmetic no-ops (MULMOD, EXP) — the LAST TWO unwired
-    -- opcodes; M20 brings tinyInterpRegistry to 100% coverage 🎯.
-    -- Both ship as placeholders; real upgrades follow in M21+.
-  , -- PUSH1 0x03; PUSH1 0x05; PUSH1 0x07; MULMOD; PUSH1 0x42; STOP
-    -- MULMOD pops 3 (a, b, N), pushes 1 (result = 0). Net pop = 2 =
-    -- +64 bytes. PUSH1 0x42 lands on the 1-deep stack and replaces
-    -- the zero result. Expected: 0x42.
-    { name           := "mulmod_pop3"
-      bytecode       := "0x60, 0x03, 0x60, 0x05, 0x60, 0x07, 0x09, 0x60, 0x42, 0x00"
+    -- ## M20 MULMOD supported-lane placeholder.
+    -- The full 512-bit product/reduction body is not wired yet. The
+    -- zero-modulus lane is spec-correct (`MULMOD(_, _, 0) = 0`), while
+    -- nonzero modulus is surfaced as an explicit unsupported exceptional
+    -- halt instead of a false successful zero.
+  , -- PUSH1 0x00; PUSH1 0x05; PUSH1 0x07; MULMOD; PUSH1 0x42; STOP
+    -- With N=0, MULMOD pops 3 (a, b, N), pushes zero, and advances.
+    -- Net pop = 2 = +64 bytes. PUSH1 0x42 then replaces the zero result.
+    { name           := "mulmod_zero_modulus_pop3"
+      bytecode       := "0x60, 0x00, 0x60, 0x05, 0x60, 0x07, 0x09, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x03; PUSH1 0x05; PUSH1 0x07; MULMOD; STOP
+    -- Nonzero N is not implemented yet; halt_kind 3 keeps the runtime
+    -- verdict honest until the full MULMOD body lands.
+    { name             := "mulmod_nonzero_modulus_unsupported"
+      bytecode         := "0x60, 0x03, 0x60, 0x05, 0x60, 0x07, 0x09, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0300000000000000" }
   , -- ## EXP (0x0a) — real verified body via selfCallingHandlers
     -- (evmExpComposed, _fixed_fixed x6→x22 counter fix). EVM EXP pops
     -- `a` (base, top of stack) then `exponent`; result = a ** exponent.
