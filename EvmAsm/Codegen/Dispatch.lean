@@ -418,7 +418,8 @@ def emitDispatcherPrologue : String :=
 
     `halt_kind` scheme (`OUTPUT + 32`, u64 LE):
     `0` STOP/unspecified · `1` RETURN · `2` REVERT · `3` INVALID (0xfe) ·
-    `4` invalid JUMP/JUMPI dest (M15.5) · `5` SELFDESTRUCT (0xff). -/
+    `4` invalid JUMP/JUMPI dest (M15.5) · `5` SELFDESTRUCT (0xff) ·
+    `6` out-of-gas · `7` stack underflow. -/
 def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"{label}:\n" ++
   "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
@@ -466,10 +467,12 @@ def emitDispatcherEpilogue
   --   .exit_invalid_op  (3) — M23.5 INVALID opcode (0xfe)
   --   .exit_selfdestruct(5) — M23.5 SELFDESTRUCT (0xff)
   --   .exit_outofgas    (6) — M30 dispatch-loop gas underflow
+  --   .exit_stack_underflow(7) — stack consumer with too few words
   emitExceptionalExit ".exit_invalid" 4 ++
   emitExceptionalExit ".exit_invalid_op" 3 ++
   emitExceptionalExit ".exit_selfdestruct" 5 ++
   emitExceptionalExit ".exit_outofgas" 6 ++
+  emitExceptionalExit ".exit_stack_underflow" 7 ++
   ".exit_label:\n" ++
   emitProgram exitBody ++ "\n" ++
   ".exit_no_epilogue:\n" ++
