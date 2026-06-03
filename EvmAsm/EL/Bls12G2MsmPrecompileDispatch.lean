@@ -128,7 +128,7 @@ def dispatch
 
 theorem g2KDiscount_length :
     g2KDiscount.length = 128 := by
-  native_decide
+  set_option maxRecDepth 1000 in decide
 
 theorem validInputLength_empty :
     validInputLength ([] : List Byte) = false := by
