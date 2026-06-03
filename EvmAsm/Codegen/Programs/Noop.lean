@@ -458,9 +458,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , tail := .custom (basicPrecompileCallTail 160 64 96 128 160) } ]
 
 /-- M20 arithmetic placeholder handlers. MULMOD still lacks its full
-    512-bit product/reduction body, but the `N = 0` lane is
-    spec-correct: EVM defines `MULMOD(_, _, 0) = 0`. Nonzero modulus
-    is rejected explicitly instead of silently returning a false zero.
+    512-bit product/reduction body. The EVM instruction is total:
+    the execution spec defines `MULMOD(_, _, 0) = 0` and, for
+    nonzero modulus `N`, `(a * b) % N`. Therefore nonzero modulus
+    must eventually return a value rather than jump to an exceptional
+    halt.
 
     | Opcode | Byte | Pops | Pushes | Net pops × 32 |
     |---|---|---|---|---|
@@ -469,13 +471,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
 
     **Known limitations** (documented in CODEGEN.md M20 narrative):
 
-    - **MULMOD** supports only zero modulus. The verified body is
-      still a placeholder in `EvmAsm/Evm64/MulMod/Program.lean`
-      (slice evm-asm-m4wu unscheduled). A future PR will swap in the
-      real Knuth-style 512-bit + reduce-by-N body once it lands.
-      Until then, nonzero modulus jumps to `.exit_invalid_op`
-      (`halt_kind = 3`) so unsupported arithmetic is visible to the
-      runtime harness and EEST triage.
+    - **MULMOD** currently returns 0 for every modulus, so this
+      placeholder is spec-correct only for the `N = 0` lane. The
+      verified body is still absent from `EvmAsm/Evm64/MulMod/Program.lean`
+      (slice evm-asm-m4wu unscheduled). A future PR must swap in a
+      total Knuth-style 512-bit + reduce-by-N body before nonzero
+      MULMOD can be treated as supported.
     - **EXP** graduated from a no-op to a real verified body and now
       lives in `selfCallingHandlers` (`EvmAsm/Codegen/Programs/Evm.lean`)
       as `evmExpComposed`, using the `_fixed_fixed` body variant
@@ -486,22 +487,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     to work correctly. -/
 def arithNoopHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_MULMOD", opcodes := [0x09]
-    , body := []
-    , tail := .custom <|
-        "  ld x14, 64(x12)\n" ++
-        "  ld x15, 72(x12)\n" ++
-        "  or x14, x14, x15\n" ++
-        "  ld x15, 80(x12)\n" ++
-        "  or x14, x14, x15\n" ++
-        "  ld x15, 88(x12)\n" ++
-        "  or x14, x14, x15\n" ++
-        "  bnez x14, .exit_invalid_op\n" ++
-        "  addi x12, x12, 64\n" ++
-        "  sd x0, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "  addi x10, x10, 1\n" ++
-        "  j .dispatch_loop" } ]
+    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64) ;;
+              SD .x12 .x0 0 ;;
+              SD .x12 .x0 8 ;;
+              SD .x12 .x0 16 ;;
+              SD .x12 .x0 24
+    , tail := .advanceAndRet 1 } ]
 
 end EvmAsm.Codegen

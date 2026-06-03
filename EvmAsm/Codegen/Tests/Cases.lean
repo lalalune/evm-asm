@@ -701,24 +701,18 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x50, 0x3d, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-    -- ## M20 MULMOD supported-lane placeholder.
+    -- ## M20 MULMOD zero-modulus placeholder.
     -- The full 512-bit product/reduction body is not wired yet. The
-    -- zero-modulus lane is spec-correct (`MULMOD(_, _, 0) = 0`), while
-    -- nonzero modulus is surfaced as an explicit unsupported exceptional
-    -- halt instead of a false successful zero.
+    -- execution spec makes MULMOD total: zero modulus returns zero;
+    -- nonzero modulus must eventually return `(a * b) % N`, not an
+    -- exceptional halt. This smoke therefore covers only the currently
+    -- spec-correct `N = 0` lane.
   , -- PUSH1 0x00; PUSH1 0x05; PUSH1 0x07; MULMOD; PUSH1 0x42; STOP
     -- With N=0, MULMOD pops 3 (a, b, N), pushes zero, and advances.
     -- Net pop = 2 = +64 bytes. PUSH1 0x42 then replaces the zero result.
     { name           := "mulmod_zero_modulus_pop3"
       bytecode       := "0x60, 0x00, 0x60, 0x05, 0x60, 0x07, 0x09, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
-  , -- PUSH1 0x03; PUSH1 0x05; PUSH1 0x07; MULMOD; STOP
-    -- Nonzero N is not implemented yet; halt_kind 3 keeps the runtime
-    -- verdict honest until the full MULMOD body lands.
-    { name             := "mulmod_nonzero_modulus_unsupported"
-      bytecode         := "0x60, 0x03, 0x60, 0x05, 0x60, 0x07, 0x09, 0x00"
-      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind := "0300000000000000" }
   , -- ## EXP (0x0a) — real verified body via selfCallingHandlers
     -- (evmExpComposed, _fixed_fixed x6→x22 counter fix). EVM EXP pops
     -- `a` (base, top of stack) then `exponent`; result = a ** exponent.
