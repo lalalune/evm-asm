@@ -2,7 +2,7 @@
   EvmAsm.Codegen.Programs.Noop
 
   M18 stack-pop / push-zero / halt no-op handler builders. These
-  20 opcodes share the same "trusted bytecode, no host state model"
+  16 opcodes share the same "trusted bytecode, no host state model"
   shape: pop the right number of EVM stack words, optionally push
   32 zero bytes, advance PC by 1 (or halt). Lifted out of
   `Programs/Evm.lean` per the file-size guard at the bottom of
@@ -10,14 +10,13 @@
 
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
-  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE, BLOBBASEFEE,
-    MSIZE, GAS
+  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE (MSIZE and GAS have real implementations in Programs/Evm.lean)
   - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
-    EXTCODEHASH, BLOCKHASH, BLOBHASH
+    EXTCODEHASH (BLOBHASH and BLOCKHASH have real implementations in Programs/Evm.lean)
   - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
     RETURNDATACOPY, MCOPY
 
-  All 20 opcodes ship with at least one spec-incompliance (returns
+  All 16 opcodes ship with at least one spec-incompliance (returns
   zero / drops side effects) because the dispatcher has no model
   for the relevant state (accounts, calldata, block history, blob
   context, return-data buffers). Trusted bytecode that avoids
@@ -49,9 +48,13 @@ open EvmAsm.Rv64
       5. Jump to `.exit_no_epilogue` (the M23-added label that
          skips `evmAddEpilogue`'s clobbering stack-top copy).
 
-    INVALID (0xfe) and SELFDESTRUCT (0xff) continue to flow through
-    `.exit_label` → `evmAddEpilogue`, inheriting `halt_kind = 0`.
-    A follow-up PR can tag them with distinct kinds (3 / 4).
+    **M23.5 update**: INVALID (0xfe) and SELFDESTRUCT (0xff) no longer
+    flow through `.exit_label` → `evmAddEpilogue` (which would surface
+    the stack top + `halt_kind = 0`, indistinguishable from STOP).
+    INVALID jumps to `.exit_invalid_op` (`halt_kind = 3`, exceptional
+    halt) and SELFDESTRUCT to `.exit_selfdestruct` (`halt_kind = 5`,
+    normal halt) — both via the shared `emitExceptionalExit` blocks,
+    which zero the result (no return data) and tag the distinct kind.
 
     ### EVM stack contracts (RETURN / REVERT)
 
@@ -144,25 +147,31 @@ def haltHandlers : List OpcodeHandlerSpec :=
         -- prologue (post-preload); transient log resets to 0
         -- (transient storage starts empty at tx start). RETURN /
         -- STOP / INVALID / SELFDESTRUCT do NOT roll back — they
-        -- commit successfully.
+        -- commit successfully. M26 also restores receipt event logs
+        -- to the transaction checkpoint.
         "  ld x17, 456(x20)\n" ++         -- persistentLogCheckpointOff
         "  sd x17, 448(x20)\n" ++         -- persistentLogLengthOff = checkpoint
         "  sd x0, 464(x20)\n" ++          -- transientLogLengthOff = 0
+        "  ld x17, 480(x20)\n" ++         -- eventLogCheckpointOff
+        "  sd x17, 472(x20)\n" ++         -- eventLogLengthOff = checkpoint
         "  j .exit_no_epilogue" }
-  , -- INVALID (M18 no-op, deferred halt-kind tagging). Flows through
-    -- .exit_label → evmAddEpilogue → halt_kind = 0.
+  , -- INVALID (0xfe). M23.5: exceptional halt — zero result +
+    -- halt_kind = 3 via the dispatcher's .exit_invalid_op block.
     { label := "h_INVALID", opcodes := [0xfe]
     , body := []
-    , tail := .custom "  j .exit_label" }
-  , -- SELFDESTRUCT (M18 no-op, deferred halt-kind tagging). Pops 1
-    -- (recipient address). Flows through .exit_label.
+    , tail := .custom "  j .exit_invalid_op" }
+  , -- SELFDESTRUCT (0xff). Pops 1 (recipient address). M23.5: normal
+    -- halt with no return data — zero result + halt_kind = 5 via the
+    -- dispatcher's .exit_selfdestruct block.
     { label := "h_SELFDESTRUCT", opcodes := [0xff]
     , body := []
-    , tail := .custom "  addi x12, x12, 32\n  j .exit_label" } ]
+    , tail := .custom "  addi x12, x12, 32\n  j .exit_selfdestruct" } ]
 
-/-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE, BLOBBASEFEE,
-    MSIZE, GAS). Each opcode pushes a single 32-byte zero value onto
+/-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE).
+    Each opcode pushes a single 32-byte zero value onto
     the EVM stack — no input, no output content.
+    (MSIZE and GAS graduated to real env-cell-reading handlers in
+    Programs/Evm.lean.)
 
     Body (5 instructions): decrement `x12` by 32 (push), then write
     four 8-byte zero limbs via `SD .x12 .x0 …`.
@@ -170,11 +179,8 @@ def haltHandlers : List OpcodeHandlerSpec :=
     **Known limitations** (documented in CODEGEN.md M18 narrative):
     - CODESIZE pushes 0 instead of the running code's length.
     - RETURNDATASIZE pushes 0 (no caller return-data buffer).
-    - BLOBBASEFEE pushes 0 (no Dencun blob context in our `EvmEnv`
-      yet).
     - MSIZE pushes 0 (memory-expansion bookkeeping deferred to
-      issue #99).
-    - GAS pushes 0 (no gas metering in the dispatcher). -/
+      issue #99). -/
 def pushZeroHandlers : List OpcodeHandlerSpec :=
   let pushZeroBody : Program :=
     ADDI .x12 .x12 (-32) ;;
@@ -182,21 +188,16 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     SD .x12 .x0 8 ;;
     SD .x12 .x0 16 ;;
     SD .x12 .x0 24
+  -- GAS (0x5a) graduated to a real handler in Programs/Evm.lean (M30) —
+  -- it pushes env.gasRemaining maintained by the dispatch-loop gas charge.
   [ { label := "h_CODESIZE", opcodes := [0x38]
     , body := pushZeroBody, tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
-    , body := pushZeroBody, tail := .advanceAndRet 1 }
-  , { label := "h_BLOBBASEFEE", opcodes := [0x4a]
-    , body := pushZeroBody, tail := .advanceAndRet 1 }
-  , { label := "h_MSIZE", opcodes := [0x59]
-    , body := pushZeroBody, tail := .advanceAndRet 1 }
-  , { label := "h_GAS", opcodes := [0x5a]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE,
-    EXTCODEHASH, BLOCKHASH, BLOBHASH). Each opcode pops one 32-byte
-    input (e.g., an address or index) and pushes a 32-byte zero
-    value. Net EVM stack delta = 0.
+/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE, EXTCODEHASH).
+    Each opcode pops one 32-byte input (e.g., an address) and pushes a
+    32-byte zero value. Net EVM stack delta = 0.
 
     Body (4 instructions): overwrite the popped slot with 32 zero
     bytes — same shape as M17's `SLOAD`/`TLOAD`. No `x12` movement
@@ -206,13 +207,17 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     - BALANCE always returns 0 (no account state model).
     - EXTCODESIZE / EXTCODEHASH always return 0 (no external account
       model).
-    - BLOCKHASH always returns 0 (no block history).
-    - BLOBHASH always returns 0 (no Dencun blob context).
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
     `Programs/Evm.lean`). It reads real calldata bytes from the
-    `ziskemu -i` input region. -/
+    `ziskemu -i` input region.
+
+    **M28 update**: BLOBHASH (0x49) was moved to `blobContextHandlers`
+    in `Programs/Evm.lean` with a real blob-hash-list implementation.
+
+    **M29 update**: BLOCKHASH (0x40) was moved to `blockHashHandlers`
+    in `Programs/Evm.lean` with a real block-history implementation. -/
 def popPushZeroHandlers : List OpcodeHandlerSpec :=
   let body : Program :=
     SD .x12 .x0 0 ;;
@@ -224,19 +229,14 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_EXTCODESIZE", opcodes := [0x3b]
     , body := body, tail := .advanceAndRet 1 }
   , { label := "h_EXTCODEHASH", opcodes := [0x3f]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_BLOCKHASH", opcodes := [0x40]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_BLOBHASH", opcodes := [0x49]
     , body := body, tail := .advanceAndRet 1 } ]
 
-/-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY,
-    MCOPY). Each opcode pops 3 or 4 stack values and would copy
+/-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY).
+    Each opcode pops 3 or 4 stack values and would copy
     bytes into EVM memory. As no-ops we just drop the stack args.
 
     Body: a single `ADDI .x12 .x12 (popBytes)`. CODECOPY /
-    RETURNDATACOPY / MCOPY pop 3 words = 96 bytes; EXTCODECOPY pops
-    4 = 128.
+    RETURNDATACOPY pop 3 words = 96 bytes; EXTCODECOPY pops 4 = 128.
 
     **Known limitations**: the copies are dropped on the floor.
     Programs that copy into EVM memory and then MLOAD see whatever
@@ -257,9 +257,6 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 128)
     , tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATACOPY", opcodes := [0x3e]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
-    , tail := .advanceAndRet 1 }
-  , { label := "h_MCOPY", opcodes := [0x5e]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
     , tail := .advanceAndRet 1 } ]
 
@@ -286,9 +283,24 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
     Yellow Paper; for our no-op the ordering doesn't matter because
     we drop everything.
 
+    **M27 update**: CALL / STATICCALL now recognize target
+    addresses 0x01..0x04 as the basic precompile frame surface.
+    SHA256 (0x02) hashes input bytes through `zkvm_sha256`,
+    IDENTITY (0x04) copies input bytes to caller output memory, and
+    both push success = 1. ECRECOVER / RIPEMD160 remain success
+    stubs in this slice; follow-up PRs wire their output semantics.
+
+    **M27.1 update**: inactive near-zero addresses 0x12 and 0x101
+    are not precompiles in the Amsterdam active set. Route them as
+    absent-account calls with success = 1 and empty returndata so the
+    precompile_absence fixtures do not stop at the dispatcher surface.
+
     **Known limitations** (documented in CODEGEN.md M19 narrative):
-    - CALL / CALLCODE / DELEGATECALL / STATICCALL always return 0
-      (= "call failed"). No actual sub-frame execution.
+    - Non-precompile CALL / CALLCODE / DELEGATECALL / STATICCALL
+      still return 0 (= "call failed"). No actual sub-frame
+      execution.
+    - ECRECOVER / RIPEMD160 CALL / STATICCALL targets currently
+      return success without producing returndata.
     - CREATE / CREATE2 always return address 0 (= "deployment
       failed"). The would-be deployed code is not executed.
     - No frame stack / recursion. The dispatcher doesn't push a
@@ -304,12 +316,146 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
               SD .x12 .x0 16 ;;
               SD .x12 .x0 24
     , tail := .advanceAndRet 1 }
+  let basicPrecompileCallTail
+      (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
+    -- Stack top at entry is the call gas word. The destination
+    -- address is the next word for both CALL and STATICCALL. EVM
+    -- address operands are masked to the low 160 bits: limb 1 and
+    -- the low 32 bits of limb 2 participate in precompile dispatch,
+    -- while bits 160..255 are ignored.
+    "  ld x14, 32(x12)\n" ++
+    "  ld x15, 40(x12)\n" ++
+    "  bnez x15, 1f\n" ++
+    "  ld x15, 48(x12)\n" ++
+    "  slli x15, x15, 32\n" ++
+    "  srli x15, x15, 32\n" ++
+    "  bnez x15, 1f\n" ++
+    "  li x15, 1\n" ++
+    "  bltu x14, x15, 1f\n" ++
+    "  li x15, 4\n" ++
+    "  bgeu x15, x14, 11f\n" ++
+    "  li x15, 0x12\n" ++
+    "  beq x14, x15, 12f\n" ++
+    "  li x15, 0x101\n" ++
+    "  beq x14, x15, 12f\n" ++
+    "  j 1f\n" ++
+    "11:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  li x16, 2\n" ++
+    "  beq x14, x16, 8f\n" ++
+    "  li x16, 4\n" ++
+    "  bne x14, x16, 7f\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  sd x17, 8(x15)\n" ++       -- returndata length = full input size
+    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add x18, x13, x18\n" ++    -- x18 = identity input bytes
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++    -- x19 = caller output bytes
+    -- Copy up to 64 bytes of returndata into the shared frame.
+    "  mv x22, x18\n" ++
+    "  addi x23, x15, 16\n" ++
+    "  mv x24, x17\n" ++
+    "  li x16, 64\n" ++
+    "  bgeu x16, x24, 2f\n" ++
+    "  mv x24, x16\n" ++
+    "2:\n" ++
+    "  beqz x24, 4f\n" ++
+    "3:\n" ++
+    "  lbu x16, 0(x22)\n" ++
+    "  sb x16, 0(x23)\n" ++
+    "  addi x22, x22, 1\n" ++
+    "  addi x23, x23, 1\n" ++
+    "  addi x24, x24, -1\n" ++
+    "  bnez x24, 3b\n" ++
+    -- Copy min(input_size, output_size) bytes to caller memory.
+    "4:\n" ++
+    "  mv x22, x17\n" ++
+    "  ld x23, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  bgeu x23, x22, 5f\n" ++
+    "  mv x22, x23\n" ++
+    "5:\n" ++
+    "  beqz x22, 7f\n" ++
+    "6:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 6b\n" ++
+    "7:\n" ++
+    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+    "  li x14, 1\n" ++
+    "  sd x14, 0(x12)\n" ++
+    "  sd x0, 8(x12)\n" ++
+    "  sd x0, 16(x12)\n" ++
+    "  sd x0, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop\n" ++
+    -- SHA256: digest = sha256(memory[in_offset .. in_offset+in_size)).
+    -- The wrapper uses the LP64 a0/a1/a2 registers, so save the
+    -- dispatcher code and stack pointers before setting up arguments.
+    "8:\n" ++
+    "  li x16, 32\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld a1, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x18\n" ++
+    "  addi a2, x15, 16\n" ++
+    "  jal x1, zkvm_sha256\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  ld x23, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x22, 32\n" ++
+    "  bgeu x23, x22, 9f\n" ++
+    "  mv x22, x23\n" ++
+    "9:\n" ++
+    "  beqz x22, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "10:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 10b\n" ++
+    "  j 7b\n" ++
+    "12:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  j 7b\n" ++
+    "1:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  sd x0, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+    "  sd x0, 0(x12)\n" ++
+    "  sd x0, 8(x12)\n" ++
+    "  sd x0, 16(x12)\n" ++
+    "  sd x0, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop"
   [ mkHandler "h_CREATE"        0xf0 64
-  , mkHandler "h_CALL"          0xf1 192
+  , { label := "h_CALL"
+    , opcodes := [0xf1]
+    , body := []
+    , tail := .custom (basicPrecompileCallTail 192 96 128 160 192) }
   , mkHandler "h_CALLCODE"      0xf2 192
   , mkHandler "h_DELEGATECALL"  0xf4 160
   , mkHandler "h_CREATE2"       0xf5 96
-  , mkHandler "h_STATICCALL"    0xfa 160 ]
+  , { label := "h_STATICCALL"
+    , opcodes := [0xfa]
+    , body := []
+    , tail := .custom (basicPrecompileCallTail 160 64 96 128 160) } ]
 
 /-- M20 arithmetic no-op handlers (MULMOD, EXP). The last two
     unwired opcodes shipped as placeholders to **hit 100% opcode
@@ -329,27 +475,17 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
       placeholder in `EvmAsm/Evm64/MulMod/Program.lean` (slice
       evm-asm-m4wu unscheduled). A future PR will swap in the
       real Knuth-style 512-bit + reduce-by-N body once it lands.
-    - **EXP** always returns 0. **The verified body actually
-      exists** (`evm_exp_msb_saved_bit_two_mul_fixed` in
-      `EvmAsm/Evm64/Exp/Program.lean`, x19-callee-saved cursor
-      design; ~84 instructions). The M21 PR after this one will
-      wire it via the M10-style inline-callable composition
-      pattern (~300–500 LOC: embed `mul_callable` in the
-      dispatcher epilogue, pin JAL offsets for the squaring +
-      conditional-multiply calls, use M9-style trampoline tail).
+    - **EXP** graduated from a no-op to a real verified body and now
+      lives in `selfCallingHandlers` (`EvmAsm/Codegen/Programs/Evm.lean`)
+      as `evmExpComposed`, using the `_fixed_fixed` body variant
+      (per-limb counter moved from `x6` to callee-saved `x22` so it
+      survives `mul_callable`). Only MULMOD remains a no-op here.
 
-    Trusted bytecode that doesn't depend on MULMOD / EXP results
-    continues to work correctly. -/
+    Trusted bytecode that doesn't depend on MULMOD results continues
+    to work correctly. -/
 def arithNoopHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_MULMOD", opcodes := [0x09]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 64) ;;
-              SD .x12 .x0 0 ;;
-              SD .x12 .x0 8 ;;
-              SD .x12 .x0 16 ;;
-              SD .x12 .x0 24
-    , tail := .advanceAndRet 1 }
-  , { label := "h_EXP", opcodes := [0x0a]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 32) ;;
               SD .x12 .x0 0 ;;
               SD .x12 .x0 8 ;;
               SD .x12 .x0 16 ;;

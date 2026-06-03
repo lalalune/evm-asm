@@ -24,7 +24,7 @@ import EvmAsm.Evm64.Lt.Program
 import EvmAsm.Evm64.MLoad.Program
 import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
--- import EvmAsm.Evm64.Multiply.Callable -- only needed by EXP (deferred)
+import EvmAsm.Evm64.Multiply.Callable -- EXP's inline mul_callable (Programs/Evm.lean)
 import EvmAsm.Evm64.Multiply.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
@@ -45,6 +45,8 @@ import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 
 import EvmAsm.Codegen.Programs.Evm
+import EvmAsm.Codegen.Programs.EvmArithUnits
+import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
@@ -60,11 +62,17 @@ import EvmAsm.Codegen.Programs.MptInsert
 import EvmAsm.Codegen.Programs.MptInsertWalkDb
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
+import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
+import EvmAsm.Codegen.Programs.MptDeleteWalkDb
+import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.BalGasValid
+import EvmAsm.Codegen.Programs.BalCodePreimages
+import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalAccountPath
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.BalAccountApplyPostFields
@@ -76,6 +84,8 @@ import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.BlockAccessListHash
+import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
+import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StorageRoot
 import EvmAsm.Codegen.Programs.MptInternal
@@ -234,6 +244,7 @@ import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
 import EvmAsm.Codegen.Programs.SszParentHeader
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BlockVerdict
+import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash
 import EvmAsm.Codegen.Programs.ParentBeaconBlockRootAtBlockHash
@@ -334,6 +345,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bal_account_change_descriptor" => some ziskBalAccountChangeDescriptorProbeUnit
   | "zisk_bal_account_nth_descriptor" => some ziskBalAccountNthDescriptorProbeUnit
   | "zisk_bal_account_descriptor_array" => some ziskBalAccountDescriptorArrayProbeUnit
+  | "zisk_bal_account_final_descriptor_array" => some ziskBalAccountFinalDescriptorArrayProbeUnit
   | "zisk_bal_account_state_root" => some ziskBalAccountStateRootProbeUnit
   | "zisk_bal_account_state_root_auto" => some ziskBalAccountStateRootAutoProbeUnit
   | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit
@@ -354,6 +366,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_transactions_root_one_tx" => some ziskBlockValidateTransactionsRootOneTxProbeUnit
   | "zisk_block_validate_withdrawals_root_one_w" => some ziskBlockValidateWithdrawalsRootOneWProbeUnit
   | "zisk_block_validate_withdrawals_root_two_w" => some ziskBlockValidateWithdrawalsRootTwoWProbeUnit
+  | "zisk_block_validate_withdrawals_root_indexed" => some ziskBlockValidateWithdrawalsRootIndexedProbeUnit
   | "zisk_block_validate_receipts_root_one_receipt" => some ziskBlockValidateReceiptsRootOneReceiptProbeUnit
   | "zisk_block_validate_receipts_root_two_receipts" => some ziskBlockValidateReceiptsRootTwoReceiptsProbeUnit
   | "zisk_block_validate_transactions_root_two_tx" => some ziskBlockValidateTransactionsRootTwoTxProbeUnit
@@ -522,18 +535,14 @@ def lookupProgramTail : String → Option BuildUnit
 def lookupProgram : String → Option BuildUnit
   | "smoke"                     => some smokeUnit
   | "evm_add"                   => some evmAddUnit
-  | "evm_div"                   => some evmDivUnit
-  | "evm_div_from_input"        => some evmDivFromInputUnit
-  | "evm_mod"                   => some evmModUnit
-  | "evm_mod_from_input"        => some evmModFromInputUnit
-  | "evm_sdiv"                  => some evmSdivV4Unit
-  | "evm_sdiv_from_input"       => some evmSdivV4FromInputUnit
-  | "evm_sdiv_v4"               => some evmSdivV4Unit
-  | "evm_sdiv_v4_from_input"    => some evmSdivV4FromInputUnit
-  | "evm_smod"                  => some evmSmodUnit
-  | "evm_smod_from_input"       => some evmSmodFromInputUnit
-  | "evm_smod_v4"               => some evmSmodV4Unit
-  | "evm_smod_v4_from_input"    => some evmSmodV4FromInputUnit
+  | "evm_div_v5"                => some evmDivV5Unit
+  | "evm_div_v5_from_input"     => some evmDivV5FromInputUnit
+  | "evm_mod_v5"                => some evmModV5Unit
+  | "evm_mod_v5_from_input"     => some evmModV5FromInputUnit
+  | "evm_sdiv_v5"               => some evmSdivV5Unit
+  | "evm_sdiv_v5_from_input"    => some evmSdivV5FromInputUnit
+  | "evm_smod_v5"               => some evmSmodV5Unit
+  | "evm_smod_v5_from_input"    => some evmSmodV5FromInputUnit
   | "input_echo"                => some inputEchoUnit
   | "evm_exp_from_input"        => some evmExpFromInputUnit
   | "evm_add_from_input"        => some evmAddFromInputUnit
@@ -587,6 +596,9 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_insert_walk_db"    => some ziskMptInsertWalkDbProbeUnit
   | "zisk_mpt_insert_acc"        => some ziskMptInsertAccProbeUnit
   | "zisk_mpt_state_root_ins"    => some ziskMptStateRootInsProbeUnit
+  | "zisk_mpt_indexed_trie_root_small" => some ziskMptIndexedTrieRootSmallProbeUnit
+  | "zisk_mpt_delete_walk_db"    => some ziskMptDeleteWalkDbProbeUnit
+  | "zisk_mpt_delete_acc"        => some ziskMptDeleteAccProbeUnit
   | "zisk_mpt_set"              => some ziskMptSetProbeUnit
   | "zisk_mpt_set_acc"          => some ziskMptSetAccProbeUnit
   | "zisk_mpt_state_root"       => some ziskMptStateRootProbeUnit
@@ -661,6 +673,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_sload_at_block_hash_address" => some ziskSloadAtBlockHashAddressProbeUnit
   | "zisk_storage_root_present_in_witness_storage" => some ziskStorageRootPresentInWitnessStorageProbeUnit
   | "zisk_witness_storage_keccak_at_index" => some ziskWitnessStorageKeccakAtIndexProbeUnit
+  | "zisk_witness_lookup_by_hash_indexed" => some ziskWitnessLookupByHashIndexedProbeUnit
   | "zisk_witness_codes_keccak_at_index" => some ziskWitnessCodesKeccakAtIndexProbeUnit
   | "zisk_state_account_with_spec_default" => some ziskStateAccountWithSpecDefaultProbeUnit
   | "zisk_state_extract_storage_root_for_address" => some ziskStateExtractStorageRootForAddressProbeUnit
@@ -826,12 +839,12 @@ def lookupProgram : String → Option BuildUnit
 
 /-- List of known program names, for use in CLI usage strings. -/
 def knownProgramNames : List String :=
-  ["smoke", "evm_add", "evm_div", "evm_mod", "evm_sdiv", "evm_sdiv_v4", "input_echo",
+  ["smoke", "evm_add", "evm_div_v5", "evm_mod_v5",
+   "evm_sdiv_v5", "input_echo",
    "evm_exp_from_input",
-   "evm_add_from_input", "evm_div_from_input", "evm_mod_from_input",
-   "evm_sdiv_from_input", "evm_sdiv_v4_from_input",
-   "evm_smod", "evm_smod_from_input",
-   "evm_smod_v4", "evm_smod_v4_from_input",
+   "evm_add_from_input", "evm_div_v5_from_input", "evm_mod_v5_from_input",
+   "evm_sdiv_v5_from_input",
+   "evm_smod_v5", "evm_smod_v5_from_input",
    "tiny_interp_add", "tiny_interp_add2",
    "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2",
    "runtime_dispatcher",
@@ -880,6 +893,9 @@ def knownProgramNames : List String :=
    "zisk_mpt_insert_walk_db",
    "zisk_mpt_insert_acc",
    "zisk_mpt_state_root_ins",
+   "zisk_mpt_indexed_trie_root_small",
+   "zisk_mpt_delete_walk_db",
+   "zisk_mpt_delete_acc",
    "zisk_mpt_set",
    "zisk_mpt_set_acc",
    "zisk_mpt_state_root",
@@ -954,6 +970,7 @@ def knownProgramNames : List String :=
    "zisk_sload_at_block_hash_address",
    "zisk_storage_root_present_in_witness_storage",
    "zisk_witness_storage_keccak_at_index",
+   "zisk_witness_lookup_by_hash_indexed",
    "zisk_witness_codes_keccak_at_index",
    "zisk_state_account_with_spec_default",
    "zisk_state_extract_storage_root_for_address",
@@ -1137,6 +1154,7 @@ def knownProgramNames : List String :=
    "zisk_bal_account_change_descriptor",
    "zisk_bal_account_nth_descriptor",
    "zisk_bal_account_descriptor_array",
+   "zisk_bal_account_final_descriptor_array",
    "zisk_bal_account_state_root",
    "zisk_bal_account_state_root_auto",
    "zisk_bal_account_record_array",
@@ -1157,6 +1175,7 @@ def knownProgramNames : List String :=
    "zisk_block_validate_transactions_root_one_tx",
    "zisk_block_validate_withdrawals_root_one_w",
    "zisk_block_validate_withdrawals_root_two_w",
+   "zisk_block_validate_withdrawals_root_indexed",
    "zisk_block_validate_receipts_root_one_receipt",
    "zisk_block_validate_receipts_root_two_receipts",
    "zisk_block_validate_transactions_root_two_tx",
@@ -1341,6 +1360,8 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BlockBody.lean",
     "EvmAsm/Codegen/Programs/BlockEmpty.lean",
     "EvmAsm/Codegen/Programs/BlockRoots.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean",
+    "EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean",
     "EvmAsm/Codegen/Programs/BlockValidate.lean",
     "EvmAsm/Codegen/Programs/Chain.lean",
     "EvmAsm/Codegen/Programs/ChainAggregator.lean",
@@ -1353,7 +1374,9 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/ChainValidateBlob.lean",
     "EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean",
     "EvmAsm/Codegen/Programs/Bloom.lean",
+    "EvmAsm/Codegen/Programs/Clz.lean",
     "EvmAsm/Codegen/Programs/Evm.lean",
+    "EvmAsm/Codegen/Programs/EvmArithUnits.lean",
     "EvmAsm/Codegen/Programs/ExpProperty.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
     "EvmAsm/Codegen/Programs/HashProbes.lean",
@@ -1382,6 +1405,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/MptEncode.lean",
     "EvmAsm/Codegen/Programs/SystemWrites.lean",
     "EvmAsm/Codegen/Programs/BalGasValid.lean",
+    "EvmAsm/Codegen/Programs/BalCodePreimages.lean",
     "EvmAsm/Codegen/Programs/StorageWrite.lean",
     "EvmAsm/Codegen/Programs/BlockAccessListHash.lean",
     "EvmAsm/Codegen/Programs/AccountApplyStorage.lean",
@@ -1415,7 +1439,8 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean",
     "EvmAsm/Codegen/Programs/SszParentHeader.lean",
     "EvmAsm/Codegen/Programs/StatelessVerdict.lean",
-    "EvmAsm/Codegen/Programs/BlockVerdict.lean"
+    "EvmAsm/Codegen/Programs/BlockVerdict.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdictV2.lean"
   ]
   for path in paths do
     let contents ← IO.FS.readFile path

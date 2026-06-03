@@ -441,6 +441,9 @@ def statelessGuestDataSection : String :=
   "  .byte 0x92, 0xe5, 0x53, 0xe3, 0x5e, 0xcb, 0x4a, 0x33\n" ++
   "  .byte 0x7a, 0x1b, 0x1c, 0x0e, 0x4a, 0xfe, 0x1e, 0x0e\n" ++
   ".balign 8\n" ++
+  "npr_saved_mtvec:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
   "npr_node_12_13_scratch:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
@@ -482,11 +485,10 @@ def statelessGuestDataSection : String :=
   "npr_logs_bloom_node_2_3_scratch:\n" ++
   "  .zero 32\n" ++
   -- ===== .sszscratch: large NOBITS SSZ-merkleization work region =====
-  -- Relocated here (out of .data, which is pinned just below OUTPUT at
-  -- 0xa0010000) and enlarged so hash_tree_root of a large element fits:
+  -- Relocated here (out of .data) and enlarged so hash_tree_root of a large element fits:
   -- the largest EEST transaction element is ~1 MiB and block_access_list
-  -- ~90 KiB. Placed at SSZ_SCRATCH_BASE = 0xa2000000 by the linker's
-  -- --section-start=.sszscratch=0xa2000000 (see Driver.lean). @nobits =>
+  -- ~90 KiB. Placed at SSZ_SCRATCH_BASE = 0xb0000000 by the linker's
+  -- --section-start=.sszscratch=0xb0000000 (see Driver.lean). @nobits =>
   -- the multi-MiB reservation never lands in the ELF file. Inside the
   -- verified RAM zone (0xa0000000..0xc0000000), so isValidMemAddr already
   -- accepts it. Same labels as before => every `la <buf>` resolves here.

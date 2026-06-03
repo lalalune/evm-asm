@@ -265,6 +265,7 @@ def ziskMptInsertWalkDbPrologue : String :=
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
@@ -288,8 +289,9 @@ def ziskMptInsertWalkDbDataSection : String :=
   "mset_db_top:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "mset_db_hash:\n  .zero 32\n" ++
+  mptResolveCacheDataSection ++ "\n" ++
   ".balign 8\n" ++
-  "mset_db_data:\n  .zero 65536"
+  "mset_db_data:\n  .zero 8388608"
 
 def ziskMptInsertWalkDbProbeUnit : BuildUnit := {
   body        := NOP

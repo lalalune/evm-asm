@@ -108,6 +108,112 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
   "opcode_handlers:\n" ++
   String.intercalate "\n" entries
 
+/-- M30 (gas metering, first slice): the **static base** gas cost of each
+    EVM opcode byte, used by the dispatch loop to charge gas per instruction.
+
+    Sourced from the standard EVM gas tiers
+    (`execution-specs/src/ethereum/forks/prague/vm/gas.py`): ZERO=0,
+    JUMPDEST=1, BASE=2, VERYLOW=3, LOW=5, MID=8, HIGH=10, BLOCKHASH=20,
+    KECCAK256 base=30, LOG base=375, warm access=100, CREATE=32000.
+
+    **Static base costs only** — all *dynamic* components are dropped:
+    memory-expansion, copy (per-word), KECCAK/LOG per-word/per-topic, EXP
+    per-byte, and cold-access surcharges (SLOAD/BALANCE/EXTCODE*/CALL use
+    the warm floor of 100; SSTORE uses 100; cold +2600/+2100 not modeled).
+    So state-touching ops UNDER-charge — fine for the first slice, which
+    establishes the metering machinery; dynamic costs are a follow-up.
+
+    Halt opcodes (STOP/RETURN/REVERT/INVALID/SELFDESTRUCT) and every byte
+    not assigned a real opcode are 0, so trusted programs never spuriously
+    run out of gas on a terminator or an unwired byte. -/
+def staticGasCost (op : Nat) : Nat :=
+  if 0x60 ≤ op ∧ op ≤ 0x7f then 3        -- PUSH1..PUSH32 (VERYLOW)
+  else if 0x80 ≤ op ∧ op ≤ 0x8f then 3   -- DUP1..DUP16 (VERYLOW)
+  else if 0x90 ≤ op ∧ op ≤ 0x9f then 3   -- SWAP1..SWAP16 (VERYLOW)
+  else if 0xa0 ≤ op ∧ op ≤ 0xa4 then 375 -- LOG0..LOG4 (base)
+  else match op with
+    -- arithmetic
+    | 0x01 => 3 | 0x03 => 3                                  -- ADD, SUB
+    | 0x02 => 5 | 0x04 => 5 | 0x05 => 5 | 0x06 => 5 | 0x07 => 5  -- MUL,DIV,SDIV,MOD,SMOD
+    | 0x0b => 5                                              -- SIGNEXTEND
+    | 0x08 => 8 | 0x09 => 8                                  -- ADDMOD, MULMOD
+    | 0x0a => 10                                             -- EXP (base)
+    -- comparison & bitwise (all VERYLOW)
+    | 0x10 | 0x11 | 0x12 | 0x13 | 0x14 | 0x15 => 3
+    | 0x16 | 0x17 | 0x18 | 0x19 | 0x1a => 3
+    | 0x1b | 0x1c | 0x1d => 3
+    | 0x20 => 30                                             -- KECCAK256 (base)
+    -- environment / context
+    | 0x30 => 2 | 0x32 => 2 | 0x33 => 2 | 0x34 => 2 | 0x3a => 2  -- ADDRESS,ORIGIN,CALLER,CALLVALUE,GASPRICE
+    | 0x35 => 3                                              -- CALLDATALOAD (VERYLOW)
+    | 0x36 => 2 | 0x38 => 2 | 0x3d => 2                      -- CALLDATASIZE,CODESIZE,RETURNDATASIZE
+    | 0x37 => 3 | 0x39 => 3 | 0x3e => 3                      -- CALLDATACOPY,CODECOPY,RETURNDATACOPY (base)
+    | 0x31 => 100 | 0x3b => 100 | 0x3f => 100               -- BALANCE,EXTCODESIZE,EXTCODEHASH (warm floor)
+    | 0x3c => 100                                            -- EXTCODECOPY (warm floor, base)
+    | 0x40 => 20                                             -- BLOCKHASH
+    | 0x41 | 0x42 | 0x43 | 0x44 | 0x45 | 0x46 | 0x48 | 0x4a => 2  -- COINBASE..BASEFEE, BLOBBASEFEE
+    | 0x47 => 5                                              -- SELFBALANCE (LOW)
+    | 0x49 => 3                                              -- BLOBHASH
+    -- stack / memory / flow
+    | 0x50 => 2                                              -- POP (BASE)
+    | 0x51 | 0x52 | 0x53 => 3                                -- MLOAD,MSTORE,MSTORE8 (VERYLOW)
+    | 0x54 => 100 | 0x55 => 100                              -- SLOAD,SSTORE (warm/base; dynamic dropped)
+    | 0x56 => 8                                              -- JUMP (MID)
+    | 0x57 => 10                                             -- JUMPI (HIGH)
+    | 0x58 | 0x59 | 0x5a => 2                                -- PC,MSIZE,GAS (BASE)
+    | 0x5b => 1                                              -- JUMPDEST
+    | 0x5c => 100 | 0x5d => 100                              -- TLOAD,TSTORE
+    | 0x5e => 3                                              -- MCOPY (base)
+    | 0x5f => 2                                              -- PUSH0 (BASE)
+    -- child frames (base; dynamic call/create costs dropped)
+    | 0xf0 => 32000 | 0xf5 => 32000                          -- CREATE, CREATE2
+    | 0xf1 | 0xf2 | 0xf4 | 0xfa => 100                       -- CALL,CALLCODE,DELEGATECALL,STATICCALL
+    -- STOP (0x00), RETURN (0xf3), REVERT (0xfd), INVALID (0xfe),
+    -- SELFDESTRUCT (0xff), and all unwired bytes → 0.
+    | _ => 0
+
+/-- Render the 256-entry static gas-cost table (`opcode_gas_costs:`,
+    256 × `.dword`, 2 KiB) into the `.data` section. Indexed by
+    `opcode * 8` — the same index the dispatch loop computes for the
+    jump table. -/
+def emitGasCostTable : String :=
+  let entries :=
+    (List.range 256).map (fun b => s!"  .dword {staticGasCost b}")
+  ".balign 8\n" ++
+  "opcode_gas_costs:\n" ++
+  String.intercalate "\n" entries
+
+/-- Shared scratch for the CALL/STATICCALL precompile frame surface.
+    Follow-up precompile bodies can write returndata bytes here before
+    copying them into caller memory. Layout:
+      +0  status / success word
+      +8  returndata length
+      +16 first 64 bytes of returndata scratch. -/
+def emitPrecompileFrameData : String :=
+  ".balign 8\n" ++
+  "evm_precompile_frame:\n" ++
+  "  .zero 80\n"
+
+/-- Scratch buffers used by `zkvm_sha256`. The wrapper expects these
+    labels to exist in the dispatcher's data section. -/
+def emitSha256Data : String :=
+  ".balign 8\n" ++
+  "sha256_w_iv:\n" ++
+  "  .quad 0xbb67ae856a09e667\n" ++
+  "  .quad 0xa54ff53a3c6ef372\n" ++
+  "  .quad 0x9b05688c510e527f\n" ++
+  "  .quad 0x5be0cd191f83d9ab\n" ++
+  ".balign 8\n" ++
+  "sha256_w_state:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "sha256_w_input:\n" ++
+  "  .zero 64\n" ++
+  ".balign 8\n" ++
+  "sha256_w_params:\n" ++
+  "  .quad sha256_w_state\n" ++
+  "  .quad sha256_w_input\n"
+
 /-- Dispatcher prologue: init EVM pointers (`x10` = code, `x12` =
     stack top, `x13` = EVM memory base) and enter the main
     fetch/decode/dispatch loop. Each iteration loads the opcode byte
@@ -158,14 +264,60 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 448(x20)\n" ++         -- env.persistentLogLengthOff = 0
   "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
+  "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
+  "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
+  "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee trailer slot = 0
+  "  sd x0, 520(x20)\n" ++
+  "  sd x0, 528(x20)\n" ++
+  "  sd x0, 536(x20)\n" ++
+  "  sd x0, 544(x20)\n" ++         -- M28: blobHashCount = 0
+  "  sd x0, 552(x20)\n" ++         -- M29: currentBlockNumber = 0
+  "  sd x0, 560(x20)\n" ++         -- M29: blockHashCount = 0
+  -- M30: .data-baked variant has no input gas limit; seed a large
+  -- constant so the per-opcode gas charge never spuriously runs out.
+  "  li x5, 30000000\n" ++
+  "  sd x5, 568(x20)\n" ++         -- env.gasRemaining = 30,000,000
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
+  "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
+  -- M30 gas charge: look up the opcode's static cost, charge it against
+  -- env.gasRemaining (env+568), and route to .exit_outofgas if it would
+  -- underflow. Charge-then-execute matches the spec's `charge_gas` order
+  -- (so e.g. GAS reflects its own cost already deducted). x6/x7 are
+  -- per-iteration scratch; x5 (opcode*8) survives for the dispatch below.
+  "  la x6, opcode_gas_costs\n" ++
+  "  add x6, x6, x5\n" ++
+  "  ld x6, 0(x6)\n" ++             -- x6 = static gas cost
+  "  ld x7, 568(x20)\n" ++          -- x7 = gas remaining
+  "  bltu x7, x6, .exit_outofgas\n" ++
+  "  sub x7, x7, x6\n" ++
+  "  sd x7, 568(x20)\n" ++          -- gasRemaining -= cost
   "  la x6, opcode_handlers\n" ++
-  "  slli x5, x5, 3\n" ++
   "  add x6, x6, x5\n" ++
   "  ld x7, 0(x6)\n" ++
   "  jalr x1, x7, 0\n" ++
   "  j .dispatch_loop"
+
+/-- Emit an exceptional-halt exit block: zero the result bytes at
+    `OUTPUT[0..32]` (no return data), tag `halt_kind = kind` at
+    `OUTPUT + 32`, then `j .exit_no_epilogue` (the universal exit join,
+    bypassing `evmAddEpilogue` which would force `halt_kind = 0` and a
+    stack-top result). Reached only via `j <label>`.
+
+    `halt_kind` scheme (`OUTPUT + 32`, u64 LE):
+    `0` STOP/unspecified · `1` RETURN · `2` REVERT · `3` INVALID (0xfe) ·
+    `4` invalid JUMP/JUMPI dest (M15.5) · `5` SELFDESTRUCT (0xff). -/
+def emitExceptionalExit (label : String) (kind : Nat) : String :=
+  s!"{label}:\n" ++
+  "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
+  "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
+  "  sd x0, 8(x16)\n" ++            -- (exceptional/return-data-free halt,
+  "  sd x0, 16(x16)\n" ++           --  surfaced deterministically)
+  "  sd x0, 24(x16)\n" ++
+  s!"  li x17, {kind}\n" ++         -- halt_kind
+  "  sd x17, 32(x16)\n" ++
+  "  j .exit_no_epilogue\n"
 
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
@@ -182,19 +334,31 @@ def emitDispatcherPrologue : String :=
 def emitDispatcherEpilogue
     (registry : List OpcodeHandlerSpec) (exitBody : Program) : String :=
   String.intercalate "\n" (registry.map OpcodeHandlerSpec.emitSubroutine) ++ "\n" ++
-  -- M16: the keccak subroutine sits BETWEEN the handler subroutines
+  -- M16/M27: hash subroutines sit BETWEEN the handler subroutines
   -- and the `h_invalid:` / `.exit_label:` blocks so it's reachable only
-  -- via `jal x1, zkvm_keccak256` (not by fall-through from exitBody).
+  -- via explicit `jal`s (not by fall-through from exitBody).
   -- Each handler subroutine ends with `ret` / `j .dispatch_loop`, so
-  -- they don't fall through into this label. The subroutine itself
-  -- ends with `ret`, returning to whoever JAL'd it. Provides label
-  -- `zkvm_keccak256` for `hashHandlers` (M16: KECCAK256; M17+: LOG /
-  -- precompiles). Wraps Zisk's `csrs 0x800, a0` accelerator
-  -- (`.4byte 0x80052073`) as a sponge-mode loop. Inputs via LP64
-  -- a0/a1/a2; uses the dispatcher-side `zk3_state` data label.
+  -- they don't fall through into these labels. The subroutines end
+  -- with `ret`, returning to whoever JAL'd them.
+  zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
+  -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
+  -- `j .exit_label` above skips them, and each ends with
+  -- `j .exit_no_epilogue` so none fall through into exitBody). Each
+  -- zero-fills the result and tags a distinct halt_kind so callers can
+  -- tell STOP / RETURN / REVERT / INVALID / invalid-jump / SELFDESTRUCT
+  -- apart at OUTPUT + 32.
+  --   .exit_invalid     (4) — M15.5 invalid JUMP/JUMPI dest
+  --                            (`jumpValidityTail`'s `bne … .exit_invalid`)
+  --   .exit_invalid_op  (3) — M23.5 INVALID opcode (0xfe)
+  --   .exit_selfdestruct(5) — M23.5 SELFDESTRUCT (0xff)
+  --   .exit_outofgas    (6) — M30 dispatch-loop gas underflow
+  emitExceptionalExit ".exit_invalid" 4 ++
+  emitExceptionalExit ".exit_invalid_op" 3 ++
+  emitExceptionalExit ".exit_selfdestruct" 5 ++
+  emitExceptionalExit ".exit_outofgas" 6 ++
   ".exit_label:\n" ++
   emitProgram exitBody ++ "\n" ++
   ".exit_no_epilogue:\n" ++
@@ -279,7 +443,29 @@ def emitDispatcherEpilogue
   "6:\n" ++                         -- loop step
   "  addi x15, x15, -1\n" ++
   "  bnez x15, 1b\n" ++
-  "4:\n"                            -- done — fall through to halt stub
+  "4:\n" ++                         -- done — surface first LOG event, then halt
+  -- M26: event LOG capture test surface. If receipt event logs
+  -- exist, this intentionally reuses the storage diagnostic window:
+  --   OUTPUT+56       : event log count (u64 LE)
+  --   OUTPUT+64..256  : first event descriptor prefix
+  -- Current opcode probes assert either storage post-state or LOG
+  -- capture, not both. A future wider receipt-output ABI should
+  -- carry both without sharing this test-only window.
+  "  li x16, 0xa0010000\n" ++
+  "  ld x17, 472(x20)\n" ++
+  "  beqz x17, 8f\n" ++
+  "  sd x17, 56(x16)\n" ++
+  "  la x18, evm_event_logs\n" ++
+  "  addi x19, x16, 64\n" ++
+  "  li x21, 192\n" ++
+  "7:\n" ++
+  "  lbu x22, 0(x18)\n" ++
+  "  sb x22, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x21, x21, -1\n" ++
+  "  bnez x21, 7b\n" ++
+  "8:\n"                            -- done — fall through to halt stub
 
 /-- `.data` section layout (starts at `0xa0000000` per
     `Driver.lean`'s `-Tdata=...`):
@@ -317,8 +503,23 @@ def emitDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
-                          -- + M22/M24 log-state cells up to env+472 (envSize = 472)
+  "  .zero 576\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+                          -- + M22/M24/M26 log-state cells + M28/M29 blob/block
+                          -- cells (up to env+560) + M30 gasRemaining at env+568
+                          -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
+                          -- + M28 blobHashCount at env+544
+                          -- + M29 BLOCKHASH current/count at env+552/+560
+  ".balign 8\n" ++
+  "evm_blob_hashes:\n" ++
+  "  .zero 512\n" ++      -- M28: bounded 16 × 32-byte tx blob versioned hashes
+  ".balign 8\n" ++
+  "evm_block_hashes:\n" ++
+  "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
+  ".balign 8\n" ++
+  "evm_event_logs:\n" ++
+  "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  emitPrecompileFrameData ++
+  emitSha256Data ++
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
@@ -326,6 +527,16 @@ def emitDispatcherDataSection
   "lp64_stack:\n" ++
   "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
   "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
+  ".balign 8\n" ++
+  "exp_scratch:\n" ++
+  "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
+                          -- verified EXP body uses `x2`(sp)+0..24 as its running
+                          -- accumulator; the dispatcher's `sp` points at
+                          -- `lp64_sp_top` (top of a down-growing stack), so
+                          -- `sp+0..24` would scribble into the jump table.
+                          -- h_EXP's preBody repoints `x2` here and its tail
+                          -- restores `sp = lp64_sp_top`.
+  emitGasCostTable ++ "\n" ++
   emitJumpTable registry
 
 /-! ## Runtime-bytecode dispatcher (M8.5)
@@ -382,6 +593,8 @@ def emitRuntimeDispatcherPrologue : String :=
   --
   -- Input layout (unchanged from M22 `pack-bytecode.py --storage`):
   --   <u64 slot_count> followed by slot_count × (key:32, value:32)
+  --   then a 32-byte BLOBBASEFEE word (M28; zero by default),
+  --   u64 blob_hash_count, and blob_hash_count × 32-byte words.
   -- Output layout (Option A):
   --   STATE_TRACKER_AREA + i*128 = (addrHash=0:32, slotKey:32,
   --                                 original=value:32, current=value:32)
@@ -393,6 +606,16 @@ def emitRuntimeDispatcherPrologue : String :=
   "  sd x6, 448(x20)\n" ++         -- env.persistentLogLengthOff = preload count
   "  sd x6, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = preload count
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
+  "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
+  "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
+  "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee[0] = 0 (overwritten by trailer load below)
+  "  sd x0, 520(x20)\n" ++         -- M28: blobBaseFee[1] = 0
+  "  sd x0, 528(x20)\n" ++         -- M28: blobBaseFee[2] = 0
+  "  sd x0, 536(x20)\n" ++         -- M28: blobBaseFee[3] = 0
+  "  sd x0, 544(x20)\n" ++         -- M28: blobHashCount = 0 (overwritten by trailer load below)
+  "  sd x0, 552(x20)\n" ++         -- M29: currentBlockNumber = 0 (overwritten by trailer load below)
+  "  sd x0, 560(x20)\n" ++         -- M29: blockHashCount = 0
   "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
   "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
   ".preload_expand_loop:\n" ++
@@ -429,10 +652,109 @@ def emitRuntimeDispatcherPrologue : String :=
   "  addi x6, x6, -1\n" ++
   "  j .preload_expand_loop\n" ++
   ".preload_expand_done:\n" ++
+  -- M28: x5 now points at the blob-base-fee trailer. Copy the 32-byte
+  -- EVM-stack word into env+512..+540; opcode 0x4a loads it from there.
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 512(x20)\n" ++
+  "  ld x8, 8(x5)\n" ++
+  "  sd x8, 520(x20)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 528(x20)\n" ++
+  "  ld x8, 24(x5)\n" ++
+  "  sd x8, 536(x20)\n" ++
+  "  addi x5, x5, 32\n" ++         -- x5 = &(blob_hash_count)
+  "  ld x6, 0(x5)\n" ++            -- x6 = source blob_hash_count
+  -- Static runtime table cap: enough for current protocol limits, and
+  -- explicit truncation keeps the copy bounded if malformed test input
+  -- claims more entries. Full EEST plumbing should reject impossible
+  -- protocol configs before launch when this cap is insufficient.
+  "  li x7, 16\n" ++
+  "  bleu x6, x7, .blob_hash_count_ok\n" ++
+  "  mv x6, x7\n" ++
+  ".blob_hash_count_ok:\n" ++
+  "  sd x6, 544(x20)\n" ++         -- env.blobHashCount = min(count, 16)
+  "  addi x5, x5, 8\n" ++          -- x5 = first blob hash word
+  "  la x7, evm_blob_hashes\n" ++
+  ".blob_hash_copy_loop:\n" ++
+  "  beqz x6, .blob_hash_copy_done\n" ++
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 0(x7)\n" ++
+  "  ld x8, 8(x5)\n" ++
+  "  sd x8, 8(x7)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 16(x7)\n" ++
+  "  ld x8, 24(x5)\n" ++
+  "  sd x8, 24(x7)\n" ++
+  "  addi x5, x5, 32\n" ++
+  "  addi x7, x7, 32\n" ++
+  "  addi x6, x6, -1\n" ++
+  "  j .blob_hash_copy_loop\n" ++
+  ".blob_hash_copy_done:\n" ++
+  -- M29: BLOCKHASH context trailer follows blob hash table:
+  --   u64 current_block_number
+  --   u64 block_hash_count
+  --   count × 32-byte hashes, in increasing block-number order.
+  -- The table is clamped to the EVM window size (256 ancestors).
+  "  ld x6, 0(x5)\n" ++            -- x6 = current block number
+  "  sd x6, 552(x20)\n" ++
+  "  ld x6, 8(x5)\n" ++            -- x6 = source hash count
+  "  li x7, 256\n" ++
+  "  bgeu x7, x6, .blockhash_count_ok\n" ++
+  "  mv x6, x7\n" ++
+  ".blockhash_count_ok:\n" ++
+  "  sd x6, 560(x20)\n" ++
+  "  addi x5, x5, 16\n" ++         -- x5 = first source hash
+  "  la x7, evm_block_hashes\n" ++
+  ".blockhash_copy_loop:\n" ++
+  "  beqz x6, .blockhash_copy_done\n" ++
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 0(x7)\n" ++
+  "  ld x8, 8(x5)\n" ++
+  "  sd x8, 8(x7)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 16(x7)\n" ++
+  "  ld x8, 24(x5)\n" ++
+  "  sd x8, 24(x7)\n" ++
+  "  addi x5, x5, 32\n" ++
+  "  addi x7, x7, 32\n" ++
+  "  addi x6, x6, -1\n" ++
+  "  j .blockhash_copy_loop\n" ++
+  ".blockhash_copy_done:\n" ++
+  -- Simple-env trailer: 13 contiguous 32-byte slots matching `EvmEnv`
+  -- layout offsets 0..415: ADDRESS, SELFBALANCE, CALLER, CALLVALUE,
+  -- ORIGIN, GASPRICE, COINBASE, TIMESTAMP, NUMBER, PREVRANDAO,
+  -- GASLIMIT, BASEFEE, CHAINID. Copying all 416 bytes preserves zero
+  -- defaults when the packer emits its default all-zero trailer.
+  "  mv x6, x20\n" ++              -- x6 = evm_env destination
+  "  li x7, 52\n" ++               -- 13 words × 4 dwords
+  ".env_trailer_copy_loop:\n" ++
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 0(x6)\n" ++
+  "  addi x5, x5, 8\n" ++
+  "  addi x6, x6, 8\n" ++
+  "  addi x7, x7, -1\n" ++
+  "  bnez x7, .env_trailer_copy_loop\n" ++
+  -- M30: the final input segment is an 8-byte LE u64 gas limit, packed
+  -- after the env trailer by pack-bytecode.py (--gas, default 30M). x5
+  -- points just past the env trailer here.
+  "  ld x6, 0(x5)\n" ++
+  "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = input gas limit
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
+  "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
+  -- M30 gas charge: look up the opcode's static cost, charge it against
+  -- env.gasRemaining (env+568), and route to .exit_outofgas if it would
+  -- underflow. Charge-then-execute matches the spec's `charge_gas` order
+  -- (so e.g. GAS reflects its own cost already deducted). x6/x7 are
+  -- per-iteration scratch; x5 (opcode*8) survives for the dispatch below.
+  "  la x6, opcode_gas_costs\n" ++
+  "  add x6, x6, x5\n" ++
+  "  ld x6, 0(x6)\n" ++             -- x6 = static gas cost
+  "  ld x7, 568(x20)\n" ++          -- x7 = gas remaining
+  "  bltu x7, x6, .exit_outofgas\n" ++
+  "  sub x7, x7, x6\n" ++
+  "  sd x7, 568(x20)\n" ++          -- gasRemaining -= cost
   "  la x6, opcode_handlers\n" ++
-  "  slli x5, x5, 3\n" ++
   "  add x6, x6, x5\n" ++
   "  ld x7, 0(x6)\n" ++
   "  jalr x1, x7, 0\n" ++
@@ -453,8 +775,23 @@ def emitRuntimeDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 512\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
-                          -- + M22/M24 log-state cells up to env+472 (envSize = 472)
+  "  .zero 576\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+                          -- + M22/M24/M26 log-state cells + M28/M29 blob/block
+                          -- cells (up to env+560) + M30 gasRemaining at env+568
+                          -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
+                          -- + M28 blobHashCount at env+544
+                          -- + M29 BLOCKHASH current/count at env+552/+560
+  ".balign 8\n" ++
+  "evm_blob_hashes:\n" ++
+  "  .zero 512\n" ++      -- M28: bounded 16 × 32-byte tx blob versioned hashes
+  ".balign 8\n" ++
+  "evm_block_hashes:\n" ++
+  "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
+  ".balign 8\n" ++
+  "evm_event_logs:\n" ++
+  "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  emitPrecompileFrameData ++
+  emitSha256Data ++
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
@@ -462,6 +799,16 @@ def emitRuntimeDispatcherDataSection
   "lp64_stack:\n" ++
   "  .zero 512\n" ++      -- M16: LP64 stack region for ECALL-bridge helpers
   "lp64_sp_top:\n" ++     -- (the keccak subroutine's `sp` frame lives here)
+  ".balign 8\n" ++
+  "exp_scratch:\n" ++
+  "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
+                          -- verified EXP body uses `x2`(sp)+0..24 as its running
+                          -- accumulator; the dispatcher's `sp` points at
+                          -- `lp64_sp_top` (top of a down-growing stack), so
+                          -- `sp+0..24` would scribble into the jump table.
+                          -- h_EXP's preBody repoints `x2` here and its tail
+                          -- restores `sp = lp64_sp_top`.
+  emitGasCostTable ++ "\n" ++
   emitJumpTable registry
 
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.

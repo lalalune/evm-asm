@@ -46,10 +46,10 @@ lake build codegen
 echo "==> emit + link runtime_dispatcher.elf (once)"
 lake exe codegen --program runtime_dispatcher --halt linux93 -o gen-out/runtime_dispatcher
 
-# `--list-test-cases` is a 5-column TSV:
-#   <name> <expected_hex> <bytecode_csv> <calldata> <storage>
-# (M21: 4th column = calldata, empty = no calldata, back-compat.)
-# (M22: 5th column = storage preload, empty = no preload.)
+# `--list-test-cases` is an optional-field TSV:
+#   <name> <expected_hex> <bytecode_csv> <calldata> <storage> ...
+# M21 adds calldata; M22 adds storage preload; later columns carry
+# optional output-surface assertions.
 # Single source of truth lives in `EvmAsm/Codegen/Tests/Cases.lean`.
 LIST_FILE="gen-out/.opcodes-list"
 lake exe codegen --list-test-cases >"$LIST_FILE"
@@ -70,18 +70,27 @@ while IFS= read -r line; do
   # (tab is treated as IFS-whitespace), which silently shifts the
   # storage column into the calldata slot when calldata is empty.
   # `cut -f` preserves empty fields, so we slice each column
-  # explicitly. Order matches `--list-test-cases` 9-column TSV
+  # explicitly. Order matches `--list-test-cases` 16-column TSV
   # (M23 added col 6; M24 added cols 7 and 8 for the log-length
-  # assertions; M25 added col 9 for the post-state slot dump).
+  # assertions; M25 added col 9 for the post-state slot dump; M26
+  # added cols 10 and 11 for receipt event-log capture).
   name=$(printf '%s' "$line" | cut -f1)
   expected=$(printf '%s' "$line" | cut -f2)
   bytecode_csv=$(printf '%s' "$line" | cut -f3)
   calldata=$(printf '%s' "$line" | cut -f4)
   storage=$(printf '%s' "$line" | cut -f5)
-  expected_halt_kind=$(printf '%s' "$line" | cut -f6)
-  expected_persistent_log_length=$(printf '%s' "$line" | cut -f7)
-  expected_transient_log_length=$(printf '%s' "$line" | cut -f8)
-  expected_post_storage=$(printf '%s' "$line" | cut -f9)
+  blob_base_fee=$(printf '%s' "$line" | cut -f6)
+  blob_hashes=$(printf '%s' "$line" | cut -f7)
+  block_number=$(printf '%s' "$line" | cut -f8)
+  block_hashes=$(printf '%s' "$line" | cut -f9)
+  env=$(printf '%s' "$line" | cut -f10)
+  expected_halt_kind=$(printf '%s' "$line" | cut -f11)
+  expected_persistent_log_length=$(printf '%s' "$line" | cut -f12)
+  expected_transient_log_length=$(printf '%s' "$line" | cut -f13)
+  expected_post_storage=$(printf '%s' "$line" | cut -f14)
+  expected_event_log_count=$(printf '%s' "$line" | cut -f15)
+  expected_event_log_first=$(printf '%s' "$line" | cut -f16)
+  gas_limit=$(printf '%s' "$line" | cut -f17)
 
   if [[ -z "$name" || -z "$expected" || -z "$bytecode_csv" ]]; then
     echo
@@ -103,6 +112,24 @@ while IFS= read -r line; do
   fi
   if [[ -n "${storage:-}" ]]; then
     pack_args+=(--storage "$storage")
+  fi
+  if [[ -n "${blob_base_fee:-}" ]]; then
+    pack_args+=(--blob-base-fee "$blob_base_fee")
+  fi
+  if [[ -n "${blob_hashes:-}" ]]; then
+    pack_args+=(--blob-hashes "$blob_hashes")
+  fi
+  if [[ -n "${block_number:-}" ]]; then
+    pack_args+=(--block-number "$block_number")
+  fi
+  if [[ -n "${block_hashes:-}" ]]; then
+    pack_args+=(--block-hashes "$block_hashes")
+  fi
+  if [[ -n "${env:-}" ]]; then
+    pack_args+=(--env "$env")
+  fi
+  if [[ -n "${gas_limit:-}" ]]; then
+    pack_args+=(--gas "$gas_limit")
   fi
   "$PYTHON" scripts/pack-bytecode.py ${pack_args[@]+"${pack_args[@]}"} "$bytecode_csv" "gen-out/$name.input"
 
@@ -172,6 +199,33 @@ while IFS= read -r line; do
     echo "  $actual_post_storage"
     if [[ "$actual_post_storage" != "$expected_post_storage" ]]; then
       case_failed="${case_failed:+$case_failed,}post_storage"
+    fi
+  fi
+
+  # M26: receipt event LOG count at OUTPUT+56. This shares the M25
+  # storage diagnostic window; cases should assert one or the other.
+  if [[ -n "${expected_event_log_count:-}" ]]; then
+    actual_event_log_count="$(xxd -p -c 64 -s 56 -l 8 "gen-out/$name.output" | tr -d '\n')"
+    echo "expected event_log_count:"
+    echo "  $expected_event_log_count"
+    echo "actual event_log_count:"
+    echo "  $actual_event_log_count"
+    if [[ "$actual_event_log_count" != "$expected_event_log_count" ]]; then
+      case_failed="${case_failed:+$case_failed,}event_log_count"
+    fi
+  fi
+
+  # M26: first event descriptor prefix at OUTPUT+64. Field length is
+  # variable so each case can assert just the meaningful prefix.
+  if [[ -n "${expected_event_log_first:-}" ]]; then
+    event_first_len_bytes=$(( ${#expected_event_log_first} / 2 ))
+    actual_event_log_first="$(xxd -p -c 512 -s 64 -l "$event_first_len_bytes" "gen-out/$name.output" | tr -d '\n')"
+    echo "expected event_log_first:"
+    echo "  $expected_event_log_first"
+    echo "actual event_log_first:"
+    echo "  $actual_event_log_first"
+    if [[ "$actual_event_log_first" != "$expected_event_log_first" ]]; then
+      case_failed="${case_failed:+$case_failed,}event_log_first"
     fi
   fi
 

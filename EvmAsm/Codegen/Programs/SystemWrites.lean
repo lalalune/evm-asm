@@ -19,9 +19,8 @@
 
   The slot index is the 32-byte big-endian storage key; the stored value is the
   MINIMAL big-endian word (leading zeros stripped) — what the storage trie leaf's
-  rlp(value) wants. The slot is derived as `number-1` / `timestamp` directly
-  (correct while < 8191, which holds for the EEST single/few-block fixtures; a
-  larger index would just yield a non-matching recompute -> conservative miss).
+  rlp(value) wants. The storage slot is reduced modulo the 8191-entry history
+  buffer before encoding the 32-byte big-endian storage key.
 
   Outputs feed account_apply_storage_slot (one per system contract) in the
   verdict's state recompute.
@@ -110,18 +109,25 @@ def systemWriteDescriptorsFunction : String :=
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
   "  mv s0, a0                   # SSZ_BASE\n" ++
   "  addi s1, s0, 60             # exec_payload\n" ++
-  "  # ---- EIP-2935: slot = number-1, value = parent_hash ----\n" ++
+  "  # ---- EIP-2935: slot = (number-1) % 8191, value = parent_hash ----\n" ++
   "  addi a0, s1, 404; jal ra, swd_read_u64le\n" ++
   "  addi a0, a0, -1             # number - 1\n" ++
+  "  li t0, 8191; remu a0, a0, t0\n" ++
   "  la a1, swd_2935_slot; jal ra, swd_write_be32_u64\n" ++
   "  mv a0, s1; li a1, 32; la a2, swd_2935_val; la a3, swd_2935_vlen\n" ++
   "  jal ra, swd_minimal_copy\n" ++
-  "  # ---- EIP-4788: slot = timestamp, value = timestamp ----\n" ++
+  "  # ---- EIP-4788: slot = timestamp % 8191, value = timestamp ----\n" ++
   "  addi a0, s1, 428; jal ra, swd_read_u64le\n" ++
   "  mv s2, a0                   # timestamp\n" ++
+  "  li t0, 8191; remu a0, a0, t0\n" ++
   "  la a1, swd_4788_slot; jal ra, swd_write_be32_u64\n" ++
   "  mv a0, s2; la a1, swd_ts_be8; jal ra, swd_write_be8\n" ++
   "  la a0, swd_ts_be8; li a1, 8; la a2, swd_4788_val; la a3, swd_4788_vlen\n" ++
+  "  jal ra, swd_minimal_copy\n" ++
+  "  # ---- EIP-4788: slot = timestamp + 8191, value = parent_beacon_block_root ----\n" ++
+  "  mv a0, s2; li t0, 8191; remu a0, a0, t0; add a0, a0, t0\n" ++
+  "  la a1, swd_4788_root_slot; jal ra, swd_write_be32_u64\n" ++
+  "  addi a0, s0, 24; li a1, 32; la a2, swd_4788_root_val; la a3, swd_4788_root_vlen\n" ++
   "  jal ra, swd_minimal_copy\n" ++
   "  li a0, 0\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
@@ -130,7 +136,8 @@ def systemWriteDescriptorsFunction : String :=
 
 /-! ### zisk_system_write_descriptors probe. Fed a real fixture SSZ input.
     Output: +0 swd_2935_slot(32) +32 2935_vlen +40 2935_val(32)
-            +72 swd_4788_slot(32) +104 4788_vlen +112 4788_val(32). -/
+            +72 swd_4788_slot(32) +104 4788_vlen +112 4788_val(32)
+            +144 swd_4788_root_slot(32) +176 root_vlen +184 root_val(32). -/
 def ziskSystemWriteDescriptorsPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a0, 0x40000000; addi a0, a0, 18    # SSZ_BASE\n" ++
@@ -158,6 +165,17 @@ def ziskSystemWriteDescriptorsPrologue : String :=
   "  li t3, 32; beq t2, t3, .Lswp_c4d\n" ++
   "  add t4, t1, t2; lbu t5, 0(t4); addi t6, t0, 112; add t6, t6, t2; sb t5, 0(t6); addi t2, t2, 1; j .Lswp_c4\n" ++
   ".Lswp_c4d:\n" ++
+  "  la t1, swd_4788_root_slot; li t2, 0\n" ++
+  ".Lswp_c5:\n" ++
+  "  li t3, 32; beq t2, t3, .Lswp_c5d\n" ++
+  "  add t4, t1, t2; lbu t5, 0(t4); addi t6, t0, 144; add t6, t6, t2; sb t5, 0(t6); addi t2, t2, 1; j .Lswp_c5\n" ++
+  ".Lswp_c5d:\n" ++
+  "  la t1, swd_4788_root_vlen; ld t5, 0(t1); sd t5, 176(t0)\n" ++
+  "  la t1, swd_4788_root_val; li t2, 0\n" ++
+  ".Lswp_c6:\n" ++
+  "  li t3, 32; beq t2, t3, .Lswp_c6d\n" ++
+  "  add t4, t1, t2; lbu t5, 0(t4); addi t6, t0, 184; add t6, t6, t2; sb t5, 0(t6); addi t2, t2, 1; j .Lswp_c6\n" ++
+  ".Lswp_c6d:\n" ++
   "  j .Lswd_pdone\n" ++
   swdReadU64leFunction ++ "\n" ++
   swdWriteBe32U64Function ++ "\n" ++
@@ -176,9 +194,14 @@ def ziskSystemWriteDescriptorsDataSection : String :=
   "swd_4788_slot:\n  .zero 32\n" ++
   ".balign 32\n" ++
   "swd_4788_val:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "swd_4788_root_slot:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "swd_4788_root_val:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "swd_2935_vlen:\n  .zero 8\n" ++
   "swd_4788_vlen:\n  .zero 8\n" ++
+  "swd_4788_root_vlen:\n  .zero 8\n" ++
   "swd_ts_be8:\n  .zero 8"
 
 def ziskSystemWriteDescriptorsProbeUnit : BuildUnit := {

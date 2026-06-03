@@ -2,21 +2,23 @@
   EvmAsm.Codegen.Programs.MptStateRootIns
 
   mpt_state_root_ins (bead evm-asm-fhsxz.2.4.2.6.3): the insert-aware multi-
-  change post-state-root driver. Like mpt_state_root, but each change carries an
-  is_insert flag and is dispatched to mpt_insert_acc (absent key) or mpt_set_acc
-  (existing key). Both share the global appendable node DB, so changes thread
+  change post-state-root driver. Like mpt_state_root, but each change carries a
+  mutation mode and dispatches to mpt_set_acc (0), mpt_insert_acc (1),
+  mpt_delete_acc (2), or no-op (3). All mutators share the global appendable node DB,
+  so changes thread
   sequentially: a modify (e.g. an EIP-2935/4788 system write) populates the DB,
   and a later insert (e.g. a withdrawal to a precompile/absent account) resolves
   the updated root from it.
 
   Change descriptor (40 bytes):
-    +0 path_ptr | +8 path_len | +16 value_ptr | +24 value_len | +32 is_insert
+    +0 path_ptr | +8 path_len | +16 value_ptr | +24 value_len | +32 mode
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.MptSetAcc
 import EvmAsm.Codegen.Programs.MptInsertAcc
+import EvmAsm.Codegen.Programs.MptDeleteAcc
 
 namespace EvmAsm.Codegen
 
@@ -46,6 +48,10 @@ def mptStateRootInsFunction : String :=
   "  # init the node DB (shared by mpt_set_acc + mpt_insert_acc)\n" ++
   "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
   "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
+  "  jal ra, mpt_resolve_cache_reset\n" ++
+  "  la t0, sri_fail_index; sd zero, 0(t0)\n" ++
+  "  la t0, sri_fail_mode; sd zero, 0(t0)\n" ++
+  "  la t0, sri_fail_status; sd zero, 0(t0)\n" ++
   "  li s5, 0                    # i\n" ++
   ".Lsri_loop:\n" ++
   "  beq s5, s3, .Lsri_done\n" ++
@@ -55,16 +61,25 @@ def mptStateRootInsFunction : String :=
   "  ld a4, 8(t0)                # path_len\n" ++
   "  ld a5, 16(t0)               # value_ptr\n" ++
   "  ld a6, 24(t0)               # value_len\n" ++
-  "  ld t2, 32(t0)               # is_insert\n" ++
+  "  ld t2, 32(t0)               # mode: 0=set, 1=insert, 2=delete, 3=noop\n" ++
+  "  la t3, sri_cur_mode; sd t2, 0(t3)\n" ++
   "  la a0, mset_dr_root\n" ++
   "  mv a1, s0\n" ++
   "  mv a2, s1\n" ++
   "  la a7, mset_dr_root\n" ++
+  "  li t3, 3; beq t2, t3, .Lsri_noop\n" ++
+  "  li t3, 2; beq t2, t3, .Lsri_delete\n" ++
   "  beqz t2, .Lsri_modify\n" ++
   "  jal ra, mpt_insert_acc\n" ++
   "  j .Lsri_after\n" ++
+  ".Lsri_delete:\n" ++
+  "  jal ra, mpt_delete_acc\n" ++
+  "  j .Lsri_after\n" ++
   ".Lsri_modify:\n" ++
   "  jal ra, mpt_set_acc\n" ++
+  "  j .Lsri_after\n" ++
+  ".Lsri_noop:\n" ++
+  "  li a0, 0\n" ++
   ".Lsri_after:\n" ++
   "  bnez a0, .Lsri_fail\n" ++
   "  addi s5, s5, 1\n" ++
@@ -83,6 +98,9 @@ def mptStateRootInsFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n" ++
   ".Lsri_fail:\n" ++
+  "  la t0, sri_fail_index; sd s5, 0(t0)\n" ++
+  "  la t0, sri_cur_mode; ld t1, 0(t0); la t0, sri_fail_mode; sd t1, 0(t0)\n" ++
+  "  la t0, sri_fail_status; sd a0, 0(t0)\n" ++
   "  j .Lsri_ret"
 
 /-- `zisk_mpt_state_root_ins`: probe applying a LIST of changes, each tagged
@@ -139,11 +157,13 @@ def ziskMptStateRootInsPrologue : String :=
   witnessLookupByHashFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   hpDecodeNibblesFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
+  mptDeleteWalkDbFunction ++ "\n" ++
   mptInsertWalkDbFunction ++ "\n" ++
   hpEncodeNibblesFunction ++ "\n" ++
   rlpEncodeBytesFunction ++ "\n" ++
@@ -155,8 +175,10 @@ def ziskMptStateRootInsPrologue : String :=
   msetMemcpyFunction ++ "\n" ++
   mptSpliceSlotFunction ++ "\n" ++
   mptLeafExtractFunction ++ "\n" ++
+  mptExtensionExtractFunction ++ "\n" ++
   mptExtensionNodeEncodeFunction ++ "\n" ++
   mptSetAccFunction ++ "\n" ++
+  mptDeleteAccFunction ++ "\n" ++
   mptInsertAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
   ".Lsri_pdone:"
@@ -168,11 +190,29 @@ def ziskMptStateRootInsPrologue : String :=
 def ziskMptStateRootInsDataSection : String :=
   ziskMptInsertAccDataSection ++ "\n" ++
   ".balign 8\n" ++
+  "mdacc_witness_len:\n  .zero 8\n" ++
+  "mdacc_survivor_nibble:\n  .zero 8\n" ++
+  "mdacc_child_ptr:\n  .zero 8\n" ++
+  "mdacc_child_len:\n  .zero 8\n" ++
+  "mdacc_leaf_path_len:\n  .zero 8\n" ++
+  "mdacc_ext_path_len:\n  .zero 8\n" ++
+  "mdacc_leaf_value_ptr:\n  .zero 8\n" ++
+  "mdacc_leaf_value_len:\n  .zero 8\n" ++
+  "mee_path_off:\n  .zero 8\n" ++
+  "mee_path_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "mdacc_leaf_path:\n  .zero 128\n" ++
+  "mdacc_collapsed_path:\n  .zero 128\n" ++
+  ".balign 8\n" ++
   "mset_rw_ptr:\n  .zero 8\n" ++
   "mset_rw_len:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "mset_dr_root:\n  .zero 32\n" ++
   ".balign 8\n" ++
+  "sri_cur_mode:\n  .zero 8\n" ++
+  "sri_fail_index:\n  .zero 8\n" ++
+  "sri_fail_mode:\n  .zero 8\n" ++
+  "sri_fail_status:\n  .zero 8\n" ++
   "sri_changes:\n  .zero 4096"
 
 def ziskMptStateRootInsProbeUnit : BuildUnit := {

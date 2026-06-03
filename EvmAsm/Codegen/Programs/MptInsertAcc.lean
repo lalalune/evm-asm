@@ -308,6 +308,7 @@ def ziskMptInsertAccPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
   "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
+  "  jal ra, mpt_resolve_cache_reset\n" ++
   "  li t0, 0x40000000\n" ++
   "  ld a2, 8(t0)                # witness_len\n" ++
   "  ld a4, 16(t0)               # path_len\n" ++
@@ -328,6 +329,7 @@ def ziskMptInsertAccPrologue : String :=
   witnessLookupByHashFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
@@ -364,8 +366,9 @@ def ziskMptInsertAccDataSection : String :=
   "mset_db_top:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "mset_db_hash:\n  .zero 32\n" ++
+  mptResolveCacheDataSection ++ "\n" ++
   ".balign 8\n" ++
-  "mset_db_data:\n  .zero 65536"
+  "mset_db_data:\n  .zero 8388608"
 
 def ziskMptInsertAccProbeUnit : BuildUnit := {
   body        := NOP

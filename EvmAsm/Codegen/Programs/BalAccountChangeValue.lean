@@ -39,13 +39,20 @@ def balAccountChangeValueFunction : String :=
   "  mv s4, a4                   # out path ptr\n" ++
   "  mv s5, a5                   # out account ptr\n" ++
   "  mv s6, a6                   # out account len ptr\n" ++
+  "  la t0, bacv_fail_code; sd zero, 0(t0)\n" ++
   "  mv a0, s2; mv a1, s3; mv a2, s4\n" ++
   "  jal ra, bal_account_path\n" ++
-  "  bnez a0, .Lbacv_fail\n" ++
+  "  bnez a0, .Lbacv_fail_path\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s5; mv a5, s6\n" ++
   "  jal ra, bal_account_apply_post_fields\n" ++
+  "  bnez a0, .Lbacv_fail_apply\n" ++
   "  j .Lbacv_ret\n" ++
-  ".Lbacv_fail:\n" ++
+  ".Lbacv_fail_path:\n" ++
+  "  li t0, 401; la t1, bacv_fail_code; sd t0, 0(t1)\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lbacv_ret\n" ++
+  ".Lbacv_fail_apply:\n" ++
+  "  li t0, 402; la t1, bacv_fail_code; sd t0, 0(t1)\n" ++
   "  li a0, 1\n" ++
   ".Lbacv_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
@@ -94,6 +101,7 @@ def ziskBalAccountChangeValuePrologue : String :=
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
+  baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   ".Lbacv_pdone:"
@@ -102,6 +110,7 @@ def ziskBalAccountChangeValueDataSection : String :=
   ziskBalAccountPathDataSection ++ "\n" ++
   ziskBalAccountApplyPostFieldsDataSection ++ "\n" ++
   ".balign 8\n" ++
+  "bacv_fail_code:\n  .zero 8\n" ++
   "bacv_out_pad:\n  .zero 8"
 
 def ziskBalAccountChangeValueProbeUnit : BuildUnit := {

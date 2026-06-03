@@ -1427,4 +1427,150 @@ theorem evm_exp_msb_saved_bit_two_mul_fixed_epilogue_byte_offset
     exp_iter_body_full_msb_saved_bit_two_mul_fixed_length,
     exp_loop_pointer_restore_length]
 
+-- ============================================================================
+-- DOUBLE-FIXED EXP (x6 → x22): the per-limb counter clobber repair
+--
+-- The `_fixed` family above moved the exponent *cursor* to callee-saved x19,
+-- but left the per-limb *counter* in x6. `mul_callable` (= `evm_mul ;; cc_ret`)
+-- clobbers x6 ~51× per call, and the squaring / conditional-multiply blocks
+-- call `mul_callable` MID-ITERATION — before the next `exp_msb_bit_test_block`
+-- decrements/tests x6. So x6 is garbage on re-entry, producing wrong results
+-- or an infinite reload loop (see `scripts/codegen-evm_exp-property-check.sh`).
+--
+-- This `_fixed_fixed` family is a pure register substitution x6 → x22 (s6) in
+-- the prologue and bit-test block. x22 is callee-saved, untouched by
+-- `evm_mul`/`cc_ret`, untouched by every other EXP block, and not reserved by
+-- the codegen dispatcher (which reserves x10/x12/x13/x20/x21). Because it is a
+-- pure substitution, all instruction counts and byte offsets are identical to
+-- the `_fixed` family, so the canonical branch/MUL offsets carry over verbatim.
+-- ============================================================================
+
+/-- Double-fixed EXP prologue: identical to `exp_prologue_fixed` but the
+    per-limb counter lives in callee-saved x22 (s6) instead of x6, which
+    `mul_callable` clobbers. 10 instructions, 40 bytes. -/
+def exp_prologue_fixed_fixed : Program :=
+  ADDI .x9 .x0 256 ;;
+  ADDI .x5 .x0 1 ;;
+  SD .x2 .x5 0 ;;
+  SD .x2 .x0 8 ;;
+  SD .x2 .x0 16 ;;
+  SD .x2 .x0 24 ;;
+  ADDI .x22 .x0 64 ;;
+  ADDI .x16 .x12 56 ;;
+  LD .x19 .x16 0 ;;
+  ADDI .x16 .x16 (-8)
+
+theorem exp_prologue_fixed_fixed_length :
+    exp_prologue_fixed_fixed.length = 10 := by decide
+
+theorem exp_prologue_fixed_fixed_byte_length :
+    4 * exp_prologue_fixed_fixed.length = 40 := by
+  rw [exp_prologue_fixed_fixed_length]
+
+/-- Double-fixed MSB-first bit-test block: identical to
+    `exp_msb_bit_test_block_fixed` but the per-limb counter is x22 (s6),
+    which survives `mul_callable` calls. 7 instructions, 28 bytes. -/
+def exp_msb_bit_test_block_fixed_fixed : Program :=
+  SRLI .x10 .x19 63 ;;
+  SLLI .x19 .x19 1 ;;
+  ADDI .x22 .x22 (-1) ;;
+  single (.BNE .x22 .x0 16) ;;
+  LD .x19 .x16 0 ;;
+  ADDI .x16 .x16 (-8) ;;
+  ADDI .x22 .x0 64
+
+theorem exp_msb_bit_test_block_fixed_fixed_length :
+    exp_msb_bit_test_block_fixed_fixed.length = 7 := by decide
+
+theorem exp_msb_bit_test_block_fixed_fixed_byte_length :
+    4 * exp_msb_bit_test_block_fixed_fixed.length = 28 := by
+  rw [exp_msb_bit_test_block_fixed_fixed_length]
+
+/-- Double-fixed MSB-first saved-bit full iteration body using the corrected
+    counter register. All other blocks are unchanged: x16/x18/x19/x22 are all
+    callee-saved (or untouched by `evm_mul`) and survive `mul_callable` calls. -/
+def exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) : Program :=
+  exp_msb_bit_test_block_fixed_fixed ;;
+  exp_save_bit_block ;;
+  exp_squaring_call_block squaringMulOff ;;
+  exp_cond_mul_call_with_saved_bit_skip_block condMulOff skipOff ;;
+  exp_loop_back backOff
+
+theorem exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    (exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+      squaringMulOff condMulOff skipOff backOff).length = 63 := by
+  show (((((exp_msb_bit_test_block_fixed_fixed ;;
+            exp_save_bit_block) ;;
+           exp_squaring_call_block squaringMulOff) ;;
+          exp_cond_mul_call_with_saved_bit_skip_block condMulOff skipOff) ;;
+         exp_loop_back backOff)).length = 63
+  simp only [seq, Program.length_append,
+    exp_msb_bit_test_block_fixed_fixed_length,
+    exp_save_bit_block_length,
+    exp_squaring_call_block_length,
+    exp_cond_mul_call_with_saved_bit_skip_block_length,
+    exp_loop_back_length]
+
+theorem exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed_byte_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    4 * (exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+      squaringMulOff condMulOff skipOff backOff).length = 252 := by
+  rw [exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed_length]
+
+/-- Double-fixed EXP program: corrected prologue + bit-test block (x6 → x22).
+    Byte-identical in layout to `evm_exp_msb_saved_bit_two_mul_fixed`, so the
+    canonical branch/MUL offsets are reused unchanged. -/
+def evm_exp_msb_saved_bit_two_mul_fixed_fixed
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) : Program :=
+  exp_prologue_fixed_fixed ;;
+  exp_loop_pointer_advance ;;
+  exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+    squaringMulOff condMulOff skipOff backOff ;;
+  exp_loop_pointer_restore ;;
+  exp_epilogue
+
+/-- Double-fixed EXP with canonical internal branch offsets and separate
+    external MUL-call offsets for the two JAL sites. -/
+def evm_exp_msb_saved_bit_two_mul_fixed_fixed_canonical
+    (squaringMulOff condMulOff : BitVec 21) : Program :=
+  evm_exp_msb_saved_bit_two_mul_fixed_fixed squaringMulOff condMulOff
+    canonicalExpCondMulSkipOff canonicalExpMsbSavedBitFixedLoopBackOff
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_fixed_canonical_eq
+    (squaringMulOff condMulOff : BitVec 21) :
+    evm_exp_msb_saved_bit_two_mul_fixed_fixed_canonical squaringMulOff condMulOff =
+      evm_exp_msb_saved_bit_two_mul_fixed_fixed squaringMulOff condMulOff
+        canonicalExpCondMulSkipOff canonicalExpMsbSavedBitFixedLoopBackOff := rfl
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_fixed_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    (evm_exp_msb_saved_bit_two_mul_fixed_fixed
+      squaringMulOff condMulOff skipOff backOff).length = 84 := by
+  show ((((exp_prologue_fixed_fixed ;;
+           exp_loop_pointer_advance) ;;
+          exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed
+            squaringMulOff condMulOff skipOff backOff) ;;
+         exp_loop_pointer_restore) ;;
+        exp_epilogue).length = 84
+  simp only [seq, Program.length_append,
+    exp_prologue_fixed_fixed_length,
+    exp_loop_pointer_advance_length,
+    exp_iter_body_full_msb_saved_bit_two_mul_fixed_fixed_length,
+    exp_loop_pointer_restore_length,
+    exp_epilogue_length]
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_fixed_byte_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    4 * (evm_exp_msb_saved_bit_two_mul_fixed_fixed
+      squaringMulOff condMulOff skipOff backOff).length = 336 := by
+  rw [evm_exp_msb_saved_bit_two_mul_fixed_fixed_length]
+
 end EvmAsm.Evm64

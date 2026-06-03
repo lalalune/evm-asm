@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BlockVerdict
+import EvmAsm.Codegen.Programs.BlockVerdictV2
 
 namespace EvmAsm.Codegen
 
@@ -188,6 +189,12 @@ def statelessGuestEpilogue : String :=
   "  # s6 is free.\n" ++
   "  li s6, 0x40000000\n" ++
   "  addi s6, s6, 18             # s6 = SSZ_BASE\n" ++
+  "  # Preserve zisk's current trap vector: the embedded verdict uses a\n" ++
+  "  # large scratch arena and can overwrite CSR-like system memory.\n" ++
+  "  li t0, 0xa0009828           # zisk MTVEC memory slot\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  la t2, npr_saved_mtvec\n" ++
+  "  sd t1, 0(t2)\n" ++
   "  # \n" ++
   "  # ===== dynamic NPR list field-roots (replace empty-list consts) =====\n" ++
   "  # exec_payload_addr = NPR_addr + 44 (NPR fixed header) = s6 + 16 + 44\n" ++
@@ -764,6 +771,11 @@ def statelessGuestEpilogue : String :=
   "  #  unhandled case -> 0 (never a false positive).\n" ++
   "  jal ra, stateless_verdict_v2\n" ++
   "  li t0, 0xa0010000; sb a0, 32(t0)\n" ++
+  "  # Restore zisk's trap vector before the final Linux-93 halt ecall.\n" ++
+  "  li t0, 0xa0009828          # zisk MTVEC memory slot\n" ++
+  "  la t1, npr_saved_mtvec\n" ++
+  "  ld t1, 0(t1)\n" ++
+  "  sd t1, 0(t0)\n" ++
   "  j .Lsg_done\n" ++
   zkvmSha256Function ++ "\n" ++
   -- SSZ merkleization helpers for the dynamic transactions_root /

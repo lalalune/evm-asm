@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# codegen-zisk-mpt-indexed-trie-root-small-check.sh
+#
+# Verify mpt_indexed_trie_root_small against execution-specs'
+# ethereum.merkle_patricia_trie root implementation for keys rlp(0..N-1).
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+REPO_ROOT="$(pwd)"
+
+ZISKEMU="${ZISKEMU:-}"
+if [[ -z "$ZISKEMU" ]]; then
+  if command -v ziskemu >/dev/null 2>&1; then ZISKEMU="$(command -v ziskemu)"
+  elif [[ -x "$HOME/.zisk/bin/ziskemu" ]]; then ZISKEMU="$HOME/.zisk/bin/ziskemu"
+  else echo "ziskemu not found" >&2; exit 1; fi
+fi
+
+mkdir -p gen-out
+
+echo "==> lake build codegen"
+lake build codegen >/dev/null
+
+echo "==> emit zisk_mpt_indexed_trie_root_small ELF"
+lake exe codegen --program zisk_mpt_indexed_trie_root_small --halt linux93 \
+  -o gen-out/zisk_mpt_indexed_trie_root_small
+
+read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
+
+run_case() {
+  local name="$1"
+  local values_py="$2"
+  local exp_status="$3"
+  local in_file="$REPO_ROOT/gen-out/zisk_mpt_indexed_trie_root_small_${name}.input"
+  local out_file="$REPO_ROOT/gen-out/zisk_mpt_indexed_trie_root_small_${name}.output"
+  local exp_file="$REPO_ROOT/gen-out/zisk_mpt_indexed_trie_root_small_${name}.expected"
+
+  uv run --directory execution-specs --quiet python3 - "$in_file" "$exp_file" <<PY
+import sys, struct
+from ethereum.merkle_patricia_trie import Trie, trie_set, root
+from ethereum_rlp import rlp
+from ethereum_types.bytes import Bytes
+from ethereum_types.numeric import Uint
+
+values = $values_py
+vals = [bytes.fromhex(v) for v in values]
+trie = Trie(secured=False, default=None)
+for i, value in enumerate(vals):
+    trie_set(trie, Bytes(rlp.encode(Uint(i))), Bytes(value))
+expected = bytes(root(trie))
+
+with open(sys.argv[1], "wb") as f:
+    f.write(struct.pack("<Q", len(vals)))
+    for value in vals:
+        f.write(struct.pack("<Q", len(value)))
+    for value in vals:
+        f.write(value)
+        f.write(b"\\x00" * ((-len(value)) % 8))
+with open(sys.argv[2], "w") as f:
+    f.write(expected.hex())
+PY
+
+  if ! "$ZISKEMU" -e gen-out/zisk_mpt_indexed_trie_root_small.elf \
+        -i "$in_file" -o "$out_file" -n 20000000 >/dev/null 2>&1 </dev/null; then
+    printf "  %-24s ERROR ziskemu\n" "$name"
+    return 1
+  fi
+
+  local st actual expected
+  st="$(read_u64 "$out_file" 32)"
+  actual="$(od -An -tx1 -j 0 -N 32 "$out_file" | tr -d ' \n')"
+  expected="$(cat "$exp_file")"
+  if [[ "$st" == "$exp_status" ]]; then
+    if [[ "$exp_status" != "0" || "$actual" == "$expected" ]]; then
+      printf "  %-24s OK   status=%s root=%s..\n" "$name" "$st" "${actual:0:16}"
+      return 0
+    fi
+  fi
+
+  printf "  %-24s FAIL status=%s/%s\n" "$name" "$st" "$exp_status"
+  printf "      expected %s\n" "$expected"
+  printf "      got      %s\n" "$actual"
+  return 1
+}
+
+LONG0="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+LONG1="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+FAILED=0
+run_case "empty" "[]" 0 || FAILED=1
+run_case "one_short" "['01']" 0 || FAILED=1
+run_case "two_short" "['01','02']" 0 || FAILED=1
+run_case "three_mixed" "['01','$LONG0','03']" 0 || FAILED=1
+run_case "four_long" "['$LONG0','$LONG1','$LONG0','$LONG1']" 0 || FAILED=1
+
+MANY_VALUES="$(python3 - <<'PY'
+vals = [f"{i % 256:02x}" for i in range(128)]
+print("[" + ",".join(repr(v) for v in vals) + "]")
+PY
+)"
+run_case "max_128" "$MANY_VALUES" 0 || FAILED=1
+
+TOO_MANY="$(python3 - <<'PY'
+vals = [f"{i % 256:02x}" for i in range(129)]
+print("[" + ",".join(repr(v) for v in vals) + "]")
+PY
+)"
+run_case "too_many" "$TOO_MANY" 1 || FAILED=1
+
+[[ "$FAILED" -eq 0 ]] && echo "==> PASS: indexed trie root builder matches execution-specs" \
+  || { echo "==> FAIL"; exit 1; }

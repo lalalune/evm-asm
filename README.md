@@ -247,6 +247,11 @@ scripts/codegen-evm_add-from-input-check.sh         # M4 ADD from ziskemu -i
 scripts/codegen-opcodes-runtime-check.sh            # M8.5 31-case opcode regression
 ```
 
+The EEST stateless-guest conformance harness is documented in
+[docs/eest-stateless-testing.md](docs/eest-stateless-testing.md), including
+large-batch, filtered, parallel, offset-resume, failure-capped, and quiet-output
+runs.
+
 Setup requirements: `riscv64-elf-binutils` (or `riscv-gnu-toolchain`)
 and `ziskemu`. The Zisk emulator can be installed with
 `bash <(curl -fsSL https://raw.githubusercontent.com/0xPolygonHermez/zisk/main/ziskup/install.sh)`

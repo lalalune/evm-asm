@@ -84,6 +84,61 @@ The table is intentionally path-based: if a bridge module is renamed or split,
 this table should be updated in the same PR so downstream readers can trace
 from the C symbol to the Lean payload and ECALL surface.
 
+## Installed ziskemu backend notes
+
+The zkvm-standards rows above describe the desired ABI surface, not proof that
+the locally installed `ziskemu` has a concrete backend for every symbol. As of
+the 2026-06-02 local installation used for EEST work:
+
+- `zkvm_sha256` is implemented in this repo as a guest wrapper around
+  ziskemu's SHA-256 compression intrinsic at CSR `0x805`; see
+  `EvmAsm/Codegen/Programs/HashBridge.lean` and
+  `scripts/codegen-zisk-zkvm-sha256-check.sh`.
+- `zkvm_keccak256` is similarly implemented as a guest sponge wrapper around
+  ziskemu's Keccak-f[1600] primitive.
+- No named RIPEMD160 backend is present in the local zisk sources. Searches for
+  `ripemd`, `RIPEMD`, `zkvm_ripemd`, and `ripemd160` under
+  `/home/zksecurity/.zisk/zisk` and `/home/zksecurity/zisk` find no callable
+  symbol or implementation file.
+- ziskemu's `emulator-asm` tree does contain a "precompile results" stream/cache
+  facility, but that path replays externally supplied result words. It is not a
+  RIPEMD160 computation backend and is not exposed by the `ziskemu` CLI used by
+  the current codegen/EEST scripts.
+
+Therefore, RIPEMD160 dispatch should not be wired as if a backend already
+exists. The next implementation slice must either add/prove a concrete zisk
+RIPEMD160 backend path, or explicitly implement RIPEMD160 in the guest and test
+it against Ethereum's `hashlib.new("ripemd160", data)` behavior.
+
+RIPEMD160 has two byte-level boundaries. The computation boundary produces the
+raw 20-byte digest. The EVM precompile output boundary is 32 bytes: 12 leading
+zero bytes followed by that digest, matching execution-specs
+`left_pad_zero_bytes(hash_bytes, 32)`. The Lean bridge records this as
+`Ripemd160ResultBridge.evmOutputBytesFromHash`; dispatch code should copy those
+32 bytes as returndata, while stack-word views may decode the raw 20-byte
+digest as a big-endian word because the high 12 bytes are then zero.
+
+ECRECOVER is only partially supported at the zisk layer:
+
+- ziskemu has secp256k1 point-add and point-double primitives
+  (`_opcode_secp256k1_add`, `_opcode_secp256k1_dbl`) in
+  `/home/zksecurity/.zisk/zisk/emulator-asm/src/emu.c`.
+- zisk's C library has `secp256k1_ecdsa_verify` in
+  `/home/zksecurity/.zisk/zisk/lib-c/c/src/ec/ec.cpp`. This computes the
+  ECDSA verification point from a known public key. It is not public-key
+  recovery from `(msg_hash, v, r, s)`.
+- The precompile-results hint parser in
+  `/home/zksecurity/.zisk/zisk/emulator-asm/src/client.c` defines
+  `HINTS_TYPE_ECRECOVER`, but its switch case is commented out and explicitly
+  says it is not implemented.
+
+Therefore, EVM precompile address `0x01` should not be wired as if
+`zkvm_secp256k1_ecrecover` is already available. The next backend slice must
+either add/prove a concrete ziskos hint-backed ECRECOVER path, or implement the
+missing recovery wrapper on top of lower-level secp256k1 operations and then
+probe it with valid and invalid vectors from
+`execution-specs/tests/frontier/precompiles/test_ecrecover.py`.
+
 ## Calling convention
 
 The guest follows LP64 as documented in

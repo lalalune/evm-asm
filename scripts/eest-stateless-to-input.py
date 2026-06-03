@@ -17,16 +17,16 @@ exact layout ``scripts/stateless-gen-input.py`` uses
 that the harness (``codegen-eest-stateless-check.sh``) iterates.
 
 Manifest columns (tab-separated, one row per guest invocation):
-  label  input_file  expected_hex  succ_bit  input_len  fixture_relpath
+  label  input_file  expected_hex  succ_bit  input_len  block_gas_limit  fixture_relpath
 
 Usage:
   eest-stateless-to-input.py --fixtures-dir DIR --out-dir DIR
-                             [--manifest FILE] [--limit N] [--filter SUB]
+                             [--manifest FILE] [--skip N] [--limit N]
+                             [--filter SUB]
 
-``--limit`` caps the number of guest invocations emitted (the default is
-a small smoke subset; pass a large value or ``--all`` via the harness for
-the full suite).  ``--filter`` keeps only fixtures whose relative path
-contains the given substring.
+``--filter`` keeps only fixtures whose relative path contains the given
+substring.  ``--skip`` drops the first N selected stateless blocks after
+filtering, then ``--limit`` caps the number of guest invocations emitted.
 """
 from __future__ import annotations
 
@@ -49,8 +49,17 @@ def sanitize(s: str) -> str:
     return "".join(c if c.isalnum() or c in "._-" else "_" for c in s)
 
 
+def stateless_input_block_gas_limit(blob: bytes) -> int:
+    """Return execution_payload.gas_limit from schema-prefixed StatelessInput."""
+    off = 2 + 60 + 412
+    end = off + 8
+    if len(blob) < end:
+        raise ValueError(f"statelessInputBytes too short for gas limit: {len(blob)}")
+    return int.from_bytes(blob[off:end], "little")
+
+
 def iter_blocks(fixture_path: Path):
-    """Yield (label, input_bytes, expected_bytes) for each stateless block."""
+    """Yield (label, input_bytes, expected_bytes, block_gas_limit) for each stateless block."""
     try:
         doc = json.loads(fixture_path.read_text())
     except (json.JSONDecodeError, OSError) as exc:  # corrupt / unreadable
@@ -72,11 +81,12 @@ def iter_blocks(fixture_path: Path):
             try:
                 ib = bytes.fromhex(sib[2:] if sib.startswith("0x") else sib)
                 ob = bytes.fromhex(sob[2:] if sob.startswith("0x") else sob)
+                gas_limit = stateless_input_block_gas_limit(ib)
             except ValueError as exc:
                 print(f"  warn: bad hex in {fixture_path}: {exc}", file=sys.stderr)
                 continue
             label = sanitize(f"{short}#b{bi}")
-            yield label, ib, ob
+            yield label, ib, ob, gas_limit
 
 
 def main() -> int:
@@ -84,9 +94,15 @@ def main() -> int:
     ap.add_argument("--fixtures-dir", required=True, type=Path)
     ap.add_argument("--out-dir", required=True, type=Path)
     ap.add_argument("--manifest", type=Path, default=None)
+    ap.add_argument("--skip", type=int, default=0, help="skip first N selected invocations")
     ap.add_argument("--limit", type=int, default=0, help="cap invocations (0 = no cap)")
     ap.add_argument("--filter", default="", help="keep fixtures whose relpath contains this")
     args = ap.parse_args()
+
+    if args.skip < 0:
+        ap.error("--skip must be nonnegative")
+    if args.limit < 0:
+        ap.error("--limit must be nonnegative")
 
     fixtures_dir: Path = args.fixtures_dir
     out_dir: Path = args.out_dir
@@ -98,6 +114,7 @@ def main() -> int:
         if ".meta" not in p.parts
     )
 
+    selected = 0
     n = 0
     used_labels: set[str] = set()
     with manifest_path.open("w") as mf:
@@ -105,7 +122,11 @@ def main() -> int:
             relpath = str(fp.relative_to(fixtures_dir))
             if args.filter and args.filter not in relpath:
                 continue
-            for label, ib, ob in iter_blocks(fp):
+            for label, ib, ob, gas_limit in iter_blocks(fp):
+                if selected < args.skip:
+                    selected += 1
+                    continue
+                selected += 1
                 if args.limit and n >= args.limit:
                     print(
                         f"==> limit {args.limit} reached; stopping "
@@ -137,6 +158,7 @@ def main() -> int:
                             ob.hex(),
                             str(succ_bit),
                             str(len(ib)),
+                            str(gas_limit),
                             relpath,
                         ]
                     )

@@ -42,6 +42,27 @@ structure OpcodeTestCase where
       string = no preload (table starts empty; SSTORE may grow
       it; SLOAD against an unset key returns zero). -/
   storage        : String := ""
+  /-- Optional BLOBBASEFEE value (M28). Format is a u256 hex integer;
+      the runtime input packer serializes it in EVM-stack byte order.
+      Empty string = zero blob base fee. -/
+  blobBaseFee    : String := ""
+  /-- Optional BLOBHASH versioned-hash list (M28). Format is comma or
+      space-separated 32-byte hex blobs. Empty string = no blob hashes. -/
+  blobHashes     : String := ""
+  /-- Optional current block number for BLOCKHASH runtime context
+      (M29). Decimal or 0x-prefixed u64 string. Empty string means
+      use the packer's default current block 0. -/
+  blockNumber    : String := ""
+  /-- Optional recent ancestor hashes for BLOCKHASH runtime context
+      (M29), in increasing block-number order, as comma/space-
+      separated 32-byte hex hashes. Empty string = no recent hashes. -/
+  blockHashes    : String := ""
+  /-- Optional simple environment values. Format is comma- or
+      whitespace-separated `field=hex` pairs accepted by
+      `scripts/pack-bytecode.py --env`, e.g.
+      `"caller=0x1234,timestamp=0x2a"`. Empty string = every simple
+      env opcode reads zero, preserving the pre-env-trailer behavior. -/
+  env            : String := ""
   /-- Optional expected halt-kind at `OUTPUT_ADDR + 32` (M23).
       16 hex chars = 8-byte LE u64 (e.g. `"0100000000000000"` for
       RETURN = 1, `"0200000000000000"` for REVERT = 2). Empty
@@ -73,6 +94,31 @@ structure OpcodeTestCase where
       M22's `--storage` packer and the existing storage-test
       `expectedOutHex` values. Empty string = don't assert. -/
   expectedPostStorage : String := ""
+  /-- Optional expected receipt event-log count at
+      `OUTPUT_ADDR + 56` (M26). 16 hex chars = 8-byte LE u64.
+      This shares the storage post-state diagnostic window; tests
+      should assert one surface or the other. Empty string = don't
+      assert. -/
+  expectedEventLogCount : String := ""
+  /-- Optional expected prefix of the first event-log descriptor at
+      `OUTPUT_ADDR + 64` (M26). Hex string of arbitrary length;
+      runner reads `len/2` bytes and compares. Layout begins:
+        - +0: u64 topic count
+        - +8: u64 memory offset
+        - +16: u64 memory size
+        - +24: u64 copied data length
+        - +32..160: four topic slots in stack-word byte order
+        - +160..192: first up to 32 copied memory bytes
+        - +192..224: ADDRESS context word
+        - +224..256: CALLER context word
+      Empty string = don't assert. -/
+  expectedEventLogFirst : String := ""
+  /-- Optional gas limit (M30), decimal or 0x-hex, passed to
+      `pack-bytecode.py --gas`. Empty = use the packer default
+      (30,000,000). Set a small value to exercise the out-of-gas path
+      (the dispatch loop charges each opcode's static base cost; an
+      underflow halts with `expectedHaltKind = 6`). -/
+  gasLimit : String := ""
 
 /-- Registry of test cases. M5a/M5b's two original bytecodes are
     migrated as `add_basic` / `add_chain`; M6b adds ~20 more — one
@@ -180,6 +226,18 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "sar_basic_negative"
       bytecode       := "0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x60, 0x01, 0x1d, 0x00"
       expectedOutHex := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+  , -- PUSH1 0x00; CLZ; STOP → all 256 bits are zero.
+    { name           := "clz_zero"
+      bytecode       := "0x60, 0x00, 0x1e, 0x00"
+      expectedOutHex := "0001000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x01; CLZ; STOP → single low bit set, so 255 leading zero bits.
+    { name           := "clz_low_bit"
+      bytecode       := "0x60, 0x01, 0x1e, 0x00"
+      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH32 0x0100...00; CLZ; STOP → top byte has seven leading zero bits.
+    { name           := "clz_high_limb"
+      bytecode       := "0x7f, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1e, 0x00"
+      expectedOutHex := "0700000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x42; PUSH1 0xff; POP; STOP — POP removes 0xff, leaves 0x42
     { name           := "pop_basic"
       bytecode       := "0x60, 0x42, 0x60, 0xff, 0x50, 0x00"
@@ -222,6 +280,12 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mstore8_basic"
       bytecode       := "0x60, 0xff, 0x60, 0x00, 0x53, 0x60, 0x00, 0x51, 0x00"
       expectedOutHex := "00000000000000000000000000000000000000000000000000000000000000ff" }
+  , -- PUSH1 0x40; MLOAD; MSIZE; STOP
+    -- MLOAD touches memory[0x40..0x60), so MSIZE reports the rounded
+    -- active size 0x60.
+    { name           := "mload_updates_msize"
+      bytecode       := "0x60, 0x40, 0x51, 0x59, 0x00"
+      expectedOutHex := "6000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M12 simple environment opcodes (ADDRESS, CALLER, …)
     -- The evm_env data region is zero-initialised by the dispatcher's
     -- .data section. Each test confirms the handler routes through
@@ -245,6 +309,58 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "env_field_offset_distinct"
       bytecode       := "0x42, 0x43, 0x03, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M29 BLOCKHASH runtime context
+    -- Current block number = 500. Recent hashes are supplied in
+    -- increasing block-number order for blocks 497, 498, 499.
+  , -- BLOCKHASH(499) returns the parent hash.
+    { name           := "blockhash_parent"
+      bytecode       := "0x61, 0x01, 0xf3, 0x40, 0x00"
+      expectedOutHex := "201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(498) selects the older in-window ancestor.
+    { name           := "blockhash_historical"
+      bytecode       := "0x61, 0x01, 0xf2, 0x40, 0x00"
+      expectedOutHex := "2222222222222222222222222222222222222222222222222222222222222222"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(current) returns 0 even with recent hashes loaded.
+    { name           := "blockhash_current_zero"
+      bytecode       := "0x61, 0x01, 0xf4, 0x40, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(future) returns 0.
+    { name           := "blockhash_future_zero"
+      bytecode       := "0x61, 0x01, 0xf5, 0x40, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- BLOCKHASH(496) is older than the supplied recent-hash table, so
+    -- the runtime path returns 0 instead of reading outside the table.
+    { name           := "blockhash_missing_zero"
+      bytecode       := "0x61, 0x01, 0xf0, 0x40, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      blockNumber    := "500"
+      blockHashes    := "0x1111111111111111111111111111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222222222222222222222222222,0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20" }
+  , -- CALLER; STOP with nonzero runtime env. The packer appends the
+    -- simple-env trailer and the runtime dispatcher copies it into
+    -- evm_env before executing bytecode.
+    { name           := "caller_from_input_env"
+      bytecode       := "0x33, 0x00"
+      expectedOutHex := "3412000000000000000000000000000000000000000000000000000000000000"
+      env            := "caller=0x1234" }
+  , -- TIMESTAMP; STOP with nonzero runtime env.
+    { name           := "timestamp_from_input_env"
+      bytecode       := "0x42, 0x00"
+      expectedOutHex := "2a00000000000000000000000000000000000000000000000000000000000000"
+      env            := "timestamp=0x2a" }
+  , -- BASEFEE; STOP with nonzero runtime env. This is distinct from
+    -- BLOBBASEFEE's separate M28 trailer slot at env+512.
+    { name           := "basefee_from_input_env"
+      bytecode       := "0x48, 0x00"
+      expectedOutHex := "efbe000000000000000000000000000000000000000000000000000000000000"
+      env            := "base_fee=0xbeef" }
     -- ## M13 calldata-context opcode (CALLDATASIZE)
     -- The calldata-length cell at evm_env + 424 is zero-initialised by the
     -- dispatcher's .data section, so CALLDATASIZE pushes 32 zero bytes.
@@ -303,7 +419,26 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- of jumping to the (out-of-bounds) dest.
     { name           := "jumpi_not_taken"
       bytecode       := "0x60, 0x00, 0x60, 0xff, 0x57, 0x60, 0x42, 0x00"
-      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
+      -- M15.5: confirm the not-taken JUMPI sentinel path does NOT
+      -- spuriously trip the validity check — it halts normally (STOP,
+      -- halt_kind 0) with 0x42, not the invalid-jump halt_kind 4.
+      expectedHaltKind := "0000000000000000" }
+    -- ## M15.5 JUMPDEST-validity (Level 1): invalid jumps exceptionally
+    -- halt with halt_kind = 4 and empty (zero) return data.
+  , -- PUSH1 0x00; JUMP — dest = 0 → code[0] = 0x60 (PUSH1), not 0x5b.
+    -- Invalid jump → .exit_invalid → halt_kind 4, result = 0.
+    { name             := "jump_invalid_dest"
+      bytecode         := "0x60, 0x00, 0x56"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
+  , -- PUSH1 0x01 (cond); PUSH1 0x00 (dest); JUMPI — cond != 0 so the
+    -- jump is taken to dest = 0; code[0] = 0x60, not 0x5b → invalid.
+    -- Exercises the JUMPI taken-path validity load (halt_kind 4).
+    { name             := "jumpi_taken_invalid"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x57"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
     -- ## M16 hash opcode (KECCAK256 via ECALL bridge to Zisk accelerator)
     -- KECCAK256 pops offset (top of stack) and size (next word), hashes the
     -- memory[offset..offset+size] region, pushes the 32-byte digest.
@@ -316,22 +451,43 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "keccak256_empty"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x20, 0x00"
       expectedOutHex := "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470" }
-    -- ## M17 LOG opcodes (LOG0-LOG4) — wired as stack-pop no-ops.
-    -- LOGn pops (2+n) 256-bit words and advances PC; the EVM event
-    -- is dropped (no host log syscall yet).
+    -- ## M26 LOG opcodes (LOG0-LOG4) — bounded event capture.
+    -- LOGn pops (2+n) 256-bit words, advances PC, and appends a
+    -- 256-byte descriptor to the dispatcher's receipt-event buffer.
   , -- PUSH1 0x11; PUSH1 0x22; LOG0; PUSH1 0x33; STOP — LOG0 pops the
     -- two pushed words; PUSH1 0x33 lands on the now-empty stack.
-    -- Confirms byte 0xa0 routes correctly and stack delta is +64.
-    { name           := "log0_pop"
-      bytecode       := "0x60, 0x11, 0x60, 0x22, 0xa0, 0x60, 0x33, 0x00"
-      expectedOutHex := "3300000000000000000000000000000000000000000000000000000000000000" }
+    -- Also checks descriptor header: topics=0, offset=0x22,
+    -- size=0x11, copied data length=0x11.
+    { name                   := "log0_pop"
+      bytecode               := "0x60, 0x11, 0x60, 0x22, 0xa0, 0x60, 0x33, 0x00"
+      expectedOutHex         := "3300000000000000000000000000000000000000000000000000000000000000"
+      expectedEventLogCount  := "0100000000000000"
+      expectedEventLogFirst  := "0000000000000000220000000000000011000000000000001100000000000000" }
   , -- PUSH1 0x01..0x06; LOG4; PUSH1 0xff; STOP — LOG4 pops the six
     -- pushed words (offset + size + 4 topics); PUSH1 0xff lands on
     -- the now-empty stack. Confirms byte 0xa4 routes correctly and
-    -- stack delta is +192.
-    { name           := "log4_pop"
-      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xa4, 0x60, 0xff, 0x00"
-      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+    -- stack delta is +192. The descriptor records offset=6,
+    -- size=5, and topics 4,3,2,1 in stack-pop order.
+    { name                   := "log4_pop"
+      bytecode               := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xa4, 0x60, 0xff, 0x00"
+      expectedOutHex         := "ff00000000000000000000000000000000000000000000000000000000000000"
+      expectedEventLogCount  := "0100000000000000"
+      expectedEventLogFirst  := "04000000000000000600000000000000050000000000000005000000000000000400000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000" }
+  , -- MSTORE8 writes 0xab at memory[0]; LOG2 then captures offset=0,
+    -- size=1, topics 0x11 and 0x22, and data prefix byte 0xab.
+    { name                   := "log2_captures_topic_and_data"
+      bytecode               := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x22, 0x60, 0x11, 0x60, 0x01, 0x60, 0x00, 0xa2, 0x60, 0x00, 0x00"
+      expectedOutHex         := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedEventLogCount  := "0100000000000000"
+      expectedEventLogFirst  := "02000000000000000000000000000000010000000000000001000000000000001100000000000000000000000000000000000000000000000000000000000000220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ab00000000000000000000000000000000000000000000000000000000000000" }
+  , -- Seventeen empty LOG0s exceed the static 16-entry cap. The 17th
+    -- handler exits with halt_kind=4 and leaves the visible event
+    -- count at 16; it must not silently drop the event and continue.
+    { name                   := "log0_overflow_status"
+      bytecode               := "0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x60, 0x00, 0x60, 0x00, 0xa0, 0x00"
+      expectedOutHex         := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind       := "0400000000000000"
+      expectedEventLogCount  := "1000000000000000" }
     -- ## M17 / M22 / M24 transient storage (TLOAD/TSTORE)
     -- M24 graduated TLOAD/TSTORE from M17 no-ops to real Option A
     -- transient storage: a separate append-log at 0xa0830000.
@@ -339,8 +495,8 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- `opcodeTestCases` (test `tstore_tload_round_trip`, which
     -- additionally asserts the transient log_length surface).
     -- ## M18 trivial no-op handlers (94.6% coverage milestone)
-    -- 20 opcodes across 4 builders: haltHandlers (4), pushZeroHandlers
-    -- (5), popPushZeroHandlers (6), copyNoopHandlers (5). One
+    -- 19 opcodes across 4 builders: haltHandlers (4), pushZeroHandlers
+    -- (4), popPushZeroHandlers (6), copyNoopHandlers (5). One
     -- representative test per builder + an INVALID smoke.
   , -- PUSH1 0xff; PUSH1 0x11; PUSH1 0x22; RETURN
     -- RETURN(offset=0x22, size=0x11) reads 0x11 bytes from
@@ -356,17 +512,57 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0xff, 0x60, 0x11, 0x60, 0x22, 0xf3"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0100000000000000" }
-  , -- PUSH1 0xff; PUSH1 0x42; INVALID — INVALID just halts; top of
-    -- stack = 0x42. Expected: 0x42 in low limb. Confirms
-    -- haltHandlers.INVALID routes 0xfe (instead of falling through to
-    -- the h_invalid catch-all unchanged).
-    { name           := "invalid_halt"
-      bytecode       := "0x60, 0xff, 0x60, 0x42, 0xfe"
-      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
-  , -- GAS; STOP — GAS pushes 0 (no gas metering); STOP halts.
-    -- Expected: 0 in low limb. Smoke test for pushZeroHandlers.
-    { name           := "gas_push_zero"
+  , -- PUSH1 0xff; PUSH1 0x42; INVALID. M23.5: INVALID is an exceptional
+    -- halt — it surfaces zero result data (no return data) and tags
+    -- halt_kind = 3, instead of the pre-M23.5 behavior of leaking the
+    -- stack top (0x42) via evmAddEpilogue with halt_kind = 0.
+    { name             := "invalid_halt"
+      bytecode         := "0x60, 0xff, 0x60, 0x42, 0xfe"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0300000000000000" }
+  , -- PUSH1 0xff; SELFDESTRUCT. M23.5: SELFDESTRUCT is a normal halt
+    -- with no return data — zero result + halt_kind = 5 (distinct from
+    -- STOP=0 and INVALID=3). Pops 1 word (recipient address).
+    { name             := "selfdestruct_halt"
+      bytecode         := "0x60, 0xff, 0xff"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0500000000000000" }
+  , -- ## M30 gas metering (first slice)
+    -- GAS; STOP with an explicit 1000-gas limit. The dispatch loop
+    -- charges GAS's own static cost (BASE = 2) BEFORE h_GAS runs, so
+    -- GAS pushes the post-charge remaining 998 = 0x3e6; STOP (cost 0)
+    -- surfaces it. (Replaces the pre-M30 `gas_push_zero` no-op test.)
+    { name           := "gas_opcode_sufficient"
       bytecode       := "0x5a, 0x00"
+      expectedOutHex := "e603000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1000" }
+  , -- PUSH1 0x01; STOP with a 2-gas limit. PUSH1's static cost is 3 > 2,
+    -- so the dispatch loop's gas charge underflows on the very first
+    -- opcode → out-of-gas exceptional halt (halt_kind = 6, zero result).
+    { name             := "gas_opcode_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "2" }
+  , -- BLOBBASEFEE; STOP with blob_base_fee = 0x1234. Amsterdam
+    -- execution-specs computes this from block_env.excess_blob_gas;
+    -- the runtime dispatcher receives the already-computed value in
+    -- the input trailer and exposes it through evm_env.
+    { name           := "blobbasefee_from_input"
+      bytecode       := "0x4a, 0x00"
+      blobBaseFee    := "0x1234"
+      expectedOutHex := "3412000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; BLOBHASH; STOP with one versioned hash. The handler
+    -- reads tx_env.blob_versioned_hashes[0].
+    { name           := "blobhash_index_zero"
+      bytecode       := "0x60, 0x00, 0x49, 0x00"
+      blobHashes     := "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+      expectedOutHex := "201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201" }
+  , -- PUSH1 0x01; BLOBHASH; STOP with one versioned hash. Per
+    -- execution-specs, out-of-range indexes push zero.
+    { name           := "blobhash_out_of_range"
+      bytecode       := "0x60, 0x01, 0x49, 0x00"
+      blobHashes     := "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0xab; BALANCE; STOP — BALANCE pops the pushed 0xab as
     -- the address and overwrites with 0. Expected: 0 in low limb.
@@ -375,16 +571,36 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0xab, 0x31, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x01; PUSH1 0x02; PUSH1 0x03; MCOPY; PUSH1 0x42; STOP
-    -- MCOPY pops 3 args (no-op copy); PUSH1 0x42 lands on the empty
-    -- stack. Expected: 0x42 in low limb. Smoke test for
-    -- copyNoopHandlers.
+    -- MCOPY pops 3 args; PUSH1 0x42 lands on the empty stack.
     { name           := "mcopy_pop3"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x5e, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
-    -- ## M19 child-frame opcodes (CREATE/CALL/CALLCODE/DELEGATECALL/
-    -- CREATE2/STATICCALL) — wired as pop-N + push-zero no-ops.
-    -- Each opcode pops the EVM-spec input count and writes 32 zero
-    -- bytes to the new top-of-stack slot ("call failed" / "address 0").
+  , -- MSTORE8 writes 0xab at memory[0]; MCOPY(dest=1, src=0, len=1)
+    -- copies that byte to memory[1]. MLOAD(0) observes bytes 0 and 1.
+    { name           := "mcopy_copies_byte"
+      bytecode       := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0x60, 0x01, 0x5e, 0x60, 0x00, 0x51, 0x00"
+      expectedOutHex := "000000000000000000000000000000000000000000000000000000000000abab" }
+  , -- MCOPY(dest=0x40, src=0, len=1) expands memory to 0x60.
+    { name           := "mcopy_msize_dest_range"
+      bytecode       := "0x60, 0x01, 0x60, 0x00, 0x60, 0x40, 0x5e, 0x59, 0x00"
+      expectedOutHex := "6000000000000000000000000000000000000000000000000000000000000000" }
+  , -- MCOPY(dest=0, src=0x40, len=1) expands memory to 0x60 from
+    -- the read range as required by EIP-5656.
+    { name           := "mcopy_msize_source_range"
+      bytecode       := "0x60, 0x01, 0x60, 0x40, 0x60, 0x00, 0x5e, 0x59, 0x00"
+      expectedOutHex := "6000000000000000000000000000000000000000000000000000000000000000" }
+  , -- MCOPY with len=0 does not expand memory even with non-zero
+    -- source and destination offsets.
+    { name           := "mcopy_zero_length_keeps_msize"
+      bytecode       := "0x60, 0x00, 0x60, 0x80, 0x60, 0xff, 0x5e, 0x59, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+    -- ## M19/M27 child-frame opcodes (CREATE/CALL/CALLCODE/
+    -- DELEGATECALL/CREATE2/STATICCALL). CREATE-family and
+    -- non-precompile CALL-family targets remain pop-N + push-zero
+    -- no-ops. M27 adds a basic precompile frame surface for CALL /
+    -- STATICCALL to addresses 0x01..0x04; those stubs push success =
+    -- 1 so later PRs can hang per-precompile returndata bodies off
+    -- the recognized branch.
     -- Three representative test cases spanning the net-pop spectrum
     -- (CREATE = 2, STATICCALL = 5, CALL = 6).
   , -- PUSH1 0x01; PUSH1 0x02; PUSH1 0x03; CREATE; PUSH1 0x42; STOP
@@ -411,6 +627,80 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "staticcall_pop6_push_zero"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xfa, 0x60, 0xab, 0x00"
       expectedOutHex := "ab00000000000000000000000000000000000000000000000000000000000000" }
+  , -- CALL to basic precompile address 0x04 (IDENTITY) reaches the
+    -- precompile-specific frame stub and pushes success = 1. Stack
+    -- args are pushed bottom-to-top: out_size, out_off, in_size,
+    -- in_off, value, to, gas.
+    { name           := "call_identity_precompile_stub_success"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- STATICCALL to basic precompile address 0x04 reaches the same
+    -- frame surface. Args: out_size, out_off, in_size, in_off, to,
+    -- gas.
+    { name           := "staticcall_identity_precompile_stub_success"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- IDENTITY via CALL copies three input bytes from memory[0..3)
+    -- into caller output memory[0x40..0x43). POP drops the success
+    -- word; RETURN exposes the copied bytes directly.
+    { name             := "call_identity_precompile_copies_memory"
+      bytecode         := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x01, 0x53, 0x60, 0xcc, 0x60, 0x02, 0x53, 0x60, 0x03, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x03, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "aabbcc0000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000" }
+  , -- STATICCALL to IDENTITY with output_size=2 and input_size=3
+    -- copies only the short caller output buffer. Returning three
+    -- bytes from the output region proves the third byte remains zero.
+    { name             := "staticcall_identity_precompile_short_output"
+      bytecode         := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x01, 0x53, 0x60, 0xcc, 0x60, 0x02, 0x53, 0x60, 0x02, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x03, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "aabb000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000" }
+  , -- STATICCALL to SHA256 over empty input writes the canonical
+    -- sha256("") digest to caller memory.
+    { name             := "staticcall_sha256_precompile_empty"
+      bytecode         := "0x60, 0x20, 0x60, 0x40, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      expectedHaltKind := "0100000000000000" }
+  , -- CALL to SHA256 over memory[0..3) = "abc".
+    { name             := "call_sha256_precompile_abc"
+      bytecode         := "0x60, 0x61, 0x60, 0x00, 0x53, 0x60, 0x62, 0x60, 0x01, 0x53, 0x60, 0x63, 0x60, 0x02, 0x53, 0x60, 0x20, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      expectedHaltKind := "0100000000000000" }
+  , -- CALL to SHA256 with address 0x02 + 2^160. The EVM masks
+    -- external addresses to the low 160 bits, so this must dispatch
+    -- exactly like precompile address 0x02.
+    { name             := "call_sha256_precompile_masked_high_address"
+      bytecode         := "0x60, 0x61, 0x60, 0x00, 0x53, 0x60, 0x62, 0x60, 0x01, 0x53, 0x60, 0x63, 0x60, 0x02, 0x53, 0x60, 0x20, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x74, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      expectedHaltKind := "0100000000000000" }
+  , -- STATICCALL follows the same low-160 address masking rule.
+    { name             := "staticcall_sha256_precompile_masked_high_address"
+      bytecode         := "0x60, 0x61, 0x60, 0x00, 0x53, 0x60, 0x62, 0x60, 0x01, 0x53, 0x60, 0x63, 0x60, 0x02, 0x53, 0x60, 0x20, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x74, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      expectedHaltKind := "0100000000000000" }
+  , -- CALLDATACOPY loads 200 bytes of 0xaa into memory, then CALL
+    -- hashes it through SHA256. This covers the multi-block path.
+    { name             := "call_sha256_precompile_aa200"
+      bytecode         := "0x60, 0xc8, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x20, 0x60, 0x40, 0x60, 0xc8, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      calldata         := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      expectedOutHex   := "605ed279d0a1af786c79054f9424d196ed6a1f0331100a923d711885d42099bb"
+      expectedHaltKind := "0100000000000000" }
+  , -- CALL to inactive near-zero address 0x12 routes as an absent
+    -- account, not as a precompile body: success = 1, empty returndata.
+    { name             := "call_inactive_precompile_0x12_absent_success"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x00"
+      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- STATICCALL to inactive secp-adjacent address 0x101 follows the
+    -- same absent-account path and succeeds with no returndata.
+    { name             := "staticcall_inactive_precompile_0x101_absent_success"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x01, 0x60, 0x00, 0xfa, 0x00"
+      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- The inactive-address path leaves RETURNDATASIZE at zero.
+    { name             := "call_inactive_precompile_0x12_empty_returndata"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x50, 0x3d, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
     -- ## M20 arithmetic no-ops (MULMOD, EXP) — the LAST TWO unwired
     -- opcodes; M20 brings tinyInterpRegistry to 100% coverage 🎯.
     -- Both ship as placeholders; real upgrades follow in M21+.
@@ -421,13 +711,26 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mulmod_pop3"
       bytecode       := "0x60, 0x03, 0x60, 0x05, 0x60, 0x07, 0x09, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
-  , -- PUSH1 0x02; PUSH1 0x03; EXP; PUSH1 0xff; STOP
-    -- EXP pops 2 (base, exponent), pushes 1 (result = 0). Net pop =
-    -- 1 = +32 bytes. PUSH1 0xff lands on the 1-deep stack and
-    -- replaces the zero result. Expected: 0xff.
-    { name           := "exp_pop2"
-      bytecode       := "0x60, 0x02, 0x60, 0x03, 0x0a, 0x60, 0xff, 0x00"
-      expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
+  , -- ## EXP (0x0a) — real verified body via selfCallingHandlers
+    -- (evmExpComposed, _fixed_fixed x6→x22 counter fix). EVM EXP pops
+    -- `a` (base, top of stack) then `exponent`; result = a ** exponent.
+    -- Top of stack = last-pushed = x12+0 = base; second = exponent.
+    --
+    -- PUSH1 0x03; PUSH1 0x02; EXP; STOP — base=2 (top), exponent=3 → 2**3 = 8.
+    -- Exercises the conditional-multiply path (exponent 3 = ...011 has
+    -- set bits → mul_callable is JAL'd for both squaring and cond-mul,
+    -- the path that clobbered x6 before the fix).
+    { name           := "exp_basic"
+      bytecode       := "0x60, 0x03, 0x60, 0x02, 0x0a, 0x00"
+      expectedOutHex := "0800000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; PUSH1 0x05; EXP; STOP — base=5 (top), exponent=0 → 5**0 = 1.
+    -- Exponent 0 has no set bits, so the loop only squares (result stays
+    -- at the prologue's accumulator init of 1) across all 256 bits — a
+    -- strong exercise of the per-limb counter reload across all 4 limbs
+    -- (the exact x22 state that mul_callable used to corrupt as x6).
+    { name           := "exp_zero"
+      bytecode       := "0x60, 0x00, 0x60, 0x05, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;
