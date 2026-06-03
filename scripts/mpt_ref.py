@@ -952,18 +952,28 @@ def vec_state_root_ins_longkey():
                 root=trie_root(root), changes=changes,
                 expected=trie_root(new_root))
 # ---- insert-aware multi-change driver (mpt_state_root_ins .2.4.2.6.3) ------
+def state_root_ins_mode(mode) -> int:
+    if isinstance(mode, bool):
+        return 1 if mode else 0
+    return int(mode)
+
+
 def build_state_root_ins_input(root_hash, changes, witness_section) -> bytes:
     """ziskemu -i body for zisk_mpt_state_root_ins (file maps to INPUT+8):
       +8 witness_len | +16 n_changes | +24 root_hash(32B)
-      +56 table: N x (path_len:u64, value_len:u64, is_insert:u64)
-      then blobs path0,value0,... (each 8-aligned) | then witness."""
+      +56 table: N x (path_len:u64, value_len:u64, mode:u64)
+      then blobs path0,value0,... (each 8-aligned) | then witness.
+
+    Mode values mirror mpt_state_root_ins descriptors: 0=modify, 1=insert,
+    2=delete, 3=noop. Historical callers still pass booleans.
+    """
     body = bytearray()
     body += struct.pack("<Q", len(witness_section))
     body += struct.pack("<Q", len(changes))
     body += root_hash
-    for (path, value, isins) in changes:
-        body += struct.pack("<QQQ", len(path), len(value), 1 if isins else 0)
-    for (path, value, isins) in changes:
+    for (path, value, mode) in changes:
+        body += struct.pack("<QQQ", len(path), len(value), state_root_ins_mode(mode))
+    for (path, value, mode) in changes:
         body += bytes(path)
         while len(body) % 8 != 0:
             body += b"\x00"
@@ -1057,6 +1067,28 @@ def vec_state_root_ins_dbchild():
     return dict(name="state_root_ins_dbchild", witness=[root, bb, leaf_a],
                 root=trie_root(root), changes=changes,
                 expected=trie_root(root2))
+
+
+def vec_state_root_ins_delete_noop():
+    """Descriptor mode coverage for the post-state trie driver. change0 is a
+    no-op, change1 modifies leaf A and places the new root in the DB, and
+    change2 deletes leaf B from that DB-resident root. This exercises modes
+    3 and 2 in one sequential descriptor run."""
+    a_old, b_old, a_new = b"A" * 32, b"B" * 32, b"a-after-noop" * 3
+    leaf_a = leaf_node([0xa, 0xb], a_old)
+    leaf_b = leaf_node([0xc, 0xd], b_old)
+    slots = [b"\x80"] * 16
+    slots[0x1] = node_ref(leaf_a)
+    slots[0x2] = node_ref(leaf_b)
+    root = branch_node(slots)
+    root2 = leaf_node([0x1, 0xa, 0xb], a_new)
+    changes = [
+        ([0x1, 0xa, 0xb], b"ignored-noop-value", 3),
+        ([0x1, 0xa, 0xb], a_new, 0),
+        ([0x2, 0xc, 0xd], b"", 2),
+    ]
+    return dict(name="state_root_ins_delete_noop", witness=[root, leaf_a, leaf_b],
+                root=trie_root(root), changes=changes, expected=trie_root(root2))
 
 
 if __name__ == "__main__":
@@ -1202,3 +1234,11 @@ if __name__ == "__main__":
         f.write(sridc["expected"].hex())
     print(f"{'sri_dbchild':12} root={sridc['root'].hex()[:16]}.. "
           f"final_root={sridc['expected'].hex()} (insert via DB-modified child)")
+    sridn = vec_state_root_ins_delete_noop()
+    sec = ssz_section(sridn["witness"])
+    with open(f"{outdir}/state_root_ins_delete_noop.input", "wb") as f:
+        f.write(build_state_root_ins_input(sridn["root"], sridn["changes"], sec))
+    with open(f"{outdir}/state_root_ins_delete_noop.expected", "w") as f:
+        f.write(sridn["expected"].hex())
+    print(f"{'sri_del_noop':12} root={sridn['root'].hex()[:16]}.. "
+          f"final_root={sridn['expected'].hex()} (noop+modify+delete)")
