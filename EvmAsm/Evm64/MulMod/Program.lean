@@ -594,7 +594,7 @@ example : runMulMod 1024
     2 0 0 0
     3 0 0 0
     0 0 0 0
-    64 = some (1088, [0, 0, 0, 0]) := by rfl
+    64 = some (1088, [0, 0, 0, 0]) := by set_option maxRecDepth 1000 in rfl
 
 -- Nonzero end-to-end MULMOD cases execute the 512-iteration reducer loop and
 -- are intentionally covered by ziskemu runtime tests in the dispatcher slice
@@ -647,21 +647,21 @@ example : runMulModProductLayout 1024
     0 0 0 0
     0 0 0 0
     7 0 0 0
-    440 = some (1024, [7, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]) := by rfl
+    440 = some (1024, [7, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]) := by set_option maxRecDepth 1000 in rfl
 
 /-- Small product: 2 * 3 = 6, high half zero. -/
 example : runMulModProductLayout 1024
     2 0 0 0
     3 0 0 0
     5 0 0 0
-    440 = some (1024, [5, 0, 0, 0], [6, 0, 0, 0], [0, 0, 0, 0]) := by rfl
+    440 = some (1024, [5, 0, 0, 0], [6, 0, 0, 0], [0, 0, 0, 0]) := by set_option maxRecDepth 1000 in rfl
 
 /-- High-half-producing product: 2^192 * 2^64 = 2^256. -/
 example : runMulModProductLayout 1024
     0 0 0 1
     0 1 0 0
     11 0 0 0
-    440 = some (1024, [11, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0]) := by rfl
+    440 = some (1024, [11, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0]) := by set_option maxRecDepth 1000 in rfl
 
 /-- Carry-heavy product: `(2^256 - 1)^2 = 1 + (2^256 - 2) * 2^256`. -/
 example : runMulModProductLayout 1024
@@ -670,6 +670,6 @@ example : runMulModProductLayout 1024
     13 0 0 0
     440 = some (1024, [13, 0, 0, 0],
       [1, 0, 0, 0],
-      [0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF]) := by rfl
+      [0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF]) := by set_option maxRecDepth 1000 in rfl
 
 end EvmAsm.Evm64
