@@ -653,7 +653,7 @@ def execute
 
 theorem g1KDiscount_length :
     g1KDiscount.length = 128 := by
-  native_decide
+  set_option maxRecDepth 1000 in decide
 
 theorem emptyOutput_length :
     emptyOutput.length = 0 := rfl
@@ -871,7 +871,7 @@ def execute
 
 theorem g2KDiscount_length :
     g2KDiscount.length = 128 := by
-  native_decide
+  set_option maxRecDepth 1000 in decide
 
 theorem emptyOutput_length :
     emptyOutput.length = 0 := rfl
@@ -1635,15 +1635,15 @@ def execute
 
 theorem fieldElementsPerBlobOutput_length :
     fieldElementsPerBlobOutput.length = 32 := by
-  native_decide
+  decide
 
 theorem blsModulusOutput_length :
     blsModulusOutput.length = 32 := by
-  native_decide
+  decide
 
 theorem successOutput_length :
     successOutput.length = 64 := by
-  native_decide
+  decide
 
 theorem emptyOutput_length :
     emptyOutput.length = 0 := rfl
