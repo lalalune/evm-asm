@@ -310,6 +310,13 @@ doc only when its trigger applies** — they are reference material, not require
   launching the guest.
   **Load when:** changing `stateless_guest`, `block_state_root`, BAL replay, EEST manifest
   conversion, or static `.data` arenas used by EEST codegen programs.
+- [`docs/agents/stateless-input-contract.md`](docs/agents/stateless-input-contract.md) —
+  Byte-level contract for keeping the zkVM stateless guest input content equivalent to
+  execution-specs `run_stateless_guest`, including the ziskemu length wrapper boundary and
+  rules for derived manifest fields.
+  **Load when:** changing `stateless_guest`, EEST fixture conversion, stateless input schema
+  offsets, block RLP-size validation, BAL/request/witness decoding, or any runtime data flow into
+  the guest.
 
 Companion files (already separate, unchanged):
 - [`TACTICS.md`](TACTICS.md) — user-facing tactic reference.
