@@ -19,6 +19,7 @@
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.StateCompose
 
 namespace EvmAsm.Codegen
 
@@ -302,6 +303,27 @@ def emitRuntimeAccountWitnessData : String :=
   "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
   "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
+  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
+  ".balign 32\n" ++
+  "ecsahsr_state_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "ecsahsr_address_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ecsahsr_acct_struct:\n" ++
+  "  .zero 104\n" ++
+  ".balign 8\n" ++
+  "ecsahsr_dummy_offset:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "ecsahsr_code_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "ecsahsr_empty_code_hash:\n" ++
+  "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
+  "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
+  "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n"
 
 /-- Dispatcher prologue: init EVM pointers (`x10` = code, `x12` =
@@ -432,6 +454,18 @@ def emitDispatcherEpilogue
   -- with `ret`, returning to whoever JAL'd them.
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  mptBranchChildFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
+  mptLookupByKeyFunction ++ "\n" ++
+  accountDecodeFunction ++ "\n" ++
+  accountAtAddressFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  extcodesizeAtHeaderStateRootFunction ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s

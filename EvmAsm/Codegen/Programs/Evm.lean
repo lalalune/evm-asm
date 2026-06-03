@@ -1086,6 +1086,74 @@ def logHandlers : List OpcodeHandlerSpec :=
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
     , tail := .advanceAndRet 1 } ]
 
+/-! ## Runtime EXTCODESIZE witness opcode
+
+    EXTCODESIZE (0x3b) reads account code length through the optional runtime
+    account-witness context and overwrites the address stack word with the
+    resulting u64 length. -/
+
+/-- Copy an EVM stack address word into natural 20-byte address order.
+
+    Stack bytes 0..19 hold the low 160-bit address little-endian; trie lookup
+    helpers expect the big-endian byte string whose keccak selects the account
+    path. `x12` is the EVM stack pointer and `t1` points at
+    `ecsahsr_address_scratch`. -/
+private def extcodesizeWitnessAddressCopy : String :=
+  String.intercalate "" <|
+    (List.range 20).map fun i =>
+      s!"  lbu t2, {19 - i}(x12)\n  sb t2, {i}(t1)\n"
+
+/-- Raw dispatcher handler for EXTCODESIZE backed by
+    `extcodesize_at_header_state_root`.
+
+    Net stack delta is zero. If no witness context is present, the handler
+    keeps the old deterministic zero behavior. Nonzero helper status also
+    leaves the pre-zeroed length as 0; verdict-level witness validation remains
+    responsible for treating malformed witness data as an error. -/
+private def extcodesizeWitnessTail : HandlerTail :=
+  .custom <|
+    "  ld t0, 584(x20)\n" ++          -- header length; zero means no witness context
+    "  beqz t0, .Lextcodesize_zero\n" ++
+    "  la t1, ecsahsr_address_scratch\n" ++
+    extcodesizeWitnessAddressCopy ++
+    "  addi sp, sp, -32\n" ++
+    "  sd x10, 0(sp)\n" ++
+    "  sd x12, 8(sp)\n" ++
+    "  sd x13, 16(sp)\n" ++
+    "  ld a0, 576(x20)\n" ++         -- header ptr
+    "  ld a1, 584(x20)\n" ++         -- header len
+    "  la a2, ecsahsr_address_scratch\n" ++
+    "  ld a3, 592(x20)\n" ++         -- witness.state ptr
+    "  ld a4, 600(x20)\n" ++         -- witness.state len
+    "  ld a5, 608(x20)\n" ++         -- witness.codes ptr
+    "  ld a6, 616(x20)\n" ++         -- witness.codes len
+    "  jal ra, extcodesize_at_header_state_root\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  ld x13, 16(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  la t0, ecsahsr_code_len\n" ++
+    "  ld t1, 0(t0)\n" ++
+    "  sd t1, 0(x12)\n" ++
+    "  sd zero, 8(x12)\n" ++
+    "  sd zero, 16(x12)\n" ++
+    "  sd zero, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop\n" ++
+    ".Lextcodesize_zero:\n" ++
+    "  sd zero, 0(x12)\n" ++
+    "  sd zero, 8(x12)\n" ++
+    "  sd zero, 16(x12)\n" ++
+    "  sd zero, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop"
+
+def extcodesizeWitnessHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_EXTCODESIZE"
+    , opcodes := [0x3b]
+    , body := []
+    , tail := extcodesizeWitnessTail } ]
+
 -- M17 / M22 storage handlers (SLOAD, SSTORE, TLOAD, TSTORE) live in
 -- `EvmAsm/Codegen/Programs/Storage.lean` — extracted at M22 (when
 -- the inline-asm scan loops pushed this file past the per-file size
@@ -1330,7 +1398,7 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
-  storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
+  extcodesizeWitnessHandlers ++ storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
   arithNoopHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]
