@@ -160,6 +160,29 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `scripts/check-axioms.sh` (kernel-truth `#print axioms` backstop — now
   forbids `bv_decide` trust axioms too, not just `native_decide`). See
   `CLAUDE.md` / `CONTRIBUTING.md`.
+- **Progress-registry semantics — agent-steering rollout** (`EvmAsm/Progress.lean`,
+  `docs/agent-progress-steering-review.md`):
+  - **Phase 0 (merged, PR #7994):** `check-axioms.sh`, `check-statement-tamper.sh`,
+    `check-conformance-floor.sh`, `check-forbidden-tactics.sh` wired into
+    `build.yml`.
+  - **Phase 1 (this work):** added a `conditional` `ProofTier` (complete
+    top-level Hoare triple gated by a nonvacuous input-domain precondition —
+    distinct from `partly`, which has no complete triple). **DIV, MOD, SDIV**
+    reclassified `.partly → .conditional` (each gated by `b.getLimbN 3 = 0` /
+    `hStack`). New kernel-checked counts `conditionalCount_eq = 3` /
+    `conditionalBytes_eq = 3`; `partialCount 9→6`, `partialBytes 39→36`; totals
+    unchanged (85 entries / 149 bytes). SMOD/MULMOD/EXP/ADDMOD stay `.partly`
+    (no full triple; ADDMOD's triple is single-point `b=0` only). Added typed
+    `cycleBound : Option Nat` to `OpcodeEntry` (the `N=…` cycle bounds migrated
+    out of free-text `notes` into this field, rendered in the `Cycles (N)`
+    column — R-C4) plus optional `milestones`/`coverRef` scaffold fields
+    (R-A4/R-A3). Registry rows now use an `entry` smart constructor so the
+    optional fields stay defaulted. Per-tier rubric documented in `AGENTS.md` +
+    `progress-template.md`. **Follow-up (deferred):** kernel-checked *binding*
+    of `cycleBound` to the witness theorem's literal `cpsTripleWithin N` (the
+    `Progress.lean`→Spec circular-import problem; option ii/iii in the bootstrap)
+    — landed field+renderer (option i) for now. Cover lemmas for the three
+    `conditional` entries (`coverRef`) also not yet written.
 - **Proof-ergonomics infra distilled from the purge** (see `GRIND.md` §7):
   - **`signExtend` simprocs + `signext` tactic** (`Rv64/SignExtendSimproc.lean`):
     `reduceSignExtend12/13/21` are `dsimproc_decl`s (definitional, kernel-checkable,
