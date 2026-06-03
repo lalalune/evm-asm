@@ -13,6 +13,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Forbidden-tactic guard (no bv_decide / native_decide / TCB expanders)
+        run: scripts/check-forbidden-tactics.sh
       - name: File-size guardrail
         run: scripts/check-file-size.sh
       - name: Unimported-file check
@@ -51,6 +53,22 @@ jobs:
 
       - name: Progress-report drift check
         run: scripts/check-progress.sh
+
+      # Kernel-truth trust-base audit: bv_decide axioms allowed, but any NEW
+      # native_decide trust axiom (or sorry) reaching a witnessed proof fails.
+      # Pre-existing native_decide owners are grandfathered in
+      # scripts/axiom-allow.txt (a burndown list). Needs oleans → runs after build.
+      - name: Axiom audit (no bv_decide / native_decide trust axioms; classical-only TCB)
+        run: scripts/check-axioms.sh
+
+      - name: Conformance-vector floor (monotonic ratchet)
+        run: scripts/check-conformance-floor.sh
+
+      # Advisory only (no --strict, PR-only, best-effort on shallow clones):
+      # surfaces theorem-statement and verifier-config edits for reviewers.
+      - name: Statement / verifier-config tamper scan (advisory)
+        if: ${{ github.event_name == 'pull_request' }}
+        run: scripts/check-statement-tamper.sh --base "origin/${{ github.base_ref }}"
 
       # Only push to main / merge_group / workflow_dispatch save the cache, so
       # PR runs cannot churn the quota and evict the main-branch cache.

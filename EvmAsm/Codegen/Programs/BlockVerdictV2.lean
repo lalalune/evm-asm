@@ -124,6 +124,7 @@ def statelessVerdictV2GuestClosure : String :=
   bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
+  codesBlockhashRequiredHeadersFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
