@@ -64,6 +64,7 @@ import EvmAsm.EL.Secp256r1VerifyInputBridge
 import EvmAsm.EL.Secp256r1VerifyResultBridge
 import EvmAsm.EL.Secp256r1VerifyEcallBridge
 import EvmAsm.EL.Secp256r1VerifyPrecompileResultBridge
+import EvmAsm.EL.Secp256r1VerifyPrecompileDispatch
 import EvmAsm.EL.Bls12G1MsmInputBridge
 import EvmAsm.EL.Bls12G1MsmResultBridge
 import EvmAsm.EL.Bls12G1MsmEcallBridge
