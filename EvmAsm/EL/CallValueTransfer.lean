@@ -10,6 +10,7 @@
 -/
 
 import EvmAsm.EL.MessageCall
+import EvmAsm.EL.WorldStateAccount
 
 namespace EvmAsm.EL
 namespace CallValueTransfer
@@ -100,6 +101,119 @@ theorem transferValue_otherAccount
   rw [transferValue_state]
   rw [WorldState.getAccount_setAccountBalance_ne (h_ne := h_other_callee)]
   rw [WorldState.getAccount_setAccountBalance_ne (h_ne := h_other_caller)]
+
+
+/-! ### Transaction-level value transfer -/
+
+/-- Apply the front-door transaction state effects around value movement.
+
+    This touches/creates the recipient account, debits the sender balance,
+    bumps the sender nonce, and credits the recipient balance. Gas settlement,
+    fee recipient accounting, and balance sufficiency checks are intentionally
+    left to later slices. -/
+def transferTransactionValue
+    (state : WorldState) (sender recipient : Address)
+    (senderBalance recipientBalance value : Word256) (senderNonce : Nat) : WorldState :=
+  let touchedState := WorldState.ensureAccount state recipient
+  let debitedState := WorldState.setAccountBalance touchedState sender (senderBalance - value)
+  let nonceState := WorldState.setAccountNonce debitedState sender (senderNonce + 1)
+  WorldState.setAccountBalance nonceState recipient (recipientBalance + value)
+
+theorem transferTransactionValue_state
+    (state : WorldState) (sender recipient : Address)
+    (senderBalance recipientBalance value : Word256) (senderNonce : Nat) :
+    transferTransactionValue state sender recipient senderBalance recipientBalance value
+        senderNonce =
+      WorldState.setAccountBalance
+        (WorldState.setAccountNonce
+          (WorldState.setAccountBalance
+            (WorldState.ensureAccount state recipient)
+            sender (senderBalance - value))
+          sender (senderNonce + 1))
+        recipient (recipientBalance + value) := rfl
+
+theorem transferTransactionValue_senderBalance?
+    {state : WorldState} {sender recipient : Address}
+    {senderAccount : Account}
+    (senderBalance recipientBalance value : Word256) (senderNonce : Nat)
+    (h_sender : WorldState.getAccount state sender = some senderAccount)
+    (h_ne : sender ≠ recipient) :
+    WorldState.accountBalance?
+        (transferTransactionValue state sender recipient senderBalance recipientBalance value
+          senderNonce)
+        sender =
+      some (senderBalance - value) := by
+  rw [transferTransactionValue_state]
+  rw [WorldState.accountBalance?_setAccountBalance_ne (h_ne := h_ne)]
+  rw [WorldState.accountBalance?_setAccountNonce]
+  exact WorldState.accountBalance?_setAccountBalance_same
+    (by
+      rw [WorldState.getAccount_ensureAccount_ne]
+      · exact h_sender
+      · exact h_ne)
+
+theorem transferTransactionValue_senderNonce?
+    {state : WorldState} {sender recipient : Address}
+    {senderAccount : Account}
+    (senderBalance recipientBalance value : Word256) (senderNonce : Nat)
+    (h_sender : WorldState.getAccount state sender = some senderAccount)
+    (h_ne : sender ≠ recipient) :
+    WorldState.accountNonce?
+        (transferTransactionValue state sender recipient senderBalance recipientBalance value
+          senderNonce)
+        sender =
+      some (senderNonce + 1) := by
+  rw [transferTransactionValue_state]
+  rw [WorldState.accountNonce?_setAccountBalance]
+  exact WorldState.accountNonce?_setAccountNonce_same
+    (by
+      exact WorldState.getAccount_setAccountBalance_same
+        (balance := senderBalance - value)
+        (by
+          rw [WorldState.getAccount_ensureAccount_ne]
+          · exact h_sender
+          · exact h_ne))
+
+theorem transferTransactionValue_existingRecipientBalance?
+    {state : WorldState} {sender recipient : Address}
+    {recipientAccount : Account}
+    (senderBalance recipientBalance value : Word256) (senderNonce : Nat)
+    (h_recipient : WorldState.getAccount state recipient = some recipientAccount)
+    (h_ne : sender ≠ recipient) :
+    WorldState.accountBalance?
+        (transferTransactionValue state sender recipient senderBalance recipientBalance value
+          senderNonce)
+        recipient =
+      some (recipientBalance + value) := by
+  rw [transferTransactionValue_state]
+  exact WorldState.accountBalance?_setAccountBalance_same
+    (by
+      rw [WorldState.getAccount_setAccountNonce_ne (h_ne := h_ne.symm)]
+      rw [WorldState.getAccount_setAccountBalance_ne (h_ne := h_ne.symm)]
+      exact WorldState.getAccount_ensureAccount_existing h_recipient)
+
+theorem transferTransactionValue_newRecipientBalance?
+    {state : WorldState} {sender recipient : Address}
+    (senderBalance value : Word256) (senderNonce : Nat)
+    (h_recipient_missing : WorldState.getAccount state recipient = none)
+    (h_ne : sender ≠ recipient) :
+    WorldState.accountBalance?
+        (transferTransactionValue state sender recipient senderBalance 0 value senderNonce)
+        recipient =
+      some value := by
+  rw [transferTransactionValue_state]
+  simpa using
+    (WorldState.accountBalance?_setAccountBalance_same
+      (state := WorldState.setAccountNonce
+        (WorldState.setAccountBalance (WorldState.ensureAccount state recipient)
+          sender (senderBalance - value))
+        sender (senderNonce + 1))
+      (addr := recipient)
+      (balance := 0 + value)
+      (by
+        rw [WorldState.getAccount_setAccountNonce_ne (h_ne := h_ne.symm)]
+        rw [WorldState.getAccount_setAccountBalance_ne (h_ne := h_ne.symm)]
+        exact WorldState.getAccount_ensureAccount_missing h_recipient_missing))
 
 theorem transferFrameValue_forStaticCall
     (state : WorldState) (caller callee : Address) (input : List Byte) (gas : Nat)
