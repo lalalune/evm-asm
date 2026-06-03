@@ -135,6 +135,203 @@ theorem evm_mulmod_product_layout_byte_length :
   rw [evm_mulmod_product_layout_length]
 
 -- ============================================================================
+-- Reduction helper blocks
+-- ============================================================================
+
+/-- Scratch dividend base for 256-bit `evm_mod_callable` calls used by the
+    MULMOD reduction pipeline. The original stack and product layout stay at:
+
+      * `sp + 0  .. sp + 24`: input `a`
+      * `sp + 32 .. sp + 56`: input `b`
+      * `sp + 64 .. sp + 88`: modulus `N`
+      * `sp + 96 .. sp + 120`: product low half `pL`
+      * `sp + 128.. sp + 152`: product high half `pH`
+
+    The reduction work window starts after `pH`:
+
+      * `sp + 160.. sp + 184`: callable MOD dividend
+      * `sp + 192.. sp + 216`: callable MOD divisor, then MOD remainder
+
+    `evm_mod_callable` is entered with `x12 = sp + 160`; it returns with
+    `x12 = sp + 192` and the remainder in `sp + 192..216`. The caller then
+    restores `x12` back to the original `sp`. -/
+def mulmodReductionWorkDividendBase : BitVec 12 := 160
+
+/-- Scratch divisor / result base for MULMOD reduction helper calls. -/
+def mulmodReductionWorkModulusBase : BitVec 12 := 192
+
+/-- Phase 2 -- short-circuit test for `N = 0`.
+
+    On entry, `x12 = sp` and `N` is still the third input stack cell at
+    `sp + 64..88`. OR-fold the four limbs into `x6`; if all are zero, branch
+    to the zero-result path. The branch byte distance is a parameter so the
+    later top-level `evm_mulmod` assembly can pin the concrete layout.
+
+    8 instructions. -/
+def evm_mulmod_reduce_n_zero_test (zeroPathOff : BitVec 13) : Program :=
+  LD .x6 .x12 64 ;;
+  LD .x5 .x12 72 ;;
+  OR' .x6 .x6 .x5 ;;
+  LD .x5 .x12 80 ;;
+  OR' .x6 .x6 .x5 ;;
+  LD .x5 .x12 88 ;;
+  OR' .x6 .x6 .x5 ;;
+  single (.BEQ .x6 .x0 zeroPathOff)
+
+theorem evm_mulmod_reduce_n_zero_test_length (zeroPathOff : BitVec 13) :
+    (evm_mulmod_reduce_n_zero_test zeroPathOff).length = 8 := by
+  revert zeroPathOff
+  decide
+
+theorem evm_mulmod_reduce_n_zero_test_byte_length (zeroPathOff : BitVec 13) :
+    4 * (evm_mulmod_reduce_n_zero_test zeroPathOff).length = 32 := by
+  rw [evm_mulmod_reduce_n_zero_test_length]
+
+/-- Prepare the shared 256-bit MOD work window.
+
+    Copies a four-limb dividend from `src + 0..24` and the original modulus
+    `N` from `sp + 64..88` into the callable work slots:
+
+      * `sp + 160..184`: dividend
+      * `sp + 192..216`: divisor `N`
+
+    The block does not change `x12`; it only prepares memory. The later
+    call block temporarily moves `x12` to `sp + 160` for `evm_mod_callable`.
+
+    16 instructions. -/
+def evm_mulmod_reduce_prepare_mod_args (src : BitVec 12) : Program :=
+  LD .x5 .x12 src ;;
+  SD .x12 .x5 160 ;;
+  LD .x5 .x12 (src + 8) ;;
+  SD .x12 .x5 168 ;;
+  LD .x5 .x12 (src + 16) ;;
+  SD .x12 .x5 176 ;;
+  LD .x5 .x12 (src + 24) ;;
+  SD .x12 .x5 184 ;;
+  LD .x5 .x12 64 ;;
+  SD .x12 .x5 192 ;;
+  LD .x5 .x12 72 ;;
+  SD .x12 .x5 200 ;;
+  LD .x5 .x12 80 ;;
+  SD .x12 .x5 208 ;;
+  LD .x5 .x12 88 ;;
+  SD .x12 .x5 216
+
+theorem evm_mulmod_reduce_prepare_mod_args_length (src : BitVec 12) :
+    (evm_mulmod_reduce_prepare_mod_args src).length = 16 := by
+  revert src
+  decide
+
+theorem evm_mulmod_reduce_prepare_mod_args_byte_length (src : BitVec 12) :
+    4 * (evm_mulmod_reduce_prepare_mod_args src).length = 64 := by
+  rw [evm_mulmod_reduce_prepare_mod_args_length]
+
+/-- Call `evm_mod_callable` on the prepared work window.
+
+    Precondition: `evm_mulmod_reduce_prepare_mod_args` has copied a dividend
+    into `sp + 160..184` and `N` into `sp + 192..216`. This block shifts
+    `x12` to `sp + 160`, performs a near call to the callable MOD routine, and
+    restores `x12` to the original `sp`. Since callable MOD returns with
+    `x12 = sp + 192`, the restore is `ADDI x12, x12, -192`, encoded as the
+    12-bit immediate `3904`.
+
+    The MOD remainder is left in `sp + 192..216`.
+
+    3 instructions. -/
+def evm_mulmod_reduce_call_mod (modOff : BitVec 21) : Program :=
+  ADDI .x12 .x12 160 ;;
+  JAL .x1 modOff ;;
+  ADDI .x12 .x12 3904
+
+theorem evm_mulmod_reduce_call_mod_length (modOff : BitVec 21) :
+    (evm_mulmod_reduce_call_mod modOff).length = 3 := by
+  show (((ADDI .x12 .x12 160 ;; JAL .x1 modOff) ;;
+          ADDI .x12 .x12 3904) : Program).length = 3
+  simp only [seq, Program.length_append]
+  rfl
+
+theorem evm_mulmod_reduce_call_mod_byte_length (modOff : BitVec 21) :
+    4 * (evm_mulmod_reduce_call_mod modOff).length = 12 := by
+  rw [evm_mulmod_reduce_call_mod_length]
+
+/-- Reduce the high half of the product, `pH mod N`.
+
+    Entry contract from `evm_mulmod_product_layout`: `pH` is at
+    `sp + 128..152`, `N` is at `sp + 64..88`, and `x12 = sp`. Exit:
+    `x12 = sp`; `sp + 192..216` contains `pH mod N` as returned by
+    `evm_mod_callable`.
+
+    19 instructions. -/
+def evm_mulmod_reduce_high_half (modOff : BitVec 21) : Program :=
+  evm_mulmod_reduce_prepare_mod_args mulmodProductHighBase ;;
+  evm_mulmod_reduce_call_mod modOff
+
+theorem evm_mulmod_reduce_high_half_length (modOff : BitVec 21) :
+    (evm_mulmod_reduce_high_half modOff).length = 19 := by
+  unfold evm_mulmod_reduce_high_half
+  simp only [seq, Program.length_append,
+    evm_mulmod_reduce_prepare_mod_args_length, evm_mulmod_reduce_call_mod_length]
+
+theorem evm_mulmod_reduce_high_half_byte_length (modOff : BitVec 21) :
+    4 * (evm_mulmod_reduce_high_half modOff).length = 76 := by
+  rw [evm_mulmod_reduce_high_half_length]
+
+/-- Reduce the low half of the product, `pL mod N`.
+
+    Entry contract from `evm_mulmod_product_layout`: `pL` is at
+    `sp + 96..120`, `N` is at `sp + 64..88`, and `x12 = sp`. Exit:
+    `x12 = sp`; `sp + 192..216` contains `pL mod N` as returned by
+    `evm_mod_callable`.
+
+    19 instructions. -/
+def evm_mulmod_reduce_low_half (modOff : BitVec 21) : Program :=
+  evm_mulmod_reduce_prepare_mod_args mulmodProductLowBase ;;
+  evm_mulmod_reduce_call_mod modOff
+
+theorem evm_mulmod_reduce_low_half_length (modOff : BitVec 21) :
+    (evm_mulmod_reduce_low_half modOff).length = 19 := by
+  unfold evm_mulmod_reduce_low_half
+  simp only [seq, Program.length_append,
+    evm_mulmod_reduce_prepare_mod_args_length, evm_mulmod_reduce_call_mod_length]
+
+theorem evm_mulmod_reduce_low_half_byte_length (modOff : BitVec 21) :
+    4 * (evm_mulmod_reduce_low_half modOff).length = 76 := by
+  rw [evm_mulmod_reduce_low_half_length]
+
+/-- Zero-result path for `N = 0`.
+
+    MULMOD pops `[a, b, N]` and pushes one result, so the final result slot is
+    the original `sp + 64..88` after the epilogue advances `x12` by 64. This
+    block writes the four zero limbs there and leaves pointer movement to
+    `evm_mulmod_epilogue`.
+
+    4 instructions. -/
+def evm_mulmod_reduce_zero_path : Program :=
+  SD .x12 .x0 64 ;;
+  SD .x12 .x0 72 ;;
+  SD .x12 .x0 80 ;;
+  SD .x12 .x0 88
+
+theorem evm_mulmod_reduce_zero_path_length :
+    evm_mulmod_reduce_zero_path.length = 4 := by native_decide
+
+theorem evm_mulmod_reduce_zero_path_byte_length :
+    4 * evm_mulmod_reduce_zero_path.length = 16 := by
+  rw [evm_mulmod_reduce_zero_path_length]
+
+/-- MULMOD epilogue: advance the EVM stack pointer after the result has been
+    placed at the original `sp + 64..88`. -/
+def evm_mulmod_epilogue : Program :=
+  ADDI .x12 .x12 64
+
+theorem evm_mulmod_epilogue_length :
+    evm_mulmod_epilogue.length = 1 := by native_decide
+
+theorem evm_mulmod_epilogue_byte_length :
+    4 * evm_mulmod_epilogue.length = 4 := by
+  rw [evm_mulmod_epilogue_length]
+
+-- ============================================================================
 -- Concrete execution checks for the layout slice
 -- ============================================================================
 
