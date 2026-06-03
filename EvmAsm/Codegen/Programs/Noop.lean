@@ -116,11 +116,13 @@ def haltHandlers : List OpcodeHandlerSpec :=
     -- also records up to 176 bytes plus length metadata at OUTPUT+64/+248.
     { label   := "h_RETURN"
     , opcodes := [0xf3]
+    , preBody := stackUnderflowGuardAsm 2
     , body    := []
     , tail    := .custom (returnRevertTail 1) }
   , -- REVERT. Identical data path to RETURN; halt_kind = 2 and state logs roll back.
     { label   := "h_REVERT"
     , opcodes := [0xfd]
+    , preBody := stackUnderflowGuardAsm 2
     , body    := []
     , tail    := .custom <|
         returnRevertTail 2 <|
@@ -145,6 +147,7 @@ def haltHandlers : List OpcodeHandlerSpec :=
     -- halt with no return data — zero result + halt_kind = 5 via the
     -- dispatcher's .exit_selfdestruct block.
     { label := "h_SELFDESTRUCT", opcodes := [0xff]
+    , preBody := stackUnderflowGuardAsm 1
     , body := []
     , tail := .custom "  addi x12, x12, 32\n  j .exit_selfdestruct" } ]
 
@@ -200,8 +203,10 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
     SD .x12 .x0 16 ;;
     SD .x12 .x0 24
   [ { label := "h_BALANCE", opcodes := [0x31]
+    , preBody := stackUnderflowGuardAsm 1
     , body := body, tail := .advanceAndRet 1 }
   , { label := "h_EXTCODESIZE", opcodes := [0x3b]
+    , preBody := stackUnderflowGuardAsm 1
     , body := body, tail := .advanceAndRet 1 } ]
 
 /-- M18 copy-no-op handler for CODECOPY.
@@ -224,6 +229,7 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
     below and reads the dispatcher-maintained precompile return-data frame. -/
 def copyNoopHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_CODECOPY", opcodes := [0x39]
+    , preBody := stackUnderflowGuardAsm 3
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
     , tail := .advanceAndRet 1 } ]
 
@@ -330,7 +336,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
   let mkHandler (lbl : String) (op : Nat) (netPopBytes : Nat) : OpcodeHandlerSpec :=
     { label := lbl
     , opcodes := [op]
-    , preBody := "  la x15, evm_precompile_frame\n  sd x0, 8(x15)"
+    , preBody := stackUnderflowGuardAsm (netPopBytes / evmStackWordBytes + 1) ++
+               "  la x15, evm_precompile_frame\n  sd x0, 8(x15)"
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 netPopBytes) ;;
               SD .x12 .x0 0 ;;
               SD .x12 .x0 8 ;;
@@ -468,6 +475,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
   [ mkHandler "h_CREATE"        0xf0 64
   , { label := "h_CALL"
     , opcodes := [0xf1]
+    , preBody := stackUnderflowGuardAsm 7
     , body := []
     , tail := .custom (basicPrecompileCallTail 192 96 128 160 192) }
   , mkHandler "h_CALLCODE"      0xf2 192
@@ -475,6 +483,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
   , mkHandler "h_CREATE2"       0xf5 96
   , { label := "h_STATICCALL"
     , opcodes := [0xfa]
+    , preBody := stackUnderflowGuardAsm 6
     , body := []
     , tail := .custom (basicPrecompileCallTail 160 64 96 128 160) } ]
 
