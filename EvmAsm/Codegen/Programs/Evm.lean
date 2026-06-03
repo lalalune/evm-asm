@@ -1285,14 +1285,20 @@ def signedDivModHandlers : List OpcodeHandlerSpec :=
     runs correctly through the dispatcher. (The limb pointer `x16`
     was never the problem — `evm_mul` doesn't touch it.) -/
 
-/-- ADDMOD handler body. **Skips `evm_addmod_epilogue` deliberately**:
-    the verified `evm_addmod` composes prologue + phase1_carry +
-    phase2_reduce + epilogue, but the epilogue does `ADDI x12, x12, 32`
-    on TOP of the `ADDI x12, x12, 32` already done by
-    `divK_mod_epilogue` inside `evm_mod_callable_v4`. Including both
-    over-advances `x12` by 32, leaving the result outside the EVM
-    stack. (The verified `evm_addmod` is a slice 3a skeleton; slice
-    3c hasn't been implemented.)
+/-- ADDMOD handler body for the no-carry supported lane. **Skips
+    `evm_addmod_epilogue` deliberately**: the verified `evm_addmod`
+    composes prologue + phase1_carry + phase2_reduce + epilogue, but
+    the epilogue does `ADDI x12, x12, 32` on TOP of the `ADDI x12,
+    x12, 32` already done by `divK_mod_epilogue` inside
+    `evm_mod_callable_v4`. Including both over-advances `x12` by 32,
+    leaving the result outside the EVM stack. (The verified
+    `evm_addmod` is a slice 3a skeleton; slice 3c hasn't been
+    implemented.)
+
+    This program assumes the 257th carry bit is zero. Runtime dispatch
+    uses `addmodRuntimeAsm`, which checks `x7` after `phase1_carry`
+    and routes carry-out cases to `.exit_invalid_op` instead of
+    silently computing `(a + b mod 2^256) mod N`.
 
     Composition:
       - prologue (`evm_add`): 30 instr (120 B), pops 2 / pushes 1, x12 += 32
@@ -1314,6 +1320,23 @@ def evmAddmodComposed : Program :=
   EvmAsm.Evm64.evm_addmod_phase2_reduce 8 ;;
   single (Instr.JAL .x0 (1376 : BitVec 21)) ;;
   EvmAsm.Evm64.evm_mod_callable_v4
+
+/-- Runtime ADDMOD handler assembly. Supports the no-carry lane by reusing
+    `evmAddmodComposed`'s snippets, but rejects carry-out sums explicitly.
+    The full ADDMOD semantics need 257-bit reduction `(c * 2^256 + r) mod N`;
+    until that lands, `x7 != 0` is an unsupported development halt
+    (`halt_kind = 3`) rather than a false successful low-256-bit result. -/
+private def addmodRuntimeAsm : String :=
+  "  mv x14, x10\n" ++
+  emitProgram EvmAsm.Evm64.evm_addmod_prologue ++ "\n" ++
+  emitProgram EvmAsm.Evm64.evm_addmod_phase1_carry ++ "\n" ++
+  "  bnez x7, .exit_invalid_op\n" ++
+  emitProgram (EvmAsm.Evm64.evm_addmod_phase2_reduce 8) ++ "\n" ++
+  emitProgram (single (Instr.JAL .x0 (1376 : BitVec 21))) ++ "\n" ++
+  emitProgram EvmAsm.Evm64.evm_mod_callable_v4 ++ "\n" ++
+  "  mv x10, x14\n" ++
+  "  addi x10, x10, 1\n" ++
+  "  j .dispatch_loop"
 
 /-- EXP (0x0a) handler body: the double-fixed verified EXP body inlined
     with `mul_callable`, mirroring `evmAddmodComposed`.
@@ -1366,9 +1389,8 @@ private def expTail : HandlerTail :=
 def selfCallingHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_ADDMOD"
       opcodes       := [0x08]
-      preBody       := "  mv x14, x10"
-      body          := evmAddmodComposed
-      tail          := signedDivModTail }
+      body          := []
+      tail          := .custom addmodRuntimeAsm }
   , { label         := "h_EXP"
       opcodes       := [0x0a]
       preBody       := "  mv x14, x10\n  la x2, exp_scratch"
