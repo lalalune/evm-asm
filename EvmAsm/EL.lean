@@ -51,6 +51,7 @@ import EvmAsm.EL.Bls12MapFp2ToG2EcallBridge
 import EvmAsm.EL.Bls12PairingInputBridge
 import EvmAsm.EL.Bls12PairingResultBridge
 import EvmAsm.EL.Bls12PairingEcallBridge
+import EvmAsm.EL.Bls12PairingPrecompileResultBridge
 import EvmAsm.EL.Bls12G1AddInputBridge
 import EvmAsm.EL.Bls12G1AddResultBridge
 import EvmAsm.EL.Bls12G1AddEcallBridge
