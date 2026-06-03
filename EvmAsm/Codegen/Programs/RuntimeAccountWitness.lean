@@ -6,6 +6,7 @@
 
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 
 namespace EvmAsm.Codegen
 
@@ -134,6 +135,122 @@ def runtimeAccountWitnessProbeDataSection : String :=
 def runtimeAccountWitnessExtcodehashProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := runtimeAccountWitnessExtcodehashPrologue
+  dataAsm     := runtimeAccountWitnessProbeDataSection
+}
+
+/-- Runtime-layout probe for EXTCODECOPY over the shared account-witness
+context.
+
+The runtime bytecode segment is interpreted as:
+  bytes  0.. 8 : code offset (u64 LE)
+  bytes  8..16 : length (u64 LE, <= 256)
+  bytes 16..36 : address (20 bytes, natural order)
+
+Output:
+  bytes  0.. 8 : helper status
+  bytes  8..16 : effective length (= length on success, 0 otherwise)
+  bytes 16..   : copied bytes, zero-padded by the helper
+-/
+def runtimeAccountWitnessExtcodecopyPrologue : String :=
+  emitRuntimeDispatcherSetup ++ "
+" ++
+  "  ld a0, 576(x20)
+" ++       -- header ptr
+  "  ld a1, 584(x20)
+" ++       -- header len
+  "  beqz a1, .Lraw_ecc_no_context
+" ++
+  "  ld t0, 608(x20)
+" ++       -- witness.codes ptr
+  "  la t1, eccp_codes_ptr
+" ++
+  "  sd t0, 0(t1)
+" ++
+  "  ld t0, 616(x20)
+" ++       -- witness.codes len
+  "  la t1, eccp_codes_len
+" ++
+  "  sd t0, 0(t1)
+" ++
+  "  ld a3, 0(x21)
+" ++         -- code offset
+  "  ld a4, 8(x21)
+" ++         -- length
+  "  mv s1, a4
+" ++             -- save length across helper call
+  "  addi a2, x21, 16
+" ++      -- address ptr
+  "  li a5, 0xa0010010
+" ++     -- output bytes
+  "  ld a6, 592(x20)
+" ++       -- witness.state ptr
+  "  ld a7, 600(x20)
+" ++       -- witness.state len
+  "  jal ra, extcodecopy_at_header_state_root
+" ++
+  "  li t0, 0xa0010000
+" ++
+  "  sd a0, 0(t0)
+" ++
+  "  bnez a0, .Lraw_ecc_no_len
+" ++
+  "  sd s1, 8(t0)
+" ++
+  "  j .Lraw_ecc_done
+" ++
+  ".Lraw_ecc_no_len:
+" ++
+  "  sd zero, 8(t0)
+" ++
+  "  j .Lraw_ecc_done
+" ++
+  ".Lraw_ecc_no_context:
+" ++
+  "  li t0, 0xa0010000
+" ++
+  "  sd zero, 0(t0)
+" ++
+  "  sd zero, 8(t0)
+" ++
+  "  sd zero, 16(t0)
+" ++
+  "  sd zero, 24(t0)
+" ++
+  "  sd zero, 32(t0)
+" ++
+  "  j .Lraw_ecc_done
+" ++
+  zkvmKeccak256Function ++ "
+" ++
+  witnessLookupByHashFunction ++ "
+" ++
+  rlpListNthItemFunction ++ "
+" ++
+  mptNodeKindFunction ++ "
+" ++
+  mptBranchChildFunction ++ "
+" ++
+  hpDecodeNibblesFunction ++ "
+" ++
+  bytesToNibblesFunction ++ "
+" ++
+  mptWalkFunction ++ "
+" ++
+  mptLookupByKeyFunction ++ "
+" ++
+  accountDecodeFunction ++ "
+" ++
+  accountAtAddressFunction ++ "
+" ++
+  headerExtractStateRootFunction ++ "
+" ++
+  extcodecopyAtHeaderStateRootFunction ++ "
+" ++
+  ".Lraw_ecc_done:"
+
+def runtimeAccountWitnessExtcodecopyProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := runtimeAccountWitnessExtcodecopyPrologue
   dataAsm     := runtimeAccountWitnessProbeDataSection
 }
 
