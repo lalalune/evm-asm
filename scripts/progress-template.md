@@ -83,6 +83,26 @@ Axes A.2, B.5, C.1, D are emitted from `lake exe progress-report` plus the
 shell wrapper. Axes E, F, G are maintained below; refresh in this template
 when the underlying state changes.
 
+### Proof-tier rubric (axis A.2)
+
+The per-opcode coverage table classifies each opcode by a kernel-checked
+`ProofTier` in [`EvmAsm/Progress.lean`](EvmAsm/Progress.lean). The tiers
+separate a *complete spec on a restricted input domain* from *half-built work*
+— conflating the two is the statement-vacuity blind spot this dashboard exists
+to surface (the DIV `b.getLimbN 3 = 0` trap).
+
+| Tier | Meaning |
+|---|---|
+| ✅ proven | Complete top-level Hoare triple specifying the opcode's full effect, with **no** input-domain precondition. |
+| 🔶 conditional | Complete top-level triple, but **gated by a nonvacuous input-domain precondition** that excludes a real input region (DIV/MOD `b.getLimbN 3 = 0`; SDIV `hStack`). Distinct from proven (no restriction) and partial (no complete triple). |
+| 🟡 partial | **No** complete triple yet — only an `EvmWord.<op>_correct` lemma, a preamble/partial-effect spec, or a sub-component. |
+| ⏳ execSpec | Executable-spec / handler / bridge semantics only; no RV64 subroutine produces the EVM result. |
+| ✗ notStarted | Not represented in `EvmOpcode` yet (e.g. unimplemented EIPs). |
+
+A single-point restriction (ADDMOD's `b=0`-only triple, PUSH2..32's
+zero-slot-only triple) stays 🟡 partial, not 🔶 conditional. The `Cycles (N)`
+column is the typed `cpsTripleWithin N` step bound (cost surrogate); see C.1.
+
 ## E — zkvm-standards conformance
 
 | Standard clause | Status |
