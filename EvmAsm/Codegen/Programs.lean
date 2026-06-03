@@ -65,6 +65,7 @@ import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
+import EvmAsm.Codegen.Programs.ReceiptsConsensus
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
@@ -223,6 +224,7 @@ import EvmAsm.Codegen.Programs.StateBalanceProof
 import EvmAsm.Codegen.Programs.WitnessStateKeccakAtIndex
 import EvmAsm.Codegen.Programs.ChainLinkParentKeccak
 import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.RuntimeAccountWitness
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.AccountFieldGetters
@@ -371,6 +373,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_withdrawals_root_two_w" => some ziskBlockValidateWithdrawalsRootTwoWProbeUnit
   | "zisk_block_validate_withdrawals_root_indexed" => some ziskBlockValidateWithdrawalsRootIndexedProbeUnit
   | "zisk_block_validate_receipts_root_indexed" => some ziskBlockValidateReceiptsRootIndexedProbeUnit
+  | "zisk_block_validate_receipts_consensus_list" => some ziskBlockValidateReceiptsConsensusListProbeUnit
   | "zisk_block_validate_receipts_root_one_receipt" => some ziskBlockValidateReceiptsRootOneReceiptProbeUnit
   | "zisk_block_validate_receipts_root_two_receipts" => some ziskBlockValidateReceiptsRootTwoReceiptsProbeUnit
   | "zisk_block_validate_transactions_root_two_tx" => some ziskBlockValidateTransactionsRootTwoTxProbeUnit
@@ -742,6 +745,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_verify_code_hash_matches" => some ziskVerifyCodeHashMatchesProbeUnit
   | "zisk_extcodesize_at_header_state_root" => some ziskExtcodesizeAtHeaderStateRootProbeUnit
   | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
+  | "runtime_account_witness_extcodehash" => some runtimeAccountWitnessExtcodehashProbeUnit
   | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit
   | "zisk_nonce_at_header_state_root" => some ziskNonceAtHeaderStateRootProbeUnit
   | "zisk_storage_root_at_header_state_root" => some ziskStorageRootAtHeaderStateRootProbeUnit
@@ -900,6 +904,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_state_root_ins",
    "zisk_mpt_indexed_trie_root_small",
    "zisk_block_validate_receipts_root_indexed",
+   "zisk_block_validate_receipts_consensus_list",
    "zisk_mpt_delete_walk_db",
    "zisk_mpt_delete_acc",
    "zisk_mpt_set",
@@ -1049,6 +1054,7 @@ def knownProgramNames : List String :=
    "zisk_verify_code_hash_matches",
    "zisk_extcodesize_at_header_state_root",
    "zisk_extcodehash_at_header_state_root",
+   "runtime_account_witness_extcodehash",
    "zisk_balance_at_header_state_root",
    "zisk_nonce_at_header_state_root",
    "zisk_storage_root_at_header_state_root",
