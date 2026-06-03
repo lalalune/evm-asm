@@ -29,6 +29,7 @@ import EvmAsm.EL.KeccakResultBridge
 import EvmAsm.EL.Sha256InputBridge
 import EvmAsm.EL.Sha256EcallBridge
 import EvmAsm.EL.Sha256PrecompileResultBridge
+import EvmAsm.EL.Sha256PrecompileDispatch
 import EvmAsm.EL.Sha256ResultBridge
 import EvmAsm.EL.Blake2fInputBridge
 import EvmAsm.EL.Blake2fResultBridge
