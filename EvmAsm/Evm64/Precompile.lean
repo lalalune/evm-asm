@@ -147,10 +147,6 @@ theorem ofAddress?_zero :
     ofAddress? (0 : Address) = none := by
   decide
 
-theorem ofAddress?_eleven :
-    ofAddress? (0x0b : Address) = none := by
-  decide
-
 theorem ofAddress?_eighteen :
     ofAddress? (0x12 : Address) = none := by
   decide
