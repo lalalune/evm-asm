@@ -13,10 +13,9 @@
   - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE (MSIZE and GAS have real implementations in Programs/Evm.lean)
   - `popPushZeroHandlers` — BALANCE and EXTCODESIZE
     (EXTCODEHASH, BLOBHASH, and BLOCKHASH have real implementations in Programs/Evm.lean)
-  - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
-    RETURNDATACOPY, MCOPY
+  - `copyNoopHandlers` — CODECOPY and RETURNDATACOPY
 
-  All 16 opcodes ship with at least one spec-incompliance (returns
+  These opcodes ship with at least one spec-incompliance (returns
   zero / drops side effects) because the dispatcher has no model
   for the relevant state (accounts, calldata, block history, blob
   context, return-data buffers). Trusted bytecode that avoids
@@ -209,12 +208,12 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_EXTCODESIZE", opcodes := [0x3b]
     , body := body, tail := .advanceAndRet 1 } ]
 
-/-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY).
-    Each opcode pops 3 or 4 stack values and would copy
-    bytes into EVM memory. As no-ops we just drop the stack args.
+/-- M18 copy-no-op handlers (CODECOPY, RETURNDATACOPY).
+    Each opcode pops stack values and would copy bytes into EVM memory.
+    As no-ops we just drop the stack args.
 
-    Body: a single `ADDI .x12 .x12 (popBytes)`. CODECOPY /
-    RETURNDATACOPY pop 3 words = 96 bytes; EXTCODECOPY pops 4 = 128.
+    Body: a single `ADDI .x12 .x12 (popBytes)`. CODECOPY and
+    RETURNDATACOPY pop 3 words = 96 bytes.
 
     **Known limitations**: the copies are dropped on the floor.
     Programs that copy into EVM memory and then MLOAD see whatever
@@ -230,9 +229,6 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
 def copyNoopHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_CODECOPY", opcodes := [0x39]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
-    , tail := .advanceAndRet 1 }
-  , { label := "h_EXTCODECOPY", opcodes := [0x3c]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 128)
     , tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATACOPY", opcodes := [0x3e]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
