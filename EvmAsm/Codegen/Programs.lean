@@ -223,6 +223,7 @@ import EvmAsm.Codegen.Programs.StateBalanceProof
 import EvmAsm.Codegen.Programs.WitnessStateKeccakAtIndex
 import EvmAsm.Codegen.Programs.ChainLinkParentKeccak
 import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.RuntimeAccountWitness
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.AccountFieldGetters
@@ -742,6 +743,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_verify_code_hash_matches" => some ziskVerifyCodeHashMatchesProbeUnit
   | "zisk_extcodesize_at_header_state_root" => some ziskExtcodesizeAtHeaderStateRootProbeUnit
   | "zisk_extcodehash_at_header_state_root" => some ziskExtcodehashAtHeaderStateRootProbeUnit
+  | "runtime_account_witness_extcodehash" => some runtimeAccountWitnessExtcodehashProbeUnit
   | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit
   | "zisk_nonce_at_header_state_root" => some ziskNonceAtHeaderStateRootProbeUnit
   | "zisk_storage_root_at_header_state_root" => some ziskStorageRootAtHeaderStateRootProbeUnit
@@ -1049,6 +1051,7 @@ def knownProgramNames : List String :=
    "zisk_verify_code_hash_matches",
    "zisk_extcodesize_at_header_state_root",
    "zisk_extcodehash_at_header_state_root",
+   "runtime_account_witness_extcodehash",
    "zisk_balance_at_header_state_root",
    "zisk_nonce_at_header_state_root",
    "zisk_storage_root_at_header_state_root",
