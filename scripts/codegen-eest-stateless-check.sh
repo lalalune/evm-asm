@@ -59,6 +59,12 @@
 #     --min-succ N       exit 1 if fewer than N succ-bit matches (regression gate)
 #     --min-full N       exit 1 if fewer than N full (105-byte) matches (regression gate)
 #     --min-root N       exit 1 if fewer than N root matches (regression gate)
+#     --no-verify-input-parity
+#                        skip the default byte-for-byte check that ziskemu -i
+#                        inputs unpack to fixture statelessInputBytes
+#     --verify-execution-spec-input
+#                        decode the same guest-visible bytes through
+#                        execution-specs run_stateless_guest's input path
 #     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
 #
 # Environment:
@@ -102,6 +108,8 @@ NO_BUILD="${EEST_NO_BUILD:-0}"
 USER_GUEST_ELF="${GUEST_ELF:-}"
 VERDICT_DEBUG="${EEST_VERDICT_DEBUG:-1}"
 VERDICT_DEBUG_ELF=""
+VERIFY_INPUT_PARITY="${EEST_VERIFY_INPUT_PARITY:-1}"
+VERIFY_EXECUTION_SPEC_INPUT="${EEST_VERIFY_EXECUTION_SPEC_INPUT:-0}"
 
 usage() {
   cat <<'USAGE'
@@ -125,6 +133,10 @@ Options:
   --min-succ N             exit 1 if fewer than N succ-bit matches
   --min-full N             exit 1 if fewer than N full matches
   --min-root N             exit 1 if fewer than N root matches
+  --verify-input-parity    verify ziskemu inputs unpack to statelessInputBytes (default)
+  --no-verify-input-parity skip the default ziskemu input parity check
+  --verify-execution-spec-input
+                           additionally decode guest bytes via execution-specs
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
   --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
@@ -160,6 +172,9 @@ while [[ $# -gt 0 ]]; do
     --min-succ) require_arg "$1" "${2:-}"; MIN_SUCC="$2"; shift 2 ;;
     --min-full) require_arg "$1" "${2:-}"; MIN_FULL="$2"; shift 2 ;;
     --min-root) require_arg "$1" "${2:-}"; MIN_ROOT="$2"; shift 2 ;;
+    --verify-input-parity) VERIFY_INPUT_PARITY=1; shift ;;
+    --no-verify-input-parity) VERIFY_INPUT_PARITY=0; shift ;;
+    --verify-execution-spec-input) VERIFY_EXECUTION_SPEC_INPUT=1; VERIFY_INPUT_PARITY=1; shift ;;
     --tag) require_arg "$1" "${2:-}"; TAG="$2"; shift 2 ;;
     --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
@@ -188,6 +203,22 @@ if [[ "$VERDICT_DEBUG" != "0" && "$VERDICT_DEBUG" != "1" ]]; then
   echo "EEST_VERDICT_DEBUG must be 0 or 1 (got: $VERDICT_DEBUG)" >&2
   exit 1
 fi
+if ! [[ "$VERIFY_INPUT_PARITY" =~ ^(0|1|true|false|yes|no)$ ]]; then
+  echo "EEST_VERIFY_INPUT_PARITY must be 0/1/true/false/yes/no (got: $VERIFY_INPUT_PARITY)" >&2
+  exit 1
+fi
+case "$VERIFY_INPUT_PARITY" in
+  1|true|yes) VERIFY_INPUT_PARITY=1 ;;
+  *) VERIFY_INPUT_PARITY=0 ;;
+esac
+if ! [[ "$VERIFY_EXECUTION_SPEC_INPUT" =~ ^(0|1|true|false|yes|no)$ ]]; then
+  echo "EEST_VERIFY_EXECUTION_SPEC_INPUT must be 0/1/true/false/yes/no (got: $VERIFY_EXECUTION_SPEC_INPUT)" >&2
+  exit 1
+fi
+case "$VERIFY_EXECUTION_SPEC_INPUT" in
+  1|true|yes) VERIFY_EXECUTION_SPEC_INPUT=1; VERIFY_INPUT_PARITY=1 ;;
+  *) VERIFY_EXECUTION_SPEC_INPUT=0 ;;
+esac
 if [[ -n "$MAX_FAILURES" ]] && { ! [[ "$MAX_FAILURES" =~ ^[0-9]+$ ]] || [[ "$MAX_FAILURES" -lt 1 ]]; }; then
   echo "--max-failures must be a positive integer when set (got: $MAX_FAILURES)" >&2
   exit 1
@@ -488,12 +519,21 @@ conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
 [[ "$SKIP" != "0" ]] && conv_args+=(--skip "$SKIP")
 [[ "$ALL" -eq 0 ]] && conv_args+=(--limit "$LIMIT")
 [[ -n "$FILTER" ]] && conv_args+=(--filter "$FILTER")
+[[ "$VERIFY_INPUT_PARITY" -eq 1 ]] && conv_args+=(--verify-input-parity)
+[[ "$VERIFY_EXECUTION_SPEC_INPUT" -eq 1 ]] && conv_args+=(--verify-execution-spec-input)
 selection="$([[ $ALL -eq 1 ]] && echo all || echo "limit=$LIMIT")"
 [[ "$SKIP" != "0" ]] && selection="$selection, skip=$SKIP"
 [[ -n "$FILTER" ]] && selection="$selection, filter=$FILTER"
+[[ "$VERIFY_INPUT_PARITY" -eq 1 ]] && selection="$selection, input-parity"
+[[ "$VERIFY_EXECUTION_SPEC_INPUT" -eq 1 ]] && selection="$selection, execution-spec-input"
 echo "==> convert fixtures (tag=$TAG, $selection)"
 echo "    run dir: $RUN_DIR"
-python3 scripts/eest-stateless-to-input.py "${conv_args[@]}"
+if [[ "$VERIFY_EXECUTION_SPEC_INPUT" -eq 1 ]]; then
+  uv run --directory execution-specs --quiet python3 \
+    "$REPO_ROOT/scripts/eest-stateless-to-input.py" "${conv_args[@]}"
+else
+  python3 scripts/eest-stateless-to-input.py "${conv_args[@]}"
+fi
 
 MANIFEST="$RUN_DIR/manifest.tsv"
 [[ -s "$MANIFEST" ]] || { echo "no stateless blocks selected" >&2; exit 1; }
