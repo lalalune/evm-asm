@@ -331,9 +331,274 @@ theorem evm_mulmod_epilogue_byte_length :
     4 * evm_mulmod_epilogue.length = 4 := by
   rw [evm_mulmod_epilogue_length]
 
+
+-- ============================================================================
+-- Total top-level MULMOD assembly
+-- ============================================================================
+
+/-- Remainder accumulator base for the bit-serial 512-bit reduction. -/
+def mulmodRemainderBase : BitVec 12 := 224
+
+/-- OR-fold the modulus limbs and branch to the nonzero path.
+
+    The nonzero target sits immediately after the zero-result path, epilogue,
+    and one skip-JAL, so the `BNE` byte offset is fixed at 28. -/
+def evm_mulmod_nonzero_or_zero_prefix : Program :=
+  LD .x6 .x12 64 ;;
+  LD .x5 .x12 72 ;;
+  OR' .x6 .x6 .x5 ;;
+  LD .x5 .x12 80 ;;
+  OR' .x6 .x6 .x5 ;;
+  LD .x5 .x12 88 ;;
+  OR' .x6 .x6 .x5 ;;
+  BNE .x6 .x0 (28 : BitVec 13)
+
+/-- Branch over the nonzero product/reduction path after the `N = 0` result.
+    The target is the end of `evm_mulmod`. -/
+def evm_mulmod_zero_path_skip_nonzero : Program :=
+  JAL .x0 (2100 : BitVec 21)
+
+/-- Initialize the 256-bit remainder accumulator and loop cursors.
+
+    `x16` points at the current product limb, starting from the highest limb at
+    `sp + 152`; `x18` counts the eight product limbs. -/
+def evm_mulmod_reduce512_init : Program :=
+  SD .x12 .x0 224 ;;
+  SD .x12 .x0 232 ;;
+  SD .x12 .x0 240 ;;
+  SD .x12 .x0 248 ;;
+  ADDI .x16 .x12 152 ;;
+  ADDI .x18 .x0 8
+
+/-- One bit step of the 512-bit long reduction.
+
+    On entry `x17` holds the current product limb. The block consumes its most
+    significant bit, shifts `x17` left by one for the next iteration, updates
+    `rem = 2 * rem + bit`, and conditionally subtracts `N` if the updated
+    remainder is at least `N`. -/
+def evm_mulmod_reduce512_inner_step : Program :=
+  SRLI .x19 .x17 63 ;;
+  SLLI .x17 .x17 1 ;;
+  LD .x5 .x12 224 ;;
+  SRLI .x20 .x5 63 ;;
+  SLLI .x6 .x5 1 ;;
+  OR' .x6 .x6 .x19 ;;
+  SD .x12 .x6 224 ;;
+  LD .x5 .x12 232 ;;
+  SRLI .x19 .x5 63 ;;
+  SLLI .x6 .x5 1 ;;
+  OR' .x6 .x6 .x20 ;;
+  SD .x12 .x6 232 ;;
+  LD .x5 .x12 240 ;;
+  SRLI .x20 .x5 63 ;;
+  SLLI .x6 .x5 1 ;;
+  OR' .x6 .x6 .x19 ;;
+  SD .x12 .x6 240 ;;
+  LD .x5 .x12 248 ;;
+  SLLI .x6 .x5 1 ;;
+  OR' .x6 .x6 .x20 ;;
+  SD .x12 .x6 248 ;;
+  LD .x6 .x12 248 ;;
+  LD .x7 .x12 88 ;;
+  BLTU .x7 .x6 (52 : BitVec 13) ;;
+  BLTU .x6 .x7 (152 : BitVec 13) ;;
+  LD .x6 .x12 240 ;;
+  LD .x7 .x12 80 ;;
+  BLTU .x7 .x6 (32 : BitVec 13) ;;
+  BLTU .x6 .x7 (136 : BitVec 13) ;;
+  LD .x6 .x12 232 ;;
+  LD .x7 .x12 72 ;;
+  BLTU .x7 .x6 (16 : BitVec 13) ;;
+  BLTU .x6 .x7 (120 : BitVec 13) ;;
+  LD .x6 .x12 224 ;;
+  LD .x7 .x12 64 ;;
+  BLTU .x6 .x7 (108 : BitVec 13) ;;
+  LD .x6 .x12 224 ;;
+  LD .x7 .x12 64 ;;
+  SUB .x5 .x6 .x7 ;;
+  SLTU .x11 .x6 .x7 ;;
+  SD .x12 .x5 224 ;;
+  LD .x6 .x12 232 ;;
+  LD .x7 .x12 72 ;;
+  SUB .x5 .x6 .x7 ;;
+  SLTU .x10 .x6 .x7 ;;
+  SUB .x5 .x5 .x11 ;;
+  SLTU .x11 .x5 .x11 ;;
+  OR' .x11 .x10 .x11 ;;
+  SD .x12 .x5 232 ;;
+  LD .x6 .x12 240 ;;
+  LD .x7 .x12 80 ;;
+  SUB .x5 .x6 .x7 ;;
+  SLTU .x10 .x6 .x7 ;;
+  SUB .x5 .x5 .x11 ;;
+  SLTU .x11 .x5 .x11 ;;
+  OR' .x11 .x10 .x11 ;;
+  SD .x12 .x5 240 ;;
+  LD .x6 .x12 248 ;;
+  LD .x7 .x12 88 ;;
+  SUB .x5 .x6 .x7 ;;
+  SUB .x5 .x5 .x11 ;;
+  SD .x12 .x5 248 ;;
+  ADDI .x15 .x15 4095 ;;
+  BNE .x15 .x0 (-252 : BitVec 13)
+
+/-- Outer eight-limb reducer loop. -/
+def evm_mulmod_reduce512_loop : Program :=
+  LD .x17 .x16 0 ;;
+  ADDI .x15 .x0 64 ;;
+  evm_mulmod_reduce512_inner_step ;;
+  ADDI .x16 .x16 4088 ;;
+  ADDI .x18 .x18 4095 ;;
+  BNE .x18 .x0 (-272 : BitVec 13)
+
+/-- Copy the finalized remainder into the EVM result slot `sp + 64..88`. -/
+def evm_mulmod_reduce512_write_result : Program :=
+  LD .x5 .x12 224 ;;
+  SD .x12 .x5 64 ;;
+  LD .x5 .x12 232 ;;
+  SD .x12 .x5 72 ;;
+  LD .x5 .x12 240 ;;
+  SD .x12 .x5 80 ;;
+  LD .x5 .x12 248 ;;
+  SD .x12 .x5 88
+
+/-- Total 512-bit-by-256-bit MULMOD reduction path. -/
+def evm_mulmod_reduce512 : Program :=
+  evm_mulmod_reduce512_init ;;
+  evm_mulmod_reduce512_loop ;;
+  evm_mulmod_reduce512_write_result ;;
+  evm_mulmod_epilogue
+
+/-- Total runtime MULMOD program.
+
+    The nonzero path computes the full 512-bit product with
+    `evm_mulmod_product_layout` and reduces it with a bit-serial long-reduction
+    loop. This is intentionally runtime-first: it favors complete behavior for
+    EEST over proof-oriented performance. -/
+def evm_mulmod : Program :=
+  evm_mulmod_nonzero_or_zero_prefix ;;
+  evm_mulmod_reduce_zero_path ;;
+  evm_mulmod_epilogue ;;
+  evm_mulmod_zero_path_skip_nonzero ;;
+  evm_mulmod_product_layout ;;
+  evm_mulmod_reduce512
+
+theorem evm_mulmod_nonzero_or_zero_prefix_length :
+    evm_mulmod_nonzero_or_zero_prefix.length = 8 := by native_decide
+
+theorem evm_mulmod_zero_path_skip_nonzero_length :
+    evm_mulmod_zero_path_skip_nonzero.length = 1 := by native_decide
+
+theorem evm_mulmod_reduce512_init_length :
+    evm_mulmod_reduce512_init.length = 6 := by native_decide
+
+theorem evm_mulmod_reduce512_inner_step_length :
+    evm_mulmod_reduce512_inner_step.length = 64 := by native_decide
+
+theorem evm_mulmod_reduce512_loop_length :
+    evm_mulmod_reduce512_loop.length = 69 := by native_decide
+
+theorem evm_mulmod_reduce512_write_result_length :
+    evm_mulmod_reduce512_write_result.length = 8 := by native_decide
+
+theorem evm_mulmod_reduce512_length :
+    evm_mulmod_reduce512.length = 84 := by
+  unfold evm_mulmod_reduce512
+  simp only [seq, Program.length_append, evm_mulmod_reduce512_init_length,
+    evm_mulmod_reduce512_loop_length, evm_mulmod_reduce512_write_result_length,
+    evm_mulmod_epilogue_length]
+
+theorem evm_mulmod_length : evm_mulmod.length = 538 := by
+  unfold evm_mulmod
+  simp only [seq, Program.length_append, evm_mulmod_nonzero_or_zero_prefix_length,
+    evm_mulmod_reduce_zero_path_length, evm_mulmod_epilogue_length,
+    evm_mulmod_zero_path_skip_nonzero_length, evm_mulmod_product_layout_length,
+    evm_mulmod_reduce512_length]
+
+theorem evm_mulmod_byte_length : 4 * evm_mulmod.length = 2152 := by
+  rw [evm_mulmod_length]
+
+theorem evm_mulmod_nonzero_path_start_byte :
+    4 * (evm_mulmod_nonzero_or_zero_prefix.length +
+      evm_mulmod_reduce_zero_path.length + evm_mulmod_epilogue.length +
+      evm_mulmod_zero_path_skip_nonzero.length) = 56 := by
+  rw [evm_mulmod_nonzero_or_zero_prefix_length, evm_mulmod_reduce_zero_path_length,
+    evm_mulmod_epilogue_length, evm_mulmod_zero_path_skip_nonzero_length]
+
+theorem evm_mulmod_bne_nonzero_target_byte : 28 + (28 : Nat) = 56 := by decide
+
+theorem evm_mulmod_zero_skip_target_byte : 52 + (2100 : Nat) = 2152 := by decide
+
+theorem evm_mulmod_reduce512_start_byte : 56 + 4 * evm_mulmod_product_layout.length = 1816 := by
+  rw [evm_mulmod_product_layout_length]
+
+theorem evm_mulmod_reduce512_end_byte : 1816 + 4 * evm_mulmod_reduce512.length = 2152 := by
+  rw [evm_mulmod_reduce512_length]
+
 -- ============================================================================
 -- Concrete execution checks for the layout slice
 -- ============================================================================
+
+
+/-- Bounded execution until a target PC is reached. -/
+def runUntilPc (targetPc : Word) : Nat → MachineState → Option MachineState
+  | 0, s => if s.pc == targetPc then some s else none
+  | fuel + 1, s =>
+      if s.pc == targetPc then
+        some s
+      else
+        (step s).bind (runUntilPc targetPc fuel ·)
+
+/-- Create a test state for the total MULMOD program with `a`, `b`, and `N`
+    in EVM stack order. -/
+def mkMulModTestState (sp : Word)
+    (a0 a1 a2 a3 : Word)
+    (b0 b1 b2 b3 : Word)
+    (n0 n1 n2 n3 : Word) : MachineState where
+  regs := fun r =>
+    match r with
+    | .x12 => sp
+    | _    => 0
+  mem := fun a =>
+    if a == sp then a0
+    else if a == sp + 8 then a1
+    else if a == sp + 16 then a2
+    else if a == sp + 24 then a3
+    else if a == sp + 32 then b0
+    else if a == sp + 40 then b1
+    else if a == sp + 48 then b2
+    else if a == sp + 56 then b3
+    else if a == sp + 64 then n0
+    else if a == sp + 72 then n1
+    else if a == sp + 80 then n2
+    else if a == sp + 88 then n3
+    else 0
+  code := loadProgram 0 evm_mulmod
+  pc := 0
+
+/-- Run `evm_mulmod` and extract `(x12, result limbs)`. -/
+def runMulMod (sp : Word)
+    (a0 a1 a2 a3 : Word)
+    (b0 b1 b2 b3 : Word)
+    (n0 n1 n2 n3 : Word)
+    (fuel : Nat) : Option (Word × List Word) :=
+  let s := mkMulModTestState sp a0 a1 a2 a3 b0 b1 b2 b3 n0 n1 n2 n3
+  match runUntilPc (4 * evm_mulmod.length) fuel s with
+  | some s' =>
+      some (s'.getReg .x12,
+        [s'.getMem (sp + 64), s'.getMem (sp + 72), s'.getMem (sp + 80), s'.getMem (sp + 88)])
+  | none => none
+
+/-- Zero modulus returns zero without entering the product/reduction path. -/
+example : runMulMod 1024
+    2 0 0 0
+    3 0 0 0
+    0 0 0 0
+    64 = some (1088, [0, 0, 0, 0]) := by native_decide
+
+-- Nonzero end-to-end MULMOD cases execute the 512-iteration reducer loop and
+-- are intentionally covered by ziskemu runtime tests in the dispatcher slice
+-- rather than as module-level `native_decide` examples.
 
 /-- Create a test state for the product-layout block with `a`, `b`, and `N`
     in the eventual MULMOD stack order. -/
