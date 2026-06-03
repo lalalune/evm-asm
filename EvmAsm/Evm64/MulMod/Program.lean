@@ -128,7 +128,7 @@ theorem evm_mulmod_product_zero_byte_length :
   rw [evm_mulmod_product_zero_length]
 
 theorem evm_mulmod_product_layout_length :
-    evm_mulmod_product_layout.length = 440 := by decide
+    evm_mulmod_product_layout.length = 440 := by set_option maxRecDepth 1000 in decide
 
 theorem evm_mulmod_product_layout_byte_length :
     4 * evm_mulmod_product_layout.length = 1760 := by
@@ -594,7 +594,7 @@ example : runMulMod 1024
     2 0 0 0
     3 0 0 0
     0 0 0 0
-    64 = some (1088, [0, 0, 0, 0]) := by decide
+    64 = some (1088, [0, 0, 0, 0]) := by set_option maxRecDepth 1000 in decide
 
 -- Nonzero end-to-end MULMOD cases execute the 512-iteration reducer loop and
 -- are intentionally covered by ziskemu runtime tests in the dispatcher slice
@@ -647,14 +647,14 @@ example : runMulModProductLayout 1024
     0 0 0 0
     0 0 0 0
     7 0 0 0
-    440 = some (1024, [7, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]) := by decide
+    440 = some (1024, [7, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]) := by set_option maxRecDepth 1000 in decide
 
 /-- Small product: 2 * 3 = 6, high half zero. -/
 example : runMulModProductLayout 1024
     2 0 0 0
     3 0 0 0
     5 0 0 0
-    440 = some (1024, [5, 0, 0, 0], [6, 0, 0, 0], [0, 0, 0, 0]) := by decide
+    440 = some (1024, [5, 0, 0, 0], [6, 0, 0, 0], [0, 0, 0, 0]) := by set_option maxRecDepth 1000 in decide
 
 /-- High-half-producing product: 2^192 * 2^64 = 2^256. -/
 example : runMulModProductLayout 1024
