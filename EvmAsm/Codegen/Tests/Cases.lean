@@ -800,14 +800,21 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "addmod_div_zero"
       bytecode       := "0x60, 0x00, 0x60, 0x03, 0x60, 0x02, 0x08, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
-  , -- PUSH1 0x07; PUSH1 0x01; PUSH32 0xff..ff; ADDMOD; STOP.
-    -- This has a 257th carry (`(2^256 - 1) + 1`). Until ADDMOD's
-    -- carry-aware reduction lands, halt_kind 3 is more honest than
-    -- returning `(low256 sum) mod N = 0` as if it were complete.
-    { name             := "addmod_carry_unsupported"
-      bytecode         := "0x60, 0x07, 0x60, 0x01, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x08, 0x00"
-      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind := "0300000000000000" }
+  , -- PUSH1 0x07; PUSH1 0x01; PUSH1 0x00; NOT; ADDMOD; STOP
+    -- (2^256 - 1 + 1) % 7 = 2, exercising the ADD carry contribution.
+    { name           := "addmod_carry_pow256_mod_7"
+      bytecode       := "0x60, 0x07, 0x60, 0x01, 0x60, 0x00, 0x19, 0x08, 0x00"
+      expectedOutHex := "0200000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH17 (2^128 + 1); PUSH1 0x01; PUSH1 0x00; NOT; ADDMOD; STOP
+    -- 2^256 % (2^128 + 1) = 1, covering a multi-limb modulus carry case.
+    { name           := "addmod_carry_pow256_mod_2_128_plus_1"
+      bytecode       := "0x70, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x60, 0x01, 0x60, 0x00, 0x19, 0x08, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x07; PUSH1 0x07; PUSH1 0x00; NOT; ADDMOD; STOP
+    -- (2^256 - 1 + 7) % 7 = 1, exercising carry plus final subtract.
+    { name           := "addmod_carry_reduced_sum_subtracts_n"
+      bytecode       := "0x60, 0x07, 0x60, 0x07, 0x60, 0x00, 0x19, 0x08, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
     -- ## M21 real calldata (CALLDATASIZE / CALLDATALOAD / CALLDATACOPY)
     -- The dispatcher prologue now populates env.callDataPtrOff (416)
     -- and env.callDataLenOff (424) from the ziskemu `-i` input file.
