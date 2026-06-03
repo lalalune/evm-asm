@@ -313,6 +313,12 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
     absent-account calls with success = 1 and empty returndata so the
     precompile_absence fixtures do not stop at the dispatcher surface.
 
+    **M27.2 update**: CALL / STATICCALL also recognize BLS12-381 G2
+    active precompile addresses 0x0d (G2 ADD) and 0x0e (G2 MSM).
+    This first runtime slice implements the execution-specs input-length
+    gates before the future accelerator body: G2 ADD requires exactly
+    512 bytes; G2 MSM requires a nonzero multiple of 288 bytes.
+
     **Known limitations** (documented in CODEGEN.md M19 narrative):
     - Non-precompile CALL / CALLCODE / DELEGATECALL / STATICCALL
       still return 0 (= "call failed"). No actual sub-frame
@@ -354,6 +360,10 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bltu x14, x15, 1f\n" ++
     "  li x15, 4\n" ++
     "  bgeu x15, x14, 11f\n" ++
+    "  li x15, 0x0d\n" ++
+    "  beq x14, x15, 13f\n" ++
+    "  li x15, 0x0e\n" ++
+    "  beq x14, x15, 14f\n" ++
     "  li x15, 0x12\n" ++
     "  beq x14, x15, 12f\n" ++
     "  li x15, 0x101\n" ++
@@ -448,6 +458,31 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez x22, 10b\n" ++
     "  j 7b\n" ++
     "12:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 G2 ADD: execution-specs rejects unless calldata length is 512.
+    -- Valid-length output is wired in a later accelerator-body slice; for now
+    -- it reaches the active-precompile success surface with empty returndata.
+    "13:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x16, 512\n" ++
+    "  bne x17, x16, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 G2 MSM: execution-specs rejects empty input and non-288
+    -- multiples before charging gas or invoking curve arithmetic.
+    "14:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  beqz x17, 1f\n" ++
+    "  li x16, 288\n" ++
+    "  remu x17, x17, x16\n" ++
+    "  bnez x17, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
