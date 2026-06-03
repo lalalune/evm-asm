@@ -77,6 +77,11 @@ REQUIRED_CASES=(
   "MUL:mul_basic"
   "DIV:div_basic"
   "MOD:mod_basic"
+  "ADDMOD:addmod_basic"
+  "ADDMOD:addmod_div_zero"
+  "ADDMOD:addmod_carry_pow256_mod_7"
+  "ADDMOD:addmod_carry_pow256_mod_2_128_plus_1"
+  "ADDMOD:addmod_carry_reduced_sum_subtracts_n"
   "MULMOD:mulmod_zero_modulus"
   "MULMOD:mulmod_small_nonzero"
   "MULMOD:mulmod_high_product_nonzero"
@@ -112,7 +117,6 @@ REQUIRED_CASES=(
 )
 
 PARTIAL_MEMBERS=(
-  "ADDMOD:carry-out path tracked separately until 257-bit reduction is enforced"
   "EXP:software implementation remains tracked separately"
 )
 
