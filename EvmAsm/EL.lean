@@ -148,3 +148,4 @@ import EvmAsm.EL.Bls12G2AddInputBridge
 import EvmAsm.EL.Bls12G2AddResultBridge
 import EvmAsm.EL.Bls12G2AddEcallBridge
 import EvmAsm.EL.Bls12G2PrecompileResultBridge
+import EvmAsm.EL.Bls12G2AddPrecompileDispatch
