@@ -444,9 +444,8 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- ## M15 control-flow opcodes (PC, JUMP, JUMPI)
     -- These use the dispatcher's preserved code-base register x21
     -- (initialised in the prologue) to compute PC values and jump
-    -- targets. JUMP/JUMPI's "valid-target" check (code[dest] == 0x5b)
-    -- is DEFERRED; the test cases below all jump to real JUMPDEST
-    -- bytes.
+    -- targets. JUMP/JUMPI validate against execution-specs-style valid
+    -- destinations: the target must be a JUMPDEST byte outside PUSH data.
   , -- PC; STOP — PC at offset 0 = 0. Expected: 0 in low limb.
     { name           := "pc_at_zero"
       bytecode       := "0x58, 0x00"
@@ -500,6 +499,23 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x01, 0x60, 0x00, 0x57"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0400000000000000" }
+  , -- PUSH1 0x04; JUMP; PUSH1 0x5b; STOP. Byte 4 is 0x5b,
+    -- but it is the PUSH1 immediate, so it is not a valid JUMPDEST.
+    { name             := "jump_pushdata_jumpdest_invalid"
+      bytecode         := "0x60, 0x04, 0x56, 0x60, 0x5b, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
+  , -- Taken JUMPI to byte 6, a PUSH1 immediate 0x5b, is invalid.
+    { name             := "jumpi_taken_pushdata_jumpdest_invalid"
+      bytecode         := "0x60, 0x01, 0x60, 0x06, 0x57, 0x60, 0x5b, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
+  , -- Not-taken JUMPI does not validate the destination, even when that
+    -- destination points at a PUSH immediate 0x5b; it falls through normally.
+    { name             := "jumpi_not_taken_pushdata_dest_ignored"
+      bytecode         := "0x60, 0x00, 0x60, 0x06, 0x57, 0x60, 0x5b, 0x00"
+      expectedOutHex   := "5b00000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
     -- ## M16 hash opcode (KECCAK256 via ECALL bridge to Zisk accelerator)
     -- KECCAK256 pops offset (top of stack) and size (next word), hashes the
     -- memory[offset..offset+size] region, pushes the 32-byte digest.

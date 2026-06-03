@@ -877,15 +877,17 @@ def mcopyHandlers : List OpcodeHandlerSpec :=
         "  addi x10, x10, 1\n" ++
         "  ret" } ]
 
-/-- Shared tail for JUMP / JUMPI: the verified body left `code[dest]`
-    (or the `0x5b` sentinel for a not-taken JUMPI) in `x17`. If it
-    isn't a JUMPDEST byte, route to `.exit_invalid` (M15.5 exceptional
-    halt); otherwise `ret` to the dispatch loop, which re-reads the
-    (now-validated) target byte. `x18` is a free scratch temp. -/
+/-- Scanner shared by JUMP / taken-JUMPI validation: require `code[dest]`
+    to be JUMPDEST, then scan from `x21` to `x10`, skipping PUSH data. -/
+private def jumpPushdataAwareScanAsm : String :=
+  "  li x18, 0x5b\n  bne x17, x18, .exit_invalid\n  mv x18, x21\n1:\n  beq x18, x10, 3f\n  bltu x10, x18, .exit_invalid\n  lbu x19, 0(x18)\n  li x5, 0x60\n  bltu x19, x5, 2f\n  li x5, 0x80\n  bgeu x19, x5, 2f\n  addi x19, x19, -94\n  add x18, x18, x19\n  j 1b\n2:\n  addi x18, x18, 1\n  j 1b\n3:\n  ret"
+
 private def jumpValidityTail : HandlerTail :=
-  .custom ("  li x18, 0x5b\n" ++
-           "  bne x17, x18, .exit_invalid\n" ++
-           "  ret")
+  .custom jumpPushdataAwareScanAsm
+
+private def jumpiValidityTail : HandlerTail :=
+  .custom <| "  beqz x15, .Ljumpi_not_taken_valid\n" ++
+    jumpPushdataAwareScanAsm ++ "\n.Ljumpi_not_taken_valid:\n  ret"
 
 /-- M14 / M15 control-flow opcodes.
 
@@ -907,13 +909,11 @@ private def jumpValidityTail : HandlerTail :=
     registers `x14`/`x15`/`x16` are caller-saved per the existing
     convention.
 
-    **M15.5 JUMPDEST-validity (Level 1)**: JUMP / JUMPI now load
-    `code[dest]` into `x17` (the verified bodies do this; JUMPI's
-    not-taken path writes the sentinel `0x5b`). `jumpValidityTail`
-    compares `x17` to `0x5b` and routes a mismatch to the
-    dispatcher's `.exit_invalid` (exceptional halt, `halt_kind = 4`).
-    Level 2 (pushdata-aware bitmap) is still future work — see the
-    `ControlFlow/Program.lean` docstring. -/
+    **M15.5 JUMPDEST-validity**: JUMP / taken-JUMPI now scan from the
+    bytecode base to the target while skipping PUSH1..PUSH32 immediates.
+    A literal `0x5b` inside PUSH data is rejected even though the target byte
+    equals JUMPDEST. Not-taken JUMPI still skips validation, matching
+    execution-specs. -/
 def controlFlowHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_JUMPDEST"
     , opcodes := [0x5b]
@@ -928,7 +928,7 @@ def controlFlowHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x57]
     , preBody := stackUnderflowGuardAsm 2
     , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x14 .x15 .x16 .x17
-    , tail    := jumpValidityTail }
+    , tail    := jumpiValidityTail }
   , { label := "h_PC"
     , opcodes := [0x58]
     , body    := EvmAsm.Evm64.ControlFlow.evm_pc .x21 .x14
