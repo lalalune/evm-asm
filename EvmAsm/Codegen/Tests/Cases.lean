@@ -684,6 +684,23 @@ def opcodeTestCases : List OpcodeTestCase :=
       calldata         := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       expectedOutHex   := "605ed279d0a1af786c79054f9424d196ed6a1f0331100a923d711885d42099bb"
       expectedHaltKind := "0100000000000000" }
+  , -- CALL to inactive near-zero address 0x12 routes as an absent
+    -- account, not as a precompile body: success = 1, empty returndata.
+    { name             := "call_inactive_precompile_0x12_absent_success"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x00"
+      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- STATICCALL to inactive secp-adjacent address 0x101 follows the
+    -- same absent-account path and succeeds with no returndata.
+    { name             := "staticcall_inactive_precompile_0x101_absent_success"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x01, 0x60, 0x00, 0xfa, 0x00"
+      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- The inactive-address path leaves RETURNDATASIZE at zero.
+    { name             := "call_inactive_precompile_0x12_empty_returndata"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x50, 0x3d, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
     -- ## M20 arithmetic no-ops (MULMOD, EXP) — the LAST TWO unwired
     -- opcodes; M20 brings tinyInterpRegistry to 100% coverage 🎯.
     -- Both ship as placeholders; real upgrades follow in M21+.
