@@ -73,6 +73,14 @@ jobs:
       - name: Conformance-vector floor (monotonic ratchet)
         run: scripts/check-conformance-floor.sh
 
+      # DIV-class defense PR fast-path: fuzz the six arithmetic opcodes
+      # against an independent Nat/Int reference + re-verify the permanent
+      # corpus still matches its frozen execution-specs verdict. Pure Lean,
+      # deterministic, no submodule/Python (the heavy execution-specs
+      # differential runs nightly in fuzz-arith.yml). Needs the built exe.
+      - name: Arithmetic differential fuzz (PR fast-path)
+        run: scripts/fuzz-arith-diff.sh
+
       # Advisory only (no --strict, PR-only, best-effort on shallow clones):
       # surfaces theorem-statement and verifier-config edits for reviewers.
       - name: Statement / verifier-config tamper scan (advisory)
