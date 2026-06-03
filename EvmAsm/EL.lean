@@ -78,6 +78,7 @@ import EvmAsm.EL.Bls12MapFpToG1InputBridge
 import EvmAsm.EL.Bls12MapFpToG1ResultBridge
 import EvmAsm.EL.Bls12MapFpToG1EcallBridge
 import EvmAsm.EL.Bls12MapPrecompileResultBridge
+import EvmAsm.EL.Bls12MapFp2ToG2PrecompileDispatch
 import EvmAsm.EL.Bls12MapFpToG1PrecompileDispatch
 import EvmAsm.EL.Bn254PairingInputBridge
 import EvmAsm.EL.Bn254PairingResultBridge
