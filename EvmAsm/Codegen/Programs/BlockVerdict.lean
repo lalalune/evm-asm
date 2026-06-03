@@ -26,6 +26,7 @@ import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
+import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.Address
@@ -694,6 +695,17 @@ def blockVerdictFunction : String :=
   "  # tx payloads whose state/BAL roots otherwise match the conservative replay.\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # gas_used\n" ++
   "  beqz a0, .Lbv_zero_gas_used\n" ++
+  "  # Witness headers must cover concrete in-window BLOCKHASH ancestor accesses\n" ++
+  "  # visible in transaction code. execution-specs indexes block_hashes and\n" ++
+  "  # fails validation if an accessed ancestor is absent.\n" ++
+  "  la t5, svf_codes_ptr; ld a0, 0(t5)\n" ++
+  "  la t5, svf_codes_len; ld a1, 0(t5)\n" ++
+  "  la a2, bv_blockhash_required_headers\n" ++
+  "  jal ra, codes_blockhash_required_headers\n" ++
+  "  bnez a0, .Lbv_blockhash_headers_fail\n" ++
+  "  la t5, bv_blockhash_required_headers; ld t4, 0(t5)\n" ++
+  "  la t5, svf_headers_count; ld t3, 0(t5)\n" ++
+  "  bgtu t4, t3, .Lbv_blockhash_headers_fail\n" ++
   ".Lbv_after_tx_gate:\n" ++
   "  mv a0, s3\n" ++
   "  la t2, bv_exec_p; ld a1, 0(t2)\n" ++
@@ -786,6 +798,8 @@ def blockVerdictFunction : String :=
   "  addi t0, a0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip7702_nonce_reuse_fail:\n" ++
   "  li t0, 14; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_blockhash_headers_fail:\n" ++
+  "  li t0, 15; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -1008,6 +1022,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
+  codesBlockhashRequiredHeadersFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
@@ -1126,6 +1141,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_header_status:\n  .zero 8\n" ++
   "bv_state_status:\n  .zero 8\n" ++
   "bv_block_rlp_len:\n  .zero 8\n" ++
+  "bv_blockhash_required_headers:\n  .zero 8\n" ++
   eip7702NonceReuseGuardDataSection ++
   "brl_item_start:\n  .zero 8\n" ++
   "brl_item_end:\n  .zero 8\n" ++
