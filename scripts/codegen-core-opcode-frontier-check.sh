@@ -77,6 +77,9 @@ REQUIRED_CASES=(
   "MUL:mul_basic"
   "DIV:div_basic"
   "MOD:mod_basic"
+  "MULMOD:mulmod_zero_modulus"
+  "MULMOD:mulmod_small_nonzero"
+  "MULMOD:mulmod_high_product_nonzero"
   "SDIV:sdiv_basic"
   "SMOD:smod_negative"
   "SIGNEXTEND:signextend_basic"
@@ -110,7 +113,6 @@ REQUIRED_CASES=(
 
 PARTIAL_MEMBERS=(
   "ADDMOD:carry-out path tracked separately until 257-bit reduction is enforced"
-  "MULMOD:nonzero-modulus path tracked separately until full product reduction exists"
   "EXP:software implementation remains tracked separately"
 )
 
