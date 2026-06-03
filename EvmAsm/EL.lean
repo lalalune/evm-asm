@@ -92,6 +92,7 @@ import EvmAsm.EL.Bn254G1MulInputBridge
 import EvmAsm.EL.Bn254G1MulResultBridge
 import EvmAsm.EL.Bn254G1MulEcallBridge
 import EvmAsm.EL.Bn254PrecompileResultBridge
+import EvmAsm.EL.Bn254G1AddPrecompileDispatch
 import EvmAsm.EL.Bls12G2MsmInputBridge
 import EvmAsm.EL.Bls12G2MsmResultBridge
 import EvmAsm.EL.Bls12G2MsmEcallBridge
