@@ -120,7 +120,7 @@ def balCodePreimagesValidFunction : String :=
   "  la t0, bbcv_balance_count; ld t1, 0(t0)\n" ++
   "  la t2, bbcv_nonce_count; ld t3, 0(t2)\n" ++
   "  or t4, t1, t3\n" ++
-  "  bnez t4, .Lbbcv_next\n" ++
+  "  bnez t4, .Lbbcv_scalar_touch\n" ++
   "  la t0, bbcv_fee_recipient_valid; ld t0, 0(t0); beqz t0, .Lbbcv_touch_skip_flags\n" ++
   "  la t0, bbcv_addr_off; ld t1, 0(t0); add t1, s10, t1\n" ++
   "  la t2, bbcv_fee_recipient\n" ++
@@ -133,6 +133,13 @@ def balCodePreimagesValidFunction : String :=
   "  la t0, bbcv_skip_touch_only; ld t4, 0(t0)\n" ++
   "  bnez t4, .Lbbcv_next\n" ++
   "  j .Lbbcv_check_code\n" ++
+  ".Lbbcv_scalar_touch:\n" ++
+  "  # Balance/nonce rows normally do not prove bytecode was read, but an\n" ++
+  "  # EIP-7702 sender delegation marker is read during sender validation.\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a0, s10, t1\n" ++
+  "  jal ra, bal_addr_is_tx_sender\n" ++
+  "  bnez a0, .Lbbcv_check_code\n" ++
+  "  j .Lbbcv_next\n" ++
   ".Lbbcv_check_code_non_touch:\n" ++
   "  la t0, bbcv_touch_only; sd zero, 0(t0)\n" ++
   ".Lbbcv_check_code:\n" ++
@@ -191,6 +198,60 @@ def balCodePreimagesValidFunction : String :=
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
   "  addi sp, sp, 112\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff a 20-byte address equals any recovered transaction sender.\n" ++
+  "# Sender validation reads an EIP-7702 delegation marker when the sender has\n" ++
+  "# delegated code, so sender scalar BAL rows cannot skip code-preimage checks.\n" ++
+  "bal_addr_is_tx_sender:\n" ++
+  "  addi sp, sp, -88\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp)\n" ++
+  "  mv s0, a0                  # 20-byte target address ptr\n" ++
+  "  la t0, bv_exec_p; ld s1, 0(t0)\n" ++
+  "  la t0, bv_tx_off; ld s2, 0(t0)\n" ++
+  "  la t0, bv_public_keys_ptr; ld s3, 0(t0)\n" ++
+  "  la t0, bv_public_keys_len; ld s4, 0(t0)\n" ++
+  "  beqz s1, .Lbats_no\n" ++
+  "  beqz s3, .Lbats_no\n" ++
+  "  add s5, s1, s2             # tx list ptr\n" ++
+  "  addi a0, s1, 508; jal ra, bgv_u32le\n" ++
+  "  bleu a0, s2, .Lbats_no\n" ++
+  "  sub s6, a0, s2             # tx list len\n" ++
+  "  li t0, 4; bltu s6, t0, .Lbats_no\n" ++
+  "  mv a0, s5; jal ra, bgv_u32le\n" ++
+  "  andi t0, a0, 3; bnez t0, .Lbats_no\n" ++
+  "  srli s7, a0, 2             # tx count\n" ++
+  "  beqz s7, .Lbats_no\n" ++
+  "  li t0, 16; bgtu s7, t0, .Lbats_no\n" ++
+  "  slli t0, s7, 2; bgtu t0, s6, .Lbats_no\n" ++
+  "  li s8, 0                   # tx index\n" ++
+  ".Lbats_loop:\n" ++
+  "  beq s8, s7, .Lbats_no\n" ++
+  "  li t0, 65; mul t1, s8, t0; add t2, t1, t0; bgtu t2, s4, .Lbats_next\n" ++
+  "  add a0, s3, t1; addi a0, a0, 1       # skip SEC1 0x04 prefix\n" ++
+  "  la a1, bbcv_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t0, bbcv_sender_addr; li t1, 0\n" ++
+  ".Lbats_cmp:\n" ++
+  "  li t2, 20; beq t1, t2, .Lbats_yes\n" ++
+  "  add t3, t0, t1; lbu t3, 0(t3)\n" ++
+  "  add t4, s0, t1; lbu t4, 0(t4)\n" ++
+  "  bne t3, t4, .Lbats_next\n" ++
+  "  addi t1, t1, 1; j .Lbats_cmp\n" ++
+  ".Lbats_next:\n" ++
+  "  addi s8, s8, 1; j .Lbats_loop\n" ++
+  ".Lbats_yes:\n" ++
+  "  li a0, 1; j .Lbats_ret\n" ++
+  ".Lbats_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbats_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp)\n" ++
+  "  addi sp, sp, 88\n" ++
   "  ret\n" ++
   "\n" ++
   "# Return 1 iff any witness code contains PUSH20 <addr>; EXTCODEHASH.\n" ++

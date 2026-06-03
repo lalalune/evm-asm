@@ -6,7 +6,7 @@
   validation, gas charge, input slicing, and returndata shape.
 -/
 
-import EvmAsm.EL.Blake2fEcallBridge
+import EvmAsm.EL.Blake2fPrecompileResultBridge
 import EvmAsm.Evm64.PrecompileResult
 
 namespace EvmAsm.EL
@@ -94,13 +94,7 @@ def dispatch
         if _h_flag : validFinalFlag input.input then
           let request := Blake2fEcallBridge.requestFromInput (acceleratorInput input.input)
           let result := Blake2fEcallBridge.executeBlake2fEcall accelerator request
-          match result.status with
-          | .eok =>
-              EvmAsm.Evm64.PrecompileResult.ok
-                (Blake2fEcallBridge.outputBytesList result)
-                (input.gas - cost)
-          | .efail =>
-              EvmAsm.Evm64.PrecompileResult.fail (input.gas - cost)
+          Blake2fPrecompileResultBridge.toPrecompileResult (input.gas - cost) result
         else
           EvmAsm.Evm64.PrecompileResult.fail (input.gas - cost)
       else
@@ -183,6 +177,8 @@ theorem dispatch_success
   simp [dispatch, h_target, h_len, h_gas, h_flag,
     Blake2fEcallBridge.requestFromInput,
     Blake2fEcallBridge.executeBlake2fEcall,
+    Blake2fPrecompileResultBridge.toPrecompileResult,
+    Blake2fPrecompileResultBridge.outputBytes,
     Blake2fEcallBridge.outputBytesList, h_status]
 
 theorem dispatch_success_output_length
@@ -216,7 +212,8 @@ theorem dispatch_preservesGasBound
           cases h_status : (Blake2fEcallBridge.executeBlake2fEcall accelerator
             (Blake2fEcallBridge.requestFromInput
               (acceleratorInput input.input))).status <;>
-            simp [EvmAsm.Evm64.PrecompileResult.ok, EvmAsm.Evm64.PrecompileResult.fail]
+            simp [Blake2fPrecompileResultBridge.toPrecompileResult, h_status,
+              EvmAsm.Evm64.PrecompileResult.ok, EvmAsm.Evm64.PrecompileResult.fail]
         · simp [h_flag, EvmAsm.Evm64.PrecompileResult.fail]
       · simp [h_gas, EvmAsm.Evm64.PrecompileResult.fail]
     · simp [h_len, EvmAsm.Evm64.PrecompileResult.fail]
