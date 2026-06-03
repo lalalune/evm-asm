@@ -45,6 +45,7 @@ import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 
 import EvmAsm.Codegen.Programs.Evm
+import EvmAsm.Codegen.Programs.EvmAccountWitness
 import EvmAsm.Codegen.Programs.EvmBalance
 import EvmAsm.Codegen.Programs.EvmExtcodecopy
 import EvmAsm.Codegen.Programs.EvmArithUnits
@@ -1396,6 +1397,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/Bloom.lean",
     "EvmAsm/Codegen/Programs/Clz.lean",
     "EvmAsm/Codegen/Programs/Evm.lean",
+    "EvmAsm/Codegen/Programs/EvmAccountWitness.lean",
     "EvmAsm/Codegen/Programs/EvmBalance.lean",
     "EvmAsm/Codegen/Programs/EvmExtcodecopy.lean",
     "EvmAsm/Codegen/Programs/EvmArithUnits.lean",

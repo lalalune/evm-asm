@@ -51,6 +51,7 @@ import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.EvmBalance
 import EvmAsm.Codegen.Programs.Noop
+import EvmAsm.Codegen.Programs.EvmAccountWitness
 import EvmAsm.Codegen.Programs.EvmExtcodecopy
 import EvmAsm.Codegen.Programs.Storage
 
@@ -1106,67 +1107,8 @@ def logHandlers : List OpcodeHandlerSpec :=
     , tail := .advanceAndRet 1 } ]
 
 
-/-! ## Runtime account-witness opcodes
-
-    EXTCODEHASH (0x3f) now reads the account trie through the optional
-    runtime account-witness context populated by `pack-bytecode.py` and
-    `emitRuntimeDispatcherSetup`. If no witness context is present, it keeps
-    the old deterministic zero behavior. -/
-
-/-- Copy an EVM stack address word into natural 20-byte address order.
-
-    Stack bytes 0..19 hold the low 160-bit address little-endian; trie lookup
-    helpers expect the big-endian byte string whose keccak selects the account
-    path. `x12` is the EVM stack pointer and `t1` points at
-    `eahsr_address_scratch`. -/
-private def extcodehashWitnessAddressCopy : String :=
-  String.intercalate "" <|
-    (List.range 20).map fun i =>
-      s!"  lbu t2, {19 - i}(x12)\n  sb t2, {i}(t1)\n"
-
-/-- Raw dispatcher handler for EXTCODEHASH backed by
-    `extcodehash_at_header_state_root`.
-
-    The EVM stack word stores the low 160-bit address little-endian; the
-    helper expects the natural 20-byte address order used for
-    `keccak(address)`, so the handler first reverses bytes 0..19 into
-    `eahsr_address_scratch`. Net stack delta is zero: the address word is
-    overwritten with the 32-byte EIP-1052 result. -/
-private def extcodehashWitnessTail : HandlerTail :=
-  .custom <|
-    "  ld t0, 584(x20)\n" ++          -- header length; zero means no witness context
-    "  beqz t0, .Lextcodehash_no_context\n" ++
-    "  la t1, eahsr_address_scratch\n" ++
-    extcodehashWitnessAddressCopy ++
-    "  addi sp, sp, -32\n" ++
-    "  sd x10, 0(sp)\n" ++
-    "  sd x12, 8(sp)\n" ++
-    "  ld a0, 576(x20)\n" ++         -- header ptr
-    "  ld a1, 584(x20)\n" ++         -- header len
-    "  la a2, eahsr_address_scratch\n" ++
-    "  ld a3, 592(x20)\n" ++         -- witness.state ptr
-    "  ld a4, 600(x20)\n" ++         -- witness.state len
-    "  ld a5, 8(sp)\n" ++            -- saved EVM stack ptr; a2 aliases x12
-    "  jal ra, extcodehash_at_header_state_root\n" ++
-    "  ld x10, 0(sp)\n" ++
-    "  ld x12, 8(sp)\n" ++
-    "  addi sp, sp, 32\n" ++
-    "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop\n" ++
-    ".Lextcodehash_no_context:\n" ++
-    "  sd zero, 0(x12)\n" ++
-    "  sd zero, 8(x12)\n" ++
-    "  sd zero, 16(x12)\n" ++
-    "  sd zero, 24(x12)\n" ++
-    "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop"
-
-def accountWitnessHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_EXTCODEHASH"
-    , opcodes := [0x3f]
-    , preBody := stackUnderflowGuardAsm 1
-    , body := []
-    , tail := extcodehashWitnessTail } ]
+-- Runtime account-witness handlers (EXTCODESIZE, EXTCODEHASH) live in
+-- `EvmAsm/Codegen/Programs/EvmAccountWitness.lean`.
 
 -- M17 / M22 storage handlers (SLOAD, SSTORE, TLOAD, TSTORE) live in
 -- `EvmAsm/Codegen/Programs/Storage.lean` — extracted at M22 (when
