@@ -11,7 +11,7 @@
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
   - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE (MSIZE and GAS have real implementations in Programs/Evm.lean)
-  - `popPushZeroHandlers` — BALANCE and EXTCODESIZE
+  - `popPushZeroHandlers` — BALANCE
     (EXTCODEHASH, BLOBHASH, and BLOCKHASH have real implementations in Programs/Evm.lean)
   - `copyNoopHandlers` — CODECOPY and RETURNDATACOPY
 
@@ -178,9 +178,9 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE).
-    Each opcode pops one 32-byte input (e.g., an address) and pushes a
-    32-byte zero value. Net EVM stack delta = 0.
+/-- M18 pop-and-push-zero handlers (BALANCE).
+    This opcode pops one 32-byte input (an address) and pushes a 32-byte zero
+    value. Net EVM stack delta = 0.
 
     Body (4 instructions): overwrite the popped slot with 32 zero
     bytes — same shape as M17's `SLOAD`/`TLOAD`. No `x12` movement
@@ -188,7 +188,6 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
 
     **Known limitations**:
     - BALANCE always returns 0 (no account state model).
-    - EXTCODESIZE always returns 0 (no external code-byte model yet).
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
@@ -199,7 +198,11 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     in `Programs/Evm.lean` with a real blob-hash-list implementation.
 
     **M29 update**: BLOCKHASH (0x40) was moved to `blockHashHandlers`
-    in `Programs/Evm.lean` with a real block-history implementation. -/
+    in `Programs/Evm.lean` with a real block-history implementation.
+
+    **M32 update**: EXTCODESIZE (0x3b) was moved to
+    `accountWitnessHandlers` in `Programs/Evm.lean` with a witness-backed
+    implementation. -/
 def popPushZeroHandlers : List OpcodeHandlerSpec :=
   let body : Program :=
     SD .x12 .x0 0 ;;
@@ -207,9 +210,6 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
     SD .x12 .x0 16 ;;
     SD .x12 .x0 24
   [ { label := "h_BALANCE", opcodes := [0x31]
-    , preBody := stackUnderflowGuardAsm 1
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_EXTCODESIZE", opcodes := [0x3b]
     , preBody := stackUnderflowGuardAsm 1
     , body := body, tail := .advanceAndRet 1 } ]
 
