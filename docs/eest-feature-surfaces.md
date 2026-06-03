@@ -16,6 +16,19 @@ Use TSV output when feeding another script:
 scripts/eest-feature-surface-report.py --format tsv
 ```
 
+Generate the opcode-family matrix when choosing the next dispatcher slice:
+
+```bash
+scripts/eest-feature-surface-report.py --opcode-families
+```
+
+The opcode-family report maps matching fixture groups to concrete implementation
+beads such as arithmetic/bitwise (`.60.2`), memory/calldata/returndata
+(`.60.3`), control/halting (`.60.4`), environment reads (`.60.5`),
+storage/logs/SELFDESTRUCT (`.60.6`), CALL/CREATE frames (`.61.1`), and
+precompile dispatch (`.62`). It uses token-aware path filters, so newly added
+EEST fixture files are counted without extending a hardcoded filename list.
+
 The classifier is path-based and deliberately cheap. A fixture may count in
 more than one surface when its path mentions multiple features, such as
 precompile gas or call/create gas.
@@ -46,6 +59,6 @@ scripts/codegen-eest-stateless-check.sh \
   --steps 200000000
 ```
 
-The generated report is the source of truth for current fixture counts. Update
-the classifier patterns when a new EEST directory introduces a feature class
-that falls into `unclassified / mixed`.
+The generated reports are the source of truth for current fixture counts. Update
+the broad-surface or opcode-family classifier patterns when a new EEST directory
+introduces a feature class that falls into `unclassified / mixed`.
