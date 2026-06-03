@@ -1,0 +1,87 @@
+name: Progress History
+
+# Appends one kernel-checked progress snapshot per push to `main` to the
+# long-lived `progress-history` orphan branch (R-A5, Phase 2 D2). The series is
+# read by `scripts/progress-velocity.sh` to surface velocity + the DIV-style
+# silent-downgrade regression alarm. Mirrors the `benchmark-history` pattern in
+# benchmark.yml, but needs NO Lean build: the counts come from the committed,
+# drift-gated PROGRESS.md (pinned to the kernel-checked renderer by
+# check-progress.sh), so this stays cheap.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Serialize so a manual dispatch can't race a push-triggered run.
+concurrency:
+  group: progress-history
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Emit snapshot record
+        id: snap
+        run: |
+          set -euo pipefail
+          rec="$(scripts/progress-snapshot.sh)"
+          echo "record=$rec" >> "$GITHUB_OUTPUT"
+          echo "$rec"
+
+      - name: Persist record to progress-history branch
+        if: steps.snap.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RECORD: ${{ steps.snap.outputs.record }}
+        run: |
+          set -euo pipefail
+          # Fresh working tree at a temp path so we don't disturb the checkout.
+          tmpdir=$(mktemp -d)
+          git -c protocol.version=2 clone --no-checkout --filter=blob:none \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "$tmpdir/history"
+          cd "$tmpdir/history"
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin progress-history >/dev/null 2>&1; then
+            git fetch --depth=1 origin progress-history
+            git checkout progress-history
+          else
+            git checkout --orphan progress-history
+            git rm -rf --quiet . 2>/dev/null || true
+            printf '%s\n' \
+              '# progress-history' \
+              '' \
+              'Append-only per-commit snapshots of the kernel-checked progress' \
+              'registry, emitted by `scripts/progress-snapshot.sh` from' \
+              '`.github/workflows/progress-history.yml` (steering Phase 2, R-A5).' \
+              '' \
+              'One JSON object per line in `history.jsonl` — see' \
+              '`scripts/progress-snapshot.sh` for the field list. Read with' \
+              '`scripts/progress-velocity.sh history.jsonl`.' \
+              > README.md
+            : > history.jsonl
+          fi
+          append() { printf '%s\n' "$RECORD" >> history.jsonl; }
+          append
+          git add history.jsonl README.md
+          git commit -m "progress: ${GITHUB_SHA::12}" --allow-empty
+          # Push with retries (no rebase, per project policy): on rejection,
+          # re-fetch, reset, re-append, recommit, retry.
+          for attempt in 1 2 3; do
+            if git push origin progress-history; then
+              echo "history push: ok on attempt $attempt"
+              break
+            fi
+            echo "history push: attempt $attempt failed, refetching + re-applying" >&2
+            git fetch origin progress-history
+            git reset --hard origin/progress-history
+            append
+            git add history.jsonl README.md
+            git commit -m "progress: ${GITHUB_SHA::12}" --allow-empty
+          done
