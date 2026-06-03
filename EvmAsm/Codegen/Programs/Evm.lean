@@ -32,6 +32,7 @@ import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
 import EvmAsm.Evm64.Multiply.Callable
 import EvmAsm.Evm64.Multiply.Program
+import EvmAsm.Evm64.MulMod.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
 import EvmAsm.Evm64.Pop.Program
@@ -237,12 +238,11 @@ def evmAddFromInputUnit : BuildUnit := {
     Programs compose under `++` while honoring the `x10` code-pointer
     convention that `evm_push` reads its immediates from.
 
-    Stack layout: 256 bytes of writable scratch ending at label
-    `evm_stack_top`. The EVM stack grows downward; the prologue
-    initializes `x12 = evm_stack_top` and each `evm_push` decrements
-    `x12` by 32 to allocate a new slot. Worst-case depth across both
-    test programs is 2 slots = 64 bytes, so 256 leaves comfortable
-    headroom. -/
+    Stack layout: 256 bytes of writable EVM stack below label
+    `evm_stack_top`, plus a post-top scratch window for opcode bodies that
+    use positive offsets from the live stack pointer. The EVM stack grows
+    downward; the prologue initializes `x12 = evm_stack_top` and each
+    `evm_push` decrements `x12` by 32 to allocate a new slot. -/
 
 /-- Dispatcher glue between unrolled opcode `Program`s: advance the
     EVM code pointer (`x10`) by the byte width of the opcode just
@@ -264,13 +264,13 @@ def tinyInterpPrologue : String :=
   "  la x12, evm_stack_top"
 
 /-- `.data` section: a label `evm_code` holding the bytecode bytes,
-    followed by 256 bytes of writable scratch ending at label
-    `evm_stack_top`. `bytecodeBytes` is a comma-separated `.byte`
-    directive payload (e.g. `"0x60, 0xff, 0x60, 0x01, 0x01, 0x00"`).
+    followed by the writable EVM stack and opcode scratch windows.
+    `bytecodeBytes` is a comma-separated `.byte` directive payload
+    (e.g. `"0x60, 0xff, 0x60, 0x01, 0x01, 0x00"`).
 
     Written as raw asm text rather than `emitDataLabel` because the
     layout is hybrid (`.byte` payload for the bytecode, `.zero` for
-    the stack scratch) — `emitDataLabel` only takes `UInt64` dwords. -/
+    the stack scratch) -- `emitDataLabel` only takes `UInt64` dwords. -/
 def tinyInterpDataSection (bytecodeBytes : String) : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
@@ -279,7 +279,9 @@ def tinyInterpDataSection (bytecodeBytes : String) : String :=
   ".balign 32\n" ++
   "evm_stack_low:\n" ++
   "  .zero 256\n" ++
-  "evm_stack_top:"
+  "evm_stack_top:\n" ++
+  "evm_stack_positive_scratch:\n" ++
+  "  .zero 256"
 
 /-- M5a test case 1: `PUSH1 0xFF; PUSH1 0x01; ADD; STOP`. Expected
     256-bit sum = `0x100`, which as four LE u64 limbs is
@@ -434,6 +436,19 @@ def evmSmodV5Patched : Program :=
     by `emitDispatcherEpilogue`), which takes the same exit path as
     STOP. -/
 
+/-- Raw dispatcher guard for handlers that read `wordCount` EVM stack
+    words before their verified body runs. The EVM stack grows downward
+    from `evm_stack_top`; a handler needing `n` words requires
+    `x12 <= evm_stack_top - 32*n`. If not, route to the exceptional
+    stack-underflow exit before any body performs unchecked loads. -/
+private def stackUnderflowGuardAsm (wordCount : Nat) : String :=
+  "  la x14, evm_stack_top\n" ++
+  s!"  addi x14, x14, -{wordCount * 32}\n" ++
+  "  bltu x14, x12, .exit_stack_underflow"
+
+private def stackUnderflowGuardSaveX10Asm (wordCount : Nat) : String :=
+  stackUnderflowGuardAsm wordCount ++ "\n  mv x9, x10"
+
 /-- PUSH0..PUSH32. Opcode byte = `0x5f + n`; the handler advances
     `x10` by `1 + n` (one opcode byte + `n` immediate bytes). -/
 def pushHandlers : List OpcodeHandlerSpec :=
@@ -451,6 +466,7 @@ def dupHandlers : List OpcodeHandlerSpec :=
     let n := i + 1
     { label   := s!"h_DUP{n}"
       opcodes := [0x7f + n]
+      preBody := stackUnderflowGuardAsm n
       body    := EvmAsm.Evm64.evm_dup n
       tail    := .advanceAndRet 1 })
 
@@ -462,6 +478,7 @@ def swapHandlers : List OpcodeHandlerSpec :=
     let n := i + 1
     { label   := s!"h_SWAP{n}"
       opcodes := [0x8f + n]
+      preBody := stackUnderflowGuardAsm (n + 1)
       body    := EvmAsm.Evm64.evm_swap n
       tail    := .advanceAndRet 1 })
 
@@ -507,26 +524,26 @@ private def updateActiveMemorySizeConstAsm
     verified opcode body touches) and use `x10RestoreAdvance1` as
     the tail to restore before advancing. -/
 def singletonHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_ADD"        , opcodes := [0x01], body := EvmAsm.Evm64.evm_add       , tail := .advanceAndRet 1 }
-  , { label := "h_MUL"        , opcodes := [0x02], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_mul       , tail := x10RestoreAdvance1 }
-  , { label := "h_SUB"        , opcodes := [0x03], body := EvmAsm.Evm64.evm_sub       , tail := .advanceAndRet 1 }
-  , { label := "h_SIGNEXTEND" , opcodes := [0x0b], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_signextend, tail := x10RestoreAdvance1 }
-  , { label := "h_LT"         , opcodes := [0x10], body := EvmAsm.Evm64.evm_lt        , tail := .advanceAndRet 1 }
-  , { label := "h_GT"         , opcodes := [0x11], body := EvmAsm.Evm64.evm_gt        , tail := .advanceAndRet 1 }
-  , { label := "h_SLT"        , opcodes := [0x12], body := EvmAsm.Evm64.evm_slt       , tail := .advanceAndRet 1 }
-  , { label := "h_SGT"        , opcodes := [0x13], body := EvmAsm.Evm64.evm_sgt       , tail := .advanceAndRet 1 }
-  , { label := "h_EQ"         , opcodes := [0x14], body := EvmAsm.Evm64.evm_eq        , tail := .advanceAndRet 1 }
-  , { label := "h_ISZERO"     , opcodes := [0x15], body := EvmAsm.Evm64.evm_iszero    , tail := .advanceAndRet 1 }
-  , { label := "h_AND"        , opcodes := [0x16], body := EvmAsm.Evm64.evm_and       , tail := .advanceAndRet 1 }
-  , { label := "h_OR"         , opcodes := [0x17], body := EvmAsm.Evm64.evm_or        , tail := .advanceAndRet 1 }
-  , { label := "h_XOR"        , opcodes := [0x18], body := EvmAsm.Evm64.evm_xor       , tail := .advanceAndRet 1 }
-  , { label := "h_NOT"        , opcodes := [0x19], body := EvmAsm.Evm64.evm_not       , tail := .advanceAndRet 1 }
-  , { label := "h_BYTE"       , opcodes := [0x1a], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_byte      , tail := x10RestoreAdvance1 }
-  , { label := "h_SHL"        , opcodes := [0x1b], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_shl       , tail := x10RestoreAdvance1 }
-  , { label := "h_SHR"        , opcodes := [0x1c], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_shr       , tail := x10RestoreAdvance1 }
-  , { label := "h_SAR"        , opcodes := [0x1d], preBody := "  mv x9, x10", body := EvmAsm.Evm64.evm_sar       , tail := x10RestoreAdvance1 }
-  , { label := "h_CLZ"        , opcodes := [0x1e], body := []                         , tail := clzTail }
-  , { label := "h_POP"        , opcodes := [0x50], body := EvmAsm.Evm64.evm_pop       , tail := .advanceAndRet 1 } ]
+  [ { label := "h_ADD"        , opcodes := [0x01], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_add       , tail := .advanceAndRet 1 }
+  , { label := "h_MUL"        , opcodes := [0x02], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_mul       , tail := x10RestoreAdvance1 }
+  , { label := "h_SUB"        , opcodes := [0x03], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_sub       , tail := .advanceAndRet 1 }
+  , { label := "h_SIGNEXTEND" , opcodes := [0x0b], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_signextend, tail := x10RestoreAdvance1 }
+  , { label := "h_LT"         , opcodes := [0x10], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_lt        , tail := .advanceAndRet 1 }
+  , { label := "h_GT"         , opcodes := [0x11], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_gt        , tail := .advanceAndRet 1 }
+  , { label := "h_SLT"        , opcodes := [0x12], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_slt       , tail := .advanceAndRet 1 }
+  , { label := "h_SGT"        , opcodes := [0x13], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_sgt       , tail := .advanceAndRet 1 }
+  , { label := "h_EQ"         , opcodes := [0x14], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_eq        , tail := .advanceAndRet 1 }
+  , { label := "h_ISZERO"     , opcodes := [0x15], preBody := stackUnderflowGuardAsm 1, body := EvmAsm.Evm64.evm_iszero    , tail := .advanceAndRet 1 }
+  , { label := "h_AND"        , opcodes := [0x16], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_and       , tail := .advanceAndRet 1 }
+  , { label := "h_OR"         , opcodes := [0x17], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_or        , tail := .advanceAndRet 1 }
+  , { label := "h_XOR"        , opcodes := [0x18], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_xor       , tail := .advanceAndRet 1 }
+  , { label := "h_NOT"        , opcodes := [0x19], preBody := stackUnderflowGuardAsm 1, body := EvmAsm.Evm64.evm_not       , tail := .advanceAndRet 1 }
+  , { label := "h_BYTE"       , opcodes := [0x1a], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_byte      , tail := x10RestoreAdvance1 }
+  , { label := "h_SHL"        , opcodes := [0x1b], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_shl       , tail := x10RestoreAdvance1 }
+  , { label := "h_SHR"        , opcodes := [0x1c], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_shr       , tail := x10RestoreAdvance1 }
+  , { label := "h_SAR"        , opcodes := [0x1d], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_sar       , tail := x10RestoreAdvance1 }
+  , { label := "h_CLZ"        , opcodes := [0x1e], preBody := stackUnderflowGuardAsm 1, body := []                         , tail := clzTail }
+  , { label := "h_POP"        , opcodes := [0x50], preBody := stackUnderflowGuardAsm 1, body := EvmAsm.Evm64.evm_pop       , tail := .advanceAndRet 1 } ]
 
 /-- M7 memory opcodes. Register-parameterized; the dispatcher
     prologue sets up `x13 = &evm_memory` (see
@@ -1188,6 +1205,21 @@ def accountWitnessHandlers : List OpcodeHandlerSpec :=
     needs a trampoline-style wrapper (set `x18` to a per-handler
     "restore" stub before the body runs, splice off the body's
     initial save_ra_block). Tracked as the next codegen PR. -/
+private def mulmodTail : HandlerTail :=
+  .custom <|
+    "  mv x10, x23\n" ++
+    "  mv x13, x21\n" ++
+    "  mv x20, x22\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  ret"
+
+def mulmodHandlers : List OpcodeHandlerSpec :=
+  [ { label   := "h_MULMOD"
+      opcodes := [0x09]
+      preBody := "  mv x23, x10\n  mv x21, x13\n  mv x22, x20"
+      body    := EvmAsm.Evm64.evm_mulmod
+      tail    := mulmodTail } ]
+
 private def divModTail : HandlerTail :=
   .custom "  mv x10, x14\n  addi x10, x10, 1\n  ret"
 
@@ -1411,29 +1443,8 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   accountWitnessHandlers ++ storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
-  arithNoopHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]
-
-def tinyInterpDispatchAddUnit : BuildUnit :=
-  buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAddBytecode
-
-def tinyInterpDispatchAdd2Unit : BuildUnit :=
-  buildDispatchUnit tinyInterpRegistry evmAddEpilogue tinyInterpAdd2Bytecode
-
-/-! ## runtime_dispatcher — M8.5 runtime-bytecode dispatcher
-
-    Same `tinyInterpRegistry` and `evmAddEpilogue` as the
-    `tiny_interp_dispatch_*` units, but the dispatcher prologue
-    reads `x10` from `INPUT_ADDR + INPUT_DATA_OFFSET = 0x40000010`
-    instead of an in-`.data` label. One ELF runs any bytecode; the
-    bash test harness packs each per-case bytecode into a
-    ziskemu `-i <file>` payload and reuses the same dispatcher
-    ELF for every case.
-
-    See `EvmAsm/Codegen/Dispatch.lean` for `buildRuntimeDispatchUnit`
-    and the runtime prologue/data-section helpers. -/
-def runtimeDispatcherUnit : BuildUnit :=
-  buildRuntimeDispatchUnit tinyInterpRegistry evmAddEpilogue
 
 /-! ## evm_div — M2 first DIV end-to-end through ziskemu
 
