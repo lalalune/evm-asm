@@ -110,6 +110,14 @@ exists. The next implementation slice must either add/prove a concrete zisk
 RIPEMD160 backend path, or explicitly implement RIPEMD160 in the guest and test
 it against Ethereum's `hashlib.new("ripemd160", data)` behavior.
 
+RIPEMD160 has two byte-level boundaries. The computation boundary produces the
+raw 20-byte digest. The EVM precompile output boundary is 32 bytes: 12 leading
+zero bytes followed by that digest, matching execution-specs
+`left_pad_zero_bytes(hash_bytes, 32)`. The Lean bridge records this as
+`Ripemd160ResultBridge.evmOutputBytesFromHash`; dispatch code should copy those
+32 bytes as returndata, while stack-word views may decode the raw 20-byte
+digest as a big-endian word because the high 12 bytes are then zero.
+
 ECRECOVER is only partially supported at the zisk layer:
 
 - ziskemu has secp256k1 point-add and point-double primitives
