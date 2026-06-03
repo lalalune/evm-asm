@@ -594,7 +594,7 @@ example : runMulMod 1024
     2 0 0 0
     3 0 0 0
     0 0 0 0
-    64 = some (1088, [0, 0, 0, 0]) := by set_option maxRecDepth 2000 in rfl
+    64 = some (1088, [0, 0, 0, 0]) := by set_option maxRecDepth 5000 in rfl
 
 -- Nonzero end-to-end MULMOD cases execute the 512-iteration reducer loop and
 -- are intentionally covered by ziskemu runtime tests in the dispatcher slice
