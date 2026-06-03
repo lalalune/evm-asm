@@ -141,19 +141,19 @@ def blake2fGas (rounds : Nat) : Nat :=
 
 theorem ofAddress?_address (p : Precompile) :
     ofAddress? p.address = some p := by
-  cases p <;> native_decide
+  cases p <;> decide
 
 theorem ofAddress?_zero :
     ofAddress? (0 : Address) = none := by
-  native_decide
+  decide
 
 theorem ofAddress?_eighteen :
     ofAddress? (0x12 : Address) = none := by
-  native_decide
+  decide
 
 theorem ofAddress?_oneHundredOne :
     ofAddress? (0x101 : Address) = none := by
-  native_decide
+  decide
 
 theorem isPrecompileAddress_address (p : Precompile) :
     isPrecompileAddress p.address := by
