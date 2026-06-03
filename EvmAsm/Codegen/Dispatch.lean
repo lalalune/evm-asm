@@ -40,6 +40,16 @@ def evmStackScratchBytes : Nat := evmStackWordCapacity * evmStackWordBytes
     nearby stack-relative offsets as internal scratch. -/
 def evmStackGuardBytes : Nat := 512
 
+/-- Raw dispatcher guard for handlers that read `wordCount` EVM stack
+    words before their body runs. The EVM stack grows downward from
+    `evm_stack_top`; a handler needing `n` words requires
+    `x12 <= evm_stack_top - 32*n`. If not, route to the exceptional
+    stack-underflow exit before any body performs unchecked loads. -/
+def stackUnderflowGuardAsm (wordCount : Nat) : String :=
+  "  la x14, evm_stack_top\n" ++
+  s!"  addi x14, x14, -{wordCount * evmStackWordBytes}\n" ++
+  "  bltu x14, x12, .exit_stack_underflow"
+
 /-- Tail emitted after each handler's verified body.
 
     `advanceAndRet width` is the standard subroutine return: advance

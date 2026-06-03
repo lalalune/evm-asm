@@ -437,16 +437,6 @@ def evmSmodV5Patched : Program :=
     by `emitDispatcherEpilogue`), which takes the same exit path as
     STOP. -/
 
-/-- Raw dispatcher guard for handlers that read `wordCount` EVM stack
-    words before their verified body runs. The EVM stack grows downward
-    from `evm_stack_top`; a handler needing `n` words requires
-    `x12 <= evm_stack_top - 32*n`. If not, route to the exceptional
-    stack-underflow exit before any body performs unchecked loads. -/
-private def stackUnderflowGuardAsm (wordCount : Nat) : String :=
-  "  la x14, evm_stack_top\n" ++
-  s!"  addi x14, x14, -{wordCount * 32}\n" ++
-  "  bltu x14, x12, .exit_stack_underflow"
-
 private def stackUnderflowGuardSaveX10Asm (wordCount : Nat) : String :=
   stackUnderflowGuardAsm wordCount ++ "\n  mv x9, x10"
 
@@ -562,7 +552,8 @@ def memoryHandlers : List OpcodeHandlerSpec :=
     -- scratch: offReg=x15, byteReg=x16, accReg=x17, addrReg=x18.
     { label   := "h_MLOAD"
       opcodes := [0x51]
-      preBody := "  ld x15, 0(x12)\n" ++
+      preBody := stackUnderflowGuardAsm 1 ++ "\n" ++
+                 "  ld x15, 0(x12)\n" ++
                  updateActiveMemorySizeConstAsm "mload" "x15" "x16" "x17" "x18" "x19" 32
       body    := EvmAsm.Evm64.evm_mload .x15 .x16 .x17 .x18 .x13
       tail    := .advanceAndRet 1 }
@@ -570,14 +561,16 @@ def memoryHandlers : List OpcodeHandlerSpec :=
     -- valReg=x14 (scratch; placeholder per evm_mstore docstring).
     { label   := "h_MSTORE"
       opcodes := [0x52]
-      preBody := "  ld x15, 0(x12)\n" ++
+      preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
+                 "  ld x15, 0(x12)\n" ++
                  updateActiveMemorySizeConstAsm "mstore" "x15" "x16" "x17" "x18" "x19" 32
       body    := EvmAsm.Evm64.evm_mstore .x15 .x14 .x16 .x17 .x18 .x13
       tail    := .advanceAndRet 1 }
   , -- MSTORE8: pop offset + value, write 1 byte to memory.
     { label   := "h_MSTORE8"
       opcodes := [0x53]
-      preBody := "  ld x15, 0(x12)\n" ++
+      preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
+                 "  ld x15, 0(x12)\n" ++
                  updateActiveMemorySizeConstAsm "mstore8" "x15" "x16" "x17" "x18" "x19" 1
       body    := EvmAsm.Evm64.evm_mstore8 .x15 .x14 .x18 .x13
       tail    := .advanceAndRet 1 } ]
@@ -686,6 +679,7 @@ def blobContextHandlers : List OpcodeHandlerSpec :=
   ++
   [ { label := "h_BLOBHASH"
     , opcodes := [0x49]
+    , preBody := stackUnderflowGuardAsm 1
     , body := []
     , tail := .custom <|
         "  ld x14, 8(x12)\n" ++          -- high limbs must be zero
@@ -737,6 +731,7 @@ def blobContextHandlers : List OpcodeHandlerSpec :=
 def blockHashHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_BLOCKHASH"
     , opcodes := [0x40]
+    , preBody := stackUnderflowGuardAsm 1
     , body := []
     , tail := .custom <|
         "  ld x14, 8(x12)\n" ++
@@ -815,7 +810,7 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     -- trusted test programs that respect bounds, this is correct. -/
     { label   := "h_CALLDATALOAD"
     , opcodes := [0x35]
-    , preBody := "  ld x14, 416(x20)\n"
+    , preBody := stackUnderflowGuardAsm 1 ++ "\n  ld x14, 416(x20)\n"
     , body    := EvmAsm.Evm64.Calldata.evm_calldataload_window
                    .x15 .x16 .x17 .x18 .x14
     , tail    := .advanceAndRet 1 }
@@ -829,7 +824,8 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     -- (M7); the remaining 6 args are caller-saved scratch.
     { label   := "h_CALLDATACOPY"
     , opcodes := [0x37]
-    , preBody := "  ld x14, 0(x12)\n" ++
+    , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
+                 "  ld x14, 0(x12)\n" ++
                  "  ld x15, 64(x12)\n" ++
                  updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18"
     , body    := EvmAsm.Evm64.Calldata.evm_calldatacopy
@@ -844,6 +840,7 @@ def calldataHandlers : List OpcodeHandlerSpec :=
 def mcopyHandlers : List OpcodeHandlerSpec :=
   [ { label   := "h_MCOPY"
       opcodes := [0x5e]
+      preBody := stackUnderflowGuardAsm 3
       body    := []
       tail    := .custom <|
         "  ld x14, 0(x12)\n" ++          -- destination offset
@@ -924,10 +921,12 @@ def controlFlowHandlers : List OpcodeHandlerSpec :=
     , tail    := .advanceAndRet 1 }
   , { label := "h_JUMP"
     , opcodes := [0x56]
+    , preBody := stackUnderflowGuardAsm 1
     , body    := EvmAsm.Evm64.ControlFlow.evm_jump .x21 .x14 .x17
     , tail    := jumpValidityTail }
   , { label := "h_JUMPI"
     , opcodes := [0x57]
+    , preBody := stackUnderflowGuardAsm 2
     , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x14 .x15 .x16 .x17
     , tail    := jumpiValidityTail }
   , { label := "h_PC"
@@ -969,6 +968,7 @@ def controlFlowHandlers : List OpcodeHandlerSpec :=
 def hashHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_KECCAK256"
     , opcodes := [0x20]
+    , preBody := stackUnderflowGuardAsm 2
     , body    := []
     , tail    := .custom (
         "  mv s10, x10\n" ++           -- save EVM code ptr
@@ -1084,23 +1084,23 @@ def logCapturePreBody (topicCount : Nat) : String :=
     byte, and returns to the dispatcher. -/
 def logHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_LOG0", opcodes := [0xa0]
-    , preBody := logCapturePreBody 0
+    , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++ logCapturePreBody 0
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG1", opcodes := [0xa1]
-    , preBody := logCapturePreBody 1
+    , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++ logCapturePreBody 1
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG2", opcodes := [0xa2]
-    , preBody := logCapturePreBody 2
+    , preBody := stackUnderflowGuardAsm 4 ++ "\n" ++ logCapturePreBody 2
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 128)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG3", opcodes := [0xa3]
-    , preBody := logCapturePreBody 3
+    , preBody := stackUnderflowGuardAsm 5 ++ "\n" ++ logCapturePreBody 3
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 160)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG4", opcodes := [0xa4]
-    , preBody := logCapturePreBody 4
+    , preBody := stackUnderflowGuardAsm 6 ++ "\n" ++ logCapturePreBody 4
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
     , tail := .advanceAndRet 1 } ]
 
@@ -1163,6 +1163,7 @@ private def extcodehashWitnessTail : HandlerTail :=
 def accountWitnessHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_EXTCODEHASH"
     , opcodes := [0x3f]
+    , preBody := stackUnderflowGuardAsm 1
     , body := []
     , tail := extcodehashWitnessTail } ]
 
@@ -1217,7 +1218,7 @@ private def mulmodTail : HandlerTail :=
 def mulmodHandlers : List OpcodeHandlerSpec :=
   [ { label   := "h_MULMOD"
       opcodes := [0x09]
-      preBody := "  mv x23, x10\n  mv x21, x13\n  mv x22, x20"
+      preBody := stackUnderflowGuardAsm 3 ++ "\n  mv x23, x10\n  mv x21, x13\n  mv x22, x20"
       body    := EvmAsm.Evm64.evm_mulmod
       tail    := mulmodTail } ]
 
@@ -1227,12 +1228,12 @@ private def divModTail : HandlerTail :=
 def divModHandlers : List OpcodeHandlerSpec :=
   [ { label   := "h_DIV"
       opcodes := [0x04]
-      preBody := "  mv x14, x10"
+      preBody := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10"
       body    := evmDivPatched
       tail    := divModTail }
   , { label   := "h_MOD"
       opcodes := [0x06]
-      preBody := "  mv x14, x10"
+      preBody := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10"
       body    := evmModPatched
       tail    := divModTail } ]
 
@@ -1280,13 +1281,13 @@ private def signedDivModTail : HandlerTail :=
 def signedDivModHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_SDIV"
       opcodes       := [0x05]
-      preBody       := "  mv x14, x10\n  la x18, h_SDIV_done"
+      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x18, h_SDIV_done"
       body          := evmSdivPatched
       postBodyLabel := some "h_SDIV_done"
       tail          := signedDivModTail }
   , { label         := "h_SMOD"
       opcodes       := [0x07]
-      preBody       := "  mv x14, x10\n  la x18, h_SMOD_done"
+      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x18, h_SMOD_done"
       body          := evmSmodPatched
       postBodyLabel := some "h_SMOD_done"
       tail          := signedDivModTail } ]
@@ -1416,12 +1417,12 @@ private def expTail : HandlerTail :=
 def selfCallingHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_ADDMOD"
       opcodes       := [0x08]
-      preBody       := "  mv x14, x10"
+      preBody       := stackUnderflowGuardAsm 3 ++ "\n  mv x14, x10"
       body          := []
       tail          := evmAddmodRuntimeTail }
   , { label         := "h_EXP"
       opcodes       := [0x0a]
-      preBody       := "  mv x14, x10\n  la x2, exp_scratch"
+      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x2, exp_scratch"
       body          := evmExpComposed
       tail          := expTail } ]
 
