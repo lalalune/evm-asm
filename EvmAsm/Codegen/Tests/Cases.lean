@@ -694,6 +694,12 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "balance_pop_push_zero"
       bytecode       := "0x60, 0xab, 0x31, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0xab; EXTCODESIZE; STOP without an account-witness trailer.
+    -- The witness-backed runtime handler preserves the old no-context
+    -- fallback and overwrites the address with code length 0.
+    { name           := "extcodesize_no_context_zero"
+      bytecode       := "0x60, 0xab, 0x3b, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x01; PUSH1 0x02; PUSH1 0x03; MCOPY; PUSH1 0x42; STOP
     -- MCOPY pops 3 args; PUSH1 0x42 lands on the empty stack.
     { name           := "mcopy_pop3"

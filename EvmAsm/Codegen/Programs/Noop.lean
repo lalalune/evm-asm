@@ -11,7 +11,7 @@
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
   - `pushZeroHandlers` — CODESIZE (MSIZE/GAS and RETURNDATASIZE have real implementations)
-  - `popPushZeroHandlers` — EXTCODESIZE
+  - `popPushZeroHandlers` — (BALANCE and EXTCODESIZE both have witness-backed implementations)
     (EXTCODEHASH, BLOBHASH, and BLOCKHASH have real implementations in Programs/Evm.lean)
   - `copyNoopHandlers` — CODECOPY
   - `returnDataHandlers` — RETURNDATASIZE and RETURNDATACOPY
@@ -174,7 +174,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_CODESIZE", opcodes := [0x38]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (EXTCODESIZE).
+/-- M18 pop-and-push-zero handlers (BALANCE and EXTCODESIZE).
     This opcode pops one 32-byte input (an address) and pushes a 32-byte zero
     value. Net EVM stack delta = 0.
 
@@ -183,7 +183,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     needed.
 
     **Known limitations**:
-    - EXTCODESIZE always returns 0 (no external code-byte model yet).
+    - BALANCE and EXTCODESIZE both have witness-backed implementations.
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
@@ -196,17 +196,10 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     **M29 update**: BLOCKHASH (0x40) was moved to `blockHashHandlers`
     in `Programs/Evm.lean` with a real block-history implementation.
 
-    **M32 update**: BALANCE (0x31) was moved to `balanceWitnessHandlers`
-    in `Programs/EvmBalance.lean` with a witness-backed implementation. -/
+    **M32 update**: EXTCODESIZE (0x3b) and BALANCE (0x31) moved to
+    witness-backed implementations (`EvmAccountWitness.lean` / `EvmBalance.lean`). -/
 def popPushZeroHandlers : List OpcodeHandlerSpec :=
-  let body : Program :=
-    SD .x12 .x0 0 ;;
-    SD .x12 .x0 8 ;;
-    SD .x12 .x0 16 ;;
-    SD .x12 .x0 24
-  [ { label := "h_EXTCODESIZE", opcodes := [0x3b]
-    , preBody := stackUnderflowGuardAsm 1
-    , body := body, tail := .advanceAndRet 1 } ]
+  []
 
 /-- M18 copy-no-op handler for CODECOPY.
     CODECOPY pops 3 stack words and would copy bytes into EVM memory.
