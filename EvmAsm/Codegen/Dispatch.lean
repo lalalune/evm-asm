@@ -19,10 +19,26 @@
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
+
+/-- Protocol EVM stack depth in 256-bit words. The dispatcher stack arena
+    is static, so this is the capacity that valid bytecode may rely on. -/
+def evmStackWordCapacity : Nat := 1024
+
+/-- Runtime EVM stack slot size: one 256-bit word. -/
+def evmStackWordBytes : Nat := 32
+
+/-- Static byte size reserved for the runtime EVM stack arena. -/
+def evmStackScratchBytes : Nat := evmStackWordCapacity * evmStackWordBytes
+
+/-- Guard bytes around the EVM stack arena for opcode bodies that still use
+    nearby stack-relative offsets as internal scratch. -/
+def evmStackGuardBytes : Nat := 512
 
 /-- Tail emitted after each handler's verified body.
 
@@ -294,6 +310,9 @@ def emitRuntimeAccountWitnessData : String :=
   ".balign 32\n" ++
   "eahsr_state_root:\n" ++
   "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "eahsr_address_scratch:\n" ++
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "eahsr_acct_struct:\n" ++
   "  .zero 104\n" ++
@@ -303,6 +322,9 @@ def emitRuntimeAccountWitnessData : String :=
   "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
+  ".balign 32\n" ++
+  "ecc_address_scratch:\n" ++
+  "  .zero 32\n" ++
   ".balign 32\n" ++
   "ecc_state_root:\n" ++
   "  .zero 32\n" ++
@@ -418,7 +440,8 @@ def emitDispatcherPrologue : String :=
 
     `halt_kind` scheme (`OUTPUT + 32`, u64 LE):
     `0` STOP/unspecified · `1` RETURN · `2` REVERT · `3` INVALID (0xfe) ·
-    `4` invalid JUMP/JUMPI dest (M15.5) · `5` SELFDESTRUCT (0xff). -/
+    `4` invalid JUMP/JUMPI dest (M15.5) · `5` SELFDESTRUCT (0xff) ·
+    `6` out-of-gas · `7` stack underflow. -/
 def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"{label}:\n" ++
   "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
@@ -453,6 +476,19 @@ def emitDispatcherEpilogue
   -- with `ret`, returning to whoever JAL'd them.
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  mptBranchChildFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
+  mptLookupByKeyFunction ++ "\n" ++
+  accountDecodeFunction ++ "\n" ++
+  accountAtAddressFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  extcodehashAtHeaderStateRootFunction ++ "\n" ++
+  extcodecopyAtHeaderStateRootFunction ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
@@ -466,10 +502,12 @@ def emitDispatcherEpilogue
   --   .exit_invalid_op  (3) — M23.5 INVALID opcode (0xfe)
   --   .exit_selfdestruct(5) — M23.5 SELFDESTRUCT (0xff)
   --   .exit_outofgas    (6) — M30 dispatch-loop gas underflow
+  --   .exit_stack_underflow(7) — stack consumer with too few words
   emitExceptionalExit ".exit_invalid" 4 ++
   emitExceptionalExit ".exit_invalid_op" 3 ++
   emitExceptionalExit ".exit_selfdestruct" 5 ++
   emitExceptionalExit ".exit_outofgas" 6 ++
+  emitExceptionalExit ".exit_stack_underflow" 7 ++
   ".exit_label:\n" ++
   emitProgram exitBody ++ "\n" ++
   ".exit_no_epilogue:\n" ++
@@ -584,31 +622,31 @@ def emitDispatcherEpilogue
     ```
     evm_code:         <bytecode> (~50 B)
     .balign 32
-    evm_stack_low:    .zero 256             (256-byte EVM stack scratch)
-    evm_stack_top:
-    .balign 32
     evm_memory:       .zero 0x8000          (32 KiB EVM memory, M7 onward)
     .balign 8
+    evm_env:          runtime environment and helper scratch follows
+    lp64_stack:       helper-call stack
+    evm_stack_guard:  .zero evmStackGuardBytes
+    evm_stack_low:    .zero evmStackScratchBytes
+                       (1024 × 32 B = 32 KiB EVM stack arena)
+    evm_stack_top:
+    evm_stack_top_guard:
+                       .zero evmStackGuardBytes
     opcode_handlers:  256 × .dword (jump table, 2 KiB)
     ```
 
-    Total: ~50 + 256 + 32768 + 2048 ≈ 35 KiB, well under the 64 KiB
-    cap before `OUTPUT_ADDR = 0xa0010000`. Going beyond 32 KiB of
-    EVM memory would risk overrunning OUTPUT_ADDR.
-
-    The EVM stack region grows downward from `evm_stack_top`; safe at
-    the worst-case M5b depth of 2 (= 64 bytes). The EVM memory region
-    grows upward from `evm_memory` indexed by `memBaseReg + offset`. -/
+    The EVM memory region stays near the start of `.data` and grows upward
+    from `evm_memory` indexed by `memBaseReg + offset`. The EVM stack lives
+    in its own later static arena, grows downward from `evm_stack_top`, and
+    supports the protocol 1024-word depth. The guard regions keep current
+    stack-relative handler scratch inside reserved memory for existing runtime
+    handler shapes while stack-overflow enforcement is tracked separately. -/
 def emitDispatcherDataSection
     (bytecodeBytes : String) (registry : List OpcodeHandlerSpec) : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "evm_code:\n" ++
   s!"  .byte {bytecodeBytes}\n" ++
-  ".balign 32\n" ++
-  "evm_stack_low:\n" ++
-  "  .zero 256\n" ++
-  "evm_stack_top:\n" ++
   ".balign 32\n" ++
   "evm_memory:\n" ++
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
@@ -640,6 +678,14 @@ def emitDispatcherDataSection
   "lp64_stack:\n" ++
   "  .zero 262144\n" ++   -- LP64 stack for nested KECCAK/RLP/MPT/account helpers
   "lp64_sp_top:\n" ++
+  ".balign 32\n" ++
+  "evm_stack_guard_low:\n" ++
+  s!"  .zero {evmStackGuardBytes}\n" ++
+  "evm_stack_low:\n" ++
+  s!"  .zero {evmStackScratchBytes}\n" ++
+  "evm_stack_top:\n" ++
+  "evm_stack_top_guard:\n" ++
+  s!"  .zero {evmStackGuardBytes}\n" ++
   ".balign 8\n" ++
   "exp_scratch:\n" ++
   "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
@@ -648,6 +694,12 @@ def emitDispatcherDataSection
                           -- `lp64_sp_top` (top of a down-growing stack), so
                           -- `sp+0..24` would scribble into the jump table.
                           -- h_EXP's preBody repoints `x2` here and its tail
+  ".balign 32\n" ++
+  "addmod_runtime_scratch:\n" ++
+  "  .zero 128\n" ++      -- ADDMOD (0x08): two callable MOD frames for the carry path.
+  ".balign 8\n" ++
+  "addmod_saved_stack_ptr:\n" ++
+  "  .zero 8\n" ++        -- Original EVM stack pointer across inner MOD calls.
                           -- restores `sp = lp64_sp_top`.
   emitGasCostTable ++ "\n" ++
   emitJumpTable registry
@@ -892,14 +944,11 @@ def emitRuntimeDispatcherPrologue : String :=
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
-    variant. Same 32 KiB budget concerns. -/
+    variant. The static EVM stack arena is sized for the protocol
+    1024-word stack depth. -/
 def emitRuntimeDispatcherDataSection
     (registry : List OpcodeHandlerSpec) : String :=
   ".section .data\n" ++
-  ".balign 32\n" ++
-  "evm_stack_low:\n" ++
-  "  .zero 256\n" ++
-  "evm_stack_top:\n" ++
   ".balign 32\n" ++
   "evm_memory:\n" ++
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
@@ -931,6 +980,14 @@ def emitRuntimeDispatcherDataSection
   "lp64_stack:\n" ++
   "  .zero 262144\n" ++   -- LP64 stack for nested KECCAK/RLP/MPT/account helpers
   "lp64_sp_top:\n" ++
+  ".balign 32\n" ++
+  "evm_stack_guard_low:\n" ++
+  s!"  .zero {evmStackGuardBytes}\n" ++
+  "evm_stack_low:\n" ++
+  s!"  .zero {evmStackScratchBytes}\n" ++
+  "evm_stack_top:\n" ++
+  "evm_stack_top_guard:\n" ++
+  s!"  .zero {evmStackGuardBytes}\n" ++
   ".balign 8\n" ++
   "exp_scratch:\n" ++
   "  .zero 32\n" ++       -- EXP (0x0a): 32-byte result-accumulator frame. The
@@ -939,6 +996,12 @@ def emitRuntimeDispatcherDataSection
                           -- `lp64_sp_top` (top of a down-growing stack), so
                           -- `sp+0..24` would scribble into the jump table.
                           -- h_EXP's preBody repoints `x2` here and its tail
+  ".balign 32\n" ++
+  "addmod_runtime_scratch:\n" ++
+  "  .zero 128\n" ++      -- ADDMOD (0x08): two callable MOD frames for the carry path.
+  ".balign 8\n" ++
+  "addmod_saved_stack_ptr:\n" ++
+  "  .zero 8\n" ++        -- Original EVM stack pointer across inner MOD calls.
                           -- restores `sp = lp64_sp_top`.
   emitGasCostTable ++ "\n" ++
   emitJumpTable registry

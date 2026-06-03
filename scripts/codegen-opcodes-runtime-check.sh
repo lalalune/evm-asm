@@ -70,10 +70,10 @@ while IFS= read -r line; do
   # (tab is treated as IFS-whitespace), which silently shifts the
   # storage column into the calldata slot when calldata is empty.
   # `cut -f` preserves empty fields, so we slice each column
-  # explicitly. Order matches `--list-test-cases` 16-column TSV
-  # (M23 added col 6; M24 added cols 7 and 8 for the log-length
-  # assertions; M25 added col 9 for the post-state slot dump; M26
-  # added cols 10 and 11 for receipt event-log capture).
+  # explicitly. Order matches `--list-test-cases` 20-column TSV
+  # (M23 added halt-kind; M24 added log lengths; M25 added post-state
+  # slot dumps; M26 added receipt event-log capture; M31 added the
+  # extended RETURN/REVERT returndata surface).
   name=$(printf '%s' "$line" | cut -f1)
   expected=$(printf '%s' "$line" | cut -f2)
   bytecode_csv=$(printf '%s' "$line" | cut -f3)
@@ -91,6 +91,9 @@ while IFS= read -r line; do
   expected_event_log_count=$(printf '%s' "$line" | cut -f15)
   expected_event_log_first=$(printf '%s' "$line" | cut -f16)
   gas_limit=$(printf '%s' "$line" | cut -f17)
+  expected_return_data_copied=$(printf '%s' "$line" | cut -f18)
+  expected_return_data_length=$(printf '%s' "$line" | cut -f19)
+  expected_return_data_hex=$(printf '%s' "$line" | cut -f20)
 
   if [[ -z "$name" || -z "$expected" || -z "$bytecode_csv" ]]; then
     echo
@@ -226,6 +229,43 @@ while IFS= read -r line; do
     echo "  $actual_event_log_first"
     if [[ "$actual_event_log_first" != "$expected_event_log_first" ]]; then
       case_failed="${case_failed:+$case_failed,}event_log_first"
+    fi
+  fi
+
+  # M31: extended RETURN/REVERT returndata diagnostics. The legacy
+  # OUTPUT[0..32] prefix and halt_kind at OUTPUT+32 remain unchanged;
+  # these fields assert the wider 256-byte ziskemu output surface.
+  if [[ -n "${expected_return_data_copied:-}" ]]; then
+    actual_return_data_copied="$(xxd -p -c 64 -s 248 -l 8 "gen-out/$name.output" | tr -d '\n')"
+    echo "expected return_data_copied:"
+    echo "  $expected_return_data_copied"
+    echo "actual return_data_copied:"
+    echo "  $actual_return_data_copied"
+    if [[ "$actual_return_data_copied" != "$expected_return_data_copied" ]]; then
+      case_failed="${case_failed:+$case_failed,}return_data_copied"
+    fi
+  fi
+
+  if [[ -n "${expected_return_data_length:-}" ]]; then
+    actual_return_data_length="$(xxd -p -c 64 -s 64 -l 8 "gen-out/$name.output" | tr -d '\n')"
+    echo "expected return_data_length:"
+    echo "  $expected_return_data_length"
+    echo "actual return_data_length:"
+    echo "  $actual_return_data_length"
+    if [[ "$actual_return_data_length" != "$expected_return_data_length" ]]; then
+      case_failed="${case_failed:+$case_failed,}return_data_length"
+    fi
+  fi
+
+  if [[ -n "${expected_return_data_hex:-}" ]]; then
+    return_data_len_bytes=$(( ${#expected_return_data_hex} / 2 ))
+    actual_return_data_hex="$(xxd -p -c 512 -s 72 -l "$return_data_len_bytes" "gen-out/$name.output" | tr -d '\n')"
+    echo "expected return_data_hex:"
+    echo "  $expected_return_data_hex"
+    echo "actual return_data_hex:"
+    echo "  $actual_return_data_hex"
+    if [[ "$actual_return_data_hex" != "$expected_return_data_hex" ]]; then
+      case_failed="${case_failed:+$case_failed,}return_data_hex"
     fi
   fi
 

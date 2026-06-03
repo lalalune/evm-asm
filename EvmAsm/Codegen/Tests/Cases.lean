@@ -18,6 +18,12 @@ namespace EvmAsm.Codegen.Tests
 
 open EvmAsm.Codegen
 
+private def byteCsv (bytes : List String) : String :=
+  String.intercalate ", " bytes
+
+private def repeatedPush1Bytecode (n : Nat) (value : String) : String :=
+  byteCsv ((List.range n).flatMap (fun _ => ["0x60", value]) ++ ["0x00"])
+
 /-- One per-opcode regression test wrapped around the M5b dispatcher
     (`tinyInterpRegistry`). The bytecode bakes into `.data`; the
     expected output is the first 32 bytes of `OUTPUT_ADDR` (i.e. the
@@ -119,6 +125,17 @@ structure OpcodeTestCase where
       (the dispatch loop charges each opcode's static base cost; an
       underflow halts with `expectedHaltKind = 6`). -/
   gasLimit : String := ""
+  /-- Optional expected RETURN/REVERT copied-byte count at
+      `OUTPUT_ADDR + 248` (M31). 16 hex chars = 8-byte LE u64.
+      This is capped to the dispatcher's extended return-data window. -/
+  expectedReturnDataCopied : String := ""
+  /-- Optional expected RETURN/REVERT requested byte count at
+      `OUTPUT_ADDR + 64` (M31). 16 hex chars = 8-byte LE u64. -/
+  expectedReturnDataLength : String := ""
+  /-- Optional expected RETURN/REVERT byte prefix at
+      `OUTPUT_ADDR + 72` (M31). Hex string of arbitrary length;
+      runner reads exactly `len/2` bytes and compares. -/
+  expectedReturnDataHex : String := ""
 
 /-- Registry of test cases. M5a/M5b's two original bytecodes are
     migrated as `add_basic` / `add_chain`; M6b adds ~20 more — one
@@ -159,6 +176,30 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "signextend_basic"
       bytecode       := "0x60, 0x7f, 0x60, 0x00, 0x0b, 0x00"
       expectedOutHex := "7f00000000000000000000000000000000000000000000000000000000000000" }
+  , -- SIGNEXTEND(0, 0x80) extends the byte-0 sign bit through the word.
+    { name           := "signextend_byte0_negative"
+      bytecode       := "0x60, 0x80, 0x60, 0x00, 0x0b, 0x00"
+      expectedOutHex := "80ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+  , -- SIGNEXTEND(1, 0x7fff) keeps a positive byte-1 value unchanged.
+    { name           := "signextend_byte1_positive"
+      bytecode       := "0x61, 0x7f, 0xff, 0x60, 0x01, 0x0b, 0x00"
+      expectedOutHex := "ff7f000000000000000000000000000000000000000000000000000000000000" }
+  , -- SIGNEXTEND(1, 0x8000) extends bit 15.
+    { name           := "signextend_byte1_negative"
+      bytecode       := "0x61, 0x80, 0x00, 0x60, 0x01, 0x0b, 0x00"
+      expectedOutHex := "0080ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+  , -- SIGNEXTEND(0, 0) stays zero.
+    { name           := "signextend_zero"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x0b, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- SIGNEXTEND(31, max_word) targets the top byte, so the word is unchanged.
+    { name           := "signextend_byte31_max_word"
+      bytecode       := "0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x60, 0x1f, 0x0b, 0x00"
+      expectedOutHex := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+  , -- SIGNEXTEND(32, 0x80) is out of range and must leave x unchanged.
+    { name           := "signextend_byte32_noop"
+      bytecode       := "0x60, 0x80, 0x60, 0x20, 0x0b, 0x00"
+      expectedOutHex := "8000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x05; PUSH1 0x03; LT; STOP → 3 < 5 = 1
     { name           := "lt_basic"
       bytecode       := "0x60, 0x05, 0x60, 0x03, 0x10, 0x00"
@@ -248,16 +289,36 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "push32_basic"
       bytecode       := "0x7f, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x00"
       expectedOutHex := "201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201" }
+  , -- PUSH0; STOP — explicit representative for the PUSH0 endpoint.
+    { name           := "push0_basic"
+      bytecode       := "0x5f, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x01 repeated 1024 times; STOP. This reaches the
+    -- protocol stack-depth limit exactly and proves the runtime dispatcher's
+    -- static stack arena is large enough for a valid 1024-word stack.
+    { name           := "push1_depth_1024"
+      bytecode       := repeatedPush1Bytecode 1024 "0x01"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x42; DUP1; ADD; STOP — DUP1 makes stack [0x42, 0x42];
     -- ADD → 0x84.
     { name           := "dup1_basic"
       bytecode       := "0x60, 0x42, 0x80, 0x01, 0x00"
       expectedOutHex := "8400000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 1; ...; PUSH1 16; DUP16; STOP — DUP16 copies the deepest
+    -- item in this 16-word stack, so the result is 1.
+    { name           := "dup16_basic"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0x60, 0x07, 0x60, 0x08, 0x60, 0x09, 0x60, 0x0a, 0x60, 0x0b, 0x60, 0x0c, 0x60, 0x0d, 0x60, 0x0e, 0x60, 0x0f, 0x60, 0x10, 0x8f, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x05; PUSH1 0x02; SWAP1; SUB; STOP — SWAP1 yields top=5,
     -- second=2; SUB → 5 - 2 = 3.
     { name           := "swap1_basic"
       bytecode       := "0x60, 0x05, 0x60, 0x02, 0x90, 0x03, 0x00"
       expectedOutHex := "0300000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 1; ...; PUSH1 17; SWAP16; STOP — SWAP16 exchanges top with
+    -- the deepest item in this 17-word stack, so the surfaced top is 1.
+    { name           := "swap16_basic"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0x60, 0x07, 0x60, 0x08, 0x60, 0x09, 0x60, 0x0a, 0x60, 0x0b, 0x60, 0x0c, 0x60, 0x0d, 0x60, 0x0e, 0x60, 0x0f, 0x60, 0x10, 0x60, 0x11, 0x9f, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
     -- ## Kitchen sink (cross-family chain)
   , -- PUSH1 0x03; PUSH1 0x05; MUL; PUSH1 0x10; SUB; STOP
     -- MUL: 5*3=15=0x0f. SUB: 0x10 - 0x0f = 0x01.
@@ -544,6 +605,25 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "2" }
+    -- ## Stack underflow classification
+    -- Stack consumers with too few words route to halt_kind = 7 before
+    -- their verified bodies perform unchecked stack loads.
+  , { name             := "pop_empty_stack_underflow"
+      bytecode         := "0x50, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "add_one_item_underflow"
+      bytecode         := "0x60, 0x01, 0x01, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "dup16_short_stack_underflow"
+      bytecode         := "0x60, 0x01, 0x8f, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "swap16_short_stack_underflow"
+      bytecode         := "0x60, 0x01, 0x60, 0x02, 0x9f, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
   , -- BLOBBASEFEE; STOP with blob_base_fee = 0x1234. Amsterdam
     -- execution-specs computes this from block_env.excess_blob_gas;
     -- the runtime dispatcher receives the already-computed value in
@@ -701,16 +781,23 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x50, 0x3d, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-    -- ## M20 arithmetic no-ops (MULMOD, EXP) — the LAST TWO unwired
-    -- opcodes; M20 brings tinyInterpRegistry to 100% coverage 🎯.
-    -- Both ship as placeholders; real upgrades follow in M21+.
-  , -- PUSH1 0x03; PUSH1 0x05; PUSH1 0x07; MULMOD; PUSH1 0x42; STOP
-    -- MULMOD pops 3 (a, b, N), pushes 1 (result = 0). Net pop = 2 =
-    -- +64 bytes. PUSH1 0x42 lands on the 1-deep stack and replaces
-    -- the zero result. Expected: 0x42.
-    { name           := "mulmod_pop3"
-      bytecode       := "0x60, 0x03, 0x60, 0x05, 0x60, 0x07, 0x09, 0x60, 0x42, 0x00"
-      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+    -- ## MULMOD (0x09) -- total runtime body. EVM pops `a` (top), then
+    -- `b`, then `N`; if `N = 0` the result is zero, otherwise
+    -- `(a * b) % N`.
+  , -- PUSH1 0x00; PUSH1 0x05; PUSH1 0x07; MULMOD; STOP -- N=0 => 0.
+    { name           := "mulmod_zero_modulus"
+      bytecode       := "0x60, 0x00, 0x60, 0x05, 0x60, 0x07, 0x09, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x0d; PUSH1 0x05; PUSH1 0x07; MULMOD; STOP -- (7*5)%13 = 9.
+    { name           := "mulmod_small_nonzero"
+      bytecode       := "0x60, 0x0d, 0x60, 0x05, 0x60, 0x07, 0x09, 0x00"
+      expectedOutHex := "0900000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x0b; PUSH9 2^64; PUSH25 2^192; MULMOD; STOP.
+    -- Product is 2^256, so this covers the high-product path:
+    -- 2^256 % 11 = 9.
+    { name           := "mulmod_high_product_nonzero"
+      bytecode       := "0x60, 0x0b, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00"
+      expectedOutHex := "0900000000000000000000000000000000000000000000000000000000000000" }
   , -- ## EXP (0x0a) — real verified body via selfCallingHandlers
     -- (evmExpComposed, _fixed_fixed x6→x22 counter fix). EVM EXP pops
     -- `a` (base, top of stack) then `exponent`; result = a ** exponent.
@@ -773,6 +860,27 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "addmod_div_zero"
       bytecode       := "0x60, 0x00, 0x60, 0x03, 0x60, 0x02, 0x08, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x07; PUSH1 0x01; PUSH1 0x00; NOT; ADDMOD; STOP
+    -- (2^256 - 1 + 1) % 7 = 2, exercising the ADD carry contribution.
+    { name           := "addmod_carry_pow256_mod_7"
+      bytecode       := "0x60, 0x07, 0x60, 0x01, 0x60, 0x00, 0x19, 0x08, 0x00"
+      expectedOutHex := "0200000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH17 (2^128 + 1); PUSH1 0x01; PUSH1 0x00; NOT; ADDMOD; STOP
+    -- 2^256 % (2^128 + 1) = 1, covering a multi-limb modulus carry case.
+    { name           := "addmod_carry_pow256_mod_2_128_plus_1"
+      bytecode       := "0x70, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x60, 0x01, 0x60, 0x00, 0x19, 0x08, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x07; PUSH1 0x07; PUSH1 0x00; NOT; ADDMOD; STOP
+    -- (2^256 - 1 + 7) % 7 = 1, exercising carry plus final subtract.
+    { name           := "addmod_carry_reduced_sum_subtracts_n"
+      bytecode       := "0x60, 0x07, 0x60, 0x07, 0x60, 0x00, 0x19, 0x08, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- Carry-path ADDMOD with live stack words below the arguments.
+    -- The deepest sentinel lands at the old `x12 + 224` temporary frame offset;
+    -- after ADDMOD and five POPs it must still be the top stack word.
+    { name           := "addmod_carry_preserves_deep_stack"
+      bytecode       := "0x60, 0xaa, 0x60, 0x66, 0x60, 0x55, 0x60, 0x44, 0x60, 0x33, 0x60, 0x07, 0x60, 0x01, 0x60, 0x00, 0x19, 0x08, 0x50, 0x50, 0x50, 0x50, 0x50, 0x00"
+      expectedOutHex := "aa00000000000000000000000000000000000000000000000000000000000000" }
     -- ## M21 real calldata (CALLDATASIZE / CALLDATALOAD / CALLDATACOPY)
     -- The dispatcher prologue now populates env.callDataPtrOff (416)
     -- and env.callDataLenOff (424) from the ziskemu `-i` input file.
@@ -845,34 +953,76 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- Both opcodes graduate from M18 halt no-ops to real bodies that:
     --   - pop (offset, size)
     --   - copy memory[offset..offset+min(size,32)] to OUTPUT_ADDR[0..32]
-    --     (zero-padded if size < 32; clamped at 32 in M23)
+    --     for old tests and diagnostics
     --   - write halt_kind (1 = RETURN, 2 = REVERT) to OUTPUT_ADDR + 32
+    --   - record requested length at OUTPUT+64, copied length at OUTPUT+248,
+    --     and copy up to 176 returned bytes at OUTPUT+72
     --   - halt via .exit_no_epilogue (skipping evmAddEpilogue's stack-top copy)
-    -- The 32-byte returndata cap and the deferred INVALID/SELFDESTRUCT
-    -- halt-kind tagging are documented in CODEGEN.md M23.
   , -- PUSH1 0x42; PUSH1 0x00; MSTORE; PUSH1 0x20; PUSH1 0x00; RETURN.
     -- MSTORE writes BE(0x42) to memory[0..32] (= 31 zero bytes then 0x42).
     -- RETURN(offset=0, size=32) copies that to OUTPUT[0..32].
-    { name             := "return_word_basic"
-      bytecode         := "0x60, 0x42, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3"
-      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000042"
-      expectedHaltKind := "0100000000000000" }
+    { name                     := "return_word_basic"
+      bytecode                 := "0x60, 0x42, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3"
+      expectedOutHex           := "0000000000000000000000000000000000000000000000000000000000000042"
+      expectedHaltKind         := "0100000000000000"
+      expectedReturnDataCopied := "2000000000000000"
+      expectedReturnDataLength := "2000000000000000"
+      expectedReturnDataHex    := "0000000000000000000000000000000000000000000000000000000000000042" }
   , -- PUSH1 0xff; PUSH1 0x00; MSTORE8; PUSH1 0x01; PUSH1 0x00; RETURN.
     -- MSTORE8 writes 1 byte (0xff) at memory[0]; rest of memory zero.
     -- RETURN(offset=0, size=1) copies 1 byte; OUTPUT[1..32] is zero-filled
     -- by the body's pre-copy SD pass. Exercises the size < 32 path.
-    { name             := "return_small_pads_zeros"
-      bytecode         := "0x60, 0xff, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0xf3"
-      expectedOutHex   := "ff00000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind := "0100000000000000" }
+    { name                     := "return_small_pads_zeros"
+      bytecode                 := "0x60, 0xff, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0xf3"
+      expectedOutHex           := "ff00000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind         := "0100000000000000"
+      expectedReturnDataCopied := "0100000000000000"
+      expectedReturnDataLength := "0100000000000000"
+      expectedReturnDataHex    := "ff" }
+  , -- PUSH1 0; PUSH1 0; RETURN. Empty returndata records zero lengths.
+    { name                     := "return_empty_data"
+      bytecode                 := "0x60, 0x00, 0x60, 0x00, 0xf3"
+      expectedOutHex           := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind         := "0100000000000000"
+      expectedReturnDataCopied := "0000000000000000"
+      expectedReturnDataLength := "0000000000000000" }
+  , -- MSTORE8 writes marker bytes at memory[0] and memory[40]; RETURN(size=41)
+    -- keeps the old first-32-byte prefix while exposing the full 41-byte payload.
+    { name                     := "return_long_data_window"
+      bytecode                 := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x28, 0x53, 0x60, 0x29, 0x60, 0x00, 0xf3"
+      expectedOutHex           := "aa00000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind         := "0100000000000000"
+      expectedReturnDataCopied := "2900000000000000"
+      expectedReturnDataLength := "2900000000000000"
+      expectedReturnDataHex    := "aa000000000000000000000000000000000000000000000000000000000000000000000000000000bb" }
+  , -- REVERT(size=1) preserves one-byte revert data and marks halt_kind=2.
+    { name                     := "revert_small_data"
+      bytecode                 := "0x60, 0xee, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0xfd"
+      expectedOutHex           := "ee00000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind         := "0200000000000000"
+      expectedReturnDataCopied := "0100000000000000"
+      expectedReturnDataLength := "0100000000000000"
+      expectedReturnDataHex    := "ee" }
+  , -- REVERT(size=41) uses the same extended data path as RETURN while
+    -- preserving revert status and rollback behavior.
+    { name                     := "revert_long_data_window"
+      bytecode                 := "0x60, 0xcc, 0x60, 0x00, 0x53, 0x60, 0xdd, 0x60, 0x28, 0x53, 0x60, 0x29, 0x60, 0x00, 0xfd"
+      expectedOutHex           := "cc00000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind         := "0200000000000000"
+      expectedReturnDataCopied := "2900000000000000"
+      expectedReturnDataLength := "2900000000000000"
+      expectedReturnDataHex    := "cc000000000000000000000000000000000000000000000000000000000000000000000000000000dd" }
   , -- PUSH1 0x42; PUSH1 0x00; MSTORE; PUSH1 0x20; PUSH1 0x00; REVERT.
     -- Same data path as return_word_basic but byte 0xfd (REVERT) instead
     -- of 0xf3 (RETURN). Returndata bytes identical; halt_kind differs.
     -- This is the test that proves RETURN and REVERT are distinguishable.
-    { name             := "revert_word_basic"
-      bytecode         := "0x60, 0x42, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xfd"
-      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000042"
-      expectedHaltKind := "0200000000000000" }
+    { name                     := "revert_word_basic"
+      bytecode                 := "0x60, 0x42, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xfd"
+      expectedOutHex           := "0000000000000000000000000000000000000000000000000000000000000042"
+      expectedHaltKind         := "0200000000000000"
+      expectedReturnDataCopied := "2000000000000000"
+      expectedReturnDataLength := "2000000000000000"
+      expectedReturnDataHex    := "0000000000000000000000000000000000000000000000000000000000000042" }
     -- ## M24 storage on Option A — append-log + journal + real TLOAD/TSTORE
     -- Three tests exercise the new machinery via the OUTPUT[40..48]
     -- (persistent log length) and OUTPUT[48..56] (transient log

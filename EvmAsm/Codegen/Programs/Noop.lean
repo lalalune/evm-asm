@@ -11,12 +11,11 @@
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
   - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE (MSIZE and GAS have real implementations in Programs/Evm.lean)
-  - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
-    EXTCODEHASH (BLOBHASH and BLOCKHASH have real implementations in Programs/Evm.lean)
-  - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
-    RETURNDATACOPY, MCOPY
+  - `popPushZeroHandlers` — BALANCE and EXTCODESIZE
+    (EXTCODEHASH, BLOBHASH, and BLOCKHASH have real implementations in Programs/Evm.lean)
+  - `copyNoopHandlers` — CODECOPY and RETURNDATACOPY
 
-  All 16 opcodes ship with at least one spec-incompliance (returns
+  These opcodes ship with at least one spec-incompliance (returns
   zero / drops side effects) because the dispatcher has no model
   for the relevant state (accounts, calldata, block history, blob
   context, return-data buffers). Trusted bytecode that avoids
@@ -31,130 +30,111 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-- M18 / M23 EVM-terminating opcodes (RETURN, REVERT, INVALID,
-    SELFDESTRUCT). All halt the dispatcher loop.
+/-- M18 / M23 / M31 EVM-terminating opcodes (RETURN, REVERT,
+    INVALID, SELFDESTRUCT). All halt the dispatcher loop.
 
-    **M23 update**: RETURN (0xf3) and REVERT (0xfd) graduate from
-    M18 no-ops (which just popped args and ran `evmAddEpilogue`,
-    surfacing whatever stack top happened to be left behind) to
-    real bodies that:
-      1. Read `offset_low` / `size_low` (low u64 limbs) from the
-         stack.
-      2. Zero-fill `OUTPUT_ADDR[0..32]`.
-      3. Byte-copy `min(size_low, 32)` bytes from
-         `evm_memory + offset_low` into `OUTPUT_ADDR`.
-      4. Write `halt_kind` (1 = RETURN, 2 = REVERT) at
-         `OUTPUT_ADDR + 32`.
-      5. Jump to `.exit_no_epilogue` (the M23-added label that
-         skips `evmAddEpilogue`'s clobbering stack-top copy).
+    RETURN (0xf3) and REVERT (0xfd) read `offset_low` / `size_low`
+    from the stack, keep the legacy `OUTPUT_ADDR[0..32]` return-data
+    prefix and `halt_kind` at `OUTPUT_ADDR+32`, and also expose a
+    wider diagnostic return-data surface inside ziskemu's 256-byte
+    output dump:
 
-    **M23.5 update**: INVALID (0xfe) and SELFDESTRUCT (0xff) no longer
-    flow through `.exit_label` → `evmAddEpilogue` (which would surface
-    the stack top + `halt_kind = 0`, indistinguishable from STOP).
-    INVALID jumps to `.exit_invalid_op` (`halt_kind = 3`, exceptional
-    halt) and SELFDESTRUCT to `.exit_selfdestruct` (`halt_kind = 5`,
-    normal halt) — both via the shared `emitExceptionalExit` blocks,
-    which zero the result (no return data) and tag the distinct kind.
+    - `OUTPUT_ADDR+64`: requested low-u64 length.
+    - `OUTPUT_ADDR+72`: copied return-data bytes, capped to 176 bytes.
+    - `OUTPUT_ADDR+248`: copied length.
 
-    ### EVM stack contracts (RETURN / REVERT)
+    The copied bytes share the later storage/event diagnostic window,
+    so tests should assert either extended returndata or those diagnostics
+    for a given case. `OUTPUT+40` and `OUTPUT+48` remain available for
+    persistent/transient log lengths, and `OUTPUT+32` remains the
+    halt/revert status byte range.
 
-    Top word = `offset` (256-bit), second word = `size` (256-bit).
-    M23 reads only the low u64 of each; tests must keep
-    offset / size < 2^64 (always true if they fit in the 32 KiB
-    `evm_memory` block).
+    INVALID and SELFDESTRUCT jump to shared dispatcher exceptional-exit
+    blocks, preserving their distinct halt kinds. -/
+private def returnRevertTail (kind : Nat) (rollbackAsm : String := "") : String :=
+  "  ld x14, 0(x12)\n" ++          -- x14 = offset_low (low u64 of offset)
+  "  ld x15, 32(x12)\n" ++         -- x15 = size_low
+  "  li x16, 0xa0010000\n" ++      -- x16 = OUTPUT_ADDR
+  "  sd x0, 0(x16)\n" ++           -- legacy OUTPUT[0..32] prefix
+  "  sd x0, 8(x16)\n" ++
+  "  sd x0, 16(x16)\n" ++
+  "  sd x0, 24(x16)\n" ++
+  "  addi x19, x16, 72\n" ++       -- zero extended returndata window
+  "  li x21, 22\n" ++              -- 22 dwords = 176 bytes
+  "1:\n" ++
+  "  beqz x21, 2f\n" ++
+  "  sd x0, 0(x19)\n" ++
+  "  addi x19, x19, 8\n" ++
+  "  addi x21, x21, -1\n" ++
+  "  j 1b\n" ++
+  "2:\n" ++
+  "  mv x21, x15\n" ++             -- x21 = copied length, capped at 176
+  "  li x22, 176\n" ++
+  "  bgeu x22, x21, 3f\n" ++
+  "  mv x21, x22\n" ++
+  "3:\n" ++
+  "  sd x15, 64(x16)\n" ++         -- requested length, u64 LE
+  "  sd x21, 248(x16)\n" ++        -- copied length, u64 LE
+  "  la x17, evm_memory\n" ++
+  "  add x17, x17, x14\n" ++       -- source = &evm_memory[offset]
+  "  addi x19, x16, 72\n" ++       -- destination = extended window
+  "  mv x22, x21\n" ++
+  "4:\n" ++
+  "  beqz x22, 5f\n" ++
+  "  lbu x23, 0(x17)\n" ++
+  "  sb x23, 0(x19)\n" ++
+  "  addi x17, x17, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x22, x22, -1\n" ++
+  "  j 4b\n" ++
+  "5:\n" ++
+  "  la x17, evm_memory\n" ++      -- repeat first min(size,32) bytes into legacy prefix
+  "  add x17, x17, x14\n" ++
+  "  mv x22, x15\n" ++
+  "  li x21, 32\n" ++
+  "  bgeu x21, x22, 6f\n" ++
+  "  mv x22, x21\n" ++
+  "6:\n" ++
+  "  mv x19, x16\n" ++
+  "7:\n" ++
+  "  beqz x22, 8f\n" ++
+  "  lbu x23, 0(x17)\n" ++
+  "  sb x23, 0(x19)\n" ++
+  "  addi x17, x17, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x22, x22, -1\n" ++
+  "  j 7b\n" ++
+  "8:\n" ++
+  s!"  li x17, {kind}\n" ++
+  "  sd x17, 32(x16)\n" ++        -- halt_kind
+  rollbackAsm ++
+  "  j .exit_no_epilogue"
 
-    ### Inline-asm conventions
-
-    Numeric local labels (`1:`, `1b`, `1f`, …) — unique-per-use
-    across the emitted file (same convention M22 storage scan
-    loops use), so RETURN and REVERT can reuse label numbers
-    without collision.
-
-    ### Known limitations
-
-    - **Returndata clamped to 32 bytes.** Larger payloads are
-      silently truncated. A future PR can extend the OUTPUT
-      layout with a length prefix or wider region.
-    - **No INVALID/SELFDESTRUCT halt-kind tagging.** Both inherit
-      `halt_kind = 0` from `evmAddEpilogue`. Follow-up PR. -/
 def haltHandlers : List OpcodeHandlerSpec :=
-  [ -- M23 real RETURN. Pops (offset, size); writes
-    -- memory[offset..offset+min(size, 32)] to OUTPUT_ADDR[0..32]
-    -- (zero-padded if size < 32); writes halt_kind = 1 at
-    -- OUTPUT_ADDR + 32; halts via .exit_no_epilogue.
+  [ -- RETURN. Pops (offset, size); keeps the legacy 32-byte prefix and
+    -- also records up to 176 bytes plus length metadata at OUTPUT+64/+248.
     { label   := "h_RETURN"
     , opcodes := [0xf3]
     , body    := []
-    , tail    := .custom <|
-        "  ld x14, 0(x12)\n" ++          -- x14 = offset_low (low u64 of offset)
-        "  ld x15, 32(x12)\n" ++         -- x15 = size_low
-        "  li x16, 0xa0010000\n" ++      -- x16 = OUTPUT_ADDR
-        "  sd x0, 0(x16)\n" ++           -- zero-fill OUTPUT[0..32]
-        "  sd x0, 8(x16)\n" ++
-        "  sd x0, 16(x16)\n" ++
-        "  sd x0, 24(x16)\n" ++
-        "  li x17, 32\n" ++              -- clamp size to 32
-        "  bgeu x17, x15, 1f\n" ++       -- if 32 >= size, keep size
-        "  mv x15, x17\n" ++             -- else size = 32
-        "1:\n" ++
-        "  la x17, evm_memory\n" ++
-        "  add x17, x17, x14\n" ++       -- source = &evm_memory[offset]
-        "2:\n" ++                        -- byte-copy loop
-        "  beqz x15, 3f\n" ++
-        "  lbu x18, 0(x17)\n" ++
-        "  sb x18, 0(x16)\n" ++
-        "  addi x17, x17, 1\n" ++
-        "  addi x16, x16, 1\n" ++
-        "  addi x15, x15, -1\n" ++
-        "  j 2b\n" ++
-        "3:\n" ++
-        "  li x16, 0xa0010000\n" ++      -- write halt_kind at OUTPUT_ADDR + 32
-        "  li x17, 1\n" ++               -- RETURN
-        "  sd x17, 32(x16)\n" ++
-        "  j .exit_no_epilogue" }
-  , -- M23 real REVERT. Identical data path to RETURN; halt_kind = 2.
+    , tail    := .custom (returnRevertTail 1) }
+  , -- REVERT. Identical data path to RETURN; halt_kind = 2 and state logs roll back.
     { label   := "h_REVERT"
     , opcodes := [0xfd]
     , body    := []
     , tail    := .custom <|
-        "  ld x14, 0(x12)\n" ++
-        "  ld x15, 32(x12)\n" ++
-        "  li x16, 0xa0010000\n" ++
-        "  sd x0, 0(x16)\n" ++
-        "  sd x0, 8(x16)\n" ++
-        "  sd x0, 16(x16)\n" ++
-        "  sd x0, 24(x16)\n" ++
-        "  li x17, 32\n" ++
-        "  bgeu x17, x15, 1f\n" ++
-        "  mv x15, x17\n" ++
-        "1:\n" ++
-        "  la x17, evm_memory\n" ++
-        "  add x17, x17, x14\n" ++
-        "2:\n" ++
-        "  beqz x15, 3f\n" ++
-        "  lbu x18, 0(x17)\n" ++
-        "  sb x18, 0(x16)\n" ++
-        "  addi x17, x17, 1\n" ++
-        "  addi x16, x16, 1\n" ++
-        "  addi x15, x15, -1\n" ++
-        "  j 2b\n" ++
-        "3:\n" ++
-        "  li x16, 0xa0010000\n" ++
-        "  li x17, 2\n" ++               -- REVERT
-        "  sd x17, 32(x16)\n" ++
-        -- M24: roll back storage logs. Persistent log truncates to
-        -- the checkpoint captured at the end of the dispatcher
-        -- prologue (post-preload); transient log resets to 0
-        -- (transient storage starts empty at tx start). RETURN /
-        -- STOP / INVALID / SELFDESTRUCT do NOT roll back — they
-        -- commit successfully. M26 also restores receipt event logs
-        -- to the transaction checkpoint.
-        "  ld x17, 456(x20)\n" ++         -- persistentLogCheckpointOff
-        "  sd x17, 448(x20)\n" ++         -- persistentLogLengthOff = checkpoint
-        "  sd x0, 464(x20)\n" ++          -- transientLogLengthOff = 0
-        "  ld x17, 480(x20)\n" ++         -- eventLogCheckpointOff
-        "  sd x17, 472(x20)\n" ++         -- eventLogLengthOff = checkpoint
-        "  j .exit_no_epilogue" }
+        returnRevertTail 2 <|
+          -- M24: roll back storage logs. Persistent log truncates to
+          -- the checkpoint captured at the end of the dispatcher
+          -- prologue (post-preload); transient log resets to 0
+          -- (transient storage starts empty at tx start). RETURN /
+          -- STOP / INVALID / SELFDESTRUCT do NOT roll back — they
+          -- commit successfully. M26 also restores receipt event logs
+          -- to the transaction checkpoint.
+          "  ld x17, 456(x20)\n" ++      -- persistentLogCheckpointOff
+          "  sd x17, 448(x20)\n" ++      -- persistentLogLengthOff = checkpoint
+          "  sd x0, 464(x20)\n" ++       -- transientLogLengthOff = 0
+          "  ld x17, 480(x20)\n" ++      -- eventLogCheckpointOff
+          "  sd x17, 472(x20)\n" }      -- eventLogLengthOff = checkpoint
   , -- INVALID (0xfe). M23.5: exceptional halt — zero result +
     -- halt_kind = 3 via the dispatcher's .exit_invalid_op block.
     { label := "h_INVALID", opcodes := [0xfe]
@@ -195,7 +175,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE, EXTCODEHASH).
+/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE).
     Each opcode pops one 32-byte input (e.g., an address) and pushes a
     32-byte zero value. Net EVM stack delta = 0.
 
@@ -205,8 +185,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
 
     **Known limitations**:
     - BALANCE always returns 0 (no account state model).
-    - EXTCODESIZE / EXTCODEHASH always return 0 (no external account
-      model).
+    - EXTCODESIZE always returns 0 (no external code-byte model yet).
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
@@ -227,16 +206,14 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_BALANCE", opcodes := [0x31]
     , body := body, tail := .advanceAndRet 1 }
   , { label := "h_EXTCODESIZE", opcodes := [0x3b]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_EXTCODEHASH", opcodes := [0x3f]
     , body := body, tail := .advanceAndRet 1 } ]
 
-/-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY).
-    Each opcode pops 3 or 4 stack values and would copy
-    bytes into EVM memory. As no-ops we just drop the stack args.
+/-- M18 copy-no-op handlers (CODECOPY, RETURNDATACOPY).
+    Each opcode pops stack values and would copy bytes into EVM memory.
+    As no-ops we just drop the stack args.
 
-    Body: a single `ADDI .x12 .x12 (popBytes)`. CODECOPY /
-    RETURNDATACOPY pop 3 words = 96 bytes; EXTCODECOPY pops 4 = 128.
+    Body: a single `ADDI .x12 .x12 (popBytes)`. CODECOPY and
+    RETURNDATACOPY pop 3 words = 96 bytes.
 
     **Known limitations**: the copies are dropped on the floor.
     Programs that copy into EVM memory and then MLOAD see whatever
@@ -252,9 +229,6 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
 def copyNoopHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_CODECOPY", opcodes := [0x39]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
-    , tail := .advanceAndRet 1 }
-  , { label := "h_EXTCODECOPY", opcodes := [0x3c]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 128)
     , tail := .advanceAndRet 1 }
   , { label := "h_RETURNDATACOPY", opcodes := [0x3e]
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
@@ -457,39 +431,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , body := []
     , tail := .custom (basicPrecompileCallTail 160 64 96 128 160) } ]
 
-/-- M20 arithmetic no-op handlers (MULMOD, EXP). The last two
-    unwired opcodes shipped as placeholders to **hit 100% opcode
-    coverage**. Same pop-N + push-zero pattern as
-    `childFrameHandlers` above, just with smaller pop counts.
+/-- M20 arithmetic no-op handlers.
 
-    | Opcode | Byte | Pops | Pushes | Net pops × 32 |
-    |---|---|---|---|---|
-    | **MULMOD** | 0x09 | 3 (a, b, N) | 1 (result) | 64 |
-    | **EXP**    | 0x0a | 2 (base, exponent) | 1 (result) | 32 |
-
-    Both within the 12-bit signed ADDI immediate range.
-
-    **Known limitations** (documented in CODEGEN.md M20 narrative):
-
-    - **MULMOD** always returns 0. The verified body is a
-      placeholder in `EvmAsm/Evm64/MulMod/Program.lean` (slice
-      evm-asm-m4wu unscheduled). A future PR will swap in the
-      real Knuth-style 512-bit + reduce-by-N body once it lands.
-    - **EXP** graduated from a no-op to a real verified body and now
-      lives in `selfCallingHandlers` (`EvmAsm/Codegen/Programs/Evm.lean`)
-      as `evmExpComposed`, using the `_fixed_fixed` body variant
-      (per-limb counter moved from `x6` to callee-saved `x22` so it
-      survives `mul_callable`). Only MULMOD remains a no-op here.
-
-    Trusted bytecode that doesn't depend on MULMOD results continues
-    to work correctly. -/
-def arithNoopHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_MULMOD", opcodes := [0x09]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64) ;;
-              SD .x12 .x0 0 ;;
-              SD .x12 .x0 8 ;;
-              SD .x12 .x0 16 ;;
-              SD .x12 .x0 24
-    , tail := .advanceAndRet 1 } ]
+    The original M20 placeholders covered MULMOD and EXP. Both have now moved
+    to real dispatcher handlers in `EvmAsm/Codegen/Programs/Evm.lean`, so this
+    list is intentionally empty and remains only to keep the registry assembly
+    expression stable. -/
+def arithNoopHandlers : List OpcodeHandlerSpec := []
 
 end EvmAsm.Codegen

@@ -107,11 +107,11 @@ def obligations : List Obligation := [
   { id := 5, name := "Full opcode coverage with verified handlers",
     status := .blocked,
     blockedBy :=
-      [.opcode "DIV", .opcode "MOD", .opcode "SDIV",
+      [.opcode "MOD", .opcode "SDIV",
        .opcode "SMOD", .opcode "ADDMOD", .opcode "MULMOD", .opcode "EXP",
        .opcode "CALLDATACOPY", .opcode "PUSH2..32",
        .infra "execSpec-tier opcodes have no RV64 subroutine (axis A.2)"],
-    note := "DIV/MOD/SDIV proven only on `b.getLimbN 3 = 0` (n=4 uncovered); see axis A.2" },
+    note := "MOD/SDIV proven only on `b.getLimbN 3 = 0` (n=4 uncovered); see axis A.2" },
   { id := 6, name := "Accelerator ECALL bridges per `zkvm_accelerators.h`",
     status := .blocked,
     blockedBy := [.infra "per-precompile EL bridges not yet codegen-wired"],
