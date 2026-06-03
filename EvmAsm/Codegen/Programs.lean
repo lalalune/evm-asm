@@ -334,6 +334,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bloom_eq" => some ziskBloomEqProbeUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
+  | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit
@@ -1145,6 +1146,7 @@ def knownProgramNames : List String :=
    "zisk_bloom_eq",
    "zisk_rlp_encode_u64",
    "zisk_receipt_encode",
+   "zisk_typed_receipt_encode",
    "zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
    "zisk_bal_gas_valid",
