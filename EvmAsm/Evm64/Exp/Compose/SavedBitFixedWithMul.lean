@@ -215,7 +215,7 @@ theorem exp_pointer_restore_then_epilogue_evm_exp_msb_saved_bit_two_mul_fixed_wi
   have hPtr : (evmSp + signExtend12 (64 : BitVec 12)) +
       signExtend12 ((-64) : BitVec 12) = evmSp := by
     rw [signExtend12_64, EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg64]
-    bv_decide
+    bv_omega
   have hRestoreFramed' :
       cpsTripleWithin 1 (base + 296) (base + 300)
         (evmExpMsbSavedBitTwoMulFixedWithMulCode

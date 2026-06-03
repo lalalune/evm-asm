@@ -16,6 +16,12 @@ exact layout ``scripts/stateless-gen-input.py`` uses
 (``<u64 LE length><blob><zero pad to 8>``), and emits a TSV manifest
 that the harness (``codegen-eest-stateless-check.sh``) iterates.
 
+The ``blob`` is intentionally the fixture's ``statelessInputBytes``
+byte-for-byte.  The length prefix and zero padding are ziskemu host transport;
+they are not part of execution-specs ``run_stateless_guest`` input content.
+Manifest fields derived below are for launch/reporting only and must not become
+a second authoritative guest input schema.
+
 Manifest columns (tab-separated, one row per guest invocation):
   label  input_file  expected_hex  succ_bit  input_len  block_gas_limit  fixture_relpath
 
