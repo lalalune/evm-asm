@@ -751,19 +751,23 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x50, 0x3d, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-    -- ## M20 arithmetic frontier status
-    -- MULMOD is still a narrow placeholder surface here: it pops three words
-    -- and this regression only checks stack discipline, not full modular
-    -- multiplication. EXP has since graduated to the real self-calling body
-    -- below, but broader EXP EEST/proof completeness remains tracked
-    -- separately from this runtime smoke registry.
-  , -- PUSH1 0x03; PUSH1 0x05; PUSH1 0x07; MULMOD; PUSH1 0x42; STOP
-    -- MULMOD pops 3 (a, b, N), pushes 1 (result = 0). Net pop = 2 =
-    -- +64 bytes. PUSH1 0x42 lands on the 1-deep stack and replaces
-    -- the zero result. Expected: 0x42.
-    { name           := "mulmod_pop3"
-      bytecode       := "0x60, 0x03, 0x60, 0x05, 0x60, 0x07, 0x09, 0x60, 0x42, 0x00"
-      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+    -- ## MULMOD (0x09) -- total runtime body. EVM pops `a` (top), then
+    -- `b`, then `N`; if `N = 0` the result is zero, otherwise
+    -- `(a * b) % N`.
+  , -- PUSH1 0x00; PUSH1 0x05; PUSH1 0x07; MULMOD; STOP -- N=0 => 0.
+    { name           := "mulmod_zero_modulus"
+      bytecode       := "0x60, 0x00, 0x60, 0x05, 0x60, 0x07, 0x09, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x0d; PUSH1 0x05; PUSH1 0x07; MULMOD; STOP -- (7*5)%13 = 9.
+    { name           := "mulmod_small_nonzero"
+      bytecode       := "0x60, 0x0d, 0x60, 0x05, 0x60, 0x07, 0x09, 0x00"
+      expectedOutHex := "0900000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x0b; PUSH9 2^64; PUSH25 2^192; MULMOD; STOP.
+    -- Product is 2^256, so this covers the high-product path:
+    -- 2^256 % 11 = 9.
+    { name           := "mulmod_high_product_nonzero"
+      bytecode       := "0x60, 0x0b, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00"
+      expectedOutHex := "0900000000000000000000000000000000000000000000000000000000000000" }
   , -- ## EXP (0x0a) — real verified body via selfCallingHandlers
     -- (evmExpComposed, _fixed_fixed x6→x22 counter fix). EVM EXP pops
     -- `a` (base, top of stack) then `exponent`; result = a ** exponent.
