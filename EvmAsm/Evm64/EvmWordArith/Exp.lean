@@ -22,7 +22,9 @@ theorem exp_correct (base exponent : EvmWord) :
 
 /-- EVM's `0^0` case follows Nat exponentiation and returns one. -/
 theorem exp_zero_zero : exp 0 0 = 1 := by
-  native_decide
+  apply BitVec.eq_of_toNat_eq
+  rw [exp_correct]
+  decide
 
 /-- Any base raised to the zero EVM word is one. -/
 theorem exp_zero_right (base : EvmWord) : exp base 0 = 1 := by
@@ -143,25 +145,33 @@ theorem exp_double_add_one_right_of_toNat_eq
 /-- The GH #92 cross-limb boundary case `EXP(2, 64)`. -/
 theorem exp_two_64 : exp (2 : EvmWord) (64 : EvmWord) =
     BitVec.ofNat 256 (2^64) := by
-  native_decide
+  apply BitVec.eq_of_toNat_eq
+  rw [exp_correct]
+  decide
 
 /-- The GH #92 mid-word boundary case `EXP(2, 128)`. -/
 theorem exp_two_128 : exp (2 : EvmWord) (128 : EvmWord) =
     BitVec.ofNat 256 (2^128) := by
-  native_decide
+  apply BitVec.eq_of_toNat_eq
+  rw [exp_correct]
+  decide
 
 /-- The GH #92 pre-wrap boundary case `EXP(2, 255)` is the high bit. -/
 theorem exp_two_255 : exp (2 : EvmWord) (255 : EvmWord) =
     BitVec.ofNat 256 (2^255) := by
-  native_decide
+  apply BitVec.eq_of_toNat_eq
+  rw [exp_correct]
+  decide
 
 /-- The GH #92 boundary case `EXP(2, 256)` wraps to zero modulo `2^256`. -/
 theorem exp_two_256 : exp (2 : EvmWord) (256 : EvmWord) = 0 := by
-  native_decide
+  apply BitVec.eq_of_toNat_eq
+  rw [exp_correct]
+  decide
 
 -- Edge checks required by GH #92's EXP acceptance notes.
 example : exp (0 : EvmWord) (0 : EvmWord) = 1 := by
-  native_decide
+  exact exp_zero_zero
 
 example : exp (2 : EvmWord) (256 : EvmWord) = 0 := by
   exact exp_two_256
