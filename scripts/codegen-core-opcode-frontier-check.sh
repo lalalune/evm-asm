@@ -116,6 +116,11 @@ PARTIAL_MEMBERS=(
   "EXP:software implementation remains tracked separately"
 )
 
+RUNTIME_FEATURE_SCRIPTS=(
+  "BALANCE:scripts/codegen-zisk-runtime-balance-check.sh"
+  "EXTCODESIZE:scripts/codegen-zisk-runtime-extcodesize-check.sh"
+)
+
 echo "==> checking representative runtime coverage"
 MISSING=()
 for entry in "${REQUIRED_CASES[@]}"; do
@@ -146,6 +151,14 @@ fi
 if [[ "$RUN_RUNTIME" -eq 1 ]]; then
   echo "==> running opcode runtime registry"
   scripts/codegen-opcodes-runtime-check.sh
+
+  echo "==> running standalone runtime feature checks"
+  for entry in "${RUNTIME_FEATURE_SCRIPTS[@]}"; do
+    feature="${entry%%:*}"
+    script="${entry#*:}"
+    printf "  %-10s %s\n" "$feature" "$script"
+    "$script"
+  done
 fi
 
 if [[ "$RUN_EEST" -eq 1 ]]; then
