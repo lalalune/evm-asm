@@ -128,7 +128,7 @@ theorem evm_mulmod_product_zero_byte_length :
   rw [evm_mulmod_product_zero_length]
 
 theorem evm_mulmod_product_layout_length :
-    evm_mulmod_product_layout.length = 440 := by native_decide
+    evm_mulmod_product_layout.length = 440 := by decide
 
 theorem evm_mulmod_product_layout_byte_length :
     4 * evm_mulmod_product_layout.length = 1760 := by
@@ -313,7 +313,7 @@ def evm_mulmod_reduce_zero_path : Program :=
   SD .x12 .x0 88
 
 theorem evm_mulmod_reduce_zero_path_length :
-    evm_mulmod_reduce_zero_path.length = 4 := by native_decide
+    evm_mulmod_reduce_zero_path.length = 4 := by decide
 
 theorem evm_mulmod_reduce_zero_path_byte_length :
     4 * evm_mulmod_reduce_zero_path.length = 16 := by
@@ -325,7 +325,7 @@ def evm_mulmod_epilogue : Program :=
   ADDI .x12 .x12 64
 
 theorem evm_mulmod_epilogue_length :
-    evm_mulmod_epilogue.length = 1 := by native_decide
+    evm_mulmod_epilogue.length = 1 := by decide
 
 theorem evm_mulmod_epilogue_byte_length :
     4 * evm_mulmod_epilogue.length = 4 := by
@@ -484,22 +484,22 @@ def evm_mulmod : Program :=
   evm_mulmod_reduce512
 
 theorem evm_mulmod_nonzero_or_zero_prefix_length :
-    evm_mulmod_nonzero_or_zero_prefix.length = 8 := by native_decide
+    evm_mulmod_nonzero_or_zero_prefix.length = 8 := by decide
 
 theorem evm_mulmod_zero_path_skip_nonzero_length :
-    evm_mulmod_zero_path_skip_nonzero.length = 1 := by native_decide
+    evm_mulmod_zero_path_skip_nonzero.length = 1 := by decide
 
 theorem evm_mulmod_reduce512_init_length :
-    evm_mulmod_reduce512_init.length = 6 := by native_decide
+    evm_mulmod_reduce512_init.length = 6 := by decide
 
 theorem evm_mulmod_reduce512_inner_step_length :
-    evm_mulmod_reduce512_inner_step.length = 64 := by native_decide
+    evm_mulmod_reduce512_inner_step.length = 64 := by decide
 
 theorem evm_mulmod_reduce512_loop_length :
-    evm_mulmod_reduce512_loop.length = 69 := by native_decide
+    evm_mulmod_reduce512_loop.length = 69 := by decide
 
 theorem evm_mulmod_reduce512_write_result_length :
-    evm_mulmod_reduce512_write_result.length = 8 := by native_decide
+    evm_mulmod_reduce512_write_result.length = 8 := by decide
 
 theorem evm_mulmod_reduce512_length :
     evm_mulmod_reduce512.length = 84 := by
@@ -594,7 +594,7 @@ example : runMulMod 1024
     2 0 0 0
     3 0 0 0
     0 0 0 0
-    64 = some (1088, [0, 0, 0, 0]) := by native_decide
+    64 = some (1088, [0, 0, 0, 0]) := by decide
 
 -- Nonzero end-to-end MULMOD cases execute the 512-iteration reducer loop and
 -- are intentionally covered by ziskemu runtime tests in the dispatcher slice
@@ -647,21 +647,21 @@ example : runMulModProductLayout 1024
     0 0 0 0
     0 0 0 0
     7 0 0 0
-    440 = some (1024, [7, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]) := by native_decide
+    440 = some (1024, [7, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]) := by decide
 
 /-- Small product: 2 * 3 = 6, high half zero. -/
 example : runMulModProductLayout 1024
     2 0 0 0
     3 0 0 0
     5 0 0 0
-    440 = some (1024, [5, 0, 0, 0], [6, 0, 0, 0], [0, 0, 0, 0]) := by native_decide
+    440 = some (1024, [5, 0, 0, 0], [6, 0, 0, 0], [0, 0, 0, 0]) := by decide
 
 /-- High-half-producing product: 2^192 * 2^64 = 2^256. -/
 example : runMulModProductLayout 1024
     0 0 0 1
     0 1 0 0
     11 0 0 0
-    440 = some (1024, [11, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0]) := by native_decide
+    440 = some (1024, [11, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0]) := by decide
 
 /-- Carry-heavy product: `(2^256 - 1)^2 = 1 + (2^256 - 2) * 2^256`. -/
 example : runMulModProductLayout 1024
@@ -670,6 +670,6 @@ example : runMulModProductLayout 1024
     13 0 0 0
     440 = some (1024, [13, 0, 0, 0],
       [1, 0, 0, 0],
-      [0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF]) := by native_decide
+      [0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF]) := by decide
 
 end EvmAsm.Evm64
