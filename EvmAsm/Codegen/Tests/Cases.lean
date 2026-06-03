@@ -831,6 +831,33 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x50, 0x3d, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
+  , -- BLS12 G1 ADD rejects invalid input length before any accelerator body.
+    { name             := "call_bls12_g1_add_invalid_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- Valid-length BLS12 G1 ADD reaches the active precompile surface.
+    -- Output bytes are a follow-up accelerator-body slice; this gate only
+    -- proves address recognition and the execution-specs length check.
+    { name             := "call_bls12_g1_add_valid_length_success"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- BLS12 G1 MSM rejects empty input.
+    { name             := "staticcall_bls12_g1_msm_zero_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- BLS12 G1 MSM rejects non-160-multiple input.
+    { name             := "call_bls12_g1_msm_non_multiple_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa1, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- Valid-length BLS12 G1 MSM reaches the active precompile surface.
+    { name             := "staticcall_bls12_g1_msm_valid_length_success"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
   , -- CALL to IDENTITY records the full precompile returndata buffer,
     -- so RETURNDATASIZE reports the input size even when out_size is short.
     { name             := "call_identity_returndatasize_three"
