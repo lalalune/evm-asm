@@ -19,6 +19,7 @@
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.EvmOpcodes
 
 namespace EvmAsm.Codegen
 
@@ -294,6 +295,9 @@ def emitRuntimeAccountWitnessData : String :=
   ".balign 32\n" ++
   "eahsr_state_root:\n" ++
   "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "eahsr_address_scratch:\n" ++
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "eahsr_acct_struct:\n" ++
   "  .zero 104\n" ++
@@ -453,6 +457,18 @@ def emitDispatcherEpilogue
   -- with `ret`, returning to whoever JAL'd them.
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  mptBranchChildFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  bytesToNibblesFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
+  mptLookupByKeyFunction ++ "\n" ++
+  accountDecodeFunction ++ "\n" ++
+  accountAtAddressFunction ++ "\n" ++
+  headerExtractStateRootFunction ++ "\n" ++
+  extcodehashAtHeaderStateRootFunction ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
