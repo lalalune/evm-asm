@@ -40,6 +40,7 @@ import EvmAsm.EL.Bn254G1MulEcallBridge
 import EvmAsm.EL.Bn254PairingEcallBridge
 import EvmAsm.EL.Bls12G1MsmEcallBridge
 import EvmAsm.EL.Bls12G2MsmEcallBridge
+import EvmAsm.EL.Bls12MapFpToG1EcallBridge
 import EvmAsm.EL.Bls12MapFp2ToG2EcallBridge
 import EvmAsm.EL.KzgPointEvalEcallBridge
 import EvmAsm.EL.ModexpEcallBridge
@@ -972,6 +973,139 @@ theorem emptyOutput_length :
   · simp [execute, exceptionalResult, h_valid]
 
 end G2Msm
+
+namespace MapFpToG1
+
+abbrev MemoryReader := EvmAsm.EL.Bls12MapFpToG1InputBridge.MemoryReader
+abbrev AcceleratorInput := EvmAsm.EL.Bls12MapFpToG1InputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.Bls12MapFpToG1ResultBridge.AcceleratorResult
+
+/-- EVM precompile address for BLS12-381 map-Fp-to-G1. -/
+def address : Nat := 0x10
+
+/-- Osaka executable-spec fixed gas cost for BLS12-381 map-Fp-to-G1. -/
+def gasCost : Nat := 5500
+
+/-- BLS12 map-Fp-to-G1 consumes exactly one 64-byte Fp element. -/
+def inputLength : Nat := 64
+
+/-- Invalid length, invalid field element, or accelerator failure returns no bytes. -/
+def emptyOutput : ByteList := []
+
+/--
+Result surface exposed by the pure BLS12-381 map-Fp-to-G1 framing layer.
+`exceptional = true` records executable-spec `InvalidParameter` cases.
+-/
+structure Result where
+  exceptional : Bool
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+/--
+Build the accelerator input from EVM call data. The executable spec first checks
+`len(data) == 64`; callers must guard this helper with that exact length check.
+-/
+def acceleratorInputFromCallData (memory : MemoryReader) (dataStart : Nat) :
+    AcceleratorInput :=
+  EvmAsm.EL.Bls12MapFpToG1InputBridge.bls12MapFpToG1InputFromMemory
+    memory dataStart
+
+/--
+Pure BLS12-381 map-Fp-to-G1 precompile framing. Field-element validation and
+map-to-curve arithmetic are supplied by the accelerator model.
+-/
+def execute
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) : Result :=
+  if dataLength = inputLength then
+    let input := acceleratorInputFromCallData memory dataStart
+    let result := EvmAsm.EL.Bls12MapFpToG1EcallBridge.executeBls12MapFpToG1Ecall accelerator
+      (EvmAsm.EL.Bls12MapFpToG1EcallBridge.requestFromInput input)
+    match result.status with
+    | .eok =>
+        { exceptional := false
+          status := result.status
+          output := EvmAsm.EL.Bls12MapFpToG1ResultBridge.g1PointBytesList result.output.point
+          gasCharged := gasCost }
+    | .efail =>
+        { exceptional := true
+          status := result.status
+          output := emptyOutput
+          gasCharged := gasCost }
+  else
+    { exceptional := true
+      status := .efail
+      output := emptyOutput
+      gasCharged := 0 }
+
+theorem emptyOutput_length :
+    emptyOutput.length = 0 := rfl
+
+@[simp] theorem execute_badLength
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_length : dataLength ≠ inputLength) :
+    execute accelerator memory dataStart dataLength =
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := 0 } := by
+  simp [execute, h_length]
+
+@[simp] theorem execute_status
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat) :
+    (execute accelerator memory dataStart inputLength).status =
+      (accelerator (acceleratorInputFromCallData memory dataStart)).status := by
+  cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+    simp [execute, inputLength, h_status,
+      EvmAsm.EL.Bls12MapFpToG1EcallBridge.executeBls12MapFpToG1Ecall,
+      EvmAsm.EL.Bls12MapFpToG1EcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_eok
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok) :
+    (execute accelerator memory dataStart inputLength).output =
+      EvmAsm.EL.Bls12MapFpToG1ResultBridge.g1PointBytesList
+        (accelerator (acceleratorInputFromCallData memory dataStart)).output.point := by
+  simp [execute, inputLength, h_status,
+    EvmAsm.EL.Bls12MapFpToG1EcallBridge.executeBls12MapFpToG1Ecall,
+    EvmAsm.EL.Bls12MapFpToG1EcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_efail
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .efail) :
+    (execute accelerator memory dataStart inputLength).output = emptyOutput := by
+  simp [execute, inputLength, h_status,
+    EvmAsm.EL.Bls12MapFpToG1EcallBridge.executeBls12MapFpToG1Ecall,
+    EvmAsm.EL.Bls12MapFpToG1EcallBridge.requestFromInput]
+
+theorem execute_output_eok_length
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok) :
+    (execute accelerator memory dataStart inputLength).output.length = 96 := by
+  simp [execute_output_eok accelerator memory dataStart h_status,
+    EvmAsm.EL.Bls12MapFpToG1ResultBridge.g1PointBytesList_length]
+
+@[simp] theorem execute_gasCharged
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (execute accelerator memory dataStart dataLength).gasCharged =
+      if dataLength = inputLength then gasCost else 0 := by
+  by_cases h_length : dataLength = inputLength
+  · subst dataLength
+    cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+      simp [execute, inputLength, h_status,
+        EvmAsm.EL.Bls12MapFpToG1EcallBridge.executeBls12MapFpToG1Ecall,
+        EvmAsm.EL.Bls12MapFpToG1EcallBridge.requestFromInput]
+  · simp [execute, h_length]
+
+end MapFpToG1
 
 namespace MapFp2ToG2
 
