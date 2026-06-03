@@ -31,7 +31,7 @@ private lemma getLsbD_255_eq_extractLsb_192_63 (v : EvmWord) :
 /-- Bit 63 of a 64-bit word is the low bit of that word shifted right by 63. -/
 private lemma getLsbD_63_eq_ushiftRight_63_bit0 (x : Word) :
     x.getLsbD 63 = (x >>> 63).getLsbD 0 := by
-  simp [BitVec.getLsbD_ushiftRight, show (0 + 63 : Nat) < 64 from by omega]
+  simp [show (0 + 63 : Nat) < 64 from by omega]
 
 /-- If the top 64-bit limb right-shifted by 63 equals zero, `msb` is `false`. -/
 private lemma msb_false_of_limbN3_shift63_zero (v : EvmWord)

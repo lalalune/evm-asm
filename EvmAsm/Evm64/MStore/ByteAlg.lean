@@ -57,7 +57,7 @@ theorem extractByte_def (w : Word) (i : Nat) :
 
   Proved kernel-checkably via `extractByte_def` (`>>> 0` is the identity).
 -/
-theorem extractByte_shr_zero (w : Word) (i : Nat) (h : i < 8) :
+theorem extractByte_shr_zero (w : Word) (i : Nat) (_h : i < 8) :
     extractByte (w >>> (i * 8)) 0 = extractByte w i := by
   simp only [extractByte_def, Nat.zero_mul, BitVec.ushiftRight_zero]
 

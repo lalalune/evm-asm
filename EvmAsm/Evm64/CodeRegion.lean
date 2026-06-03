@@ -64,8 +64,7 @@ private theorem epd_core (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) (k : Fin 8) :
   apply BitVec.eq_of_getLsbD_eq <;>
   intro i hi <;>
   interval_cases i <;>
-  simp [BitVec.getLsbD_setWidth, BitVec.getLsbD_ushiftRight,
-    BitVec.getLsbD_or, BitVec.getLsbD_shiftLeft, BitVec.getLsbD_setWidth]
+  simp
 
 theorem extractByte_packDword {f : Fin 8 → BitVec 8} {i : Fin 8} :
     extractByte (packDword f) i.val = f i := by

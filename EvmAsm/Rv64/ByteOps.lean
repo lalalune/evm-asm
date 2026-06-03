@@ -45,7 +45,7 @@ theorem alignToDword_add_byteOffset (addr : Word) :
   -- Prove using or-factorization: the parts are disjoint
   have hdisj : (addr &&& ~~~7#64) &&& (addr &&& 7#64) = 0 := by
     ext i
-    simp only [BitVec.getElem_and, BitVec.getElem_not, BitVec.getElem_zero]
+    simp only [BitVec.getElem_and, BitVec.getElem_not]
     rcases Bool.eq_false_or_eq_true ((7#64)[i]) with h7 | h7 <;> simp [h7]
   have hor : (addr &&& ~~~7#64) ||| (addr &&& 7#64) = addr := by
     ext i

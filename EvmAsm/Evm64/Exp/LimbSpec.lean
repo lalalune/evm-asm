@@ -424,15 +424,15 @@ theorem exp_prologue_result_word_one_right (sp : Word) (Q : Assertion) :
       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) ** Q) =
     (evmWordIs sp (1 : EvmWord) ** Q) := by
   have h0 : (sp + signExtend12 (0 : BitVec 12) : Word) = sp := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h1 : ((0 : Word) + signExtend12 (1 : BitVec 12)) = (1 : Word) := by
     decide
   have h8 : (sp + signExtend12 (8 : BitVec 12) : Word) = sp + 8 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h16 : (sp + signExtend12 (16 : BitVec 12) : Word) = sp + 16 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h24 : (sp + signExtend12 (24 : BitVec 12) : Word) = sp + 24 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   rw [h0, h1, h8, h16, h24]
   rw [evmWordIs_one_right]
 
@@ -605,13 +605,13 @@ theorem exp_epilogue_result_word
       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ r3)) =
     evmWordIs (evmSp + 32) (expResultWord r0 r1 r2 r3) := by
   have h32 : (evmSp + signExtend12 (32 : BitVec 12) : Word) = evmSp + 32 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h40 : (evmSp + signExtend12 (40 : BitVec 12) : Word) = evmSp + 40 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h48 : (evmSp + signExtend12 (48 : BitVec 12) : Word) = evmSp + 48 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h56 : (evmSp + signExtend12 (56 : BitVec 12) : Word) = evmSp + 56 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   rw [h32, h40, h48, h56]
   exact (evmWordIs_sp32_limbs_eq evmSp (expResultWord r0 r1 r2 r3) r0 r1 r2 r3
     (expResultWord_getLimbN_0 r0 r1 r2 r3)
@@ -629,13 +629,13 @@ theorem exp_epilogue_result_word_right
       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ r3) ** Q) =
     (evmWordIs (evmSp + 32) (expResultWord r0 r1 r2 r3) ** Q) := by
   have h32 : (evmSp + signExtend12 (32 : BitVec 12) : Word) = evmSp + 32 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h40 : (evmSp + signExtend12 (40 : BitVec 12) : Word) = evmSp + 40 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h48 : (evmSp + signExtend12 (48 : BitVec 12) : Word) = evmSp + 48 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   have h56 : (evmSp + signExtend12 (56 : BitVec 12) : Word) = evmSp + 56 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend12, BitVec.reduceSignExtend]; bv_omega
   rw [h32, h40, h48, h56]
   exact evmWordIs_sp32_limbs_eq_right evmSp (expResultWord r0 r1 r2 r3) r0 r1 r2 r3 Q
     (expResultWord_getLimbN_0 r0 r1 r2 r3)
@@ -1277,7 +1277,7 @@ theorem exp_msb_bit_test_block_fixed_skip_spec_within
     obtain ⟨_, _, _, _, ⟨_, _, _, _, _, ⟨_, _, _, _, _, ⟨_, heq⟩⟩⟩, _⟩ := hQf
     exact hc6 heq)
   have haddr : (base + 12 : Word) + signExtend13 (16 : BitVec 13) = base + 28 := by
-    simp only [EvmAsm.Rv64.signExtend12, EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
+    simp only [EvmAsm.Rv64.signExtend13, BitVec.reduceSignExtend]; bv_omega
   rw [haddr] at hBNE_t
   exact cpsTripleWithin_weaken
     (fun _ hp => by xperm_hyp hp)

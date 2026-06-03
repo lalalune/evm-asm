@@ -56,9 +56,9 @@ theorem bytePack8_eq (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) :
     h | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | h1
   · -- i ∈ [0, 8): both sides = b0.getLsbD i
     simp only [show i < 64 from by omega, show i < 8 from h,
-      decide_true, decide_false, Bool.not_true, Bool.not_false,
-      Bool.true_and, Bool.false_and, Bool.and_false, Bool.and_true,
-      Bool.or_false, Bool.false_or, if_true, if_false]
+      decide_true, Bool.not_true,
+      Bool.true_and, Bool.false_and, Bool.and_false,
+      Bool.false_or, if_true]
   · -- i ∈ [8, 16): both sides = b1.getLsbD (i - 8)
     simp only [show i < 64 from by omega, show ¬(i < 8) from by omega,
       show i - 8 < 64 from by omega, show i - 8 < 8 from by omega,
@@ -144,10 +144,9 @@ theorem bytePack8_eq (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) :
       show i - 8 - 8 - 8 - 8 - 8 - 8 < 64 from by omega,
       show ¬(i - 8 - 8 - 8 - 8 - 8 - 8 < 8) from by omega,
       show i - 8 - 8 - 8 - 8 - 8 - 8 - 8 < 64 from by omega,
-      show i - 8 - 8 - 8 - 8 - 8 - 8 - 8 < 8 from by omega,
-      decide_true, decide_false, Bool.not_true, Bool.not_false,
-      Bool.true_and, Bool.false_and, Bool.and_false, Bool.and_true,
-      Bool.or_false, Bool.false_or, if_true, if_false,
+      decide_true, decide_false, Bool.not_false,
+      Bool.true_and, Bool.and_false, Bool.and_true,
+      Bool.or_false, if_false,
       BitVec.getLsbD_of_ge b0 i (by omega : 8 ≤ i),
       BitVec.getLsbD_of_ge b1 (i - 8) (by omega : 8 ≤ i - 8),
       BitVec.getLsbD_of_ge b2 (i - 8 - 8) (by omega : 8 ≤ i - 8 - 8),
@@ -179,8 +178,8 @@ theorem bytePack8_eq_zero_seed (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) :
     have : (0 : Word) <<< (8 : Nat) = 0 := by
       apply BitVec.eq_of_getLsbD_eq
       intro i hi
-      simp [BitVec.getLsbD_shiftLeft, BitVec.getLsbD_zero]
-    simp [this]
+      simp [BitVec.getLsbD_zero]
+    simp
   rw [seed]
   exact bytePack8_eq b0 b1 b2 b3 b4 b5 b6 b7
 

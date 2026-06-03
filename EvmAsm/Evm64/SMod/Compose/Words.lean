@@ -172,7 +172,7 @@ theorem smodResultSignFixedWord_eq_word_of_result_sign_zero
   unfold smodResultSignFixedWord
   simp (config := { zeta := true }) only
     [bv6_63_toNat, hSign, show (0 : Word) - 0 = 0 from rfl, ult_zero_false, word_xor_zero,
-     word_add_zero, word_if_false_zero, word_if_false_eq_zero]
+     word_add_zero, word_if_false_eq_zero]
   exact EvmAsm.Evm64.SDiv.Compose.sdivWord_from_getLimbN modulus
 
 /-- If the SMOD result sign is one, the result-sign-fix helper returns the
@@ -199,8 +199,7 @@ theorem smodResultSignFixedWord_eq_neg_word_of_result_sign_one
     fun _ => EvmWord.getLimb_not
   have hadd := EvmWord.add_carry_chain_correct (~~~modulus) 1
   simp (config := { zeta := true }) only [hNot, h1_0, h1_1, h1_2, h1_3] at hadd
-  simp (config := { zeta := true }) only [BitVec.add_zero, BitVec.zero_add,
-    ult_zero_false, word_if_false_eq_zero, BitVec.zero_or, Bool.false_or] at hadd
+  simp (config := { zeta := true }) only [ult_zero_false, word_if_false_eq_zero] at hadd
   simp only [bv6_63_toNat] at hSign
   have hSignL : dividendTop >>> 63 = 1 := hSign
   unfold smodResultSignFixedWord
@@ -212,9 +211,9 @@ theorem smodResultSignFixedWord_eq_neg_word_of_result_sign_one
   rcases i with _ | _ | _ | _ | j <;> [skip; skip; skip; skip; omega]
   all_goals dsimp only []
   · exact hadd.1.symm
-  · have h := hadd.2.1; simp [BitVec.add_zero, BitVec.zero_or] at h; exact h.symm
-  · have h := hadd.2.2.1; simp [BitVec.add_zero, BitVec.zero_or] at h; exact h.symm
-  · have h := hadd.2.2.2; simp [BitVec.add_zero, BitVec.zero_or] at h; exact h.symm
+  · have h := hadd.2.1; simp [BitVec.add_zero] at h; exact h.symm
+  · have h := hadd.2.2.1; simp [BitVec.add_zero] at h; exact h.symm
+  · have h := hadd.2.2.2; simp [BitVec.add_zero] at h; exact h.symm
 
 /-- The SMOD dividend absolute-value word is zero exactly for the zero
     dividend. -/

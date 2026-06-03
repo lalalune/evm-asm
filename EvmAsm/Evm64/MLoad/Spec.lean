@@ -181,9 +181,9 @@ theorem mloadPackedLimb_eq_fold
     h | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ | h1
   · -- i ∈ [0, 8): both sides = b7.getLsbD i
     simp only [show i < 64 from by omega, show i < 8 from h,
-      decide_true, decide_false, Bool.not_true, Bool.not_false,
-      Bool.true_and, Bool.false_and, Bool.and_false, Bool.and_true,
-      Bool.or_false, Bool.false_or, if_true, if_false]
+      decide_true, Bool.not_true,
+      Bool.true_and, Bool.false_and, Bool.and_false,
+      Bool.false_or, if_true]
   · -- i ∈ [8, 16): both sides = b6.getLsbD (i - 8)
     simp only [show i < 64 from by omega, show ¬(i < 8) from by omega,
       show i - 8 < 64 from by omega, show i - 8 < 8 from by omega,
@@ -269,10 +269,9 @@ theorem mloadPackedLimb_eq_fold
       show i - 8 - 8 - 8 - 8 - 8 - 8 < 64 from by omega,
       show ¬(i - 8 - 8 - 8 - 8 - 8 - 8 < 8) from by omega,
       show i - 8 - 8 - 8 - 8 - 8 - 8 - 8 < 64 from by omega,
-      show i - 8 - 8 - 8 - 8 - 8 - 8 - 8 < 8 from by omega,
-      decide_true, decide_false, Bool.not_true, Bool.not_false,
-      Bool.true_and, Bool.false_and, Bool.and_false, Bool.and_true,
-      Bool.or_false, Bool.false_or, if_true, if_false,
+      decide_true, decide_false, Bool.not_false,
+      Bool.true_and, Bool.and_false, Bool.and_true,
+      Bool.or_false, if_false,
       BitVec.getLsbD_of_ge b7 i (by omega : 8 ≤ i),
       BitVec.getLsbD_of_ge b6 (i - 8) (by omega : 8 ≤ i - 8),
       BitVec.getLsbD_of_ge b5 (i - 8 - 8) (by omega : 8 ≤ i - 8 - 8),
