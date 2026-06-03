@@ -55,15 +55,15 @@ def gasRemainingAfterCost (input : EvmAsm.Evm64.PrecompileInput) (cost : Nat) : 
 
 theorem fieldElementsPerBlobOutput_length :
     fieldElementsPerBlobOutput.length = 32 := by
-  native_decide
+  decide
 
 theorem blsModulusOutput_length :
     blsModulusOutput.length = 32 := by
-  native_decide
+  decide
 
 theorem successOutputBytes_length :
     successOutputBytes.length = 64 := by
-  native_decide
+  decide
 
 theorem outputBytesFromVerified_true :
     outputBytesFromVerified true = successOutputBytes := rfl
