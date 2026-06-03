@@ -1195,9 +1195,9 @@ def accountWitnessHandlers : List OpcodeHandlerSpec :=
     dispatcher's preserved set, so clobbering it post-handler is fine.
 
     Stack-scratch: `evm_div` writes to negative `x12` offsets down to
-    `-152` bytes (per `divK_*` scratch layout). The dispatcher's
-    256-byte `evm_stack_low` block leaves 192 bytes below `x12`
-    after two PUSH ops — comfortably > 152.
+    `-152` bytes (per `divK_*` scratch layout). The runtime dispatcher's
+    EVM stack arena is sized for the protocol 1024-word depth and includes
+    guard space around the arena for current stack-relative scratch uses.
 
     **SDIV / SMOD are deferred to M8.5 / M9.** Their verified bodies
     end with a "saved-ra-ret" pattern (`JALR x0, x18, 0`) that
