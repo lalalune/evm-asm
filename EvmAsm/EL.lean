@@ -14,6 +14,7 @@ import EvmAsm.EL.CreatedAccounts
 import EvmAsm.EL.CreateCollision
 import EvmAsm.EL.CreateCollisionResult
 import EvmAsm.EL.CreatePrecheck
+import EvmAsm.EL.CreateDeploymentBridge
 import EvmAsm.EL.CreateResultBridge
 import EvmAsm.EL.CreateStackExecutionBridge
 import EvmAsm.EL.Logs
@@ -120,6 +121,7 @@ import EvmAsm.EL.CallStackBridge
 import EvmAsm.EL.CallResultEffectsBridge
 import EvmAsm.EL.CallExecutionBridge
 import EvmAsm.EL.CallPrecheck
+import EvmAsm.EL.CallResultMergeBridge
 import EvmAsm.EL.CallStackExecutionBridge
 import EvmAsm.EL.CallOutputMemory
 import EvmAsm.EL.CallOutputArgsMemory
