@@ -128,7 +128,7 @@ theorem evm_mulmod_product_zero_byte_length :
   rw [evm_mulmod_product_zero_length]
 
 theorem evm_mulmod_product_layout_length :
-    evm_mulmod_product_layout.length = 440 := by rfl
+    evm_mulmod_product_layout.length = 440 := by set_option maxRecDepth 1000 in rfl
 
 theorem evm_mulmod_product_layout_byte_length :
     4 * evm_mulmod_product_layout.length = 1760 := by
@@ -493,10 +493,10 @@ theorem evm_mulmod_reduce512_init_length :
     evm_mulmod_reduce512_init.length = 6 := by rfl
 
 theorem evm_mulmod_reduce512_inner_step_length :
-    evm_mulmod_reduce512_inner_step.length = 64 := by rfl
+    evm_mulmod_reduce512_inner_step.length = 64 := by set_option maxRecDepth 1000 in rfl
 
 theorem evm_mulmod_reduce512_loop_length :
-    evm_mulmod_reduce512_loop.length = 69 := by rfl
+    evm_mulmod_reduce512_loop.length = 69 := by set_option maxRecDepth 1000 in rfl
 
 theorem evm_mulmod_reduce512_write_result_length :
     evm_mulmod_reduce512_write_result.length = 8 := by rfl
