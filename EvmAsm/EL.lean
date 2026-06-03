@@ -143,3 +143,4 @@ import EvmAsm.EL.BlockTrace
 import EvmAsm.EL.Bls12G2AddInputBridge
 import EvmAsm.EL.Bls12G2AddResultBridge
 import EvmAsm.EL.Bls12G2AddEcallBridge
+import EvmAsm.EL.Bls12G2PrecompileResultBridge
