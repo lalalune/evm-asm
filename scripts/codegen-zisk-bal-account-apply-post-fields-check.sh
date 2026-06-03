@@ -12,11 +12,13 @@ if [[ -z "$ZISKEMU" ]]; then
 fi
 
 VDIR="$REPO_ROOT/gen-out/mpt-set"
+STEPS="${BAAP_STEPS:-${ZISK_STEPS:-10000000}}"
 echo "==> generate BAL account apply-post-field vectors"
 uv run --directory execution-specs --quiet python3 - "$VDIR" <<'PYGEN'
 import os
 import struct
 import sys
+from ethereum.crypto.hash import keccak256
 from ethereum.merkle_patricia_trie import Trie, trie_set, root
 from ethereum_types.bytes import Bytes32
 from ethereum_types.numeric import U256
@@ -55,8 +57,13 @@ def rlp_int(n: int) -> bytes:
     return rlp_bytes(minimal_be(n))
 
 
-def account_rlp(nonce: int, balance: int, storage_root: bytes = EMPTY_ROOT) -> bytes:
-    return rlp_list([rlp_int(nonce), rlp_int(balance), rlp_bytes(storage_root), rlp_bytes(EMPTY_CODE_HASH)])
+def account_rlp(
+    nonce: int,
+    balance: int,
+    storage_root: bytes = EMPTY_ROOT,
+    code_hash: bytes = EMPTY_CODE_HASH,
+) -> bytes:
+    return rlp_list([rlp_int(nonce), rlp_int(balance), rlp_bytes(storage_root), rlp_bytes(code_hash)])
 
 
 def storage_root(slots: dict[int, int]) -> bytes:
@@ -70,19 +77,31 @@ def change_pair(index: int, value: bytes) -> bytes:
     return rlp_list([rlp_int(index), value])
 
 
+def code_change(index: int, code: bytes) -> bytes:
+    return rlp_list([rlp_int(index), rlp_bytes(code)])
+
+
 def storage_change(slot: int, changes) -> bytes:
     return rlp_list([rlp_int(slot), rlp_list([change_pair(i, rlp_int(v)) for i, v in changes])])
 
 
-def bal_account_change_rlp(address: bytes, storage_changes=None, balance_changes=None, nonce_changes=None):
+def bal_account_change_rlp(
+    address: bytes,
+    storage_changes=None,
+    balance_changes=None,
+    nonce_changes=None,
+    code_changes=None,
+):
     storage_changes = storage_changes or []
     balance_changes = balance_changes or []
     nonce_changes = nonce_changes or []
+    code_changes = code_changes or []
     sc = [storage_change(slot, changes) for slot, changes in storage_changes]
     bc = [change_pair(i, rlp_int(v)) for i, v in balance_changes]
     nc = [change_pair(i, rlp_int(v)) for i, v in nonce_changes]
+    cc = [code_change(i, code) for i, code in code_changes]
     return rlp_list([rlp_bytes(address), rlp_list(sc), rlp_list([]),
-                     rlp_list(bc), rlp_list(nc), rlp_list([])])
+                     rlp_list(bc), rlp_list(nc), rlp_list(cc)])
 
 
 def build_input(account: bytes, account_change: bytes) -> bytes:
@@ -97,6 +116,8 @@ def build_input(account: bytes, account_change: bytes) -> bytes:
 
 addr = bytes.fromhex("c0f6dc9e5836f54caadbf59cc69346c508e1992b")
 base = account_rlp(1, 5)
+new_code = b"\x60\x2a\x60\x00\x52"
+combined_storage_root = storage_root({3: 0x2222})
 cases = [
     ("baap_noop", base, bal_account_change_rlp(addr), base),
     ("baap_balance", base, bal_account_change_rlp(addr, balance_changes=[(1, 10 ** 10)]), account_rlp(1, 10 ** 10)),
@@ -127,6 +148,30 @@ cases = [
         bal_account_change_rlp(addr, storage_changes=[(1, [(1, 0)]), (2, [(2, 0)])]),
         base,
     ),
+    (
+        "baap_code_only",
+        base,
+        bal_account_change_rlp(addr, code_changes=[(1, new_code)]),
+        account_rlp(1, 5, code_hash=keccak256(new_code)),
+    ),
+    (
+        "baap_empty_code",
+        account_rlp(1, 5, code_hash=keccak256(new_code)),
+        bal_account_change_rlp(addr, code_changes=[(2, b"")]),
+        base,
+    ),
+    (
+        "baap_full_fields",
+        base,
+        bal_account_change_rlp(
+            addr,
+            storage_changes=[(3, [(4, 0x2222)])],
+            balance_changes=[(5, 10 ** 12)],
+            nonce_changes=[(6, 9)],
+            code_changes=[(7, new_code)],
+        ),
+        account_rlp(9, 10 ** 12, combined_storage_root, keccak256(new_code)),
+    ),
 ]
 
 for name, account, account_change, expected in cases:
@@ -153,7 +198,7 @@ while IFS= read -r name; do
   [[ -n "$name" ]] || continue
   out="$VDIR/$name.output"
   "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_bal_account_apply_post_fields.elf" \
-    -i "$VDIR/$name.input" -o "$out" -n 2000000 >/dev/null 2>&1 </dev/null \
+    -i "$VDIR/$name.input" -o "$out" -n "$STEPS" >/dev/null 2>&1 </dev/null \
     || { echo "  ERROR  $name"; fail=1; continue; }
   status="$(od -An -tu8 -j 248 -N 8 "$out" | tr -d ' \n')"
   fail_code="$(od -An -tu8 -j 240 -N 8 "$out" | tr -d ' \n')"
