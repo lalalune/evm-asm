@@ -159,6 +159,30 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "signextend_basic"
       bytecode       := "0x60, 0x7f, 0x60, 0x00, 0x0b, 0x00"
       expectedOutHex := "7f00000000000000000000000000000000000000000000000000000000000000" }
+  , -- SIGNEXTEND(0, 0x80) extends the byte-0 sign bit through the word.
+    { name           := "signextend_byte0_negative"
+      bytecode       := "0x60, 0x80, 0x60, 0x00, 0x0b, 0x00"
+      expectedOutHex := "80ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+  , -- SIGNEXTEND(1, 0x7fff) keeps a positive byte-1 value unchanged.
+    { name           := "signextend_byte1_positive"
+      bytecode       := "0x61, 0x7f, 0xff, 0x60, 0x01, 0x0b, 0x00"
+      expectedOutHex := "ff7f000000000000000000000000000000000000000000000000000000000000" }
+  , -- SIGNEXTEND(1, 0x8000) extends bit 15.
+    { name           := "signextend_byte1_negative"
+      bytecode       := "0x61, 0x80, 0x00, 0x60, 0x01, 0x0b, 0x00"
+      expectedOutHex := "0080ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+  , -- SIGNEXTEND(0, 0) stays zero.
+    { name           := "signextend_zero"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x0b, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- SIGNEXTEND(31, max_word) targets the top byte, so the word is unchanged.
+    { name           := "signextend_byte31_max_word"
+      bytecode       := "0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x60, 0x1f, 0x0b, 0x00"
+      expectedOutHex := "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+  , -- SIGNEXTEND(32, 0x80) is out of range and must leave x unchanged.
+    { name           := "signextend_byte32_noop"
+      bytecode       := "0x60, 0x80, 0x60, 0x20, 0x0b, 0x00"
+      expectedOutHex := "8000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x05; PUSH1 0x03; LT; STOP → 3 < 5 = 1
     { name           := "lt_basic"
       bytecode       := "0x60, 0x05, 0x60, 0x03, 0x10, 0x00"
@@ -776,6 +800,14 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "addmod_div_zero"
       bytecode       := "0x60, 0x00, 0x60, 0x03, 0x60, 0x02, 0x08, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x07; PUSH1 0x01; PUSH32 0xff..ff; ADDMOD; STOP.
+    -- This has a 257th carry (`(2^256 - 1) + 1`). Until ADDMOD's
+    -- carry-aware reduction lands, halt_kind 3 is more honest than
+    -- returning `(low256 sum) mod N = 0` as if it were complete.
+    { name             := "addmod_carry_unsupported"
+      bytecode         := "0x60, 0x07, 0x60, 0x01, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x08, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0300000000000000" }
     -- ## M21 real calldata (CALLDATASIZE / CALLDATALOAD / CALLDATACOPY)
     -- The dispatcher prologue now populates env.callDataPtrOff (416)
     -- and env.callDataLenOff (424) from the ziskemu `-i` input file.
