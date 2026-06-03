@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,6 +22,15 @@ def repo_root() -> Path:
 
 @dataclass(frozen=True)
 class Surface:
+    key: str
+    title: str
+    bead: str
+    default_filter: str
+    patterns: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class OpcodeFamily:
     key: str
     title: str
     bead: str
@@ -217,6 +227,186 @@ SURFACES: tuple[Surface, ...] = (
 )
 
 
+OPCODE_FAMILIES: tuple[OpcodeFamily, ...] = (
+    OpcodeFamily(
+        key="arithmetic-bitwise-comparison",
+        title="arithmetic, bitwise, comparison, stack",
+        bead="evm-asm-fhsxz.2.4.2.60.2",
+        default_filter="frontier/opcodes",
+        patterns=(
+            "frontier/opcodes",
+            "add",
+            "sub",
+            "mul",
+            "div",
+            "mod",
+            "sdiv",
+            "smod",
+            "addmod",
+            "mulmod",
+            "exp",
+            "signextend",
+            "lt",
+            "gt",
+            "slt",
+            "sgt",
+            "eq",
+            "iszero",
+            "and",
+            "or",
+            "xor",
+            "not",
+            "byte",
+            "shl",
+            "shr",
+            "sar",
+            "shift",
+            "clz",
+            "count_leading_zeros",
+            "push",
+            "dup",
+            "swap",
+            "dupn_swapn_exchange",
+        ),
+    ),
+    OpcodeFamily(
+        key="memory-calldata-returndata",
+        title="memory, calldata, code, returndata",
+        bead="evm-asm-fhsxz.2.4.2.60.3",
+        default_filter="frontier/opcodes",
+        patterns=(
+            "mload",
+            "mstore",
+            "mstore8",
+            "msize",
+            "mcopy",
+            "memory_expansion",
+            "calldataload",
+            "calldatasize",
+            "calldatacopy",
+            "codesize",
+            "codecopy",
+            "returndatasize",
+            "returndatacopy",
+            "return_data",
+            "returndata",
+        ),
+    ),
+    OpcodeFamily(
+        key="control-halting-exceptions",
+        title="control flow, halting, exceptional exits",
+        bead="evm-asm-fhsxz.2.4.2.60.4",
+        default_filter="frontier/opcodes",
+        patterns=(
+            "jump",
+            "jumpi",
+            "jumpdest",
+            "invalid_addr",
+            "invalid_jump",
+            "stack_underflow",
+            "stack_overflow",
+            "oog",
+            "out_of_gas",
+            "stop",
+            "return",
+            "revert",
+            "invalid",
+            "pc",
+        ),
+    ),
+    OpcodeFamily(
+        key="environment-block-context",
+        title="environment and block context reads",
+        bead="evm-asm-fhsxz.2.4.2.60.5",
+        default_filter="frontier/opcodes",
+        patterns=(
+            "address",
+            "balance",
+            "origin",
+            "caller",
+            "callvalue",
+            "gasprice",
+            "coinbase",
+            "timestamp",
+            "number",
+            "prevrandao",
+            "difficulty",
+            "gaslimit",
+            "chainid",
+            "selfbalance",
+            "basefee",
+            "blobhash",
+            "blobgasfee",
+            "blockhash",
+            "extcodesize",
+            "extcodehash",
+            "extcodecopy",
+            "extcode",
+        ),
+    ),
+    OpcodeFamily(
+        key="storage-logs-selfdestruct",
+        title="storage, logs, transient storage, SELFDESTRUCT",
+        bead="evm-asm-fhsxz.2.4.2.60.6",
+        default_filter="frontier/opcodes",
+        patterns=(
+            "sload",
+            "sstore",
+            "tload",
+            "tstore",
+            "log0",
+            "log1",
+            "log2",
+            "log3",
+            "log4",
+            "/log",
+            "logs",
+            "selfdestruct",
+            "eip6780_selfdestruct",
+        ),
+    ),
+    OpcodeFamily(
+        key="call-create-frames",
+        title="CALL-family and CREATE-family frames",
+        bead="evm-asm-fhsxz.2.4.2.61.1",
+        default_filter="stCallCodes",
+        patterns=(
+            "callcode",
+            "delegatecall",
+            "staticcall",
+            "call_",
+            "/call",
+            "create",
+            "create2",
+            "initcode",
+            "reentrancy",
+        ),
+    ),
+    OpcodeFamily(
+        key="precompile-dispatch",
+        title="CALL/STATICCALL precompile dispatch",
+        bead="evm-asm-fhsxz.2.4.2.62",
+        default_filter="frontier/precompiles",
+        patterns=(
+            "precompile",
+            "precompiled",
+            "identity_precompile",
+            "ecrecover",
+            "ripemd",
+            "sha256",
+            "modexp",
+            "ecadd",
+            "ecmul",
+            "ecpairing",
+            "blake2",
+            "bls12",
+            "point_evaluation",
+            "p256verify",
+        ),
+    ),
+)
+
+
 def iter_stateless_fixture_paths(fixtures_dir: Path):
     for path in sorted(fixtures_dir.rglob("*.json")):
         if ".meta" in path.parts:
@@ -248,6 +438,36 @@ def match_surfaces(relpath: str) -> list[Surface]:
         surface
         for surface in SURFACES
         if any(pattern.lower() in lower for pattern in surface.patterns)
+    ]
+
+
+def normalized_tokens(relpath: str) -> tuple[str, set[str]]:
+    lower = relpath.lower()
+    normalized = re.sub(r"[^a-z0-9]+", "_", lower).strip("_")
+    return normalized, set(filter(None, normalized.split("_")))
+
+
+def opcode_pattern_matches(
+    relpath: str, normalized: str, tokens: set[str], pattern: str
+) -> bool:
+    lower_pattern = pattern.lower()
+    if "/" in lower_pattern:
+        return lower_pattern in relpath.lower()
+    pattern_norm = re.sub(r"[^a-z0-9]+", "_", lower_pattern).strip("_")
+    if "_" in pattern_norm:
+        return pattern_norm in normalized
+    return pattern_norm in tokens
+
+
+def match_opcode_families(relpath: str) -> list[OpcodeFamily]:
+    normalized, tokens = normalized_tokens(relpath)
+    return [
+        family
+        for family in OPCODE_FAMILIES
+        if any(
+            opcode_pattern_matches(relpath, normalized, tokens, pattern)
+            for pattern in family.patterns
+        )
     ]
 
 
@@ -297,6 +517,11 @@ def main() -> int:
     )
     parser.add_argument("--format", choices=("markdown", "tsv"), default="markdown")
     parser.add_argument(
+        "--opcode-families",
+        action="store_true",
+        help="report opcode-family fixture groups instead of broad feature surfaces",
+    )
+    parser.add_argument(
         "--example-limit",
         type=int,
         default=3,
@@ -309,15 +534,18 @@ def main() -> int:
     if not args.fixtures_dir.is_dir():
         parser.error(f"fixtures dir not found: {args.fixtures_dir}")
 
-    counts = {surface.key: 0 for surface in SURFACES}
-    files = {surface.key: set() for surface in SURFACES}
-    examples = {surface.key: [] for surface in SURFACES}
+    items = OPCODE_FAMILIES if args.opcode_families else SURFACES
+    matcher = match_opcode_families if args.opcode_families else match_surfaces
+
+    counts = {surface.key: 0 for surface in items}
+    files = {surface.key: set() for surface in items}
+    examples = {surface.key: [] for surface in items}
     unclassified_count = 0
     unclassified_files: set[str] = set()
     unclassified_examples: list[str] = []
 
     for relpath in iter_stateless_fixture_paths(args.fixtures_dir):
-        matches = match_surfaces(relpath)
+        matches = matcher(relpath)
         if not matches:
             unclassified_count += 1
             unclassified_files.add(relpath)
@@ -337,7 +565,7 @@ def main() -> int:
                 examples[surface.key].append(relpath)
 
     rows: list[dict[str, object]] = []
-    for surface in SURFACES:
+    for surface in items:
         rows.append(
             {
                 "key": surface.key,
