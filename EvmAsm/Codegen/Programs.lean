@@ -86,6 +86,7 @@ import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
+import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StorageRoot
@@ -1368,6 +1369,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BlockEmpty.lean",
     "EvmAsm/Codegen/Programs/BlockRoots.lean",
     "EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean",
+    "EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean",
     "EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean",
     "EvmAsm/Codegen/Programs/BlockValidate.lean",
     "EvmAsm/Codegen/Programs/Chain.lean",
