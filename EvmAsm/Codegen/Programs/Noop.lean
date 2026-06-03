@@ -472,18 +472,22 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  sd x0, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop"
-  [ mkHandler "h_CREATE"        0xf0 64
+  [ { mkHandler "h_CREATE" 0xf0 64 with
+      preBody := stackUnderflowGuardAsm 3 ++ "\n" }
   , { label := "h_CALL"
     , opcodes := [0xf1]
-    , preBody := stackUnderflowGuardAsm 7
+    , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
     , tail := .custom (basicPrecompileCallTail 192 96 128 160 192) }
-  , mkHandler "h_CALLCODE"      0xf2 192
-  , mkHandler "h_DELEGATECALL"  0xf4 160
-  , mkHandler "h_CREATE2"       0xf5 96
+  , { mkHandler "h_CALLCODE" 0xf2 192 with
+      preBody := stackUnderflowGuardAsm 7 ++ "\n" }
+  , { mkHandler "h_DELEGATECALL" 0xf4 160 with
+      preBody := stackUnderflowGuardAsm 6 ++ "\n" }
+  , { mkHandler "h_CREATE2" 0xf5 96 with
+      preBody := stackUnderflowGuardAsm 4 ++ "\n" }
   , { label := "h_STATICCALL"
     , opcodes := [0xfa]
-    , preBody := stackUnderflowGuardAsm 6
+    , preBody := stackUnderflowGuardAsm 6 ++ "\n"
     , body := []
     , tail := .custom (basicPrecompileCallTail 160 64 96 128 160) } ]
 
