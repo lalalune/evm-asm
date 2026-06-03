@@ -28,11 +28,21 @@ Manifest columns (tab-separated, one row per guest invocation):
 Usage:
   eest-stateless-to-input.py --fixtures-dir DIR --out-dir DIR
                              [--manifest FILE] [--skip N] [--limit N]
-                             [--filter SUB]
+                             [--filter SUB] [--verify-input-parity]
+                             [--verify-execution-spec-input]
+                             [--verify-run-stateless-guest]
 
 ``--filter`` keeps only fixtures whose relative path contains the given
 substring.  ``--skip`` drops the first N selected stateless blocks after
 filtering, then ``--limit`` caps the number of guest invocations emitted.
+``--verify-input-parity`` unpacks each emitted ziskemu input and checks that
+the guest-visible blob is byte-for-byte the fixture's ``statelessInputBytes``.
+``--verify-execution-spec-input`` additionally decodes that same blob through
+the Python execution-specs stateless input path used by ``run_stateless_guest``.
+``--verify-run-stateless-guest`` runs Python execution-specs
+``run_stateless_guest`` on that same blob and requires the fixture's
+``statelessOutputBytes`` to match; this is useful only when fixtures were
+generated from the same execution-specs checkout.
 """
 from __future__ import annotations
 
@@ -49,6 +59,22 @@ def pack_ziskemu_input(blob: bytes) -> bytes:
     total = 8 + len(blob)
     pad = (-total) % 8
     return struct.pack("<Q", len(blob)) + blob + (b"\x00" * pad)
+
+
+def unpack_ziskemu_input(packed: bytes) -> bytes:
+    """Inverse of pack_ziskemu_input, validating length and zero padding."""
+    if len(packed) < 8:
+        raise ValueError(f"packed input too short: {len(packed)}")
+    n = struct.unpack("<Q", packed[:8])[0]
+    end = 8 + n
+    if len(packed) < end:
+        raise ValueError(f"packed input truncated: length={n}, bytes={len(packed)}")
+    pad = packed[end:]
+    if any(pad):
+        raise ValueError("packed input has non-zero padding")
+    if len(pad) != (-end) % 8:
+        raise ValueError(f"packed input has wrong padding length: {len(pad)}")
+    return packed[8:end]
 
 
 def sanitize(s: str) -> str:
@@ -95,6 +121,42 @@ def iter_blocks(fixture_path: Path):
             yield label, ib, ob, gas_limit
 
 
+def load_execution_specs_input_decoder():
+    """Import execution-specs lazily so normal conversion has no extra deps."""
+    try:
+        from ethereum.forks.amsterdam.stateless_guest import deserialize_stateless_input
+        from ethereum_types.bytes import Bytes
+    except ImportError as exc:
+        raise RuntimeError(
+            "execution-specs input verification must be run with execution-specs "
+            "dependencies available, e.g. `uv run --directory execution-specs "
+            "--quiet python3 ../scripts/eest-stateless-to-input.py ...`"
+        ) from exc
+
+    def decode(blob: bytes) -> None:
+        deserialize_stateless_input(Bytes(blob))
+
+    return decode
+
+
+def load_run_stateless_guest():
+    """Import execution-specs run_stateless_guest lazily."""
+    try:
+        from ethereum.forks.amsterdam.stateless_guest import run_stateless_guest
+        from ethereum_types.bytes import Bytes
+    except ImportError as exc:
+        raise RuntimeError(
+            "--verify-run-stateless-guest must be run with execution-specs "
+            "dependencies available, e.g. `uv run --directory execution-specs "
+            "--quiet python3 ../scripts/eest-stateless-to-input.py ...`"
+        ) from exc
+
+    def run(blob: bytes) -> bytes:
+        return bytes(run_stateless_guest(Bytes(blob)))
+
+    return run
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--fixtures-dir", required=True, type=Path)
@@ -103,6 +165,21 @@ def main() -> int:
     ap.add_argument("--skip", type=int, default=0, help="skip first N selected invocations")
     ap.add_argument("--limit", type=int, default=0, help="cap invocations (0 = no cap)")
     ap.add_argument("--filter", default="", help="keep fixtures whose relpath contains this")
+    ap.add_argument(
+        "--verify-input-parity",
+        action="store_true",
+        help="verify each emitted ziskemu input carries exactly statelessInputBytes",
+    )
+    ap.add_argument(
+        "--verify-execution-spec-input",
+        action="store_true",
+        help="verify execution-specs can decode the exact guest input blob",
+    )
+    ap.add_argument(
+        "--verify-run-stateless-guest",
+        action="store_true",
+        help="verify execution-specs run_stateless_guest(input) equals statelessOutputBytes",
+    )
     args = ap.parse_args()
 
     if args.skip < 0:
@@ -114,6 +191,16 @@ def main() -> int:
     out_dir: Path = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = args.manifest or (out_dir / "manifest.tsv")
+    try:
+        decode_spec_input = (
+            load_execution_specs_input_decoder()
+            if args.verify_execution_spec_input or args.verify_run_stateless_guest
+            else None
+        )
+        run_spec = load_run_stateless_guest() if args.verify_run_stateless_guest else None
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
     json_files = sorted(
         p for p in fixtures_dir.rglob("*.json")
@@ -154,7 +241,46 @@ def main() -> int:
                 used_labels.add(uniq)
 
                 input_file = out_dir / f"{uniq}.input"
-                input_file.write_bytes(pack_ziskemu_input(ib))
+                packed = pack_ziskemu_input(ib)
+                if args.verify_input_parity or decode_spec_input is not None:
+                    try:
+                        recovered = unpack_ziskemu_input(packed)
+                    except ValueError as exc:
+                        print(
+                            f"  error: ziskemu input packing mismatch for "
+                            f"{relpath} {label}: {exc}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    if recovered != ib:
+                        print(
+                            f"  error: ziskemu input blob differs from "
+                            f"statelessInputBytes for {relpath} {label}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                if decode_spec_input is not None:
+                    try:
+                        decode_spec_input(ib)
+                    except Exception as exc:
+                        print(
+                            f"  error: execution-specs cannot decode "
+                            f"statelessInputBytes for {relpath} {label}: {exc}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                if run_spec is not None:
+                    spec_output = run_spec(ib)
+                    if spec_output != ob:
+                        print(
+                            f"  error: run_stateless_guest output differs from "
+                            f"statelessOutputBytes for {relpath} {label}",
+                            file=sys.stderr,
+                        )
+                        print(f"    spec:    {spec_output.hex()}", file=sys.stderr)
+                        print(f"    fixture: {ob.hex()}", file=sys.stderr)
+                        return 1
+                input_file.write_bytes(packed)
                 succ_bit = ob[32] if len(ob) > 32 else -1
                 mf.write(
                     "\t".join(
