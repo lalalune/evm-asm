@@ -60,6 +60,7 @@ import EvmAsm.EL.Secp256r1VerifyEcallBridge
 import EvmAsm.EL.Bls12G1MsmInputBridge
 import EvmAsm.EL.Bls12G1MsmResultBridge
 import EvmAsm.EL.Bls12G1MsmEcallBridge
+import EvmAsm.EL.Bls12G1PrecompileResultBridge
 import EvmAsm.EL.KzgPointEvalInputBridge
 import EvmAsm.EL.KzgPointEvalResultBridge
 import EvmAsm.EL.KzgPointEvalEcallBridge
@@ -142,3 +143,4 @@ import EvmAsm.EL.BlockTrace
 import EvmAsm.EL.Bls12G2AddInputBridge
 import EvmAsm.EL.Bls12G2AddResultBridge
 import EvmAsm.EL.Bls12G2AddEcallBridge
+import EvmAsm.EL.Bls12G2PrecompileResultBridge
