@@ -272,16 +272,30 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "push32_basic"
       bytecode       := "0x7f, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x00"
       expectedOutHex := "201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201" }
+  , -- PUSH0; STOP — explicit representative for the PUSH0 endpoint.
+    { name           := "push0_basic"
+      bytecode       := "0x5f, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x42; DUP1; ADD; STOP — DUP1 makes stack [0x42, 0x42];
     -- ADD → 0x84.
     { name           := "dup1_basic"
       bytecode       := "0x60, 0x42, 0x80, 0x01, 0x00"
       expectedOutHex := "8400000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 1; ...; PUSH1 16; DUP16; STOP — DUP16 copies the deepest
+    -- item in this 16-word stack, so the result is 1.
+    { name           := "dup16_basic"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0x60, 0x07, 0x60, 0x08, 0x60, 0x09, 0x60, 0x0a, 0x60, 0x0b, 0x60, 0x0c, 0x60, 0x0d, 0x60, 0x0e, 0x60, 0x0f, 0x60, 0x10, 0x8f, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x05; PUSH1 0x02; SWAP1; SUB; STOP — SWAP1 yields top=5,
     -- second=2; SUB → 5 - 2 = 3.
     { name           := "swap1_basic"
       bytecode       := "0x60, 0x05, 0x60, 0x02, 0x90, 0x03, 0x00"
       expectedOutHex := "0300000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 1; ...; PUSH1 17; SWAP16; STOP — SWAP16 exchanges top with
+    -- the deepest item in this 17-word stack, so the surfaced top is 1.
+    { name           := "swap16_basic"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0x60, 0x07, 0x60, 0x08, 0x60, 0x09, 0x60, 0x0a, 0x60, 0x0b, 0x60, 0x0c, 0x60, 0x0d, 0x60, 0x0e, 0x60, 0x0f, 0x60, 0x10, 0x60, 0x11, 0x9f, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
     -- ## Kitchen sink (cross-family chain)
   , -- PUSH1 0x03; PUSH1 0x05; MUL; PUSH1 0x10; SUB; STOP
     -- MUL: 5*3=15=0x0f. SUB: 0x10 - 0x0f = 0x01.
@@ -744,19 +758,23 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x50, 0x3d, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-    -- ## M20 arithmetic frontier status
-    -- MULMOD is still a narrow placeholder surface here: it pops three words
-    -- and this regression only checks stack discipline, not full modular
-    -- multiplication. EXP has since graduated to the real self-calling body
-    -- below, but broader EXP EEST/proof completeness remains tracked
-    -- separately from this runtime smoke registry.
-  , -- PUSH1 0x03; PUSH1 0x05; PUSH1 0x07; MULMOD; PUSH1 0x42; STOP
-    -- MULMOD pops 3 (a, b, N), pushes 1 (result = 0). Net pop = 2 =
-    -- +64 bytes. PUSH1 0x42 lands on the 1-deep stack and replaces
-    -- the zero result. Expected: 0x42.
-    { name           := "mulmod_pop3"
-      bytecode       := "0x60, 0x03, 0x60, 0x05, 0x60, 0x07, 0x09, 0x60, 0x42, 0x00"
-      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+    -- ## MULMOD (0x09) -- total runtime body. EVM pops `a` (top), then
+    -- `b`, then `N`; if `N = 0` the result is zero, otherwise
+    -- `(a * b) % N`.
+  , -- PUSH1 0x00; PUSH1 0x05; PUSH1 0x07; MULMOD; STOP -- N=0 => 0.
+    { name           := "mulmod_zero_modulus"
+      bytecode       := "0x60, 0x00, 0x60, 0x05, 0x60, 0x07, 0x09, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x0d; PUSH1 0x05; PUSH1 0x07; MULMOD; STOP -- (7*5)%13 = 9.
+    { name           := "mulmod_small_nonzero"
+      bytecode       := "0x60, 0x0d, 0x60, 0x05, 0x60, 0x07, 0x09, 0x00"
+      expectedOutHex := "0900000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x0b; PUSH9 2^64; PUSH25 2^192; MULMOD; STOP.
+    -- Product is 2^256, so this covers the high-product path:
+    -- 2^256 % 11 = 9.
+    { name           := "mulmod_high_product_nonzero"
+      bytecode       := "0x60, 0x0b, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0x00"
+      expectedOutHex := "0900000000000000000000000000000000000000000000000000000000000000" }
   , -- ## EXP (0x0a) — real verified body via selfCallingHandlers
     -- (evmExpComposed, _fixed_fixed x6→x22 counter fix). EVM EXP pops
     -- `a` (base, top of stack) then `exponent`; result = a ** exponent.
@@ -819,14 +837,21 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "addmod_div_zero"
       bytecode       := "0x60, 0x00, 0x60, 0x03, 0x60, 0x02, 0x08, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
-  , -- PUSH1 0x07; PUSH1 0x01; PUSH32 0xff..ff; ADDMOD; STOP.
-    -- This has a 257th carry (`(2^256 - 1) + 1`). Until ADDMOD's
-    -- carry-aware reduction lands, halt_kind 3 is more honest than
-    -- returning `(low256 sum) mod N = 0` as if it were complete.
-    { name             := "addmod_carry_unsupported"
-      bytecode         := "0x60, 0x07, 0x60, 0x01, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x08, 0x00"
-      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind := "0300000000000000" }
+  , -- PUSH1 0x07; PUSH1 0x01; PUSH1 0x00; NOT; ADDMOD; STOP
+    -- (2^256 - 1 + 1) % 7 = 2, exercising the ADD carry contribution.
+    { name           := "addmod_carry_pow256_mod_7"
+      bytecode       := "0x60, 0x07, 0x60, 0x01, 0x60, 0x00, 0x19, 0x08, 0x00"
+      expectedOutHex := "0200000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH17 (2^128 + 1); PUSH1 0x01; PUSH1 0x00; NOT; ADDMOD; STOP
+    -- 2^256 % (2^128 + 1) = 1, covering a multi-limb modulus carry case.
+    { name           := "addmod_carry_pow256_mod_2_128_plus_1"
+      bytecode       := "0x70, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x60, 0x01, 0x60, 0x00, 0x19, 0x08, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x07; PUSH1 0x07; PUSH1 0x00; NOT; ADDMOD; STOP
+    -- (2^256 - 1 + 7) % 7 = 1, exercising carry plus final subtract.
+    { name           := "addmod_carry_reduced_sum_subtracts_n"
+      bytecode       := "0x60, 0x07, 0x60, 0x07, 0x60, 0x00, 0x19, 0x08, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
     -- ## M21 real calldata (CALLDATASIZE / CALLDATALOAD / CALLDATACOPY)
     -- The dispatcher prologue now populates env.callDataPtrOff (416)
     -- and env.callDataLenOff (424) from the ziskemu `-i` input file.

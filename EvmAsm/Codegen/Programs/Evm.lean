@@ -32,6 +32,7 @@ import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
 import EvmAsm.Evm64.Multiply.Callable
 import EvmAsm.Evm64.Multiply.Program
+import EvmAsm.Evm64.MulMod.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
 import EvmAsm.Evm64.Pop.Program
@@ -237,12 +238,11 @@ def evmAddFromInputUnit : BuildUnit := {
     Programs compose under `++` while honoring the `x10` code-pointer
     convention that `evm_push` reads its immediates from.
 
-    Stack layout: 256 bytes of writable scratch ending at label
-    `evm_stack_top`. The EVM stack grows downward; the prologue
-    initializes `x12 = evm_stack_top` and each `evm_push` decrements
-    `x12` by 32 to allocate a new slot. Worst-case depth across both
-    test programs is 2 slots = 64 bytes, so 256 leaves comfortable
-    headroom. -/
+    Stack layout: 256 bytes of writable EVM stack below label
+    `evm_stack_top`, plus a post-top scratch window for opcode bodies that
+    use positive offsets from the live stack pointer. The EVM stack grows
+    downward; the prologue initializes `x12 = evm_stack_top` and each
+    `evm_push` decrements `x12` by 32 to allocate a new slot. -/
 
 /-- Dispatcher glue between unrolled opcode `Program`s: advance the
     EVM code pointer (`x10`) by the byte width of the opcode just
@@ -264,13 +264,13 @@ def tinyInterpPrologue : String :=
   "  la x12, evm_stack_top"
 
 /-- `.data` section: a label `evm_code` holding the bytecode bytes,
-    followed by 256 bytes of writable scratch ending at label
-    `evm_stack_top`. `bytecodeBytes` is a comma-separated `.byte`
-    directive payload (e.g. `"0x60, 0xff, 0x60, 0x01, 0x01, 0x00"`).
+    followed by the writable EVM stack and opcode scratch windows.
+    `bytecodeBytes` is a comma-separated `.byte` directive payload
+    (e.g. `"0x60, 0xff, 0x60, 0x01, 0x01, 0x00"`).
 
     Written as raw asm text rather than `emitDataLabel` because the
     layout is hybrid (`.byte` payload for the bytecode, `.zero` for
-    the stack scratch) — `emitDataLabel` only takes `UInt64` dwords. -/
+    the stack scratch) -- `emitDataLabel` only takes `UInt64` dwords. -/
 def tinyInterpDataSection (bytecodeBytes : String) : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
@@ -279,7 +279,9 @@ def tinyInterpDataSection (bytecodeBytes : String) : String :=
   ".balign 32\n" ++
   "evm_stack_low:\n" ++
   "  .zero 256\n" ++
-  "evm_stack_top:"
+  "evm_stack_top:\n" ++
+  "evm_stack_positive_scratch:\n" ++
+  "  .zero 256"
 
 /-- M5a test case 1: `PUSH1 0xFF; PUSH1 0x01; ADD; STOP`. Expected
     256-bit sum = `0x100`, which as four LE u64 limbs is
@@ -1101,6 +1103,68 @@ def logHandlers : List OpcodeHandlerSpec :=
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
     , tail := .advanceAndRet 1 } ]
 
+
+/-! ## Runtime account-witness opcodes
+
+    EXTCODEHASH (0x3f) now reads the account trie through the optional
+    runtime account-witness context populated by `pack-bytecode.py` and
+    `emitRuntimeDispatcherSetup`. If no witness context is present, it keeps
+    the old deterministic zero behavior. -/
+
+/-- Copy an EVM stack address word into natural 20-byte address order.
+
+    Stack bytes 0..19 hold the low 160-bit address little-endian; trie lookup
+    helpers expect the big-endian byte string whose keccak selects the account
+    path. `x12` is the EVM stack pointer and `t1` points at
+    `eahsr_address_scratch`. -/
+private def extcodehashWitnessAddressCopy : String :=
+  String.intercalate "" <|
+    (List.range 20).map fun i =>
+      s!"  lbu t2, {19 - i}(x12)\n  sb t2, {i}(t1)\n"
+
+/-- Raw dispatcher handler for EXTCODEHASH backed by
+    `extcodehash_at_header_state_root`.
+
+    The EVM stack word stores the low 160-bit address little-endian; the
+    helper expects the natural 20-byte address order used for
+    `keccak(address)`, so the handler first reverses bytes 0..19 into
+    `eahsr_address_scratch`. Net stack delta is zero: the address word is
+    overwritten with the 32-byte EIP-1052 result. -/
+private def extcodehashWitnessTail : HandlerTail :=
+  .custom <|
+    "  ld t0, 584(x20)\n" ++          -- header length; zero means no witness context
+    "  beqz t0, .Lextcodehash_no_context\n" ++
+    "  la t1, eahsr_address_scratch\n" ++
+    extcodehashWitnessAddressCopy ++
+    "  addi sp, sp, -32\n" ++
+    "  sd x10, 0(sp)\n" ++
+    "  sd x12, 8(sp)\n" ++
+    "  ld a0, 576(x20)\n" ++         -- header ptr
+    "  ld a1, 584(x20)\n" ++         -- header len
+    "  la a2, eahsr_address_scratch\n" ++
+    "  ld a3, 592(x20)\n" ++         -- witness.state ptr
+    "  ld a4, 600(x20)\n" ++         -- witness.state len
+    "  ld a5, 8(sp)\n" ++            -- saved EVM stack ptr; a2 aliases x12
+    "  jal ra, extcodehash_at_header_state_root\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop\n" ++
+    ".Lextcodehash_no_context:\n" ++
+    "  sd zero, 0(x12)\n" ++
+    "  sd zero, 8(x12)\n" ++
+    "  sd zero, 16(x12)\n" ++
+    "  sd zero, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop"
+
+def accountWitnessHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_EXTCODEHASH"
+    , opcodes := [0x3f]
+    , body := []
+    , tail := extcodehashWitnessTail } ]
+
 -- M17 / M22 storage handlers (SLOAD, SSTORE, TLOAD, TSTORE) live in
 -- `EvmAsm/Codegen/Programs/Storage.lean` — extracted at M22 (when
 -- the inline-asm scan loops pushed this file past the per-file size
@@ -1141,6 +1205,21 @@ def logHandlers : List OpcodeHandlerSpec :=
     needs a trampoline-style wrapper (set `x18` to a per-handler
     "restore" stub before the body runs, splice off the body's
     initial save_ra_block). Tracked as the next codegen PR. -/
+private def mulmodTail : HandlerTail :=
+  .custom <|
+    "  mv x10, x23\n" ++
+    "  mv x13, x21\n" ++
+    "  mv x20, x22\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  ret"
+
+def mulmodHandlers : List OpcodeHandlerSpec :=
+  [ { label   := "h_MULMOD"
+      opcodes := [0x09]
+      preBody := "  mv x23, x10\n  mv x21, x13\n  mv x22, x20"
+      body    := EvmAsm.Evm64.evm_mulmod
+      tail    := mulmodTail } ]
+
 private def divModTail : HandlerTail :=
   .custom "  mv x10, x14\n  addi x10, x10, 1\n  ret"
 
@@ -1238,41 +1317,35 @@ def signedDivModHandlers : List OpcodeHandlerSpec :=
     runs correctly through the dispatcher. (The limb pointer `x16`
     was never the problem — `evm_mul` doesn't touch it.) -/
 
-/-- ADDMOD handler body for the no-carry supported lane. **Skips
-    `evm_addmod_epilogue` deliberately**: the verified `evm_addmod`
-    composes prologue + phase1_carry + phase2_reduce + epilogue, but
-    the epilogue does `ADDI x12, x12, 32` on TOP of the `ADDI x12,
-    x12, 32` already done by `divK_mod_epilogue` inside
-    `evm_mod_callable_v4`. Including both over-advances `x12` by 32,
-    leaving the result outside the EVM stack. (The verified
-    `evm_addmod` is a slice 3a skeleton; slice 3c hasn't been
-    implemented.)
+/-- Runtime ADDMOD handler body for the dispatcher.
 
-    This program assumes the 257th carry bit is zero. Runtime dispatch
-    uses `addmodRuntimeAsm`, which checks `x7` after `phase1_carry`
-    and routes carry-out cases to `.exit_invalid_op` instead of
-    silently computing `(a + b mod 2^256) mod N`.
+    The proof-facing `evm_addmod` skeleton still only reduces the truncated
+    low 256-bit sum. The dispatcher needs total EVM behavior now, so this
+    raw handler uses assembler labels for the internal calls and handles the
+    carry-out path empirically:
 
-    Composition:
-      - prologue (`evm_add`): 30 instr (120 B), pops 2 / pushes 1, x12 += 32
-      - phase1_carry: 1 instr (4 B), `ADDI x7, x5, 0`
-      - phase2_reduce 8: 1 instr (4 B), `JAL .x1 +8` → mod_callable_v4
-      - skip-JAL: 1 instr (4 B), `JAL .x0 +1372` → past callable to tail
-      - `evm_mod_callable_v4`: 343 instr (1372 B), advances x12 by 32
+      * if `N = 0`, write zero and advance by one stack word;
+      * if the ADD carry is zero, reduce the truncated sum with MOD;
+      * if the ADD carry is one, compute `m = 2^256 mod N`, reduce the
+        truncated sum first, add `m`, then perform the single conditional
+        subtract required because both addends are already `< N`.
 
-    Net x12 advance: 32 (prologue) + 32 (callable) = 64 B (= 3 pops -
-    1 push). ✓
-
-    modOff for phase2_reduce: JAL at byte 124, callable at byte 132,
-    offset = 8 bytes. Skip-JAL at byte 128, target = byte 128 + 1376
-    = 1504 (end of body, just past the callable), offset = 1376 bytes
-    (= 4 bytes for the skip-JAL itself + 1372 bytes for the callable). -/
-def evmAddmodComposed : Program :=
-  EvmAsm.Evm64.evm_addmod_prologue ;;
-  EvmAsm.Evm64.evm_addmod_phase1_carry ;;
-  EvmAsm.Evm64.evm_addmod_phase2_reduce 8 ;;
-  single (Instr.JAL .x0 (1376 : BitVec 21)) ;;
-  EvmAsm.Evm64.evm_mod_callable_v4
+    The carry helper uses `x12 + 224` / `x12 + 256` as its callable MOD work
+    window so DivMod's negative scratch offsets do not overlap the live
+    truncated sum or modulus. This wrapper exists only to avoid brittle
+    hand-counted JAL offsets in the runtime dispatcher while the verified
+    top-level ADDMOD assembly catches up. -/
+private def evmAddmodRuntimeTail : HandlerTail :=
+  .custom <| String.intercalate "\n" [
+    emitProgram EvmAsm.Evm64.evm_addmod_prologue,
+    emitProgram EvmAsm.Evm64.evm_addmod_phase1_carry,
+    "  ld x6, 32(x12)\n  ld x5, 40(x12)\n  or x6, x6, x5\n  ld x5, 48(x12)\n  or x6, x6, x5\n  ld x5, 56(x12)\n  or x6, x6, x5\n  beq x6, x0, .Laddmod_zero\n  beq x7, x0, .Laddmod_no_carry\n  addi x5, x0, -1\n  sd x5, 224(x12)\n  sd x5, 232(x12)\n  sd x5, 240(x12)\n  sd x5, 248(x12)\n  ld x5, 32(x12)\n  sd x5, 256(x12)\n  ld x5, 40(x12)\n  sd x5, 264(x12)\n  ld x5, 48(x12)\n  sd x5, 272(x12)\n  ld x5, 56(x12)\n  sd x5, 280(x12)\n  addi x12, x12, 224\n  jal x1, .Laddmod_mod_callable\n  addi x12, x12, -256\n  ld x5, 256(x12)\n  addi x6, x5, 1\n  sltiu x7, x6, 1\n  sd x6, 224(x12)\n  ld x5, 264(x12)\n  add x6, x5, x7\n  sltu x7, x6, x7\n  sd x6, 232(x12)\n  ld x5, 272(x12)\n  add x6, x5, x7\n  sltu x7, x6, x7\n  sd x6, 240(x12)\n  ld x5, 280(x12)\n  add x6, x5, x7\n  sltu x7, x6, x7\n  sd x6, 248(x12)\n  ld x5, 32(x12)\n  sd x5, 256(x12)\n  ld x5, 40(x12)\n  sd x5, 264(x12)\n  ld x5, 48(x12)\n  sd x5, 272(x12)\n  ld x5, 56(x12)\n  sd x5, 280(x12)\n  addi x12, x12, 224\n  jal x1, .Laddmod_mod_callable\n  addi x12, x12, -256\n  ld x5, 32(x12)\n  sd x5, 64(x12)\n  ld x5, 40(x12)\n  sd x5, 72(x12)\n  ld x5, 48(x12)\n  sd x5, 80(x12)\n  ld x5, 56(x12)\n  sd x5, 88(x12)\n  jal x1, .Laddmod_mod_callable\n  addi x12, x12, -32\n  ld x5, 32(x12)\n  sd x5, 0(x12)\n  ld x5, 40(x12)\n  sd x5, 8(x12)\n  ld x5, 48(x12)\n  sd x5, 16(x12)\n  ld x5, 56(x12)\n  sd x5, 24(x12)\n  ld x5, 256(x12)\n  sd x5, 32(x12)\n  ld x5, 264(x12)\n  sd x5, 40(x12)\n  ld x5, 272(x12)\n  sd x5, 48(x12)\n  ld x5, 280(x12)\n  sd x5, 56(x12)",
+    emitProgram EvmAsm.Evm64.evm_add,
+    "  bne x5, x0, .Laddmod_sub_n\n  ld x6, 24(x12)\n  ld x7, 56(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_done\n  ld x6, 16(x12)\n  ld x7, 48(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_done\n  ld x6, 8(x12)\n  ld x7, 40(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_done\n  ld x6, 0(x12)\n  ld x7, 32(x12)\n  bltu x6, x7, .Laddmod_done\n.Laddmod_sub_n:\n  ld x6, 0(x12)\n  ld x7, 32(x12)\n  sub x5, x6, x7\n  sltu x11, x6, x7\n  sd x5, 0(x12)\n  ld x6, 8(x12)\n  ld x7, 40(x12)\n  sub x5, x6, x7\n  sltu x10, x6, x7\n  sub x5, x5, x11\n  sltu x11, x5, x11\n  or x11, x10, x11\n  sd x5, 8(x12)\n  ld x6, 16(x12)\n  ld x7, 48(x12)\n  sub x5, x6, x7\n  sltu x10, x6, x7\n  sub x5, x5, x11\n  sltu x11, x5, x11\n  or x11, x10, x11\n  sd x5, 16(x12)\n  ld x6, 24(x12)\n  ld x7, 56(x12)\n  sub x5, x6, x7\n  sub x5, x5, x11\n  sd x5, 24(x12)\n  j .Laddmod_done\n.Laddmod_no_carry:\n  jal x1, .Laddmod_mod_callable\n  j .Laddmod_done\n.Laddmod_zero:",
+    emitProgram EvmAsm.Evm64.evm_addmod_phase2_zero_path,
+    emitProgram EvmAsm.Evm64.evm_addmod_epilogue,
+    ".Laddmod_done:\n  mv x10, x14\n  addi x10, x10, 1\n  j .dispatch_loop\n.Laddmod_mod_callable:",
+    emitProgram EvmAsm.Evm64.evm_mod_callable_v4]
 
 /-- Runtime ADDMOD handler assembly. Supports the no-carry lane by reusing
     `evmAddmodComposed`'s snippets, but rejects carry-out sums explicitly.
@@ -1342,8 +1415,9 @@ private def expTail : HandlerTail :=
 def selfCallingHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_ADDMOD"
       opcodes       := [0x08]
+      preBody       := "  mv x14, x10"
       body          := []
-      tail          := .custom addmodRuntimeAsm }
+      tail          := evmAddmodRuntimeTail }
   , { label         := "h_EXP"
       opcodes       := [0x0a]
       preBody       := "  mv x14, x10\n  la x2, exp_scratch"
@@ -1367,9 +1441,9 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
-  storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
+  accountWitnessHandlers ++ storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
-  arithNoopHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=

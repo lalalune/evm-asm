@@ -11,8 +11,8 @@
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
   - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE (MSIZE and GAS have real implementations in Programs/Evm.lean)
-  - `popPushZeroHandlers` — BALANCE, CALLDATALOAD, EXTCODESIZE,
-    EXTCODEHASH (BLOBHASH and BLOCKHASH have real implementations in Programs/Evm.lean)
+  - `popPushZeroHandlers` — BALANCE and EXTCODESIZE
+    (EXTCODEHASH, BLOBHASH, and BLOCKHASH have real implementations in Programs/Evm.lean)
   - `copyNoopHandlers` — CALLDATACOPY, CODECOPY, EXTCODECOPY,
     RETURNDATACOPY, MCOPY
 
@@ -195,7 +195,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE, EXTCODEHASH).
+/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE).
     Each opcode pops one 32-byte input (e.g., an address) and pushes a
     32-byte zero value. Net EVM stack delta = 0.
 
@@ -205,8 +205,7 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
 
     **Known limitations**:
     - BALANCE always returns 0 (no account state model).
-    - EXTCODESIZE / EXTCODEHASH always return 0 (no external account
-      model).
+    - EXTCODESIZE always returns 0 (no external code-byte model yet).
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
@@ -227,8 +226,6 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_BALANCE", opcodes := [0x31]
     , body := body, tail := .advanceAndRet 1 }
   , { label := "h_EXTCODESIZE", opcodes := [0x3b]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_EXTCODEHASH", opcodes := [0x3f]
     , body := body, tail := .advanceAndRet 1 } ]
 
 /-- M18 copy-no-op handlers (CODECOPY, EXTCODECOPY, RETURNDATACOPY).
@@ -457,39 +454,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , body := []
     , tail := .custom (basicPrecompileCallTail 160 64 96 128 160) } ]
 
-/-- M20 arithmetic no-op handlers (MULMOD, EXP). The last two
-    unwired opcodes shipped as placeholders to **hit 100% opcode
-    coverage**. Same pop-N + push-zero pattern as
-    `childFrameHandlers` above, just with smaller pop counts.
+/-- M20 arithmetic no-op handlers.
 
-    | Opcode | Byte | Pops | Pushes | Net pops × 32 |
-    |---|---|---|---|---|
-    | **MULMOD** | 0x09 | 3 (a, b, N) | 1 (result) | 64 |
-    | **EXP**    | 0x0a | 2 (base, exponent) | 1 (result) | 32 |
-
-    Both within the 12-bit signed ADDI immediate range.
-
-    **Known limitations** (documented in CODEGEN.md M20 narrative):
-
-    - **MULMOD** always returns 0. The verified body is a
-      placeholder in `EvmAsm/Evm64/MulMod/Program.lean` (slice
-      evm-asm-m4wu unscheduled). A future PR will swap in the
-      real Knuth-style 512-bit + reduce-by-N body once it lands.
-    - **EXP** graduated from a no-op to a real verified body and now
-      lives in `selfCallingHandlers` (`EvmAsm/Codegen/Programs/Evm.lean`)
-      as `evmExpComposed`, using the `_fixed_fixed` body variant
-      (per-limb counter moved from `x6` to callee-saved `x22` so it
-      survives `mul_callable`). Only MULMOD remains a no-op here.
-
-    Trusted bytecode that doesn't depend on MULMOD results continues
-    to work correctly. -/
-def arithNoopHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_MULMOD", opcodes := [0x09]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 64) ;;
-              SD .x12 .x0 0 ;;
-              SD .x12 .x0 8 ;;
-              SD .x12 .x0 16 ;;
-              SD .x12 .x0 24
-    , tail := .advanceAndRet 1 } ]
+    The original M20 placeholders covered MULMOD and EXP. Both have now moved
+    to real dispatcher handlers in `EvmAsm/Codegen/Programs/Evm.lean`, so this
+    list is intentionally empty and remains only to keep the registry assembly
+    expression stable. -/
+def arithNoopHandlers : List OpcodeHandlerSpec := []
 
 end EvmAsm.Codegen
