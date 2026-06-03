@@ -40,6 +40,9 @@ import EvmAsm.EL.Bn254G1MulEcallBridge
 import EvmAsm.EL.Bn254PairingEcallBridge
 import EvmAsm.EL.Bls12G1MsmEcallBridge
 import EvmAsm.EL.Bls12G2MsmEcallBridge
+import EvmAsm.EL.Bls12PairingEcallBridge
+import EvmAsm.EL.Bls12MapFpToG1EcallBridge
+import EvmAsm.EL.Bls12MapFp2ToG2EcallBridge
 import EvmAsm.EL.KzgPointEvalEcallBridge
 import EvmAsm.EL.ModexpEcallBridge
 import EvmAsm.EL.Secp256r1VerifyEcallBridge
@@ -971,6 +974,544 @@ theorem emptyOutput_length :
   · simp [execute, exceptionalResult, h_valid]
 
 end G2Msm
+
+namespace Pairing
+
+abbrev MemoryReader := EvmAsm.EL.Bls12PairingInputBridge.MemoryReader
+abbrev PairingPair := EvmAsm.EL.Bls12PairingInputBridge.PairingPair
+abbrev AcceleratorInput := EvmAsm.EL.Bls12PairingInputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.Bls12PairingResultBridge.AcceleratorResult
+abbrev G1PointBytes := EvmAsm.EL.Bls12PairingInputBridge.G1PointBytes
+abbrev G2PointBytes := EvmAsm.EL.Bls12PairingInputBridge.G2PointBytes
+
+/-- EVM precompile address for BLS12-381 pairing. -/
+def address : Nat := 0x0f
+
+/-- BLS12 pairing consumes one 128-byte G1 point and one 256-byte G2 point per pair. -/
+def pairLength : Nat := 384
+
+/-- Osaka executable-spec BLS12 pairing base gas. -/
+def baseGas : Nat := 37700
+
+/-- Osaka executable-spec BLS12 pairing per-pair gas. -/
+def perPairGas : Nat := 32600
+
+/-- BLS12 pairing returns a 32-byte boolean word on successful accelerator execution. -/
+def successWordOutput : ByteList :=
+  List.replicate 31 (0 : Byte) ++ [1]
+
+/-- BLS12 pairing false result word. -/
+def zeroWordOutput : ByteList :=
+  List.replicate 32 (0 : Byte)
+
+/-- Invalid length, invalid points, or accelerator failure returns no bytes. -/
+def emptyOutput : ByteList := []
+
+/-- Number of pairing pairs in a valid EVM BLS12 pairing call payload. -/
+def numPairs (dataLength : Nat) : Nat :=
+  dataLength / pairLength
+
+/-- Osaka executable-spec gas formula: `32600 * k + 37700`. -/
+def gasCostFromLength (dataLength : Nat) : Nat :=
+  perPairGas * numPairs dataLength + baseGas
+
+/-- EVM-side validity guard: pairing input must be nonempty and divisible by 384. -/
+def inputLengthValid (dataLength : Nat) : Bool :=
+  dataLength != 0 && dataLength % pairLength == 0
+
+/--
+Result surface exposed by the pure BLS12-381 pairing framing layer.
+`exceptional = true` records executable-spec `InvalidParameter` cases.
+-/
+structure Result where
+  exceptional : Bool
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+/-- Drop the 16-byte EIP-2537 field-element padding and keep the 48-byte Fp payload. -/
+def fpPayloadFromEvmField (memory : MemoryReader) (fieldStart : Nat) : Fin 48 → Byte :=
+  fun i => memory (fieldStart + 16 + i.toNat)
+
+/-- Convert a 128-byte EIP-2537 G1 point into the accelerator's 96-byte G1 payload. -/
+def g1PointFromEvmBytes (memory : MemoryReader) (pointStart : Nat) : G1PointBytes :=
+  fun i =>
+    let n := i.toNat
+    if n < 48 then
+      memory (pointStart + 16 + n)
+    else
+      memory (pointStart + 64 + 16 + (n - 48))
+
+/-- Convert a 256-byte EIP-2537 G2 point into the accelerator's 192-byte G2 payload. -/
+def g2PointFromEvmBytes (memory : MemoryReader) (pointStart : Nat) : G2PointBytes :=
+  fun i =>
+    let n := i.toNat
+    if n < 48 then
+      memory (pointStart + 16 + n)
+    else if n < 96 then
+      memory (pointStart + 64 + 16 + (n - 48))
+    else if n < 144 then
+      memory (pointStart + 128 + 16 + (n - 96))
+    else
+      memory (pointStart + 192 + 16 + (n - 144))
+
+/-- Read one EIP-2537 BLS12 pairing pair: 128-byte G1 followed by 256-byte G2. -/
+def pairingPairFromEvmBytes (memory : MemoryReader) (pairStart : Nat) : PairingPair :=
+  { g1 := g1PointFromEvmBytes memory pairStart
+    g2 := g2PointFromEvmBytes memory (pairStart + 128) }
+
+/-- Read `numPairs` consecutive 384-byte EIP-2537 BLS12 pairing pairs. -/
+def pairingPairsFromEvmBytes
+    (memory : MemoryReader) (pairsStart numPairs : Nat) : List PairingPair :=
+  (List.range numPairs).map
+    (fun i => pairingPairFromEvmBytes memory (pairsStart + pairLength * i))
+
+/--
+Build the accelerator input from EVM call data after the executable-spec length
+check. Point/subgroup validation and pairing arithmetic are supplied by the
+accelerator model.
+-/
+def acceleratorInputFromCallData
+    (memory : MemoryReader) (dataStart dataLength : Nat) : AcceleratorInput :=
+  { pairs := pairingPairsFromEvmBytes memory dataStart (numPairs dataLength)
+    numPairs := numPairs dataLength }
+
+/-- Convert the accelerator boolean into the EVM 32-byte return word. -/
+def outputFromVerified (verified : Bool) : ByteList :=
+  if verified then successWordOutput else zeroWordOutput
+
+/--
+Pure BLS12-381 pairing precompile framing. This models the executable-spec
+length guard, gas formula, accelerator call, and 32-byte boolean output.
+-/
+def execute
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) : Result :=
+  if dataLength = 0 then
+    { exceptional := true
+      status := .efail
+      output := emptyOutput
+      gasCharged := 0 }
+  else if dataLength % pairLength = 0 then
+    let input := acceleratorInputFromCallData memory dataStart dataLength
+    let result := EvmAsm.EL.Bls12PairingEcallBridge.executeBls12PairingEcall accelerator
+      (EvmAsm.EL.Bls12PairingEcallBridge.requestFromInput input)
+    match result.status with
+    | .eok =>
+        { exceptional := false
+          status := result.status
+          output := outputFromVerified result.output.verified
+          gasCharged := gasCostFromLength dataLength }
+    | .efail =>
+        { exceptional := true
+          status := result.status
+          output := emptyOutput
+          gasCharged := gasCostFromLength dataLength }
+  else
+    { exceptional := true
+      status := .efail
+      output := emptyOutput
+      gasCharged := 0 }
+
+theorem successWordOutput_length :
+    successWordOutput.length = 32 := by
+  simp [successWordOutput]
+
+theorem zeroWordOutput_length :
+    zeroWordOutput.length = 32 := by
+  simp [zeroWordOutput]
+
+theorem emptyOutput_length :
+    emptyOutput.length = 0 := rfl
+
+theorem pairingPairsFromEvmBytes_length
+    (memory : MemoryReader) (pairsStart numPairs : Nat) :
+    (pairingPairsFromEvmBytes memory pairsStart numPairs).length = numPairs := by
+  simp [pairingPairsFromEvmBytes]
+
+theorem acceleratorInputFromCallData_pairs_length
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (acceleratorInputFromCallData memory dataStart dataLength).pairs.length =
+      numPairs dataLength := by
+  simp [acceleratorInputFromCallData, pairingPairsFromEvmBytes_length]
+
+@[simp] theorem outputFromVerified_true :
+    outputFromVerified true = successWordOutput := rfl
+
+@[simp] theorem outputFromVerified_false :
+    outputFromVerified false = zeroWordOutput := rfl
+
+@[simp] theorem execute_zeroLength
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat) :
+    execute accelerator memory dataStart 0 =
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := 0 } := by
+  simp [execute]
+
+@[simp] theorem execute_badLength_mod
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_nonzero : dataLength ≠ 0)
+    (h_mod : dataLength % pairLength ≠ 0) :
+    execute accelerator memory dataStart dataLength =
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := 0 } := by
+  simp [execute, h_nonzero, h_mod]
+
+@[simp] theorem execute_status
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_valid : inputLengthValid dataLength = true) :
+    (execute accelerator memory dataStart dataLength).status =
+      (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status := by
+  have h_nonzero : dataLength ≠ 0 := by
+    intro h_zero
+    simp [inputLengthValid, h_zero] at h_valid
+  have h_mod : dataLength % pairLength = 0 := by
+    simpa [inputLengthValid, h_nonzero] using h_valid
+  cases h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status <;>
+    simp [execute, h_nonzero, h_mod, h_status,
+      EvmAsm.EL.Bls12PairingEcallBridge.executeBls12PairingEcall,
+      EvmAsm.EL.Bls12PairingEcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_eok
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_valid : inputLengthValid dataLength = true)
+    (h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status = .eok) :
+    (execute accelerator memory dataStart dataLength).output =
+      outputFromVerified
+        (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).output.verified := by
+  have h_nonzero : dataLength ≠ 0 := by
+    intro h_zero
+    simp [inputLengthValid, h_zero] at h_valid
+  have h_mod : dataLength % pairLength = 0 := by
+    simpa [inputLengthValid, h_nonzero] using h_valid
+  simp [execute, h_nonzero, h_mod, h_status,
+    EvmAsm.EL.Bls12PairingEcallBridge.executeBls12PairingEcall,
+    EvmAsm.EL.Bls12PairingEcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_efail
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_valid : inputLengthValid dataLength = true)
+    (h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status = .efail) :
+    (execute accelerator memory dataStart dataLength).output = emptyOutput := by
+  have h_nonzero : dataLength ≠ 0 := by
+    intro h_zero
+    simp [inputLengthValid, h_zero] at h_valid
+  have h_mod : dataLength % pairLength = 0 := by
+    simpa [inputLengthValid, h_nonzero] using h_valid
+  simp [execute, h_nonzero, h_mod, h_status,
+    EvmAsm.EL.Bls12PairingEcallBridge.executeBls12PairingEcall,
+    EvmAsm.EL.Bls12PairingEcallBridge.requestFromInput]
+
+theorem outputFromVerified_length (verified : Bool) :
+    (outputFromVerified verified).length = 32 := by
+  cases verified <;> simp [outputFromVerified, successWordOutput_length, zeroWordOutput_length]
+
+theorem execute_output_eok_length
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_valid : inputLengthValid dataLength = true)
+    (h_status :
+      (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status = .eok) :
+    (execute accelerator memory dataStart dataLength).output.length = 32 := by
+  simp [execute_output_eok accelerator memory dataStart dataLength h_valid h_status,
+    outputFromVerified_length]
+
+@[simp] theorem execute_gasCharged
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (execute accelerator memory dataStart dataLength).gasCharged =
+      if inputLengthValid dataLength then gasCostFromLength dataLength else 0 := by
+  by_cases h_zero : dataLength = 0
+  · subst dataLength
+    simp [execute, inputLengthValid]
+  · by_cases h_mod : dataLength % pairLength = 0
+    · cases h_status :
+          (accelerator (acceleratorInputFromCallData memory dataStart dataLength)).status <;>
+        simp [execute, inputLengthValid, h_zero, h_mod, h_status,
+          EvmAsm.EL.Bls12PairingEcallBridge.executeBls12PairingEcall,
+          EvmAsm.EL.Bls12PairingEcallBridge.requestFromInput]
+    · simp [execute, inputLengthValid, h_zero, h_mod]
+
+end Pairing
+
+namespace MapFpToG1
+
+abbrev MemoryReader := EvmAsm.EL.Bls12MapFpToG1InputBridge.MemoryReader
+abbrev AcceleratorInput := EvmAsm.EL.Bls12MapFpToG1InputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.Bls12MapFpToG1ResultBridge.AcceleratorResult
+
+/-- EVM precompile address for BLS12-381 map-Fp-to-G1. -/
+def address : Nat := 0x10
+
+/-- Osaka executable-spec fixed gas cost for BLS12-381 map-Fp-to-G1. -/
+def gasCost : Nat := 5500
+
+/-- BLS12 map-Fp-to-G1 consumes exactly one 64-byte Fp element. -/
+def inputLength : Nat := 64
+
+/-- Invalid length, invalid field element, or accelerator failure returns no bytes. -/
+def emptyOutput : ByteList := []
+
+/--
+Result surface exposed by the pure BLS12-381 map-Fp-to-G1 framing layer.
+`exceptional = true` records executable-spec `InvalidParameter` cases.
+-/
+structure Result where
+  exceptional : Bool
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+/--
+Build the accelerator input from EVM call data. The executable spec first checks
+`len(data) == 64`; callers must guard this helper with that exact length check.
+-/
+def acceleratorInputFromCallData (memory : MemoryReader) (dataStart : Nat) :
+    AcceleratorInput :=
+  EvmAsm.EL.Bls12MapFpToG1InputBridge.bls12MapFpToG1InputFromMemory
+    memory dataStart
+
+/--
+Pure BLS12-381 map-Fp-to-G1 precompile framing. Field-element validation and
+map-to-curve arithmetic are supplied by the accelerator model.
+-/
+def execute
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) : Result :=
+  if dataLength = inputLength then
+    let input := acceleratorInputFromCallData memory dataStart
+    let result := EvmAsm.EL.Bls12MapFpToG1EcallBridge.executeBls12MapFpToG1Ecall accelerator
+      (EvmAsm.EL.Bls12MapFpToG1EcallBridge.requestFromInput input)
+    match result.status with
+    | .eok =>
+        { exceptional := false
+          status := result.status
+          output := EvmAsm.EL.Bls12MapFpToG1ResultBridge.g1PointBytesList result.output.point
+          gasCharged := gasCost }
+    | .efail =>
+        { exceptional := true
+          status := result.status
+          output := emptyOutput
+          gasCharged := gasCost }
+  else
+    { exceptional := true
+      status := .efail
+      output := emptyOutput
+      gasCharged := 0 }
+
+theorem emptyOutput_length :
+    emptyOutput.length = 0 := rfl
+
+@[simp] theorem execute_badLength
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_length : dataLength ≠ inputLength) :
+    execute accelerator memory dataStart dataLength =
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := 0 } := by
+  simp [execute, h_length]
+
+@[simp] theorem execute_status
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat) :
+    (execute accelerator memory dataStart inputLength).status =
+      (accelerator (acceleratorInputFromCallData memory dataStart)).status := by
+  cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+    simp [execute, inputLength, h_status,
+      EvmAsm.EL.Bls12MapFpToG1EcallBridge.executeBls12MapFpToG1Ecall,
+      EvmAsm.EL.Bls12MapFpToG1EcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_eok
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok) :
+    (execute accelerator memory dataStart inputLength).output =
+      EvmAsm.EL.Bls12MapFpToG1ResultBridge.g1PointBytesList
+        (accelerator (acceleratorInputFromCallData memory dataStart)).output.point := by
+  simp [execute, inputLength, h_status,
+    EvmAsm.EL.Bls12MapFpToG1EcallBridge.executeBls12MapFpToG1Ecall,
+    EvmAsm.EL.Bls12MapFpToG1EcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_efail
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .efail) :
+    (execute accelerator memory dataStart inputLength).output = emptyOutput := by
+  simp [execute, inputLength, h_status,
+    EvmAsm.EL.Bls12MapFpToG1EcallBridge.executeBls12MapFpToG1Ecall,
+    EvmAsm.EL.Bls12MapFpToG1EcallBridge.requestFromInput]
+
+theorem execute_output_eok_length
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok) :
+    (execute accelerator memory dataStart inputLength).output.length = 96 := by
+  simp [execute_output_eok accelerator memory dataStart h_status,
+    EvmAsm.EL.Bls12MapFpToG1ResultBridge.g1PointBytesList_length]
+
+@[simp] theorem execute_gasCharged
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (execute accelerator memory dataStart dataLength).gasCharged =
+      if dataLength = inputLength then gasCost else 0 := by
+  by_cases h_length : dataLength = inputLength
+  · subst dataLength
+    cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+      simp [execute, inputLength, h_status,
+        EvmAsm.EL.Bls12MapFpToG1EcallBridge.executeBls12MapFpToG1Ecall,
+        EvmAsm.EL.Bls12MapFpToG1EcallBridge.requestFromInput]
+  · simp [execute, h_length]
+
+end MapFpToG1
+
+namespace MapFp2ToG2
+
+abbrev MemoryReader := EvmAsm.EL.Bls12MapFp2ToG2InputBridge.MemoryReader
+abbrev AcceleratorInput := EvmAsm.EL.Bls12MapFp2ToG2InputBridge.AcceleratorInput
+abbrev AcceleratorResult := EvmAsm.EL.Bls12MapFp2ToG2ResultBridge.AcceleratorResult
+
+/-- EVM precompile address for BLS12-381 map-Fp2-to-G2. -/
+def address : Nat := 0x11
+
+/-- Osaka executable-spec fixed gas cost for BLS12-381 map-Fp2-to-G2. -/
+def gasCost : Nat := 23800
+
+/-- BLS12 map-Fp2-to-G2 consumes exactly one 128-byte Fp2 element. -/
+def inputLength : Nat := 128
+
+/-- Invalid length, invalid field element, or accelerator failure returns no bytes. -/
+def emptyOutput : ByteList := []
+
+/--
+Result surface exposed by the pure BLS12-381 map-Fp2-to-G2 framing layer.
+`exceptional = true` records executable-spec `InvalidParameter` cases.
+-/
+structure Result where
+  exceptional : Bool
+  status : ZkvmStatus
+  output : ByteList
+  gasCharged : Nat
+  deriving Repr
+
+/--
+Build the accelerator input from EVM call data. The executable spec first checks
+`len(data) == 128`; callers must guard this helper with that exact length check.
+-/
+def acceleratorInputFromCallData (memory : MemoryReader) (dataStart : Nat) :
+    AcceleratorInput :=
+  EvmAsm.EL.Bls12MapFp2ToG2InputBridge.bls12MapFp2ToG2InputFromMemory
+    memory dataStart
+
+/--
+Pure BLS12-381 map-Fp2-to-G2 precompile framing. Field-element validation and
+map-to-curve arithmetic are supplied by the accelerator model.
+-/
+def execute
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) : Result :=
+  if dataLength = inputLength then
+    let input := acceleratorInputFromCallData memory dataStart
+    let result := EvmAsm.EL.Bls12MapFp2ToG2EcallBridge.executeBls12MapFp2ToG2Ecall accelerator
+      (EvmAsm.EL.Bls12MapFp2ToG2EcallBridge.requestFromInput input)
+    match result.status with
+    | .eok =>
+        { exceptional := false
+          status := result.status
+          output := EvmAsm.EL.Bls12MapFp2ToG2ResultBridge.g2PointBytesList result.output.point
+          gasCharged := gasCost }
+    | .efail =>
+        { exceptional := true
+          status := result.status
+          output := emptyOutput
+          gasCharged := gasCost }
+  else
+    { exceptional := true
+      status := .efail
+      output := emptyOutput
+      gasCharged := 0 }
+
+theorem emptyOutput_length :
+    emptyOutput.length = 0 := rfl
+
+@[simp] theorem execute_badLength
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat)
+    (h_length : dataLength ≠ inputLength) :
+    execute accelerator memory dataStart dataLength =
+      { exceptional := true
+        status := .efail
+        output := emptyOutput
+        gasCharged := 0 } := by
+  simp [execute, h_length]
+
+@[simp] theorem execute_status
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat) :
+    (execute accelerator memory dataStart inputLength).status =
+      (accelerator (acceleratorInputFromCallData memory dataStart)).status := by
+  cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+    simp [execute, inputLength, h_status,
+      EvmAsm.EL.Bls12MapFp2ToG2EcallBridge.executeBls12MapFp2ToG2Ecall,
+      EvmAsm.EL.Bls12MapFp2ToG2EcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_eok
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok) :
+    (execute accelerator memory dataStart inputLength).output =
+      EvmAsm.EL.Bls12MapFp2ToG2ResultBridge.g2PointBytesList
+        (accelerator (acceleratorInputFromCallData memory dataStart)).output.point := by
+  simp [execute, inputLength, h_status,
+    EvmAsm.EL.Bls12MapFp2ToG2EcallBridge.executeBls12MapFp2ToG2Ecall,
+    EvmAsm.EL.Bls12MapFp2ToG2EcallBridge.requestFromInput]
+
+@[simp] theorem execute_output_efail
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .efail) :
+    (execute accelerator memory dataStart inputLength).output = emptyOutput := by
+  simp [execute, inputLength, h_status,
+    EvmAsm.EL.Bls12MapFp2ToG2EcallBridge.executeBls12MapFp2ToG2Ecall,
+    EvmAsm.EL.Bls12MapFp2ToG2EcallBridge.requestFromInput]
+
+theorem execute_output_eok_length
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart : Nat)
+    (h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status = .eok) :
+    (execute accelerator memory dataStart inputLength).output.length = 192 := by
+  simp [execute_output_eok accelerator memory dataStart h_status,
+    EvmAsm.EL.Bls12MapFp2ToG2ResultBridge.g2PointBytesList_length]
+
+@[simp] theorem execute_gasCharged
+    (accelerator : AcceleratorInput → AcceleratorResult)
+    (memory : MemoryReader) (dataStart dataLength : Nat) :
+    (execute accelerator memory dataStart dataLength).gasCharged =
+      if dataLength = inputLength then gasCost else 0 := by
+  by_cases h_length : dataLength = inputLength
+  · subst dataLength
+    cases h_status : (accelerator (acceleratorInputFromCallData memory dataStart)).status <;>
+      simp [execute, inputLength, h_status,
+        EvmAsm.EL.Bls12MapFp2ToG2EcallBridge.executeBls12MapFp2ToG2Ecall,
+        EvmAsm.EL.Bls12MapFp2ToG2EcallBridge.requestFromInput]
+  · simp [execute, h_length]
+
+end MapFp2ToG2
 
 end BLS12
 
