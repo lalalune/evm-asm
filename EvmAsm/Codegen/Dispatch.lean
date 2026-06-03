@@ -602,6 +602,8 @@ def emitDispatcherEpilogue
     .balign 32
     evm_stack_low:    .zero 256             (256-byte EVM stack scratch)
     evm_stack_top:
+    evm_stack_positive_scratch:
+                       .zero 256             (positive-offset opcode scratch)
     .balign 32
     evm_memory:       .zero 0x8000          (32 KiB EVM memory, M7 onward)
     .balign 8
@@ -612,9 +614,9 @@ def emitDispatcherEpilogue
     cap before `OUTPUT_ADDR = 0xa0010000`. Going beyond 32 KiB of
     EVM memory would risk overrunning OUTPUT_ADDR.
 
-    The EVM stack region grows downward from `evm_stack_top`; safe at
-    the worst-case M5b depth of 2 (= 64 bytes). The EVM memory region
-    grows upward from `evm_memory` indexed by `memBaseReg + offset`. -/
+    The EVM stack region grows downward from `evm_stack_top`; opcode-local
+    positive-offset scratch grows upward from the same boundary. The EVM memory
+    region grows upward from `evm_memory` indexed by `memBaseReg + offset`. -/
 def emitDispatcherDataSection
     (bytecodeBytes : String) (registry : List OpcodeHandlerSpec) : String :=
   ".section .data\n" ++
@@ -625,6 +627,8 @@ def emitDispatcherDataSection
   "evm_stack_low:\n" ++
   "  .zero 256\n" ++
   "evm_stack_top:\n" ++
+  "evm_stack_positive_scratch:\n" ++
+  "  .zero 256\n" ++
   ".balign 32\n" ++
   "evm_memory:\n" ++
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
@@ -916,6 +920,8 @@ def emitRuntimeDispatcherDataSection
   "evm_stack_low:\n" ++
   "  .zero 256\n" ++
   "evm_stack_top:\n" ++
+  "evm_stack_positive_scratch:\n" ++
+  "  .zero 256\n" ++
   ".balign 32\n" ++
   "evm_memory:\n" ++
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
