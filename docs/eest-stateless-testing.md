@@ -18,6 +18,10 @@ precompile, and receipt/log feature beads.
 For the byte-level input contract shared with execution-specs
 `run_stateless_guest`, see
 [`docs/agents/stateless-input-contract.md`](agents/stateless-input-contract.md).
+The main harness verifies by default that each generated `ziskemu -i` file
+unpacks to the fixture `statelessInputBytes`; pass
+`--verify-execution-spec-input` when you also want the selected bytes decoded
+through the local `execution-specs` submodule stateless input path.
 
 ## Prerequisites
 
