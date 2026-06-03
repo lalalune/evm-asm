@@ -1253,6 +1253,23 @@ private def evmAddmodRuntimeTail : HandlerTail :=
     ".Laddmod_done:\n  mv x10, x14\n  addi x10, x10, 1\n  j .dispatch_loop\n.Laddmod_mod_callable:",
     emitProgram EvmAsm.Evm64.evm_mod_callable_v4]
 
+/-- Runtime ADDMOD handler assembly. Supports the no-carry lane by reusing
+    `evmAddmodComposed`'s snippets, but rejects carry-out sums explicitly.
+    The full ADDMOD semantics need 257-bit reduction `(c * 2^256 + r) mod N`;
+    until that lands, `x7 != 0` is an unsupported development halt
+    (`halt_kind = 3`) rather than a false successful low-256-bit result. -/
+private def addmodRuntimeAsm : String :=
+  "  mv x14, x10\n" ++
+  emitProgram EvmAsm.Evm64.evm_addmod_prologue ++ "\n" ++
+  emitProgram EvmAsm.Evm64.evm_addmod_phase1_carry ++ "\n" ++
+  "  bnez x7, .exit_invalid_op\n" ++
+  emitProgram (EvmAsm.Evm64.evm_addmod_phase2_reduce 8) ++ "\n" ++
+  emitProgram (single (Instr.JAL .x0 (1376 : BitVec 21))) ++ "\n" ++
+  emitProgram EvmAsm.Evm64.evm_mod_callable_v4 ++ "\n" ++
+  "  mv x10, x14\n" ++
+  "  addi x10, x10, 1\n" ++
+  "  j .dispatch_loop"
+
 /-- EXP (0x0a) handler body: the double-fixed verified EXP body inlined
     with `mul_callable`, mirroring `evmAddmodComposed`.
 
