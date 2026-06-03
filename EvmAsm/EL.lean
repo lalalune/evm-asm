@@ -37,12 +37,9 @@ import EvmAsm.EL.Blake2fEcallBridge
 import EvmAsm.EL.Blake2fPrecompileDispatch
 import EvmAsm.EL.Blake2fPrecompileResultBridge
 import EvmAsm.EL.IdentityPrecompileResultBridge
-<<<<<<< HEAD
 import EvmAsm.EL.IdentityPrecompileDispatch
-=======
 import EvmAsm.EL.PrecompileCallBridge
 import EvmAsm.EL.PrecompileCallOutputBridge
->>>>>>> origin/main
 import EvmAsm.EL.KeccakStatusBridge
 import EvmAsm.EL.Secp256k1VerifyInputBridge
 import EvmAsm.EL.Secp256k1VerifyResultBridge
