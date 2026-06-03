@@ -32,6 +32,7 @@ import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
 import EvmAsm.Evm64.Multiply.Callable
 import EvmAsm.Evm64.Multiply.Program
+import EvmAsm.Evm64.MulMod.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
 import EvmAsm.Evm64.Pop.Program
@@ -237,12 +238,11 @@ def evmAddFromInputUnit : BuildUnit := {
     Programs compose under `++` while honoring the `x10` code-pointer
     convention that `evm_push` reads its immediates from.
 
-    Stack layout: 256 bytes of writable scratch ending at label
-    `evm_stack_top`. The EVM stack grows downward; the prologue
-    initializes `x12 = evm_stack_top` and each `evm_push` decrements
-    `x12` by 32 to allocate a new slot. Worst-case depth across both
-    test programs is 2 slots = 64 bytes, so 256 leaves comfortable
-    headroom. -/
+    Stack layout: 256 bytes of writable EVM stack below label
+    `evm_stack_top`, plus a post-top scratch window for opcode bodies that
+    use positive offsets from the live stack pointer. The EVM stack grows
+    downward; the prologue initializes `x12 = evm_stack_top` and each
+    `evm_push` decrements `x12` by 32 to allocate a new slot. -/
 
 /-- Dispatcher glue between unrolled opcode `Program`s: advance the
     EVM code pointer (`x10`) by the byte width of the opcode just
@@ -264,13 +264,13 @@ def tinyInterpPrologue : String :=
   "  la x12, evm_stack_top"
 
 /-- `.data` section: a label `evm_code` holding the bytecode bytes,
-    followed by 256 bytes of writable scratch ending at label
-    `evm_stack_top`. `bytecodeBytes` is a comma-separated `.byte`
-    directive payload (e.g. `"0x60, 0xff, 0x60, 0x01, 0x01, 0x00"`).
+    followed by the writable EVM stack and opcode scratch windows.
+    `bytecodeBytes` is a comma-separated `.byte` directive payload
+    (e.g. `"0x60, 0xff, 0x60, 0x01, 0x01, 0x00"`).
 
     Written as raw asm text rather than `emitDataLabel` because the
     layout is hybrid (`.byte` payload for the bytecode, `.zero` for
-    the stack scratch) — `emitDataLabel` only takes `UInt64` dwords. -/
+    the stack scratch) -- `emitDataLabel` only takes `UInt64` dwords. -/
 def tinyInterpDataSection (bytecodeBytes : String) : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
@@ -279,7 +279,9 @@ def tinyInterpDataSection (bytecodeBytes : String) : String :=
   ".balign 32\n" ++
   "evm_stack_low:\n" ++
   "  .zero 256\n" ++
-  "evm_stack_top:"
+  "evm_stack_top:\n" ++
+  "evm_stack_positive_scratch:\n" ++
+  "  .zero 256"
 
 /-- M5a test case 1: `PUSH1 0xFF; PUSH1 0x01; ADD; STOP`. Expected
     256-bit sum = `0x100`, which as four LE u64 limbs is
@@ -1086,6 +1088,68 @@ def logHandlers : List OpcodeHandlerSpec :=
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
     , tail := .advanceAndRet 1 } ]
 
+
+/-! ## Runtime account-witness opcodes
+
+    EXTCODEHASH (0x3f) now reads the account trie through the optional
+    runtime account-witness context populated by `pack-bytecode.py` and
+    `emitRuntimeDispatcherSetup`. If no witness context is present, it keeps
+    the old deterministic zero behavior. -/
+
+/-- Copy an EVM stack address word into natural 20-byte address order.
+
+    Stack bytes 0..19 hold the low 160-bit address little-endian; trie lookup
+    helpers expect the big-endian byte string whose keccak selects the account
+    path. `x12` is the EVM stack pointer and `t1` points at
+    `eahsr_address_scratch`. -/
+private def extcodehashWitnessAddressCopy : String :=
+  String.intercalate "" <|
+    (List.range 20).map fun i =>
+      s!"  lbu t2, {19 - i}(x12)\n  sb t2, {i}(t1)\n"
+
+/-- Raw dispatcher handler for EXTCODEHASH backed by
+    `extcodehash_at_header_state_root`.
+
+    The EVM stack word stores the low 160-bit address little-endian; the
+    helper expects the natural 20-byte address order used for
+    `keccak(address)`, so the handler first reverses bytes 0..19 into
+    `eahsr_address_scratch`. Net stack delta is zero: the address word is
+    overwritten with the 32-byte EIP-1052 result. -/
+private def extcodehashWitnessTail : HandlerTail :=
+  .custom <|
+    "  ld t0, 584(x20)\n" ++          -- header length; zero means no witness context
+    "  beqz t0, .Lextcodehash_no_context\n" ++
+    "  la t1, eahsr_address_scratch\n" ++
+    extcodehashWitnessAddressCopy ++
+    "  addi sp, sp, -32\n" ++
+    "  sd x10, 0(sp)\n" ++
+    "  sd x12, 8(sp)\n" ++
+    "  ld a0, 576(x20)\n" ++         -- header ptr
+    "  ld a1, 584(x20)\n" ++         -- header len
+    "  la a2, eahsr_address_scratch\n" ++
+    "  ld a3, 592(x20)\n" ++         -- witness.state ptr
+    "  ld a4, 600(x20)\n" ++         -- witness.state len
+    "  ld a5, 8(sp)\n" ++            -- saved EVM stack ptr; a2 aliases x12
+    "  jal ra, extcodehash_at_header_state_root\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop\n" ++
+    ".Lextcodehash_no_context:\n" ++
+    "  sd zero, 0(x12)\n" ++
+    "  sd zero, 8(x12)\n" ++
+    "  sd zero, 16(x12)\n" ++
+    "  sd zero, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop"
+
+def accountWitnessHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_EXTCODEHASH"
+    , opcodes := [0x3f]
+    , body := []
+    , tail := extcodehashWitnessTail } ]
+
 -- M17 / M22 storage handlers (SLOAD, SSTORE, TLOAD, TSTORE) live in
 -- `EvmAsm/Codegen/Programs/Storage.lean` — extracted at M22 (when
 -- the inline-asm scan loops pushed this file past the per-file size
@@ -1126,6 +1190,21 @@ def logHandlers : List OpcodeHandlerSpec :=
     needs a trampoline-style wrapper (set `x18` to a per-handler
     "restore" stub before the body runs, splice off the body's
     initial save_ra_block). Tracked as the next codegen PR. -/
+private def mulmodTail : HandlerTail :=
+  .custom <|
+    "  mv x10, x23\n" ++
+    "  mv x13, x21\n" ++
+    "  mv x20, x22\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  ret"
+
+def mulmodHandlers : List OpcodeHandlerSpec :=
+  [ { label   := "h_MULMOD"
+      opcodes := [0x09]
+      preBody := "  mv x23, x10\n  mv x21, x13\n  mv x22, x20"
+      body    := EvmAsm.Evm64.evm_mulmod
+      tail    := mulmodTail } ]
+
 private def divModTail : HandlerTail :=
   .custom "  mv x10, x14\n  addi x10, x10, 1\n  ret"
 
@@ -1347,9 +1426,9 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
-  storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
+  accountWitnessHandlers ++ storageHandlers ++ mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
-  arithNoopHandlers ++ divModHandlers ++ signedDivModHandlers ++
+  arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]
 
 def tinyInterpDispatchAddUnit : BuildUnit :=
