@@ -593,6 +593,25 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "2" }
+    -- ## Stack underflow classification
+    -- Stack consumers with too few words route to halt_kind = 7 before
+    -- their verified bodies perform unchecked stack loads.
+  , { name             := "pop_empty_stack_underflow"
+      bytecode         := "0x50, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "add_one_item_underflow"
+      bytecode         := "0x60, 0x01, 0x01, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "dup16_short_stack_underflow"
+      bytecode         := "0x60, 0x01, 0x8f, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "swap16_short_stack_underflow"
+      bytecode         := "0x60, 0x01, 0x60, 0x02, 0x9f, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
   , -- BLOBBASEFEE; STOP with blob_base_fee = 0x1234. Amsterdam
     -- execution-specs computes this from block_env.excess_blob_gas;
     -- the runtime dispatcher receives the already-computed value in
