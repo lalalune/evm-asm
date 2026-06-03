@@ -78,6 +78,7 @@ import EvmAsm.EL.Bn254PairingEcallBridge
 import EvmAsm.EL.ModexpInputBridge
 import EvmAsm.EL.ModexpResultBridge
 import EvmAsm.EL.ModexpEcallBridge
+import EvmAsm.EL.ModexpPrecompileDispatch
 import EvmAsm.EL.ModexpPrecompileResultBridge
 import EvmAsm.EL.Ripemd160InputBridge
 import EvmAsm.EL.Ripemd160EcallBridge
