@@ -65,7 +65,7 @@ theorem evm_smod_prefix_mod_call_dispatch_ready_stack_spec_within
         EvmAsm.Rv64.signExtend12_16, EvmAsm.Rv64.signExtend12_24,
         EvmAsm.Rv64.signExtend12_32, EvmAsm.Rv64.signExtend12_40,
         EvmAsm.Rv64.signExtend12_48, EvmAsm.Rv64.signExtend12_56] at hp ⊢
-      rw [show (sp + 0 : Word) = sp by bv_decide]
+      rw [show (sp + 0 : Word) = sp by bv_omega]
       rw [spAddr32_8, spAddr32_16, spAddr32_24] at hp
       xperm_hyp hp)
     (fun _ hp => hp)
