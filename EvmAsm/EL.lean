@@ -29,12 +29,15 @@ import EvmAsm.EL.KeccakResultBridge
 import EvmAsm.EL.Sha256InputBridge
 import EvmAsm.EL.Sha256EcallBridge
 import EvmAsm.EL.Sha256PrecompileResultBridge
+import EvmAsm.EL.Sha256PrecompileDispatch
 import EvmAsm.EL.Sha256ResultBridge
 import EvmAsm.EL.Blake2fInputBridge
 import EvmAsm.EL.Blake2fResultBridge
 import EvmAsm.EL.Blake2fEcallBridge
 import EvmAsm.EL.Blake2fPrecompileDispatch
+import EvmAsm.EL.Blake2fPrecompileResultBridge
 import EvmAsm.EL.IdentityPrecompileResultBridge
+import EvmAsm.EL.IdentityPrecompileDispatch
 import EvmAsm.EL.PrecompileCallBridge
 import EvmAsm.EL.PrecompileCallOutputBridge
 import EvmAsm.EL.KeccakStatusBridge
@@ -61,6 +64,7 @@ import EvmAsm.EL.Secp256r1VerifyInputBridge
 import EvmAsm.EL.Secp256r1VerifyResultBridge
 import EvmAsm.EL.Secp256r1VerifyEcallBridge
 import EvmAsm.EL.Secp256r1VerifyPrecompileResultBridge
+import EvmAsm.EL.Secp256r1VerifyPrecompileDispatch
 import EvmAsm.EL.Bls12G1MsmInputBridge
 import EvmAsm.EL.Bls12G1MsmResultBridge
 import EvmAsm.EL.Bls12G1MsmEcallBridge
@@ -69,6 +73,7 @@ import EvmAsm.EL.KzgPointEvalInputBridge
 import EvmAsm.EL.KzgPointEvalResultBridge
 import EvmAsm.EL.KzgPointEvalEcallBridge
 import EvmAsm.EL.KzgPointEvalPrecompileResultBridge
+import EvmAsm.EL.KzgPointEvalPrecompileDispatch
 import EvmAsm.EL.Bls12MapFpToG1InputBridge
 import EvmAsm.EL.Bls12MapFpToG1ResultBridge
 import EvmAsm.EL.Bls12MapFpToG1EcallBridge
@@ -87,6 +92,9 @@ import EvmAsm.EL.Bn254G1MulInputBridge
 import EvmAsm.EL.Bn254G1MulResultBridge
 import EvmAsm.EL.Bn254G1MulEcallBridge
 import EvmAsm.EL.Bn254PrecompileResultBridge
+import EvmAsm.EL.Bn254PairingPrecompileDispatch
+import EvmAsm.EL.Bn254G1MulPrecompileDispatch
+import EvmAsm.EL.Bn254G1AddPrecompileDispatch
 import EvmAsm.EL.Bls12G2MsmInputBridge
 import EvmAsm.EL.Bls12G2MsmResultBridge
 import EvmAsm.EL.Bls12G2MsmEcallBridge
