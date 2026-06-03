@@ -64,6 +64,7 @@ import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
+import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
@@ -334,6 +335,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bloom_eq" => some ziskBloomEqProbeUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
+  | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit
@@ -367,6 +369,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_withdrawals_root_one_w" => some ziskBlockValidateWithdrawalsRootOneWProbeUnit
   | "zisk_block_validate_withdrawals_root_two_w" => some ziskBlockValidateWithdrawalsRootTwoWProbeUnit
   | "zisk_block_validate_withdrawals_root_indexed" => some ziskBlockValidateWithdrawalsRootIndexedProbeUnit
+  | "zisk_block_validate_receipts_root_indexed" => some ziskBlockValidateReceiptsRootIndexedProbeUnit
   | "zisk_block_validate_receipts_root_one_receipt" => some ziskBlockValidateReceiptsRootOneReceiptProbeUnit
   | "zisk_block_validate_receipts_root_two_receipts" => some ziskBlockValidateReceiptsRootTwoReceiptsProbeUnit
   | "zisk_block_validate_transactions_root_two_tx" => some ziskBlockValidateTransactionsRootTwoTxProbeUnit
@@ -832,6 +835,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bloom_add_value" => some ziskBloomAddValueProbeUnit
   | "zisk_log_bloom_add" => some ziskLogBloomAddProbeUnit
   | "zisk_logs_list_bloom_add" => some ziskLogsListBloomAddProbeUnit
+  | "zisk_captured_logs_bloom_add" => some ziskCapturedLogsBloomAddProbeUnit
   | "zisk_bloom_or_into" => some ziskBloomOrIntoProbeUnit
   | "zisk_receipt_extract_logs_bloom" => some ziskReceiptExtractLogsBloomProbeUnit
   | "zisk_header_extract_logs_bloom" => some ziskHeaderExtractLogsBloomProbeUnit
@@ -894,6 +898,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_insert_acc",
    "zisk_mpt_state_root_ins",
    "zisk_mpt_indexed_trie_root_small",
+   "zisk_block_validate_receipts_root_indexed",
    "zisk_mpt_delete_walk_db",
    "zisk_mpt_delete_acc",
    "zisk_mpt_set",
@@ -1137,12 +1142,14 @@ def knownProgramNames : List String :=
    "zisk_bloom_add_value",
    "zisk_log_bloom_add",
    "zisk_logs_list_bloom_add",
+   "zisk_captured_logs_bloom_add",
    "zisk_bloom_or_into",
    "zisk_receipt_extract_logs_bloom",
    "zisk_header_extract_logs_bloom",
    "zisk_bloom_eq",
    "zisk_rlp_encode_u64",
    "zisk_receipt_encode",
+   "zisk_typed_receipt_encode",
    "zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
    "zisk_bal_gas_valid",

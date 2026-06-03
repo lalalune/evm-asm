@@ -12,7 +12,6 @@
 -/
 
 import EvmAsm.Rv64.Program
-import Std.Tactic.BVDecide
 
 namespace EvmAsm.Evm64
 
