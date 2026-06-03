@@ -912,6 +912,33 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "exp_zero"
       bytecode       := "0x60, 0x00, 0x60, 0x05, 0x0a, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; PUSH1 0x00; EXP; STOP - 0**0 follows Python/EVM pow
+    -- semantics and produces 1.
+    { name           := "exp_zero_zero"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x05; PUSH1 0x00; EXP; STOP - 0**5 = 0.
+    { name           := "exp_zero_positive"
+      bytecode       := "0x60, 0x05, 0x60, 0x00, 0x0a, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH9 2^64; PUSH1 0x00; EXP; STOP - high-limb exponent path:
+    -- 0**(2^64) = 0. A low-limb-only exponent implementation would
+    -- incorrectly see exponent zero and return 1.
+    { name           := "exp_zero_high_exponent"
+      bytecode       := "0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x0a, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH17 2^128; PUSH1 0x01; EXP; STOP - 1**large = 1.
+    { name           := "exp_one_large_exponent"
+      bytecode       := "0x70, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x01, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x02; PUSH32 max_word; EXP; STOP - (2^256-1)^2 = 1 mod 2^256.
+    { name           := "exp_max_word_squared"
+      bytecode       := "0x60, 0x02, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x02; PUSH32 2^255; EXP; STOP - (2^255)^2 = 0 mod 2^256.
+    { name           := "exp_two_255_squared"
+      bytecode       := "0x60, 0x02, 0x7f, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;
