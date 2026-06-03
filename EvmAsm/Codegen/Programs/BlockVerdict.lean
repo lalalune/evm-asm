@@ -938,6 +938,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   mptLookupByKeyFunction ++ "\n" ++
   accountDecodeFunction ++ "\n" ++
   accountAtAddressFunction ++ "\n" ++
+  accountAtHeaderStateRootFunction ++ "\n" ++
   extcodesizeAtHeaderStateRootFunction ++ "\n" ++
   nodeDbAppendFunction ++ "\n" ++
   nodeDbLookupFunction ++ "\n" ++
@@ -1144,6 +1145,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bbcv_acct_len:\n  .zero 8\n" ++
   "bbcv_addr_off:\n  .zero 8\n" ++
   "bbcv_addr_len:\n  .zero 8\n" ++
+  "bbcv_acct_struct:\n  .zero 104\n" ++
+  "aahsr_state_root:\n  .zero 32\n" ++
   "bbcv_field_off:\n  .zero 8\n" ++
   "bbcv_field_len:\n  .zero 8\n" ++
   "bbcv_field_count:\n  .zero 8\n" ++
