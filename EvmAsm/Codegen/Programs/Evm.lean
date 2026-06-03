@@ -1443,7 +1443,7 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
-  mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
+  mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++ returnDataHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]
