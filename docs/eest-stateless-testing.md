@@ -113,9 +113,12 @@ scripts/codegen-eest-exp-power256-check.sh
 ```
 
 This checks the Amsterdam `exp_power256` state-test fixture and requires a full
-105-byte stateless output match. Override `EEST_EXP_POWER256_JOBS` or
-`EEST_EXP_POWER256_STEPS` for this wrapper without changing the broader harness
-defaults.
+105-byte stateless output match. Treat it as a focused EXP smoke regression, not
+as a claim that the whole EXP frontier is complete: dynamic-gas coverage,
+large-exponent edge coverage, and the remaining software/proof work are tracked
+separately under bead `evm-asm-fhsxz.2.4.2.60.2.6`. Override
+`EEST_EXP_POWER256_JOBS` or `EEST_EXP_POWER256_STEPS` for this wrapper without
+changing the broader harness defaults.
 
 Run a fast EIP-2929 precompile-warming frontier:
 
