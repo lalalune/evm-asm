@@ -15,6 +15,10 @@ For missing-feature scheduling, see
 fixture classes to the active transaction, gas, state, opcode, call/create,
 precompile, and receipt/log feature beads.
 
+For the byte-level input contract shared with execution-specs
+`run_stateless_guest`, see
+[`docs/agents/stateless-input-contract.md`](agents/stateless-input-contract.md).
+
 ## Prerequisites
 
 Install the normal codegen requirements from the README: Lean/Lake,
