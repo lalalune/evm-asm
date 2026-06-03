@@ -447,7 +447,7 @@ theorem exp_prologue_fixed_then_pointer_advance_full_stack_spec_within
       (expTwoMulLoopEntryPostFixed sp evmSp vOld v18 baseWord exponentWord rest) := by
   -- Address identity: evmSp + signExtend12 56 = (evmSp+32) + 24
   have h56 : (evmSp + signExtend12 (56 : BitVec 12) : Word) =
-             (evmSp + 32) + 24 := by unfold signExtend12; bv_decide
+             (evmSp + 32) + 24 := by rw [EvmAsm.Rv64.signExtend12_56]; bv_omega
   -- Frame the raw spec with remaining stack atoms (base word, exp limbs 0-2, rest)
   let expLimb3 := exponentWord.getLimbN 3
   have hRaw_framed := cpsTripleWithin_frameR
@@ -467,8 +467,10 @@ theorem exp_prologue_fixed_then_pointer_advance_full_stack_spec_within
   have h64 : (evmSp + 32 + 32 : Word) = evmSp + 64 := by bv_addr
   have h32_0 : ((evmSp + 32) + 0 : Word) = evmSp + 32 := by bv_addr
   -- Register value normalizations needed for POST-weaken
-  have hx9 : (0:Word) + signExtend12 (256:BitVec 12) = (256:Word) := by unfold signExtend12; bv_decide
-  have hx5 : (0:Word) + signExtend12 (1:BitVec 12) = (1:Word) := by unfold signExtend12; bv_decide
+  have hx9 : (0:Word) + signExtend12 (256:BitVec 12) = (256:Word) := by
+    rw [EvmAsm.Evm64.Exp.AddrNorm.exp_se12_256]; bv_omega
+  have hx5 : (0:Word) + signExtend12 (1:BitVec 12) = (1:Word) := by
+    rw [EvmAsm.Rv64.signExtend12_1]; bv_omega
   -- Weaken: PRE uses evmStackIs, POST uses expTwoMulLoopEntryPostFixed
   exact cpsTripleWithin_weaken
     -- PRE-weaken: expand evmStackIs/evmWordIs → match hRaw_framed.PRE atoms
