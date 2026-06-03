@@ -27,6 +27,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
+import EvmAsm.Evm64.EvmWordArith.AddMod
 
 namespace EvmAsm.Evm64
 
@@ -213,6 +214,174 @@ theorem evm_addmod_phase2_reduce_length (modOff : BitVec 21) :
 theorem evm_addmod_phase2_reduce_byte_length (modOff : BitVec 21) :
     4 * (evm_addmod_phase2_reduce modOff).length = 4 := by
   rw [evm_addmod_phase2_reduce_length]
+
+-- ============================================================================
+-- pow256ModN runtime helper blocks
+-- ============================================================================
+
+/-- Dividend scratch base for the `2^256 mod N` helper.
+
+    After `evm_addmod_prologue`, `x12 = sp + 32`, the truncated sum `r` is at
+    `x12 + 0..24`, and the modulus `N` is at `x12 + 32..56`. The helper uses
+    a temporary callable-MOD work window after these live cells:
+
+      * `x12 + 64..88`: callable MOD dividend
+      * `x12 + 96..120`: callable MOD divisor, then callable MOD remainder
+
+    Entering `evm_mod_callable` with `x12 = x12 + 64` returns with `x12` at
+    the divisor/remainder base (`old x12 + 96`), so the caller restores the
+    ADDMOD frame pointer with `ADDI x12, x12, -96` (immediate 4000). -/
+def addmodPow256WorkDividendBase : BitVec 12 := 64
+
+/-- Divisor/result scratch base for the `2^256 mod N` helper. -/
+def addmodPow256WorkModulusBase : BitVec 12 := 96
+
+/-- Prepare the first MOD call for `(-1) mod N`.
+
+    The algebraic identity used by the total ADDMOD runtime is
+    `2^256 mod N = (((2^256 - 1) mod N) + 1) mod N` for `N != 0`.
+    This block materializes the four-limb all-ones dividend at
+    `x12 + 64..88` and copies the live modulus from `x12 + 32..56` to the
+    callable divisor slots at `x12 + 96..120`.
+
+    It does not move `x12`; the call wrapper does that.
+
+    13 instructions. -/
+def evm_addmod_pow256_prepare_minus_one_mod_args : Program :=
+  ADDI .x5 .x0 4095 ;;
+  SD .x12 .x5 64 ;;
+  SD .x12 .x5 72 ;;
+  SD .x12 .x5 80 ;;
+  SD .x12 .x5 88 ;;
+  LD .x5 .x12 32 ;;
+  SD .x12 .x5 96 ;;
+  LD .x5 .x12 40 ;;
+  SD .x12 .x5 104 ;;
+  LD .x5 .x12 48 ;;
+  SD .x12 .x5 112 ;;
+  LD .x5 .x12 56 ;;
+  SD .x12 .x5 120
+
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_length :
+    evm_addmod_pow256_prepare_minus_one_mod_args.length = 13 := by native_decide
+
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_byte_length :
+    4 * evm_addmod_pow256_prepare_minus_one_mod_args.length = 52 := by
+  rw [evm_addmod_pow256_prepare_minus_one_mod_args_length]
+
+/-- Call `evm_mod_callable` on the pow256 helper work window.
+
+    Precondition: dividend at `x12 + 64..88`, divisor at `x12 + 96..120`.
+    The block shifts `x12` to the dividend, performs the near call, then
+    restores `x12` to the ADDMOD frame. The remainder is left at
+    `x12 + 96..120`.
+
+    3 instructions. -/
+def evm_addmod_pow256_call_mod (modOff : BitVec 21) : Program :=
+  ADDI .x12 .x12 64 ;;
+  JAL .x1 modOff ;;
+  ADDI .x12 .x12 4000
+
+theorem evm_addmod_pow256_call_mod_length (modOff : BitVec 21) :
+    (evm_addmod_pow256_call_mod modOff).length = 3 := by
+  show (((ADDI .x12 .x12 64 ;; JAL .x1 modOff) ;;
+          ADDI .x12 .x12 4000) : Program).length = 3
+  simp only [seq, Program.length_append]
+  rfl
+
+theorem evm_addmod_pow256_call_mod_byte_length (modOff : BitVec 21) :
+    4 * (evm_addmod_pow256_call_mod modOff).length = 12 := by
+  rw [evm_addmod_pow256_call_mod_length]
+
+/-- Prepare the second MOD call for `(((-1 mod N) + 1) mod N)`.
+
+    Entry: the first MOD remainder `(-1 mod N)` is at `x12 + 96..120`, and
+    the original modulus is still at `x12 + 32..56`. This block adds one to
+    the four-limb remainder, propagating carry across all limbs, writes the
+    result into the callable dividend slots `x12 + 64..88`, and refreshes the
+    callable divisor slots with `N`.
+
+    The add-one carry detection is total for all inputs: limb 0 uses
+    `SLTIU x7, x6, 1`, which is true exactly when `x5 + 1` wrapped to zero;
+    higher limbs use `SLTU x7, x6, x7`, which propagates a one-bit carry and
+    yields zero when the incoming carry was zero.
+
+    24 instructions. -/
+def evm_addmod_pow256_prepare_plus_one_mod_args : Program :=
+  LD .x5 .x12 96 ;;
+  ADDI .x6 .x5 1 ;;
+  SLTIU .x7 .x6 1 ;;
+  SD .x12 .x6 64 ;;
+  LD .x5 .x12 104 ;;
+  ADD .x6 .x5 .x7 ;;
+  SLTU .x7 .x6 .x7 ;;
+  SD .x12 .x6 72 ;;
+  LD .x5 .x12 112 ;;
+  ADD .x6 .x5 .x7 ;;
+  SLTU .x7 .x6 .x7 ;;
+  SD .x12 .x6 80 ;;
+  LD .x5 .x12 120 ;;
+  ADD .x6 .x5 .x7 ;;
+  SLTU .x7 .x6 .x7 ;;
+  SD .x12 .x6 88 ;;
+  LD .x5 .x12 32 ;;
+  SD .x12 .x5 96 ;;
+  LD .x5 .x12 40 ;;
+  SD .x12 .x5 104 ;;
+  LD .x5 .x12 48 ;;
+  SD .x12 .x5 112 ;;
+  LD .x5 .x12 56 ;;
+  SD .x12 .x5 120
+
+theorem evm_addmod_pow256_prepare_plus_one_mod_args_length :
+    evm_addmod_pow256_prepare_plus_one_mod_args.length = 24 := by native_decide
+
+theorem evm_addmod_pow256_prepare_plus_one_mod_args_byte_length :
+    4 * evm_addmod_pow256_prepare_plus_one_mod_args.length = 96 := by
+  rw [evm_addmod_pow256_prepare_plus_one_mod_args_length]
+
+/-- Materialize `2^256 mod N` in the pow256 helper result slots.
+
+    For the nonzero-`N` path, this helper computes the runtime value used by
+    total ADDMOD's carry contribution:
+
+      1. `(-1) mod N`
+      2. `(((-1 mod N) + 1) mod N) = 2^256 mod N`
+
+    Exit: `x12` is restored to the ADDMOD frame, and `x12 + 96..120` contains
+    `EvmWord.pow256ModN N` for `N != 0`. The top-level ADDMOD assembly keeps
+    the `N = 0` bypass outside this helper.
+
+    43 instructions. -/
+def evm_addmod_pow256_mod_n (modOff : BitVec 21) : Program :=
+  evm_addmod_pow256_prepare_minus_one_mod_args ;;
+  evm_addmod_pow256_call_mod modOff ;;
+  evm_addmod_pow256_prepare_plus_one_mod_args ;;
+  evm_addmod_pow256_call_mod modOff
+
+theorem evm_addmod_pow256_mod_n_length (modOff : BitVec 21) :
+    (evm_addmod_pow256_mod_n modOff).length = 43 := by
+  unfold evm_addmod_pow256_mod_n
+  simp only [seq, Program.length_append,
+    evm_addmod_pow256_prepare_minus_one_mod_args_length,
+    evm_addmod_pow256_call_mod_length,
+    evm_addmod_pow256_prepare_plus_one_mod_args_length]
+
+theorem evm_addmod_pow256_mod_n_byte_length (modOff : BitVec 21) :
+    4 * (evm_addmod_pow256_mod_n modOff).length = 172 := by
+  rw [evm_addmod_pow256_mod_n_length]
+
+-- Concrete pure-oracle checks for the value these runtime blocks materialize.
+
+example : (EvmWord.pow256ModN (0 : EvmWord)).toNat = 0 := by native_decide
+
+example : (EvmWord.pow256ModN (1 : EvmWord)).toNat = 0 := by native_decide
+
+example : (EvmWord.pow256ModN (7 : EvmWord)).toNat = 2 := by native_decide
+
+example :
+    (EvmWord.pow256ModN (BitVec.ofNat 256 (2 ^ 128 + 1))).toNat = 1 := by
+  native_decide
 
 /-- Phase 2 — zero-store path (taken when `N = 0`).
 
