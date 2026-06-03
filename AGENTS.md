@@ -73,6 +73,30 @@ When adding or modifying proofs:
 3. **Test concretely**: Verify specific cases with `decide` before generalizing (NOT `native_decide`/`bv_decide` — both are forbidden and CI-gated; see CONTRIBUTING.md. The kernel's `Nat` is GMP-backed, so `decide` is fast even on concrete 256-bit `BitVec` goals.)
 4. **Incremental development**: Prove helper lemmas before the main theorem
 
+### Proof-tier rubric (`EvmAsm/Progress.lean`)
+
+The kernel-checked progress registry classifies each opcode by a `ProofTier`.
+Pick the tier honestly — the registry distinguishes a *complete spec on a
+restricted domain* from *half-built work*, and conflating the two is exactly
+the statement-vacuity blind spot the dashboard exists to catch:
+
+| Tier | Meaning | Test to apply |
+|---|---|---|
+| `proven` | A complete top-level stack-level Hoare triple (`evm_<op>_stack_spec_within`) whose conclusion fully specifies the opcode's effect, with **no input-domain precondition**. | Is there a single triple covering *all* operand values? |
+| `conditional` | A **complete** top-level triple exists, but it is **gated by a nonvacuous input-domain precondition** that excludes a real region of inputs (e.g. DIV/MOD require `b.getLimbN 3 = 0`, so the full `n=4` divisor path is uncovered; SDIV carries an `hStack` hypothesis). Distinct from `proven` (no restriction) and from `partly` (no complete triple). | Does a complete triple exist, but only under a hypothesis restricting operand values? |
+| `partly` | **No** complete top-level triple yet — only an `EvmWord.<op>_correct` arithmetic lemma, a preamble/partial-effect spec, or a sub-component. | Is there real verification work but *no* full triple (not even a restricted one)? |
+| `execSpec` | Pure executable-spec / handler / bridge semantics only; no RV64 subroutine produces the EVM result. | — |
+| `notStarted` | Not represented in `EvmOpcode` yet (e.g. unimplemented EIPs). | — |
+
+Do **not** mark an opcode `conditional` when the restriction is a single
+degenerate point (e.g. ADDMOD's `b=0`-only triple, PUSH2..32's zero-slot-only
+triple) — those stay `partly` until a broader triple lands. A `conditional`
+entry should, where possible, also name a `…_precondition_reachable` cover
+lemma in its `coverRef` slot, proving the gating antecedent is *satisfiable* on
+representative real inputs (the anti-near-vacuity check). Per-opcode cycle
+bounds live in the typed `cycleBound` field (not free-text `notes`), so a
+silent `cpsTripleWithin N` inflation surfaces as a registry diff.
+
 ## Critical Rules
 
 - **Naming convention (Mathlib-aligned):**
