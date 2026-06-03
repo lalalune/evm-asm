@@ -44,7 +44,7 @@ EvmAsm/
     RLP/               -- RLP encoding/decoding (no RISC-V dependency)
       Basic.lean       -- RLPItem type, encode
       Decode.lean      -- decode with canonical enforcement
-      Properties.lean  -- Round-trip proofs (native_decide)
+      Properties.lean  -- Round-trip proofs (kernel-checkable `decide`)
 EvmAsm.lean            -- Root module: imports Rv64, Evm64, EL
 ```
 
@@ -70,7 +70,7 @@ When adding or modifying proofs:
    - `lean_local_search`: Search for declarations locally
    - `lean_leansearch`: Natural language search in mathlib
    - `lean_loogle`: Type-based search in mathlib
-3. **Test concretely**: Verify specific cases with `native_decide` before generalizing
+3. **Test concretely**: Verify specific cases with `decide` before generalizing (NOT `native_decide`/`bv_decide` — both are forbidden and CI-gated; see CONTRIBUTING.md. The kernel's `Nat` is GMP-backed, so `decide` is fast even on concrete 256-bit `BitVec` goals.)
 4. **Incremental development**: Prove helper lemmas before the main theorem
 
 ## Critical Rules
@@ -147,7 +147,7 @@ All concrete examples should pass with no sorries:
 lake build  # Should succeed with 0 errors and 0 sorries
 ```
 
-The project includes concrete test cases using `native_decide`:
+The project includes concrete test cases using `decide` (kernel-checkable):
 - Multiply by constants: 0, 1, 3, 6, 10, 255
 - Swap macro correctness
 - Zero and triple macros
