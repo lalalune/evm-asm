@@ -47,6 +47,7 @@ import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
+import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
 import EvmAsm.Evm64.SDiv.Spec
 import EvmAsm.Evm64.AddMod.Spec
 import EvmAsm.Evm64.Env.Wrappers
@@ -127,11 +128,9 @@ def registry : List OpcodeEntry := [
   entry "ADD" .proven (some "evm_add_stack_spec_within") (cycleBound := some 30),
   entry "MUL" .proven (some "evm_mul_stack_spec_within") (cycleBound := some 63),
   entry "SUB" .proven (some "evm_sub_stack_spec_within") (cycleBound := some 30),
-  entry "DIV" .conditional (some "evm_div_stack_spec")
-      ("stack spec parametric over DivStackSpecCase (bzero / n=1,2,3, all " ++
-       "require b.getLimbN 3 = 0); n=4 path not covered. Executable evm_div " ++
-       "uses divK_div128_v4 (PR #4992, full Knuth Alg D). Full-domain " ++
-       "unconditional closure tracked by bead evm-asm-9iqmw / gh-61"),
+  entry "DIV" .proven (some "evm_div_stack_spec_unconditional")
+      ("full-domain unconditional v5 DIV stack spec over divCode_noNop; " ++
+       "wraps evm_div_stack_spec_unconditional_v5_div and the v5 lane proofs"),
   entry "SDIV" .conditional (some "evm_sdiv_exact_callable_return_stack_spec_within")
       ("callable+dispatch shim; evm_sdiv_stack_spec_within conditional on " ++
        "hStack (discharged for divisor=0 and n=1/2/3/n4-call-skip); blocked " ++
@@ -268,9 +267,9 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 41 := by decide
+theorem provenCount_eq      : provenCount      = 42 := by decide
 theorem partialCount_eq     : partialCount     = 6  := by decide
-theorem conditionalCount_eq : conditionalCount = 3  := by decide
+theorem conditionalCount_eq : conditionalCount = 2  := by decide
 theorem execSpecCount_eq    : execSpecCount    = 32 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
@@ -302,9 +301,9 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 71  := by decide
+theorem provenBytes_eq      : provenBytes      = 72  := by decide
 theorem partialBytes_eq     : partialBytes     = 36  := by decide
-theorem conditionalBytes_eq : conditionalBytes = 3   := by decide
+theorem conditionalBytes_eq : conditionalBytes = 2   := by decide
 theorem execSpecBytes_eq    : execSpecBytes    = 36  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
