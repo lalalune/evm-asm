@@ -70,6 +70,7 @@ import EvmAsm.EL.Bls12G1MsmResultBridge
 import EvmAsm.EL.Bls12G1MsmEcallBridge
 import EvmAsm.EL.Bls12G1PrecompileResultBridge
 import EvmAsm.EL.Bls12G1MsmPrecompileDispatch
+import EvmAsm.EL.Bls12G1AddPrecompileDispatch
 import EvmAsm.EL.KzgPointEvalInputBridge
 import EvmAsm.EL.KzgPointEvalResultBridge
 import EvmAsm.EL.KzgPointEvalEcallBridge
