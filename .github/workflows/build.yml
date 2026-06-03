@@ -13,6 +13,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Forbidden-tactic guard (no bv_decide / native_decide / TCB expanders)
+        run: scripts/check-forbidden-tactics.sh
       - name: File-size guardrail
         run: scripts/check-file-size.sh
       - name: Unimported-file check
@@ -56,7 +58,7 @@ jobs:
       # native_decide trust axiom (or sorry) reaching a witnessed proof fails.
       # Pre-existing native_decide owners are grandfathered in
       # scripts/axiom-allow.txt (a burndown list). Needs oleans → runs after build.
-      - name: Axiom audit (no new native_decide trust axioms)
+      - name: Axiom audit (no bv_decide / native_decide trust axioms; classical-only TCB)
         run: scripts/check-axioms.sh
 
       - name: Conformance-vector floor (monotonic ratchet)

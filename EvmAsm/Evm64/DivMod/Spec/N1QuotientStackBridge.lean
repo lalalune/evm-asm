@@ -44,7 +44,14 @@ theorem fullDivN1NormV_low3_or_zero_ne_zero_of_b0_ne_zero
   have h_limb0_ne :=
     fullDivN1NormV_limb0_ne_zero_of_b0_ne_zero b0 b1 b2 b3 hb0nz
   apply h_limb0_ne
-  bv_decide
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  have hh := congrArg (fun w => w.getLsbD i) h_zero
+  simp only [BitVec.getLsbD_or] at hh
+  revert hh
+  cases (fullDivN1NormV b0 b1 b2 b3).1.getLsbD i <;>
+    cases (fullDivN1NormV b0 b1 b2 b3).2.1.getLsbD i <;>
+    cases (fullDivN1NormV b0 b1 b2 b3).2.2.1.getLsbD i <;> simp
 
 /-- The n=1 runtime divisor-shape hypotheses imply the low divisor limb is nonzero. -/
 theorem fullDivN1_b0_ne_zero_of_shape

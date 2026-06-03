@@ -135,9 +135,59 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   - MultiplySpec col0–col3 migrated to `ofProg` pattern
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
+- **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):
+  Following the `native_decide` elimination (206 → 0), `bv_decide` was driven
+  from **290 → 0** call sites. The full library builds green (3027 jobs) and
+  the witnessed trust base (`check-axioms.sh --report`) is **0 non-classical
+  axioms** beyond `propext`/`Classical.choice`/`Quot.sound`. Conversion
+  techniques: `BitVec.eq_of_getLsbD_eq` + `simp`/`omega` (getLsbD block-splits
+  for `fromLimbs`/`getLimb`/8-byte-concat identities), `congr 1`/`decide` +
+  `bv_omega` for address/`signExtend` arithmetic, a shared
+  `ushr63_bool : x >>> 63 ∈ {0,1}` helper for sign disjunctions, the bit-0
+  parity helper for `&&& ~~~1` JALR masks, `decide` for concrete 256-bit goals
+  (kernel `Nat` is GMP-fast), and — for the multi-limb two's-complement
+  lemmas in `SDiv`/`SMod` `Compose/Words.lean` (`…_eq_neg_word_of_sign_one`,
+  `= -quotient`, `= -modulus`, plus the dependent `…_sign_split`/`…_eq_zero_iff`
+  /`…_limb_sign` lemmas) — `EvmWordArith.add_carry_chain_correct (~~~v) 1`
+  (the ripple-carry negation `sdivAbsWord = ~~~v + 1 = -v`) composed with
+  `fromLimbs_getLimb`/`BitVec.neg_eq_not_add`. The `divmod_addr`/`rv64_addr`
+  grind-set definition files use a local `addrclose` macro. The 6 now-unused
+  `import Std.Tactic.BVDecide` lines were removed. **CI keeps it out** via two
+  complementary gates (`.github/workflows/build.yml`):
+  `scripts/check-forbidden-tactics.sh` (fast source scan — fails on any
+  `bv_decide`/`native_decide` tactic invocation in `EvmAsm/**.lean`) and
+  `scripts/check-axioms.sh` (kernel-truth `#print axioms` backstop — now
+  forbids `bv_decide` trust axioms too, not just `native_decide`). See
+  `CLAUDE.md` / `CONTRIBUTING.md`.
+- **Proof-ergonomics infra distilled from the purge** (see `GRIND.md` §7):
+  - **`signExtend` simprocs + `signext` tactic** (`Rv64/SignExtendSimproc.lean`):
+    `reduceSignExtend12/13/21` are `dsimproc_decl`s (definitional, kernel-checkable,
+    *not* in default simp) that evaluate `signExtend1? <literal>` → its `Word`
+    constant, including negative offsets (`-32#12`) the core `BitVec.reduceSignExtend`
+    declines. The `signext` tactic then closes `addr + signExtend c = addr + K`
+    / pure-address / standalone-eval goals via `bv_omega`. Replaces the bespoke
+    `congr 1 <;> decide` / `rw [show … by decide]` idiom; `Exp/AddrNorm`'s
+    `addrclose` now delegates to it (84 sites).
+  - **`evmword_limb` grind/simp set** (`Evm64/Basic.lean` + `EvmWordLimbAttr.lean`):
+    the `getLimb`/`fromLimbs`/`getLimbN` round-trips + bitwise-distribution lemmas
+    are dual-tagged `@[evmword_limb, grind =]`, so `grind` discovers limb
+    normalizations and `simp [evmword_limb]` normalizes limb expressions.
+  - **`Rv64/BitAux.lean`** — shared `Word` bit-level helpers (`ushr63_bool`,
+    `ult_zero_false`, `word_xor_zero`, `bv6_63_toNat`, …) that were previously
+    copied as `private` decls into `SDiv`/`SMod` `Compose/Words.lean` (now
+    imported from one place), plus 2-byte-alignment lemmas
+    (`word_andn_one_of_even`, `word_add_even_and_one`/`_andn_one`, the latter
+    two `@[grind →]`) that dedup the inline JALR-mask (`&&& ~~~1` / `&&& 1 = 0`)
+    parity proofs; `Exp/AddrNorm.addrAligned` and the two `SDiv/Compose/Base`
+    mask lemmas now delegate to them.
+  - **Deferred:** factoring the 4 near-identical multi-limb two's-complement
+    `…AbsWord …= -v` proofs (`SDiv`/`SMod` `Compose/Words.lean`) into one shared
+    lemma is blocked by their 4 separate underlying definitions — a clean DRY
+    needs unifying those defs into a shared `rippleNegWord` function (a larger
+    refactor; the 4 proofs are correct/kernel-checkable as-is).
 - **Execution Layer specs** (`EvmAsm/EL/`): Pure Lean specs for Ethereum
   data structures, independent of RISC-V. Currently:
-  - `EL/RLP/` — RLP encoding/decoding with round-trip proofs (`native_decide`)
+  - `EL/RLP/` — RLP encoding/decoding with round-trip proofs (`decide`)
 - **Byte-level infrastructure** (`ByteOps.lean`): `extractByte`/`replaceByte`
   algebra, `generic_lbu_spec` and `generic_sb_spec` CPS specs bridging
   byte-addressable operations to word-level separation logic assertions.
@@ -648,7 +698,7 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
 ### EL.1 RLP Specification ✅
 - **Files**: `EvmAsm/EL/RLP/Basic.lean`, `Decode.lean`, `Properties.lean`
 - `RLPItem` type (bytes | list), `encode`, `decode` with canonical enforcement
-- 17 kernel-verified properties via `native_decide` (round-trip, spec conformance)
+- 17 kernel-verified properties via `decide` (round-trip, spec conformance)
 - 0 sorry, 0 axioms
 
 ### EL.2 Byte-Level Infrastructure ✅
@@ -976,7 +1026,7 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 #### 11.4 Conformance Testing
 - Run against Ethereum test vectors (ethereum/tests).
 - Compare RISC-V execution results to reference Python execution.
-- Use `native_decide` or extraction for executable tests.
+- Use `decide` or extraction for executable tests.
 
 ---
 

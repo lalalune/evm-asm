@@ -9,7 +9,6 @@ import EvmAsm.Rv64.CPSSpec
 import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.FinCases
 import Mathlib.Data.Fintype.Basic
-import Std.Tactic.BVDecide
 
 namespace EvmAsm.Rv64
 
@@ -24,20 +23,37 @@ theorem byteOffset_lt_8 {addr : Word} : byteOffset addr < 8 := by
 theorem alignToDword_byteOffset_zero (addr : Word) :
     byteOffset (alignToDword addr) = 0 := by
   unfold byteOffset alignToDword
-  bv_decide
+  have h : (addr &&& ~~~(7 : Word)) &&& (7 : Word) = 0 := by
+    apply BitVec.eq_of_getLsbD_eq; intro i _hi
+    simp only [BitVec.getLsbD_and, BitVec.getLsbD_not]
+    cases ha : (7 : Word).getLsbD i <;> simp
+  have h' : ((addr &&& ~~~(7 : Word)) &&& (7 : Word)).toNat = 0 := by rw [h]; rfl
+  exact h'
 
 /-- Aligning an already dword-aligned address is idempotent. -/
 theorem alignToDword_idempotent (addr : Word) :
     alignToDword (alignToDword addr) = alignToDword addr := by
   unfold alignToDword
-  bv_decide
+  rw [BitVec.and_assoc, BitVec.and_self]
 
 /-- The aligned base plus the byte offset reconstructs the original address. -/
 theorem alignToDword_add_byteOffset (addr : Word) :
     alignToDword addr + BitVec.ofNat 64 (byteOffset addr) = addr := by
   unfold alignToDword byteOffset
-  rw [BitVec.ofNat_toNat]
-  bv_decide
+  rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+  -- Goal: (addr &&& ~~~7#64) + (addr &&& 7#64) = addr
+  -- Prove using or-factorization: the parts are disjoint
+  have hdisj : (addr &&& ~~~7#64) &&& (addr &&& 7#64) = 0 := by
+    ext i
+    simp only [BitVec.getElem_and, BitVec.getElem_not, BitVec.getElem_zero]
+    rcases Bool.eq_false_or_eq_true ((7#64)[i]) with h7 | h7 <;> simp [h7]
+  have hor : (addr &&& ~~~7#64) ||| (addr &&& 7#64) = addr := by
+    ext i
+    simp only [BitVec.getElem_or, BitVec.getElem_and, BitVec.getElem_not]
+    rcases Bool.eq_false_or_eq_true (addr[i]) with ha | ha <;>
+    rcases Bool.eq_false_or_eq_true ((7#64)[i]) with h7 | h7 <;>
+    simp [ha, h7]
+  rw [BitVec.add_eq_or_of_and_eq_zero _ _ hdisj, hor]
 
 /-! ## extractByte / replaceByte algebra
 

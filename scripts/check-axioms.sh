@@ -14,18 +14,19 @@
 # Both rest on the native compiler path (`Lean.ofReduceBool` /
 # `Lean.trustCompiler`) — see CLAUDE.md "No native_decide or bv_decide".
 #
-# Policy enforced here (set 2026-06-01, see
+# Policy enforced here (updated 2026-06-02 — bv_decide tightened from ALLOWED
+# to FORBIDDEN after the 290->0 elimination; was set 2026-06-01, see
 # docs/agent-progress-steering-review.md R-C1):
 #   * ALLOWED with no allowlist entry:
 #       - the three classical axioms: propext, Classical.choice, Quot.sound
-#       - bv_decide trust axioms  (`*._native.bv_decide.ax_*`): bv_decide
-#         reflects a *formally verified* LRAT checker, a trust the project
-#         currently accepts.
 #   * FORBIDDEN unless grandfathered in scripts/axiom-allow.txt:
-#       - native_decide trust axioms (`*._native.native_decide.ax_*`):
-#         these trust arbitrary compiled `Decidable` evaluation. The
-#         allowlist is a *burndown* of pre-existing uses to drive to zero;
-#         any NEW native_decide owner fails the build.
+#       - bv_decide AND native_decide trust axioms
+#         (`*._native.{bv_decide,native_decide}.ax_*`): both seal their result
+#         behind the native compiler path (Lean.ofReduceBool /
+#         Lean.trustCompiler) instead of a kernel-checked proof term. Both are
+#         fully eliminated; the allowlist is an EMPTY burndown — any NEW such
+#         owner fails the build. (Source-level use is also blocked earlier by
+#         scripts/check-forbidden-tactics.sh.)
 #   * ALWAYS FORBIDDEN (never allowlistable):
 #       - sorryAx, Lean.ofReduceBool, Lean.trustCompiler appearing bare,
 #         and any other axiom not covered above.
@@ -165,9 +166,14 @@ classify() {  # stdin: THEOREM<TAB>AXIOM ; stdout: CLASS<TAB>OWNER<TAB>THEOREM<T
 CLASSED="$(mktemp)"; trap 'cleanup; rm -f "$PAIRS" "$CLASSED"' EXIT
 classify < "$PAIRS" > "$CLASSED"
 
-# Owners that currently carry a native_decide axiom (the burndown set).
+# Owners that currently carry a TCB-trust axiom (native_decide OR bv_decide).
+# Both rest on the native compiler path (Lean.ofReduceBool / Lean.trustCompiler)
+# and are now FORBIDDEN (both fully eliminated: native_decide 206->0,
+# bv_decide 290->0). The allowlist (scripts/axiom-allow.txt) is an empty
+# burndown that the gate fails against — any new such owner fails the build.
 current_nd_owners() {
-  awk -F'\t' '$1=="native_decide"{print $2}' "$CLASSED" | LC_ALL=C sort -u
+  awk -F'\t' '$1=="native_decide" || $1=="bv_decide" {print $2}' "$CLASSED" \
+    | LC_ALL=C sort -u
 }
 
 # --------------------------------------------------------------------
@@ -208,10 +214,7 @@ if [[ "$mode" == "report" ]]; then
   awk -F'\t' '$1!="classical"{print "  " $3 "  <-  [" $1 "] " $4}' "$CLASSED" \
     | LC_ALL=C sort -u || echo "  (none — all witnesses depend only on classical axioms)"
   echo
-  echo "-- bv_decide owners (ALLOWED by policy) --"
-  awk -F'\t' '$1=="bv_decide"{print "  " $2}' "$CLASSED" | LC_ALL=C sort -u || true
-  echo
-  echo "-- native_decide owners (FORBIDDEN; grandfathered in $ALLOW_FILE) --"
+  echo "-- TCB-trust owners (FORBIDDEN: native_decide / bv_decide; allowlist $ALLOW_FILE) --"
   current_nd_owners | sed 's/^/  /' || true
   echo
   echo "(report mode — exit 0)"
@@ -255,12 +258,13 @@ if (( violations > 0 )); then
 ==================================================================
 check-axioms FAILED: $violations new/forbidden trust axiom(s).
 
-Policy: bv_decide trust axioms are allowed; native_decide / sorry are
-not. Pre-existing native_decide owners are grandfathered in
-$ALLOW_FILE (a burndown list to drive to zero).
+Policy: only the three classical axioms (propext, Classical.choice,
+Quot.sound) are allowed. bv_decide / native_decide trust axioms and
+sorry are FORBIDDEN. The allowlist $ALLOW_FILE is an empty burndown.
 
-If you ADDED a native_decide (or a sorry), replace it with a
-kernel-checkable proof. If you intentionally moved a grandfathered
+If you ADDED a bv_decide / native_decide (or a sorry), replace it with
+a kernel-checkable proof (decide / omega / bv_omega / simp /
+BitVec.eq_of_getLsbD_eq). If you intentionally moved a grandfathered
 proof, rerun: scripts/check-axioms.sh --write-allow  (and have the
 delta reviewed — it changes the trusted base).
 ==================================================================
@@ -280,4 +284,4 @@ for owner in "${!ALLOWED_OWNER[@]}"; do
 done
 
 nd_count="$(current_nd_owners | grep -c . || true)"
-echo "check-axioms: OK — ${#NAMES[@]} witnesses; only classical + bv_decide axioms, plus $nd_count grandfathered native_decide owner(s) in $ALLOW_FILE."
+echo "check-axioms: OK — ${#NAMES[@]} witnesses; only classical axioms (propext, Classical.choice, Quot.sound), plus $nd_count grandfathered bv_decide/native_decide owner(s) in $ALLOW_FILE."

@@ -60,7 +60,12 @@ private theorem epd_core (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8) (k : Fin 8) :
     (w >>> (k.val * 8)).truncate 8 =
     (match k with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3
                   | 4 => b4 | 5 => b5 | 6 => b6 | 7 => b7) := by
-  fin_cases k <;> simp only [] <;> bv_decide
+  fin_cases k <;> simp only [] <;>
+  apply BitVec.eq_of_getLsbD_eq <;>
+  intro i hi <;>
+  interval_cases i <;>
+  simp [BitVec.getLsbD_setWidth, BitVec.getLsbD_ushiftRight,
+    BitVec.getLsbD_or, BitVec.getLsbD_shiftLeft, BitVec.getLsbD_setWidth]
 
 theorem extractByte_packDword {f : Fin 8 → BitVec 8} {i : Fin 8} :
     extractByte (packDword f) i.val = f i := by

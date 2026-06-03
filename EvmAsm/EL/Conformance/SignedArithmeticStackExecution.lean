@@ -277,7 +277,7 @@ theorem runSDivStack?_pos_pos_vector :
       (EvmAsm.Evm64.SDivArgs.sdivArgs (9 : EvmWord) (2 : EvmWord)) = (4 : EvmWord) := by
     unfold EvmAsm.Evm64.SDivArgs.sdivResultFromArgs EvmAsm.Evm64.SDivArgs.sdivArgs
       EvmAsm.Evm64.EvmWord.sdiv
-    bv_decide
+    decide
   unfold runSDivStack?
   rw [EvmAsm.Evm64.SDivStackExecutionBridge.runSDivStack?_cons, h]
 
@@ -288,7 +288,7 @@ theorem runSDivStack?_neg_neg_vector :
       (EvmAsm.Evm64.SDivArgs.sdivArgs (-9 : EvmWord) (-2 : EvmWord)) = (4 : EvmWord) := by
     unfold EvmAsm.Evm64.SDivArgs.sdivResultFromArgs EvmAsm.Evm64.SDivArgs.sdivArgs
       EvmAsm.Evm64.EvmWord.sdiv
-    bv_decide
+    decide
   unfold runSDivStack?
   rw [EvmAsm.Evm64.SDivStackExecutionBridge.runSDivStack?_cons, h]
 
