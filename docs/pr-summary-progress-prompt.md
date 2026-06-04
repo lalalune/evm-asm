@@ -22,10 +22,17 @@ Emit a top-level section titled exactly `## Progress assessment` at
 the **end** of the PR summary. The section is short, factual, and
 narrates what the computed delta means in the project's vocabulary.
 
-If the computed delta shows no count changes and no tier transitions,
-write exactly:
+**Begin the section by reproducing, VERBATIM, the deterministic
+`### Risk: <LEVEL>` line and the `### Scorecard` table** from the
+computed delta above (the `scripts/progress-delta.sh` output). Do
+**not** recompute, reword, re-rank, or omit them — they are a
+kernel-/git-derived triage signal for the human reviewer and must
+appear unchanged and on every PR (including metric-neutral ones). The
+risk label is triage ordering only; never describe it as a merge
+verdict. After the verbatim block, add the narrative below.
 
-    ## Progress assessment
+If the computed delta shows no count changes and no tier transitions,
+write the verbatim Risk + Scorecard block followed by exactly:
 
     Metric-neutral PR (no tier transitions, no count deltas).
 

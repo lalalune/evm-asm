@@ -266,6 +266,7 @@ is_trusted_core() {
     scripts/eest-fixture-tag.txt)                                 return 0 ;;
     scripts/codegen-eest-stateless-check.sh)                      return 0 ;;
     scripts/progress-report.sh|scripts/progress-snapshot.sh)      return 0 ;;
+    scripts/progress-velocity.sh|scripts/progress-delta.sh)       return 0 ;;
     .github/workflows/*|.github/CODEOWNERS)                       return 0 ;;
     *)                                                            return 1 ;;
   esac

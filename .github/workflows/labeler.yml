@@ -51,8 +51,13 @@ jobs:
           # Per-file additions+deletions from the API, dropping bulk ziskemu
           # round-trip scripts so a script regen is not mislabeled XL. Mirrors
           # the CHANGED_LINES exclusion in scripts/progress-delta.sh.
+          #
+          # NB: `gh api --paginate --jq` applies the jq filter PER PAGE, so a
+          # >100-file PR emits one number per page. Sum them in awk rather than
+          # feeding a multi-line string into bash arithmetic (which would error).
           total="$(gh api --paginate "repos/${REPO}/pulls/${PR}/files" \
-            --jq '[.[] | select((.filename | test("^scripts/codegen-.*\\.sh$")) | not) | .changes] | add // 0')"
+            --jq '[.[] | select((.filename | test("^scripts/codegen-.*\\.sh$")) | not) | .changes] | add // 0' \
+            | awk '{ s += $1 } END { print s + 0 }')"
           echo "Changed lines (excl. codegen-*.sh): ${total}"
 
           # Buckets — XL boundary (1000) matches the scorecard risk threshold.
