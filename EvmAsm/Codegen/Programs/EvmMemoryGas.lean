@@ -84,4 +84,25 @@ def updateActiveMemorySizeConstAsm
   "  li " ++ tmpLengthReg ++ ", " ++ toString length ++ "\n" ++
   updateActiveMemorySizeAsm tag offsetReg tmpLengthReg roundedReg currentReg maskReg gasTmpReg chargeGas
 
+/-- COPY-family dynamic word gas. The dispatch loop already charges each
+    opcode's static base cost; this charges only
+    `3 * ceil32(length) / 32` against `env.gasRemaining`.
+
+    This helper preserves `lengthReg`, so callers can load the size once and
+    then call `updateActiveMemorySizeAsm` for the destination range. It treats
+    low-limb `length + 31` wraparound as OOG, matching memory-expansion style
+    failures for ranges too large for this u64-addressed runtime. -/
+def copyWordGasAsm (tag lengthReg roundedReg wordsReg gasReg : String) : String :=
+  "  beqz " ++ lengthReg ++ ", .Lcopygas_" ++ tag ++ "_done\n" ++
+  "  addi " ++ roundedReg ++ ", " ++ lengthReg ++ ", 31\n" ++
+  "  bltu " ++ roundedReg ++ ", " ++ lengthReg ++ ", .exit_outofgas\n" ++
+  "  srli " ++ wordsReg ++ ", " ++ roundedReg ++ ", 5\n" ++
+  "  slli " ++ gasReg ++ ", " ++ wordsReg ++ ", 1\n" ++
+  "  add " ++ gasReg ++ ", " ++ gasReg ++ ", " ++ wordsReg ++ "\n" ++
+  "  ld " ++ roundedReg ++ ", 568(x20)\n" ++
+  "  bltu " ++ roundedReg ++ ", " ++ gasReg ++ ", .exit_outofgas\n" ++
+  "  sub " ++ roundedReg ++ ", " ++ roundedReg ++ ", " ++ gasReg ++ "\n" ++
+  "  sd " ++ roundedReg ++ ", 568(x20)\n" ++
+  ".Lcopygas_" ++ tag ++ "_done:\n"
+
 end EvmAsm.Codegen

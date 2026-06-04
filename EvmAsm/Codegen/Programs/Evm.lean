@@ -630,6 +630,7 @@ def codeHandlers : List OpcodeHandlerSpec :=
       preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
                  "  ld x14, 0(x12)\n" ++        -- destOffset low limb (MSIZE range)
                  "  ld x15, 64(x12)\n" ++       -- size low limb (MSIZE range)
+                 copyWordGasAsm "codecopy" "x15" "x16" "x17" "x18" ++
                  updateActiveMemorySizeAsm "codecopy" "x14" "x15" "x16" "x17" "x18" "x6" true
       body    := EvmAsm.Evm64.Code.evm_codecopy
                    .x20 .x13 .x21 .x14 .x15 .x16 .x17 .x18
@@ -870,6 +871,7 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
                  "  ld x14, 0(x12)\n" ++
                  "  ld x15, 64(x12)\n" ++
+                 copyWordGasAsm "calldatacopy" "x15" "x16" "x17" "x18" ++
                  updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18" "x6" true
     , body    := EvmAsm.Evm64.Calldata.evm_calldatacopy
                    .x20 .x13 .x14 .x15 .x16 .x17 .x18 .x19
