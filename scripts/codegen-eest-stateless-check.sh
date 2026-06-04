@@ -119,7 +119,6 @@ RUN_DIR_OVERRIDE=""
 QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
 BSR_WITNESS_CAP="${EEST_BSR_WITNESS_CAP:-}"
 BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
-BSR_MAX_BLOCK_GAS_LIMIT="${EEST_BSR_MAX_BLOCK_GAS_LIMIT:-1000000000}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
@@ -256,10 +255,6 @@ if [[ -n "$BSR_WITNESS_CAP" ]] && ! [[ "$BSR_WITNESS_CAP" =~ ^[0-9]+$ ]]; then
 fi
 if [[ -n "$BSR_BAL_CAP" ]] && ! [[ "$BSR_BAL_CAP" =~ ^[0-9]+$ ]]; then
   echo "--bsr-bal-cap must be a nonnegative integer when set (got: $BSR_BAL_CAP)" >&2
-  exit 1
-fi
-if ! [[ "$BSR_MAX_BLOCK_GAS_LIMIT" =~ ^[0-9]+$ ]] || [[ "$BSR_MAX_BLOCK_GAS_LIMIT" -lt 1 ]]; then
-  echo "EEST_BSR_MAX_BLOCK_GAS_LIMIT must be a positive integer (got: $BSR_MAX_BLOCK_GAS_LIMIT)" >&2
   exit 1
 fi
 if ! [[ "$QUIET_PASSES" =~ ^(0|1|true|false|yes|no)$ ]]; then
@@ -428,8 +423,8 @@ patch_bsr_caps_asm() {
   local asm="$1"
   local old_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 262144; bgtu a2, t1, .Lbsr_cons_change_cap"
   local new_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, $BSR_WITNESS_CAP; bgtu a2, t1, .Lbsr_cons_change_cap"
-  local old_bal=$'  li t0, 1000000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500002; bgtu t0, t1, .Lbsr_cons_change_cap'
-  local new_bal=$'  li t0, 1000000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; li t1, '"$BSR_BAL_CAP"$'; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500002; bgtu t0, t1, .Lbsr_cons_change_cap'
+  local old_bal=$'  li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500018; bgtu t0, t1, .Lbsr_cons_change_cap'
+  local new_bal=$'  li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; li t1, '"$BSR_BAL_CAP"$'; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500018; bgtu t0, t1, .Lbsr_cons_change_cap'
   local as_tool ld_tool
 
   python3 - "$asm" "$BSR_WITNESS_CAP" "$old_witness" "$new_witness" "$BSR_BAL_CAP" "$old_bal" "$new_bal" <<'PYPATCH'
@@ -619,11 +614,6 @@ run_case() {
   local tmp_result="$result.tmp.$$"
   local actual_hex
 
-  if [[ "$gas_limit" -gt "$BSR_MAX_BLOCK_GAS_LIMIT" ]]; then
-    printf 'ERROR\tstatic_layout_gas_limit:%s>%s\n' "$gas_limit" "$BSR_MAX_BLOCK_GAS_LIMIT" > "$tmp_result"
-    mv "$tmp_result" "$result"
-    return 0
-  fi
   if ! "$ZISKEMU" -e "$GUEST_ELF" -i "$input" -o "$out" \
         -n "$STEPS" >"$log" 2>&1 </dev/null; then
     # Distinguish a --steps budget exhaustion (sha256-heavy merkleization,
@@ -705,7 +695,6 @@ classify_case_result() {
     case "$actual_hex" in
       exit) echo "  ERROR(exit)   $relpath" ;;
       short:*) echo "  ERROR(short)  $relpath (${actual_hex#short:} hex chars)" ;;
-      static_layout_gas_limit:*) echo "  ERROR(layout) $relpath (gas_limit ${actual_hex#static_layout_gas_limit:})" ;;
       *) echo "  ERROR($actual_hex) $relpath" ;;
     esac
     return 0
