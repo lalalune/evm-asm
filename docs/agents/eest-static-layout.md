@@ -42,8 +42,10 @@ from the same count and resize the matching backing storage together.
 Large static arenas can outgrow the previous linked `.data` location. When
 that happens, treat the ELF memory map as part of the layout: keep linked
 `.data`, fixed working-RAM anchors, public output, and `.sszscratch` disjoint.
-The current stateless guest layout puts `.data` at `0xa5000000` and
-`.sszscratch` at `0xb0000000`, both inside the verified RAM zone.
+The current 1G-cap stateless guest layout puts `.data` at `0xa5000000` and
+`.sszscratch` at `0xbf500000`, both inside the verified RAM zone. Keep the
+linked `.data` growth below the `.sszscratch` start and leave headroom below
+`0xc0000000`.
 
 ## State Witness Caps
 
