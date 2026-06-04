@@ -215,7 +215,10 @@ static layout sized for the execution-specs default 120,000,000 block gas limit.
 The harness reads the block gas limit from the converted SSZ input manifest and
 errors before launching `ziskemu` when a fixture needs a larger layout/ELF.
 Larger gas-valid BALs need a streaming/chunked replay path or a separately built
-larger static layout.
+larger static layout. The current 1G block-gas sizing plan is
+[`docs/eest-1g-block-gas-layout-plan.md`](eest-1g-block-gas-layout-plan.md);
+that plan supersedes tests that expect high-gas EIP-8037 fixtures to stop at
+`ERROR(layout)`.
 
 To run a focused harness experiment with different guest-side replay caps, pass
 `--bsr-witness-cap N` for the block-state-root witness-byte cap or
