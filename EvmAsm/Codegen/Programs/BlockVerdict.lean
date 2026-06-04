@@ -831,7 +831,7 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_witness; ld a0, 0(t0)\n" ++
   "  la t0, svf_witness_len; ld a1, 0(t0)\n" ++
   "  jal ra, witness_index_build\n" ++
-  "  bnez a0, .Lv2_zero\n" ++
+  "  bnez a0, .Lv2_witness_index_fail\n" ++
   "  # Mirror execution-specs validate_headers(witness.headers): the witness\n" ++
   "  # header list must be a contiguous parent-hash chain before validation can\n" ++
   "  # succeed. SSZ offsets are read bytewise because SSZ_BASE is unaligned.\n" ++
@@ -843,20 +843,27 @@ def statelessVerdictV2Function : String :=
   "  mv t5, a0\n" ++
   "  la t1, svf_witness_section; ld t0, 0(t1); addi a0, t0, 8; jal ra, bgv_u32le # headers offset\n" ++
   "  mv t6, a0\n" ++
-  "  bltu t6, t5, .Lv2_zero\n" ++
+  "  bltu t6, t5, .Lv2_witness_offsets_fail\n" ++
   "  la t1, svf_witness_section; ld t0, 0(t1); add t2, t0, t5\n" ++
   "  la t3, svf_codes_ptr; sd t2, 0(t3)\n" ++
   "  sub t4, t6, t5; la t3, svf_codes_len; sd t4, 0(t3)\n" ++
   "  add t2, t0, t6\n" ++
   "  la t3, svf_headers_ptr; sd t2, 0(t3)\n" ++
-  "  la t1, svf_witness_end; ld t1, 0(t1); bltu t1, t2, .Lv2_zero\n" ++
+  "  la t1, svf_witness_end; ld t1, 0(t1); bltu t1, t2, .Lv2_headers_bounds_fail\n" ++
   "  sub a1, t1, t2; la t3, svf_headers_len; sd a1, 0(t3)\n" ++
   "  mv a0, t2; la a2, svf_headers_count; jal ra, headers_validate_chain\n" ++
   "  bnez a0, .Lv2_headers_fail\n" ++
-  "  mv a0, s0; la t0, svf_payload; ld a1, 0(t0)\n" ++
-  "  la a2, svf_parent_rlp; la a3, svf_parent_rlp_len; la a4, svf_parent_sr\n" ++
-  "  jal ra, extract_parent_header_and_state_root\n" ++
-  "  bnez a0, .Lv2_zero\n" ++
+  "  # execution-specs uses the last validated witness header as parent_header.\n" ++
+  "  la t0, svf_headers_count; ld t0, 0(t0); beqz t0, .Lv2_headers_fail\n" ++
+  "  addi t0, t0, -1; slli t1, t0, 2\n" ++
+  "  la t2, svf_headers_ptr; ld t2, 0(t2); add t3, t2, t1\n" ++
+  "  lwu t4, 0(t3); add t5, t2, t4\n" ++
+  "  la t6, svf_parent_rlp; sd t5, 0(t6)\n" ++
+  "  la t6, svf_headers_len; ld t6, 0(t6); sub t4, t6, t4\n" ++
+  "  la t6, svf_parent_rlp_len; sd t4, 0(t6)\n" ++
+  "  mv a0, t5; mv a1, t4; la a2, svf_parent_sr\n" ++
+  "  jal ra, header_extract_state_root\n" ++
+  "  bnez a0, .Lv2_parent_header_fail\n" ++
   "  la t0, svf_wds_count; ld s1, 0(t0)\n" ++
   "  la t0, svf_wds_ptr;   ld s2, 0(t0)\n" ++
   "  la s3, svf_descriptors\n" ++
@@ -875,7 +882,7 @@ def statelessVerdictV2Function : String :=
   "  sub a1, s4, s3; addi a1, a1, -16                  # er section len\n" ++
   "  la a2, erh_requests_hash\n" ++
   "  jal ra, execution_requests_hash\n" ++
-  "  bnez a0, .Lv2_zero\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
   "  la t1, sv_params\n" ++
   "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)\n" ++
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)\n" ++
@@ -894,6 +901,21 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_ret\n" ++
   ".Lv2_headers_fail:\n" ++
   "  li t0, 10; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_witness_index_fail:\n" ++
+  "  li t0, 20; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_witness_offsets_fail:\n" ++
+  "  li t0, 21; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_headers_bounds_fail:\n" ++
+  "  li t0, 22; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_parent_header_fail:\n" ++
+  "  li t0, 23; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_requests_hash_fail:\n" ++
+  "  li t0, 24; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_zero:\n" ++
   "  li a0, 0\n" ++

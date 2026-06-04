@@ -792,24 +792,6 @@ theorem expTwoMulFixedDirectHeadFrameN_eq_tailOrSuccessorFrameN_of_control
       expTwoMulFixedDirectHeadTailOrSuccessorFrameN_ordinary_of_control
         hOrd hNotPre]
 
-theorem expTwoMulFixedIterPreNWithInductionFrame_control_step_cases_from_holdsFor
-    {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
-    {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
-      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
-      v7 v11 : Word}
-    {R : Assertion} {s : MachineState}
-    (hPreR :
-      (expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
-        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
-        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
-        a0 a1 a2 a3 v7 v11 ** R).holdsFor s) :
-    controlC6 + signExtend12 (-1 : BitVec 12) = 0 ∨
-      (controlC6 + signExtend12 (-1 : BitVec 12)).toNat = 1 ∨
-      (controlC6 + signExtend12 (-1 : BitVec 12) ≠ 0 ∧
-        (controlC6 + signExtend12 (-1 : BitVec 12)).toNat ≠ 1 ∧
-        k % 64 < 62) := by
-  obtain ⟨ps, _h_compat, hPreRps⟩ := hPreR
-  exact expTwoMulFixedIterPreNWithInductionFrame_control_step_cases_from_framed_pre hPreRps
 theorem expTwoMulFixedDirectHeadFrameN_eq_tailOrSuccessorFrameN_from_framed_pre
     {baseWord exponentWord : EvmWord} {k : Nat}
     {controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
