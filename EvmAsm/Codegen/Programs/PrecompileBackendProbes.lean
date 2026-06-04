@@ -87,7 +87,6 @@ def ziskBls12G1AddBackendProbeUnit : BuildUnit := {
   dataAsm     := ziskBls12G1AddBackendProbeDataSection
 }
 
-
 /-- Linkable bare-RV64 safe-fail wrapper for a BLS12 accelerator selector.
     Current ziskemu does not complete the BLS12 accelerator ECALL selectors from
     bare codegen ELFs. Keep each ABI symbol linkable and deterministic by
@@ -116,6 +115,67 @@ private def copyProbeOutputAsm (resultLabel : String) : String :=
   "  sd t2, 8(t0)\n" ++
   "  ld t2, 8(t1)\n" ++
   "  sd t2, 16(t0)\n"
+
+/-- Linkable bare-RV64 wrapper for
+    `zkvm_secp256k1_ecrecover(msg, sig, recid, output)`.
+    The installed ziskemu does not currently expose a success-producing
+    recovery route from bare codegen ELFs. Keep the ABI linkable and
+    deterministic by returning EFAIL (-1) without touching the pubkey buffer;
+    replacing this shim with a real recovery backend is tracked by the
+    ECRECOVER backend bead. -/
+def zkvmSecp256k1EcrecoverSafeFailWrapper : String :=
+  ".globl zkvm_secp256k1_ecrecover\n" ++
+  "zkvm_secp256k1_ecrecover:\n" ++
+  "  li a0, -1\n" ++
+  "  ret"
+
+/-- Probe driver for the ECRECOVER backend ABI. It passes valid_signature_1
+    from docs/eest-precompile-frontier.md to the linkable wrapper and writes:
+
+      OUTPUT+0   : returned zkvm_status as u64
+      OUTPUT+8   : first 8 bytes of recovered-pubkey buffer
+      OUTPUT+16  : second 8 bytes of recovered-pubkey buffer
+
+    On the current host the deterministic safe-fail wrapper returns EFAIL and
+    leaves the poison-filled output buffer unchanged. -/
+def ziskSecp256k1EcrecoverBackendProbePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  fillPatternAsm "Lsecp256k1_ecrecover" "secp256k1_ecrecover_output" 64 ++
+  "  la a0, secp256k1_ecrecover_msg\n" ++
+  "  la a1, secp256k1_ecrecover_sig\n" ++
+  "  li a2, 1\n" ++
+  "  la a3, secp256k1_ecrecover_output\n" ++
+  "  jal ra, zkvm_secp256k1_ecrecover\n" ++
+  copyProbeOutputAsm "secp256k1_ecrecover_output" ++
+  "  j .Lsecp256k1_ecrecover_done\n" ++
+  zkvmSecp256k1EcrecoverSafeFailWrapper ++ "\n" ++
+  ".Lsecp256k1_ecrecover_done:"
+
+def ziskSecp256k1EcrecoverBackendProbeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "secp256k1_ecrecover_msg:\n" ++
+  "  .byte 0x18,0xc5,0x47,0xe4,0xf7,0xb0,0xf3,0x25\n" ++
+  "  .byte 0xad,0x1e,0x56,0xf5,0x7e,0x26,0xc7,0x45\n" ++
+  "  .byte 0xb0,0x9a,0x3e,0x50,0x3d,0x86,0xe0,0x0e\n" ++
+  "  .byte 0x52,0x55,0xff,0x7f,0x71,0x5d,0x3d,0x1c\n" ++
+  "secp256k1_ecrecover_sig:\n" ++
+  "  .byte 0x73,0xb1,0x69,0x38,0x92,0x21,0x9d,0x73\n" ++
+  "  .byte 0x6c,0xab,0xa5,0x5b,0xdb,0x67,0x21,0x6e\n" ++
+  "  .byte 0x48,0x55,0x57,0xea,0x6b,0x6a,0xf7,0x5f\n" ++
+  "  .byte 0x37,0x09,0x6c,0x9a,0xa6,0xa5,0xa7,0x5f\n" ++
+  "  .byte 0xee,0xb9,0x40,0xb1,0xd0,0x3b,0x21,0xe3\n" ++
+  "  .byte 0x6b,0x0e,0x47,0xe7,0x97,0x69,0xf0,0x95\n" ++
+  "  .byte 0xfe,0x2a,0xb8,0x55,0xbd,0x91,0xe3,0xa3\n" ++
+  "  .byte 0x87,0x56,0xb7,0xd7,0x5a,0x9c,0x45,0x49\n" ++
+  "secp256k1_ecrecover_output:\n" ++
+  "  .zero 64"
+
+def ziskSecp256k1EcrecoverBackendProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskSecp256k1EcrecoverBackendProbePrologue
+  dataAsm     := ziskSecp256k1EcrecoverBackendProbeDataSection
+}
 
 private def bls12BackendProbePrologue
     (label symbol selectorHex resultLabel setupArgs : String)
