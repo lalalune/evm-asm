@@ -54,6 +54,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
+import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
@@ -569,6 +570,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_zkvm_keccak256"       => some ziskZkvmKeccak256ProbeUnit
   | "zisk_sha256_probe_le"      => some ziskSha256ProbeLeUnit
   | "zisk_zkvm_sha256"          => some ziskZkvmSha256ProbeUnit
+  | "zisk_bls12_g1_add_backend_probe" => some ziskBls12G1AddBackendProbeUnit
   | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
@@ -869,6 +871,7 @@ def knownProgramNames : List String :=
    "zisk_zkvm_keccak256",
    "zisk_sha256_probe_le",
    "zisk_zkvm_sha256",
+   "zisk_bls12_g1_add_backend_probe",
    "zisk_keccak256_from_input",
    "zisk_headers_keccak_chain",
    "zisk_headers_keccak_array",
