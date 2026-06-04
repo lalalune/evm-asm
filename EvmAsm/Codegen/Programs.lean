@@ -69,6 +69,7 @@ import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
+import EvmAsm.Codegen.Programs.ReceiptRecords
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.ReceiptsConsensus
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
@@ -344,6 +345,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
+  | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit
@@ -1166,6 +1168,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_encode_u64",
    "zisk_receipt_encode",
    "zisk_typed_receipt_encode",
+   "zisk_receipt_records_probe",
    "zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
    "zisk_bal_gas_valid",
