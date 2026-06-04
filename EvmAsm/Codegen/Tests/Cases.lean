@@ -1030,6 +1030,37 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x20, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
+  , -- BLS12 pairing rejects empty input before invoking the backend.
+    { name             := "call_bls12_pairing_zero_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0f, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- Valid-length BLS12 pairing invokes the backend wrapper. Current ziskemu
+    -- returns deterministic EFAIL, so EVM observes precompile failure.
+    { name             := "call_bls12_pairing_valid_length_backend_failure"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0f, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- BLS12 map-Fp-to-G1 rejects non-64-byte input.
+    { name             := "staticcall_bls12_map_fp_to_g1_invalid_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x41, 0x60, 0x00, 0x60, 0x10, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- Valid-length BLS12 map-Fp-to-G1 invokes the backend wrapper and safe-fails.
+    { name             := "staticcall_bls12_map_fp_to_g1_valid_length_backend_failure"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x40, 0x60, 0x00, 0x60, 0x10, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- BLS12 map-Fp2-to-G2 rejects non-128-byte input.
+    { name             := "call_bls12_map_fp2_to_g2_invalid_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x81, 0x60, 0x00, 0x60, 0x00, 0x60, 0x11, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- Valid-length BLS12 map-Fp2-to-G2 invokes the backend wrapper and safe-fails.
+    { name             := "call_bls12_map_fp2_to_g2_valid_length_backend_failure"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x11, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
   , -- CALL to IDENTITY records the full precompile returndata buffer,
     -- so RETURNDATASIZE reports the input size even when out_size is short.
     { name             := "call_identity_returndatasize_three"
