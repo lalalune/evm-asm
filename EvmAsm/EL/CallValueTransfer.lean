@@ -2,14 +2,16 @@
   EvmAsm.EL.CallValueTransfer
 
   Pure CALL value-transfer world-state effect (GH #114).  This module
-  records the balance movement for the value-transferring CALL case.
-  Balance sufficiency, account creation rules, and the full handler
+  records balance movement for value-transferring CALL and simple
+  transaction post-execution gas settlement. Balance sufficiency,
+  account creation rules beyond touched recipients, and the full handler
   stack/state specs remain later slices.
 
   Authored by @pirapira; implemented by Codex.
 -/
 
 import EvmAsm.EL.MessageCall
+import EvmAsm.EL.Transaction
 import EvmAsm.EL.WorldStateAccount
 
 namespace EvmAsm.EL
@@ -214,6 +216,98 @@ theorem transferTransactionValue_newRecipientBalance?
         rw [WorldState.getAccount_setAccountNonce_ne (h_ne := h_ne.symm)]
         rw [WorldState.getAccount_setAccountBalance_ne (h_ne := h_ne.symm)]
         exact WorldState.getAccount_ensureAccount_missing h_recipient_missing))
+
+/-! ### Transaction gas settlement -/
+
+/-- Convert a natural gas-price product into the EVM account-balance word. -/
+def gasBalanceDelta (gas pricePerGas : Nat) : Word256 :=
+  BitVec.ofNat 256 (gas * pricePerGas)
+
+/-- Post-execution gas settlement for one transaction.
+
+    This mirrors the Amsterdam execution-specs `process_transaction` settlement
+    order after message execution:
+
+    * refund `remainingGas * effectiveGasPrice` to the sender;
+    * credit `gasUsed * priorityFeePerGas` to the block beneficiary.
+
+    The input balances are the balances at this post-execution point, before
+    these two settlement writes. The caller is responsible for earlier upfront
+    gas debit, nonce bump, value transfer, and later empty-account cleanup. -/
+def refundGasPostExecution
+    (state : WorldState) (sender feeRecipient : Address)
+    (senderBalance feeRecipientBalance : Word256)
+    (effectiveGasPrice priorityFeePerGas gasUsed remainingGas : Nat) : WorldState :=
+  let senderRefund := gasBalanceDelta remainingGas effectiveGasPrice
+  let priorityCredit := gasBalanceDelta gasUsed priorityFeePerGas
+  let refundedState :=
+    WorldState.setAccountBalance state sender (senderBalance + senderRefund)
+  WorldState.setAccountBalance refundedState feeRecipient
+    (feeRecipientBalance + priorityCredit)
+
+/-- Transaction-shaped wrapper using the fee helpers from `Transaction.lean`. -/
+def refundTransactionGasPostExecution
+    (state : WorldState) (tx : Transaction) (baseFee : Nat)
+    (feeRecipient : Address) (senderBalance feeRecipientBalance : Word256)
+    (gasUsed remainingGas : Nat) : WorldState :=
+  refundGasPostExecution state tx.sender feeRecipient senderBalance feeRecipientBalance
+    (tx.effectiveGasPrice baseFee) (tx.effectivePriorityFee baseFee) gasUsed remainingGas
+
+theorem refundGasPostExecution_state
+    (state : WorldState) (sender feeRecipient : Address)
+    (senderBalance feeRecipientBalance : Word256)
+    (effectiveGasPrice priorityFeePerGas gasUsed remainingGas : Nat) :
+    refundGasPostExecution state sender feeRecipient senderBalance feeRecipientBalance
+        effectiveGasPrice priorityFeePerGas gasUsed remainingGas =
+      WorldState.setAccountBalance
+        (WorldState.setAccountBalance state sender
+          (senderBalance + gasBalanceDelta remainingGas effectiveGasPrice))
+        feeRecipient
+        (feeRecipientBalance + gasBalanceDelta gasUsed priorityFeePerGas) := rfl
+
+theorem refundTransactionGasPostExecution_eq_refundGasPostExecution
+    (state : WorldState) (tx : Transaction) (baseFee : Nat)
+    (feeRecipient : Address) (senderBalance feeRecipientBalance : Word256)
+    (gasUsed remainingGas : Nat) :
+    refundTransactionGasPostExecution state tx baseFee feeRecipient senderBalance
+        feeRecipientBalance gasUsed remainingGas =
+      refundGasPostExecution state tx.sender feeRecipient senderBalance
+        feeRecipientBalance (tx.effectiveGasPrice baseFee)
+        (tx.effectivePriorityFee baseFee) gasUsed remainingGas := rfl
+
+theorem refundGasPostExecution_senderBalance?
+    {state : WorldState} {sender feeRecipient : Address}
+    {senderAccount : Account}
+    (senderBalance feeRecipientBalance : Word256)
+    (effectiveGasPrice priorityFeePerGas gasUsed remainingGas : Nat)
+    (h_sender : WorldState.getAccount state sender = some senderAccount)
+    (h_ne : sender ≠ feeRecipient) :
+    WorldState.accountBalance?
+        (refundGasPostExecution state sender feeRecipient senderBalance feeRecipientBalance
+          effectiveGasPrice priorityFeePerGas gasUsed remainingGas)
+        sender =
+      some (senderBalance + gasBalanceDelta remainingGas effectiveGasPrice) := by
+  rw [refundGasPostExecution_state]
+  rw [WorldState.accountBalance?_setAccountBalance_ne (h_ne := h_ne)]
+  exact WorldState.accountBalance?_setAccountBalance_same h_sender
+
+theorem refundGasPostExecution_feeRecipientBalance?
+    {state : WorldState} {sender feeRecipient : Address}
+    {feeRecipientAccount : Account}
+    (senderBalance feeRecipientBalance : Word256)
+    (effectiveGasPrice priorityFeePerGas gasUsed remainingGas : Nat)
+    (h_feeRecipient : WorldState.getAccount state feeRecipient = some feeRecipientAccount)
+    (h_ne : sender ≠ feeRecipient) :
+    WorldState.accountBalance?
+        (refundGasPostExecution state sender feeRecipient senderBalance feeRecipientBalance
+          effectiveGasPrice priorityFeePerGas gasUsed remainingGas)
+        feeRecipient =
+      some (feeRecipientBalance + gasBalanceDelta gasUsed priorityFeePerGas) := by
+  rw [refundGasPostExecution_state]
+  exact WorldState.accountBalance?_setAccountBalance_same
+    (by
+      rw [WorldState.getAccount_setAccountBalance_ne (h_ne := h_ne.symm)]
+      exact h_feeRecipient)
 
 theorem transferFrameValue_forStaticCall
     (state : WorldState) (caller callee : Address) (input : List Byte) (gas : Nat)
