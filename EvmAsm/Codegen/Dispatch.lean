@@ -23,6 +23,7 @@ import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
+import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.StateCompose
 
 namespace EvmAsm.Codegen
@@ -614,6 +615,7 @@ def emitDispatcherEpilogue
   hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
+  zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
