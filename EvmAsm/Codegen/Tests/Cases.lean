@@ -569,6 +569,37 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex         := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedEventLogCount  := "0100000000000000"
       expectedEventLogFirst  := "02000000000000000000000000000000010000000000000001000000000000001100000000000000000000000000000000000000000000000000000000000000220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ab00000000000000000000000000000000000000000000000000000000000000" }
+  , -- MSTORE8 pre-expands memory, then LOG0 captures one byte.
+    -- Total gas: PUSH1*4 (12) + MSTORE8 static+mem (6) + LOG0
+    -- static (375) + one data byte (8) + final PUSH1 (3) = 404.
+    { name                  := "log0_data_gas_sufficient"
+      bytecode              := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0xa0, 0x60, 0x42, 0x00"
+      expectedOutHex        := "4200000000000000000000000000000000000000000000000000000000000000"
+      expectedEventLogCount := "0100000000000000"
+      gasLimit              := "404" }
+  , -- One gas short of the same LOG0 data-byte charge. The LOG exits
+    -- OOG before appending an event descriptor.
+    { name                  := "log0_data_gas_oog"
+      bytecode              := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0xa0, 0x60, 0x42, 0x00"
+      expectedOutHex        := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind      := "0600000000000000"
+      expectedEventLogCount := "0000000000000000"
+      gasLimit              := "400" }
+  , -- LOG1 with empty data still charges one topic: PUSH1*3 (9),
+    -- LOG static (375), LOG topic (375), final PUSH1 (3) = 762.
+    { name                  := "log1_topic_gas_sufficient"
+      bytecode              := "0x60, 0x11, 0x60, 0x00, 0x60, 0x00, 0xa1, 0x60, 0x42, 0x00"
+      expectedOutHex        := "4200000000000000000000000000000000000000000000000000000000000000"
+      expectedEventLogCount := "0100000000000000"
+      gasLimit              := "762" }
+  , -- A non-zero high size limb represents an unbounded data range for
+    -- this u64-addressed runtime and is reported as OOG before capture.
+    { name                  := "log0_high_size_oog"
+      bytecode              := "0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0xa0, 0x00"
+      expectedOutHex        := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind      := "0600000000000000"
+      expectedEventLogCount := "0000000000000000"
+      gasLimit              := "381" }
   , -- Seventeen empty LOG0s exceed the static 16-entry cap. The 17th
     -- handler exits with halt_kind=4 and leaves the visible event
     -- count at 16; it must not silently drop the event and continue.
