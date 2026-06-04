@@ -257,6 +257,9 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
         "  addi x10, x10, 1\n" ++
         "  ret" } ]
 
+private def precompileFrameAddi (dst : String) (off : Nat) : String :=
+  "  addi " ++ dst ++ ", x15, " ++ toString off ++ "\n"
+
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
     CREATE2, STATICCALL). CALL-family non-precompile paths still ship as
     **pop-N + push-zero** no-ops. CREATE-family paths decode operands and
@@ -675,9 +678,9 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  la x15, evm_precompile_frame\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    "  addi a0, x15, 144\n" ++
-    "  addi a1, x15, 240\n" ++
-    "  addi a2, x15, 336\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
+    precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
+    precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_g1_add\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
@@ -692,7 +695,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x18, x18, 1\n" ++
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 20b\n" ++
-    "  addi x18, x15, 336\n" ++
+    precompileFrameAddi "x18" precompileFrameBls12G1OutputOff ++
     "  addi x19, x15, 32\n" ++
     "  li x22, 48\n" ++
     "21:\n" ++
@@ -709,7 +712,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x18, x18, 1\n" ++
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 22b\n" ++
-    "  addi x18, x15, 384\n" ++
+    precompileFrameAddi "x18" (precompileFrameBls12G1OutputOff + 48) ++
     "  addi x19, x15, 96\n" ++
     "  li x22, 48\n" ++
     "23:\n" ++
@@ -737,9 +740,9 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  la x15, evm_precompile_frame\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    "  addi a0, x15, 144\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
     "  divu a1, x18, x16\n" ++
-    "  addi a2, x15, 336\n" ++
+    precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_g1_msm\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
@@ -749,7 +752,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     -- 16 zero bytes + 48-byte x coordinate + 16 zero bytes + 48-byte y coordinate.
     "  sd x0, 16(x15)\n" ++
     "  sd x0, 24(x15)\n" ++
-    "  addi x17, x15, 336\n" ++
+    precompileFrameAddi "x17" precompileFrameBls12G1OutputOff ++
     "  addi x18, x15, 32\n" ++
     "  li x19, 48\n" ++
     "20:\n" ++
@@ -761,7 +764,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez x19, 20b\n" ++
     "  sd x0, 80(x15)\n" ++
     "  sd x0, 88(x15)\n" ++
-    "  addi x17, x15, 384\n" ++
+    precompileFrameAddi "x17" (precompileFrameBls12G1OutputOff + 48) ++
     "  addi x18, x15, 96\n" ++
     "  li x19, 48\n" ++
     "21:\n" ++
@@ -787,9 +790,9 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  la x15, evm_precompile_frame\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    "  addi a0, x15, 144\n" ++
-    "  addi a1, x15, 336\n" ++
-    "  addi a2, x15, 528\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G2AddInput0Off ++
+    precompileFrameAddi "a1" precompileFrameBls12G2AddInput1Off ++
+    precompileFrameAddi "a2" precompileFrameBls12G2AddOutputOff ++
     "  jal x1, zkvm_bls12_g2_add\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
@@ -798,7 +801,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
     -- to a 64-byte big-endian field element.
     "  addi x18, x15, 16\n" ++
-    "  addi x19, x15, 528\n" ++
+    precompileFrameAddi "x19" precompileFrameBls12G2AddOutputOff ++
     "  li x23, 4\n" ++
     "20:\n" ++
     "  li x22, 16\n" ++
@@ -851,9 +854,9 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  la x15, evm_precompile_frame\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    "  addi a0, x15, 720\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G2InputOff ++
     "  divu a1, x18, x16\n" ++
-    "  addi a2, x15, 944\n" ++
+    precompileFrameAddi "a2" precompileFrameBls12G2OutputOff ++
     "  jal x1, zkvm_bls12_g2_msm\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
@@ -862,7 +865,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
     -- to a 64-byte big-endian field element.
     "  addi x18, x15, 16\n" ++
-    "  addi x19, x15, 944\n" ++
+    precompileFrameAddi "x19" precompileFrameBls12G2OutputOff ++
     "  li x23, 4\n" ++
     "20:\n" ++
     "  li x22, 16\n" ++
@@ -916,7 +919,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add a0, x13, x17\n" ++
     "  divu a1, x18, x16\n" ++
-    "  addi a2, x15, 336\n" ++
+    precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_pairing\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
@@ -928,7 +931,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  sd x0, 24(x15)\n" ++
     "  sd x0, 32(x15)\n" ++
     "  sd x0, 40(x15)\n" ++
-    "  lbu x16, 336(x15)\n" ++
+    "  lbu x16, " ++ toString precompileFrameBls12G1OutputOff ++ "(x15)\n" ++
     "  sb x16, 47(x15)\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
@@ -964,7 +967,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add x18, x13, x18\n" ++
     "  addi a0, x18, 16\n" ++
-    "  addi a1, x15, 336\n" ++
+    precompileFrameAddi "a1" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_map_fp_to_g1\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
@@ -974,7 +977,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     -- to a 64-byte big-endian field element.
     "  sd x0, 16(x15)\n" ++
     "  sd x0, 24(x15)\n" ++
-    "  addi x17, x15, 336\n" ++
+    precompileFrameAddi "x17" precompileFrameBls12G1OutputOff ++
     "  addi x18, x15, 32\n" ++
     "  li x19, 48\n" ++
     "34:\n" ++
@@ -986,7 +989,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez x19, 34b\n" ++
     "  sd x0, 80(x15)\n" ++
     "  sd x0, 88(x15)\n" ++
-    "  addi x17, x15, 384\n" ++
+    precompileFrameAddi "x17" (precompileFrameBls12G1OutputOff + 48) ++
     "  addi x18, x15, 96\n" ++
     "  li x19, 48\n" ++
     "35:\n" ++
@@ -1028,7 +1031,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add x18, x13, x18\n" ++
     "  addi x19, x18, 16\n" ++
-    "  addi x23, x15, 720\n" ++
+    precompileFrameAddi "x23" precompileFrameBls12G2InputOff ++
     "  li x22, 48\n" ++
     "20:\n" ++
     "  lbu x16, 0(x19)\n" ++
@@ -1048,8 +1051,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez x22, 21b\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    "  addi a0, x15, 720\n" ++
-    "  addi a1, x15, 944\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G2InputOff ++
+    precompileFrameAddi "a1" precompileFrameBls12G2OutputOff ++
     "  jal x1, zkvm_bls12_map_fp2_to_g2\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
@@ -1058,7 +1061,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
     -- to a 64-byte big-endian field element.
     "  addi x18, x15, 16\n" ++
-    "  addi x19, x15, 944\n" ++
+    precompileFrameAddi "x19" precompileFrameBls12G2OutputOff ++
     "  li x23, 4\n" ++
     "34:\n" ++
     "  li x22, 16\n" ++
