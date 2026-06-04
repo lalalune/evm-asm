@@ -77,6 +77,7 @@ inductive EvmOpcode where
   | BASEFEE
   | BLOBHASH
   | BLOBBASEFEE
+  | SLOTNUM
   | LOG (kind : LogArgs.Kind)
   | CREATE
   | CREATE2
@@ -169,6 +170,7 @@ def byte? : EvmOpcode → Option Nat
   | BASEFEE => some 0x48
   | BLOBHASH => some 0x49
   | BLOBBASEFEE => some 0x4a
+  | SLOTNUM => some 0x4b
   | LOG kind => some (0xa0 + LogArgs.topicCount kind)
   | CREATE => some 0xf0
   | CREATE2 => some 0xf5
@@ -245,6 +247,7 @@ def staticGasCost : EvmOpcode → Nat
   | BASEFEE => 2
   | BLOBHASH => 3
   | BLOBBASEFEE => 2
+  | SLOTNUM => 2
   | LOG _ => 375
   | CREATE => 32000
   | CREATE2 => 32000
@@ -377,19 +380,22 @@ inductive BlockBlobKind where
   | blockhash
   | blobhash
   | blobbasefee
+  | slotnum
   deriving DecidableEq, Repr
 
 def ofBlockBlobKind : BlockBlobKind → EvmOpcode
   | .blockhash => BLOCKHASH
   | .blobhash => BLOBHASH
   | .blobbasefee => BLOBBASEFEE
+  | .slotnum => SLOTNUM
 
 theorem byte?_ofBlockBlobKind (kind : BlockBlobKind) :
     byte? (ofBlockBlobKind kind) =
       match kind with
       | .blockhash => some 0x40
       | .blobhash => some 0x49
-      | .blobbasefee => some 0x4a := by
+      | .blobbasefee => some 0x4a
+      | .slotnum => some 0x4b := by
   cases kind <;> rfl
 
 theorem staticGasCost_ofControlFlowKind (kind : ControlFlowKind) :
@@ -407,7 +413,8 @@ theorem staticGasCost_ofBlockBlobKind (kind : BlockBlobKind) :
       match kind with
       | .blockhash => 20
       | .blobhash => 3
-      | .blobbasefee => 2 := by
+      | .blobbasefee => 2
+      | .slotnum => 2 := by
   cases kind <;> rfl
 
 theorem staticGasCost_ofSizeLikeKind (kind : SizeLikeKind) :
