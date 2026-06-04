@@ -730,6 +730,37 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mcopy_zero_length_keeps_msize"
       bytecode       := "0x60, 0x00, 0x60, 0x80, 0x60, 0xff, 0x5e, 0x59, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- Same shape as mcopy_msize_dest_range, then GAS. With gas=1000:
+    -- three PUSH1s cost 9, MCOPY static costs 3, MCOPY dynamic costs
+    -- copy=3 plus memory expansion 9, and GAS costs 2, leaving 974.
+    { name           := "mcopy_gas_dest_range"
+      bytecode       := "0x60, 0x01, 0x60, 0x00, 0x60, 0x40, 0x5e, 0x5a, 0x00"
+      expectedOutHex := "ce03000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1000" }
+  , -- Source-only expansion has the same dynamic cost here: source grows
+    -- memory to 0x60, then destination 0 is already covered.
+    { name           := "mcopy_gas_source_range"
+      bytecode       := "0x60, 0x01, 0x60, 0x40, 0x60, 0x00, 0x5e, 0x5a, 0x00"
+      expectedOutHex := "ce03000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1000" }
+  , -- len=0 has no MCOPY dynamic gas: three PUSH1s + MCOPY static + GAS.
+    { name           := "mcopy_gas_zero_length"
+      bytecode       := "0x60, 0x00, 0x60, 0x80, 0x60, 0xff, 0x5e, 0x5a, 0x00"
+      expectedOutHex := "da03000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1000" }
+  , -- MSTORE8 first makes active memory 0x60. MCOPY source 0 is already
+    -- covered; destination 0x80 expands to 0xa0, so dynamic gas is 9.
+    { name           := "mcopy_gas_dest_only_after_mstore8"
+      bytecode       := "0x60, 0xab, 0x60, 0x40, 0x53, 0x60, 0x01, 0x60, 0x00, 0x60, 0x80, 0x5e, 0x5a, 0x00"
+      expectedOutHex := "c803000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1000" }
+  , -- Gas=12 covers the three PUSH1s and MCOPY's static base charge,
+    -- but not MCOPY's dynamic copy+memory charge, so the handler exits OOG.
+    { name             := "mcopy_dynamic_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x60, 0x40, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "12" }
     -- ## M19/M27 child-frame opcodes (CREATE/CALL/CALLCODE/
     -- DELEGATECALL/CREATE2/STATICCALL). CREATE-family and
     -- non-precompile CALL-family targets remain pop-N + push-zero
