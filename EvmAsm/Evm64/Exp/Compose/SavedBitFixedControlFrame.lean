@@ -494,6 +494,33 @@ theorem expTwoMulFixedInductionFrameN_ordinary_of_control
       rw [expTwoMulFixedControlDec_unfold]
       exact hNotPre)
 
+theorem expTwoMulFixedInductionFrameN_succ_reload
+    {exponentWord : EvmWord} {k : Nat} {ptr : Word} :
+    expTwoMulFixedInductionFrameN exponentWord (k + 1) 64
+        (ptr + signExtend12 (-8 : BitVec 12)) =
+      expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1)
+        (ptr + signExtend12 (-8 : BitVec 12)) := by
+  apply expTwoMulFixedInductionFrameN_ordinary_of_control
+  · decide
+  · decide
+
+theorem expTwoMulFixedControlInvariant_succ_reload_with_induction_frame
+    {exponentWord : EvmWord} {k : Nat}
+    {c6 ptr loadedLimb nextNextLimb evmSp : Word}
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr loadedLimb evmSp)
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) = 0)
+    (hNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64)) :
+    expTwoMulFixedControlInvariant exponentWord (k + 1) 64
+        (ptr + signExtend12 (-8 : BitVec 12)) nextNextLimb evmSp ∧
+      expTwoMulFixedInductionFrameN exponentWord (k + 1) 64
+          (ptr + signExtend12 (-8 : BitVec 12)) =
+        expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1)
+          (ptr + signExtend12 (-8 : BitVec 12)) := by
+  exact ⟨expTwoMulFixedControlInvariant_succ_reload hControl hC6 hNext,
+    expTwoMulFixedInductionFrameN_succ_reload⟩
+
 theorem expTwoMulFixedInductionFrameN_step_cases_of_control
     {exponentWord : EvmWord} {k : Nat}
     {c6 ptr nextLimb evmSp : Word}
