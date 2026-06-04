@@ -755,6 +755,37 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "12" }
+  , -- len=0 skips memory expansion in execution-specs, so high source
+    -- and destination limbs are accepted and MSIZE stays zero.
+    { name           := "mcopy_zero_length_high_offsets_keeps_msize"
+      bytecode       := "0x60, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5e, 0x59, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- Non-zero high length is an unsupported memory range and exits OOG.
+    { name             := "mcopy_high_length_out_of_gas"
+      bytecode         := "0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x60, 0x00, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
+  , -- Non-zero length with a high source offset would require expanding
+    -- beyond the runtime u64 memory surface.
+    { name             := "mcopy_high_source_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
+  , -- Non-zero length with a high destination offset is likewise OOG.
+    { name             := "mcopy_high_destination_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
+  , -- Low-limb destination+length wraparound is rejected before copy.
+    { name             := "mcopy_destination_end_wrap_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x67, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
+  , -- Low-limb source+length wraparound is rejected before copy.
+    { name             := "mcopy_source_end_wrap_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x67, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x60, 0x00, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
     -- ## M19/M27 child-frame opcodes (CREATE/CALL/CALLCODE/
     -- DELEGATECALL/CREATE2/STATICCALL). CREATE-family and
     -- non-precompile CALL-family targets remain pop-N + push-zero
