@@ -673,6 +673,7 @@ def emitDispatcherEpilogue
   zkvmBn254G1MulSafeFailWrapper ++ "\n" ++
   zkvmBn254PairingSafeFailWrapper ++ "\n" ++
   zkvmBlake2fSafeFailWrapper ++ "\n" ++
+  zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_g2_add" "0x10d" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_g2_msm" "0x10e" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++

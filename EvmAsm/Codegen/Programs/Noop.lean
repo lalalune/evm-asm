@@ -566,6 +566,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beq x14, x15, .L" ++ tag ++ "_bn254_pairing\n" ++
     "  li x15, 0x09\n" ++
     "  beq x14, x15, .L" ++ tag ++ "_blake2f\n" ++
+    "  li x15, 0x0a\n" ++
+    "  beq x14, x15, .L" ++ tag ++ "_kzg_point_eval\n" ++
     "  li x15, 0x0b\n" ++
     "  beq x14, x15, 13f\n" ++
     "  li x15, 0x0c\n" ++
@@ -807,6 +809,36 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez a0, 1f\n" ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_blake2f_success") outOffsetOff outSizeOff (precompileFrameBls12G2InputOff + 4) ++
+    -- KZG point evaluation: execution-specs rejects non-192-byte input before
+    -- gas, then charges fixed 50000 gas before hash/proof validation.
+    ".L" ++ tag ++ "_kzg_point_eval:\n" ++
+    "  ld x16, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x17, 192\n" ++
+    "  bne x16, x17, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    chargePrecompileGasConstAsm 50000 "x16" "x17" ++
+    stagePrecompileInputWindowAsm
+      (tag ++ "_kzg_payload") inOffsetOff inSizeOff precompileFrameBls12G2InputOff 0 192 ++
+    "  sb x0, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    precompileFrameAddi "a0" (precompileFrameBls12G2InputOff + 96) ++
+    precompileFrameAddi "a1" (precompileFrameBls12G2InputOff + 32) ++
+    precompileFrameAddi "a2" (precompileFrameBls12G2InputOff + 64) ++
+    precompileFrameAddi "a3" (precompileFrameBls12G2InputOff + 144) ++
+    precompileFrameAddi "a4" precompileFrameBls12G2OutputOff ++
+    "  jal x1, zkvm_kzg_point_eval\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  bnez a0, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  lbu x16, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
+    "  beqz x16, 1f\n" ++
+    precompileSuccessKzgPointEvalAsm
+      (tag ++ "_kzg_point_eval_success") outOffsetOff outSizeOff ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
