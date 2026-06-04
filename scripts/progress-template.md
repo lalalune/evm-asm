@@ -52,19 +52,11 @@ External anchors:
 ## What "evm-asm is a complete guest program" means
 
 A guest program for L1 stateless block validation must satisfy nine
-obligations. evm-asm's current state per obligation:
-
-| # | Obligation | Status |
-|---|---|---|
-| 1 | RV64 ELF for `riscv64im_zicclsm-unknown-none-elf` | 🟡 substrate ✅; codegen emits `rv64imac` (one extension off) |
-| 2 | `read_input` / `write_output` per the IO interface standard | ✅ verified specs in `Rv64/SyscallSpecs.lean`; codegen M4 wired |
-| 3 | RLP-decode the (block, witness) input | 🟡 pure-Lean RLP ✅; RV64 RLP decoder phases 1–3 in progress |
-| 4 | EVM interpreter loop running on the decoded block | 🟡 `InterpreterLoop.lean` + handler-table simulation theorems ✅; codegen M5 (tiny EVM interp) not yet shipped |
-| 5 | Full opcode coverage with verified handlers | 🟡 see axis A.2 below |
-| 6 | Accelerator ECALL bridges per `zkvm_accelerators.h` | 🟡 vendored header + per-precompile EL bridges; not yet codegen-wired |
-| 7 | MPT verification of pre-state witness proofs | ✗ not started |
-| 8 | Verified post-state root → public output | ✗ blocked on 4 + 5 + 6 + 7 |
-| 9 | Halt convention per `standard-termination-semantics` | ✅ `--halt linux93` default, `docs/host-io-halt-convention.md` |
+obligations. The per-obligation status and the opcodes/infrastructure blocking
+each one are tracked in the **kernel-checked obligation matrix** rendered below
+(see the *Guest-program obligations* section) — source of truth and counts live
+in [`EvmAsm/Progress/Obligations.lean`](EvmAsm/Progress/Obligations.lean), and a
+fuller "what is NOT proven" ledger lives in [`DRIFT.md`](DRIFT.md).
 
 ## Axes the dashboard below tracks
 
