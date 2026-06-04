@@ -463,6 +463,47 @@ instance pcFreeInst_expTwoMulFixedDirectHeadTrueFrameN
   ⟨expTwoMulFixedDirectHeadTrueFrameN_pcFree exponentWord k controlC6 e
     iterCount ptr nextLimb⟩
 
+theorem expTwoMulFixedDirectHeadTailFrameN_reload_of_control
+    {exponentWord : EvmWord} {k : Nat} {controlC6 ptr nextNextLimb : Word}
+    (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) = 0) :
+    expTwoMulFixedDirectHeadTailFrameN exponentWord k controlC6 ptr
+        nextNextLimb =
+      expReloadTailDirectTailFrameN exponentWord k ptr nextNextLimb := by
+  rw [expTwoMulFixedDirectHeadTailFrameN]
+  rw [expTwoMulFixedControlDec_unfold]
+  exact if_pos hC6
+
+theorem expTwoMulFixedDirectHeadTailFrameN_pre_reload_of_control
+    {exponentWord : EvmWord} {k : Nat} {controlC6 ptr nextNextLimb : Word}
+    (hC6 : (controlC6 + signExtend12 (-1 : BitVec 12)).toNat = 1) :
+    expTwoMulFixedDirectHeadTailFrameN exponentWord k controlC6 ptr
+        nextNextLimb =
+      expPreReloadDirectTailFrameN exponentWord k ptr nextNextLimb := by
+  rw [expTwoMulFixedDirectHeadTailFrameN]
+  rw [expTwoMulFixedControlDec_unfold]
+  split
+  · rename_i hZero
+    have hNatZero : (controlC6 + signExtend12 (-1 : BitVec 12)).toNat = 0 := by
+      rw [hZero]
+      decide
+    exact False.elim (Nat.zero_ne_one (by rw [← hNatZero, hC6]))
+  · rfl
+
+theorem expTwoMulFixedDirectHeadTailFrameN_ordinary_of_control
+    {exponentWord : EvmWord} {k : Nat} {controlC6 ptr nextNextLimb : Word}
+    (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) ≠ 0)
+    (hNotPre :
+      (controlC6 + signExtend12 (-1 : BitVec 12)).toNat ≠ 1) :
+    expTwoMulFixedDirectHeadTailFrameN exponentWord k controlC6 ptr
+        nextNextLimb =
+      expReloadLimbDirectTailFrame ptr nextNextLimb := by
+  rw [expTwoMulFixedDirectHeadTailFrameN]
+  rw [expTwoMulFixedControlDec_unfold]
+  split
+  · rename_i hZero
+    exact False.elim (hC6 hZero)
+  · rfl
+
 /-- Direct head step over the folded induction precondition with a single
     post-frame selector.
 
