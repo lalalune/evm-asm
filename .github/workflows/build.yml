@@ -23,6 +23,8 @@ jobs:
         run: scripts/check-file-size.sh
       - name: Unimported-file check
         run: scripts/check-unimported.sh
+      - name: Round-trip coverage fence (every Instr ctor has a #guard)
+        run: scripts/check-roundtrip-coverage.sh
       # Restore the lake build cache. The key matches lean-action@v1's scheme
       # so we keep compatibility with caches it has already saved on main.
       - name: Restore lake cache
@@ -70,6 +72,14 @@ jobs:
 
       - name: Conformance-vector floor (monotonic ratchet)
         run: scripts/check-conformance-floor.sh
+
+      # DIV-class defense PR fast-path: fuzz the six arithmetic opcodes
+      # against an independent Nat/Int reference + re-verify the permanent
+      # corpus still matches its frozen execution-specs verdict. Pure Lean,
+      # deterministic, no submodule/Python (the heavy execution-specs
+      # differential runs nightly in fuzz-arith.yml). Needs the built exe.
+      - name: Arithmetic differential fuzz (PR fast-path)
+        run: scripts/fuzz-arith-diff.sh
 
       # Advisory only (no --strict, PR-only, best-effort on shallow clones):
       # surfaces theorem-statement and verifier-config edits for reviewers.

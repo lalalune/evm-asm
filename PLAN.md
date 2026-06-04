@@ -209,6 +209,39 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     one-token edit. **Follow-up (deferred to Phase 4 / R-B1 scorecard):** wire
     `progress-velocity.sh --check` as a *PR-time* gate (the post-merge workflow
     can't block a merge); it is advisory-only today.
+  - **Phase 3 (this work) — DIV-class defense (differential / fuzz testing):**
+    closes the *codegen* blind spot (the kernel proves the in-Lean semantics,
+    not the RISC-V lowering / ziskemu — the home of the v4 DIV bug).
+    - **D1 (R-E1) — boundary-biased arithmetic differential fuzzer.**
+      `EvmAsm/Tests/ArithDiffCheck.lean` + `lake exe arith-diff-check` fuzz
+      `EvmWord.{div,mod,sdiv,smod,mulmod,addmod}` against an INDEPENDENT
+      Nat/Int reference over operands biased toward the Knuth-D rare paths
+      (sign edges ±2^255, limb boundaries, 4-limb divisors with a large top
+      word — the `b.getLimbN 3 ≠ 0` regime the v4 proof excluded, add-back).
+      Permanent regression corpus `tests/fuzz-corpus/arith/corpus.jsonl`
+      (29 curated DIV-class edges) carries the execution-specs *amsterdam*
+      oracle verdict, re-checked by the PR fast-path without Python. Nightly
+      tier `scripts/fuzz-arith-diff.sh --python` (`.github/workflows/
+      fuzz-arith.yml`) drives 20k+ operands through both evm-asm and the
+      UNMODIFIED execution-specs oracle (`scripts/fuzz_arith_oracle.py` under
+      `uv run`), appending any divergence to the corpus. PR fast-path wired
+      into `build.yml`. The oracle is a TEST ORACLE ONLY (never in the TCB).
+    - **D2 (R-E3) — EEST budget-vs-wrong distinction.**
+      `scripts/codegen-eest-stateless-check.sh` now buckets a `--steps`
+      exhaustion as `BUDGET` (separate from `ERROR`, never folded into fail
+      or the `--min-*` gates), detected via the overridable
+      `EEST_STEP_LIMIT_RE`; non-match falls through to `ERROR` (regression-
+      free). Per-opcode/per-step localization deferred (needs ziskemu trace
+      instrumentation).
+    - **D4 (R-E4) — round-trip coverage fence.**
+      `scripts/check-roundtrip-coverage.sh` (wired into `build.yml`) asserts
+      every `Rv64/Basic.lean` `Instr` constructor (55) has a `#guard` in
+      `Codegen/RoundTripTests.lean`; fails when a new shape lands unguarded.
+    - **D3 (R-E2) — dual-path differential: DEFERRED.** In-Lean execution
+      model vs codegen→ziskemu round-trip; the ziskemu-equality assertion
+      can't be validated without a working ziskemu (unavailable this
+      session). Concrete build plan captured in
+      `docs/dual-path-differential-design.md` for a session with ziskemu.
 - **Proof-ergonomics infra distilled from the purge** (see `GRIND.md` §7):
   - **`signExtend` simprocs + `signext` tactic** (`Rv64/SignExtendSimproc.lean`):
     `reduceSignExtend12/13/21` are `dsimproc_decl`s (definitional, kernel-checkable,
