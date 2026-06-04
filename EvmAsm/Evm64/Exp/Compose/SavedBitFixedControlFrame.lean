@@ -576,6 +576,25 @@ theorem expTwoMulFixedControlInvariant_succ_pre_reload_with_induction_frame
   exact ⟨hControlSucc,
     expTwoMulFixedInductionFrameN_reload_of_control hReload⟩
 
+theorem expTwoMulFixedControlInvariant_succ_to_pre_reload_with_induction_frame
+    {exponentWord : EvmWord} {k : Nat}
+    {c6 ptr nextLimb evmSp : Word}
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0)
+    (hSuccPre :
+      (c6 + signExtend12 (-1 : BitVec 12) +
+          signExtend12 (-1 : BitVec 12)).toNat = 1) :
+    expTwoMulFixedControlInvariant exponentWord (k + 1)
+        (c6 + signExtend12 (-1 : BitVec 12)) ptr nextLimb evmSp ∧
+      expTwoMulFixedInductionFrameN exponentWord (k + 1)
+          (c6 + signExtend12 (-1 : BitVec 12)) ptr =
+        expTwoMulFixedPreReloadFrameN exponentWord (k + 1) ptr := by
+  have hControlSucc :=
+    expTwoMulFixedControlInvariant_succ_no_reload hControl hC6
+  exact ⟨hControlSucc,
+    expTwoMulFixedInductionFrameN_pre_reload_of_control hSuccPre⟩
+
 theorem expTwoMulFixedInductionFrameN_pcFree
     (exponentWord : EvmWord) (k : Nat) (c6 ptr : Word) :
     (expTwoMulFixedInductionFrameN exponentWord k c6 ptr).pcFree := by
