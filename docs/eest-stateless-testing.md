@@ -227,6 +227,17 @@ additions under that directory are picked up without editing the script. For a
 short local smoke, set `EEST_EIP2935_BAL_LIMIT=N`; the default gate should keep
 the full auto-counted selection.
 
+Run the focused EIP-7928/EIP-4788 BAL regression:
+
+```bash
+scripts/codegen-eest-eip4788-bal-check.sh
+```
+
+This has the same future-proof auto-count shape, but selects the
+`block_access_lists_eip4788` fixture directory. For a short local smoke, set
+`EEST_EIP4788_BAL_LIMIT=N`; the default gate should keep the full auto-counted
+selection.
+
 To inspect only the completed frontier misses from the latest run:
 
 ```bash
