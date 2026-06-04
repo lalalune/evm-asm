@@ -234,6 +234,22 @@ Amsterdam-only cached tags, may not contain Prague BLS12 fixtures; use
 `EEST_BLS12_G2_FILTERS` or pass repeated `--filter` options when a fixture tag
 uses different generated path names.
 
+Run the focused BLS12 pairing/map frontier:
+
+```bash
+scripts/codegen-eest-bls12-pairing-map-frontier-check.sh --jobs 4
+```
+
+This wrapper selects EIP-2537 pairing, map-Fp-to-G1, and map-Fp2-to-G2
+fixture families by filter and derives each per-filter run limit from the
+generated manifest, so new rows are covered without editing the script. It
+supports `--skip`, `--limit`, and `--max-failures` for fast local bisection;
+add `--require-full` once the selected rows are expected to full-match. Some
+fixture tags, including older Amsterdam-only cached tags, may not contain
+Prague BLS12 fixtures; use `--allow-empty` only when checking wrapper plumbing
+rather than coverage. Set `EEST_BLS12_PAIRING_MAP_FILTERS` or pass repeated
+`--filter` options when a fixture tag uses different generated path names.
+
 Run the focused EIP-7708 simple ETH transfer-log regression:
 
 ```bash
