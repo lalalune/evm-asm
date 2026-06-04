@@ -299,6 +299,12 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
     gates before the future accelerator body: G2 ADD requires exactly
     512 bytes; G2 MSM requires a nonzero multiple of 288 bytes.
 
+    **M27.4 update**: CALL / STATICCALL also recognize BLS12-381 pairing
+    and map precompile addresses 0x0f (pairing), 0x10 (map-Fp-to-G1), and
+    0x11 (map-Fp2-to-G2). Valid-length inputs invoke the linkable backend
+    wrappers; current ziskemu safe-fails those wrappers, so EVM observes
+    precompile failure until success-output slices land.
+
     **M27.1 update**: inactive near-zero addresses 0x12 and 0x101
     are not precompiles in the Amsterdam active set. Route them as
     absent-account calls with success = 1 and empty returndata so the
@@ -553,6 +559,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beq x14, x15, 15f\n" ++
     "  li x15, 0x0e\n" ++
     "  beq x14, x15, 16f\n" ++
+    "  li x15, 0x0f\n" ++
+    "  beq x14, x15, 17f\n" ++
+    "  li x15, 0x10\n" ++
+    "  beq x14, x15, 18f\n" ++
+    "  li x15, 0x11\n" ++
+    "  beq x14, x15, 19f\n" ++
     "  li x15, 0x12\n" ++
     "  beq x14, x15, 12f\n" ++
     "  li x15, 0x101\n" ++
@@ -675,38 +687,38 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     -- to a 64-byte big-endian field element.
     "  addi x18, x15, 16\n" ++
     "  li x22, 16\n" ++
-    "17:\n" ++
+    "20:\n" ++
     "  sb x0, 0(x18)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 17b\n" ++
+    "  bnez x22, 20b\n" ++
     "  addi x18, x15, 336\n" ++
     "  addi x19, x15, 32\n" ++
     "  li x22, 48\n" ++
-    "18:\n" ++
+    "21:\n" ++
     "  lbu x16, 0(x18)\n" ++
     "  sb x16, 0(x19)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x19, x19, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 18b\n" ++
+    "  bnez x22, 21b\n" ++
     "  addi x18, x15, 80\n" ++
     "  li x22, 16\n" ++
-    "19:\n" ++
+    "22:\n" ++
     "  sb x0, 0(x18)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 19b\n" ++
+    "  bnez x22, 22b\n" ++
     "  addi x18, x15, 384\n" ++
     "  addi x19, x15, 96\n" ++
     "  li x22, 48\n" ++
-    "20:\n" ++
+    "23:\n" ++
     "  lbu x16, 0(x18)\n" ++
     "  sb x16, 0(x19)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x19, x19, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 20b\n" ++
+    "  bnez x22, 23b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  li x16, 128\n" ++
@@ -788,43 +800,43 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x18, x15, 16\n" ++
     "  addi x19, x15, 528\n" ++
     "  li x23, 4\n" ++
-    "17:\n" ++
+    "20:\n" ++
     "  li x22, 16\n" ++
-    "18:\n" ++
+    "21:\n" ++
     "  sb x0, 0(x18)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 18b\n" ++
+    "  bnez x22, 21b\n" ++
     "  li x22, 48\n" ++
-    "19:\n" ++
+    "22:\n" ++
     "  lbu x16, 0(x19)\n" ++
     "  sb x16, 0(x18)\n" ++
     "  addi x19, x19, 1\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 19b\n" ++
+    "  bnez x22, 22b\n" ++
     "  addi x23, x23, -1\n" ++
-    "  bnez x23, 17b\n" ++
+    "  bnez x23, 20b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  li x16, 256\n" ++
     "  sd x16, 8(x15)\n" ++
     "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
     "  li x23, 256\n" ++
-    "  bgeu x22, x23, 20f\n" ++
+    "  bgeu x22, x23, 23f\n" ++
     "  mv x23, x22\n" ++
-    "20:\n" ++
+    "23:\n" ++
     "  beqz x23, 7b\n" ++
     "  addi x18, x15, 16\n" ++
     "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
     "  add x19, x13, x19\n" ++
-    "21:\n" ++
+    "24:\n" ++
     "  lbu x16, 0(x18)\n" ++
     "  sb x16, 0(x19)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x19, x19, 1\n" ++
     "  addi x23, x23, -1\n" ++
-    "  bnez x23, 21b\n" ++
+    "  bnez x23, 24b\n" ++
     "  j 7b\n" ++
     -- BLS12-381 G2 MSM: execution-specs rejects empty input and non-288
     -- multiples before charging gas or invoking curve arithmetic. Valid-length
@@ -852,43 +864,157 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x18, x15, 16\n" ++
     "  addi x19, x15, 944\n" ++
     "  li x23, 4\n" ++
-    "17:\n" ++
+    "20:\n" ++
     "  li x22, 16\n" ++
-    "18:\n" ++
+    "21:\n" ++
     "  sb x0, 0(x18)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 18b\n" ++
+    "  bnez x22, 21b\n" ++
     "  li x22, 48\n" ++
-    "19:\n" ++
+    "22:\n" ++
     "  lbu x16, 0(x19)\n" ++
     "  sb x16, 0(x18)\n" ++
     "  addi x19, x19, 1\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 19b\n" ++
+    "  bnez x22, 22b\n" ++
     "  addi x23, x23, -1\n" ++
-    "  bnez x23, 17b\n" ++
+    "  bnez x23, 20b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  li x16, 256\n" ++
     "  sd x16, 8(x15)\n" ++
     "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
     "  li x23, 256\n" ++
-    "  bgeu x22, x23, 20f\n" ++
+    "  bgeu x22, x23, 23f\n" ++
     "  mv x23, x22\n" ++
-    "20:\n" ++
+    "23:\n" ++
     "  beqz x23, 7b\n" ++
     "  addi x18, x15, 16\n" ++
     "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
     "  add x19, x13, x19\n" ++
-    "21:\n" ++
+    "24:\n" ++
     "  lbu x16, 0(x18)\n" ++
     "  sb x16, 0(x19)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x19, x19, 1\n" ++
     "  addi x23, x23, -1\n" ++
-    "  bnez x23, 21b\n" ++
+    "  bnez x23, 24b\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 pairing: execution-specs rejects empty input and non-384
+    -- multiples before invoking pairing arithmetic.
+    "17:\n" ++
+    "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  beqz x18, 1f\n" ++
+    "  li x16, 384\n" ++
+    "  remu x17, x18, x16\n" ++
+    "  bnez x17, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x17\n" ++
+    "  divu a1, x18, x16\n" ++
+    "  addi a2, x15, 336\n" ++
+    "  jal x1, zkvm_bls12_pairing\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  bnez a0, 1f\n" ++
+    -- EIP-2537 pairing returns a 32-byte boolean word: 31 zero bytes followed
+    -- by the backend `verified` byte.
+    "  sd x0, 16(x15)\n" ++
+    "  sd x0, 24(x15)\n" ++
+    "  sd x0, 32(x15)\n" ++
+    "  sd x0, 40(x15)\n" ++
+    "  lbu x16, 336(x15)\n" ++
+    "  sb x16, 47(x15)\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  li x16, 32\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x23, 32\n" ++
+    "  bgeu x22, x23, 22f\n" ++
+    "  mv x23, x22\n" ++
+    "22:\n" ++
+    "  beqz x23, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "23:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 23b\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 map-Fp-to-G1: execution-specs requires exactly one
+    -- 64-byte Fp field element; the compact 48-byte field payload starts
+    -- after the 16-byte EIP-2537 zero pad.
+    "18:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x16, 64\n" ++
+    "  bne x17, x16, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add x18, x13, x18\n" ++
+    "  addi a0, x18, 16\n" ++
+    "  addi a1, x15, 336\n" ++
+    "  jal x1, zkvm_bls12_map_fp_to_g1\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  bnez a0, 1f\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 map-Fp2-to-G2: execution-specs requires exactly one
+    -- 128-byte Fp2 element. Project the two compact 48-byte Fp chunks into
+    -- contiguous scratch before calling the backend.
+    "19:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x16, 128\n" ++
+    "  bne x17, x16, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add x18, x13, x18\n" ++
+    "  addi x19, x18, 16\n" ++
+    "  addi x23, x15, 144\n" ++
+    "  li x22, 48\n" ++
+    "20:\n" ++
+    "  lbu x16, 0(x19)\n" ++
+    "  sb x16, 0(x23)\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 20b\n" ++
+    "  addi x19, x18, 80\n" ++
+    "  li x22, 48\n" ++
+    "21:\n" ++
+    "  lbu x16, 0(x19)\n" ++
+    "  sb x16, 0(x23)\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 21b\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  addi a0, x15, 144\n" ++
+    "  addi a1, x15, 336\n" ++
+    "  jal x1, zkvm_bls12_map_fp2_to_g2\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  bnez a0, 1f\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
     "  j 7b\n" ++
     "1:\n" ++
     "  la x15, evm_precompile_frame\n" ++
