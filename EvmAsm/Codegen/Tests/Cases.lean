@@ -980,12 +980,12 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Valid-length BLS12 G1 ADD reaches the active precompile surface.
-    -- Output bytes are a follow-up accelerator-body slice; this gate only
-    -- proves address recognition and the execution-specs length check.
-    { name             := "call_bls12_g1_add_valid_length_success"
+  , -- Valid-length BLS12 G1 ADD now invokes the backend wrapper. Current
+    -- ziskemu safe-fails the backend route, so EVM observes precompile
+    -- failure instead of the earlier placeholder success.
+    { name             := "call_bls12_g1_add_valid_length_backend_failure"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
-      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
   , -- BLS12 G1 MSM rejects empty input.
     { name             := "staticcall_bls12_g1_msm_zero_length_fails"
