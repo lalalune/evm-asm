@@ -60,6 +60,10 @@ def g1KDiscount : List Nat :=
 def payloadByte (payload : List Byte) (i : Nat) : Byte :=
   payload.getD i 0
 
+/-- Offset of a compact 96-byte G1 coordinate byte inside a 128-byte EVM G1 point. -/
+def compactG1Offset (i : Nat) : Nat :=
+  if i < 48 then 16 + i else 32 + i
+
 /-- Execution-specs length check: `len(data) == 0 or len(data) % 160 != 0`. -/
 def validInputLength (payload : List Byte) : Bool :=
   payload.length != 0 && payload.length % pairLength == 0
@@ -83,7 +87,7 @@ def gasCost (payload : List Byte) : Nat :=
 
 /-- One compact accelerator G1 point projected from the EVM pair window. -/
 def pointBytes (payload : List Byte) (pairIndex : Nat) : Bls12G1MsmInputBridge.G1PointBytes :=
-  fun i => payloadByte payload (pairLength * pairIndex + pointOffset + i.val)
+  fun i => payloadByte payload (pairLength * pairIndex + pointOffset + compactG1Offset i.val)
 
 /-- Scalar bytes projected from the EVM pair window. -/
 def scalarBytes (payload : List Byte) (pairIndex : Nat) : Bls12G1MsmInputBridge.ScalarBytes :=
@@ -153,7 +157,8 @@ theorem gasCost_eq_formula (payload : List Byte) :
   simp [gasCost]
 
 theorem pointBytes_apply (payload : List Byte) (pairIndex : Nat) (i : Fin 96) :
-    pointBytes payload pairIndex i = payload.getD (pairLength * pairIndex + i.val) 0 := by
+    pointBytes payload pairIndex i =
+      payload.getD (pairLength * pairIndex + compactG1Offset i.val) 0 := by
   simp [pointBytes, payloadByte, pointOffset]
 
 theorem scalarBytes_apply (payload : List Byte) (pairIndex : Nat) (i : Fin 32) :

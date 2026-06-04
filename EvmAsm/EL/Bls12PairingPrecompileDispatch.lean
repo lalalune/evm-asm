@@ -32,6 +32,21 @@ def g2Offset : Nat := 128
 def payloadByte (payload : List Byte) (i : Nat) : Byte :=
   payload.getD i 0
 
+/-- Offset of a compact 96-byte G1 coordinate byte inside a 128-byte EVM G1 point. -/
+def compactG1Offset (i : Nat) : Nat :=
+  if i < 48 then 16 + i else 32 + i
+
+/-- Offset of a compact 192-byte G2 coordinate byte inside a 256-byte EVM G2 point. -/
+def compactG2Offset (i : Nat) : Nat :=
+  if i < 48 then
+    16 + i
+  else if i < 96 then
+    32 + i
+  else if i < 144 then
+    48 + i
+  else
+    64 + i
+
 /-- Execution-specs length check: `len(data) == 0 or len(data) % 384 != 0`. -/
 def validInputLength (payload : List Byte) : Bool :=
   payload.length != 0 && payload.length % pairLength == 0
@@ -42,11 +57,11 @@ def pairCount (payload : List Byte) : Nat :=
 
 /-- One compact accelerator G1 point projected from the EVM pair window. -/
 def g1Bytes (payload : List Byte) (pairIndex : Nat) : Bls12PairingInputBridge.G1PointBytes :=
-  fun i => payloadByte payload (pairLength * pairIndex + g1Offset + i.val)
+  fun i => payloadByte payload (pairLength * pairIndex + g1Offset + compactG1Offset i.val)
 
 /-- One compact accelerator G2 point projected from the EVM pair window. -/
 def g2Bytes (payload : List Byte) (pairIndex : Nat) : Bls12PairingInputBridge.G2PointBytes :=
-  fun i => payloadByte payload (pairLength * pairIndex + g2Offset + i.val)
+  fun i => payloadByte payload (pairLength * pairIndex + g2Offset + compactG2Offset i.val)
 
 /-- One accelerator pairing pair extracted from the execution-specs EVM pair window. -/
 def pairingPair (payload : List Byte) (pairIndex : Nat) : PairingPair :=
@@ -100,12 +115,13 @@ theorem validInputLength_empty :
   simp [validInputLength]
 
 theorem g1Bytes_apply (payload : List Byte) (pairIndex : Nat) (i : Fin 96) :
-    g1Bytes payload pairIndex i = payload.getD (pairLength * pairIndex + i.val) 0 := by
+    g1Bytes payload pairIndex i =
+      payload.getD (pairLength * pairIndex + compactG1Offset i.val) 0 := by
   simp [g1Bytes, payloadByte, g1Offset]
 
 theorem g2Bytes_apply (payload : List Byte) (pairIndex : Nat) (i : Fin 192) :
     g2Bytes payload pairIndex i =
-      payload.getD (pairLength * pairIndex + 128 + i.val) 0 := by
+      payload.getD (pairLength * pairIndex + 128 + compactG2Offset i.val) 0 := by
   simp [g2Bytes, payloadByte, g2Offset]
 
 theorem pairingPair_g1 (payload : List Byte) (pairIndex : Nat) :
