@@ -348,6 +348,45 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
               SD .x12 .x0 16 ;;
               SD .x12 .x0 24
     , tail := .advanceAndRet 1 }
+  let createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
+    -- Explicitly decode CREATE-family operands before the still-unsupported
+    -- execution branch. Stack order mirrors CreateArgsStackDecode:
+    -- value, offset, size, and then salt for CREATE2.
+    "  la x15, evm_precompile_frame\n" ++
+    "  sd x0, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  ld x14, 0(x12)\n" ++    -- value low limb
+    "  ld x15, 32(x12)\n" ++   -- offset low limb
+    "  ld x16, 64(x12)\n" ++   -- size low limb
+    (if hasSalt then
+      "  ld x17, 96(x12)\n"   -- salt low limb
+     else
+      "") ++
+    -- A nonzero high limb in size is outside the current static memory
+    -- envelope. Offset high limbs matter only for nonempty initcode.
+    "  ld x18, 72(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  ld x18, 80(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  ld x18, 88(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  beqz x16, 1f\n" ++
+    "  ld x18, 40(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  ld x18, 48(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  ld x18, 56(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  add x18, x15, x16\n" ++
+    "  bltu x18, x15, .exit_outofgas\n" ++
+    "1:\n" ++
+    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+    "  sd x0, 0(x12)\n" ++
+    "  sd x0, 8(x12)\n" ++
+    "  sd x0, 16(x12)\n" ++
+    "  sd x0, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop"
   let basicPrecompileCallTail
       (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
     -- Stack top at entry is the call gas word. The destination
@@ -534,8 +573,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  sd x0, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop"
-  [ { mkHandler "h_CREATE" 0xf0 64 with
-      preBody := stackUnderflowGuardAsm 3 ++ "\n" }
+  [ { label := "h_CREATE"
+    , opcodes := [0xf0]
+    , preBody := stackUnderflowGuardAsm 3 ++ "\n"
+    , body := []
+    , tail := .custom (createUnsupportedTail 64 false) }
   , { label := "h_CALL"
     , opcodes := [0xf1]
     , preBody := stackUnderflowGuardAsm 7 ++ "\n"
@@ -545,8 +587,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
       preBody := stackUnderflowGuardAsm 7 ++ "\n" }
   , { mkHandler "h_DELEGATECALL" 0xf4 160 with
       preBody := stackUnderflowGuardAsm 6 ++ "\n" }
-  , { mkHandler "h_CREATE2" 0xf5 96 with
-      preBody := stackUnderflowGuardAsm 4 ++ "\n" }
+  , { label := "h_CREATE2"
+    , opcodes := [0xf5]
+    , preBody := stackUnderflowGuardAsm 4 ++ "\n"
+    , body := []
+    , tail := .custom (createUnsupportedTail 96 true) }
   , { label := "h_STATICCALL"
     , opcodes := [0xfa]
     , preBody := stackUnderflowGuardAsm 6 ++ "\n"

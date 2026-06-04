@@ -809,6 +809,31 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "create_pop3_push_zero"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0xf0, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+  , -- CREATE explicitly decodes top word as value: a high value limb is
+    -- accepted by this unsupported-zero slice instead of being confused with
+    -- high offset/size and reported as out-of-gas.
+    { name             := "create_high_value_limb_still_unsupported_zero"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- CREATE offset is the second decoded word. For nonempty initcode,
+    -- high offset limbs are outside the current runtime memory envelope.
+    { name             := "create_high_offset_limb_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0xf0, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
+  , -- CREATE2 decodes salt after value/offset/size. High salt limbs are
+    -- allowed here and still return the unsupported-zero result.
+    { name             := "create2_high_salt_limb_still_unsupported_zero"
+      bytecode         := "0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- CREATE2 size is the third decoded word. High size limbs are rejected
+    -- before later address/precheck/deployment slices consume initcode.
+    { name             := "create2_high_size_limb_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
   , -- PUSH1 0x01..0x07; CALL; PUSH1 0xff; STOP
     -- CALL pops 7 (gas, to, value, in_off, in_size, out_off,
     -- out_size), pushes 1 (success = 0). Net pop = 6 = +192 bytes.
