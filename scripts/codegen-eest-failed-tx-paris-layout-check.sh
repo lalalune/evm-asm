@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # codegen-eest-failed-tx-paris-layout-check.sh
 #
-# The Paris failed_tx_xcf416c53 fixture has block_gas_limit=200,000,000.
-# The current stateless_guest static layout is sized for 120,000,000, so the
-# launcher must classify it as layout-incompatible before invoking ziskemu.
+# The Paris failed_tx_xcf416c53 fixture has block_gas_limit=200,000,000. The
+# 1G static BSR/BAL layout must let this fixture launch through ziskemu instead
+# of classifying it as layout-incompatible before execution.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -27,7 +27,7 @@ case "$LOG" in
 esac
 rm -f "$LOG"
 
-echo "==> run failed_tx Paris layout-incompatible check"
+echo "==> run failed_tx Paris high-gas launch check"
 scripts/codegen-eest-stateless-check.sh \
   --filter failed_tx_xcf416c53_paris \
   --limit 10 \
@@ -47,17 +47,21 @@ require_log() {
   fi
 }
 
-require_log "ERROR(layout)"
-require_log "failed_tx_xcf416c53_paris.json"
-require_log "gas_limit 200000000>120000000"
+require_log "filter=failed_tx_xcf416c53_paris"
 require_log "selected:    1"
-require_log "errored:     1"
-require_log "ran:         0"
+require_log "errored:     0"
+require_log "ran:         1"
 
-if find "$RUN_DIR" -name '*.emu.log' -print -quit | grep -q .; then
-  echo "unexpected ziskemu log found; layout-incompatible fixture should not launch guest" >&2
-  find "$RUN_DIR" -name '*.emu.log' -print >&2
+if grep -Fq "ERROR(layout)" "$LOG"; then
+  echo "unexpected layout error for high-gas Paris fixture" >&2
+  sed -n '1,220p' "$LOG" >&2
   exit 1
 fi
 
-echo "==> PASS: failed_tx Paris is classified layout-incompatible before guest launch"
+if ! find "$RUN_DIR" -name '*.emu.log' -print -quit | grep -q .; then
+  echo "expected ziskemu log was not found; high-gas fixture should launch guest" >&2
+  find "$RUN_DIR" -maxdepth 2 -type f -print >&2
+  exit 1
+fi
+
+echo "==> PASS: failed_tx Paris high-gas fixture launches without layout error"

@@ -40,11 +40,16 @@ private def bsrMaxBlockGasLimit : Nat := 1000000000
 private def bsrBalGasCost : Nat := 2000
 private def bsrMaxBalItems : Nat := bsrMaxBlockGasLimit / bsrBalGasCost
 private def bsrModeledSystemChanges : Nat := 2
-private def bsrMaxStateChanges : Nat := bsrMaxBalItems + bsrModeledSystemChanges
+private def bsrMaxWithdrawalChanges : Nat := 16
+private def bsrMaxAuxChanges : Nat := bsrModeledSystemChanges + bsrMaxWithdrawalChanges
+private def bsrMaxStateChanges : Nat :=
+  bsrMaxBalItems + bsrModeledSystemChanges + bsrMaxWithdrawalChanges
 
 private def bsrAccountRecordBytes : Nat := 24
 private def bsrPathBytes : Nat := 64
 private def bsrEncodedAccountBytes : Nat := 256
+private def bsrSystemAccountBytes : Nat := 128
+private def bsrStateChangeBytes : Nat := 40
 private def baapStorageDescBytes : Nat := 40
 
 /-! ## bsr_sys_change -- record one system-contract storage-write change.
@@ -284,13 +289,14 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_delta; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2\n" ++
   "  ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
   "  beqz t1, .Lbsr_wl_next\n" ++
+  "  li t0, " ++ toString bsrMaxWithdrawalChanges ++ "; bgeu s0, t0, .Lbsr_cons_change_cap\n" ++
   "  # Repeated withdrawals to the same recipient accumulate into one state change.\n" ++
   "  li t6, 2                     # scan recorded withdrawal changes [2, s1)\n" ++
   ".Lbsr_dup_scan:\n" ++
   "  beq t6, s1, .Lbsr_no_dup\n" ++
   "  slli t0, t6, 5; slli t1, t6, 3; add t0, t0, t1; la t1, bsr_changes; add t0, t1, t0\n" ++
   "  ld t0, 0(t0)                  # prev path from descriptor (bsr_paths or basr_paths)\n" ++
-  "  slli t2, s1, 6; la t1, bsr_paths; add t1, t1, t2                       # current path\n" ++
+  "  addi t2, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t2, t2, 6; la t1, bsr_paths; add t1, t1, t2 # current withdrawal path\n" ++
   "  li t2, 64\n" ++
   ".Lbsr_dup_cmp:\n" ++
   "  beqz t2, .Lbsr_dup_found\n" ++
@@ -311,24 +317,24 @@ def blockStateRootFunction : String :=
   ".Lbsr_no_dup:\n" ++
   "  li t0, " ++ toString bsrMaxStateChanges ++ "; bge s1, t0, .Lbsr_cons_change_cap # cap to the change-buffer size\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  slli t1, s1, 6; la t2, bsr_paths; add a3, t2, t1; li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
+  "  addi t1, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t1, t1, 6; la t2, bsr_paths; add a3, t2, t1; li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
   "  jal ra, mpt_walk\n" ++
   "  beqz a0, .Lbsr_wl_found\n" ++
   "  li t0, 1; bne a0, t0, .Lbsr_cons_wd_walk   # parse-fail (2) -> conservative\n" ++
   "  # NOT-FOUND: create the account. fresh = empty_account + delta (balance 0 -> delta).\n" ++
   "  la a0, bsr_empty_account; li a1, 70; la a2, bsr_delta\n" ++
-  "  slli t1, s1, 7; la t2, bsr_newaccts; add a3, t2, t1; la a4, bsr_tmplen\n" ++
+  "  addi t1, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t1, t1, 7; la t2, bsr_newaccts; add a3, t2, t1; la a4, bsr_tmplen\n" ++
   "  jal ra, account_add_balance; bnez a0, .Lbsr_cons_new_add\n" ++
   "  li t5, 1; j .Lbsr_wl_record   # is_insert = 1\n" ++
   ".Lbsr_wl_found:\n" ++
   "  la a0, bsr_acct; la t0, bsr_acct_len; ld a1, 0(t0); la a2, bsr_delta\n" ++
-  "  slli t1, s1, 7; la t2, bsr_newaccts; add a3, t2, t1; la a4, bsr_tmplen\n" ++
+  "  addi t1, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t1, t1, 7; la t2, bsr_newaccts; add a3, t2, t1; la a4, bsr_tmplen\n" ++
   "  jal ra, account_add_balance; bnez a0, .Lbsr_cons_found_add\n" ++
   "  li t5, 0                      # is_insert = 0 (MODIFY existing)\n" ++
   ".Lbsr_wl_record:\n" ++
   "  slli t0, s1, 5; slli t6, s1, 3; add t0, t0, t6; la t1, bsr_changes; add t1, t1, t0   # *40\n" ++
-  "  slli t2, s1, 6; la t3, bsr_paths; add t3, t3, t2; sd t3, 0(t1); li t3, 64; sd t3, 8(t1)\n" ++
-  "  slli t2, s1, 7; la t3, bsr_newaccts; add t3, t3, t2; sd t3, 16(t1)\n" ++
+  "  addi t2, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t2, t2, 6; la t3, bsr_paths; add t3, t3, t2; sd t3, 0(t1); li t3, 64; sd t3, 8(t1)\n" ++
+  "  addi t2, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t2, t2, 7; la t3, bsr_newaccts; add t3, t3, t2; sd t3, 16(t1)\n" ++
   "  la t3, bsr_tmplen; ld t3, 0(t3); sd t3, 24(t1)\n" ++
   "  sd t5, 32(t1)               # is_insert\n" ++
   "  addi s1, s1, 1               # advance change counter (only on a recorded change)\n" ++
@@ -1156,7 +1162,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_delta:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bsr_acct:\n  .zero 256\n" ++
-  "bsr_paths:\n  .zero 3841152\nbsr_newaccts:\n  .zero 7682304\nbsr_changes:\n  .zero 2400720\n" ++
+  "bsr_paths:\n  .zero " ++ toString (bsrMaxAuxChanges * bsrPathBytes) ++
+  "\nbsr_newaccts:\n  .zero " ++ toString (bsrMaxAuxChanges * bsrSystemAccountBytes) ++
+  "\nbsr_changes:\n  .zero " ++ toString (bsrMaxStateChanges * bsrStateChangeBytes) ++ "\n" ++
   ".balign 32\n" ++
   "bsr_addr_2935:\n" ++
   "  .byte 0x00, 0x00, 0xF9, 0x08, 0x27, 0xF1, 0xC5, 0x3a\n" ++
