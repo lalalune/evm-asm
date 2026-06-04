@@ -922,9 +922,34 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  bnez a0, 1f\n" ++
+    -- EIP-2537 pairing returns a 32-byte boolean word: 31 zero bytes followed
+    -- by the backend `verified` byte.
+    "  sd x0, 16(x15)\n" ++
+    "  sd x0, 24(x15)\n" ++
+    "  sd x0, 32(x15)\n" ++
+    "  sd x0, 40(x15)\n" ++
+    "  lbu x16, 336(x15)\n" ++
+    "  sb x16, 47(x15)\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
-    "  sd x0, 8(x15)\n" ++
+    "  li x16, 32\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x23, 32\n" ++
+    "  bgeu x22, x23, 22f\n" ++
+    "  mv x23, x22\n" ++
+    "22:\n" ++
+    "  beqz x23, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "23:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 23b\n" ++
     "  j 7b\n" ++
     -- BLS12-381 map-Fp-to-G1: execution-specs requires exactly one
     -- 64-byte Fp field element; the compact 48-byte field payload starts
