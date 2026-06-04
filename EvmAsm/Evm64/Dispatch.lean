@@ -65,6 +65,7 @@ def decodeByte? : Nat → Option EvmOpcode
   | 0x48 => some BASEFEE
   | 0x49 => some BLOBHASH
   | 0x4a => some BLOBBASEFEE
+  | 0x4b => some SLOTNUM
   | 0x50 => some POP
   | 0x51 => some MLOAD
   | 0x52 => some MSTORE
