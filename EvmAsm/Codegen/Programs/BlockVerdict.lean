@@ -31,6 +31,7 @@ import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
+import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -781,6 +782,8 @@ def blockVerdictFunction : String :=
   "  la t2, bv_bal_len; ld a3, 0(t2)\n" ++
   "  jal ra, eip7702_nonce_reuse_guard\n" ++
   "  bnez a0, .Lbv_eip7702_nonce_reuse_fail\n" ++
+  "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
+  "  jal ra, block_receipt_records_materialize\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_cmp_mismatch:\n" ++
   "  li t0, 1; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
@@ -926,8 +929,8 @@ def statelessVerdictV2Function : String :=
   "  addi sp, sp, 64\n" ++
   "  ret"
 
-/-- `zisk_stateless_verdict_v2`: probe. Fed the SAME `-i` input as the guest.
-    Output OUTPUT+0 = verdict bit (system writes + withdrawals modeled). -/
+/- `zisk_stateless_verdict_v2`: probe. Fed the SAME `-i` input as the guest.
+   Output OUTPUT+0 = verdict bit (system writes + withdrawals modeled). -/
 def ziskStatelessVerdictV2Prologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  jal ra, stateless_verdict_v2\n" ++
@@ -946,6 +949,12 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, sri_fail_mode; ld t2, 0(t1); sd t2, 96(t0)\n" ++
   "  la t1, sri_fail_status; ld t2, 0(t1); sd t2, 104(t0)\n" ++
   "  la t1, bv_block_rlp_len; ld t2, 0(t1); sd t2, 112(t0)\n" ++
+  "  la t1, brr_status; ld t2, 0(t1); sd t2, 120(t0)\n" ++
+  "  la t1, brr_control; ld t2, 0(t1); sd t2, 128(t0)\n" ++
+  "  la t1, brr_append_status; ld t2, 0(t1); sd t2, 136(t0)\n" ++
+  "  la t1, brr_records; ld t2, 0(t1); sd t2, 144(t0)\n" ++
+  "  la t1, brr_records; ld t2, 8(t1); sd t2, 152(t0)\n" ++
+  "  la t1, brr_records; ld t2, 16(t1); sd t2, 160(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
@@ -1055,6 +1064,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
+  receiptRecordsFunction ++ "\n" ++
+  blockReceiptRecordsMaterializeFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
@@ -1173,6 +1184,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_state_status:\n  .zero 8\n" ++
   "bv_block_rlp_len:\n  .zero 8\n" ++
   "bv_blockhash_required_headers:\n  .zero 8\n" ++
+  "brr_status:\n  .zero 8\n" ++
+  "brr_append_status:\n  .zero 8\n" ++
+  "brr_tx_type:\n  .zero 8\n" ++
+  "brr_tx_inner:\n  .zero 8\n" ++
+  "brr_control:\n  .zero 24\n" ++
+  ".balign 8\n" ++
+  "brr_records:\n  .zero 1024\n" ++
   eip7702NonceReuseGuardDataSection ++
   "brl_item_start:\n  .zero 8\n" ++
   "brl_item_end:\n  .zero 8\n" ++
