@@ -35,3 +35,8 @@ supportInterpreter = true
 name = "div128-v5-check"
 root = "MainDiv128V5Check"
 supportInterpreter = true
+
+[[lean_exe]]
+name = "arith-diff-check"
+root = "MainArithDiffCheck"
+supportInterpreter = true
