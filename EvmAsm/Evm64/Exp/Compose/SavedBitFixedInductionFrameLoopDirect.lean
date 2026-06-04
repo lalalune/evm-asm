@@ -320,19 +320,10 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
       (Q ** expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1) ptr) := by
   intro R hR s hcr hPreR hpc
   obtain ⟨hp, hcompat, psPre, psR, hdisj, hunion, hPre, hRps⟩ := hPreR
-  have hPreState :
-      expTwoMulFixedIterPreNWithStateFrame k baseWord exponentWord
-        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
-        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
-        a0 a1 a2 a3 v7 v11
-        (expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr) psPre := by
-    rw [← expTwoMulFixedIterPreNWithInductionFrame_ordinary_of_control
-      hC6 hNotPre]
-    exact hPre
   have hState :
       expTwoMulFixedIterStateInvariant baseWord exponentWord k
         iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 :=
-    expTwoMulFixedIterPreNWithStateFrame_pure hPreState
+    expTwoMulFixedIterPreNWithInductionFrame_pure hPre
   exact
     cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDirect_ordinary_of_control_from_pre
       controlC6 e machineC6 iterCount v10 v18 ptr nextLimb nextNextLimb
