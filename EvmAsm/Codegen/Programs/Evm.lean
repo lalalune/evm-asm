@@ -1015,7 +1015,12 @@ def controlFlowHandlers : List OpcodeHandlerSpec :=
 def hashHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_KECCAK256"
     , opcodes := [0x20]
-    , preBody := stackUnderflowGuardAsm 2
+    , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
+                 keccakRangeGuardAsm ++
+                 "  ld x14, 0(x12)\n" ++
+                 "  ld x15, 32(x12)\n" ++
+                 keccakWordGasAsm "x15" ++
+                 updateActiveMemorySizeAsm "keccak" "x14" "x15" "x16" "x17" "x18" "x6" true
     , body    := []
     , tail    := .custom (
         "  mv s10, x10\n" ++           -- save EVM code ptr
@@ -1131,23 +1136,23 @@ def logCapturePreBody (topicCount : Nat) : String :=
     byte, and returns to the dispatcher. -/
 def logHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_LOG0", opcodes := [0xa0]
-    , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++ logCapturePreBody 0
+    , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++ logDynamicGasAsm 0 ++ logCapturePreBody 0
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG1", opcodes := [0xa1]
-    , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++ logCapturePreBody 1
+    , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++ logDynamicGasAsm 1 ++ logCapturePreBody 1
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG2", opcodes := [0xa2]
-    , preBody := stackUnderflowGuardAsm 4 ++ "\n" ++ logCapturePreBody 2
+    , preBody := stackUnderflowGuardAsm 4 ++ "\n" ++ logDynamicGasAsm 2 ++ logCapturePreBody 2
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 128)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG3", opcodes := [0xa3]
-    , preBody := stackUnderflowGuardAsm 5 ++ "\n" ++ logCapturePreBody 3
+    , preBody := stackUnderflowGuardAsm 5 ++ "\n" ++ logDynamicGasAsm 3 ++ logCapturePreBody 3
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 160)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG4", opcodes := [0xa4]
-    , preBody := stackUnderflowGuardAsm 6 ++ "\n" ++ logCapturePreBody 4
+    , preBody := stackUnderflowGuardAsm 6 ++ "\n" ++ logDynamicGasAsm 4 ++ logCapturePreBody 4
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
     , tail := .advanceAndRet 1 } ]
 
@@ -1410,7 +1415,7 @@ def selfCallingHandlers : List OpcodeHandlerSpec :=
       tail          := evmAddmodRuntimeTail }
   , { label         := "h_EXP"
       opcodes       := [0x0a]
-      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x2, exp_scratch"
+      preBody       := stackUnderflowGuardAsm 2 ++ "\n" ++ expDynamicGasAsm ++ "  mv x14, x10\n  la x2, exp_scratch"
       body          := evmExpComposed
       tail          := expTail } ]
 

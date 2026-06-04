@@ -540,6 +540,41 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "keccak256_empty"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x20, 0x00"
       expectedOutHex := "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470" }
+  , -- MSTORE8 pre-expands memory to one word, then KECCAK256 hashes one
+    -- byte. Total gas at the exact threshold:
+    -- PUSH1*4 (12) + MSTORE8 static (3) + memory expansion (3)
+    -- + KECCAK static (30) + KECCAK word gas (6) = 54.
+    { name           := "keccak256_word_gas_sufficient"
+      bytecode       := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0x20, 0x00"
+      expectedOutHex := "468fc9c005382579139846222b7b0aebc9182ba073b2455938a86d9753bfb078"
+      gasLimit       := "54" }
+  , -- One gas short of the same one-byte KECCAK path. The fixed opcode
+    -- charge succeeds, then the new 6-gas word charge routes to OOG.
+    { name             := "keccak256_word_gas_oog"
+      bytecode         := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0x20, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "53" }
+  , -- Hash 33 zero bytes from initially empty memory. KECCAK charges two
+    -- input words (12) plus two-word memory expansion (6), in addition
+    -- to two PUSHes (6) and the fixed KECCAK base (30): total 54.
+    { name           := "keccak256_33_bytes_memory_gas_sufficient"
+      bytecode       := "0x60, 0x21, 0x60, 0x00, 0x20, 0x00"
+      expectedOutHex := "f39a869f62e75cf5f0bf914688a6b289caf2049435d8e68c5c5e6d05e44913f3"
+      gasLimit       := "54" }
+  , -- Zero-size KECCAK does not expand memory, so a high offset limb is
+    -- accepted and still hashes the empty byte string.
+    { name           := "keccak256_zero_size_high_offset_ok"
+      bytecode       := "0x60, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00"
+      expectedOutHex := "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+      gasLimit       := "36" }
+  , -- A non-zero high size limb represents an unbounded hash range for
+    -- this u64-addressed runtime and is reported as OOG before hashing.
+    { name             := "keccak256_high_size_oog"
+      bytecode         := "0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x20, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "36" }
     -- ## M26 LOG opcodes (LOG0-LOG4) — bounded event capture.
     -- LOGn pops (2+n) 256-bit words, advances PC, and appends a
     -- 256-byte descriptor to the dispatcher's receipt-event buffer.
@@ -569,6 +604,37 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex         := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedEventLogCount  := "0100000000000000"
       expectedEventLogFirst  := "02000000000000000000000000000000010000000000000001000000000000001100000000000000000000000000000000000000000000000000000000000000220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ab00000000000000000000000000000000000000000000000000000000000000" }
+  , -- MSTORE8 pre-expands memory, then LOG0 captures one byte.
+    -- Total gas: PUSH1*4 (12) + MSTORE8 static+mem (6) + LOG0
+    -- static (375) + one data byte (8) + final PUSH1 (3) = 404.
+    { name                  := "log0_data_gas_sufficient"
+      bytecode              := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0xa0, 0x60, 0x42, 0x00"
+      expectedOutHex        := "4200000000000000000000000000000000000000000000000000000000000000"
+      expectedEventLogCount := "0100000000000000"
+      gasLimit              := "404" }
+  , -- One gas short of the same LOG0 data-byte charge. The LOG exits
+    -- OOG before appending an event descriptor.
+    { name                  := "log0_data_gas_oog"
+      bytecode              := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0xa0, 0x60, 0x42, 0x00"
+      expectedOutHex        := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind      := "0600000000000000"
+      expectedEventLogCount := "0000000000000000"
+      gasLimit              := "400" }
+  , -- LOG1 with empty data still charges one topic: PUSH1*3 (9),
+    -- LOG static (375), LOG topic (375), final PUSH1 (3) = 762.
+    { name                  := "log1_topic_gas_sufficient"
+      bytecode              := "0x60, 0x11, 0x60, 0x00, 0x60, 0x00, 0xa1, 0x60, 0x42, 0x00"
+      expectedOutHex        := "4200000000000000000000000000000000000000000000000000000000000000"
+      expectedEventLogCount := "0100000000000000"
+      gasLimit              := "762" }
+  , -- A non-zero high size limb represents an unbounded data range for
+    -- this u64-addressed runtime and is reported as OOG before capture.
+    { name                  := "log0_high_size_oog"
+      bytecode              := "0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0xa0, 0x00"
+      expectedOutHex        := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind      := "0600000000000000"
+      expectedEventLogCount := "0000000000000000"
+      gasLimit              := "381" }
   , -- Seventeen empty LOG0s exceed the static 16-entry cap. The 17th
     -- handler exits with halt_kind=4 and leaves the visible event
     -- count at 16; it must not silently drop the event and continue.
@@ -1353,6 +1419,29 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "exp_two_255_squared"
       bytecode       := "0x60, 0x02, 0x7f, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- EXP gas: exponent zero charges only PUSH1*2 + EXP base = 16.
+    { name           := "exp_gas_zero_exponent_exact"
+      bytecode       := "0x60, 0x00, 0x60, 0x05, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "16" }
+  , -- EXP gas: one exponent byte adds 50, so PUSH1*2 + EXP = 66.
+    { name           := "exp_gas_one_byte_exact"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x0a, 0x00"
+      expectedOutHex := "0200000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "66" }
+  , -- One gas short of the one-byte exponent dynamic charge exits OOG before
+    -- the EXP body writes a result.
+    { name             := "exp_gas_one_byte_oog"
+      bytecode         := "0x60, 0x01, 0x60, 0x02, 0x0a, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "65" }
+  , -- EXP gas: all 32 exponent bytes non-zero adds 1600, so
+    -- PUSH32 + PUSH1 + EXP = 1616.
+    { name           := "exp_gas_max_exponent_exact"
+      bytecode       := "0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x60, 0x01, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1616" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;
