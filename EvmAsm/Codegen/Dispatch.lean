@@ -51,6 +51,13 @@ def stackUnderflowGuardAsm (wordCount : Nat) : String :=
   s!"  addi x14, x14, -{wordCount * evmStackWordBytes}\n" ++
   "  bltu x14, x12, .exit_stack_underflow"
 
+/-- Raw dispatcher guard for handlers that push one EVM stack word. The EVM
+    stack is full exactly when the live pointer has reached `evm_stack_low`;
+    pushing then would decrement below the protocol 1024-word arena. -/
+def stackOverflowGuardAsm : String :=
+  "  la x14, evm_stack_low\n" ++
+  "  bleu x12, x14, .exit_stack_overflow"
+
 /-- Tail emitted after each handler's verified body.
 
     `advanceAndRet width` is the standard subroutine return: advance
@@ -215,11 +222,14 @@ def emitGasCostTable : String :=
     copying them into caller memory. Layout:
       +0  status / success word
       +8  returndata length
-      +16 first 64 bytes of returndata scratch. -/
+      +16 first 128 bytes of returndata scratch
+      +144 BLS12 G1 ADD compact p1 scratch
+      +240 BLS12 G1 ADD compact p2 scratch
+      +336 BLS12 G1 ADD compact result scratch. -/
 def emitPrecompileFrameData : String :=
   ".balign 8\n" ++
   "evm_precompile_frame:\n" ++
-  "  .zero 80\n"
+  "  .zero 432\n"
 
 /-- Scratch buffers used by `zkvm_sha256`. The wrapper expects these
     labels to exist in the dispatcher's data section. -/
@@ -479,7 +489,7 @@ def emitDispatcherPrologue : String :=
     `halt_kind` scheme (`OUTPUT + 32`, u64 LE):
     `0` STOP/unspecified · `1` RETURN · `2` REVERT · `3` INVALID (0xfe) ·
     `4` invalid JUMP/JUMPI dest (M15.5) · `5` SELFDESTRUCT (0xff) ·
-    `6` out-of-gas · `7` stack underflow. -/
+    `6` out-of-gas · `7` stack underflow · `8` stack overflow. -/
 def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"{label}:\n" ++
   "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
@@ -543,11 +553,13 @@ def emitDispatcherEpilogue
   --   .exit_selfdestruct(5) — M23.5 SELFDESTRUCT (0xff)
   --   .exit_outofgas    (6) — M30 dispatch-loop gas underflow
   --   .exit_stack_underflow(7) — stack consumer with too few words
+  --   .exit_stack_overflow(8) — PUSH beyond the 1024-word EVM stack limit
   emitExceptionalExit ".exit_invalid" 4 ++
   emitExceptionalExit ".exit_invalid_op" 3 ++
   emitExceptionalExit ".exit_selfdestruct" 5 ++
   emitExceptionalExit ".exit_outofgas" 6 ++
   emitExceptionalExit ".exit_stack_underflow" 7 ++
+  emitExceptionalExit ".exit_stack_overflow" 8 ++
   ".exit_label:\n" ++
   emitProgram exitBody ++ "\n" ++
   ".exit_no_epilogue:\n" ++

@@ -81,7 +81,7 @@ def assembleAndLink (asmPath : System.FilePath) :
     -- region. Keep it above `.data`; GNU ld only relocates the section when
     -- present, so the flag is harmless for programs that do not emit it.
     #["-Ttext=0x80000000", "-Tdata=0xa5000000",
-      "--section-start=.sszscratch=0xb0000000",
+      "--section-start=.sszscratch=0xbf500000",
       "-nostdlib", "--no-relax",
       "-o", elfPath.toString, objPath.toString]
   return (objPath, elfPath)

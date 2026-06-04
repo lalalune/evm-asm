@@ -48,6 +48,7 @@ import EvmAsm.Evm64.Swap.Program
 import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.EvmMcopyGas
 import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.EvmBalance
 import EvmAsm.Codegen.Programs.Noop
@@ -448,6 +449,7 @@ def pushHandlers : List OpcodeHandlerSpec :=
   (List.range 33).map (fun n =>
     { label   := s!"h_PUSH{n}"
       opcodes := [0x5f + n]
+      preBody := stackOverflowGuardAsm
       body    := EvmAsm.Evm64.evm_push n
       tail    := .advanceAndRet (1 + n) })
 
@@ -834,11 +836,11 @@ def calldataHandlers : List OpcodeHandlerSpec :=
                    .x20 .x13 .x14 .x15 .x16 .x17 .x18 .x19
     , tail    := .advanceAndRet 1 } ]
 
-/-- EIP-5656 MCOPY for the concrete dispatcher. The handler consumes
-    low u64 limbs for `(dest, src, length)`, updates MSIZE for both
+/-- EIP-5656 MCOPY for the concrete dispatcher. The handler rejects
+    unsupported 256-bit memory ranges, consumes low u64 limbs for
+    `(dest, src, length)`, charges dynamic gas, updates MSIZE for both
     read and write ranges, then performs `memmove`-style byte copying
-    so overlapping ranges are handled correctly. Gas charging and
-    256-bit overflow/OOG detection are tracked separately. -/
+    so overlapping ranges are handled correctly. -/
 def mcopyHandlers : List OpcodeHandlerSpec :=
   [ { label   := "h_MCOPY"
       opcodes := [0x5e]
@@ -848,6 +850,8 @@ def mcopyHandlers : List OpcodeHandlerSpec :=
         "  ld x14, 0(x12)\n" ++          -- destination offset
         "  ld x15, 32(x12)\n" ++         -- source offset
         "  ld x16, 64(x12)\n" ++         -- length
+        mcopyRangeGuardAsm ++
+        mcopyDynamicGasAsm ++
         "  addi x12, x12, 96\n" ++
         "  beqz x16, .Lmcopy_done\n" ++
         updateActiveMemorySizeAsm "mcopy_src" "x15" "x16" "x17" "x18" "x19" ++

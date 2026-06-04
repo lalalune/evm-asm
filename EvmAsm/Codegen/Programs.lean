@@ -54,6 +54,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
+import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
@@ -68,6 +69,7 @@ import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
+import EvmAsm.Codegen.Programs.ReceiptRecords
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.ReceiptsConsensus
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
@@ -343,6 +345,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
+  | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit
@@ -569,6 +572,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_zkvm_keccak256"       => some ziskZkvmKeccak256ProbeUnit
   | "zisk_sha256_probe_le"      => some ziskSha256ProbeLeUnit
   | "zisk_zkvm_sha256"          => some ziskZkvmSha256ProbeUnit
+  | "zisk_bls12_g1_add_backend_probe" => some ziskBls12G1AddBackendProbeUnit
   | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
@@ -869,6 +873,7 @@ def knownProgramNames : List String :=
    "zisk_zkvm_keccak256",
    "zisk_sha256_probe_le",
    "zisk_zkvm_sha256",
+   "zisk_bls12_g1_add_backend_probe",
    "zisk_keccak256_from_input",
    "zisk_headers_keccak_chain",
    "zisk_headers_keccak_array",
@@ -1163,6 +1168,7 @@ def knownProgramNames : List String :=
    "zisk_rlp_encode_u64",
    "zisk_receipt_encode",
    "zisk_typed_receipt_encode",
+   "zisk_receipt_records_probe",
    "zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
    "zisk_bal_gas_valid",

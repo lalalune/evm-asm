@@ -800,6 +800,74 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_state_step
       hBranch
       hReload)
 
+/-- Variant of `cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_state_step`
+    whose precondition carries a semantic control counter separated from the
+    machine `x6` scratch register.  The current adapter covers the call sites
+    where the semantic and machine counters still agree, while exposing the
+    `WithControlFrame` surface used by the generic induction path. -/
+theorem cpsTripleWithin_expTwoMulFixedIterPreNWithControlFrame_state_step_of_control_eq_machine
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {nBound nSteps : Nat} {exit : Word} {cr : CodeReq}
+    (controlC6 e machineC6 iterCount v10 v18 ptr nextLimb
+      nextNextLimb sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 : Word)
+    (base : Word)
+    (frame Q : Assertion)
+    (hDisjoint :
+      (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base).Disjoint cr)
+    (hFrame : frame.pcFree)
+    (hbase : (base + 44 : Word) &&& 1 = 0)
+    (hControlMachine : controlC6 = machineC6)
+    (hk : k < 255)
+    (hCount : expTwoMulFixedIterCountInvariant k iterCount)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hBound : 193 ≤ nBound)
+    (hBranch :
+      ∀ (bit : Bool)
+        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        cpsTripleWithin nSteps (base + 44) exit cr
+          (expTwoMulFixedStateStepBranchPre k baseWord exponentWord
+            controlC6 e iterCount ptr nextLimb sp evmSp
+            r0 r1 r2 r3 a0 a1 a2 a3 bit
+            v6' v7' v10' v11' d0' d1' d2' d3' base frame)
+          Q)
+    (hReload :
+      ∀ (bit : Bool)
+        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        cpsTripleWithin nSteps (base + 44) exit cr
+          (expTwoMulFixedReloadBranchResidualWithStateFrame bit (k := k)
+            baseWord exponentWord iterCount e controlC6 ptr nextLimb
+            nextNextLimb sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base
+            v6' v7' v10' v11' d0' d1' d2' d3' frame)
+          Q) :
+    cpsTripleWithin (nBound + nSteps) (base + 44) exit
+      ((evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base).union cr)
+      (expTwoMulFixedIterPreNWithControlFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 frame)
+      Q := by
+  intro R hR s hcr hPreR hpc
+  obtain ⟨hp, hcompat, psPre, psR, hdisj, hunion, hPre, hRps⟩ := hPreR
+  have hStatePre :
+      expTwoMulFixedIterPreNWithStateFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 frame psPre :=
+    expTwoMulFixedIterPreNWithControlFrame_to_iterPreNWithStateFrame
+      hCount hPre
+  exact
+    cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_state_step
+      controlC6 e machineC6 iterCount v10 v18 ptr nextLimb nextNextLimb
+      sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+      a0 a1 a2 a3 v7 v11 base frame Q hDisjoint hFrame hbase
+      hControlMachine hk hCount hBase hNextNext hBound hBranch hReload
+      R hR s hcr
+      ⟨hp, hcompat, psPre, psR, hdisj, hunion, hStatePre, hRps⟩
+      hpc
+
 /-- Unframed variant of
     `cpsTripleWithin_expTwoMulFixedIterPreNWithStateFrame_state_step`. -/
 theorem cpsTripleWithin_expTwoMulFixedIterPreNWithState_state_step

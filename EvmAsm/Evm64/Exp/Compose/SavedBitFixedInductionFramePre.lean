@@ -187,6 +187,21 @@ theorem expTwoMulFixedIterPreNWithInductionFrame_nextLimb_from_framed_pre
   expTwoMulFixedControlInvariant_nextLimb
     (expTwoMulFixedIterPreNWithInductionFrame_control_from_framed_pre hPreR)
 
+theorem expTwoMulFixedIterPreNWithInductionFrame_nextLimb_from_holdsFor
+    {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
+    {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word}
+    {R : Assertion} {s : MachineState}
+    (hPreR :
+      (expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 ** R).holdsFor s) :
+    nextLimb = exponentWord.getLimbN (2 - k / 64) := by
+  obtain ⟨ps, _h_compat, hPreRps⟩ := hPreR
+  exact expTwoMulFixedIterPreNWithInductionFrame_nextLimb_from_framed_pre hPreRps
+
 theorem expTwoMulFixedIterPreNWithInductionFrame_nextLimb_succ_no_reload
     {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
     {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
@@ -219,6 +234,23 @@ theorem expTwoMulFixedIterPreNWithInductionFrame_nextLimb_succ_no_reload_from_fr
   expTwoMulFixedControlInvariant_nextLimb_succ_no_reload
     (expTwoMulFixedIterPreNWithInductionFrame_control_from_framed_pre hPreR)
     hC6
+
+theorem expTwoMulFixedIterPreNWithInductionFrame_nextLimb_succ_no_reload_from_holdsFor
+    {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
+    {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word}
+    {R : Assertion} {s : MachineState}
+    (hPreR :
+      (expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 ** R).holdsFor s)
+    (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
+    nextLimb = exponentWord.getLimbN (2 - (k + 1) / 64) := by
+  obtain ⟨ps, _h_compat, hPreRps⟩ := hPreR
+  exact expTwoMulFixedIterPreNWithInductionFrame_nextLimb_succ_no_reload_from_framed_pre
+    hPreRps hC6
 
 theorem expTwoMulFixedIterPreNWithInductionFrame_control_step_cases_from_pre
     {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
