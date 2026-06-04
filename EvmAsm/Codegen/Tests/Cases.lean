@@ -299,6 +299,12 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "push1_depth_1024"
       bytecode       := repeatedPush1Bytecode 1024 "0x01"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- The 1025th PUSH exceeds the EVM stack limit and halts before writing
+    -- below `evm_stack_low`. Stack overflow is surfaced as halt_kind = 8.
+    { name             := "push1_depth_1025_overflow"
+      bytecode         := repeatedPush1Bytecode 1025 "0x01"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0800000000000000" }
   , -- PUSH1 0x42; DUP1; ADD; STOP — DUP1 makes stack [0x42, 0x42];
     -- ADD → 0x84.
     { name           := "dup1_basic"
