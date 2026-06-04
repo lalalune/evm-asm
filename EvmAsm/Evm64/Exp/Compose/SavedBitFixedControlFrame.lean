@@ -548,6 +548,34 @@ theorem expTwoMulFixedControlInvariant_succ_ordinary_with_induction_frame
     expTwoMulFixedInductionFrameN_ordinary_of_control
       hSuccNotReload hSuccNotPre⟩
 
+theorem expTwoMulFixedControlInvariant_succ_pre_reload_with_induction_frame
+    {exponentWord : EvmWord} {k : Nat}
+    {c6 ptr nextLimb evmSp : Word}
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hC6 : (c6 + signExtend12 (-1 : BitVec 12)).toNat = 1) :
+    expTwoMulFixedControlInvariant exponentWord (k + 1)
+        (c6 + signExtend12 (-1 : BitVec 12)) ptr nextLimb evmSp ∧
+      expTwoMulFixedInductionFrameN exponentWord (k + 1)
+          (c6 + signExtend12 (-1 : BitVec 12)) ptr =
+        expTwoMulFixedReloadTailFrameN exponentWord (k + 1) ptr := by
+  have hNonzero : c6 + signExtend12 (-1 : BitVec 12) ≠ 0 := by
+    intro hZero
+    have hNatZero : (c6 + signExtend12 (-1 : BitVec 12)).toNat = 0 := by
+      rw [hZero]
+      decide
+    omega
+  have hControlSucc :=
+    expTwoMulFixedControlInvariant_succ_no_reload hControl hNonzero
+  have hReload :
+      c6 + signExtend12 (-1 : BitVec 12) +
+          signExtend12 (-1 : BitVec 12) = 0 := by
+    apply BitVec.eq_of_toNat_eq
+    rw [BitVec.toNat_add, controlFrame_signExtend12_neg1_toNat, hC6]
+    decide
+  exact ⟨hControlSucc,
+    expTwoMulFixedInductionFrameN_reload_of_control hReload⟩
+
 theorem expTwoMulFixedInductionFrameN_pcFree
     (exponentWord : EvmWord) (k : Nat) (c6 ptr : Word) :
     (expTwoMulFixedInductionFrameN exponentWord k c6 ptr).pcFree := by
