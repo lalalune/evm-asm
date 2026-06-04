@@ -74,6 +74,11 @@
 #     --verify-execution-spec-input
 #                        decode the same guest-visible bytes through
 #                        execution-specs run_stateless_guest's input path
+#     --random           shuffle fixtures into a random order before applying
+#                        --limit; use to sample a different subset on each run
+#                        and discover failures outside the default first-N fixtures
+#     --seed N           integer seed for --random (default: auto-generated and
+#                        printed so any discovery run can be exactly reproduced)
 #     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
 #
 # Environment:
@@ -125,6 +130,8 @@ VERDICT_DEBUG="${EEST_VERDICT_DEBUG:-1}"
 VERDICT_DEBUG_ELF=""
 VERIFY_INPUT_PARITY="${EEST_VERIFY_INPUT_PARITY:-1}"
 VERIFY_EXECUTION_SPEC_INPUT="${EEST_VERIFY_EXECUTION_SPEC_INPUT:-0}"
+RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
+RANDOM_SEED="${EEST_RANDOM_SEED:-}"
 
 usage() {
   cat <<'USAGE'
@@ -155,6 +162,9 @@ Options:
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
   --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
+  --random                 shuffle fixtures into a random order before --limit; run
+                           repeatedly to sample different subsets and seek discoveries
+  --seed N                 integer seed for --random (default: auto-generated and printed)
   --run-dir DIR            use DIR instead of gen-out/eest-run (enables parallel invocations)
   -h, --help               show this help
 USAGE
@@ -194,6 +204,8 @@ while [[ $# -gt 0 ]]; do
     --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
     --no-verdict-debug) VERDICT_DEBUG=0; shift ;;
+    --random) RANDOM_ORDER=1; shift ;;
+    --seed) require_arg "$1" "${2:-}"; RANDOM_SEED="$2"; shift 2 ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -260,6 +272,18 @@ case "$QUIET_PASSES" in
 esac
 if ! [[ "$MEM_RESERVE_MIB" =~ ^[0-9]+$ ]]; then
   echo "EEST_MEM_RESERVE_MIB must be a nonnegative integer (got: $MEM_RESERVE_MIB)" >&2
+  exit 1
+fi
+if [[ "$RANDOM_ORDER" != "0" && "$RANDOM_ORDER" != "1" ]]; then
+  echo "EEST_RANDOM_ORDER must be 0 or 1 (got: $RANDOM_ORDER)" >&2
+  exit 1
+fi
+if [[ -n "$RANDOM_SEED" ]] && ! [[ "$RANDOM_SEED" =~ ^[0-9]+$ ]]; then
+  echo "--seed must be a nonnegative integer (got: $RANDOM_SEED)" >&2
+  exit 1
+fi
+if [[ -n "$RANDOM_SEED" && "$RANDOM_ORDER" -eq 0 ]]; then
+  echo "--seed requires --random" >&2
   exit 1
 fi
 
@@ -566,6 +590,23 @@ fi
 MANIFEST="$RUN_DIR/manifest.tsv"
 [[ -s "$MANIFEST" ]] || { echo "no stateless blocks selected" >&2; exit 1; }
 mapfile -t manifestLines < "$MANIFEST"
+
+if [[ "$RANDOM_ORDER" -eq 1 ]]; then
+  if [[ -z "$RANDOM_SEED" ]]; then
+    RANDOM_SEED="$(python3 -c 'import random; print(random.randint(0, 2**31-1))')"
+  fi
+  echo "==> random order: seed=$RANDOM_SEED (pass --seed $RANDOM_SEED to reproduce this run)"
+  mapfile -t manifestLines < <(
+    printf '%s\n' "${manifestLines[@]}" | python3 -c "
+import sys, random
+lines = sys.stdin.read().splitlines()
+random.Random(int(sys.argv[1])).shuffle(lines)
+print('\n'.join(lines))
+" "$RANDOM_SEED"
+  )
+  selection="$selection, random(seed=$RANDOM_SEED)"
+fi
+
 selectedCount="${#manifestLines[@]}"
 
 run_case() {
