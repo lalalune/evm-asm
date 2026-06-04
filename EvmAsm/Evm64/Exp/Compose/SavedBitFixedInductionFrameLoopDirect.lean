@@ -336,13 +336,6 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
       hpc
 
 
-/-- Direct head step over the folded induction precondition with a single
-    post-frame selector.
-
-    The framed precondition carries the control invariant, so this wrapper
-    splits reload, pre-reload, and ordinary no-reload cases internally and
-    rewrites `expTwoMulFixedDirectHeadFrameN` to the selected branch post. -/
-
 @[irreducible]
 def expTwoMulFixedDirectHeadTailFrameN
     (exponentWord : EvmWord) (k : Nat) (controlC6 ptr nextNextLimb : Word) :
@@ -380,6 +373,102 @@ def expTwoMulFixedDirectHeadTrueFrameN
   else
     expReloadLimbDirectTrueFrame controlC6 e iterCount ptr nextLimb
 
+theorem expTwoMulFixedDirectHeadTailFrameN_pcFree
+    (exponentWord : EvmWord) (k : Nat)
+    (controlC6 ptr nextNextLimb : Word) :
+    (expTwoMulFixedDirectHeadTailFrameN exponentWord k controlC6 ptr
+      nextNextLimb).pcFree := by
+  rw [expTwoMulFixedDirectHeadTailFrameN]
+  split
+  · rw [expReloadTailDirectTailFrameN_unfold]
+    pcFree
+    rw [expTwoMulFixedReloadLimbFrameN_unfold,
+      expTwoMulFixedSavedNextLimbFrame_unfold]
+    pcFree
+  · split
+    · rw [expPreReloadDirectTailFrameN_unfold]
+      pcFree
+      rw [expTwoMulFixedReloadLimbFrameN_unfold,
+        expTwoMulFixedSavedNextLimbFrame_unfold]
+      pcFree
+    · rw [expReloadLimbDirectTailFrame_unfold]
+      pcFree
+
+theorem expTwoMulFixedDirectHeadFalseFrameN_pcFree
+    (exponentWord : EvmWord) (k : Nat)
+    (controlC6 e iterCount ptr nextLimb : Word) :
+    (expTwoMulFixedDirectHeadFalseFrameN exponentWord k controlC6 e
+      iterCount ptr nextLimb).pcFree := by
+  rw [expTwoMulFixedDirectHeadFalseFrameN]
+  split
+  · rw [expReloadTailDirectFalseFrameN_unfold]
+    pcFree
+    rw [expTwoMulFixedReloadLimbFrameN_unfold,
+      expTwoMulFixedSavedNextLimbFrame_unfold]
+    pcFree
+  · split
+    · rw [expPreReloadDirectFalseFrameN_unfold]
+      pcFree
+      rw [expTwoMulFixedReloadLimbFrameN_unfold,
+        expTwoMulFixedSavedNextLimbFrame_unfold]
+      pcFree
+    · rw [expReloadLimbDirectFalseFrame_unfold]
+      pcFree
+
+theorem expTwoMulFixedDirectHeadTrueFrameN_pcFree
+    (exponentWord : EvmWord) (k : Nat)
+    (controlC6 e iterCount ptr nextLimb : Word) :
+    (expTwoMulFixedDirectHeadTrueFrameN exponentWord k controlC6 e
+      iterCount ptr nextLimb).pcFree := by
+  rw [expTwoMulFixedDirectHeadTrueFrameN]
+  split
+  · rw [expReloadTailDirectTrueFrameN_unfold]
+    pcFree
+    rw [expTwoMulFixedReloadLimbFrameN_unfold,
+      expTwoMulFixedSavedNextLimbFrame_unfold]
+    pcFree
+  · split
+    · rw [expPreReloadDirectTrueFrameN_unfold]
+      pcFree
+      rw [expTwoMulFixedReloadLimbFrameN_unfold,
+        expTwoMulFixedSavedNextLimbFrame_unfold]
+      pcFree
+    · rw [expReloadLimbDirectTrueFrame_unfold]
+      pcFree
+
+instance pcFreeInst_expTwoMulFixedDirectHeadTailFrameN
+    (exponentWord : EvmWord) (k : Nat)
+    (controlC6 ptr nextNextLimb : Word) :
+    Assertion.PCFree
+      (expTwoMulFixedDirectHeadTailFrameN exponentWord k controlC6 ptr
+        nextNextLimb) :=
+  ⟨expTwoMulFixedDirectHeadTailFrameN_pcFree exponentWord k controlC6 ptr
+    nextNextLimb⟩
+
+instance pcFreeInst_expTwoMulFixedDirectHeadFalseFrameN
+    (exponentWord : EvmWord) (k : Nat)
+    (controlC6 e iterCount ptr nextLimb : Word) :
+    Assertion.PCFree
+      (expTwoMulFixedDirectHeadFalseFrameN exponentWord k controlC6 e
+        iterCount ptr nextLimb) :=
+  ⟨expTwoMulFixedDirectHeadFalseFrameN_pcFree exponentWord k controlC6 e
+    iterCount ptr nextLimb⟩
+
+instance pcFreeInst_expTwoMulFixedDirectHeadTrueFrameN
+    (exponentWord : EvmWord) (k : Nat)
+    (controlC6 e iterCount ptr nextLimb : Word) :
+    Assertion.PCFree
+      (expTwoMulFixedDirectHeadTrueFrameN exponentWord k controlC6 e
+        iterCount ptr nextLimb) :=
+  ⟨expTwoMulFixedDirectHeadTrueFrameN_pcFree exponentWord k controlC6 e
+    iterCount ptr nextLimb⟩
+
+/-- Direct head step over the folded induction precondition with a single
+    post-frame selector.
+
+    The framed precondition carries the control invariant, so this wrapper
+    splits reload, pre-reload, and ordinary no-reload cases internally and
+    rewrites `expTwoMulFixedDirectHeadFrameN` to the selected branch post. -/
 theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDirect_directHeadFrameN_of_pre
     {baseWord exponentWord : EvmWord} {k iterations : Nat}
     (controlC6 e machineC6 iterCount v10 v18 ptr nextLimb
