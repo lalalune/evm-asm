@@ -202,6 +202,22 @@ matrix, not a success claim: today
 unimplemented frontier, while the reusable accelerator payload/ECALL bridges
 are tracked from [`docs/zkvm-accelerators-interface.md`](zkvm-accelerators-interface.md).
 
+Run the focused BLS12 G2 ADD/MSM frontier:
+
+```bash
+scripts/codegen-eest-bls12-g2-frontier-check.sh --jobs 4
+```
+
+This wrapper selects EIP-2537 G2 ADD and G2 MSM fixture families by filter and
+derives each per-filter run limit from the generated manifest, so new rows are
+covered without editing the script. It supports `--skip`, `--limit`, and
+`--max-failures` for fast local bisection; add `--require-full` once the
+selected rows are expected to full-match. Some fixture tags, including older
+Amsterdam-only cached tags, may not contain Prague BLS12 fixtures; use
+`--allow-empty` only when checking wrapper plumbing rather than coverage. Set
+`EEST_BLS12_G2_FILTERS` or pass repeated `--filter` options when a fixture tag
+uses different generated path names.
+
 Run the focused EIP-7708 simple ETH transfer-log regression:
 
 ```bash
