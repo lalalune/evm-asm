@@ -10,10 +10,13 @@
 
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
-  - `pushZeroHandlers` — CODESIZE (MSIZE/GAS and RETURNDATASIZE have real implementations)
-  - `popPushZeroHandlers` — (BALANCE and EXTCODESIZE both have witness-backed implementations)
-    (EXTCODEHASH, BLOBHASH, and BLOCKHASH have real implementations in Programs/Evm.lean)
-  - `copyNoopHandlers` — CODECOPY
+  - `pushZeroHandlers` — empty (CODESIZE graduated to `codeHandlers` in M33;
+    MSIZE/GAS/RETURNDATASIZE have real implementations)
+  - `popPushZeroHandlers` — empty (BALANCE and EXTCODESIZE both have
+    witness-backed implementations; EXTCODEHASH, BLOBHASH, and BLOCKHASH
+    have real implementations in Programs/Evm.lean)
+  - `copyNoopHandlers` — empty (CALLDATACOPY/CODECOPY/RETURNDATACOPY all
+    have real implementations; CODECOPY graduated to `codeHandlers` in M33)
   - `returnDataHandlers` — RETURNDATASIZE and RETURNDATACOPY
 
   These opcodes ship with at least one spec-incompliance (returns
@@ -151,28 +154,16 @@ def haltHandlers : List OpcodeHandlerSpec :=
     , body := []
     , tail := .custom "  addi x12, x12, 32\n  j .exit_selfdestruct" } ]
 
-/-- M18 push-zero handler for CODESIZE.
-    The opcode pushes a single 32-byte zero value onto
-    the EVM stack — no input, no output content.
-    (MSIZE and GAS graduated to real env-cell-reading handlers in
-    Programs/Evm.lean.)
+/-- M18 push-zero handlers — now empty.
 
-    Body (5 instructions): decrement `x12` by 32 (push), then write
-    four 8-byte zero limbs via `SD .x12 .x0 …`.
-
-    **Known limitations** (documented in CODEGEN.md M18 narrative):
-    - CODESIZE pushes 0 instead of the running code's length. -/
+    All former members have graduated to real env-cell-reading handlers
+    in `Programs/Evm.lean`:
+    - MSIZE / GAS (M30) → `memoryMetadataHandlers` / `gasHandlers`.
+    - RETURNDATASIZE (M32) → `returnDataHandlers`.
+    - CODESIZE (M33) → `codeHandlers` (pushes the running bytecode length
+      from `env.codeSize`). -/
 def pushZeroHandlers : List OpcodeHandlerSpec :=
-  let pushZeroBody : Program :=
-    ADDI .x12 .x12 (-32) ;;
-    SD .x12 .x0 0 ;;
-    SD .x12 .x0 8 ;;
-    SD .x12 .x0 16 ;;
-    SD .x12 .x0 24
-  -- GAS (0x5a) graduated to a real handler in Programs/Evm.lean (M30) —
-  -- it pushes env.gasRemaining maintained by the dispatch-loop gas charge.
-  [ { label := "h_CODESIZE", opcodes := [0x38]
-    , body := pushZeroBody, tail := .advanceAndRet 1 } ]
+  []
 
 /-- M18 pop-and-push-zero handlers (BALANCE and EXTCODESIZE).
     This opcode pops one 32-byte input (an address) and pushes a 32-byte zero
@@ -201,29 +192,17 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
 def popPushZeroHandlers : List OpcodeHandlerSpec :=
   []
 
-/-- M18 copy-no-op handler for CODECOPY.
-    CODECOPY pops 3 stack words and would copy bytes into EVM memory.
-    As a no-op we just drop the stack args.
+/-- M18 copy-no-op handlers — now empty.
 
-    Body: a single `ADDI .x12 .x12 96`.
-
-    **Known limitations**: the copies are dropped on the floor.
-    Programs that copy into EVM memory and then MLOAD see whatever
-    was there before (typically zero, since `evm_memory` is
-    zero-initialised by the dispatcher's data section). For trusted
-    programs that don't depend on these reads, this is correct.
-
-    **M21 update**: CALLDATACOPY (0x37) was removed from this group
-    and now has a real implementation in `calldataHandlers` (see
-    `Programs/Evm.lean`).
-
-    **M32 update**: RETURNDATACOPY (0x3e) moved to `returnDataHandlers`
-    below and reads the dispatcher-maintained precompile return-data frame. -/
+    All former members have graduated to real handlers in
+    `Programs/Evm.lean`:
+    - CALLDATACOPY (M21) → `calldataHandlers`.
+    - RETURNDATACOPY (M32) → `returnDataHandlers` (EIP-211 bounds against
+      the dispatcher-maintained precompile return-data frame).
+    - CODECOPY (M33) → `codeHandlers` (verified `Code.evm_codecopy` byte
+      loop over the running bytecode, zero-filling past `len(code)`). -/
 def copyNoopHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_CODECOPY", opcodes := [0x39]
-    , preBody := stackUnderflowGuardAsm 3
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
-    , tail := .advanceAndRet 1 } ]
+  []
 
 /-- Runtime RETURNDATASIZE / RETURNDATACOPY handlers backed by
     `evm_precompile_frame`. CALL/STATICCALL precompile paths store

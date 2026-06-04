@@ -1177,6 +1177,32 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x04, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x51, 0x00"
       calldata       := "0xdeadbeef"
       expectedOutHex := "00000000000000000000000000000000000000000000000000000000efbeadde" }
+    -- ## M33 real CODESIZE / CODECOPY (running-bytecode region)
+    -- These read the running bytecode from `env.codeSize` (env+496, the
+    -- exact length seeded by both dispatcher prologues) and the preserved
+    -- code base in `x21`. No witness / external-account state is needed.
+  , -- CODESIZE; STOP; then 3 trailing data bytes — total code length 5.
+    -- CODESIZE pushes the FULL length (including the never-executed
+    -- trailing bytes) → 5. Low limb LE = 05 00 …
+    { name           := "codesize_basic"
+      bytecode       := "0x38, 0x00, 0xaa, 0xbb, 0xcc"
+      expectedOutHex := "0500000000000000000000000000000000000000000000000000000000000000" }
+  , -- CODECOPY one in-bounds byte, then MLOAD it back.
+    --   PUSH1 0x01 (size); PUSH1 0x0b (offset=11); PUSH1 0x1f (dest=31);
+    --   CODECOPY; PUSH1 0x00; MLOAD; STOP; <data byte 0xab at offset 11>.
+    -- code[11]=0xab is copied to memory[31]; MLOAD(0) reads it as the
+    -- least-significant byte of the loaded word → V = 0xab. Low limb
+    -- LE = ab 00 …
+    { name           := "codecopy_basic"
+      bytecode       := "0x60, 0x01, 0x60, 0x0b, 0x60, 0x1f, 0x39, 0x60, 0x00, 0x51, 0x00, 0xab"
+      expectedOutHex := "ab00000000000000000000000000000000000000000000000000000000000000" }
+  , -- CODECOPY entirely past len(code) → zero-fill, then MLOAD = 0.
+    --   PUSH1 0x20 (size=32); PUSH1 0xff (offset=255, well past len=11);
+    --   PUSH1 0x00 (dest=0); CODECOPY; PUSH1 0x00; MLOAD; STOP.
+    -- Every source byte is out of bounds, so memory[0..32] is zero-filled.
+    { name           := "codecopy_zero_pad"
+      bytecode       := "0x60, 0x20, 0x60, 0xff, 0x60, 0x00, 0x39, 0x60, 0x00, 0x51, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M22 real storage (SLOAD / SSTORE via pre-loaded slot table)
     -- The dispatcher prologue copies the input file's storage segment
     -- into a writable `evm_slot_table` (16 KiB, 256 slots × 64 B) and

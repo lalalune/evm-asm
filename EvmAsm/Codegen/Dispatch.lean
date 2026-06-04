@@ -466,6 +466,14 @@ def emitDispatcherPrologue : String :=
   "  la x12, evm_stack_top\n" ++
   "  la x13, evm_memory\n" ++
   "  la x20, evm_env\n" ++
+  -- M33: stash the exact running-bytecode length at env+496 for CODESIZE /
+  -- CODECOPY. `evm_code_end` is emitted right after the baked bytecode in
+  -- the data section, so `evm_code_end - evm_code` is the exact byte count
+  -- (x10 still holds `evm_code` from the `la` above; `.balign 32` padding
+  -- before `evm_memory` would over-count, hence the dedicated end label).
+  "  la x5, evm_code_end\n" ++
+  "  sub x5, x5, x10\n" ++         -- x5 = len(code) = evm_code_end - evm_code
+  "  sd x5, 496(x20)\n" ++         -- env.codeSize = running bytecode length
   -- M21: .data-baked variant has no calldata input. Initialize env's
   -- callDataPtrOff (416) to point at a safe zero region (`evm_memory`)
   -- and callDataLenOff (424) to 0. Any CALLDATALOAD reads zeros from
@@ -739,6 +747,7 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "evm_code:\n" ++
   s!"  .byte {bytecodeBytes}\n" ++
+  "evm_code_end:\n" ++   -- M33: exact end of baked bytecode (CODESIZE/CODECOPY length)
   ".balign 32\n" ++
   "evm_memory:\n" ++
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
@@ -831,7 +840,8 @@ def emitRuntimeDispatcherSetup : String :=
   -- to 8-byte boundary, add to bytecode start (x10), and that's the
   -- calldata-length address. Eight bytes past it is the calldata.
   "  li x5, 0x40000008\n" ++       -- &(bytecode length)
-  "  ld x5, 0(x5)\n" ++            -- x5 = bytecode length
+  "  ld x5, 0(x5)\n" ++            -- x5 = bytecode length (exact)
+  "  sd x5, 496(x20)\n" ++         -- M33: env.codeSize = bytecode length (CODESIZE/CODECOPY)
   "  addi x5, x5, 7\n" ++          -- round up to 8-byte boundary
   "  srli x5, x5, 3\n" ++
   "  slli x5, x5, 3\n" ++          -- x5 = padded bytecode length
