@@ -187,7 +187,7 @@ def staticGasCost (op : Nat) : Nat :=
     | 0x31 => 100 | 0x3b => 100 | 0x3f => 100               -- BALANCE,EXTCODESIZE,EXTCODEHASH (warm floor)
     | 0x3c => 100                                            -- EXTCODECOPY (warm floor, base)
     | 0x40 => 20                                             -- BLOCKHASH
-    | 0x41 | 0x42 | 0x43 | 0x44 | 0x45 | 0x46 | 0x48 | 0x4a => 2  -- COINBASE..BASEFEE, BLOBBASEFEE
+    | 0x41 | 0x42 | 0x43 | 0x44 | 0x45 | 0x46 | 0x48 | 0x4a | 0x4b => 2  -- COINBASE..BASEFEE, BLOBBASEFEE, SLOTNUM
     | 0x47 => 5                                              -- SELFBALANCE (LOW)
     | 0x49 => 3                                              -- BLOBHASH
     -- stack / memory / flow
@@ -526,6 +526,10 @@ def emitDispatcherPrologue : String :=
   -- constant so the per-opcode gas charge never spuriously runs out.
   "  li x5, 30000000\n" ++
   "  sd x5, 568(x20)\n" ++         -- env.gasRemaining = 30,000,000
+  "  sd x0, 624(x20)\n" ++         -- EIP-7843 SLOTNUM word = 0
+  "  sd x0, 632(x20)\n" ++
+  "  sd x0, 640(x20)\n" ++
+  "  sd x0, 648(x20)\n" ++
   ".dispatch_loop:\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
@@ -776,10 +780,11 @@ def emitDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 624\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 656\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells + M28/M29 blob/block
                           -- cells (up to env+560) + M30 gasRemaining at env+568
                           -- + M31 account-witness context at env+576..616
+                          -- + EIP-7843 SLOTNUM word at env+624..655
                           -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
                           -- + M28 blobHashCount at env+544
                           -- + M29 BLOCKHASH current/count at env+552/+560
@@ -1013,8 +1018,9 @@ def emitRuntimeDispatcherSetup : String :=
   -- Simple-env trailer: 13 contiguous 32-byte slots matching `EvmEnv`
   -- layout offsets 0..415: ADDRESS, SELFBALANCE, CALLER, CALLVALUE,
   -- ORIGIN, GASPRICE, COINBASE, TIMESTAMP, NUMBER, PREVRANDAO,
-  -- GASLIMIT, BASEFEE, CHAINID. Copying all 416 bytes preserves zero
-  -- defaults when the packer emits its default all-zero trailer.
+  -- GASLIMIT, BASEFEE, CHAINID. A 14th 32-byte trailer word carries
+  -- EIP-7843 SLOTNUM and is copied to env+624 so existing helper offsets
+  -- stay fixed. Zero defaults are preserved when the packer emits zeros.
   "  mv x6, x20\n" ++              -- x6 = evm_env destination
   "  li x7, 52\n" ++               -- 13 words × 4 dwords
   ".env_trailer_copy_loop:\n" ++
@@ -1024,6 +1030,15 @@ def emitRuntimeDispatcherSetup : String :=
   "  addi x6, x6, 8\n" ++
   "  addi x7, x7, -1\n" ++
   "  bnez x7, .env_trailer_copy_loop\n" ++
+  "  ld x8, 0(x5)\n" ++
+  "  sd x8, 624(x20)\n" ++
+  "  ld x8, 8(x5)\n" ++
+  "  sd x8, 632(x20)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 640(x20)\n" ++
+  "  ld x8, 24(x5)\n" ++
+  "  sd x8, 648(x20)\n" ++
+  "  addi x5, x5, 32\n" ++
   -- M30/M31: gas limit trailer followed by optional account-witness
   -- context. pack-bytecode.py always appends the three length cells;
   -- zero header length means no state context is available.
@@ -1079,10 +1094,11 @@ def emitRuntimeDispatcherDataSection
   "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
   ".balign 8\n" ++
   "evm_env:\n" ++
-  "  .zero 624\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
+  "  .zero 656\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
                           -- + M22/M24/M26 log-state cells + M28/M29 blob/block
                           -- cells (up to env+560) + M30 gasRemaining at env+568
                           -- + M31 account-witness context at env+576..616
+                          -- + EIP-7843 SLOTNUM word at env+624..655
                           -- + M28 BLOBBASEFEE word at env+512 (32 bytes)
                           -- + M28 blobHashCount at env+544
                           -- + M29 BLOCKHASH current/count at env+552/+560

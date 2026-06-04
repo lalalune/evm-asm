@@ -45,7 +45,7 @@
 #     --skip N           skip first N selected stateless blocks after filtering
 #     --limit N          cap to N guest invocations (default 50)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
-#     --steps N          ziskemu max steps (default $EEST_STEPS or 50000000)
+#     --steps N          ziskemu max steps (default $EEST_STEPS or 200000000)
 #     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto)
 #     --max-failures N   stop after N FAIL/ERROR results (default: disabled)
 #     --stop-after-failures N
@@ -95,10 +95,10 @@ SKIP=0
 LIMIT=50
 FILTER=""
 # Default step cap. ziskemu stops at the guest's halt, so this only bounds
-# runaway/very-large runs -- raised to 50M so many-deposit / large-tx blocks
-# (whose NPR-root merkleization is sha256-heavy) complete; normal blocks
-# halt long before this and are not slowed.
-STEPS="${EEST_STEPS:-50000000}"
+# runaway/very-large runs. Keep the base harness at the known working EEST
+# cap used by the focused wrapper scripts; normal blocks halt long before
+# this and are not slowed.
+STEPS="${EEST_STEPS:-200000000}"
 # Case-insensitive ERE matched against the ziskemu log when a run does NOT
 # produce a valid 105-byte output, to tell "exhausted the --steps budget"
 # (BUDGET, not a correctness failure) apart from a genuine ERROR. Override
@@ -136,7 +136,7 @@ Options:
   --skip N                 skip first N selected stateless blocks after filtering
   --limit N                cap to N guest invocations (default 50)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
-  --steps N                ziskemu max steps (default $EEST_STEPS or 50000000)
+  --steps N                ziskemu max steps (default $EEST_STEPS or 200000000)
   --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto)
   --max-failures N         stop after N FAIL/ERROR results
   --stop-after-failures N  alias for --max-failures
@@ -315,7 +315,19 @@ fi
 
 compute_job_cap() {
   local mem_avail_kib mem_avail_mib mem_cap ncpu cpu_cap cap
+  # Linux: read MemAvailable from /proc/meminfo
   mem_avail_kib="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || true)"
+  if [[ -z "$mem_avail_kib" ]]; then
+    # macOS: approximate available memory from vm_stat (pages * page_size / 1024)
+    local page_size free_pages speculative inactive
+    page_size="$(sysctl -n hw.pagesize 2>/dev/null || echo 4096)"
+    free_pages="$(vm_stat 2>/dev/null | awk '/Pages free:/ {gsub(/\./,"",$3); print $3}')"
+    speculative="$(vm_stat 2>/dev/null | awk '/Pages speculative:/ {gsub(/\./,"",$3); print $3}')"
+    inactive="$(vm_stat 2>/dev/null | awk '/Pages inactive:/ {gsub(/\./,"",$3); print $3}')"
+    if [[ -n "$free_pages" ]]; then
+      mem_avail_kib=$(( (${free_pages:-0} + ${speculative:-0} + ${inactive:-0}) * page_size / 1024 ))
+    fi
+  fi
   if [[ -z "$mem_avail_kib" ]]; then
     mem_cap=1
   else
@@ -327,7 +339,8 @@ compute_job_cap() {
       [[ "$mem_cap" -lt 1 ]] && mem_cap=1
     fi
   fi
-  ncpu="$(nproc 2>/dev/null || echo 1)"
+  # nproc is Linux-specific; fall back to sysctl on macOS
+  ncpu="$(nproc 2>/dev/null || sysctl -n hw.logicalcpu 2>/dev/null || echo 1)"
   cpu_cap=$((ncpu / JOB_CPU_THREADS))
   [[ "$cpu_cap" -lt 1 ]] && cpu_cap=1
   cap="$mem_cap"

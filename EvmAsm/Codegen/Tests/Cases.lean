@@ -428,6 +428,12 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x48, 0x00"
       expectedOutHex := "efbe000000000000000000000000000000000000000000000000000000000000"
       env            := "base_fee=0xbeef" }
+  , -- SLOTNUM; STOP with nonzero runtime env. EIP-7843 exposes the
+    -- consensus-layer slot number through opcode 0x4b.
+    { name           := "slotnum_from_input_env"
+      bytecode       := "0x4b, 0x00"
+      expectedOutHex := "2a00000000000000000000000000000000000000000000000000000000000000"
+      env            := "slot_number=0x2a" }
     -- ## M13 calldata-context opcode (CALLDATASIZE)
     -- The calldata-length cell at evm_env + 424 is zero-initialised by the
     -- dispatcher's .data section, so CALLDATASIZE pushes 32 zero bytes.
