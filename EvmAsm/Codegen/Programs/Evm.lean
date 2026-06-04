@@ -1415,7 +1415,7 @@ def selfCallingHandlers : List OpcodeHandlerSpec :=
       tail          := evmAddmodRuntimeTail }
   , { label         := "h_EXP"
       opcodes       := [0x0a]
-      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x2, exp_scratch"
+      preBody       := stackUnderflowGuardAsm 2 ++ "\n" ++ expDynamicGasAsm ++ "  mv x14, x10\n  la x2, exp_scratch"
       body          := evmExpComposed
       tail          := expTail } ]
 

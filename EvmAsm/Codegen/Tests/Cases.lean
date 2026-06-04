@@ -1383,6 +1383,29 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "exp_two_255_squared"
       bytecode       := "0x60, 0x02, 0x7f, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- EXP gas: exponent zero charges only PUSH1*2 + EXP base = 16.
+    { name           := "exp_gas_zero_exponent_exact"
+      bytecode       := "0x60, 0x00, 0x60, 0x05, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "16" }
+  , -- EXP gas: one exponent byte adds 50, so PUSH1*2 + EXP = 66.
+    { name           := "exp_gas_one_byte_exact"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x0a, 0x00"
+      expectedOutHex := "0200000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "66" }
+  , -- One gas short of the one-byte exponent dynamic charge exits OOG before
+    -- the EXP body writes a result.
+    { name             := "exp_gas_one_byte_oog"
+      bytecode         := "0x60, 0x01, 0x60, 0x02, 0x0a, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "65" }
+  , -- EXP gas: all 32 exponent bytes non-zero adds 1600, so
+    -- PUSH32 + PUSH1 + EXP = 1616.
+    { name           := "exp_gas_max_exponent_exact"
+      bytecode       := "0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x60, 0x01, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1616" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;

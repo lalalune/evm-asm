@@ -105,6 +105,45 @@ def copyWordGasAsm (tag lengthReg roundedReg wordsReg gasReg : String) : String 
   "  sd " ++ roundedReg ++ ", 568(x20)\n" ++
   ".Lcopygas_" ++ tag ++ "_done:\n"
 
+/-- EXP dynamic gas add-on before exponentiation. The dispatch loop already
+    charges the fixed EXP base cost (10), so this charges only
+    `50 * exponentByteLength(exponent)`.
+
+    Stack layout before EXP body: `base` at 0(x12), `exponent` at 32(x12).
+    EVM words are stored little-endian as four u64 limbs; the byte length is
+    therefore the highest non-zero limb index times 8 plus that limb's own
+    non-zero byte length. Scratch registers x5/x6/x7 are clobbered. -/
+def expDynamicGasAsm : String :=
+  "  li x6, 0\n" ++
+  "  ld x5, 56(x12)\n" ++
+  "  bnez x5, .Lexp_gas_limb3\n" ++
+  "  ld x5, 48(x12)\n" ++
+  "  bnez x5, .Lexp_gas_limb2\n" ++
+  "  ld x5, 40(x12)\n" ++
+  "  bnez x5, .Lexp_gas_limb1\n" ++
+  "  ld x5, 32(x12)\n" ++
+  "  beqz x5, .Lexp_gas_charge\n" ++
+  "  j .Lexp_gas_count_limb\n" ++
+  ".Lexp_gas_limb1:\n" ++
+  "  li x6, 8\n" ++
+  "  j .Lexp_gas_count_limb\n" ++
+  ".Lexp_gas_limb2:\n" ++
+  "  li x6, 16\n" ++
+  "  j .Lexp_gas_count_limb\n" ++
+  ".Lexp_gas_limb3:\n" ++
+  "  li x6, 24\n" ++
+  ".Lexp_gas_count_limb:\n" ++
+  "  addi x6, x6, 1\n" ++
+  "  srli x5, x5, 8\n" ++
+  "  bnez x5, .Lexp_gas_count_limb\n" ++
+  ".Lexp_gas_charge:\n" ++
+  "  li x7, 50\n" ++
+  "  mul x6, x6, x7\n" ++
+  "  ld x5, 568(x20)\n" ++
+  "  bltu x5, x6, .exit_outofgas\n" ++
+  "  sub x5, x5, x6\n" ++
+  "  sd x5, 568(x20)\n"
+
 /-- LOG0..LOG4 dynamic gas before event-log mutation. The dispatch loop already
     charges the fixed LOG base cost (375), so this charges only topic gas,
     data-byte gas, and memory expansion for the logged byte range. Per
