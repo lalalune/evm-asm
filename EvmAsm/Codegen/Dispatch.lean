@@ -415,6 +415,12 @@ def emitRuntimeAccountWitnessData : String :=
   ".balign 32\n" ++
   "create_address_be:\n" ++
   "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "create_value_be:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "create_balance_be:\n" ++
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "ac_buffer:\n" ++
   "  .zero 32\n" ++

@@ -633,6 +633,33 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "2" }
+    -- ## M31 memory-expansion gas (cost(w) = 3·w + ⌊w²/512⌋)
+  , -- PUSH1 0x42 (sentinel); PUSH1 0x00 (value); PUSH2 0x0400 (offset=1024);
+    -- MSTORE; STOP. MSTORE writes [1024, 1056) → 33 words; expansion from 0
+    -- = cost(33) − cost(0) = (3·33 + ⌊1089/512⌋) − 0 = 99 + 2 = 101.
+    -- Total gas = PUSH1(3)+PUSH1(3)+PUSH2(3)+MSTORE static(3)+expansion(101)
+    -- = 113. With gasLimit = 113 it just fits; STOP surfaces the sentinel 0x42.
+    { name           := "mem_expansion_sufficient"
+      bytecode       := "0x60, 0x42, 0x60, 0x00, 0x61, 0x04, 0x00, 0x52, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "113" }
+  , -- Same bytecode, one gas short (112): the dispatch loop charges the
+    -- pushes + MSTORE static (12), leaving 100 < the 101-gas expansion →
+    -- out-of-gas inside the MSTORE preBody (halt_kind = 6, zero result).
+    { name             := "mem_expansion_oog"
+      bytecode         := "0x60, 0x42, 0x60, 0x00, 0x61, 0x04, 0x00, 0x52, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "112" }
+  , -- Two MSTOREs at the SAME offset. The first expands to 33 words (101 gas);
+    -- the second finds the high-water already at/above its range and charges
+    -- ZERO expansion. Total = 3+3+3 + (3+101) + 3+3 + (3+0) + STOP(0) = 122.
+    -- Passing at gasLimit = 122 proves the second access is not double-charged
+    -- (a double charge would need 223 and OOG here).
+    { name           := "mem_expansion_no_double_charge"
+      bytecode       := "0x60, 0x42, 0x60, 0x00, 0x61, 0x04, 0x00, 0x52, 0x60, 0x00, 0x61, 0x04, 0x00, 0x52, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "122" }
     -- ## Stack underflow classification
     -- Stack consumers with too few words route to halt_kind = 7 before
     -- their verified bodies perform unchecked stack loads.
@@ -757,8 +784,11 @@ def opcodeTestCases : List OpcodeTestCase :=
   , -- MSTORE8 first makes active memory 0x60. MCOPY source 0 is already
     -- covered; destination 0x80 expands to 0xa0, so dynamic gas is 9.
     { name           := "mcopy_gas_dest_only_after_mstore8"
+      -- M31: MSTORE8 at offset 64 now also pays its own memory-expansion gas
+      -- (rounded = 96 B = 3 words → cost(3) = 9), so the GAS opcode surfaces
+      -- 9 fewer than the pre-M31 expectation: 968 (0x3c8) → 959 (0x3bf).
       bytecode       := "0x60, 0xab, 0x60, 0x40, 0x53, 0x60, 0x01, 0x60, 0x00, 0x60, 0x80, 0x5e, 0x5a, 0x00"
-      expectedOutHex := "c803000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "bf03000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "1000" }
   , -- Gas=12 covers the three PUSH1s and MCOPY's static base charge,
     -- but not MCOPY's dynamic copy+memory charge, so the handler exits OOG.
