@@ -231,11 +231,13 @@ def emitGasCostTable : String :=
       +336 BLS12 G1 ADD compact result scratch
       +144 BLS12 G2 ADD compact p1 scratch
       +336 BLS12 G2 ADD compact p2 scratch
-      +528 BLS12 G2 ADD compact result scratch. -/
+      +528 BLS12 G2 ADD compact result scratch
+      +720 BLS12 G2 MSM compact pair scratch
+      +944 BLS12 G2 MSM compact result scratch. -/
 def emitPrecompileFrameData : String :=
   ".balign 8\n" ++
   "evm_precompile_frame:\n" ++
-  "  .zero 720\n"
+  "  .zero 1152\n"
 
 /-- Scratch buffers used by `zkvm_sha256`. The wrapper expects these
     labels to exist in the dispatcher's data section. -/
