@@ -315,7 +315,19 @@ fi
 
 compute_job_cap() {
   local mem_avail_kib mem_avail_mib mem_cap ncpu cpu_cap cap
+  # Linux: read MemAvailable from /proc/meminfo
   mem_avail_kib="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || true)"
+  if [[ -z "$mem_avail_kib" ]]; then
+    # macOS: approximate available memory from vm_stat (pages * page_size / 1024)
+    local page_size free_pages speculative inactive
+    page_size="$(sysctl -n hw.pagesize 2>/dev/null || echo 4096)"
+    free_pages="$(vm_stat 2>/dev/null | awk '/Pages free:/ {gsub(/\./,"",$3); print $3}')"
+    speculative="$(vm_stat 2>/dev/null | awk '/Pages speculative:/ {gsub(/\./,"",$3); print $3}')"
+    inactive="$(vm_stat 2>/dev/null | awk '/Pages inactive:/ {gsub(/\./,"",$3); print $3}')"
+    if [[ -n "$free_pages" ]]; then
+      mem_avail_kib=$(( (${free_pages:-0} + ${speculative:-0} + ${inactive:-0}) * page_size / 1024 ))
+    fi
+  fi
   if [[ -z "$mem_avail_kib" ]]; then
     mem_cap=1
   else
@@ -327,7 +339,8 @@ compute_job_cap() {
       [[ "$mem_cap" -lt 1 ]] && mem_cap=1
     fi
   fi
-  ncpu="$(nproc 2>/dev/null || echo 1)"
+  # nproc is Linux-specific; fall back to sysctl on macOS
+  ncpu="$(nproc 2>/dev/null || sysctl -n hw.logicalcpu 2>/dev/null || echo 1)"
   cpu_cap=$((ncpu / JOB_CPU_THREADS))
   [[ "$cpu_cap" -lt 1 ]] && cpu_cap=1
   cap="$mem_cap"
