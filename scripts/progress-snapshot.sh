@@ -13,7 +13,12 @@
 # with the same fixture tag yields an identical record (modulo `date`).
 #
 # Usage:
-#   scripts/progress-snapshot.sh            # emit one JSONL record
+#   scripts/progress-snapshot.sh            # emit one JSONL record (working tree)
+#   scripts/progress-snapshot.sh --ref <commit>
+#                                           # snapshot an arbitrary commit via
+#                                           # `git show` (no checkout). Used by
+#                                           # the PR-time velocity gate (Phase 4
+#                                           # D7) to read the PR *base* commit.
 #
 # Counts are parsed from the committed PROGRESS.md (which `check-progress.sh`
 # already pins to the kernel-checked renderer, so no `lake build` is needed
@@ -27,22 +32,45 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-COMMIT="$(git rev-parse HEAD)"
-DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-EEST_TAG="$(tr -d ' \n' < scripts/eest-fixture-tag.txt 2>/dev/null || echo unknown)"
+REF=""
+if [[ "${1:-}" == "--ref" ]]; then
+  REF="${2:-}"
+  if [[ -z "$REF" ]]; then echo "progress-snapshot: --ref needs a commit" >&2; exit 2; fi
+fi
 
-CONF_COUNT="$(grep -oE 'allConformanceVectorCount = [0-9]+' \
-  EvmAsm/EL/Conformance/All.lean | head -1 | grep -oE '[0-9]+' || true)"
+# Read a tracked file either from the working tree (default) or, when --ref is
+# given, from that commit via `git show` — so a snapshot can be taken for any
+# commit without disturbing the checkout.
+read_tracked() {
+  local path="$1"
+  if [[ -n "$REF" ]]; then
+    git show "${REF}:${path}" 2>/dev/null
+  else
+    cat "$path" 2>/dev/null
+  fi
+}
+
+if [[ -n "$REF" ]]; then
+  COMMIT="$(git rev-parse "$REF" 2>/dev/null || echo "$REF")"
+else
+  COMMIT="$(git rev-parse HEAD)"
+fi
+DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+EEST_TAG="$(read_tracked scripts/eest-fixture-tag.txt | tr -d ' \n' || echo unknown)"
+[[ -z "$EEST_TAG" ]] && EEST_TAG="unknown"
+
+CONF_COUNT="$(read_tracked EvmAsm/EL/Conformance/All.lean \
+  | grep -oE 'allConformanceVectorCount = [0-9]+' | head -1 | grep -oE '[0-9]+' || true)"
 if [[ -z "$CONF_COUNT" ]]; then
-  echo "progress-snapshot: failed to parse allConformanceVectorCount" >&2
+  echo "progress-snapshot: failed to parse allConformanceVectorCount${REF:+ at $REF}" >&2
   exit 1
 fi
 
-if [[ ! -f PROGRESS.md ]]; then
-  echo "progress-snapshot: PROGRESS.md missing; run scripts/progress-report.sh --write" >&2
+REPORT="$(read_tracked PROGRESS.md)"
+if [[ -z "$REPORT" ]]; then
+  echo "progress-snapshot: PROGRESS.md missing${REF:+ at $REF}; run scripts/progress-report.sh --write" >&2
   exit 2
 fi
-REPORT="$(cat PROGRESS.md)"
 
 # Extract every count we track into KEY=VALUE shell assignments. PROGRESS.md
 # renders, in order: the obligation count table (icons ✅/🟡/✗ + done/blocked/
