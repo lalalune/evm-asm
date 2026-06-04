@@ -3,7 +3,8 @@
 #
 # The probe links a local wrapper with the zkvm-standards C ABI:
 #   zkvm_bls12_g1_add(p1, p2, result) -> zkvm_status in a0
-# and delegates through ECALL selector 0x10b. It writes:
+# and, on hosts without a completing selector-0x10b route, uses a deterministic
+# safe-fail shim that returns EFAIL instead of crashing guest execution. It writes:
 #   OUTPUT+0  returned status word
 #   OUTPUT+8  first result u64
 #   OUTPUT+16 second result u64
@@ -13,7 +14,7 @@
 #        classified as not ready on the current ziskemu installation
 #   1 -- build/link failed, or backend returned an unexpected status
 # With --require-ready:
-#   0 -- wrapper linked and ziskemu returned EOK or EFAIL
+#   0 -- wrapper linked and ziskemu returned EOK or deterministic EFAIL
 #   1 -- build/link/emulator failed, backend route not ready, or unexpected status
 set -euo pipefail
 
@@ -94,7 +95,7 @@ case "$STATUS_HEX" in
     echo "==> PASS: zkvm_bls12_g1_add wrapper linked and backend returned EOK"
     ;;
   ffffffffffffffff)
-    echo "==> PASS: zkvm_bls12_g1_add wrapper linked and backend returned EFAIL"
+    echo "==> PASS: zkvm_bls12_g1_add wrapper linked and returned deterministic EFAIL"
     ;;
   *)
     echo "==> FAIL: unexpected status word from zkvm_bls12_g1_add wrapper"
