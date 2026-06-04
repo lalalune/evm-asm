@@ -26,7 +26,9 @@ open EvmAsm.Rv64
 
     Descriptor layout matches `mpt_state_root_ins`:
       +0 path_ptr | +8 path_len | +16 value_ptr | +24 value_len | +32 mode.
-    Modes are 0=modify, 1=insert, 2=delete, 3=no-op. -/
+    Modes are 0=modify, 1=insert, 2=delete, 3=no-op. Caller flag 4 is
+    normalized to mode 0 but asks `bal_account_apply_post_fields` to clear the
+    account storage trie before applying this item's post-wipe storage writes. -/
 def balAccountChangeDescriptorFunction : String :=
   "bal_account_change_descriptor:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -42,6 +44,10 @@ def balAccountChangeDescriptorFunction : String :=
   "  mv s6, a2                   # AccountChanges ptr\n" ++
   "  mv s7, a3                   # AccountChanges len\n" ++
   "  la t0, baacd_fail_code; sd zero, 0(t0)\n" ++
+  "  la t0, baap_force_storage_clear; sd zero, 0(t0)\n" ++
+  "  li t1, 4; bne s0, t1, .Lbaacd_mode_ready\n" ++
+  "  li t2, 1; sd t2, 0(t0); li s0, 0 # force storage clear, state-trie MODIFY\n" ++
+  ".Lbaacd_mode_ready:\n" ++
   "  mv a0, s4; mv a1, s5; mv a2, s6; mv a3, s7\n" ++
   "  mv a4, s2; mv a5, s3; la a6, baacd_value_len\n" ++
   "  jal ra, bal_account_change_value\n" ++
@@ -106,7 +112,34 @@ def ziskBalAccountChangeDescriptorPrologue : String :=
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   rlpEncodeUintBeFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
+  hpEncodeNibblesFunction ++ "\n" ++
+  witnessLookupByHashFunction ++ "\n" ++
+  nodeDbLookupFunction ++ "\n" ++
+  nodeDbAppendFunction ++ "\n" ++
+  mptResolveCacheResetFunction ++ "\n" ++
+  mptNodeResolveFunction ++ "\n" ++
+  mptNodeKindFunction ++ "\n" ++
+  hpDecodeNibblesFunction ++ "\n" ++
+  mptWalkFunction ++ "\n" ++
+  mptSetRecordWalkDbFunction ++ "\n" ++
+  mptInsertWalkDbFunction ++ "\n" ++
+  mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
+  mptNodeSlotEncodeFunction ++ "\n" ++
+  mptLeafExtractFunction ++ "\n" ++
+  mptExtensionNodeEncodeFunction ++ "\n" ++
+  singleLeafTrieRootFunction ++ "\n" ++
+  storageRootSingleSlotFunction ++ "\n" ++
+  accountSetStorageRootFunction ++ "\n" ++
+  accountApplyStorageSlotFunction ++ "\n" ++
+  accountApplyStorageSlotAccFunction ++ "\n" ++
+  mptSetAccFunction ++ "\n" ++
+  mptInsertAccFunction ++ "\n" ++
+  mptDeleteWalkDbFunction ++ "\n" ++
+  mptExtensionExtractFunction ++ "\n" ++
+  mptDeleteAccFunction ++ "\n" ++
+  mptStateRootInsFunction ++ "\n" ++
   rlpItemSizeFunction ++ "\n" ++
   rlpItemSpanFunction ++ "\n" ++
   msetMemcpyFunction ++ "\n" ++

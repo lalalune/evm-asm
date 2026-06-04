@@ -107,12 +107,15 @@ def ziskBalAccountChangeValuePrologue : String :=
   ".Lbacv_pdone:"
 
 def ziskBalAccountChangeValueDataSection : String :=
-  ziskBalAccountPathDataSection ++ "\n" ++
   ziskBalAccountApplyPostFieldsDataSection ++ "\n" ++
+  ".balign 8\n" ++
+  "bacp_off:\n  .zero 8\n" ++
+  "bacp_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bacp_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bacv_fail_code:\n  .zero 8\n" ++
   "bacv_out_pad:\n  .zero 8"
-
 def ziskBalAccountChangeValueProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskBalAccountChangeValuePrologue
