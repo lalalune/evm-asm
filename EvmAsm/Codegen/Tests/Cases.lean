@@ -901,6 +901,27 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "staticcall_pop6_push_zero"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xfa, 0x60, 0xab, 0x00"
       expectedOutHex := "ab00000000000000000000000000000000000000000000000000000000000000" }
+  , -- ECRECOVER currently remains an empty-returndata success stub,
+    -- but now charges its fixed inner precompile gas of 3000. CALL
+    -- total here is seven PUSH1s (21) + CALL warm static base (100)
+    -- + ECRECOVER fixed gas (3000) = 3121.
+    { name           := "call_ecrecover_precompile_fixed_gas_exact"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3121" }
+  , -- One gas less reaches the ECRECOVER branch after CALL's static
+    -- charge, then fails in the inner precompile-gas helper.
+    { name             := "call_ecrecover_precompile_fixed_gas_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "3120" }
+  , -- STATICCALL has six PUSH1s, so its exact threshold is 18 + 100
+    -- + 3000 = 3118.
+    { name           := "staticcall_ecrecover_precompile_fixed_gas_exact"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3118" }
   , -- CALL to basic precompile address 0x04 (IDENTITY) reaches the
     -- precompile-specific frame stub and pushes success = 1. Stack
     -- args are pushed bottom-to-top: out_size, out_off, in_size,

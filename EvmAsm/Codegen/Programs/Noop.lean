@@ -594,6 +594,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
+    "  li x16, 1\n" ++
+    "  beq x14, x16, 29f\n" ++
     "  li x16, 2\n" ++
     "  beq x14, x16, 8f\n" ++
     "  li x16, 4\n" ++
@@ -677,6 +679,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x19, x19, 1\n" ++
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 10b\n" ++
+    "  j 7b\n" ++
+    -- ECRECOVER fixed gas. Later slices replace the empty-output stub with
+    -- validation, backend recovery, and address-output framing.
+    "29:\n" ++
+    chargePrecompileGasConstAsm 3000 "x16" "x17" ++
     "  j 7b\n" ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
