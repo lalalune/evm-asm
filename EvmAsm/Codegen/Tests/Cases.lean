@@ -1502,6 +1502,27 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x04, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x51, 0x00"
       calldata       := "0xdeadbeef"
       expectedOutHex := "00000000000000000000000000000000000000000000000000000000efbeadde" }
+  , -- CALLDATACOPY one byte exact gas: PUSH1*3 (9) + static (3) +
+    -- copy word (3) + memory expansion to one word (3) + final PUSH1 (3) = 21.
+    { name           := "calldatacopy_gas_len1_exact"
+      bytecode       := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x42, 0x00"
+      calldata       := "0xaa"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "21" }
+  , -- CALLDATACOPY 33 bytes exact gas: PUSH1*3 (9) + static (3) +
+    -- copy two words (6) + memory expansion to two words (6) + final PUSH1 (3) = 27.
+    { name           := "calldatacopy_gas_len33_exact"
+      bytecode       := "0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x42, 0x00"
+      calldata       := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "27" }
+  , -- One gas short of the one-word copy charge exits before memory/body mutation.
+    { name             := "calldatacopy_copy_gas_oog"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x42, 0x00"
+      calldata         := "0xaa"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "14" }
     -- ## M33 real CODESIZE / CODECOPY (running-bytecode region)
     -- These read the running bytecode from `env.codeSize` (env+496, the
     -- exact length seeded by both dispatcher prologues) and the preserved
@@ -1528,6 +1549,18 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "codecopy_zero_pad"
       bytecode       := "0x60, 0x20, 0x60, 0xff, 0x60, 0x00, 0x39, 0x60, 0x00, 0x51, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- CODECOPY 33 bytes exact gas: PUSH1*3 (9) + static (3) +
+    -- copy two words (6) + memory expansion to two words (6) + final PUSH1 (3) = 27.
+    { name           := "codecopy_gas_len33_exact"
+      bytecode       := "0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0x39, 0x60, 0x42, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "27" }
+  , -- One gas short of the one-word CODECOPY copy charge exits before copying.
+    { name             := "codecopy_copy_gas_oog"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x39, 0x60, 0x42, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "14" }
     -- ## M22 real storage (SLOAD / SSTORE via pre-loaded slot table)
     -- The dispatcher prologue copies the input file's storage segment
     -- into a writable `evm_slot_table` (16 KiB, 256 slots × 64 B) and
