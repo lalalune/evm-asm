@@ -257,9 +257,24 @@ def main() -> int:
     )
     with manifest.open() as f:
         for line in f:
-            label, input_file, expected_hex, _succ_bit, _input_len, relpath = (
-                line.rstrip("\n").split("\t", 5)
-            )
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) == 6:
+                label, input_file, expected_hex, _succ_bit, _input_len, relpath = fields
+            elif len(fields) == 7:
+                (
+                    label,
+                    input_file,
+                    expected_hex,
+                    _succ_bit,
+                    _input_len,
+                    _gas_limit,
+                    relpath,
+                ) = fields
+            else:
+                raise ValueError(f"unexpected manifest column count: {len(fields)}")
+            input_path = Path(input_file)
+            if not input_path.is_absolute() and not input_path.is_file():
+                input_path = repo_root() / input_path
             result = results_dir / f"{label}.result.tsv"
             if not result.is_file():
                 continue
@@ -272,7 +287,7 @@ def main() -> int:
             if guest_succ == expected_succ:
                 continue
             try:
-                context = decode_context(Path(input_file))
+                context = decode_context(input_path)
             except Exception as exc:
                 context = f"decode_error={type(exc).__name__}:{exc}"
             print(
