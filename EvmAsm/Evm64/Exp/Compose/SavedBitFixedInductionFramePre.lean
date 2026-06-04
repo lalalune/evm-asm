@@ -441,6 +441,49 @@ theorem expTwoMulFixedIterPreNWithInductionFrame_step_cases_from_framed_pre
   expTwoMulFixedIterPreNWithInductionFrame_step_cases_of_control
     (expTwoMulFixedIterPreNWithInductionFrame_control_from_framed_pre hPreR)
 
+theorem expTwoMulFixedIterPreNWithInductionFrame_step_cases_from_holdsFor
+    {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
+    {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word}
+    {R : Assertion} {s : MachineState}
+    (hPreR :
+      (expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 ** R).holdsFor s) :
+    expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 =
+        expTwoMulFixedIterPreNWithStateFrame k baseWord exponentWord
+          controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+          tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+          a0 a1 a2 a3 v7 v11
+          (expTwoMulFixedReloadTailFrameN exponentWord k ptr) ∨
+      expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 =
+        expTwoMulFixedIterPreNWithStateFrame k baseWord exponentWord
+          controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+          tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+          a0 a1 a2 a3 v7 v11
+          (expTwoMulFixedPreReloadFrameN exponentWord k ptr) ∨
+      (expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
+          controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+          tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+          a0 a1 a2 a3 v7 v11 =
+          expTwoMulFixedIterPreNWithStateFrame k baseWord exponentWord
+            controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+            tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+            a0 a1 a2 a3 v7 v11
+            (expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr) ∧
+        k % 64 < 62) := by
+  obtain ⟨ps, _h_compat, hPreRps⟩ := hPreR
+  exact expTwoMulFixedIterPreNWithInductionFrame_step_cases_from_framed_pre
+    hPreRps
+
 theorem expTwoMulFixedIterPreNWithInductionFrame_succ_no_reload_cases_of_control
     {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
     {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
