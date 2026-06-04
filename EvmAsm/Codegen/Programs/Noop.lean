@@ -206,13 +206,13 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
 
 /-- Runtime RETURNDATASIZE / RETURNDATACOPY handlers backed by
     `evm_precompile_frame`. CALL/STATICCALL precompile paths store
-    their return-data length at `+8` and up to 128 bytes at `+16`.
+    their return-data length at `+8` and up to 256 bytes at `+16`.
     Non-precompile, absent-account, CREATE, and CREATE2 paths clear
     the length to model an empty return-data buffer.
 
     RETURNDATACOPY follows execution-specs EIP-211 behavior for bounds:
     copying past the current buffer is an exceptional halt, not zero-fill.
-    This first runtime slice retains a 128-byte prefix of child returndata, so
+    This runtime slice retains a 256-byte prefix of child returndata, so
     copies beyond that retained prefix are also exceptional until a wider
     return-data arena lands. -/
 def returnDataHandlers : List OpcodeHandlerSpec :=
@@ -239,7 +239,7 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
         "  add x19, x15, x16\n" ++
         "  bltu x19, x15, .exit_invalid\n" ++
         "  bltu x18, x19, .exit_invalid\n" ++
-        "  li x18, 128\n" ++
+        "  li x18, 256\n" ++
         "  bltu x18, x19, .exit_invalid\n" ++
         "  addi x12, x12, 96\n" ++
         "  beqz x16, 2f\n" ++
@@ -573,11 +573,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  add x18, x13, x18\n" ++    -- x18 = identity input bytes
     "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
     "  add x19, x13, x19\n" ++    -- x19 = caller output bytes
-    -- Copy up to 128 bytes of returndata into the shared frame.
+    -- Copy up to 256 bytes of returndata into the shared frame.
     "  mv x22, x18\n" ++
     "  addi x23, x15, 16\n" ++
     "  mv x24, x17\n" ++
-    "  li x16, 128\n" ++
+    "  li x16, 256\n" ++
     "  bgeu x16, x24, 2f\n" ++
     "  mv x24, x16\n" ++
     "2:\n" ++
@@ -721,9 +721,48 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  bnez a0, 1f\n" ++
+    -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
+    -- to a 64-byte big-endian field element.
+    "  addi x18, x15, 16\n" ++
+    "  addi x19, x15, 528\n" ++
+    "  li x23, 4\n" ++
+    "17:\n" ++
+    "  li x22, 16\n" ++
+    "18:\n" ++
+    "  sb x0, 0(x18)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 18b\n" ++
+    "  li x22, 48\n" ++
+    "19:\n" ++
+    "  lbu x16, 0(x19)\n" ++
+    "  sb x16, 0(x18)\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 19b\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 17b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
-    "  sd x0, 8(x15)\n" ++
+    "  li x16, 256\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x23, 256\n" ++
+    "  bgeu x22, x23, 20f\n" ++
+    "  mv x23, x22\n" ++
+    "20:\n" ++
+    "  beqz x23, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "21:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 21b\n" ++
     "  j 7b\n" ++
     -- BLS12-381 G2 MSM: execution-specs rejects empty input and non-288
     -- multiples before charging gas or invoking curve arithmetic. Valid-length
