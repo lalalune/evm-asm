@@ -64,6 +64,38 @@ instance pcFreeInst_expTwoMulFixedIterPreNWithInductionFrame
         v7 v11) :=
   ⟨expTwoMulFixedIterPreNWithInductionFrame_pcFree⟩
 
+theorem expTwoMulFixedIterPreNWithInductionFrame_pure
+    {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
+    {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word}
+    {ps : PartialState}
+    (hPre :
+      expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 ps) :
+    expTwoMulFixedIterStateInvariant baseWord exponentWord k
+      iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 := by
+  rw [expTwoMulFixedIterPreNWithInductionFrame_unfold] at hPre
+  exact expTwoMulFixedIterPreNWithStateFrame_pure hPre
+
+theorem expTwoMulFixedIterPreNWithInductionFrame_pure_from_framed_pre
+    {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
+    {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word}
+    {R : Assertion} {ps : PartialState}
+    (hPreR :
+      (expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 ** R) ps) :
+    expTwoMulFixedIterStateInvariant baseWord exponentWord k
+      iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 := by
+  obtain ⟨_, _, _, _, hPre, _⟩ := hPreR
+  exact expTwoMulFixedIterPreNWithInductionFrame_pure hPre
+
 theorem expTwoMulFixedIterPreNWithInductionFrame_reload_of_control
     {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
     {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
@@ -264,9 +296,8 @@ theorem expTwoMulFixedIterPreNWithInductionFrame_succ_no_reload_cases_from_pre
         (k + 1) % 64 < 62) := by
   have hState :
       expTwoMulFixedIterStateInvariant baseWord exponentWord k
-        iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 := by
-    rw [expTwoMulFixedIterPreNWithInductionFrame_unfold] at hPre
-    exact expTwoMulFixedIterPreNWithStateFrame_pure hPre
+        iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 :=
+    expTwoMulFixedIterPreNWithInductionFrame_pure hPre
   exact
     expTwoMulFixedIterPreNWithInductionFrame_succ_no_reload_cases_of_control
       hState.2.2.1 hC6
