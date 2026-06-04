@@ -622,6 +622,7 @@ def emitDispatcherEpilogue
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
   zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
+  zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
