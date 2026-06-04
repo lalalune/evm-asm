@@ -792,6 +792,29 @@ theorem expTwoMulFixedDirectHeadFrameN_eq_tailOrSuccessorFrameN_of_control
       expTwoMulFixedDirectHeadTailOrSuccessorFrameN_ordinary_of_control
         hOrd hNotPre]
 
+theorem expTwoMulFixedDirectHeadFrameN_eq_tailOrSuccessorFrameN_from_framed_pre
+    {baseWord exponentWord : EvmWord} {k : Nat}
+    {controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+      tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+      a0 a1 a2 a3 v7 v11 nextNextLimb : Word}
+    {R : Assertion} {s : MachineState}
+    (hPreR :
+      (expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 ** R).holdsFor s)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64)) :
+    expTwoMulFixedDirectHeadFrameN exponentWord k controlC6 ptr =
+      expTwoMulFixedDirectHeadTailOrSuccessorFrameN exponentWord k controlC6
+        ptr nextNextLimb := by
+  obtain ⟨ps, _h_compat, hPreRps⟩ := hPreR
+  exact
+    expTwoMulFixedDirectHeadFrameN_eq_tailOrSuccessorFrameN_of_control
+      (expTwoMulFixedIterPreNWithInductionFrame_control_from_framed_pre
+        hPreRps)
+      hNextNext
+
 /-- Direct head step over the folded induction precondition with a single
     post-frame selector.
 
@@ -1145,14 +1168,8 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
       (Q ** expTwoMulFixedDirectHeadTailOrSuccessorFrameN exponentWord k
         controlC6 ptr nextNextLimb) := by
   intro R hR s hcr hPreR hpc
-  have hPreRForControl := hPreR
-  obtain ⟨_, _, _, _, _, _, hPre, _⟩ := hPreRForControl
-  have hControl :
-      expTwoMulFixedControlInvariant exponentWord k controlC6 ptr
-        nextLimb evmSp :=
-    expTwoMulFixedIterPreNWithInductionFrame_control hPre
-  rw [← expTwoMulFixedDirectHeadFrameN_eq_tailOrSuccessorFrameN_of_control
-    hControl hNextNext]
+  rw [← expTwoMulFixedDirectHeadFrameN_eq_tailOrSuccessorFrameN_from_framed_pre
+    hPreR hNextNext]
   exact
     cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDirect_directHeadFrameN_of_pre
       controlC6 e machineC6 iterCount v10 v18 ptr nextLimb
