@@ -314,6 +314,12 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
     gates before the future accelerator body: G1 ADD requires exactly
     256 bytes; G1 MSM requires a nonzero multiple of 160 bytes.
 
+    **M27.3 update**: CALL / STATICCALL also recognize BLS12-381 G2
+    active precompile addresses 0x0d (G2 ADD) and 0x0e (G2 MSM).
+    This first runtime slice applies the same execution-specs length
+    gates before the future accelerator body: G2 ADD requires exactly
+    512 bytes; G2 MSM requires a nonzero multiple of 288 bytes.
+
     **M27.1 update**: inactive near-zero addresses 0x12 and 0x101
     are not precompiles in the Amsterdam active set. Route them as
     absent-account calls with success = 1 and empty returndata so the
@@ -364,6 +370,10 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beq x14, x15, 13f\n" ++
     "  li x15, 0x0c\n" ++
     "  beq x14, x15, 14f\n" ++
+    "  li x15, 0x0d\n" ++
+    "  beq x14, x15, 15f\n" ++
+    "  li x15, 0x0e\n" ++
+    "  beq x14, x15, 16f\n" ++
     "  li x15, 0x12\n" ++
     "  beq x14, x15, 12f\n" ++
     "  li x15, 0x101\n" ++
@@ -481,6 +491,31 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  beqz x17, 1f\n" ++
     "  li x16, 160\n" ++
+    "  remu x17, x17, x16\n" ++
+    "  bnez x17, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 G2 ADD: execution-specs rejects unless calldata length is 512.
+    -- Valid-length output is wired in a later accelerator-body slice; for now
+    -- it reaches the active-precompile success surface with empty returndata.
+    "15:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x16, 512\n" ++
+    "  bne x17, x16, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 G2 MSM: execution-specs rejects empty input and non-288
+    -- multiples before charging gas or invoking curve arithmetic.
+    "16:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  beqz x17, 1f\n" ++
+    "  li x16, 288\n" ++
     "  remu x17, x17, x16\n" ++
     "  bnez x17, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
