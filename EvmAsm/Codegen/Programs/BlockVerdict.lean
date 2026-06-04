@@ -1323,6 +1323,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_sc_index:\n  .zero 8\n" ++
   "baap_sc_out_count:\n  .zero 8\n" ++
   "baap_storage_empty_flag:\n  .zero 8\n" ++
+  "baap_force_storage_clear:\n  .zero 8\n" ++
   "baap_storage_delete_flag:\n  .zero 8\n" ++
   "baap_storage_delete_count:\n  .zero 8\n" ++
   "baap_storage_delete_index:\n  .zero 8\n" ++
