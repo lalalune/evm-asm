@@ -58,6 +58,9 @@ jobs:
       - name: Progress-report drift check
         run: scripts/check-progress.sh
 
+      - name: DRIFT.md ledger drift check
+        run: scripts/check-drift.sh
+
       # Kernel-truth trust-base audit: bv_decide axioms allowed, but any NEW
       # native_decide trust axiom (or sorry) reaching a witnessed proof fails.
       # Pre-existing native_decide owners are grandfathered in
