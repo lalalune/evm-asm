@@ -46,6 +46,7 @@ import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 
 import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.EvmAccountWitness
+import EvmAsm.Codegen.Programs.EIP7708Logs
 import EvmAsm.Codegen.Programs.EvmBalance
 import EvmAsm.Codegen.Programs.EvmExtcodecopy
 import EvmAsm.Codegen.Programs.EvmArithUnits
@@ -850,6 +851,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_log_bloom_add" => some ziskLogBloomAddProbeUnit
   | "zisk_logs_list_bloom_add" => some ziskLogsListBloomAddProbeUnit
   | "zisk_captured_logs_bloom_add" => some ziskCapturedLogsBloomAddProbeUnit
+  | "zisk_eip7708_synthetic_logs" => some ziskEip7708SyntheticLogsProbeUnit
   | "zisk_bloom_or_into" => some ziskBloomOrIntoProbeUnit
   | "zisk_receipt_extract_logs_bloom" => some ziskReceiptExtractLogsBloomProbeUnit
   | "zisk_header_extract_logs_bloom" => some ziskHeaderExtractLogsBloomProbeUnit
@@ -1161,6 +1163,7 @@ def knownProgramNames : List String :=
    "zisk_log_bloom_add",
    "zisk_logs_list_bloom_add",
    "zisk_captured_logs_bloom_add",
+   "zisk_eip7708_synthetic_logs",
    "zisk_bloom_or_into",
    "zisk_receipt_extract_logs_bloom",
    "zisk_header_extract_logs_bloom",
