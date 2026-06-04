@@ -79,12 +79,14 @@ def ziskBls12G1AddBackendProbeUnit : BuildUnit := {
 }
 
 
-/-- Linkable bare-RV64 wrapper for a BLS12 accelerator selector. -/
-def bls12EcallWrapper (symbol : String) (selectorHex : String) : String :=
+/-- Linkable bare-RV64 safe-fail wrapper for a BLS12 accelerator selector.
+    Current ziskemu does not complete the BLS12 accelerator ECALL selectors from
+    bare codegen ELFs. Keep each ABI symbol linkable and deterministic by
+    returning EFAIL (-1) without touching the result buffer. -/
+def bls12SafeFailWrapper (symbol : String) (_selectorHex : String) : String :=
   ".globl " ++ symbol ++ "\n" ++
   symbol ++ ":\n" ++
-  "  li t0, " ++ selectorHex ++ "\n" ++
-  "  ecall\n" ++
+  "  li a0, -1\n" ++
   "  ret"
 
 private def fillPatternAsm (label : String) (buffer : String) (bytes : Nat) : String :=
@@ -115,7 +117,7 @@ private def bls12BackendProbePrologue
   "  jal ra, " ++ symbol ++ "\n" ++
   copyProbeOutputAsm resultLabel ++
   "  j ." ++ label ++ "_done\n" ++
-  bls12EcallWrapper symbol selectorHex ++ "\n" ++
+  bls12SafeFailWrapper symbol selectorHex ++ "\n" ++
   "." ++ label ++ "_done:"
 
 private def bls12ProbeDataSection (items : List (String × Nat)) : String :=

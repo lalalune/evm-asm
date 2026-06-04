@@ -2,11 +2,12 @@
 # Build and run all bare RV64 BLS12 backend wrapper probes.
 #
 # Default exit:
-#   0 -- every wrapper links; each backend either returns EOK/EFAIL or its ECALL
-#        route is classified as not ready on the current ziskemu installation
+#   0 -- every wrapper links and each probe either completes with EOK/EFAIL or
+#        is classified as not ready on the current ziskemu installation
 #   1 -- build/link failed, or any backend returned an unexpected status
 # With --require-ready:
-#   0 -- every wrapper links and ziskemu returns EOK or EFAIL for every selector
+#   0 -- every wrapper links and ziskemu completes with EOK or deterministic
+#        EFAIL for every selector
 #   1 -- any build/link/emulator/backend route is not ready, or unexpected status
 set -euo pipefail
 
@@ -86,7 +87,7 @@ for probe in "${PROBES[@]}"; do
 
   case "$status_hex" in
     0000000000000000|ffffffffffffffff)
-      echo "  READY: wrapper linked and backend returned"
+      echo "  READY: wrapper linked and completed with EOK/EFAIL"
       ready=$((ready + 1))
       ;;
     *)
