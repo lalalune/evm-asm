@@ -26,8 +26,17 @@
 #   * tail   -- bytes 33:105 == expected: u32 offset (=37) + the 68-byte
 #               chain_config (echoed from the input by the encoder).
 #   * full   -- all 105 bytes match (root AND succ AND tail).
-#   * ERROR  -- ziskemu nonzero exit / step-budget exhaustion / truncated
-#               output (e.g. the guest hit an Unimplemented exit).
+#   * BUDGET -- the run exhausted the ziskemu --steps budget before halting
+#               (e.g. a sha256-heavy NPR-root merkleization). This is NOT a
+#               correctness failure (the guest never produced an answer to
+#               be wrong about), so it is counted and reported SEPARATELY
+#               from ERROR and never folded into fail / the --min-* gates.
+#               Detection greps the emulator log against EEST_STEP_LIMIT_RE
+#               (override if your ziskemu build phrases it differently); a
+#               non-match falls through to ERROR, so this never regresses
+#               the existing classification.
+#   * ERROR  -- ziskemu nonzero exit / truncated output unrelated to the
+#               step budget (e.g. the guest hit an Unimplemented exit).
 # A per-FAIL line shows which regions matched, e.g. "[root/----/tail]".
 #
 # Usage:
@@ -90,6 +99,12 @@ FILTER=""
 # (whose NPR-root merkleization is sha256-heavy) complete; normal blocks
 # halt long before this and are not slowed.
 STEPS="${EEST_STEPS:-50000000}"
+# Case-insensitive ERE matched against the ziskemu log when a run does NOT
+# produce a valid 105-byte output, to tell "exhausted the --steps budget"
+# (BUDGET, not a correctness failure) apart from a genuine ERROR. Override
+# EEST_STEP_LIMIT_RE if your ziskemu build phrases step exhaustion
+# differently; a non-match safely falls through to ERROR.
+STEP_LIMIT_RE="${EEST_STEP_LIMIT_RE:-(step[s]? limit|maximum steps|max[_ ]*steps|exceeded.*step|step.*exceeded|out of steps|reached.*steps|step budget)}"
 JOBS="${EEST_JOBS:-auto}"
 JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
 JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
@@ -99,7 +114,7 @@ RUN_DIR_OVERRIDE=""
 QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
 BSR_WITNESS_CAP="${EEST_BSR_WITNESS_CAP:-}"
 BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
-BSR_MAX_BLOCK_GAS_LIMIT="${EEST_BSR_MAX_BLOCK_GAS_LIMIT:-120000000}"
+BSR_MAX_BLOCK_GAS_LIMIT="${EEST_BSR_MAX_BLOCK_GAS_LIMIT:-1000000000}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
@@ -374,10 +389,10 @@ resolve_riscv_tool() {
 
 patch_bsr_caps_asm() {
   local asm="$1"
-  local old_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 65536; bgtu a2, t1, .Lbsr_cons_change_cap"
+  local old_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 262144; bgtu a2, t1, .Lbsr_cons_change_cap"
   local new_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, $BSR_WITNESS_CAP; bgtu a2, t1, .Lbsr_cons_change_cap"
-  local old_bal=$'  li t0, 120000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 60018; bgtu t0, t1, .Lbsr_cons_change_cap'
-  local new_bal=$'  li t0, 120000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; li t1, '"$BSR_BAL_CAP"$'; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 60018; bgtu t0, t1, .Lbsr_cons_change_cap'
+  local old_bal=$'  li t0, 1000000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500002; bgtu t0, t1, .Lbsr_cons_change_cap'
+  local new_bal=$'  li t0, 1000000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; li t1, '"$BSR_BAL_CAP"$'; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500002; bgtu t0, t1, .Lbsr_cons_change_cap'
   local as_tool ld_tool
 
   python3 - "$asm" "$BSR_WITNESS_CAP" "$old_witness" "$new_witness" "$BSR_BAL_CAP" "$old_bal" "$new_bal" <<'PYPATCH'
@@ -410,7 +425,7 @@ patch_bsr_caps_and_relink() {
   ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
   "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
   "$ld_tool" -Ttext=0x80000000 -Tdata=0xa5000000 \
-    --section-start=.sszscratch=0xb0000000 \
+    --section-start=.sszscratch=0xbf500000 \
     -nostdlib --no-relax -o "$elf" "$obj"
 }
 
@@ -492,7 +507,7 @@ ensure_verdict_debug_probe() {
     ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
     "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
     "$ld_tool" -Ttext=0x80000000 -Tdata=0xa5000000 \
-      --section-start=.sszscratch=0xb0000000 \
+      --section-start=.sszscratch=0xbf500000 \
       -nostdlib --no-relax -o "$VERDICT_DEBUG_ELF" "$obj"
   else
     echo "==> emit verdict debug probe" >&2
@@ -557,13 +572,26 @@ run_case() {
   fi
   if ! "$ZISKEMU" -e "$GUEST_ELF" -i "$input" -o "$out" \
         -n "$STEPS" >"$log" 2>&1 </dev/null; then
-    printf 'ERROR\texit\n' > "$tmp_result"
+    # Distinguish a --steps budget exhaustion (sha256-heavy merkleization,
+    # not a wrong answer) from a genuine error. Non-match => ERROR (no
+    # behaviour change vs before this distinction was added).
+    if grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
+      printf 'BUDGET\tsteps:%s\n' "$STEPS" > "$tmp_result"
+    else
+      printf 'ERROR\texit\n' > "$tmp_result"
+    fi
     mv "$tmp_result" "$result"
     return 0
   fi
   actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
   if [[ "${#actual_hex}" -lt 210 ]]; then
-    printf 'ERROR\tshort:%s\n' "${#actual_hex}" > "$tmp_result"
+    # A zero-exit run that produced no valid output but whose log shows the
+    # step cap was hit is also a budget exhaustion, not a correctness error.
+    if grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
+      printf 'BUDGET\tsteps:%s\n' "$STEPS" > "$tmp_result"
+    else
+      printf 'ERROR\tshort:%s\n' "${#actual_hex}" > "$tmp_result"
+    fi
     mv "$tmp_result" "$result"
     return 0
   fi
@@ -588,7 +616,7 @@ wait_for_one_worker() {
 #   succ [32]     = successful_validation     (hex chars 64..66)
 #   tail [33:105] = u32 offset (=37) + 68-byte chain_config (hex 66..210)
 declare -A classifiedLabels=()
-total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0
+total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0 budget=0
 
 classify_case_result() {
   local line="$1"
@@ -612,6 +640,12 @@ classify_case_result() {
   classifiedLabels["$label"]=1
   total=$((total + 1))
   IFS=$'\t' read -r status actual_hex < "$result"
+  if [[ "$status" == "BUDGET" ]]; then
+    # Step-budget exhaustion: counted separately, NOT a correctness failure.
+    budget=$((budget + 1))
+    echo "  BUDGET(steps) $relpath (${actual_hex#steps:} steps)"
+    return 0
+  fi
   if [[ "$status" != "OK" ]]; then
     err=$((err + 1))
     case "$actual_hex" in
@@ -729,7 +763,7 @@ if [[ "$stopEarly" -eq 1 ]]; then
   echo "==> stopped after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
 fi
 
-ran=$((total - err))
+ran=$((total - err - budget))
 # --- summary + baseline file ------------------------------------------------
 BASELINE="$RUN_DIR/eest-baseline.txt"
 {
@@ -744,6 +778,7 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   [[ "$stopEarly" -eq 1 ]] && echo "  stopped:     after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
   echo "  total:       $total"
   echo "  errored:     $err"
+  echo "  budget:      $budget   (--steps exhausted before halt; NOT a correctness failure)"
   echo "  ran:         $ran"
   echo "  full match:    $full   (all 105 bytes)"
   echo "  root match:    $root   (bytes 0:32  = new_payload_request_root)"

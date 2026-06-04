@@ -42,8 +42,10 @@ from the same count and resize the matching backing storage together.
 Large static arenas can outgrow the previous linked `.data` location. When
 that happens, treat the ELF memory map as part of the layout: keep linked
 `.data`, fixed working-RAM anchors, public output, and `.sszscratch` disjoint.
-The current stateless guest layout puts `.data` at `0xa5000000` and
-`.sszscratch` at `0xb0000000`, both inside the verified RAM zone.
+The current 1G-cap stateless guest layout puts `.data` at `0xa5000000` and
+`.sszscratch` at `0xbf500000`, both inside the verified RAM zone. Keep the
+linked `.data` growth below the `.sszscratch` start and leave headroom below
+`0xc0000000`.
 
 ## State Witness Caps
 
@@ -80,6 +82,12 @@ one of these approaches explicitly:
   maximum gas limit;
 - implement streaming/chunked replay so memory scales with actual contents
   instead of worst-case gas.
+
+For the current EIP-8037 high-block-gas frontier, see
+[`docs/eest-1g-block-gas-layout-plan.md`](../eest-1g-block-gas-layout-plan.md).
+It sizes the 1,000,000,000 gas target observed in `/tmp/eest-all-2026-06-03.txt`
+and records the memory-map changes needed before replacing the old
+`ERROR(layout)` behavior.
 
 ## Documentation
 

@@ -299,6 +299,12 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "push1_depth_1024"
       bytecode       := repeatedPush1Bytecode 1024 "0x01"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- The 1025th PUSH exceeds the EVM stack limit and halts before writing
+    -- below `evm_stack_low`. Stack overflow is surfaced as halt_kind = 8.
+    { name             := "push1_depth_1025_overflow"
+      bytecode         := repeatedPush1Bytecode 1025 "0x01"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0800000000000000" }
   , -- PUSH1 0x42; DUP1; ADD; STOP — DUP1 makes stack [0x42, 0x42];
     -- ADD → 0x84.
     { name           := "dup1_basic"
@@ -724,6 +730,68 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "mcopy_zero_length_keeps_msize"
       bytecode       := "0x60, 0x00, 0x60, 0x80, 0x60, 0xff, 0x5e, 0x59, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- Same shape as mcopy_msize_dest_range, then GAS. With gas=1000:
+    -- three PUSH1s cost 9, MCOPY static costs 3, MCOPY dynamic costs
+    -- copy=3 plus memory expansion 9, and GAS costs 2, leaving 974.
+    { name           := "mcopy_gas_dest_range"
+      bytecode       := "0x60, 0x01, 0x60, 0x00, 0x60, 0x40, 0x5e, 0x5a, 0x00"
+      expectedOutHex := "ce03000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1000" }
+  , -- Source-only expansion has the same dynamic cost here: source grows
+    -- memory to 0x60, then destination 0 is already covered.
+    { name           := "mcopy_gas_source_range"
+      bytecode       := "0x60, 0x01, 0x60, 0x40, 0x60, 0x00, 0x5e, 0x5a, 0x00"
+      expectedOutHex := "ce03000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1000" }
+  , -- len=0 has no MCOPY dynamic gas: three PUSH1s + MCOPY static + GAS.
+    { name           := "mcopy_gas_zero_length"
+      bytecode       := "0x60, 0x00, 0x60, 0x80, 0x60, 0xff, 0x5e, 0x5a, 0x00"
+      expectedOutHex := "da03000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1000" }
+  , -- MSTORE8 first makes active memory 0x60. MCOPY source 0 is already
+    -- covered; destination 0x80 expands to 0xa0, so dynamic gas is 9.
+    { name           := "mcopy_gas_dest_only_after_mstore8"
+      bytecode       := "0x60, 0xab, 0x60, 0x40, 0x53, 0x60, 0x01, 0x60, 0x00, 0x60, 0x80, 0x5e, 0x5a, 0x00"
+      expectedOutHex := "c803000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "1000" }
+  , -- Gas=12 covers the three PUSH1s and MCOPY's static base charge,
+    -- but not MCOPY's dynamic copy+memory charge, so the handler exits OOG.
+    { name             := "mcopy_dynamic_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x60, 0x40, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "12" }
+  , -- len=0 skips memory expansion in execution-specs, so high source
+    -- and destination limbs are accepted and MSIZE stays zero.
+    { name           := "mcopy_zero_length_high_offsets_keeps_msize"
+      bytecode       := "0x60, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5e, 0x59, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- Non-zero high length is an unsupported memory range and exits OOG.
+    { name             := "mcopy_high_length_out_of_gas"
+      bytecode         := "0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x60, 0x00, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
+  , -- Non-zero length with a high source offset would require expanding
+    -- beyond the runtime u64 memory surface.
+    { name             := "mcopy_high_source_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
+  , -- Non-zero length with a high destination offset is likewise OOG.
+    { name             := "mcopy_high_destination_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
+  , -- Low-limb destination+length wraparound is rejected before copy.
+    { name             := "mcopy_destination_end_wrap_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x67, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
+  , -- Low-limb source+length wraparound is rejected before copy.
+    { name             := "mcopy_source_end_wrap_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x67, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x60, 0x00, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
     -- ## M19/M27 child-frame opcodes (CREATE/CALL/CALLCODE/
     -- DELEGATECALL/CREATE2/STATICCALL). CREATE-family and
     -- non-precompile CALL-family targets remain pop-N + push-zero
@@ -858,6 +926,33 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
+  , -- BLS12 G2 ADD rejects invalid input length before any accelerator body.
+    { name             := "call_bls12_g2_add_invalid_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0d, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- Valid-length BLS12 G2 ADD reaches the active precompile surface.
+    -- Output bytes are a follow-up accelerator-body slice; this gate only
+    -- proves address recognition and the execution-specs length check.
+    { name             := "call_bls12_g2_add_valid_length_success"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x02, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0d, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- BLS12 G2 MSM rejects empty input.
+    { name             := "staticcall_bls12_g2_msm_zero_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- BLS12 G2 MSM rejects non-288-multiple input.
+    { name             := "call_bls12_g2_msm_non_multiple_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x21, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- Valid-length BLS12 G2 MSM reaches the active precompile surface.
+    { name             := "staticcall_bls12_g2_msm_valid_length_success"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x20, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
   , -- CALL to IDENTITY records the full precompile returndata buffer,
     -- so RETURNDATASIZE reports the input size even when out_size is short.
     { name             := "call_identity_returndatasize_three"
@@ -869,6 +964,13 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name             := "call_identity_returndatacopy_slice"
       bytecode         := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x01, 0x53, 0x60, 0xcc, 0x60, 0x02, 0x53, 0x60, 0x00, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x02, 0x60, 0x01, 0x60, 0x80, 0x3e, 0x60, 0x02, 0x60, 0x80, 0xf3"
       expectedOutHex   := "bbcc000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000" }
+  , -- RETURNDATACOPY can now read retained precompile bytes beyond the old
+    -- 64-byte frame prefix. IDENTITY returns 128 bytes of 0xaa; copy byte 64.
+    { name             := "call_identity_returndatacopy_byte64"
+      bytecode         := "0x60, 0x80, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x60, 0x00, 0x60, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x01, 0x60, 0x40, 0x60, 0x80, 0x3e, 0x60, 0x01, 0x60, 0x80, 0xf3"
+      calldata         := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      expectedOutHex   := "aa00000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0100000000000000" }
   , -- execution-specs raises on RETURNDATACOPY reads past the buffer.
     { name             := "call_identity_returndatacopy_oob"
@@ -912,6 +1014,33 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "exp_zero"
       bytecode       := "0x60, 0x00, 0x60, 0x05, 0x0a, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; PUSH1 0x00; EXP; STOP - 0**0 follows Python/EVM pow
+    -- semantics and produces 1.
+    { name           := "exp_zero_zero"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x05; PUSH1 0x00; EXP; STOP - 0**5 = 0.
+    { name           := "exp_zero_positive"
+      bytecode       := "0x60, 0x05, 0x60, 0x00, 0x0a, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH9 2^64; PUSH1 0x00; EXP; STOP - high-limb exponent path:
+    -- 0**(2^64) = 0. A low-limb-only exponent implementation would
+    -- incorrectly see exponent zero and return 1.
+    { name           := "exp_zero_high_exponent"
+      bytecode       := "0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x0a, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH17 2^128; PUSH1 0x01; EXP; STOP - 1**large = 1.
+    { name           := "exp_one_large_exponent"
+      bytecode       := "0x70, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x01, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x02; PUSH32 max_word; EXP; STOP - (2^256-1)^2 = 1 mod 2^256.
+    { name           := "exp_max_word_squared"
+      bytecode       := "0x60, 0x02, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0a, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x02; PUSH32 2^255; EXP; STOP - (2^255)^2 = 0 mod 2^256.
+    { name           := "exp_two_255_squared"
+      bytecode       := "0x60, 0x02, 0x7f, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
     -- ## M8 unsigned division opcodes
     -- (SDIV / SMOD deferred: their verified bodies use a saved-ra-ret
     -- pattern that bypasses the dispatcher's standard wrapper tail;

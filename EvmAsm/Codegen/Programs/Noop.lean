@@ -227,13 +227,13 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
 
 /-- Runtime RETURNDATASIZE / RETURNDATACOPY handlers backed by
     `evm_precompile_frame`. CALL/STATICCALL precompile paths store
-    their return-data length at `+8` and up to 64 bytes at `+16`.
+    their return-data length at `+8` and up to 128 bytes at `+16`.
     Non-precompile, absent-account, CREATE, and CREATE2 paths clear
     the length to model an empty return-data buffer.
 
     RETURNDATACOPY follows execution-specs EIP-211 behavior for bounds:
     copying past the current buffer is an exceptional halt, not zero-fill.
-    This first runtime slice retains a 64-byte prefix of child returndata, so
+    This first runtime slice retains a 128-byte prefix of child returndata, so
     copies beyond that retained prefix are also exceptional until a wider
     return-data arena lands. -/
 def returnDataHandlers : List OpcodeHandlerSpec :=
@@ -260,7 +260,7 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
         "  add x19, x15, x16\n" ++
         "  bltu x19, x15, .exit_invalid\n" ++
         "  bltu x18, x19, .exit_invalid\n" ++
-        "  li x18, 64\n" ++
+        "  li x18, 128\n" ++
         "  bltu x18, x19, .exit_invalid\n" ++
         "  addi x12, x12, 96\n" ++
         "  beqz x16, 2f\n" ++
@@ -314,6 +314,12 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
     gates before the future accelerator body: G1 ADD requires exactly
     256 bytes; G1 MSM requires a nonzero multiple of 160 bytes.
 
+    **M27.3 update**: CALL / STATICCALL also recognize BLS12-381 G2
+    active precompile addresses 0x0d (G2 ADD) and 0x0e (G2 MSM).
+    This first runtime slice applies the same execution-specs length
+    gates before the future accelerator body: G2 ADD requires exactly
+    512 bytes; G2 MSM requires a nonzero multiple of 288 bytes.
+
     **M27.1 update**: inactive near-zero addresses 0x12 and 0x101
     are not precompiles in the Amsterdam active set. Route them as
     absent-account calls with success = 1 and empty returndata so the
@@ -364,6 +370,10 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beq x14, x15, 13f\n" ++
     "  li x15, 0x0c\n" ++
     "  beq x14, x15, 14f\n" ++
+    "  li x15, 0x0d\n" ++
+    "  beq x14, x15, 15f\n" ++
+    "  li x15, 0x0e\n" ++
+    "  beq x14, x15, 16f\n" ++
     "  li x15, 0x12\n" ++
     "  beq x14, x15, 12f\n" ++
     "  li x15, 0x101\n" ++
@@ -384,11 +394,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  add x18, x13, x18\n" ++    -- x18 = identity input bytes
     "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
     "  add x19, x13, x19\n" ++    -- x19 = caller output bytes
-    -- Copy up to 64 bytes of returndata into the shared frame.
+    -- Copy up to 128 bytes of returndata into the shared frame.
     "  mv x22, x18\n" ++
     "  addi x23, x15, 16\n" ++
     "  mv x24, x17\n" ++
-    "  li x16, 64\n" ++
+    "  li x16, 128\n" ++
     "  bgeu x16, x24, 2f\n" ++
     "  mv x24, x16\n" ++
     "2:\n" ++
@@ -481,6 +491,31 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  beqz x17, 1f\n" ++
     "  li x16, 160\n" ++
+    "  remu x17, x17, x16\n" ++
+    "  bnez x17, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 G2 ADD: execution-specs rejects unless calldata length is 512.
+    -- Valid-length output is wired in a later accelerator-body slice; for now
+    -- it reaches the active-precompile success surface with empty returndata.
+    "15:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x16, 512\n" ++
+    "  bne x17, x16, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 G2 MSM: execution-specs rejects empty input and non-288
+    -- multiples before charging gas or invoking curve arithmetic.
+    "16:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  beqz x17, 1f\n" ++
+    "  li x16, 288\n" ++
     "  remu x17, x17, x16\n" ++
     "  bnez x17, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
