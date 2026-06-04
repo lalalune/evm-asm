@@ -214,6 +214,17 @@ fixture are picked up without editing the script. It is a first EIP-7708
 transfer-log gate, not the full CALL/CREATE/SELFDESTRUCT/finalization burn
 frontier.
 
+Run the focused EIP-7708 finalization burn-log regression:
+
+```bash
+scripts/codegen-eest-eip7708-finalization-burn-check.sh
+```
+
+By default this converts and runs every stateless row selected by the
+`finalization_burn` fixture filter. This covers the completed finalization burn
+subfamily, distinct from SELFDESTRUCT transfer/burn and general CALL/CREATE
+transfer-log coverage.
+
 Run the current BAL replay frontier around the EIP-7002 withdrawal-request
 cluster:
 
