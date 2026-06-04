@@ -32,7 +32,8 @@ execution-spec window rule: target must be older than the current block
 and within the supplied recent-hash list, otherwise it returns zero.
 
 M29 extension: optionally append a fifth segment carrying the 13 simple
-environment opcode words in `EvmEnv` 32-byte slot order. The dispatcher
+environment opcode words in `EvmEnv` 32-byte slot order, followed by the
+EIP-7843 SLOTNUM word. The dispatcher
 prologue copies those words into `evm_env` so ADDRESS, ORIGIN, CALLER,
 CALLVALUE, GASPRICE, COINBASE, TIMESTAMP, NUMBER, PREVRANDAO, GASLIMIT,
 CHAINID, SELFBALANCE, and BASEFEE can read nonzero runtime values.
@@ -71,6 +72,7 @@ Output layout:
                        Hashes are passed as normal big-endian hex and
                        serialized in EVM-stack byte order.
     next 416 bytes     <13 simple env words in evm_env order>
+    next 32 bytes      <SLOTNUM word>
     next 8 bytes       <8-byte LE u64 gas limit>             (M30)
     next 8 bytes       <8-byte LE u64 parent header RLP len> (M31)
     next 8 bytes       <8-byte LE u64 witness.state len>     (M31)
@@ -118,6 +120,7 @@ ENV_FIELDS = [
     "gas_limit",
     "base_fee",
     "chain_id",
+    "slot_number",
 ]
 
 ENV_ALIASES = {
@@ -363,7 +366,7 @@ def main() -> int:
              "separated field=hex pairs, e.g. 'caller=0x1234,timestamp=0x2a'. "
              "Fields are address, self_balance, caller, call_value, origin, "
              "gas_price, coinbase, timestamp, number, prevrandao, gas_limit, "
-             "base_fee, chain_id. Defaults to zero for every field.",
+             "base_fee, chain_id, slot_number. Defaults to zero for every field.",
     )
     parser.add_argument(
         "--gas",
@@ -446,7 +449,7 @@ def main() -> int:
         packed += block_hash
     packed = pad_to_8(packed)
 
-    # M29 simple environment trailer: 13 stack words in `evm_env` layout order.
+    # M29/M34 environment trailer: 13 `EvmEnv` stack words plus SLOTNUM.
     for field in ENV_FIELDS:
         packed += env_words[field]
 
