@@ -1012,9 +1012,48 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  bnez a0, 1f\n" ++
+    -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
+    -- to a 64-byte big-endian field element.
+    "  addi x18, x15, 16\n" ++
+    "  addi x19, x15, 336\n" ++
+    "  li x23, 4\n" ++
+    "34:\n" ++
+    "  li x22, 16\n" ++
+    "35:\n" ++
+    "  sb x0, 0(x18)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 35b\n" ++
+    "  li x22, 48\n" ++
+    "36:\n" ++
+    "  lbu x16, 0(x19)\n" ++
+    "  sb x16, 0(x18)\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 36b\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 34b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
-    "  sd x0, 8(x15)\n" ++
+    "  li x16, 256\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x23, 256\n" ++
+    "  bgeu x22, x23, 37f\n" ++
+    "  mv x23, x22\n" ++
+    "37:\n" ++
+    "  beqz x23, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "38:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 38b\n" ++
     "  j 7b\n" ++
     "1:\n" ++
     "  la x15, evm_precompile_frame\n" ++
