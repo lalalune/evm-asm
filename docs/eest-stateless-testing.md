@@ -135,6 +135,18 @@ for the active fixture tag and requires all selected cases to full-match. It
 keeps the conservative transaction inclusion gate from rejecting valid
 multi-transaction blocks before exact execution gas accounting is available.
 
+Run the EIP-8037 high-block-gas layout launch regression:
+
+```bash
+scripts/codegen-eest-eip8037-layout-check.sh
+```
+
+This selects `pricing_at_various_gas_limits`, requires the 200M, 300M, 500M,
+and 1G block-gas rows to be present, and fails unless each required high-gas row
+launches and full-matches the expected 105-byte stateless verdict. This keeps
+the 1G layout work aimed at semantic EEST success, not merely avoiding
+`ERROR(layout)`.
+
 Run a fast EIP-2929 precompile-warming frontier:
 
 ```bash
