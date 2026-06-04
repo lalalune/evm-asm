@@ -165,6 +165,7 @@ private def extcodecopyWitnessTail : HandlerTail :=
 def extcodecopyWitnessHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_EXTCODECOPY"
     , opcodes := [0x3c]
+    , preBody := stackUnderflowGuardAsm 4
     , body := []
     , tail := extcodecopyWitnessTail } ]
 

@@ -69,6 +69,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
     { label   := "h_SLOAD"
     , opcodes := [0x54]
     , preBody :=
+        stackUnderflowGuardAsm 1 ++ "\n" ++
         "  ld x15, 448(x20)\n" ++         -- x15 = persistent log_length
         "  beqz x15, 4f\n" ++             -- empty log → return 0
         "  li x14, 0xa0630000\n" ++       -- x14 = log base
@@ -122,6 +123,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
     { label   := "h_SSTORE"
     , opcodes := [0x55]
     , preBody :=
+        stackUnderflowGuardAsm 2 ++ "\n" ++
         "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
         "  ld x15, 448(x20)\n" ++         -- x15 = log_length
         "  beqz x15, 2f\n" ++             -- empty log → skip scan, append with original=0
@@ -204,6 +206,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
     { label   := "h_TLOAD"
     , opcodes := [0x5c]
     , preBody :=
+        stackUnderflowGuardAsm 1 ++ "\n" ++
         "  ld x15, 464(x20)\n" ++         -- x15 = transient log_length
         "  beqz x15, 4f\n" ++
         "  li x14, 0xa0830000\n" ++       -- x14 = transient log base
@@ -250,6 +253,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
     { label   := "h_TSTORE"
     , opcodes := [0x5d]
     , preBody :=
+        stackUnderflowGuardAsm 2 ++ "\n" ++
         "  ld x15, 464(x20)\n" ++         -- x15 = transient log_length
         "  li x14, 0xa0830000\n" ++
         "  slli x16, x15, 7\n" ++

@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
+import EvmAsm.Codegen.Programs.StateCompose
 
 namespace EvmAsm.Codegen
 
@@ -39,6 +40,16 @@ def evmStackScratchBytes : Nat := evmStackWordCapacity * evmStackWordBytes
 /-- Guard bytes around the EVM stack arena for opcode bodies that still use
     nearby stack-relative offsets as internal scratch. -/
 def evmStackGuardBytes : Nat := 512
+
+/-- Raw dispatcher guard for handlers that read `wordCount` EVM stack
+    words before their body runs. The EVM stack grows downward from
+    `evm_stack_top`; a handler needing `n` words requires
+    `x12 <= evm_stack_top - 32*n`. If not, route to the exceptional
+    stack-underflow exit before any body performs unchecked loads. -/
+def stackUnderflowGuardAsm (wordCount : Nat) : String :=
+  "  la x14, evm_stack_top\n" ++
+  s!"  addi x14, x14, -{wordCount * evmStackWordBytes}\n" ++
+  "  bltu x14, x12, .exit_stack_underflow"
 
 /-- Tail emitted after each handler's verified body.
 
@@ -308,6 +319,15 @@ def emitRuntimeAccountWitnessData : String :=
   "hesr_length:\n" ++
   "  .zero 8\n" ++
   ".balign 32\n" ++
+  "bal_state_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bal_acct_struct:\n" ++
+  "  .zero 104\n" ++
+  ".balign 32\n" ++
+  "bal_output_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
   "eahsr_state_root:\n" ++
   "  .zero 32\n" ++
   ".balign 32\n" ++
@@ -318,6 +338,24 @@ def emitRuntimeAccountWitnessData : String :=
   "  .zero 104\n" ++
   ".balign 32\n" ++
   "eahsr_empty_code_hash:\n" ++
+  "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
+  "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
+  "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
+  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
+  ".balign 32\n" ++
+  "ecsahsr_state_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ecsahsr_acct_struct:\n" ++
+  "  .zero 104\n" ++
+  ".balign 8\n" ++
+  "ecsahsr_dummy_offset:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "ecsahsr_code_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "ecsahsr_empty_code_hash:\n" ++
   "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
   "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
@@ -487,7 +525,9 @@ def emitDispatcherEpilogue
   accountDecodeFunction ++ "\n" ++
   accountAtAddressFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
+  balanceAtHeaderStateRootFunction ++ "\n" ++
   extcodehashAtHeaderStateRootFunction ++ "\n" ++
+  extcodesizeAtHeaderStateRootFunction ++ "\n" ++
   extcodecopyAtHeaderStateRootFunction ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++

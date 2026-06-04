@@ -444,9 +444,8 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- ## M15 control-flow opcodes (PC, JUMP, JUMPI)
     -- These use the dispatcher's preserved code-base register x21
     -- (initialised in the prologue) to compute PC values and jump
-    -- targets. JUMP/JUMPI's "valid-target" check (code[dest] == 0x5b)
-    -- is DEFERRED; the test cases below all jump to real JUMPDEST
-    -- bytes.
+    -- targets. JUMP/JUMPI validate against execution-specs-style valid
+    -- destinations: the target must be a JUMPDEST byte outside PUSH data.
   , -- PC; STOP — PC at offset 0 = 0. Expected: 0 in low limb.
     { name           := "pc_at_zero"
       bytecode       := "0x58, 0x00"
@@ -500,6 +499,23 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x01, 0x60, 0x00, 0x57"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0400000000000000" }
+  , -- PUSH1 0x04; JUMP; PUSH1 0x5b; STOP. Byte 4 is 0x5b,
+    -- but it is the PUSH1 immediate, so it is not a valid JUMPDEST.
+    { name             := "jump_pushdata_jumpdest_invalid"
+      bytecode         := "0x60, 0x04, 0x56, 0x60, 0x5b, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
+  , -- Taken JUMPI to byte 6, a PUSH1 immediate 0x5b, is invalid.
+    { name             := "jumpi_taken_pushdata_jumpdest_invalid"
+      bytecode         := "0x60, 0x01, 0x60, 0x06, 0x57, 0x60, 0x5b, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
+  , -- Not-taken JUMPI does not validate the destination, even when that
+    -- destination points at a PUSH immediate 0x5b; it falls through normally.
+    { name             := "jumpi_not_taken_pushdata_dest_ignored"
+      bytecode         := "0x60, 0x00, 0x60, 0x06, 0x57, 0x60, 0x5b, 0x00"
+      expectedOutHex   := "5b00000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
     -- ## M16 hash opcode (KECCAK256 via ECALL bridge to Zisk accelerator)
     -- KECCAK256 pops offset (top of stack) and size (next word), hashes the
     -- memory[offset..offset+size] region, pushes the 32-byte digest.
@@ -624,6 +640,34 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x01, 0x60, 0x02, 0x9f, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0700000000000000" }
+  , { name             := "mstore_one_item_underflow"
+      bytecode         := "0x60, 0x00, 0x52, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "return_one_item_underflow"
+      bytecode         := "0x60, 0x00, 0xf3, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "mcopy_two_items_underflow"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x5e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "create2_three_items_underflow"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "staticcall_five_items_underflow"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0xfa, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "call_six_items_underflow"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , { name             := "log4_five_items_underflow"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0xa4, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
   , -- BLOBBASEFEE; STOP with blob_base_fee = 0x1234. Amsterdam
     -- execution-specs computes this from block_env.excess_blob_gas;
     -- the runtime dispatcher receives the already-computed value in
@@ -644,11 +688,17 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x01, 0x49, 0x00"
       blobHashes     := "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
-  , -- PUSH1 0xab; BALANCE; STOP — BALANCE pops the pushed 0xab as
-    -- the address and overwrites with 0. Expected: 0 in low limb.
-    -- Smoke test for popPushZeroHandlers.
+  , -- PUSH1 0xab; BALANCE; STOP without an account-witness trailer.
+    -- The witness-backed runtime handler preserves the old no-context
+    -- fallback and overwrites the address with balance 0.
     { name           := "balance_pop_push_zero"
       bytecode       := "0x60, 0xab, 0x31, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0xab; EXTCODESIZE; STOP without an account-witness trailer.
+    -- The witness-backed runtime handler preserves the old no-context
+    -- fallback and overwrites the address with code length 0.
+    { name           := "extcodesize_no_context_zero"
+      bytecode       := "0x60, 0xab, 0x3b, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x01; PUSH1 0x02; PUSH1 0x03; MCOPY; PUSH1 0x42; STOP
     -- MCOPY pops 3 args; PUSH1 0x42 lands on the empty stack.
@@ -781,6 +831,50 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x50, 0x3d, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
+  , -- BLS12 G1 ADD rejects invalid input length before any accelerator body.
+    { name             := "call_bls12_g1_add_invalid_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- Valid-length BLS12 G1 ADD reaches the active precompile surface.
+    -- Output bytes are a follow-up accelerator-body slice; this gate only
+    -- proves address recognition and the execution-specs length check.
+    { name             := "call_bls12_g1_add_valid_length_success"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- BLS12 G1 MSM rejects empty input.
+    { name             := "staticcall_bls12_g1_msm_zero_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- BLS12 G1 MSM rejects non-160-multiple input.
+    { name             := "call_bls12_g1_msm_non_multiple_length_fails"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa1, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- Valid-length BLS12 G1 MSM reaches the active precompile surface.
+    { name             := "staticcall_bls12_g1_msm_valid_length_success"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- CALL to IDENTITY records the full precompile returndata buffer,
+    -- so RETURNDATASIZE reports the input size even when out_size is short.
+    { name             := "call_identity_returndatasize_three"
+      bytecode         := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x01, 0x53, 0x60, 0xcc, 0x60, 0x02, 0x53, 0x60, 0x01, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x50, 0x3d, 0x00"
+      expectedOutHex   := "0300000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- RETURNDATACOPY copies a bounded slice from the precompile return buffer.
+    -- Here IDENTITY returned aa bb cc; copy return_data[1:3] to memory[0x80].
+    { name             := "call_identity_returndatacopy_slice"
+      bytecode         := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x01, 0x53, 0x60, 0xcc, 0x60, 0x02, 0x53, 0x60, 0x00, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x02, 0x60, 0x01, 0x60, 0x80, 0x3e, 0x60, 0x02, 0x60, 0x80, 0xf3"
+      expectedOutHex   := "bbcc000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000" }
+  , -- execution-specs raises on RETURNDATACOPY reads past the buffer.
+    { name             := "call_identity_returndatacopy_oob"
+      bytecode         := "0x60, 0xaa, 0x60, 0x00, 0x53, 0x60, 0xbb, 0x60, 0x01, 0x53, 0x60, 0xcc, 0x60, 0x02, 0x53, 0x60, 0x00, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x02, 0x60, 0x02, 0x60, 0x80, 0x3e, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
     -- ## MULMOD (0x09) -- total runtime body. EVM pops `a` (top), then
     -- `b`, then `N`; if `N = 0` the result is zero, otherwise
     -- `(a * b) % N`.
