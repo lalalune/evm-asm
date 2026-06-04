@@ -323,6 +323,26 @@ private def ecrecoverVGateAsm : String :=
   "  j 7b\n" ++
   "42:\n"
 
+private def ecrecoverNonzeroRSGateAsm : String :=
+  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 64) ++
+  "  ld x16, 0(x18)\n" ++
+  "  ld x17, 8(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 16(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 24(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  beqz x16, 7b\n" ++
+  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 96) ++
+  "  ld x16, 0(x18)\n" ++
+  "  ld x17, 8(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 16(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 24(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  beqz x16, 7b\n"
+
 private def chargePrecompileWordGasAsm
     (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
   "  li " ++ scratchReg ++ ", 31\n" ++
@@ -748,6 +768,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     chargePrecompileGasConstAsm 3000 "x16" "x17" ++
     stageEcrecoverInputAsm inOffsetOff inSizeOff ++
     ecrecoverVGateAsm ++
+    ecrecoverNonzeroRSGateAsm ++
     "  j 7b\n" ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
