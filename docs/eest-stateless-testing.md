@@ -328,15 +328,18 @@ unique storage keys
 `execution-specs/src/ethereum/forks/amsterdam/vm/gas.py`).
 
 The guest uses bounded arenas rather than dynamic host memory. `block_state_root`
-first applies the Amsterdam gas-derived BAL budget, then applies its current
-static layout sized for block gas up to 1,000,000,000. The harness reads the
-block gas limit from the converted SSZ input manifest and errors before
-launching `ziskemu` only when a fixture needs a larger layout/ELF. Larger
-gas-valid BALs need a streaming/chunked replay path or a separately built
-larger static layout. The 1G block-gas sizing plan is
+first applies the Amsterdam gas-derived BAL budget, then checks actual decoded
+BAL/state/storage counts against its static replay arenas. Those arenas are
+sized for 500,000 BAL items, the worst-case BAL budget implied by a
+1,000,000,000 gas block, but the harness no longer rejects a fixture solely
+because the declared gas limit is larger. Very high gas-limit fixtures still
+launch when their actual resource consumption fits; actual overflows or arena
+exhaustion must be detected at runtime by the guest. Larger gas-valid BALs need
+a streaming/chunked replay path or a separately built larger static layout. The
+1G block-gas sizing plan is
 [`docs/eest-1g-block-gas-layout-plan.md`](eest-1g-block-gas-layout-plan.md);
-that plan supersedes tests that expect observed high-gas EIP-8037 fixtures to
-stop at `ERROR(layout)`.
+that plan explains the current arena capacity and supersedes tests that expect
+observed high-gas EIP-8037 fixtures to stop at `ERROR(layout)`.
 
 To run a focused harness experiment with different guest-side replay caps, pass
 `--bsr-witness-cap N` for the block-state-root witness-byte cap or

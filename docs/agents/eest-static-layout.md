@@ -26,9 +26,11 @@ The source of truth is
 `execution-specs/src/ethereum/forks/amsterdam/vm/gas.py`.
 
 This means a complete static layout is complete only relative to a declared
-maximum supported block gas limit. For the execution-specs default block gas
-limit of 120,000,000, the BAL item budget is 60,000. A layout sized for that
-limit must cover both extreme shapes:
+maximum supported **actual BAL item count**, not merely a declared block gas
+limit. For the execution-specs default block gas limit of 120,000,000, the BAL
+item budget is 60,000. The current static replay arenas are sized for 500,000
+BAL items, the same worst-case item budget implied by a 1,000,000,000 gas
+block. A layout with that capacity must cover both extreme shapes:
 
 - many account rows, which stress `basr_*` account-record arrays and the
   top-level `bsr_*` state-change arrays;
@@ -64,30 +66,33 @@ For example, EIP-7251 `consolidation_requests.json` selected index 138 has
 next implementation frontier is replay/indexing performance, not only a larger
 constant.
 
-## Launch-Time Layout Compatibility
+## Runtime Resource Compatibility
 
-If a static layout supports only up to a chosen maximum block gas limit, the
-client/harness should reject incompatible fixtures before launching the guest.
-This is a layout/ELF compatibility error, not a guest proof obligation and not
-a useful emulator run.
+Do not reject an EEST fixture only because its declared block or transaction
+gas limit is larger than the gas value used to size the current static arenas.
+Some legacy/static tests use deliberately huge gas limits while consuming tiny
+resources. The runner should launch those fixtures and let the guest enforce
+the real resource boundaries:
 
-The EEST manifest should carry enough metadata, such as `block_gas_limit`, for
-the shell runner to fail fast with a clear layout error. The guest may still
-keep defensive checks, but they are not the primary compatibility boundary.
+- Amsterdam BAL validity: `actual_bal_items <= block_gas_limit / 2000`;
+- static arena compatibility: actual decoded BAL/state/storage counts must fit
+  the compiled guest layout;
+- arithmetic overflow/underflow in runtime gas, memory, and address
+  computations must be detected at the operation that would exceed the
+  implemented resource model.
 
-If a future PR needs to support blocks above the current static limit, choose
-one of these approaches explicitly:
+If a future PR needs to support an actual decoded item count above the current
+static arena capacity, choose one of these approaches explicitly:
 
 - build a larger layout and a corresponding ELF, with docs naming the supported
-  maximum gas limit;
+  maximum actual resource counts;
 - implement streaming/chunked replay so memory scales with actual contents
   instead of worst-case gas.
 
 For the current EIP-8037 high-block-gas frontier, see
 [`docs/eest-1g-block-gas-layout-plan.md`](../eest-1g-block-gas-layout-plan.md).
-It sizes the 1,000,000,000 gas target observed in `/tmp/eest-all-2026-06-03.txt`
-and records the memory-map changes needed before replacing the old
-`ERROR(layout)` behavior.
+It records the memory-map changes that made 500,000 BAL items fit and explains
+why the old `ERROR(layout)` behavior was not the desired endpoint.
 
 ## Documentation
 

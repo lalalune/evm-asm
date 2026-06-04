@@ -16,16 +16,21 @@ limits:
 - 500,000,000
 - 1,000,000,000
 
-Use 1,000,000,000 as the next static-layout target. Amsterdam BAL validation is
+Use 1,000,000,000 as the static arena sizing target. Amsterdam BAL validation is
 gas-derived:
 
 ```text
 bal_items <= block_gas_limit / 2000
 ```
 
-So the target BAL budget is 500,000 items. `block_state_root` also starts with
+So the target BAL arena capacity is 500,000 items. `block_state_root` also starts with
 two modeled system changes, so any top-level change-count cap must cover at
 least 500,002 rows.
+
+This 1G target is not a launch-time maximum block gas limit. Later EEST
+fixtures can declare much larger gas limits while consuming small actual
+resources; those fixtures should launch. The guest enforces the gas-derived BAL
+rule and the actual arena capacities at runtime.
 
 ## Current Blocker
 
@@ -113,11 +118,12 @@ between the documented working-RAM anchors and `.data`, and between `.data` and
 ## Implementation Checklist
 
 Implementation status: the direct static layout is the current path. The code
-derives `BlockVerdict.lean` guards and arena sizes from named constants, moves
-`.sszscratch` to `0xbf500000`, and sets the EEST harness pre-launch gas cap to
-1,000,000,000. The old values in the "Current Blocker" section are historical
-evidence for why PR #8044's `ERROR(layout)` behavior was not the desired
-endpoint.
+derives `BlockVerdict.lean` arena sizes from named constants and moves
+`.sszscratch` to `0xbf500000`. The EEST harness no longer has a blanket
+pre-launch gas cap; instead, the guest checks Amsterdam's gas-derived BAL rule
+and the actual arena capacities at runtime. The old values in the "Current
+Blocker" section are historical evidence for why PR #8044's `ERROR(layout)`
+behavior was not the desired endpoint.
 
 The implementation address is higher than the initial recommendation because
 the full linked `.data` segment with all existing stateless tables plus the 1G
@@ -131,17 +137,17 @@ system rows plus the 16 withdrawal rows and records those pointers in the dense
 
 1. Introduce named layout constants in `BlockVerdict.lean` before changing
    assembly strings, at least:
-   - `bsrMaxBlockGasLimit = 1000000000`
    - `bsrBalItemGasCost = 2000`
    - `bsrMaxBalItems = 500000`
-   - `bsrMaxStateChanges = 500002`
+   - `bsrMaxStateChanges = 500018`
 2. Replace hard-coded `120000000`, `60018`, and `60000` values in the BSR/BAL
    path with values derived from those constants.
 3. Resize all `basr_*` and `baap_storage_*` static arenas consistently.
 4. Move `.sszscratch` to the selected high address and update
    `SSZ_SCRATCH_BASE` docs/constants.
-5. Update the EEST harness default max gas limit to 1,000,000,000 and update
-   `patch_bsr_caps_asm` so experimental caps still patch the new constants.
+5. Remove the EEST harness blanket gas-limit prefilter and update
+   `patch_bsr_caps_asm` so experimental BAL caps still patch the new runtime
+   resource check.
 6. Replace the PR #8044 regression with a launch-coverage test: the high-gas
    EIP-8037 fixtures should run ziskemu and produce semantic pass/fail output,
    not `ERROR(layout)`.
