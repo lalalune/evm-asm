@@ -761,6 +761,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beq x14, x15, .L" ++ tag ++ "_bn254_add\n" ++
     "  li x15, 0x07\n" ++
     "  beq x14, x15, .L" ++ tag ++ "_bn254_mul\n" ++
+    "  li x15, 0x09\n" ++
+    "  beq x14, x15, .L" ++ tag ++ "_blake2f\n" ++
     "  li x15, 0x0b\n" ++
     "  beq x14, x15, 13f\n" ++
     "  li x15, 0x0c\n" ++
@@ -927,6 +929,48 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez a0, 1f\n" ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_mul_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
+    -- BLAKE2F: exact 213-byte payload, then charge gas equal to the BE
+    -- rounds field, then validate the final flag. The current runtime wrapper
+    -- deterministic-fails, but the path is ready to expose the updated 64-byte
+    -- state from h once a success-producing backend is available.
+    ".L" ++ tag ++ "_blake2f:\n" ++
+    "  ld x16, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x17, 213\n" ++
+    "  bne x16, x17, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    stagePrecompileInputWindowAsm
+      (tag ++ "_blake2f_payload") inOffsetOff inSizeOff precompileFrameBls12G2InputOff 0 213 ++
+    precompileFrameAddi "x18" precompileFrameBls12G2InputOff ++
+    "  lbu x16, 0(x18)\n" ++
+    "  slli x16, x16, 24\n" ++
+    "  lbu x17, 1(x18)\n" ++
+    "  slli x17, x17, 16\n" ++
+    "  or x16, x16, x17\n" ++
+    "  lbu x17, 2(x18)\n" ++
+    "  slli x17, x17, 8\n" ++
+    "  or x16, x16, x17\n" ++
+    "  lbu x17, 3(x18)\n" ++
+    "  or x16, x16, x17\n" ++
+    chargePrecompileGasAsm "x16" "x17" ++
+    "  lbu x17, 212(x18)\n" ++
+    "  li x22, 1\n" ++
+    "  bltu x22, x17, 1f\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  mv a0, x16\n" ++
+    precompileFrameAddi "a1" (precompileFrameBls12G2InputOff + 4) ++
+    precompileFrameAddi "a2" (precompileFrameBls12G2InputOff + 68) ++
+    precompileFrameAddi "a3" (precompileFrameBls12G2InputOff + 196) ++
+    "  mv a4, x17\n" ++
+    "  jal x1, zkvm_blake2f\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  bnez a0, 1f\n" ++
+    precompileSuccess64FromFrameAsm
+      (tag ++ "_blake2f_success") outOffsetOff outSizeOff (precompileFrameBls12G2InputOff + 4) ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
