@@ -45,7 +45,7 @@
 #     --skip N           skip first N selected stateless blocks after filtering
 #     --limit N          cap to N guest invocations (default 50)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
-#     --steps N          ziskemu max steps (default $EEST_STEPS or 50000000)
+#     --steps N          ziskemu max steps (default $EEST_STEPS or 200000000)
 #     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto)
 #     --max-failures N   stop after N FAIL/ERROR results (default: disabled)
 #     --stop-after-failures N
@@ -95,10 +95,10 @@ SKIP=0
 LIMIT=50
 FILTER=""
 # Default step cap. ziskemu stops at the guest's halt, so this only bounds
-# runaway/very-large runs -- raised to 50M so many-deposit / large-tx blocks
-# (whose NPR-root merkleization is sha256-heavy) complete; normal blocks
-# halt long before this and are not slowed.
-STEPS="${EEST_STEPS:-50000000}"
+# runaway/very-large runs. Keep the base harness at the known working EEST
+# cap used by the focused wrapper scripts; normal blocks halt long before
+# this and are not slowed.
+STEPS="${EEST_STEPS:-200000000}"
 # Case-insensitive ERE matched against the ziskemu log when a run does NOT
 # produce a valid 105-byte output, to tell "exhausted the --steps budget"
 # (BUDGET, not a correctness failure) apart from a genuine ERROR. Override
@@ -136,7 +136,7 @@ Options:
   --skip N                 skip first N selected stateless blocks after filtering
   --limit N                cap to N guest invocations (default 50)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
-  --steps N                ziskemu max steps (default $EEST_STEPS or 50000000)
+  --steps N                ziskemu max steps (default $EEST_STEPS or 200000000)
   --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto)
   --max-failures N         stop after N FAIL/ERROR results
   --stop-after-failures N  alias for --max-failures
