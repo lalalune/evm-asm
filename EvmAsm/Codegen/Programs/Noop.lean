@@ -687,38 +687,38 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     -- to a 64-byte big-endian field element.
     "  addi x18, x15, 16\n" ++
     "  li x22, 16\n" ++
-    "17:\n" ++
+    "30:\n" ++
     "  sb x0, 0(x18)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 17b\n" ++
+    "  bnez x22, 30b\n" ++
     "  addi x18, x15, 336\n" ++
     "  addi x19, x15, 32\n" ++
     "  li x22, 48\n" ++
-    "18:\n" ++
+    "31:\n" ++
     "  lbu x16, 0(x18)\n" ++
     "  sb x16, 0(x19)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x19, x19, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 18b\n" ++
+    "  bnez x22, 31b\n" ++
     "  addi x18, x15, 80\n" ++
     "  li x22, 16\n" ++
-    "19:\n" ++
+    "32:\n" ++
     "  sb x0, 0(x18)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 19b\n" ++
+    "  bnez x22, 32b\n" ++
     "  addi x18, x15, 384\n" ++
     "  addi x19, x15, 96\n" ++
     "  li x22, 48\n" ++
-    "20:\n" ++
+    "33:\n" ++
     "  lbu x16, 0(x18)\n" ++
     "  sb x16, 0(x19)\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x19, x19, 1\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 20b\n" ++
+    "  bnez x22, 33b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  li x16, 128\n" ++
@@ -818,9 +818,52 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  bnez a0, 1f\n" ++
+    -- EIP-2537 `g1_to_bytes`: each compact 48-byte coordinate is left-padded
+    -- to a 64-byte big-endian field element.
+    "  sd x0, 16(x15)\n" ++
+    "  sd x0, 24(x15)\n" ++
+    "  addi x17, x15, 336\n" ++
+    "  addi x18, x15, 32\n" ++
+    "  li x19, 48\n" ++
+    "34:\n" ++
+    "  lbu x16, 0(x17)\n" ++
+    "  sb x16, 0(x18)\n" ++
+    "  addi x17, x17, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  bnez x19, 34b\n" ++
+    "  sd x0, 80(x15)\n" ++
+    "  sd x0, 88(x15)\n" ++
+    "  addi x17, x15, 384\n" ++
+    "  addi x18, x15, 96\n" ++
+    "  li x19, 48\n" ++
+    "35:\n" ++
+    "  lbu x16, 0(x17)\n" ++
+    "  sb x16, 0(x18)\n" ++
+    "  addi x17, x17, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  bnez x19, 35b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
-    "  sd x0, 8(x15)\n" ++
+    "  li x16, 128\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x23, 128\n" ++
+    "  bgeu x22, x23, 36f\n" ++
+    "  mv x23, x22\n" ++
+    "36:\n" ++
+    "  beqz x23, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "37:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 37b\n" ++
     "  j 7b\n" ++
     -- BLS12-381 map-Fp2-to-G2: execution-specs requires exactly one
     -- 128-byte Fp2 element. Project the two compact 48-byte Fp chunks into
