@@ -296,9 +296,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       vs PR **head** and runs `progress-velocity.sh --check` on the 2-record log
       — catching a monotonic proven/conformance/obligation downgrade *before* it
       lands. Base→head (not head-vs-latest-main) avoids false positives on
-      stale branches. Cheap (no `lake build`). **Advisory by default**
-      (`VELOCITY_GATE` repo var = `warn`); flip to `block` to hard-fail once
-      calibrated (open question #4).
+      stale branches. Cheap (no `lake build`). **Blocking by default** — a
+      monotonic downgrade fails the PR; set the `VELOCITY_GATE` repo var to
+      `warn` to relax to advisory for a known generalization, then restore to
+      `block` (open question #4).
     - **Open questions surfaced in the PR:** (1) ruleset approval counts for a
       single-maintainer repo; (2) merge-queue batch size + eviction; (3) risk
       XL threshold + exact trusted-core path set; (4) velocity gate warn-vs-block.
