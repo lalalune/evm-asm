@@ -1805,6 +1805,45 @@ prior case regresses. (Two BLOCKHASH cases — `blockhash_parent`,
 a **pre-existing** env-offset drift in the BLOCKHASH handler, unrelated to this
 PR.) `lake build EvmAsm.Codegen` clean.
 
+### M33 — Real CODESIZE (0x38) + CODECOPY (0x39): graduate from no-ops — **DONE (2026-06-04)**
+
+CODESIZE and CODECOPY are the one account-state slice that needs **no witness /
+external-account model** — they read the *currently executing* bytecode, which
+the dispatcher already holds in memory (code base in `x21`, exact length in a new
+env cell). This graduates the last two stubs out of `Noop.lean` and leaves
+`pushZeroHandlers` / `copyNoopHandlers` empty.
+
+**Design:** a new env cell `codeSize` at `env+496` (the free gap between
+`activeMemorySize` @488 and the M28 blob cells @512) holds the exact running
+bytecode length. Both prologues seed it: the runtime-bytecode prologue stores the
+input-trailer length (exact, pre-rounding) read at `0x40000008`; the `.data`-baked
+prologue computes `evm_code_end − evm_code` via a new `evm_code_end:` label
+emitted right after the baked bytecode (avoids the `.balign 32` over-count before
+`evm_memory`).
+
+**Delivered:**
+- **`EvmAsm/Evm64/Code/CopyProgram.lean`** — verified `evm_codecopy` body (18
+  instrs), sibling of `Calldata.evm_calldatacopy`: pops `(destOffset, dataOffset,
+  size)`, copies `code[dataOffset..]` → `memory[destOffset..]` with zero-fill past
+  `len(code)`. Source base from a register (`x21`), source length from `env+496`.
+  Length theorems included; axiom-clean.
+- **`Dispatch.lean`** — both prologues seed `env+496`; data section emits
+  `evm_code_end:`.
+- **`Programs/Evm.lean`** — new `codeHandlers` (CODESIZE custom-asm env-cell push,
+  mirroring MSIZE/GAS; CODECOPY = `evm_codecopy` body + `stackUnderflowGuardAsm 3`
+  / `updateActiveMemorySizeAsm` preBody), wired into `tinyInterpRegistry`.
+- **`Programs/Noop.lean`** — `pushZeroHandlers` / `copyNoopHandlers` now empty.
+- **Tests** — `codesize_basic` (len 5 incl. trailing data), `codecopy_basic`
+  (1 in-bounds byte → MLOAD), `codecopy_zero_pad` (offset past `len` → all zero).
+
+**Exit criteria (met).** `scripts/codegen-opcodes-runtime-check.sh` → ALL PASS
+(182 cases, incl. the 3 new); the `.data`-baked `tiny_interp_dispatch_add`
+assembles + runs on ziskemu (validates `evm_code_end`); `scripts/check-progress.sh`
+exits 0; `lake build EvmAsm.Codegen` clean.
+
+**Out of scope:** CODESIZE/CODECOPY gas is still the M30 static base (no
+per-word copy cost); witness-backed BALANCE/EXTCODE* are a separate track.
+
 ### M24 — Storage on Option A: append-log + journal + real TLOAD/TSTORE — **DONE (2026-05-29)**
 
 The storage memory-layout decision (issue **#7130**) landed
