@@ -703,13 +703,24 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  sd x16, 8(x15)\n" ++
     "  j 7b\n" ++
     -- BLS12-381 G2 ADD: execution-specs rejects unless calldata length is 512.
-    -- Valid-length output is wired in a later accelerator-body slice; for now
-    -- it reaches the active-precompile success surface with empty returndata.
+    -- Valid-length input invokes the linkable backend wrapper. Current ziskemu
+    -- routes this through a deterministic safe-fail shim, which surfaces EVM
+    -- precompile failure instead of placeholder success.
     "15:\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 512\n" ++
     "  bne x17, x16, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  addi a0, x15, 144\n" ++
+    "  addi a1, x15, 336\n" ++
+    "  addi a2, x15, 528\n" ++
+    "  jal x1, zkvm_bls12_g2_add\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  bnez a0, 1f\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
