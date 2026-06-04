@@ -28,6 +28,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Rv64.Program
 
@@ -667,12 +668,26 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop"
   let basicPrecompileCallTail
-      (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
+      (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
     -- Stack top at entry is the call gas word. The destination
     -- address is the next word for both CALL and STATICCALL. EVM
     -- address operands are masked to the low 160 bits: limb 1 and
     -- the low 32 bits of limb 2 participate in precompile dispatch,
     -- while bits 160..255 are ignored.
+    "  mv s9, x13\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  addi t0, x12, 32\n" ++
+    "  la t1, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
+    runtimeAccessWordToBe20Asm tag "t0" "t1" "t2" "t3" ++
+    "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
+    "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+    "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+    "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+    "  jal ra, runtime_access_account_charge\n" ++
+    "  mv x13, s9\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
     "  ld x14, 32(x12)\n" ++
     "  ld x15, 40(x12)\n" ++
     "  bnez x15, 1f\n" ++
@@ -1264,7 +1279,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0xf1]
     , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail 192 96 128 160 192) }
+    , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192) }
   , { mkHandler "h_CALLCODE" 0xf2 192 with
       preBody := stackUnderflowGuardAsm 7 ++ "\n" }
   , { mkHandler "h_DELEGATECALL" 0xf4 160 with
@@ -1278,7 +1293,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0xfa]
     , preBody := stackUnderflowGuardAsm 6 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail 160 64 96 128 160) } ]
+    , tail := .custom (basicPrecompileCallTail "staticcall_target" 160 64 96 128 160) } ]
 
 /-- M20 arithmetic no-op handlers.
 
