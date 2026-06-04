@@ -126,6 +126,8 @@ def statelessVerdictV2GuestClosure : String :=
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
+  receiptRecordsFunction ++ "\n" ++
+  blockReceiptRecordsMaterializeFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++

@@ -25,12 +25,12 @@
                                [+ 8..16]  LE u64 length of first record
                                [+16..]    SSZ-encoded SszStatelessInput
   0x80000000 .. 0xa0000000   .text + .rodata + .bss (ELF `-Ttext=0x80000000`)
-  0xa5000000 .. 0xbf500000   .data (`-Tdata=0xa5000000`; static tables,
+  0xa3000000 .. 0xbf500000   .data (`-Tdata=0xa3000000`; static tables,
                              fixed data, and 1G-cap BSR/BAL arenas)
   0xa0010000 .. 0xa0020000   OUTPUT_ADDR (64 KiB, public output)
                                [+ 0..N]   SSZ-encoded
                                           SszStatelessValidationResult
-  0xa0020000 .. 0xa5000000   working RAM (decoded structures, DBs,
+  0xa0020000 .. 0xa3000000   working RAM (decoded structures, DBs,
                              frames) -- the Stateless guest claims this
                              lower tail of ziskemu's RAM region.
   0xbf500000 .. 0xbfb80000   .sszscratch NOBITS merkleization scratch
@@ -45,7 +45,7 @@
   the verified `isValidMemAddr` predicate as of issue #5164 -- see
   `EvmAsm/Rv64/Basic.lean` for the disjunctive definition.
 
-  ## Working-RAM sub-regions (0xa0020000 .. 0xa5000000)
+  ## Working-RAM sub-regions (0xa0020000 .. 0xa3000000)
 
   Each anchor is the start of a region whose size is sized at codegen
   time. Sizes will be tightened as modules land; for now we reserve
