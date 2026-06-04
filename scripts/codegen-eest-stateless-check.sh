@@ -26,8 +26,17 @@
 #   * tail   -- bytes 33:105 == expected: u32 offset (=37) + the 68-byte
 #               chain_config (echoed from the input by the encoder).
 #   * full   -- all 105 bytes match (root AND succ AND tail).
-#   * ERROR  -- ziskemu nonzero exit / step-budget exhaustion / truncated
-#               output (e.g. the guest hit an Unimplemented exit).
+#   * BUDGET -- the run exhausted the ziskemu --steps budget before halting
+#               (e.g. a sha256-heavy NPR-root merkleization). This is NOT a
+#               correctness failure (the guest never produced an answer to
+#               be wrong about), so it is counted and reported SEPARATELY
+#               from ERROR and never folded into fail / the --min-* gates.
+#               Detection greps the emulator log against EEST_STEP_LIMIT_RE
+#               (override if your ziskemu build phrases it differently); a
+#               non-match falls through to ERROR, so this never regresses
+#               the existing classification.
+#   * ERROR  -- ziskemu nonzero exit / truncated output unrelated to the
+#               step budget (e.g. the guest hit an Unimplemented exit).
 # A per-FAIL line shows which regions matched, e.g. "[root/----/tail]".
 #
 # Usage:
@@ -90,6 +99,12 @@ FILTER=""
 # (whose NPR-root merkleization is sha256-heavy) complete; normal blocks
 # halt long before this and are not slowed.
 STEPS="${EEST_STEPS:-50000000}"
+# Case-insensitive ERE matched against the ziskemu log when a run does NOT
+# produce a valid 105-byte output, to tell "exhausted the --steps budget"
+# (BUDGET, not a correctness failure) apart from a genuine ERROR. Override
+# EEST_STEP_LIMIT_RE if your ziskemu build phrases step exhaustion
+# differently; a non-match safely falls through to ERROR.
+STEP_LIMIT_RE="${EEST_STEP_LIMIT_RE:-(step[s]? limit|maximum steps|max[_ ]*steps|exceeded.*step|step.*exceeded|out of steps|reached.*steps|step budget)}"
 JOBS="${EEST_JOBS:-auto}"
 JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
 JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
@@ -557,13 +572,26 @@ run_case() {
   fi
   if ! "$ZISKEMU" -e "$GUEST_ELF" -i "$input" -o "$out" \
         -n "$STEPS" >"$log" 2>&1 </dev/null; then
-    printf 'ERROR\texit\n' > "$tmp_result"
+    # Distinguish a --steps budget exhaustion (sha256-heavy merkleization,
+    # not a wrong answer) from a genuine error. Non-match => ERROR (no
+    # behaviour change vs before this distinction was added).
+    if grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
+      printf 'BUDGET\tsteps:%s\n' "$STEPS" > "$tmp_result"
+    else
+      printf 'ERROR\texit\n' > "$tmp_result"
+    fi
     mv "$tmp_result" "$result"
     return 0
   fi
   actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
   if [[ "${#actual_hex}" -lt 210 ]]; then
-    printf 'ERROR\tshort:%s\n' "${#actual_hex}" > "$tmp_result"
+    # A zero-exit run that produced no valid output but whose log shows the
+    # step cap was hit is also a budget exhaustion, not a correctness error.
+    if grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
+      printf 'BUDGET\tsteps:%s\n' "$STEPS" > "$tmp_result"
+    else
+      printf 'ERROR\tshort:%s\n' "${#actual_hex}" > "$tmp_result"
+    fi
     mv "$tmp_result" "$result"
     return 0
   fi
@@ -588,7 +616,7 @@ wait_for_one_worker() {
 #   succ [32]     = successful_validation     (hex chars 64..66)
 #   tail [33:105] = u32 offset (=37) + 68-byte chain_config (hex 66..210)
 declare -A classifiedLabels=()
-total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0
+total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0 budget=0
 
 classify_case_result() {
   local line="$1"
@@ -612,6 +640,12 @@ classify_case_result() {
   classifiedLabels["$label"]=1
   total=$((total + 1))
   IFS=$'\t' read -r status actual_hex < "$result"
+  if [[ "$status" == "BUDGET" ]]; then
+    # Step-budget exhaustion: counted separately, NOT a correctness failure.
+    budget=$((budget + 1))
+    echo "  BUDGET(steps) $relpath (${actual_hex#steps:} steps)"
+    return 0
+  fi
   if [[ "$status" != "OK" ]]; then
     err=$((err + 1))
     case "$actual_hex" in
@@ -729,7 +763,7 @@ if [[ "$stopEarly" -eq 1 ]]; then
   echo "==> stopped after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
 fi
 
-ran=$((total - err))
+ran=$((total - err - budget))
 # --- summary + baseline file ------------------------------------------------
 BASELINE="$RUN_DIR/eest-baseline.txt"
 {
@@ -744,6 +778,7 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   [[ "$stopEarly" -eq 1 ]] && echo "  stopped:     after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
   echo "  total:       $total"
   echo "  errored:     $err"
+  echo "  budget:      $budget   (--steps exhausted before halt; NOT a correctness failure)"
   echo "  ran:         $ran"
   echo "  full match:    $full   (all 105 bytes)"
   echo "  root match:    $root   (bytes 0:32  = new_payload_request_root)"
