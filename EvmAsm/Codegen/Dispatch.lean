@@ -18,6 +18,7 @@
 
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
@@ -389,6 +390,42 @@ def emitRuntimeAccountWitnessData : String :=
   "ecc_match_len:\n" ++
   "  .zero 8\n" ++
   ".balign 32\n" ++
+  "nonce_state_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "nonce_acct_struct:\n" ++
+  "  .zero 104\n" ++
+  ".balign 8\n" ++
+  "create_nonce:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "create_sender_be:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "create_salt_be:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "create_address_be:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ac_buffer:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ac_nonce_be:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "ac_digest:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ac2_inner_digest:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ac2_outer_digest:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "ac2_preimage:\n" ++
+  "  .zero 88\n" ++
+  ".balign 32\n" ++
   "ecc_empty_code_hash:\n" ++
   "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
   "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
@@ -544,9 +581,12 @@ def emitDispatcherEpilogue
   accountAtAddressFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   balanceAtHeaderStateRootFunction ++ "\n" ++
+  nonceAtHeaderStateRootFunction ++ "\n" ++
   extcodehashAtHeaderStateRootFunction ++ "\n" ++
   extcodesizeAtHeaderStateRootFunction ++ "\n" ++
   extcodecopyAtHeaderStateRootFunction ++ "\n" ++
+  addressComputeCreateFunction ++ "\n" ++
+  addressComputeCreate2Function ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s

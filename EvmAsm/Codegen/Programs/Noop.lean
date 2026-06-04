@@ -258,10 +258,10 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
         "  ret" } ]
 
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
-    CREATE2, STATICCALL). All ship as **pop-N + push-zero** no-ops:
-    the dispatcher pops the EVM-spec input count, then writes 32
-    zero bytes into the new top-of-stack slot (= "call failed" /
-    "create returned address 0").
+    CREATE2, STATICCALL). CALL-family non-precompile paths still ship as
+    **pop-N + push-zero** no-ops. CREATE-family paths decode operands and
+    derive the target address, while later slices still own collision checks,
+    child execution, and code-deposit descriptors.
 
     Net stack delta per opcode (= pop − push, multiplied by 32):
 
@@ -310,8 +310,8 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
       execution.
     - ECRECOVER / RIPEMD160 CALL / STATICCALL targets currently
       return success without producing returndata.
-    - CREATE / CREATE2 always return address 0 (= "deployment
-      failed"). The would-be deployed code is not executed.
+    - CREATE / CREATE2 derive and push the would-be target address, but
+      the would-be deployed code is not executed or deposited yet.
     - No frame stack / recursion. The dispatcher doesn't push a
       sub-frame, run called code, and resume. Real frame-stack
       design is deferred (likely tied to STF integration). -/
@@ -327,6 +327,128 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
               SD .x12 .x0 16 ;;
               SD .x12 .x0 24
     , tail := .advanceAndRet 1 }
+  let createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
+    -- Decode CREATE-family operands, derive the would-be target address using
+    -- the shared CREATE/CREATE2 address helpers, and leave later slices to add
+    -- collision checks, child execution, and code-deposit descriptors.
+    "  la x15, evm_precompile_frame\n" ++
+    "  sd x0, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  ld x14, 0(x12)\n" ++    -- value low limb
+    "  ld x15, 32(x12)\n" ++   -- offset low limb
+    "  ld x16, 64(x12)\n" ++   -- size low limb
+    (if hasSalt then
+      "  ld x17, 96(x12)\n"   -- salt low limb; full salt is converted below
+     else
+      "") ++
+    -- A nonzero high limb in size is outside the current static memory
+    -- envelope. Offset high limbs matter only for nonempty initcode.
+    "  ld x18, 72(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  ld x18, 80(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  ld x18, 88(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  beqz x16, 1f\n" ++
+    "  ld x18, 40(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  ld x18, 48(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  ld x18, 56(x12)\n" ++
+    "  bnez x18, .exit_outofgas\n" ++
+    "  add x18, x15, x16\n" ++
+    "  bltu x18, x15, .exit_outofgas\n" ++
+    "  li x19, 0x8000\n" ++
+    "  bltu x19, x18, .exit_outofgas\n" ++
+    "1:\n" ++
+    -- Convert env.ADDRESS from stack-word representation to the canonical
+    -- 20-byte big-endian input expected by address_compute_create*.
+    "  la x18, create_sender_be\n" ++
+    "  addi x19, x20, 19\n" ++
+    "  li x23, 20\n" ++
+    "2:\n" ++
+    "  lbu x24, 0(x19)\n" ++
+    "  sb x24, 0(x18)\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 2b\n" ++
+    -- Default to nonce 0 when no account-witness context is attached.
+    "  la x18, create_nonce\n" ++
+    "  sd x0, 0(x18)\n" ++
+    "  ld a1, 584(x20)\n" ++
+    "  beqz a1, 3f\n" ++
+    "  mv s9, x13\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld a0, 576(x20)\n" ++
+    "  la a2, create_sender_be\n" ++
+    "  ld a3, 592(x20)\n" ++
+    "  ld a4, 600(x20)\n" ++
+    "  la a5, create_nonce\n" ++
+    "  jal x1, nonce_at_header_state_root\n" ++
+    "  mv x13, s9\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  beqz a0, 3f\n" ++
+    "  la x18, create_nonce\n" ++
+    "  sd x0, 0(x18)\n" ++
+    "3:\n" ++
+    (if hasSalt then
+      -- Convert the CREATE2 salt stack word to canonical 32-byte big-endian.
+      "  la x18, create_salt_be\n" ++
+      "  addi x19, x12, 127\n" ++
+      "  li x23, 32\n" ++
+      "4:\n" ++
+      "  lbu x24, 0(x19)\n" ++
+      "  sb x24, 0(x18)\n" ++
+      "  addi x19, x19, -1\n" ++
+      "  addi x18, x18, 1\n" ++
+      "  addi x23, x23, -1\n" ++
+      "  bnez x23, 4b\n" ++
+      "  mv s9, x13\n" ++
+      "  mv s10, x10\n" ++
+      "  mv s11, x12\n" ++
+      "  la a0, create_sender_be\n" ++
+      "  la a1, create_salt_be\n" ++
+      "  add a2, x13, x15\n" ++
+      "  mv a3, x16\n" ++
+      "  la a4, create_address_be\n" ++
+      "  jal x1, address_compute_create2\n" ++
+      "  mv x13, s9\n" ++
+      "  mv x10, s10\n" ++
+      "  mv x12, s11\n"
+     else
+      "  mv s9, x13\n" ++
+      "  mv s10, x10\n" ++
+      "  mv s11, x12\n" ++
+      "  la a0, create_sender_be\n" ++
+      "  ld a1, create_nonce\n" ++
+      "  la a2, create_address_be\n" ++
+      "  jal x1, address_compute_create\n" ++
+      "  mv x13, s9\n" ++
+      "  mv x10, s10\n" ++
+      "  mv x12, s11\n") ++
+    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+    -- Push the derived 160-bit address as an EVM stack word: low 160 bits in
+    -- stack byte order, high 96 bits zero.
+    "  sd x0, 0(x12)\n" ++
+    "  sd x0, 8(x12)\n" ++
+    "  sd x0, 16(x12)\n" ++
+    "  sd x0, 24(x12)\n" ++
+    "  la x18, create_address_be\n" ++
+    "  addi x19, x18, 19\n" ++
+    "  mv x22, x12\n" ++
+    "  li x23, 20\n" ++
+    "5:\n" ++
+    "  lbu x24, 0(x19)\n" ++
+    "  sb x24, 0(x22)\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  addi x22, x22, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 5b\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop"
   let basicPrecompileCallTail
       (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
     -- Stack top at entry is the call gas word. The destination
@@ -513,8 +635,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  sd x0, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop"
-  [ { mkHandler "h_CREATE" 0xf0 64 with
-      preBody := stackUnderflowGuardAsm 3 ++ "\n" }
+  [ { label := "h_CREATE"
+    , opcodes := [0xf0]
+    , preBody := stackUnderflowGuardAsm 3 ++ "\n"
+    , body := []
+    , tail := .custom (createUnsupportedTail 64 false) }
   , { label := "h_CALL"
     , opcodes := [0xf1]
     , preBody := stackUnderflowGuardAsm 7 ++ "\n"
@@ -524,8 +649,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
       preBody := stackUnderflowGuardAsm 7 ++ "\n" }
   , { mkHandler "h_DELEGATECALL" 0xf4 160 with
       preBody := stackUnderflowGuardAsm 6 ++ "\n" }
-  , { mkHandler "h_CREATE2" 0xf5 96 with
-      preBody := stackUnderflowGuardAsm 4 ++ "\n" }
+  , { label := "h_CREATE2"
+    , opcodes := [0xf5]
+    , preBody := stackUnderflowGuardAsm 4 ++ "\n"
+    , body := []
+    , tail := .custom (createUnsupportedTail 96 true) }
   , { label := "h_STATICCALL"
     , opcodes := [0xfa]
     , preBody := stackUnderflowGuardAsm 6 ++ "\n"
