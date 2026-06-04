@@ -622,6 +622,51 @@ theorem expTwoMulFixedControlInvariant_succ_to_pre_reload_with_induction_frame
   exact ⟨hControlSucc,
     expTwoMulFixedInductionFrameN_pre_reload_of_control hSuccPre⟩
 
+theorem expTwoMulFixedControlInvariant_succ_no_reload_induction_frame_cases
+    {exponentWord : EvmWord} {k : Nat}
+    {c6 ptr nextLimb evmSp : Word}
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k c6 ptr nextLimb evmSp)
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
+    (expTwoMulFixedControlInvariant exponentWord (k + 1)
+        (c6 + signExtend12 (-1 : BitVec 12)) ptr nextLimb evmSp ∧
+      expTwoMulFixedInductionFrameN exponentWord (k + 1)
+          (c6 + signExtend12 (-1 : BitVec 12)) ptr =
+        expTwoMulFixedReloadTailFrameN exponentWord (k + 1) ptr) ∨
+      (expTwoMulFixedControlInvariant exponentWord (k + 1)
+          (c6 + signExtend12 (-1 : BitVec 12)) ptr nextLimb evmSp ∧
+        expTwoMulFixedInductionFrameN exponentWord (k + 1)
+            (c6 + signExtend12 (-1 : BitVec 12)) ptr =
+          expTwoMulFixedPreReloadFrameN exponentWord (k + 1) ptr) ∨
+      (expTwoMulFixedControlInvariant exponentWord (k + 1)
+          (c6 + signExtend12 (-1 : BitVec 12)) ptr nextLimb evmSp ∧
+        expTwoMulFixedInductionFrameN exponentWord (k + 1)
+            (c6 + signExtend12 (-1 : BitVec 12)) ptr =
+          expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1) ptr ∧
+        (k + 1) % 64 < 62) := by
+  by_cases hReload :
+      c6 + signExtend12 (-1 : BitVec 12) +
+          signExtend12 (-1 : BitVec 12) = 0
+  · have hControlSucc :=
+      expTwoMulFixedControlInvariant_succ_no_reload hControl hC6
+    exact Or.inl
+      ⟨hControlSucc, expTwoMulFixedInductionFrameN_reload_of_control hReload⟩
+  · by_cases hSuccPre :
+        (c6 + signExtend12 (-1 : BitVec 12) +
+            signExtend12 (-1 : BitVec 12)).toNat = 1
+    · exact Or.inr (Or.inl
+        (expTwoMulFixedControlInvariant_succ_to_pre_reload_with_induction_frame
+          hControl hC6 hSuccPre))
+    · have hControlSucc :=
+        expTwoMulFixedControlInvariant_succ_no_reload hControl hC6
+      have hSuccOrd : (k + 1) % 64 < 62 :=
+        expTwoMulFixedControlInvariant_ordinary_no_reload_mod
+          hControlSucc hReload hSuccPre
+      have hOrd :=
+        expTwoMulFixedControlInvariant_succ_ordinary_with_induction_frame
+          hControl hC6 hSuccOrd
+      exact Or.inr (Or.inr ⟨hOrd.1, hOrd.2, hSuccOrd⟩)
+
 theorem expTwoMulFixedInductionFrameN_pcFree
     (exponentWord : EvmWord) (k : Nat) (c6 ptr : Word) :
     (expTwoMulFixedInductionFrameN exponentWord k c6 ptr).pcFree := by
