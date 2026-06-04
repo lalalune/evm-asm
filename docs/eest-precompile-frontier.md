@@ -30,7 +30,7 @@ columns describe only the latest harness selection.
 | BN254 add/mul/pairing | `0x06..0x08` | `zkvm_bn254_*` bridges exist; call framing missing | `evm-asm-fhsxz.2.4.2.62.3` |
 | BLAKE2F | `0x09` | `zkvm_blake2f` bridge exists; call framing missing | `evm-asm-fhsxz.2.4.2.62.3` |
 | KZG point evaluation | `0x0a` | `zkvm_kzg_point_eval` bridge exists; call framing missing | `evm-asm-fhsxz.2.4.2.62.3` |
-| BLS12-381 | `0x0b..0x11` | `zkvm_bls12_*` bridges and runtime dispatch are wired for the BLS12 family; focused G1/G2 fixture coverage uses `scripts/codegen-eest-bls12-g1-frontier-check.sh` and `scripts/codegen-eest-bls12-g2-frontier-check.sh` | `evm-asm-fhsxz.2.4.2.62.3` |
+| BLS12-381 | `0x0b..0x11` | `zkvm_bls12_*` bridges and runtime dispatch are wired for the BLS12 family; focused fixture coverage uses `scripts/codegen-eest-bls12-g1-frontier-check.sh`, `scripts/codegen-eest-bls12-g2-frontier-check.sh`, and `scripts/codegen-eest-bls12-pairing-map-frontier-check.sh` | `evm-asm-fhsxz.2.4.2.62.3` |
 | P256VERIFY | `0x100` | `zkvm_secp256r1_verify` bridge exists; call framing missing | `evm-asm-fhsxz.2.4.2.62.3` |
 | CALL/STATICCALL/revert/create interactions with precompiles | mixed | VM call/create/revert semantics plus dispatch | `evm-asm-fhsxz.2.4.2.62.1` |
 
