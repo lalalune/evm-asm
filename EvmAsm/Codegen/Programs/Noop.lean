@@ -330,8 +330,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , tail := .advanceAndRet 1 }
   let createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- Decode CREATE-family operands, derive the would-be target address using
-    -- the shared CREATE/CREATE2 address helpers, and leave later slices to add
-    -- collision checks, child execution, and code-deposit descriptors.
+    -- the shared CREATE/CREATE2 address helpers, and enforce the currently
+    -- runtime-visible prechecks before later child/deposit execution slices.
     "  la x15, evm_precompile_frame\n" ++
     "  sd x0, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
@@ -378,6 +378,48 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x18, x18, 1\n" ++
     "  addi x23, x23, -1\n" ++
     "  bnez x23, 2b\n" ++
+    -- With account-witness context, enforce the executable-spec
+    -- insufficient-balance zero-result branch before deriving success.
+    "  ld a1, 584(x20)\n" ++
+    "  beqz a1, 9f\n" ++
+    "  la x18, create_value_be\n" ++
+    "  addi x19, x12, 31\n" ++
+    "  li x23, 32\n" ++
+    "10:\n" ++
+    "  lbu x24, 0(x19)\n" ++
+    "  sb x24, 0(x18)\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 10b\n" ++
+    "  mv s9, x13\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld a0, 576(x20)\n" ++
+    "  ld a1, 584(x20)\n" ++
+    "  la a2, create_sender_be\n" ++
+    "  ld a3, 592(x20)\n" ++
+    "  ld a4, 600(x20)\n" ++
+    "  la a5, create_balance_be\n" ++
+    "  jal x1, balance_at_header_state_root\n" ++
+    "  mv t0, a0\n" ++
+    "  mv x13, s9\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  bnez t0, 7f\n" ++
+    "  la x18, create_balance_be\n" ++
+    "  la x19, create_value_be\n" ++
+    "  li x23, 32\n" ++
+    "11:\n" ++
+    "  lbu x24, 0(x18)\n" ++
+    "  lbu x25, 0(x19)\n" ++
+    "  bltu x24, x25, 7f\n" ++
+    "  bltu x25, x24, 9f\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 11b\n" ++
+    "9:\n" ++
     -- Default to nonce 0 when no account-witness context is attached.
     "  la x18, create_nonce\n" ++
     "  sd x0, 0(x18)\n" ++
