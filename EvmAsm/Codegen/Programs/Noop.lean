@@ -976,7 +976,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  j 7b\n" ++
     -- BLS12-381 map-Fp2-to-G2: execution-specs requires exactly one
     -- 128-byte Fp2 element. Project the two compact 48-byte Fp chunks into
-    -- contiguous scratch before calling the backend.
+    -- the G2-class compact input lane before calling the backend.
     "19:\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 128\n" ++
@@ -985,7 +985,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add x18, x13, x18\n" ++
     "  addi x19, x18, 16\n" ++
-    "  addi x23, x15, 144\n" ++
+    "  addi x23, x15, 720\n" ++
     "  li x22, 48\n" ++
     "20:\n" ++
     "  lbu x16, 0(x19)\n" ++
@@ -1005,8 +1005,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez x22, 21b\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    "  addi a0, x15, 144\n" ++
-    "  addi a1, x15, 336\n" ++
+    "  addi a0, x15, 720\n" ++
+    "  addi a1, x15, 944\n" ++
     "  jal x1, zkvm_bls12_map_fp2_to_g2\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
@@ -1015,7 +1015,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
     -- to a 64-byte big-endian field element.
     "  addi x18, x15, 16\n" ++
-    "  addi x19, x15, 336\n" ++
+    "  addi x19, x15, 944\n" ++
     "  li x23, 4\n" ++
     "34:\n" ++
     "  li x22, 16\n" ++

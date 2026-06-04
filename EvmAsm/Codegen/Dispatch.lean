@@ -226,14 +226,18 @@ def emitGasCostTable : String :=
       +0  status / success word
       +8  returndata length
       +16 first 256 bytes of returndata scratch
-      +144 BLS12 G1 ADD compact p1 scratch
-      +240 BLS12 G1 ADD compact p2 scratch
-      +336 BLS12 G1 ADD compact result scratch
-      +144 BLS12 G2 ADD compact p1 scratch
-      +336 BLS12 G2 ADD compact p2 scratch
-      +528 BLS12 G2 ADD compact result scratch
-      +720 BLS12 G2 MSM compact pair scratch
-      +944 BLS12 G2 MSM compact result scratch. -/
+      +144 G1-class compact input scratch
+      +240 G1 ADD compact p2 scratch
+      +336 G1-class compact result scratch / pairing bool scratch
+      +144 G2 ADD compact p1 scratch
+      +336 G2 ADD compact p2 scratch
+      +528 G2 ADD compact result scratch
+      +720 G2-class compact input scratch
+      +944 G2-class compact result scratch.
+
+    The lanes are handler-local scratch, so G1/G2 ADD may still reuse the
+    older offsets internally. Map-Fp2-to-G2 uses the G2-class lane to avoid
+    colliding with map-Fp-to-G1 stacked PR edits around +144/+336. -/
 def emitPrecompileFrameData : String :=
   ".balign 8\n" ++
   "evm_precompile_frame:\n" ++
