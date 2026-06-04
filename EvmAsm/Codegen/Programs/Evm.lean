@@ -449,6 +449,7 @@ def pushHandlers : List OpcodeHandlerSpec :=
   (List.range 33).map (fun n =>
     { label   := s!"h_PUSH{n}"
       opcodes := [0x5f + n]
+      preBody := stackOverflowGuardAsm
       body    := EvmAsm.Evm64.evm_push n
       tail    := .advanceAndRet (1 + n) })
 
