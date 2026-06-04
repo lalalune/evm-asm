@@ -202,6 +202,18 @@ matrix, not a success claim: today
 unimplemented frontier, while the reusable accelerator payload/ECALL bridges
 are tracked from [`docs/zkvm-accelerators-interface.md`](zkvm-accelerators-interface.md).
 
+Run the focused EIP-7708 simple ETH transfer-log regression:
+
+```bash
+scripts/codegen-eest-eip7708-simple-transfer-check.sh
+```
+
+By default this converts and runs every stateless row selected by the
+`simple_transfer_emits_log` fixture filter, so future parameter rows for that
+fixture are picked up without editing the script. It is a first EIP-7708
+transfer-log gate, not the full CALL/CREATE/SELFDESTRUCT/finalization burn
+frontier.
+
 Run the current BAL replay frontier around the EIP-7002 withdrawal-request
 cluster:
 
