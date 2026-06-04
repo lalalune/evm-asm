@@ -692,6 +692,26 @@ def envHandlers : List OpcodeHandlerSpec :=
   , { label := "h_SELFBALANCE", opcodes := [0x47], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .selfBalance, tail := .advanceAndRet 1 }
   , { label := "h_BASEFEE"    , opcodes := [0x48], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .baseFee    , tail := .advanceAndRet 1 } ]
 
+
+/-- EIP-7843 SLOTNUM (0x4b). The runtime input trailer carries the current
+    consensus slot number as a 256-bit stack word. The dispatcher prologue
+    copies that word to `evm_env + 624`; this handler pushes it unchanged. -/
+def slotnumContextHandlers : List OpcodeHandlerSpec :=
+  let slotnumBody : Program :=
+    ADDI .x12 .x12 (-32) ;;
+    LD .x15 .x20 (BitVec.ofNat 12 624) ;;
+    SD .x12 .x15 0 ;;
+    LD .x15 .x20 (BitVec.ofNat 12 632) ;;
+    SD .x12 .x15 8 ;;
+    LD .x15 .x20 (BitVec.ofNat 12 640) ;;
+    SD .x12 .x15 16 ;;
+    LD .x15 .x20 (BitVec.ofNat 12 648) ;;
+    SD .x12 .x15 24
+  [ { label := "h_SLOTNUM"
+    , opcodes := [0x4b]
+    , body := slotnumBody
+    , tail := .advanceAndRet 1 } ]
+
 /-! ## M28 blob-context opcodes
 
   `BLOBBASEFEE` (0x4a) is an Amsterdam/Cancun context opcode. The
@@ -1426,7 +1446,7 @@ def stopHandler : OpcodeHandlerSpec :=
     the list for a spec whose `opcodes` contains the byte. -/
 def tinyInterpRegistry : List OpcodeHandlerSpec :=
   pushHandlers ++ dupHandlers ++ swapHandlers ++ singletonHandlers ++
-  memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++
+  memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++ slotnumContextHandlers ++
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++ codeHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
