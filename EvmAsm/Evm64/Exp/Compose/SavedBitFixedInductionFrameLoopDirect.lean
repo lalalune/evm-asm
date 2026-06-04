@@ -951,11 +951,9 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
         a0 a1 a2 a3 v7 v11)
       (Q ** expTwoMulFixedDirectHeadFrameN exponentWord k controlC6 ptr) := by
   intro R hR s hcr hPreR hpc
-  have hPreRForCases := hPreR
-  obtain ⟨_, _, _, _, _, _, hPre, _⟩ := hPreRForCases
   have hCases :=
-    expTwoMulFixedIterPreNWithInductionFrame_control_step_cases_from_pre
-      hPre
+    expTwoMulFixedIterPreNWithInductionFrame_control_step_cases_from_holdsFor
+      hPreR
   rcases hCases with hReload | hPreReload | ⟨hOrd, hNotPre, _hMod⟩
   · rw [expTwoMulFixedDirectHeadFrameN_reload_of_control hReload]
     exact
@@ -1145,12 +1143,10 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
       (Q ** expTwoMulFixedDirectHeadTailOrSuccessorFrameN exponentWord k
         controlC6 ptr nextNextLimb) := by
   intro R hR s hcr hPreR hpc
-  have hPreRForControl := hPreR
-  obtain ⟨_, _, _, _, _, _, hPre, _⟩ := hPreRForControl
   have hControl :
       expTwoMulFixedControlInvariant exponentWord k controlC6 ptr
         nextLimb evmSp :=
-    expTwoMulFixedIterPreNWithInductionFrame_control hPre
+    expTwoMulFixedIterPreNWithInductionFrame_control_from_holdsFor hPreR
   rw [← expTwoMulFixedDirectHeadFrameN_eq_tailOrSuccessorFrameN_of_control
     hControl hNextNext]
   exact
