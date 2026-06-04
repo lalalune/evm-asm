@@ -90,18 +90,19 @@ A direct 1G static layout does not fit comfortably in the current
 `.sszscratch`. The implementation should move `.sszscratch` upward and enlarge
 or relocate `.data` while staying inside verified RAM `0xa0000000..0xc0000000`.
 
-Recommended PR-sized static map:
+Implemented static map:
 
 ```text
 0xa0010000 .. 0xa0020000   OUTPUT_ADDR
-0xa0020000 .. 0xa5000000   working RAM, unchanged
-0xa5000000 .. 0xbf500000   .data, enough for 1G BSR/BAL static arenas
+0xa0020000 .. 0xa3000000   working RAM, unchanged fixed anchors plus headroom
+0xa3000000 .. 0xbf500000   .data, enough for 1G BSR/BAL static arenas
 0xbf500000 .. 0xbfb80000   .sszscratch, 6.5 MiB NOBITS
 0xbfb80000 .. 0xc0000000   guard/headroom
 ```
 
 This keeps all regions in the existing verified RAM range and preserves a gap
-between `.data` and `.sszscratch`. Update all linker invocations together:
+between the documented working-RAM anchors and `.data`, and between `.data` and
+`.sszscratch`. Update all linker invocations together:
 
 - `EvmAsm/Codegen/Driver.lean`
 - `scripts/codegen-eest-stateless-check.sh`
@@ -111,17 +112,22 @@ between `.data` and `.sszscratch`. Update all linker invocations together:
 
 ## Implementation Checklist
 
-Implementation status: PR #8089 records this plan; the stacked implementation
-PR applies the direct static layout below by deriving `BlockVerdict.lean` guards
-and arena sizes from named constants, moving `.sszscratch` to `0xbf500000`, and
-raising the EEST harness pre-launch gas cap to 1,000,000,000. The old values in
-the "Current Blocker" section are historical evidence for why PR #8044's
-`ERROR(layout)` behavior was not the desired endpoint.
+Implementation status: the direct static layout is the current path. The code
+derives `BlockVerdict.lean` guards and arena sizes from named constants, moves
+`.sszscratch` to `0xbf500000`, and sets the EEST harness pre-launch gas cap to
+1,000,000,000. The old values in the "Current Blocker" section are historical
+evidence for why PR #8044's `ERROR(layout)` behavior was not the desired
+endpoint.
 
 The implementation address is higher than the initial recommendation because
 the full linked `.data` segment with all existing stateless tables plus the 1G
 BSR/BAL arenas reaches about `0xbf4398ef`; the actual `.sszscratch` reservation
-is 6.5 MiB, so `0xbf500000..0xbfb80000` fits inside verified RAM.
+is 6.5 MiB, so `0xbf500000..0xbfb80000` fits inside verified RAM. Dense
+`bsr_paths`/`bsr_newaccts` arrays indexed by the global state-change counter do
+not fit: BAL descriptors already point into `basr_paths`/`basr_accounts`, so the
+implemented layout keeps `bsr_paths`/`bsr_newaccts` compact for the two modeled
+system rows plus the 16 withdrawal rows and records those pointers in the dense
+`bsr_changes` descriptor array.
 
 1. Introduce named layout constants in `BlockVerdict.lean` before changing
    assembly strings, at least:

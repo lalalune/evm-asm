@@ -66,7 +66,7 @@ def writeAsmFile (asmPath : System.FilePath) (text : String) : IO Unit := do
     Returns the produced `(objPath, elfPath)`.
 
     Memory layout: `.text` at `0x80000000` (Zisk's default entry point),
-    `.data` at `0xa5000000` (high RAM, clear of fixed stateless working-memory
+    `.data` at `0xa3000000` (high RAM, clear of fixed stateless working-memory
     anchors and `OUTPUT_ADDR = 0xa0010000`). -/
 def assembleAndLink (asmPath : System.FilePath) :
     IO (System.FilePath × System.FilePath) := do
@@ -80,7 +80,7 @@ def assembleAndLink (asmPath : System.FilePath) :
     -- `.sszscratch` is the stateless guest's large NOBITS merkleization work
     -- region. Keep it above `.data`; GNU ld only relocates the section when
     -- present, so the flag is harmless for programs that do not emit it.
-    #["-Ttext=0x80000000", "-Tdata=0xa5000000",
+    #["-Ttext=0x80000000", "-Tdata=0xa3000000",
       "--section-start=.sszscratch=0xbf500000",
       "-nostdlib", "--no-relax",
       "-o", elfPath.toString, objPath.toString]
