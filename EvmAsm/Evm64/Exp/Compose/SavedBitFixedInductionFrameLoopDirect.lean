@@ -596,6 +596,56 @@ theorem expTwoMulFixedDirectHeadTrueFrameN_ordinary_of_control
     exact False.elim (hC6 hZero)
   · rfl
 
+
+theorem expTwoMulFixedReloadTailFrameN_eq_direct_tail_of_control
+    {exponentWord : EvmWord} {k : Nat}
+    {controlC6 ptr nextLimb nextNextLimb evmSp : Word}
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k controlC6 ptr nextLimb
+        evmSp)
+    (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) = 0)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64)) :
+    expTwoMulFixedReloadTailFrameN exponentWord k ptr =
+      expReloadTailDirectTailFrameN exponentWord k ptr nextNextLimb := by
+  have hFrameEq :
+      expTwoMulFixedSavedNextLimbFrame ptr nextNextLimb =
+        expTwoMulFixedReloadLimbFrameN exponentWord k ptr :=
+    expTwoMulFixedReloadLimbFrameN_eq_of_control_reload_nextNext
+      hControl hC6 hNextNext
+  have hTailEq :
+      expTwoMulFixedReloadTailFrameN exponentWord k ptr =
+        (expTwoMulFixedReloadLimbFrameN exponentWord k ptr **
+          expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+            (ptr + signExtend12 (-8 : BitVec 12))) :=
+    expTwoMulFixedReloadTailFrameN_handoff_of_control hControl hC6
+  rw [hTailEq, ← hFrameEq, expTwoMulFixedSavedNextLimbFrame_unfold,
+    expReloadTailDirectTailFrameN_unfold]
+
+theorem expTwoMulFixedPreReloadFrameN_eq_direct_tail_of_control
+    {exponentWord : EvmWord} {k : Nat}
+    {controlC6 ptr nextLimb nextNextLimb evmSp : Word}
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k controlC6 ptr nextLimb
+        evmSp)
+    (hC6 : (controlC6 + signExtend12 (-1 : BitVec 12)).toNat = 1)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64)) :
+    expTwoMulFixedPreReloadFrameN exponentWord k ptr =
+      expPreReloadDirectTailFrameN exponentWord k ptr nextNextLimb := by
+  have hFrameEq :
+      expTwoMulFixedSavedNextLimbFrame ptr nextNextLimb =
+        expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr :=
+    expTwoMulFixedSavedNextLimbFrameN_eq_of_nextNext hNextNext
+  have hSecondEq :
+      expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1) ptr =
+        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1) ptr :=
+    expTwoMulFixedSavedNextLimbFrameN_eq_succ_reload_limb_of_control_pre_reload
+      hControl hC6
+  rw [expTwoMulFixedPreReloadFrameN_unfold, hSecondEq, ← hFrameEq,
+    expTwoMulFixedSavedNextLimbFrame_unfold,
+    expPreReloadDirectTailFrameN_unfold]
+
 /-- Direct head step over the folded induction precondition with a single
     post-frame selector.
 
