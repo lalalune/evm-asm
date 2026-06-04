@@ -95,9 +95,9 @@ Recommended PR-sized static map:
 ```text
 0xa0010000 .. 0xa0020000   OUTPUT_ADDR
 0xa0020000 .. 0xa5000000   working RAM, unchanged
-0xa5000000 .. 0xb9000000   .data, enough for 1G BSR/BAL static arenas
-0xba000000 .. 0xbc000000   .sszscratch, 32 MiB NOBITS
-0xbc000000 .. 0xc0000000   guard/headroom
+0xa5000000 .. 0xbf500000   .data, enough for 1G BSR/BAL static arenas
+0xbf500000 .. 0xbfb80000   .sszscratch, 6.5 MiB NOBITS
+0xbfb80000 .. 0xc0000000   guard/headroom
 ```
 
 This keeps all regions in the existing verified RAM range and preserves a gap
@@ -110,6 +110,18 @@ between `.data` and `.sszscratch`. Update all linker invocations together:
 - any docs that spell out the stateless memory map
 
 ## Implementation Checklist
+
+Implementation status: PR #8089 records this plan; the stacked implementation
+PR applies the direct static layout below by deriving `BlockVerdict.lean` guards
+and arena sizes from named constants, moving `.sszscratch` to `0xbf500000`, and
+raising the EEST harness pre-launch gas cap to 1,000,000,000. The old values in
+the "Current Blocker" section are historical evidence for why PR #8044's
+`ERROR(layout)` behavior was not the desired endpoint.
+
+The implementation address is higher than the initial recommendation because
+the full linked `.data` segment with all existing stateless tables plus the 1G
+BSR/BAL arenas reaches about `0xbf4398ef`; the actual `.sszscratch` reservation
+is 6.5 MiB, so `0xbf500000..0xbfb80000` fits inside verified RAM.
 
 1. Introduce named layout constants in `BlockVerdict.lean` before changing
    assembly strings, at least:

@@ -35,6 +35,17 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+private def bsrMaxBlockGasLimit : Nat := 1000000000
+private def bsrBalGasCost : Nat := 2000
+private def bsrMaxBalItems : Nat := bsrMaxBlockGasLimit / bsrBalGasCost
+private def bsrModeledSystemChanges : Nat := 2
+private def bsrMaxStateChanges : Nat := bsrMaxBalItems + bsrModeledSystemChanges
+
+private def bsrAccountRecordBytes : Nat := 24
+private def bsrPathBytes : Nat := 64
+private def bsrEncodedAccountBytes : Nat := 256
+private def baapStorageDescBytes : Nat := 40
+
 /-! ## bsr_sys_change -- record one system-contract storage-write change.
     a0 = contract addr ptr (20 B)   a1 = slot_key ptr (32 B)
     a2 = value ptr   a3 = value len   a4 = change index
@@ -220,8 +231,8 @@ def blockStateRootFunction : String :=
   "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
   "  la t0, bsr_exec_p; ld a0, 0(t0); addi a0, a0, 412; jal ra, bgv_u64le\n" ++
-  "  li t0, 120000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n" ++
-  "  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 60018; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
+  "  li t0, " ++ toString bsrMaxBlockGasLimit ++ "; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, " ++ toString bsrBalGasCost ++ "; divu t1, a0, t0\n" ++
+  "  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, " ++ toString bsrMaxStateChanges ++ "; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
   "  li t0, 1; la t1, bara_skip_modeled_system; sd t0, 0(t1)\n" ++
@@ -297,7 +308,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_prev_desc; ld t0, 0(t0); la t1, bsr_tmplen; ld t1, 0(t1); sd t1, 24(t0)\n" ++
   "  j .Lbsr_wl_next\n" ++
   ".Lbsr_no_dup:\n" ++
-  "  li t0, 60018; bge s1, t0, .Lbsr_cons_change_cap # cap to the change-buffer size\n" ++
+  "  li t0, " ++ toString bsrMaxStateChanges ++ "; bge s1, t0, .Lbsr_cons_change_cap # cap to the change-buffer size\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  slli t1, s1, 6; la t2, bsr_paths; add a3, t2, t1; li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
   "  jal ra, mpt_walk\n" ++
@@ -1317,10 +1328,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
   "baap_walk_val:\n  .zero 128\n" ++
-  "baap_storage_desc:\n  .zero 2400000\n" ++
-  "baap_storage_paths:\n  .zero 3840000\n" ++
-  "baap_storage_delete_paths:\n  .zero 3840000\n" ++
-  "baap_storage_values:\n  .zero 3840000\n" ++
+  "baap_storage_desc:\n  .zero " ++ toString (bsrMaxBalItems * baapStorageDescBytes) ++ "\n" ++
+  "baap_storage_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\n" ++
+  "baap_storage_delete_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\n" ++
+  "baap_storage_values:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\n" ++
   "mdacc_leaf_path:\n  .zero 128\n" ++
   "mdacc_collapsed_path:\n  .zero 128\n" ++
   "bacp_off:\n  .zero 8\n" ++
@@ -1341,7 +1352,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bacv_fail_code:\n  .zero 8\n" ++
   "baada_item_off:\n  .zero 8\n" ++
   "baada_item_len:\n  .zero 8\n" ++
-  "basr_records:\n  .zero 1440432\nbasr_paths:\n  .zero 3841152\nbasr_values:\n  .zero 15364608\nbasr_accounts:\n  .zero 15364608\n" ++
+  "basr_records:\n  .zero " ++ toString (bsrMaxStateChanges * bsrAccountRecordBytes) ++
+  "\nbasr_paths:\n  .zero " ++ toString (bsrMaxStateChanges * bsrPathBytes) ++
+  "\nbasr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
+  "\nbasr_accounts:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++ "\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
