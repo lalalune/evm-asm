@@ -225,14 +225,16 @@ def emitGasCostTable : String :=
     copying them into caller memory. Layout:
       +0  status / success word
       +8  returndata length
-      +16 first 128 bytes of returndata scratch
+      +16 first 256 bytes of returndata scratch
       +144 BLS12 G1 ADD compact p1 scratch
       +240 BLS12 G1 ADD compact p2 scratch
-      +336 BLS12 G1 ADD compact result scratch. -/
+      +336 BLS12 G1 ADD compact result scratch
+      +144 BLS12 G2 MSM compact pair scratch
+      +336 BLS12 G2 MSM compact result scratch. -/
 def emitPrecompileFrameData : String :=
   ".balign 8\n" ++
   "evm_precompile_frame:\n" ++
-  "  .zero 432\n"
+  "  .zero 720\n"
 
 /-- Scratch buffers used by `zkvm_sha256`. The wrapper expects these
     labels to exist in the dispatcher's data section. -/
