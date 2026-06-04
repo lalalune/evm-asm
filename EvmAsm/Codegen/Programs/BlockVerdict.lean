@@ -549,10 +549,7 @@ def eip8037TxGasGateFunction : String :=
   "  bgtu t2, t4, .Letg_state_fail\n" ++
   "  addi s8, s8, 1; j .Letg_tx_loop\n" ++
   ".Letg_regular_fail:\n" ++
-  "  li t0, 1; beq s7, t0, .Letg_regular_reject\n" ++
-  "  addi a0, s0, 420; jal ra, bgv_u64le        # header gas_used\n" ++
-  "  bgtu a0, s4, .Letg_ok                      # ambiguous: later tx may have used real gas\n" ++
-  ".Letg_regular_reject:\n" ++
+  "  li t0, 1; bne s7, t0, .Letg_ok             # ambiguous multi-tx blocks need real execution gas\n" ++
   "  li a0, 1; j .Letg_ret\n" ++
   ".Letg_state_fail:\n" ++
   "  li a0, 2; j .Letg_ret\n" ++

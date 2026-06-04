@@ -85,6 +85,14 @@ REQUIRED_CASES=(
   "MULMOD:mulmod_zero_modulus"
   "MULMOD:mulmod_small_nonzero"
   "MULMOD:mulmod_high_product_nonzero"
+  "EXP:exp_basic"
+  "EXP:exp_zero"
+  "EXP:exp_zero_zero"
+  "EXP:exp_zero_positive"
+  "EXP:exp_zero_high_exponent"
+  "EXP:exp_one_large_exponent"
+  "EXP:exp_max_word_squared"
+  "EXP:exp_two_255_squared"
   "SDIV:sdiv_basic"
   "SMOD:smod_negative"
   "SIGNEXTEND:signextend_basic"
@@ -116,9 +124,7 @@ REQUIRED_CASES=(
   "GAS:gas_opcode_sufficient"
 )
 
-PARTIAL_MEMBERS=(
-  "EXP:software implementation remains tracked separately"
-)
+PARTIAL_MEMBERS=()
 
 RUNTIME_FEATURE_SCRIPTS=(
   "BALANCE:scripts/codegen-zisk-runtime-balance-check.sh"
