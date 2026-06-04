@@ -124,6 +124,17 @@ separately under bead `evm-asm-fhsxz.2.4.2.60.2.6`. Override
 `EEST_EXP_POWER256_JOBS` or `EEST_EXP_POWER256_STEPS` for this wrapper without
 changing the broader harness defaults.
 
+Run the full EXP fixture frontier:
+
+```bash
+scripts/codegen-eest-exp-frontier-check.sh
+```
+
+This discovers every stateless block selected by the current `opcodes/exp/` filter and
+requires all selected opcode EXP blocks to full-match. It is the EEST-facing completion
+gate for the promoted EXP runtime frontier; proof work remains tracked
+separately from this runtime/fixture coverage.
+
 Run the EIP-8037 state-dominated block-gas accounting frontier:
 
 ```bash
