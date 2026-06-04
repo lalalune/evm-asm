@@ -25,6 +25,15 @@ def zkvmBls12G1AddSafeFailWrapper : String :=
   "  li a0, -1\n" ++
   "  ret"
 
+/-- Linkable bare-RV64 wrapper for `zkvm_bls12_g1_msm(pairs, count, result)`.
+    See `zkvmBls12G1AddSafeFailWrapper`: runtime callers need deterministic
+    EFAIL until the success-producing backend/replay path is available. -/
+def zkvmBls12G1MsmSafeFailWrapper : String :=
+  ".globl zkvm_bls12_g1_msm\n" ++
+  "zkvm_bls12_g1_msm:\n" ++
+  "  li a0, -1\n" ++
+  "  ret"
+
 /-- Probe driver for the BLS12 G1 ADD wrapper. It initializes two 96-byte
     zero point buffers and a 96-byte result buffer, calls the wrapper, then
     writes a compact record at OUTPUT_ADDR:
