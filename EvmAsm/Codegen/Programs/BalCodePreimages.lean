@@ -30,7 +30,7 @@ open EvmAsm.Rv64
     Amsterdam warms/touches coinbase without reading its bytecode. A
     literal `PUSH20 <address>; EXTCODEHASH` occurs in witness bytecode, since
     EXTCODEHASH reads the account leaf's code_hash and does not call
-    WitnessState.get_code. Likewise, literal `PUSH20 <address>; BALANCE`
+    WitnessState.get_code. Likewise, literal `PUSHn <address>; BALANCE`
     reads only the account leaf's balance. A pure account-touch row is also accepted when a
     witness bytecode or a legacy transaction data payload contains
     `PUSH20 <address>; SELFDESTRUCT`: the executable spec touches the
@@ -343,9 +343,10 @@ def balCodePreimagesValidFunction : String :=
   "  addi sp, sp, 56\n" ++
   "  ret\n" ++
   "\n" ++
-  "# Return 1 iff any witness code contains PUSH20 <addr>; BALANCE.\n" ++
+  "# Return 1 iff any witness code contains PUSHn <addr>; BALANCE.\n" ++
   "# BALANCE reads account.balance from the state leaf and does not require\n" ++
-  "# WitnessState.get_code for the touched account.\n" ++
+  "# WitnessState.get_code for the touched account. Accept PUSH1..PUSH20\n" ++
+  "# when omitted high address bytes are zero.\n" ++
   "bal_codes_contains_push20_balance:\n" ++
   "  addi sp, sp, -56\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp)\n" ++
@@ -374,29 +375,50 @@ def balCodePreimagesValidFunction : String :=
   "  add t4, s0, s1\n" ++
   ".Lbcb_have_elem_end:\n" ++
   "  sub t4, t4, s5             # element len\n" ++
-  "  li t5, 22\n" ++
+  "  li t5, 3\n" ++
   "  bltu t4, t5, .Lbcb_next_elem\n" ++
-  "  sub t6, t4, t5             # max start offset\n" ++
+  "  sub t6, t4, t5             # max start offset for PUSH1 + opcode\n" ++
   "  li t0, 0                   # scan offset\n" ++
   ".Lbcb_scan_loop:\n" ++
   "  bgtu t0, t6, .Lbcb_next_elem\n" ++
   "  add t1, s5, t0\n" ++
   "  lbu t2, 0(t1)\n" ++
+  "  li t3, 0x60                # PUSH1\n" ++
+  "  bltu t2, t3, .Lbcb_advance_scan\n" ++
   "  li t3, 0x73                # PUSH20\n" ++
-  "  bne t2, t3, .Lbcb_advance_scan\n" ++
-  "  li t3, 0                   # address byte index\n" ++
+  "  bgtu t2, t3, .Lbcb_advance_scan\n" ++
+  "  addi t3, t2, -95           # pushed byte count\n" ++
+  "  add t5, t0, t3\n" ++
+  "  addi t5, t5, 1             # opcode byte offset\n" ++
+  "  addi t4, t6, 2             # last valid opcode offset\n" ++
+  "  bgtu t5, t4, .Lbcb_advance_scan\n" ++
+  "  li t5, 20\n" ++
+  "  sub t5, t5, t3             # omitted leading target bytes\n" ++
+  "  li t2, 0\n" ++
+  ".Lbcb_leading_zero_loop:\n" ++
+  "  beq t2, t5, .Lbcb_addr_loop_start\n" ++
+  "  add t4, s2, t2\n" ++
+  "  lbu t4, 0(t4)\n" ++
+  "  bnez t4, .Lbcb_advance_scan\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  j .Lbcb_leading_zero_loop\n" ++
+  ".Lbcb_addr_loop_start:\n" ++
+  "  li t2, 0                   # pushed address byte index\n" ++
   ".Lbcb_addr_loop:\n" ++
-  "  li t2, 20\n" ++
-  "  beq t3, t2, .Lbcb_check_opcode\n" ++
-  "  add t4, t1, t3\n" ++
+  "  beq t2, t3, .Lbcb_check_opcode\n" ++
+  "  add t4, t1, t2\n" ++
   "  lbu t4, 1(t4)\n" ++
-  "  add t5, s2, t3\n" ++
+  "  li t5, 20\n" ++
+  "  sub t5, t5, t3\n" ++
+  "  add t5, t5, t2\n" ++
+  "  add t5, s2, t5\n" ++
   "  lbu t5, 0(t5)\n" ++
   "  bne t4, t5, .Lbcb_advance_scan\n" ++
-  "  addi t3, t3, 1\n" ++
+  "  addi t2, t2, 1\n" ++
   "  j .Lbcb_addr_loop\n" ++
   ".Lbcb_check_opcode:\n" ++
-  "  lbu t4, 21(t1)\n" ++
+  "  add t4, t1, t3\n" ++
+  "  lbu t4, 1(t4)\n" ++
   "  li t5, 0x31                # BALANCE\n" ++
   "  beq t4, t5, .Lbcb_yes\n" ++
   ".Lbcb_advance_scan:\n" ++
