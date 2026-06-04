@@ -507,6 +507,73 @@ private def updateActiveMemorySizeConstAsm
   "  li " ++ tmpLengthReg ++ ", " ++ toString length ++ "\n" ++
   updateActiveMemorySizeAsm tag offsetReg tmpLengthReg roundedReg currentReg maskReg
 
+/-- Inline asm for MCOPY's EIP-5656 dynamic gas. The dispatch loop
+    already charges the static base cost (3). This adds
+    `3 * ceil32(length) / 32` plus execution-specs memory expansion
+    over `(source, length)` then `(destination, length)`, using the
+    dispatcher-maintained rounded active-memory size. On insufficient
+    gas it jumps to the shared out-of-gas exit before stack or memory
+    mutation. Scratch registers: x5/x6/x7/x17/x18/x19. -/
+private def mcopyDynamicGasAsm : String :=
+  "  li x18, 0\n" ++                    -- x18 = dynamic gas accumulator
+  "  beqz x16, .Lmcopy_charge_dynamic\n" ++
+  -- copy gas: 3 * ceil32(length) / 32
+  "  addi x17, x16, 31\n" ++
+  "  srli x17, x17, 5\n" ++
+  "  slli x18, x17, 1\n" ++
+  "  add x18, x18, x17\n" ++
+  "  ld x19, " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
+  -- source extension: after = ceil32(source + length)
+  "  add x5, x15, x16\n" ++
+  "  addi x5, x5, 31\n" ++
+  "  li x6, -32\n" ++
+  "  and x5, x5, x6\n" ++
+  "  bgeu x19, x5, .Lmcopy_src_gas_done\n" ++
+  -- before cost = words*3 + words^2/512 for x19
+  "  srli x6, x19, 5\n" ++
+  "  slli x7, x6, 1\n" ++
+  "  add x7, x7, x6\n" ++
+  "  mul x6, x6, x6\n" ++
+  "  srli x6, x6, 9\n" ++
+  "  add x6, x6, x7\n" ++
+  -- after cost = words*3 + words^2/512 for x5
+  "  srli x7, x5, 5\n" ++
+  "  slli x17, x7, 1\n" ++
+  "  add x17, x17, x7\n" ++
+  "  mul x7, x7, x7\n" ++
+  "  srli x7, x7, 9\n" ++
+  "  add x7, x7, x17\n" ++
+  "  sub x7, x7, x6\n" ++
+  "  add x18, x18, x7\n" ++
+  "  mv x19, x5\n" ++
+  ".Lmcopy_src_gas_done:\n" ++
+  -- destination extension uses the source-updated current size.
+  "  add x5, x14, x16\n" ++
+  "  addi x5, x5, 31\n" ++
+  "  li x6, -32\n" ++
+  "  and x5, x5, x6\n" ++
+  "  bgeu x19, x5, .Lmcopy_dst_gas_done\n" ++
+  "  srli x6, x19, 5\n" ++
+  "  slli x7, x6, 1\n" ++
+  "  add x7, x7, x6\n" ++
+  "  mul x6, x6, x6\n" ++
+  "  srli x6, x6, 9\n" ++
+  "  add x6, x6, x7\n" ++
+  "  srli x7, x5, 5\n" ++
+  "  slli x17, x7, 1\n" ++
+  "  add x17, x17, x7\n" ++
+  "  mul x7, x7, x7\n" ++
+  "  srli x7, x7, 9\n" ++
+  "  add x7, x7, x17\n" ++
+  "  sub x7, x7, x6\n" ++
+  "  add x18, x18, x7\n" ++
+  ".Lmcopy_dst_gas_done:\n" ++
+  ".Lmcopy_charge_dynamic:\n" ++
+  "  ld x5, 568(x20)\n" ++
+  "  bltu x5, x18, .exit_outofgas\n" ++
+  "  sub x5, x5, x18\n" ++
+  "  sd x5, 568(x20)\n"
+
 /-- Fixed-shape singleton opcodes: parameter-free verified `Program`s
     that fit the standard `<body>` + `addi x10, x10, 1` + `ret` ABI.
 
@@ -848,6 +915,7 @@ def mcopyHandlers : List OpcodeHandlerSpec :=
         "  ld x14, 0(x12)\n" ++          -- destination offset
         "  ld x15, 32(x12)\n" ++         -- source offset
         "  ld x16, 64(x12)\n" ++         -- length
+        mcopyDynamicGasAsm ++
         "  addi x12, x12, 96\n" ++
         "  beqz x16, .Lmcopy_done\n" ++
         updateActiveMemorySizeAsm "mcopy_src" "x15" "x16" "x17" "x18" "x19" ++
