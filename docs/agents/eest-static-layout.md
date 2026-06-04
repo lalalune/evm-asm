@@ -81,6 +81,12 @@ one of these approaches explicitly:
 - implement streaming/chunked replay so memory scales with actual contents
   instead of worst-case gas.
 
+For the current EIP-8037 high-block-gas frontier, see
+[`docs/eest-1g-block-gas-layout-plan.md`](../eest-1g-block-gas-layout-plan.md).
+It sizes the 1,000,000,000 gas target observed in `/tmp/eest-all-2026-06-03.txt`
+and records the memory-map changes needed before replacing the old
+`ERROR(layout)` behavior.
+
 ## Documentation
 
 When changing these limits, update both:
