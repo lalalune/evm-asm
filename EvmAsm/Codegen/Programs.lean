@@ -43,7 +43,6 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
-
 import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.EvmAccountWitness
 import EvmAsm.Codegen.Programs.EIP7708Logs
@@ -1402,6 +1401,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BlockRoots.lean",
     "EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean",
     "EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdictTransactions.lean",
     "EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean",
     "EvmAsm/Codegen/Programs/BlockValidate.lean",
     "EvmAsm/Codegen/Programs/Chain.lean",
