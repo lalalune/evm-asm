@@ -540,6 +540,41 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "keccak256_empty"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x20, 0x00"
       expectedOutHex := "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470" }
+  , -- MSTORE8 pre-expands memory to one word, then KECCAK256 hashes one
+    -- byte. Total gas at the exact threshold:
+    -- PUSH1*4 (12) + MSTORE8 static (3) + memory expansion (3)
+    -- + KECCAK static (30) + KECCAK word gas (6) = 54.
+    { name           := "keccak256_word_gas_sufficient"
+      bytecode       := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0x20, 0x00"
+      expectedOutHex := "468fc9c005382579139846222b7b0aebc9182ba073b2455938a86d9753bfb078"
+      gasLimit       := "54" }
+  , -- One gas short of the same one-byte KECCAK path. The fixed opcode
+    -- charge succeeds, then the new 6-gas word charge routes to OOG.
+    { name             := "keccak256_word_gas_oog"
+      bytecode         := "0x60, 0xab, 0x60, 0x00, 0x53, 0x60, 0x01, 0x60, 0x00, 0x20, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "53" }
+  , -- Hash 33 zero bytes from initially empty memory. KECCAK charges two
+    -- input words (12) plus two-word memory expansion (6), in addition
+    -- to two PUSHes (6) and the fixed KECCAK base (30): total 54.
+    { name           := "keccak256_33_bytes_memory_gas_sufficient"
+      bytecode       := "0x60, 0x21, 0x60, 0x00, 0x20, 0x00"
+      expectedOutHex := "f39a869f62e75cf5f0bf914688a6b289caf2049435d8e68c5c5e6d05e44913f3"
+      gasLimit       := "54" }
+  , -- Zero-size KECCAK does not expand memory, so a high offset limb is
+    -- accepted and still hashes the empty byte string.
+    { name           := "keccak256_zero_size_high_offset_ok"
+      bytecode       := "0x60, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00"
+      expectedOutHex := "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+      gasLimit       := "36" }
+  , -- A non-zero high size limb represents an unbounded hash range for
+    -- this u64-addressed runtime and is reported as OOG before hashing.
+    { name             := "keccak256_high_size_oog"
+      bytecode         := "0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x20, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "36" }
     -- ## M26 LOG opcodes (LOG0-LOG4) — bounded event capture.
     -- LOGn pops (2+n) 256-bit words, advances PC, and appends a
     -- 256-byte descriptor to the dispatcher's receipt-event buffer.
