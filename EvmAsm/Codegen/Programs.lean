@@ -830,6 +830,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_extract_value"     => some ziskTxExtractValueProbeUnit
   | "zisk_tx_extract_data_section" => some ziskTxExtractDataSectionProbeUnit
   | "zisk_tx_extract_gas_pricing"  => some ziskTxExtractGasPricingProbeUnit
+  | "zisk_tx_effective_gas_pricing" => some ziskTxEffectiveGasPricingProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
@@ -1147,10 +1148,9 @@ def knownProgramNames : List String :=
    "zisk_tx_extract_value",
    "zisk_tx_extract_data_section",
    "zisk_tx_extract_gas_pricing",
-   "zisk_tx_eip2930_decode",
-   "zisk_tx_eip7702_decode",
-   "zisk_tx_eip4844_decode",
-   "zisk_tx_eip4844_compute_blob_gas",
+   "zisk_tx_effective_gas_pricing",
+   "zisk_tx_eip2930_decode", "zisk_tx_eip7702_decode",
+   "zisk_tx_eip4844_decode", "zisk_tx_eip4844_compute_blob_gas",
    "zisk_tx_calculate_total_blob_gas",
    "zisk_block_body_blob_gas_total",
    "zisk_block_validate_blob_gas_consistency",
