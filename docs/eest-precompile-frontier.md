@@ -30,7 +30,7 @@ columns describe only the latest harness selection.
 | BN254 add/mul/pairing | `0x06..0x08` | `zkvm_bn254_*` bridges exist; call framing missing | `evm-asm-fhsxz.2.4.2.62.3` |
 | BLAKE2F | `0x09` | `zkvm_blake2f` bridge exists; call framing missing | `evm-asm-fhsxz.2.4.2.62.3` |
 | KZG point evaluation | `0x0a` | `zkvm_kzg_point_eval` bridge exists; call framing missing | `evm-asm-fhsxz.2.4.2.62.3` |
-| BLS12-381 | `0x0b..0x11` | `zkvm_bls12_*` bridges exist; call framing missing | `evm-asm-fhsxz.2.4.2.62.3` |
+| BLS12-381 | `0x0b..0x11` | `zkvm_bls12_*` bridges exist, but bare codegen ELFs need the BLS replay/backend probe before runtime bodies call them; run `scripts/codegen-zisk-bls12-precompile-replay-probe.sh` | `evm-asm-4rxaf.1` |
 | P256VERIFY | `0x100` | `zkvm_secp256r1_verify` bridge exists; call framing missing | `evm-asm-fhsxz.2.4.2.62.3` |
 | CALL/STATICCALL/revert/create interactions with precompiles | mixed | VM call/create/revert semantics plus dispatch | `evm-asm-fhsxz.2.4.2.62.1` |
 

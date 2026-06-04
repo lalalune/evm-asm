@@ -139,6 +139,38 @@ missing recovery wrapper on top of lower-level secp256k1 operations and then
 probe it with valid and invalid vectors from
 `execution-specs/tests/frontier/precompiles/test_ecrecover.py`.
 
+BLS12-381 is in a similar "ABI exists, backend path not yet exposed" state for
+the runtime opcode harness:
+
+- The zkvm-standards C ABI declares the BLS12 entry points
+  `zkvm_bls12_g1_add`, `zkvm_bls12_g1_msm`, `zkvm_bls12_g2_add`,
+  `zkvm_bls12_g2_msm`, `zkvm_bls12_pairing`,
+  `zkvm_bls12_map_fp_to_g1`, and `zkvm_bls12_map_fp2_to_g2`.
+- The normal codegen path emits one bare assembly file and links it with
+  `riscv64-elf-ld -nostdlib`; see
+  `EvmAsm/Codegen/Driver.lean`. It does not link zisk's host C library, so a
+  direct call to `zkvm_bls12_g1_add` from `runtime_dispatcher.elf` currently
+  fails as an undefined symbol.
+- The checked zisk source tree has BLS12 field/curve routines under
+  `lib-c/c/src/bls12_381` and has precompile-result stream/cache plumbing in
+  `emulator-asm/src/client.c`, `server.c`, and `emu.c`. The relevant CLI hooks
+  are gated by `ASM_PRECOMPILE_CACHE` in
+  `emulator-asm/src/configuration.c`.
+- The installed `ziskemu` used by the current codegen scripts does not expose
+  the precompile-result replay flags needed by that path.
+
+Run the reproducible readiness probe with:
+
+```bash
+scripts/codegen-zisk-bls12-precompile-replay-probe.sh
+```
+
+Use `--require-ready` when a downstream BLS runtime-body test genuinely needs
+the replay path and should fail if the installed `ziskemu` cannot provide it.
+Until this probe reports ready, BLS12 CALL/STATICCALL runtime bodies should
+preserve explicit unsupported/backend-blocked behavior rather than calling
+undefined `zkvm_bls12_*` symbols.
+
 ## Calling convention
 
 The guest follows LP64 as documented in
