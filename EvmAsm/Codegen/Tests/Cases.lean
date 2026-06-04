@@ -1260,6 +1260,38 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := staticcallPrecompileBytecode "0x07" "0x00" ["0x5a", "0x00"]
       expectedOutHex := "5000000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "6200" }
+  , -- BN254 pairing charges 45000 for zero complete pairs. Seven PUSH1s (21),
+    -- CALL warm static base (100), pairing gas (45000), and GAS (2) leave 77.
+    { name           := "call_bn254_pairing_zero_pairs_gas_after_call"
+      bytecode       := callPrecompileBytecode "0x08" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "45200" }
+  , -- One complete 192-byte pair costs 45000 + 34000. The current backend
+    -- safe-fails, but gas after CALL proves the one-pair charge.
+    { name           := "call_bn254_pairing_one_pair_gas_after_call"
+      bytecode       := callPrecompileBytecode "0x08" "0xc0" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "79200" }
+  , -- Non-multiple length is rejected after the base gas is consumed, leaving
+    -- empty returndata and normal halt after POP + RETURNDATASIZE.
+    { name             := "call_bn254_pairing_nonmultiple_length_after_charge"
+      bytecode         := callPrecompileBytecode "0x08" "0x01" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "50000" }
+  , -- One gas short reaches the BN254 pairing gas helper and exits OOG.
+    { name             := "call_bn254_pairing_base_gas_out_of_gas"
+      bytecode         := callPrecompileBytecode "0x08" "0x00" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "45120" }
+  , -- Valid-length input reaches the deterministic backend EFAIL wrapper, so
+    -- CALL success is 0 and RETURNDATASIZE remains zero.
+    { name             := "call_bn254_pairing_backend_failure_empty_returndata"
+      bytecode         := callPrecompileBytecode "0x08" "0x00" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "100000" }
   , -- BLAKE2F invalid length fails before reading rounds, so only CALL static
     -- gas is consumed. With gasLimit=200: seven PUSH1s (21) + CALL warm
     -- static base (100) + GAS (2) leaves 77.
