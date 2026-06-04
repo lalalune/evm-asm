@@ -96,6 +96,22 @@ theorem expTwoMulFixedIterPreNWithInductionFrame_pure_from_framed_pre
   obtain ⟨_, _, _, _, hPre, _⟩ := hPreR
   exact expTwoMulFixedIterPreNWithInductionFrame_pure hPre
 
+theorem expTwoMulFixedIterPreNWithInductionFrame_pure_from_holdsFor
+    {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
+    {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word}
+    {R : Assertion} {s : MachineState}
+    (hPreR :
+      (expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 ** R).holdsFor s) :
+    expTwoMulFixedIterStateInvariant baseWord exponentWord k
+      iterCount e controlC6 ptr nextLimb evmSp r0 r1 r2 r3 := by
+  obtain ⟨ps, _h_compat, hPreRps⟩ := hPreR
+  exact expTwoMulFixedIterPreNWithInductionFrame_pure_from_framed_pre hPreRps
+
 theorem expTwoMulFixedIterPreNWithInductionFrame_control
     {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
     {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
@@ -125,6 +141,21 @@ theorem expTwoMulFixedIterPreNWithInductionFrame_control_from_framed_pre
     expTwoMulFixedControlInvariant exponentWord k controlC6 ptr
       nextLimb evmSp :=
   (expTwoMulFixedIterPreNWithInductionFrame_pure_from_framed_pre hPreR).2.2.1
+
+theorem expTwoMulFixedIterPreNWithInductionFrame_control_from_holdsFor
+    {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
+    {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word}
+    {R : Assertion} {s : MachineState}
+    (hPreR :
+      (expTwoMulFixedIterPreNWithInductionFrame k baseWord exponentWord
+        controlC6 e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3
+        a0 a1 a2 a3 v7 v11 ** R).holdsFor s) :
+    expTwoMulFixedControlInvariant exponentWord k controlC6 ptr
+      nextLimb evmSp :=
+  (expTwoMulFixedIterPreNWithInductionFrame_pure_from_holdsFor hPreR).2.2.1
 
 theorem expTwoMulFixedIterPreNWithInductionFrame_nextLimb
     {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
