@@ -656,6 +656,99 @@ instance pcFreeInst_expTwoMulFixedInductionFrameN
       (expTwoMulFixedInductionFrameN exponentWord k c6 ptr) :=
   ⟨expTwoMulFixedInductionFrameN_pcFree exponentWord k c6 ptr⟩
 
+@[irreducible]
+def expTwoMulFixedDirectHeadFrameN
+    (exponentWord : EvmWord) (k : Nat) (c6 ptr : Word) : Assertion :=
+  if expTwoMulFixedControlDec c6 = (0 : Word) then
+    expTwoMulFixedReloadTailFrameN exponentWord k ptr
+  else if (expTwoMulFixedControlDec c6).toNat = 1 then
+    expTwoMulFixedPreReloadFrameN exponentWord k ptr
+  else
+    expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1) ptr
+
+theorem expTwoMulFixedDirectHeadFrameN_reload
+    {exponentWord : EvmWord} {k : Nat} {c6 ptr : Word}
+    (hC6 : expTwoMulFixedControlDec c6 = (0 : Word)) :
+    expTwoMulFixedDirectHeadFrameN exponentWord k c6 ptr =
+      expTwoMulFixedReloadTailFrameN exponentWord k ptr := by
+  rw [expTwoMulFixedDirectHeadFrameN]
+  simp [hC6]
+
+theorem expTwoMulFixedDirectHeadFrameN_pre_reload
+    {exponentWord : EvmWord} {k : Nat} {c6 ptr : Word}
+    (hC6 : (expTwoMulFixedControlDec c6).toNat = 1) :
+    expTwoMulFixedDirectHeadFrameN exponentWord k c6 ptr =
+      expTwoMulFixedPreReloadFrameN exponentWord k ptr := by
+  rw [expTwoMulFixedDirectHeadFrameN]
+  split
+  · rename_i hZero
+    have hNatZero :
+        (expTwoMulFixedControlDec c6).toNat = 0 := by
+      rw [hZero]
+      decide
+    omega
+  · rfl
+
+theorem expTwoMulFixedDirectHeadFrameN_ordinary
+    {exponentWord : EvmWord} {k : Nat} {c6 ptr : Word}
+    (hC6 : expTwoMulFixedControlDec c6 ≠ (0 : Word))
+    (hNotPre : (expTwoMulFixedControlDec c6).toNat ≠ 1) :
+    expTwoMulFixedDirectHeadFrameN exponentWord k c6 ptr =
+      expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1) ptr := by
+  rw [expTwoMulFixedDirectHeadFrameN]
+  split
+  · rename_i hZero
+    exact False.elim (hC6 hZero)
+  · rfl
+
+theorem expTwoMulFixedDirectHeadFrameN_reload_of_control
+    {exponentWord : EvmWord} {k : Nat} {c6 ptr : Word}
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) = 0) :
+    expTwoMulFixedDirectHeadFrameN exponentWord k c6 ptr =
+      expTwoMulFixedReloadTailFrameN exponentWord k ptr :=
+  expTwoMulFixedDirectHeadFrameN_reload (by
+    rw [expTwoMulFixedControlDec_unfold]
+    exact hC6)
+
+theorem expTwoMulFixedDirectHeadFrameN_pre_reload_of_control
+    {exponentWord : EvmWord} {k : Nat} {c6 ptr : Word}
+    (hC6 : (c6 + signExtend12 (-1 : BitVec 12)).toNat = 1) :
+    expTwoMulFixedDirectHeadFrameN exponentWord k c6 ptr =
+      expTwoMulFixedPreReloadFrameN exponentWord k ptr :=
+  expTwoMulFixedDirectHeadFrameN_pre_reload (by
+    rw [expTwoMulFixedControlDec_unfold]
+    exact hC6)
+
+theorem expTwoMulFixedDirectHeadFrameN_ordinary_of_control
+    {exponentWord : EvmWord} {k : Nat} {c6 ptr : Word}
+    (hC6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0)
+    (hNotPre : (c6 + signExtend12 (-1 : BitVec 12)).toNat ≠ 1) :
+    expTwoMulFixedDirectHeadFrameN exponentWord k c6 ptr =
+      expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1) ptr :=
+  expTwoMulFixedDirectHeadFrameN_ordinary
+    (by
+      rw [expTwoMulFixedControlDec_unfold]
+      exact hC6)
+    (by
+      rw [expTwoMulFixedControlDec_unfold]
+      exact hNotPre)
+
+theorem expTwoMulFixedDirectHeadFrameN_pcFree
+    (exponentWord : EvmWord) (k : Nat) (c6 ptr : Word) :
+    (expTwoMulFixedDirectHeadFrameN exponentWord k c6 ptr).pcFree := by
+  rw [expTwoMulFixedDirectHeadFrameN]
+  split
+  · exact expTwoMulFixedReloadTailFrameN_pcFree exponentWord k ptr
+  · split
+    · exact expTwoMulFixedPreReloadFrameN_pcFree exponentWord k ptr
+    · exact expTwoMulFixedSavedNextLimbFrameN_pcFree exponentWord (k + 1) ptr
+
+instance pcFreeInst_expTwoMulFixedDirectHeadFrameN
+    (exponentWord : EvmWord) (k : Nat) (c6 ptr : Word) :
+    Assertion.PCFree
+      (expTwoMulFixedDirectHeadFrameN exponentWord k c6 ptr) :=
+  ⟨expTwoMulFixedDirectHeadFrameN_pcFree exponentWord k c6 ptr⟩
+
 theorem expTwoMulFixedControlInvariant_nextLimb
     {exponentWord : EvmWord} {k : Nat}
     {c6 ptr nextLimb evmSp : Word}
