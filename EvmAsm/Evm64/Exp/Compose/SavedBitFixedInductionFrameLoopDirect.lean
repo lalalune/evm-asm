@@ -342,6 +342,44 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
     The framed precondition carries the control invariant, so this wrapper
     splits reload, pre-reload, and ordinary no-reload cases internally and
     rewrites `expTwoMulFixedDirectHeadFrameN` to the selected branch post. -/
+
+@[irreducible]
+def expTwoMulFixedDirectHeadTailFrameN
+    (exponentWord : EvmWord) (k : Nat) (controlC6 ptr nextNextLimb : Word) :
+    Assertion :=
+  if expTwoMulFixedControlDec controlC6 = (0 : Word) then
+    expReloadTailDirectTailFrameN exponentWord k ptr nextNextLimb
+  else if (expTwoMulFixedControlDec controlC6).toNat = 1 then
+    expPreReloadDirectTailFrameN exponentWord k ptr nextNextLimb
+  else
+    expReloadLimbDirectTailFrame ptr nextNextLimb
+
+@[irreducible]
+def expTwoMulFixedDirectHeadFalseFrameN
+    (exponentWord : EvmWord) (k : Nat)
+    (controlC6 e iterCount ptr nextLimb : Word) : Assertion :=
+  if expTwoMulFixedControlDec controlC6 = (0 : Word) then
+    expReloadTailDirectFalseFrameN exponentWord k controlC6 e iterCount ptr
+      nextLimb
+  else if (expTwoMulFixedControlDec controlC6).toNat = 1 then
+    expPreReloadDirectFalseFrameN exponentWord k controlC6 e iterCount ptr
+      nextLimb
+  else
+    expReloadLimbDirectFalseFrame controlC6 e iterCount ptr nextLimb
+
+@[irreducible]
+def expTwoMulFixedDirectHeadTrueFrameN
+    (exponentWord : EvmWord) (k : Nat)
+    (controlC6 e iterCount ptr nextLimb : Word) : Assertion :=
+  if expTwoMulFixedControlDec controlC6 = (0 : Word) then
+    expReloadTailDirectTrueFrameN exponentWord k controlC6 e iterCount ptr
+      nextLimb
+  else if (expTwoMulFixedControlDec controlC6).toNat = 1 then
+    expPreReloadDirectTrueFrameN exponentWord k controlC6 e iterCount ptr
+      nextLimb
+  else
+    expReloadLimbDirectTrueFrame controlC6 e iterCount ptr nextLimb
+
 theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDirect_directHeadFrameN_of_pre
     {baseWord exponentWord : EvmWord} {k iterations : Nat}
     (controlC6 e machineC6 iterCount v10 v18 ptr nextLimb
