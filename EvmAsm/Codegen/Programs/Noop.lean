@@ -303,6 +303,75 @@ private def stageEcrecoverInputAsm
   "  bnez x24, 33b\n" ++
   "34:\n"
 
+private def ecrecoverVGateAsm : String :=
+  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 32) ++
+  "  li x19, 31\n" ++
+  "40:\n" ++
+  "  beqz x19, 41f\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  bnez x16, 43f\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, -1\n" ++
+  "  j 40b\n" ++
+  "41:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  li x19, 27\n" ++
+  "  beq x16, x19, 42f\n" ++
+  "  li x19, 28\n" ++
+  "  beq x16, x19, 42f\n" ++
+  "43:\n" ++
+  "  j 7b\n" ++
+  "42:\n"
+
+private def ecrecoverNonzeroRSGateAsm : String :=
+  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 64) ++
+  "  ld x16, 0(x18)\n" ++
+  "  ld x17, 8(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 16(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 24(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  beqz x16, 7b\n" ++
+  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 96) ++
+  "  ld x16, 0(x18)\n" ++
+  "  ld x17, 8(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 16(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 24(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  beqz x16, 7b\n"
+
+private def secp256k1OrderBytes : List Nat :=
+  [ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+  , 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe
+  , 0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b
+  , 0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41
+  ]
+
+private def ecrecoverScalarBelowOrderCompareAsm
+    (bytes : List Nat) (idx belowLabel : Nat) : String :=
+  match bytes with
+  | [] => ""
+  | byte :: rest =>
+      "  lbu x16, " ++ toString idx ++ "(x18)\n" ++
+      "  li x17, " ++ toString byte ++ "\n" ++
+      "  bltu x17, x16, 7b\n" ++
+      "  bltu x16, x17, " ++ toString belowLabel ++ "f\n" ++
+      ecrecoverScalarBelowOrderCompareAsm rest (idx + 1) belowLabel
+
+private def ecrecoverScalarBelowOrderGateAsm
+    (wordOff : Nat) (belowLabel : Nat) : String :=
+  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + wordOff) ++
+  ecrecoverScalarBelowOrderCompareAsm secp256k1OrderBytes 0 belowLabel ++
+  "  j 7b\n" ++
+  toString belowLabel ++ ":\n"
+
+private def ecrecoverScalarOrderGateAsm : String :=
+  ecrecoverScalarBelowOrderGateAsm 64 44 ++
+  ecrecoverScalarBelowOrderGateAsm 96 45
+
 private def chargePrecompileWordGasAsm
     (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
   "  li " ++ scratchReg ++ ", 31\n" ++
@@ -722,11 +791,14 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 10b\n" ++
     "  j 7b\n" ++
-    -- ECRECOVER fixed gas and input staging. Later slices consume the staged
-    -- hash/v/r/s words for validation, backend recovery, and address output.
+    -- ECRECOVER fixed gas, input staging, and v gate. Later slices consume
+    -- valid staged r/s words for validation, backend recovery, and output.
     "29:\n" ++
     chargePrecompileGasConstAsm 3000 "x16" "x17" ++
     stageEcrecoverInputAsm inOffsetOff inSizeOff ++
+    ecrecoverVGateAsm ++
+    ecrecoverNonzeroRSGateAsm ++
+    ecrecoverScalarOrderGateAsm ++
     "  j 7b\n" ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
