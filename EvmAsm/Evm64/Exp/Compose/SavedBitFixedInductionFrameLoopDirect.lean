@@ -528,7 +528,7 @@ theorem expTwoMulFixedDirectHeadTailFrameN_pre_reload_of_control
   · rename_i hZero
     have hNatZero : (controlC6 + signExtend12 (-1 : BitVec 12)).toNat = 0 := by
       rw [hZero]
-      decide
+      rfl
     exact False.elim (Nat.zero_ne_one (by rw [← hNatZero, hC6]))
   · rfl
 
@@ -573,7 +573,7 @@ theorem expTwoMulFixedDirectHeadFalseFrameN_pre_reload_of_control
   · rename_i hZero
     have hNatZero : (controlC6 + signExtend12 (-1 : BitVec 12)).toNat = 0 := by
       rw [hZero]
-      decide
+      rfl
     exact False.elim (Nat.zero_ne_one (by rw [← hNatZero, hC6]))
   · rfl
 
@@ -619,7 +619,7 @@ theorem expTwoMulFixedDirectHeadTrueFrameN_pre_reload_of_control
   · rename_i hZero
     have hNatZero : (controlC6 + signExtend12 (-1 : BitVec 12)).toNat = 0 := by
       rw [hZero]
-      decide
+      rfl
     exact False.elim (Nat.zero_ne_one (by rw [← hNatZero, hC6]))
   · rfl
 
@@ -663,7 +663,7 @@ theorem expTwoMulFixedDirectHeadTailOrSuccessorFrameN_pre_reload_of_control
   · rename_i hZero
     have hNatZero : (controlC6 + signExtend12 (-1 : BitVec 12)).toNat = 0 := by
       rw [hZero]
-      decide
+      rfl
     exact False.elim (Nat.zero_ne_one (by rw [← hNatZero, hC6]))
   · rfl
 
