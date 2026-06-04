@@ -303,6 +303,26 @@ private def stageEcrecoverInputAsm
   "  bnez x24, 33b\n" ++
   "34:\n"
 
+private def ecrecoverVGateAsm : String :=
+  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 32) ++
+  "  li x19, 31\n" ++
+  "40:\n" ++
+  "  beqz x19, 41f\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  bnez x16, 43f\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, -1\n" ++
+  "  j 40b\n" ++
+  "41:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  li x19, 27\n" ++
+  "  beq x16, x19, 42f\n" ++
+  "  li x19, 28\n" ++
+  "  beq x16, x19, 42f\n" ++
+  "43:\n" ++
+  "  j 7b\n" ++
+  "42:\n"
+
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
     CREATE2, STATICCALL). CALL-family non-precompile paths still ship as
     **pop-N + push-zero** no-ops. CREATE-family paths decode operands and
@@ -710,11 +730,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 10b\n" ++
     "  j 7b\n" ++
-    -- ECRECOVER fixed gas and input staging. Later slices consume the staged
-    -- hash/v/r/s words for validation, backend recovery, and address output.
+    -- ECRECOVER fixed gas, input staging, and v gate. Later slices consume
+    -- valid staged r/s words for validation, backend recovery, and output.
     "29:\n" ++
     chargePrecompileGasConstAsm 3000 "x16" "x17" ++
     stageEcrecoverInputAsm inOffsetOff inSizeOff ++
+    ecrecoverVGateAsm ++
     "  j 7b\n" ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
