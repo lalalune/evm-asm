@@ -303,6 +303,18 @@ private def stageEcrecoverInputAsm
   "  bnez x24, 33b\n" ++
   "34:\n"
 
+private def chargePrecompileWordGasAsm
+    (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
+  "  li " ++ scratchReg ++ ", 31\n" ++
+  "  add " ++ costReg ++ ", " ++ sizeReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  bltu " ++ costReg ++ ", " ++ sizeReg ++ ", .exit_outofgas\n" ++
+  "  srli " ++ costReg ++ ", " ++ costReg ++ ", 5\n" ++
+  "  li " ++ scratchReg ++ ", " ++ toString perWordGas ++ "\n" ++
+  "  mul " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  li " ++ scratchReg ++ ", " ++ toString baseGas ++ "\n" ++
+  "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  chargePrecompileGasAsm costReg scratchReg
+
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
     CREATE2, STATICCALL). CALL-family non-precompile paths still ship as
     **pop-N + push-zero** no-ops. CREATE-family paths decode operands and
@@ -330,9 +342,8 @@ private def stageEcrecoverInputAsm
     addresses 0x01..0x04 as the basic precompile frame surface.
     SHA256 (0x02) hashes input bytes through `zkvm_sha256`,
     IDENTITY (0x04) copies input bytes to caller output memory, and
-    both push success = 1. IDENTITY also uses the shared inner
-    precompile-gas helper for its fixed base cost; follow-up PRs wire
-    exact payload-dependent costs across the precompile family.
+    both push success = 1. SHA256 and IDENTITY charge their exact
+    word-linear inner precompile gas through the shared helper.
     ECRECOVER / RIPEMD160 remain success stubs in this slice;
     follow-up PRs wire their output semantics.
 
@@ -630,8 +641,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beq x14, x16, 8f\n" ++
     "  li x16, 4\n" ++
     "  bne x14, x16, 7f\n" ++
-    chargePrecompileGasConstAsm 15 "x16" "x17" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    chargePrecompileWordGasAsm 15 3 "x17" "x16" "x22" ++
     "  sd x17, 8(x15)\n" ++       -- returndata length = full input size
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add x18, x13, x18\n" ++    -- x18 = identity input bytes
@@ -686,6 +697,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld a1, " ++ toString inSizeOff ++ "(x12)\n" ++
+    chargePrecompileWordGasAsm 60 12 "a1" "x16" "x22" ++
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add a0, x13, x18\n" ++
     "  addi a2, x15, 16\n" ++
