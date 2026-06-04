@@ -1844,6 +1844,41 @@ exits 0; `lake build EvmAsm.Codegen` clean.
 **Out of scope:** CODESIZE/CODECOPY gas is still the M30 static base (no
 per-word copy cost); witness-backed BALANCE/EXTCODE* are a separate track.
 
+### M31 — Memory-expansion dynamic gas — **DONE (2026-06-04)**
+
+The first general dynamic-gas slice after M30's static base costs. Every access
+that grows EVM memory now pays `cost(w) = 3·w + ⌊w²/512⌋` (per
+`execution-specs/.../vm/gas.py` `calculate_memory_gas_cost`, `w` = 32-byte
+words) for the *new* high-water mark minus the *old* one — closing a major
+under-charge that blocked realistic EEST gas accounting.
+
+**Design:** charged at the single chokepoint every memory opcode already routes
+through — `updateActiveMemorySizeAsm` — which has the old size (`env+488`) and
+the rounded new size in hand. A `chargeGas : Bool` gates the new gas block so
+MCOPY (which already charges full dynamic gas, incl. expansion, via
+`mcopyDynamicGasAsm`) keeps **size-tracking only** and is not double-charged.
+The gas math reuses the helper's register set plus one scratch (`x6`), preserving
+`offsetReg`/`lengthReg`/`roundedReg`; a `mulhu` guard routes `w ≥ 2^32` (≈128 GiB)
+to `.exit_outofgas` rather than wrapping `w²` mod 2^64. Underflow → out-of-gas
+(`halt_kind = 6`).
+
+**Delivered:**
+- **`EvmAsm/Codegen/Programs/EvmMemoryGas.lean`** (new) — `activeMemorySizeOff`
+  + `updateActiveMemorySizeAsm` (with the `chargeGas`-gated expansion charge) +
+  `updateActiveMemorySizeConstAsm`, extracted from `Programs/Evm.lean` (file-size
+  guardrail).
+- **`Programs/Evm.lean`** — MLOAD / MSTORE / MSTORE8 / CALLDATACOPY / CODECOPY
+  pass `chargeGas = true`; MCOPY passes `false`. (RETURNDATACOPY / EXTCODECOPY
+  are not on this chokepoint — unchanged.)
+- **Tests** — `mem_expansion_sufficient` (33-word write, expansion 101, fits at
+  gasLimit 113), `mem_expansion_oog` (one short → `halt_kind = 6`),
+  `mem_expansion_no_double_charge` (second write at same offset charges 0);
+  `mcopy_gas_dest_only_after_mstore8` expectation updated (MSTORE8 now also pays
+  its 9-gas expansion: 968 → 959).
+
+**Out of scope (follow-ups):** per-word copy gas for the `*COPY` ops, EIP-2929
+cold/warm SLOAD/SSTORE, EXP per-byte, gas-used surfaced to OUTPUT.
+
 ### M24 — Storage on Option A: append-log + journal + real TLOAD/TSTORE — **DONE (2026-05-29)**
 
 The storage memory-layout decision (issue **#7130**) landed
