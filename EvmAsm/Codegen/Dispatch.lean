@@ -77,6 +77,9 @@ def precompileFrameBls12G2InputOff : Nat := 720
 /-- G2-class compact result lane for MSM and map-Fp2-to-G2. -/
 def precompileFrameBls12G2OutputOff : Nat := 944
 
+/-- ECRECOVER staged input words: hash, v, r, s after buffer_read padding. -/
+def precompileFrameEcrecoverInputOff : Nat := 1152
+
 /-- Raw dispatcher guard for handlers that read `wordCount` EVM stack
     words before their body runs. The EVM stack grows downward from
     `evm_stack_top`; a handler needing `n` words requires
@@ -266,7 +269,8 @@ def emitGasCostTable : String :=
       +precompileFrameBls12G2AddInput1Off   G2 ADD compact p2 scratch
       +precompileFrameBls12G2AddOutputOff   G2 ADD compact result scratch
       +precompileFrameBls12G2InputOff       G2-class compact input scratch
-      +precompileFrameBls12G2OutputOff      G2-class compact result scratch.
+      +precompileFrameBls12G2OutputOff      G2-class compact result scratch
+      +precompileFrameEcrecoverInputOff     ECRECOVER hash/v/r/s words.
 
     The lanes are handler-local scratch, so G1/G2 ADD may still reuse the
     older offsets internally. Map-Fp2-to-G2 uses the G2-class lane to avoid
@@ -274,7 +278,7 @@ def emitGasCostTable : String :=
 def emitPrecompileFrameData : String :=
   ".balign 8\n" ++
   "evm_precompile_frame:\n" ++
-  "  .zero 1152\n"
+  "  .zero 1280\n"
 
 /-- Scratch buffers used by `zkvm_sha256`. The wrapper expects these
     labels to exist in the dispatcher's data section. -/

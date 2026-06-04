@@ -273,6 +273,36 @@ private def chargePrecompileGasConstAsm (cost : Nat)
   "  li " ++ costReg ++ ", " ++ toString cost ++ "\n" ++
   chargePrecompileGasAsm costReg remainingReg
 
+private def stageEcrecoverInputAsm
+    (inOffsetOff inSizeOff : Nat) : String :=
+  "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+  "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+  "  add x18, x13, x18\n" ++
+  precompileFrameAddi "x19" precompileFrameEcrecoverInputOff ++
+  "  mv x22, x17\n" ++
+  "  li x23, 128\n" ++
+  "  bgeu x23, x22, 30f\n" ++
+  "  mv x22, x23\n" ++
+  "30:\n" ++
+  "  mv x24, x22\n" ++
+  "  beqz x24, 32f\n" ++
+  "31:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  sb x16, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x24, x24, -1\n" ++
+  "  bnez x24, 31b\n" ++
+  "32:\n" ++
+  "  sub x24, x23, x22\n" ++
+  "  beqz x24, 34f\n" ++
+  "33:\n" ++
+  "  sb x0, 0(x19)\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x24, x24, -1\n" ++
+  "  bnez x24, 33b\n" ++
+  "34:\n"
+
 private def chargePrecompileWordGasAsm
     (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
   "  li " ++ scratchReg ++ ", 31\n" ++
@@ -692,10 +722,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 10b\n" ++
     "  j 7b\n" ++
-    -- ECRECOVER fixed gas. Later slices replace the empty-output stub with
-    -- validation, backend recovery, and address-output framing.
+    -- ECRECOVER fixed gas and input staging. Later slices consume the staged
+    -- hash/v/r/s words for validation, backend recovery, and address output.
     "29:\n" ++
     chargePrecompileGasConstAsm 3000 "x16" "x17" ++
+    stageEcrecoverInputAsm inOffsetOff inSizeOff ++
     "  j 7b\n" ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++

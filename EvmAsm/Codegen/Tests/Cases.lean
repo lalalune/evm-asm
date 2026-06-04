@@ -922,6 +922,24 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "3118" }
+  , -- ECRECOVER staging uses buffer_read semantics. A one-byte input
+    -- stages that byte and zero-fills the remaining hash/v/r/s bytes,
+    -- while the current placeholder still succeeds with empty returndata.
+    { name           := "call_ecrecover_stage_len1_success"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3121" }
+  , -- 40 bytes reaches into the v word; bytes 40..128 are zero-filled.
+    { name           := "call_ecrecover_stage_partial_v_success"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x28, 0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3121" }
+  , -- 127 bytes copies through the s word and zero-fills exactly the
+    -- final byte of the staged 128-byte ECRECOVER input.
+    { name           := "staticcall_ecrecover_stage_partial_s_success"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x7f, 0x60, 0x00, 0x60, 0x01, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3118" }
   , -- CALL to basic precompile address 0x04 (IDENTITY) reaches the
     -- precompile-specific frame stub and pushes success = 1. Stack
     -- args are pushed bottom-to-top: out_size, out_off, in_size,
