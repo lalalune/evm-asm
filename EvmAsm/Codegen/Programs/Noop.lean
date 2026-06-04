@@ -683,6 +683,42 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  bnez a0, 1f\n" ++
+    -- EIP-2537 `g1_to_bytes`: each compact 48-byte coordinate is left-padded
+    -- to a 64-byte big-endian field element.
+    "  addi x18, x15, 16\n" ++
+    "  li x22, 16\n" ++
+    "17:\n" ++
+    "  sb x0, 0(x18)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 17b\n" ++
+    "  addi x18, x15, 336\n" ++
+    "  addi x19, x15, 32\n" ++
+    "  li x22, 48\n" ++
+    "18:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 18b\n" ++
+    "  addi x18, x15, 80\n" ++
+    "  li x22, 16\n" ++
+    "19:\n" ++
+    "  sb x0, 0(x18)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 19b\n" ++
+    "  addi x18, x15, 384\n" ++
+    "  addi x19, x15, 96\n" ++
+    "  li x22, 48\n" ++
+    "20:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 20b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  li x16, 128\n" ++
@@ -709,6 +745,32 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  bnez a0, 1f\n" ++
+    -- Pack the compact accelerator G1 result into EIP-2537 returndata:
+    -- 16 zero bytes + 48-byte x coordinate + 16 zero bytes + 48-byte y coordinate.
+    "  sd x0, 16(x15)\n" ++
+    "  sd x0, 24(x15)\n" ++
+    "  addi x17, x15, 336\n" ++
+    "  addi x18, x15, 32\n" ++
+    "  li x19, 48\n" ++
+    "20:\n" ++
+    "  lbu x20, 0(x17)\n" ++
+    "  sb x20, 0(x18)\n" ++
+    "  addi x17, x17, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  bnez x19, 20b\n" ++
+    "  sd x0, 80(x15)\n" ++
+    "  sd x0, 88(x15)\n" ++
+    "  addi x17, x15, 384\n" ++
+    "  addi x18, x15, 96\n" ++
+    "  li x19, 48\n" ++
+    "21:\n" ++
+    "  lbu x20, 0(x17)\n" ++
+    "  sb x20, 0(x18)\n" ++
+    "  addi x17, x17, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  bnez x19, 21b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  li x16, 128\n" ++
