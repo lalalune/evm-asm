@@ -34,17 +34,28 @@ def p2Offset : Nat := 256
 def payloadByte (payload : List Byte) (i : Nat) : Byte :=
   payload.getD i 0
 
+/-- Offset of a compact 192-byte G2 coordinate byte inside a 256-byte EVM G2 point. -/
+def compactG2Offset (i : Nat) : Nat :=
+  if i < 48 then
+    16 + i
+  else if i < 96 then
+    32 + i
+  else if i < 144 then
+    48 + i
+  else
+    64 + i
+
 /-- Execution-specs length check: `if len(data) != 512`. -/
 def validInputLength (payload : List Byte) : Bool :=
   payload.length == inputLength
 
 /-- First accelerator G2 point, projected from the first EVM point window. -/
 def p1Bytes (payload : List Byte) : Bls12G2AddInputBridge.G2PointBytes :=
-  fun i => payloadByte payload (p1Offset + i.val)
+  fun i => payloadByte payload (p1Offset + compactG2Offset i.val)
 
 /-- Second accelerator G2 point, projected from the second EVM point window. -/
 def p2Bytes (payload : List Byte) : Bls12G2AddInputBridge.G2PointBytes :=
-  fun i => payloadByte payload (p2Offset + i.val)
+  fun i => payloadByte payload (p2Offset + compactG2Offset i.val)
 
 /-- Accelerator input extracted from EVM call data in execution-specs order. -/
 def acceleratorInput (payload : List Byte) : AcceleratorInput :=
@@ -92,11 +103,11 @@ theorem validInputLength_iff (payload : List Byte) :
   simp [validInputLength]
 
 theorem p1Bytes_apply (payload : List Byte) (i : Fin 192) :
-    p1Bytes payload i = payload.getD i.val 0 := by
+    p1Bytes payload i = payload.getD (compactG2Offset i.val) 0 := by
   simp [p1Bytes, payloadByte, p1Offset]
 
 theorem p2Bytes_apply (payload : List Byte) (i : Fin 192) :
-    p2Bytes payload i = payload.getD (256 + i.val) 0 := by
+    p2Bytes payload i = payload.getD (256 + compactG2Offset i.val) 0 := by
   simp [p2Bytes, payloadByte, p2Offset]
 
 theorem acceleratorInput_p1 (payload : List Byte) :
