@@ -550,6 +550,52 @@ theorem expTwoMulFixedDirectHeadFalseFrameN_ordinary_of_control
     exact False.elim (hC6 hZero)
   · rfl
 
+theorem expTwoMulFixedDirectHeadTrueFrameN_reload_of_control
+    {exponentWord : EvmWord} {k : Nat}
+    {controlC6 e iterCount ptr nextLimb : Word}
+    (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) = 0) :
+    expTwoMulFixedDirectHeadTrueFrameN exponentWord k controlC6 e
+        iterCount ptr nextLimb =
+      expReloadTailDirectTrueFrameN exponentWord k controlC6 e iterCount ptr
+        nextLimb := by
+  rw [expTwoMulFixedDirectHeadTrueFrameN]
+  rw [expTwoMulFixedControlDec_unfold]
+  exact if_pos hC6
+
+theorem expTwoMulFixedDirectHeadTrueFrameN_pre_reload_of_control
+    {exponentWord : EvmWord} {k : Nat}
+    {controlC6 e iterCount ptr nextLimb : Word}
+    (hC6 : (controlC6 + signExtend12 (-1 : BitVec 12)).toNat = 1) :
+    expTwoMulFixedDirectHeadTrueFrameN exponentWord k controlC6 e
+        iterCount ptr nextLimb =
+      expPreReloadDirectTrueFrameN exponentWord k controlC6 e iterCount ptr
+        nextLimb := by
+  rw [expTwoMulFixedDirectHeadTrueFrameN]
+  rw [expTwoMulFixedControlDec_unfold]
+  split
+  · rename_i hZero
+    have hNatZero : (controlC6 + signExtend12 (-1 : BitVec 12)).toNat = 0 := by
+      rw [hZero]
+      decide
+    exact False.elim (Nat.zero_ne_one (by rw [← hNatZero, hC6]))
+  · rfl
+
+theorem expTwoMulFixedDirectHeadTrueFrameN_ordinary_of_control
+    {exponentWord : EvmWord} {k : Nat}
+    {controlC6 e iterCount ptr nextLimb : Word}
+    (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) ≠ 0)
+    (hNotPre :
+      (controlC6 + signExtend12 (-1 : BitVec 12)).toNat ≠ 1) :
+    expTwoMulFixedDirectHeadTrueFrameN exponentWord k controlC6 e
+        iterCount ptr nextLimb =
+      expReloadLimbDirectTrueFrame controlC6 e iterCount ptr nextLimb := by
+  rw [expTwoMulFixedDirectHeadTrueFrameN]
+  rw [expTwoMulFixedControlDec_unfold]
+  split
+  · rename_i hZero
+    exact False.elim (hC6 hZero)
+  · rfl
+
 /-- Direct head step over the folded induction precondition with a single
     post-frame selector.
 
