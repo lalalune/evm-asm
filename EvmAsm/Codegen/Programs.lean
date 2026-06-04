@@ -574,6 +574,12 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_sha256_probe_le"      => some ziskSha256ProbeLeUnit
   | "zisk_zkvm_sha256"          => some ziskZkvmSha256ProbeUnit
   | "zisk_bls12_g1_add_backend_probe" => some ziskBls12G1AddBackendProbeUnit
+  | "zisk_bls12_g1_msm_backend_probe" => some ziskBls12G1MsmBackendProbeUnit
+  | "zisk_bls12_g2_add_backend_probe" => some ziskBls12G2AddBackendProbeUnit
+  | "zisk_bls12_g2_msm_backend_probe" => some ziskBls12G2MsmBackendProbeUnit
+  | "zisk_bls12_pairing_backend_probe" => some ziskBls12PairingBackendProbeUnit
+  | "zisk_bls12_map_fp_to_g1_backend_probe" => some ziskBls12MapFpToG1BackendProbeUnit
+  | "zisk_bls12_map_fp2_to_g2_backend_probe" => some ziskBls12MapFp2ToG2BackendProbeUnit
   | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
@@ -876,6 +882,11 @@ def knownProgramNames : List String :=
    "zisk_sha256_probe_le",
    "zisk_zkvm_sha256",
    "zisk_bls12_g1_add_backend_probe",
+   "zisk_bls12_g1_msm_backend_probe",
+   "zisk_bls12_g2_add_backend_probe",
+   "zisk_bls12_g2_msm_backend_probe",
+   "zisk_bls12_pairing_backend_probe", "zisk_bls12_map_fp_to_g1_backend_probe",
+   "zisk_bls12_map_fp2_to_g2_backend_probe",
    "zisk_keccak256_from_input",
    "zisk_headers_keccak_chain",
    "zisk_headers_keccak_array",

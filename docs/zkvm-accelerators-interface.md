@@ -165,6 +165,13 @@ Run the reproducible readiness probe with:
 scripts/codegen-zisk-bls12-precompile-replay-probe.sh
 ```
 
+The bare-RV64 wrapper family probe links every BLS12 accelerator selector used
+by EIP-2537 runtime bodies and classifies the installed backend route:
+
+```bash
+scripts/codegen-zisk-bls12-backend-probes-check.sh
+```
+
 Use `--require-ready` when a downstream BLS runtime-body test genuinely needs
 the replay path and should fail if the installed `ziskemu` cannot provide it.
 Until this probe reports ready, BLS12 CALL/STATICCALL runtime bodies should

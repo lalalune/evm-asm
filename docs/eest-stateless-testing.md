@@ -158,6 +158,18 @@ launches and full-matches the expected 105-byte stateless verdict. This keeps
 the 1G layout work aimed at semantic EEST success, not merely avoiding
 `ERROR(layout)`.
 
+Run the broader EIP-8037 high-block-gas state-pricing frontier:
+
+```bash
+scripts/codegen-eest-eip8037-state-pricing-high-gas-check.sh
+```
+
+This selects the full `eip8037_state_creation_gas_cost_increase/state_gas_pricing`
+surface and requires the observed 200M, 300M, 500M, and 1G rows for the six
+high-gas pricing fixture files to be present and to full-match. Use this when
+checking that the largest EEST gas-limit cases are succeeding semantically, not
+only fitting in the static layout.
+
 Run a fast EIP-2929 precompile-warming frontier:
 
 ```bash
