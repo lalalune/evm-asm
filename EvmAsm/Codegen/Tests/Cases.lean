@@ -1597,6 +1597,28 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "14" }
+    -- ## Runtime EXTCODECOPY gas
+    -- No witness context is present in these codegen probes, so EXTCODECOPY
+    -- takes its deterministic zero-fill path after charging static warm-floor,
+    -- copy-word gas, and destination memory expansion.
+  , -- EXTCODECOPY one byte exact gas: PUSH1*4 (12) + static (100) +
+    -- copy one word (3) + memory expansion to one word (3) + final PUSH1 (3) = 121.
+    { name           := "extcodecopy_gas_len1_exact"
+      bytecode       := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x3c, 0x60, 0x42, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "121" }
+  , -- EXTCODECOPY 33 bytes exact gas: PUSH1*4 (12) + static (100) +
+    -- copy two words (6) + memory expansion to two words (6) + final PUSH1 (3) = 127.
+    { name           := "extcodecopy_gas_len33_exact"
+      bytecode       := "0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x3c, 0x60, 0x42, 0x00"
+      expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "127" }
+  , -- One gas short of the one-word copy charge exits before memory/body mutation.
+    { name             := "extcodecopy_copy_gas_oog"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x3c, 0x60, 0x42, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "114" }
     -- ## M22 real storage (SLOAD / SSTORE via pre-loaded slot table)
     -- The dispatcher prologue copies the input file's storage segment
     -- into a writable `evm_slot_table` (16 KiB, 256 slots × 64 B) and

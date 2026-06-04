@@ -5,31 +5,9 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.EvmMemoryGas
 
 namespace EvmAsm.Codegen
-
-/-- Update the dispatcher active-memory-size word at `evm_env + 432` for a
-    copy-like operation using EVM's 32-byte memory rounding. -/
-private def updateActiveMemorySizeAsm
-    (tag offsetReg lengthReg roundedReg currentReg maskReg : String) : String :=
-  s!"  beqz {lengthReg}, .L{tag}_mem_done
-" ++
-  s!"  add {roundedReg}, {offsetReg}, {lengthReg}
-" ++
-  s!"  addi {roundedReg}, {roundedReg}, 31
-" ++
-  s!"  li {maskReg}, -32
-" ++
-  s!"  and {roundedReg}, {roundedReg}, {maskReg}
-" ++
-  s!"  ld {currentReg}, 432(x20)
-" ++
-  s!"  bgeu {currentReg}, {roundedReg}, .L{tag}_mem_done
-" ++
-  s!"  sd {roundedReg}, 432(x20)
-" ++
-  s!".L{tag}_mem_done:
-"
 
 /-! ## Runtime EXTCODECOPY witness opcode
 
@@ -58,17 +36,20 @@ private def extcodecopyWitnessAddressCopy : String :=
       third word   : code_start_index
       fourth word  : size
 
-    The helper writes `size` bytes into `evm_memory + memory_start_index`,
-    zero-padding missing/empty/past-end cases. This handler ignores helper
-    status after the call because the helper pre-zeroes the requested output
-    window before trie/code lookup. -/
+    The prelude charges the copy word gas plus destination memory expansion
+    before mutation, matching execution-specs `extcodecopy`. The helper writes
+    `size` bytes into `evm_memory + memory_start_index`, zero-padding
+    missing/empty/past-end cases. This handler ignores helper status after the
+    call because the helper pre-zeroes the requested output window before
+    trie/code lookup. -/
 private def extcodecopyWitnessTail : HandlerTail :=
   .custom <|
     "  ld x14, 32(x12)
 " ++         -- memory_start_index
     "  ld x15, 96(x12)
 " ++         -- size
-    updateActiveMemorySizeAsm "extcodecopy" "x14" "x15" "x16" "x17" "x18" ++
+    copyWordGasAsm "extcodecopy" "x15" "x16" "x17" "x18" ++
+    updateActiveMemorySizeAsm "extcodecopy" "x14" "x15" "x16" "x17" "x18" "x6" true ++
     "  add x19, x13, x14
 " ++       -- output ptr = evm_memory + memory_start
     "  la t1, ecc_address_scratch
