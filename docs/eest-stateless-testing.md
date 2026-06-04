@@ -215,6 +215,18 @@ jobs, the number of completed passes before the stop point depends on
 scheduling. Use `scripts/eest-bal-replay-report.py --details` after a run to
 inspect the BAL row shape for the selected inputs.
 
+Run the focused EIP-7928/EIP-2935 BAL regression:
+
+```bash
+scripts/codegen-eest-eip2935-bal-check.sh
+```
+
+By default this converts and runs every stateless row selected by the
+`block_access_lists_eip2935` fixture-directory filter, so future fixture
+additions under that directory are picked up without editing the script. For a
+short local smoke, set `EEST_EIP2935_BAL_LIMIT=N`; the default gate should keep
+the full auto-counted selection.
+
 To inspect only the completed frontier misses from the latest run:
 
 ```bash
