@@ -815,6 +815,46 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "create_pop3_push_zero"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0xf0, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
+  , -- CREATE explicitly decodes top word as value: a high value limb is
+    -- accepted by the address-derivation slice instead of being confused with
+    -- high offset/size and reported as out-of-gas. With zero ADDRESS and
+    -- nonce 0, CREATE derives keccak(rlp([0x00..00, 0]))[12:].
+    { name             := "create_high_value_limb_derives_address"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00"
+      expectedOutHex   := "b18ea46f574a80cb7645b3e4915f34a3160477bd000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- CREATE with a nonzero runtime ADDRESS derives from that caller
+    -- address. The pushed EVM word is the 160-bit address in stack byte order.
+    { name             := "create_address_from_env_nonce_zero"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0xf0, 0x00"
+      env              := "address=0x1234567890abcdef1234567890abcdef12345678"
+      expectedOutHex   := "42f1db83cc7370b997a96db7b9ffe7c59c967087000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- CREATE offset is the second decoded word. For nonempty initcode,
+    -- high offset limbs are outside the current runtime memory envelope.
+    { name             := "create_high_offset_limb_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0xf0, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
+  , -- CREATE2 decodes salt after value/offset/size. High salt limbs are
+    -- allowed and participate in EIP-1014 address derivation.
+    { name             := "create2_high_salt_limb_derives_address"
+      bytecode         := "0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
+      expectedOutHex   := "9e40e03a1444e5c7a2a23a0565ec2b2d2318b2a4000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- CREATE2 with nonzero ADDRESS and salt=1 over empty initcode derives
+    -- the EIP-1014 address using keccak256(empty) as initcode_hash.
+    { name             := "create2_address_from_env_salt_one_empty_initcode"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
+      env              := "address=0x1234567890abcdef1234567890abcdef12345678"
+      expectedOutHex   := "178d3687bd025a14373c429091ba42d0e82d853d000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
+  , -- CREATE2 size is the third decoded word. High size limbs are rejected
+    -- before later address/precheck/deployment slices consume initcode.
+    { name             := "create2_high_size_limb_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000" }
   , -- PUSH1 0x01..0x07; CALL; PUSH1 0xff; STOP
     -- CALL pops 7 (gas, to, value, in_off, in_size, out_off,
     -- out_size), pushes 1 (success = 0). Net pop = 6 = +192 bytes.
