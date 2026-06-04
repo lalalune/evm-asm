@@ -32,13 +32,17 @@ import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
+import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-private def bsrMaxBlockGasLimit : Nat := 1000000000
 private def bsrBalGasCost : Nat := 2000
-private def bsrMaxBalItems : Nat := bsrMaxBlockGasLimit / bsrBalGasCost
+/-- Static BAL/state replay arena capacity. This is sized like the former 1G
+    worst-case BAL budget, but high declared block gas is not itself a layout
+    error: the guest first applies Amsterdam's gas-derived BAL rule, then checks
+    actual decoded item counts against these arenas. -/
+private def bsrMaxBalItems : Nat := 500000
 private def bsrModeledSystemChanges : Nat := 2
 private def bsrMaxWithdrawalChanges : Nat := 16
 private def bsrMaxAuxChanges : Nat := bsrModeledSystemChanges + bsrMaxWithdrawalChanges
@@ -237,7 +241,7 @@ def blockStateRootFunction : String :=
   "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
   "  la t0, bsr_exec_p; ld a0, 0(t0); addi a0, a0, 412; jal ra, bgv_u64le\n" ++
-  "  li t0, " ++ toString bsrMaxBlockGasLimit ++ "; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, " ++ toString bsrBalGasCost ++ "; divu t1, a0, t0\n" ++
+  "  li t0, " ++ toString bsrBalGasCost ++ "; divu t1, a0, t0\n" ++
   "  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, " ++ toString bsrMaxStateChanges ++ "; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
@@ -704,7 +708,7 @@ def blockVerdictFunction : String :=
   "  la t5, bv_tx_off; ld t3, 0(t5)\n" ++
   "  bgtu a0, t3, .Lbv_tx_present # wd_off > tx_off => transactions present\n" ++
   "  j .Lbv_after_tx_gate\n" ++
-  ".Lbv_tx_present:\n" ++
+  blockVerdictEmptyTransactionCheckAsm ++
   "  la t5, bsr_bal_count; ld t5, 0(t5); beqz t5, .Lbv_no_bal_for_tx  # tx blocks need BAL replay\n" ++
   "  # Any included transaction must consume nonzero gas. This catches rejected\n" ++
   "  # tx payloads whose state/BAL roots otherwise match the conservative replay.\n" ++
@@ -817,6 +821,8 @@ def blockVerdictFunction : String :=
   "  li t0, 14; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_blockhash_headers_fail:\n" ++
   "  li t0, 15; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_empty_tx_fail:\n" ++
+  "  li t0, 16; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -1185,6 +1191,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_bal_start:\n  .zero 8\n" ++
   "bv_bal_len:\n  .zero 8\n" ++
   "bv_tx_off:\n  .zero 8\n" ++
+  "bv_tx_list_ptr:\n  .zero 8\nbv_tx_list_len:\n  .zero 8\nbv_tx_count:\n  .zero 8\nbv_tx_index:\n  .zero 8\nbv_tx_item_start:\n  .zero 8\n" ++
   "bv_public_keys_ptr:\n  .zero 8\n" ++
   "bv_public_keys_len:\n  .zero 8\n" ++
   "bv_fail_code:\n  .zero 8\n" ++

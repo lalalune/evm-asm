@@ -28,6 +28,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -206,13 +207,13 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
 
 /-- Runtime RETURNDATASIZE / RETURNDATACOPY handlers backed by
     `evm_precompile_frame`. CALL/STATICCALL precompile paths store
-    their return-data length at `+8` and up to 128 bytes at `+16`.
+    their return-data length at `+8` and up to 256 bytes at `+16`.
     Non-precompile, absent-account, CREATE, and CREATE2 paths clear
     the length to model an empty return-data buffer.
 
     RETURNDATACOPY follows execution-specs EIP-211 behavior for bounds:
     copying past the current buffer is an exceptional halt, not zero-fill.
-    This first runtime slice retains a 128-byte prefix of child returndata, so
+    This runtime slice retains a 256-byte prefix of child returndata, so
     copies beyond that retained prefix are also exceptional until a wider
     return-data arena lands. -/
 def returnDataHandlers : List OpcodeHandlerSpec :=
@@ -239,10 +240,13 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
         "  add x19, x15, x16\n" ++
         "  bltu x19, x15, .exit_invalid\n" ++
         "  bltu x18, x19, .exit_invalid\n" ++
-        "  li x18, 128\n" ++
+        "  li x18, 256\n" ++
         "  bltu x18, x19, .exit_invalid\n" ++
+        copyWordGasAsm "returndatacopy" "x16" "x17" "x18" "x19" ++
+        updateActiveMemorySizeAsm "returndatacopy" "x14" "x16" "x17" "x18" "x19" "x6" true ++
         "  addi x12, x12, 96\n" ++
         "  beqz x16, 2f\n" ++
+        "  la x17, evm_precompile_frame\n" ++
         "  addi x17, x17, 16\n" ++
         "  add x17, x17, x15\n" ++
         "  add x18, x13, x14\n" ++
@@ -256,6 +260,133 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
         "2:\n" ++
         "  addi x10, x10, 1\n" ++
         "  ret" } ]
+
+private def precompileFrameAddi (dst : String) (off : Nat) : String :=
+  "  addi " ++ dst ++ ", x15, " ++ toString off ++ "\n"
+
+private def precompileGasRemainingOff : Nat := 568
+
+private def chargePrecompileGasAsm (costReg remainingReg : String) : String :=
+  "  ld " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  bltu " ++ remainingReg ++ ", " ++ costReg ++ ", .exit_outofgas\n" ++
+  "  sub " ++ remainingReg ++ ", " ++ remainingReg ++ ", " ++ costReg ++ "\n" ++
+  "  sd " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n"
+
+private def chargePrecompileGasConstAsm (cost : Nat)
+    (costReg remainingReg : String) : String :=
+  "  li " ++ costReg ++ ", " ++ toString cost ++ "\n" ++
+  chargePrecompileGasAsm costReg remainingReg
+
+private def stageEcrecoverInputAsm
+    (inOffsetOff inSizeOff : Nat) : String :=
+  "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+  "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+  "  add x18, x13, x18\n" ++
+  precompileFrameAddi "x19" precompileFrameEcrecoverInputOff ++
+  "  mv x22, x17\n" ++
+  "  li x23, 128\n" ++
+  "  bgeu x23, x22, 30f\n" ++
+  "  mv x22, x23\n" ++
+  "30:\n" ++
+  "  mv x24, x22\n" ++
+  "  beqz x24, 32f\n" ++
+  "31:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  sb x16, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x24, x24, -1\n" ++
+  "  bnez x24, 31b\n" ++
+  "32:\n" ++
+  "  sub x24, x23, x22\n" ++
+  "  beqz x24, 34f\n" ++
+  "33:\n" ++
+  "  sb x0, 0(x19)\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x24, x24, -1\n" ++
+  "  bnez x24, 33b\n" ++
+  "34:\n"
+
+private def ecrecoverVGateAsm : String :=
+  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 32) ++
+  "  li x19, 31\n" ++
+  "40:\n" ++
+  "  beqz x19, 41f\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  bnez x16, 43f\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, -1\n" ++
+  "  j 40b\n" ++
+  "41:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  li x19, 27\n" ++
+  "  beq x16, x19, 42f\n" ++
+  "  li x19, 28\n" ++
+  "  beq x16, x19, 42f\n" ++
+  "43:\n" ++
+  "  j 7b\n" ++
+  "42:\n"
+
+private def ecrecoverNonzeroRSGateAsm : String :=
+  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 64) ++
+  "  ld x16, 0(x18)\n" ++
+  "  ld x17, 8(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 16(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 24(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  beqz x16, 7b\n" ++
+  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 96) ++
+  "  ld x16, 0(x18)\n" ++
+  "  ld x17, 8(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 16(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  ld x17, 24(x18)\n" ++
+  "  or x16, x16, x17\n" ++
+  "  beqz x16, 7b\n"
+
+private def secp256k1OrderBytes : List Nat :=
+  [ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+  , 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe
+  , 0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b
+  , 0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41
+  ]
+
+private def ecrecoverScalarBelowOrderCompareAsm
+    (bytes : List Nat) (idx belowLabel : Nat) : String :=
+  match bytes with
+  | [] => ""
+  | byte :: rest =>
+      "  lbu x16, " ++ toString idx ++ "(x18)\n" ++
+      "  li x17, " ++ toString byte ++ "\n" ++
+      "  bltu x17, x16, 7b\n" ++
+      "  bltu x16, x17, " ++ toString belowLabel ++ "f\n" ++
+      ecrecoverScalarBelowOrderCompareAsm rest (idx + 1) belowLabel
+
+private def ecrecoverScalarBelowOrderGateAsm
+    (wordOff : Nat) (belowLabel : Nat) : String :=
+  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + wordOff) ++
+  ecrecoverScalarBelowOrderCompareAsm secp256k1OrderBytes 0 belowLabel ++
+  "  j 7b\n" ++
+  toString belowLabel ++ ":\n"
+
+private def ecrecoverScalarOrderGateAsm : String :=
+  ecrecoverScalarBelowOrderGateAsm 64 44 ++
+  ecrecoverScalarBelowOrderGateAsm 96 45
+
+private def chargePrecompileWordGasAsm
+    (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
+  "  li " ++ scratchReg ++ ", 31\n" ++
+  "  add " ++ costReg ++ ", " ++ sizeReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  bltu " ++ costReg ++ ", " ++ sizeReg ++ ", .exit_outofgas\n" ++
+  "  srli " ++ costReg ++ ", " ++ costReg ++ ", 5\n" ++
+  "  li " ++ scratchReg ++ ", " ++ toString perWordGas ++ "\n" ++
+  "  mul " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  li " ++ scratchReg ++ ", " ++ toString baseGas ++ "\n" ++
+  "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  chargePrecompileGasAsm costReg scratchReg
 
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
     CREATE2, STATICCALL). CALL-family non-precompile paths still ship as
@@ -284,8 +415,10 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
     addresses 0x01..0x04 as the basic precompile frame surface.
     SHA256 (0x02) hashes input bytes through `zkvm_sha256`,
     IDENTITY (0x04) copies input bytes to caller output memory, and
-    both push success = 1. ECRECOVER / RIPEMD160 remain success
-    stubs in this slice; follow-up PRs wire their output semantics.
+    both push success = 1. SHA256 and IDENTITY charge their exact
+    word-linear inner precompile gas through the shared helper.
+    ECRECOVER / RIPEMD160 remain success stubs in this slice;
+    follow-up PRs wire their output semantics.
 
     **M27.2 update**: CALL / STATICCALL also recognize BLS12-381 G1
     active precompile addresses 0x0b (G1 ADD) and 0x0c (G1 MSM).
@@ -298,6 +431,12 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
     This first runtime slice applies the same execution-specs length
     gates before the future accelerator body: G2 ADD requires exactly
     512 bytes; G2 MSM requires a nonzero multiple of 288 bytes.
+
+    **M27.4 update**: CALL / STATICCALL also recognize BLS12-381 pairing
+    and map precompile addresses 0x0f (pairing), 0x10 (map-Fp-to-G1), and
+    0x11 (map-Fp2-to-G2). Valid-length inputs invoke the linkable backend
+    wrappers; current ziskemu safe-fails those wrappers, so EVM observes
+    precompile failure until success-output slices land.
 
     **M27.1 update**: inactive near-zero addresses 0x12 and 0x101
     are not precompiles in the Amsterdam active set. Route them as
@@ -330,8 +469,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , tail := .advanceAndRet 1 }
   let createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- Decode CREATE-family operands, derive the would-be target address using
-    -- the shared CREATE/CREATE2 address helpers, and leave later slices to add
-    -- collision checks, child execution, and code-deposit descriptors.
+    -- the shared CREATE/CREATE2 address helpers, and enforce the currently
+    -- runtime-visible prechecks before later child/deposit execution slices.
     "  la x15, evm_precompile_frame\n" ++
     "  sd x0, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
@@ -378,6 +517,48 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x18, x18, 1\n" ++
     "  addi x23, x23, -1\n" ++
     "  bnez x23, 2b\n" ++
+    -- With account-witness context, enforce the executable-spec
+    -- insufficient-balance zero-result branch before deriving success.
+    "  ld a1, 584(x20)\n" ++
+    "  beqz a1, 9f\n" ++
+    "  la x18, create_value_be\n" ++
+    "  addi x19, x12, 31\n" ++
+    "  li x23, 32\n" ++
+    "10:\n" ++
+    "  lbu x24, 0(x19)\n" ++
+    "  sb x24, 0(x18)\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 10b\n" ++
+    "  mv s9, x13\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld a0, 576(x20)\n" ++
+    "  ld a1, 584(x20)\n" ++
+    "  la a2, create_sender_be\n" ++
+    "  ld a3, 592(x20)\n" ++
+    "  ld a4, 600(x20)\n" ++
+    "  la a5, create_balance_be\n" ++
+    "  jal x1, balance_at_header_state_root\n" ++
+    "  mv t0, a0\n" ++
+    "  mv x13, s9\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  bnez t0, 7f\n" ++
+    "  la x18, create_balance_be\n" ++
+    "  la x19, create_value_be\n" ++
+    "  li x23, 32\n" ++
+    "11:\n" ++
+    "  lbu x24, 0(x18)\n" ++
+    "  lbu x25, 0(x19)\n" ++
+    "  bltu x24, x25, 7f\n" ++
+    "  bltu x25, x24, 9f\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 11b\n" ++
+    "9:\n" ++
     -- Default to nonce 0 when no account-witness context is attached.
     "  la x18, create_nonce\n" ++
     "  sd x0, 0(x18)\n" ++
@@ -511,6 +692,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beq x14, x15, 15f\n" ++
     "  li x15, 0x0e\n" ++
     "  beq x14, x15, 16f\n" ++
+    "  li x15, 0x0f\n" ++
+    "  beq x14, x15, 17f\n" ++
+    "  li x15, 0x10\n" ++
+    "  beq x14, x15, 18f\n" ++
+    "  li x15, 0x11\n" ++
+    "  beq x14, x15, 19f\n" ++
     "  li x15, 0x12\n" ++
     "  beq x14, x15, 12f\n" ++
     "  li x15, 0x101\n" ++
@@ -521,21 +708,24 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
+    "  li x16, 1\n" ++
+    "  beq x14, x16, 29f\n" ++
     "  li x16, 2\n" ++
     "  beq x14, x16, 8f\n" ++
     "  li x16, 4\n" ++
     "  bne x14, x16, 7f\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    chargePrecompileWordGasAsm 15 3 "x17" "x16" "x22" ++
     "  sd x17, 8(x15)\n" ++       -- returndata length = full input size
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add x18, x13, x18\n" ++    -- x18 = identity input bytes
     "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
     "  add x19, x13, x19\n" ++    -- x19 = caller output bytes
-    -- Copy up to 128 bytes of returndata into the shared frame.
+    -- Copy up to 256 bytes of returndata into the shared frame.
     "  mv x22, x18\n" ++
     "  addi x23, x15, 16\n" ++
     "  mv x24, x17\n" ++
-    "  li x16, 128\n" ++
+    "  li x16, 256\n" ++
     "  bgeu x16, x24, 2f\n" ++
     "  mv x24, x16\n" ++
     "2:\n" ++
@@ -580,6 +770,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld a1, " ++ toString inSizeOff ++ "(x12)\n" ++
+    chargePrecompileWordGasAsm 60 12 "a1" "x16" "x22" ++
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add a0, x13, x18\n" ++
     "  addi a2, x15, 16\n" ++
@@ -604,6 +795,15 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 10b\n" ++
     "  j 7b\n" ++
+    -- ECRECOVER fixed gas, input staging, and v gate. Later slices consume
+    -- valid staged r/s words for validation, backend recovery, and output.
+    "29:\n" ++
+    chargePrecompileGasConstAsm 3000 "x16" "x17" ++
+    stageEcrecoverInputAsm inOffsetOff inSizeOff ++
+    ecrecoverVGateAsm ++
+    ecrecoverNonzeroRSGateAsm ++
+    ecrecoverScalarOrderGateAsm ++
+    "  j 7b\n" ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
@@ -611,54 +811,438 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  sd x0, 8(x15)\n" ++
     "  j 7b\n" ++
     -- BLS12-381 G1 ADD: execution-specs rejects unless calldata length is 256.
-    -- Valid-length output is wired in a later accelerator-body slice; for now
-    -- it reaches the active-precompile success surface with empty returndata.
+    -- Valid-length input invokes the linkable backend wrapper. Current ziskemu
+    -- routes this through a deterministic safe-fail shim, which surfaces EVM
+    -- precompile failure instead of placeholder success.
     "13:\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 256\n" ++
     "  bne x17, x16, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
+    precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
+    precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
+    "  jal x1, zkvm_bls12_g1_add\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  bnez a0, 1f\n" ++
+    -- EIP-2537 `g1_to_bytes`: each compact 48-byte coordinate is left-padded
+    -- to a 64-byte big-endian field element.
+    "  addi x18, x15, 16\n" ++
+    "  li x22, 16\n" ++
+    "20:\n" ++
+    "  sb x0, 0(x18)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 20b\n" ++
+    precompileFrameAddi "x18" precompileFrameBls12G1OutputOff ++
+    "  addi x19, x15, 32\n" ++
+    "  li x22, 48\n" ++
+    "21:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 21b\n" ++
+    "  addi x18, x15, 80\n" ++
+    "  li x22, 16\n" ++
+    "22:\n" ++
+    "  sb x0, 0(x18)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 22b\n" ++
+    precompileFrameAddi "x18" (precompileFrameBls12G1OutputOff + 48) ++
+    "  addi x19, x15, 96\n" ++
+    "  li x22, 48\n" ++
+    "23:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 23b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
-    "  sd x0, 8(x15)\n" ++
+    "  li x16, 128\n" ++
+    "  sd x16, 8(x15)\n" ++
     "  j 7b\n" ++
     -- BLS12-381 G1 MSM: execution-specs rejects empty input and non-160
-    -- multiples before charging gas or invoking curve arithmetic.
+    -- multiples before charging gas or invoking curve arithmetic. Valid-length
+    -- input invokes the linkable backend wrapper; the current safe-fail shim
+    -- surfaces EVM precompile failure instead of placeholder success.
     "14:\n" ++
-    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
-    "  beqz x17, 1f\n" ++
+    "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  beqz x18, 1f\n" ++
     "  li x16, 160\n" ++
-    "  remu x17, x17, x16\n" ++
+    "  remu x17, x18, x16\n" ++
     "  bnez x17, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
+    "  divu a1, x18, x16\n" ++
+    precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
+    "  jal x1, zkvm_bls12_g1_msm\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  bnez a0, 1f\n" ++
+    -- Pack the compact accelerator G1 result into EIP-2537 returndata:
+    -- 16 zero bytes + 48-byte x coordinate + 16 zero bytes + 48-byte y coordinate.
+    "  sd x0, 16(x15)\n" ++
+    "  sd x0, 24(x15)\n" ++
+    precompileFrameAddi "x17" precompileFrameBls12G1OutputOff ++
+    "  addi x18, x15, 32\n" ++
+    "  li x19, 48\n" ++
+    "20:\n" ++
+    "  lbu x20, 0(x17)\n" ++
+    "  sb x20, 0(x18)\n" ++
+    "  addi x17, x17, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  bnez x19, 20b\n" ++
+    "  sd x0, 80(x15)\n" ++
+    "  sd x0, 88(x15)\n" ++
+    precompileFrameAddi "x17" (precompileFrameBls12G1OutputOff + 48) ++
+    "  addi x18, x15, 96\n" ++
+    "  li x19, 48\n" ++
+    "21:\n" ++
+    "  lbu x20, 0(x17)\n" ++
+    "  sb x20, 0(x18)\n" ++
+    "  addi x17, x17, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  bnez x19, 21b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
-    "  sd x0, 8(x15)\n" ++
+    "  li x16, 128\n" ++
+    "  sd x16, 8(x15)\n" ++
     "  j 7b\n" ++
     -- BLS12-381 G2 ADD: execution-specs rejects unless calldata length is 512.
-    -- Valid-length output is wired in a later accelerator-body slice; for now
-    -- it reaches the active-precompile success surface with empty returndata.
+    -- Valid-length input invokes the linkable backend wrapper. Current ziskemu
+    -- routes this through a deterministic safe-fail shim, which surfaces EVM
+    -- precompile failure instead of placeholder success.
     "15:\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 512\n" ++
     "  bne x17, x16, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G2AddInput0Off ++
+    precompileFrameAddi "a1" precompileFrameBls12G2AddInput1Off ++
+    precompileFrameAddi "a2" precompileFrameBls12G2AddOutputOff ++
+    "  jal x1, zkvm_bls12_g2_add\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  bnez a0, 1f\n" ++
+    -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
+    -- to a 64-byte big-endian field element.
+    "  addi x18, x15, 16\n" ++
+    precompileFrameAddi "x19" precompileFrameBls12G2AddOutputOff ++
+    "  li x23, 4\n" ++
+    "20:\n" ++
+    "  li x22, 16\n" ++
+    "21:\n" ++
+    "  sb x0, 0(x18)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 21b\n" ++
+    "  li x22, 48\n" ++
+    "22:\n" ++
+    "  lbu x16, 0(x19)\n" ++
+    "  sb x16, 0(x18)\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 22b\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 20b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
-    "  sd x0, 8(x15)\n" ++
+    "  li x16, 256\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x23, 256\n" ++
+    "  bgeu x22, x23, 23f\n" ++
+    "  mv x23, x22\n" ++
+    "23:\n" ++
+    "  beqz x23, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "24:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 24b\n" ++
     "  j 7b\n" ++
     -- BLS12-381 G2 MSM: execution-specs rejects empty input and non-288
-    -- multiples before charging gas or invoking curve arithmetic.
+    -- multiples before charging gas or invoking curve arithmetic. Valid-length
+    -- input invokes the linkable backend wrapper; the current safe-fail shim
+    -- surfaces EVM precompile failure instead of placeholder success.
     "16:\n" ++
-    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
-    "  beqz x17, 1f\n" ++
+    "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  beqz x18, 1f\n" ++
     "  li x16, 288\n" ++
-    "  remu x17, x17, x16\n" ++
+    "  remu x17, x18, x16\n" ++
     "  bnez x17, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G2InputOff ++
+    "  divu a1, x18, x16\n" ++
+    precompileFrameAddi "a2" precompileFrameBls12G2OutputOff ++
+    "  jal x1, zkvm_bls12_g2_msm\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  bnez a0, 1f\n" ++
+    -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
+    -- to a 64-byte big-endian field element.
+    "  addi x18, x15, 16\n" ++
+    precompileFrameAddi "x19" precompileFrameBls12G2OutputOff ++
+    "  li x23, 4\n" ++
+    "20:\n" ++
+    "  li x22, 16\n" ++
+    "21:\n" ++
+    "  sb x0, 0(x18)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 21b\n" ++
+    "  li x22, 48\n" ++
+    "22:\n" ++
+    "  lbu x16, 0(x19)\n" ++
+    "  sb x16, 0(x18)\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 22b\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 20b\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
-    "  sd x0, 8(x15)\n" ++
+    "  li x16, 256\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x23, 256\n" ++
+    "  bgeu x22, x23, 23f\n" ++
+    "  mv x23, x22\n" ++
+    "23:\n" ++
+    "  beqz x23, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "24:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 24b\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 pairing: execution-specs rejects empty input and non-384
+    -- multiples before invoking pairing arithmetic.
+    "17:\n" ++
+    "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  beqz x18, 1f\n" ++
+    "  li x16, 384\n" ++
+    "  remu x17, x18, x16\n" ++
+    "  bnez x17, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x17\n" ++
+    "  divu a1, x18, x16\n" ++
+    precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
+    "  jal x1, zkvm_bls12_pairing\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  bnez a0, 1f\n" ++
+    -- EIP-2537 pairing returns a 32-byte boolean word: 31 zero bytes followed
+    -- by the backend `verified` byte.
+    "  sd x0, 16(x15)\n" ++
+    "  sd x0, 24(x15)\n" ++
+    "  sd x0, 32(x15)\n" ++
+    "  sd x0, 40(x15)\n" ++
+    "  lbu x16, " ++ toString precompileFrameBls12G1OutputOff ++ "(x15)\n" ++
+    "  sb x16, 47(x15)\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  li x16, 32\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x23, 32\n" ++
+    "  bgeu x22, x23, 22f\n" ++
+    "  mv x23, x22\n" ++
+    "22:\n" ++
+    "  beqz x23, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "23:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 23b\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 map-Fp-to-G1: execution-specs requires exactly one
+    -- 64-byte Fp field element; the compact 48-byte field payload starts
+    -- after the 16-byte EIP-2537 zero pad.
+    "18:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x16, 64\n" ++
+    "  bne x17, x16, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add x18, x13, x18\n" ++
+    "  addi a0, x18, 16\n" ++
+    precompileFrameAddi "a1" precompileFrameBls12G1OutputOff ++
+    "  jal x1, zkvm_bls12_map_fp_to_g1\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  bnez a0, 1f\n" ++
+    -- EIP-2537 `g1_to_bytes`: each compact 48-byte coordinate is left-padded
+    -- to a 64-byte big-endian field element.
+    "  sd x0, 16(x15)\n" ++
+    "  sd x0, 24(x15)\n" ++
+    precompileFrameAddi "x17" precompileFrameBls12G1OutputOff ++
+    "  addi x18, x15, 32\n" ++
+    "  li x19, 48\n" ++
+    "34:\n" ++
+    "  lbu x16, 0(x17)\n" ++
+    "  sb x16, 0(x18)\n" ++
+    "  addi x17, x17, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  bnez x19, 34b\n" ++
+    "  sd x0, 80(x15)\n" ++
+    "  sd x0, 88(x15)\n" ++
+    precompileFrameAddi "x17" (precompileFrameBls12G1OutputOff + 48) ++
+    "  addi x18, x15, 96\n" ++
+    "  li x19, 48\n" ++
+    "35:\n" ++
+    "  lbu x16, 0(x17)\n" ++
+    "  sb x16, 0(x18)\n" ++
+    "  addi x17, x17, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  bnez x19, 35b\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  li x16, 128\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x23, 128\n" ++
+    "  bgeu x22, x23, 36f\n" ++
+    "  mv x23, x22\n" ++
+    "36:\n" ++
+    "  beqz x23, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "37:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 37b\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 map-Fp2-to-G2: execution-specs requires exactly one
+    -- 128-byte Fp2 element. Project the two compact 48-byte Fp chunks into
+    -- the G2-class compact input lane before calling the backend.
+    "19:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x16, 128\n" ++
+    "  bne x17, x16, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add x18, x13, x18\n" ++
+    "  addi x19, x18, 16\n" ++
+    precompileFrameAddi "x23" precompileFrameBls12G2InputOff ++
+    "  li x22, 48\n" ++
+    "20:\n" ++
+    "  lbu x16, 0(x19)\n" ++
+    "  sb x16, 0(x23)\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 20b\n" ++
+    "  addi x19, x18, 80\n" ++
+    "  li x22, 48\n" ++
+    "21:\n" ++
+    "  lbu x16, 0(x19)\n" ++
+    "  sb x16, 0(x23)\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 21b\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G2InputOff ++
+    precompileFrameAddi "a1" precompileFrameBls12G2OutputOff ++
+    "  jal x1, zkvm_bls12_map_fp2_to_g2\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  bnez a0, 1f\n" ++
+    -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
+    -- to a 64-byte big-endian field element.
+    "  addi x18, x15, 16\n" ++
+    precompileFrameAddi "x19" precompileFrameBls12G2OutputOff ++
+    "  li x23, 4\n" ++
+    "34:\n" ++
+    "  li x22, 16\n" ++
+    "35:\n" ++
+    "  sb x0, 0(x18)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 35b\n" ++
+    "  li x22, 48\n" ++
+    "36:\n" ++
+    "  lbu x16, 0(x19)\n" ++
+    "  sb x16, 0(x18)\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 36b\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 34b\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  li x16, 256\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x23, 256\n" ++
+    "  bgeu x22, x23, 37f\n" ++
+    "  mv x23, x22\n" ++
+    "37:\n" ++
+    "  beqz x23, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    "38:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 38b\n" ++
     "  j 7b\n" ++
     "1:\n" ++
     "  la x15, evm_precompile_frame\n" ++

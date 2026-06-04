@@ -113,6 +113,11 @@ def create_bytecode():
     return push_word_u8(0) + push_word_u8(0) + push_word_u8(0) + [0xf0, 0x00]
 
 
+def create_value_bytecode(value):
+    # PUSH1 size=0; PUSH1 offset=0; PUSH1 value=<value>; CREATE; STOP.
+    return push_word_u8(0) + push_word_u8(0) + push_word_u8(value) + [0xf0, 0x00]
+
+
 def create2_bytecode():
     # PUSH1 salt=1; PUSH1 size=0; PUSH1 offset=0; PUSH1 value=0; CREATE2; STOP.
     return push_word_u8(1) + push_word_u8(0) + push_word_u8(0) + push_word_u8(0) + [0xf5, 0x00]
@@ -125,7 +130,10 @@ def create_address(sender, nonce):
 def create2_address(sender, salt, initcode):
     return k256(b'\xff' + sender + salt.to_bytes(32, 'big') + k256(initcode))[12:]
 
-if opcode == 'create':
+if opcode == 'create' and collision == 'insufficient':
+    bytecode = create_value_bytecode(1)
+    target = create_address(creator, 0)
+elif opcode == 'create':
     bytecode = create_bytecode()
     target = create_address(creator, 0)
 elif opcode == 'create2':
@@ -140,6 +148,12 @@ if collision == 'absent':
     header = encode_header(k256(leaf))
     witness_state = build_ssz_section([leaf])
     expected_address = target
+elif collision == 'insufficient':
+    account = encode_account(0, 0, EMPTY_TRIE, EMPTY_CODE_HASH)
+    leaf = leaf_node(bytes_to_nibbles(k256(creator)), account)
+    header = encode_header(k256(leaf))
+    witness_state = build_ssz_section([leaf])
+    expected_address = b'\x00' * 20
 elif collision == 'nonce':
     account = encode_account(1, 0, EMPTY_TRIE, EMPTY_CODE_HASH)
     leaf = leaf_node(bytes_to_nibbles(k256(target)), account)
@@ -171,6 +185,7 @@ CASES=(
   "create_absent_target create absent"
   "create_nonce_collision create nonce"
   "create_code_collision create code"
+  "create_insufficient_balance create insufficient"
   "create2_absent_target create2 absent"
   "create2_nonce_collision create2 nonce"
 )

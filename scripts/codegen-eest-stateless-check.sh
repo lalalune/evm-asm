@@ -74,6 +74,11 @@
 #     --verify-execution-spec-input
 #                        decode the same guest-visible bytes through
 #                        execution-specs run_stateless_guest's input path
+#     --random           shuffle fixtures into a random order before applying
+#                        --limit; use to sample a different subset on each run
+#                        and discover failures outside the default first-N fixtures
+#     --seed N           integer seed for --random (default: auto-generated and
+#                        printed so any discovery run can be exactly reproduced)
 #     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
 #
 # Environment:
@@ -114,7 +119,6 @@ RUN_DIR_OVERRIDE=""
 QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
 BSR_WITNESS_CAP="${EEST_BSR_WITNESS_CAP:-}"
 BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
-BSR_MAX_BLOCK_GAS_LIMIT="${EEST_BSR_MAX_BLOCK_GAS_LIMIT:-1000000000}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
@@ -125,6 +129,8 @@ VERDICT_DEBUG="${EEST_VERDICT_DEBUG:-1}"
 VERDICT_DEBUG_ELF=""
 VERIFY_INPUT_PARITY="${EEST_VERIFY_INPUT_PARITY:-1}"
 VERIFY_EXECUTION_SPEC_INPUT="${EEST_VERIFY_EXECUTION_SPEC_INPUT:-0}"
+RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
+RANDOM_SEED="${EEST_RANDOM_SEED:-}"
 
 usage() {
   cat <<'USAGE'
@@ -155,6 +161,9 @@ Options:
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
   --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
+  --random                 shuffle fixtures into a random order before --limit; run
+                           repeatedly to sample different subsets and seek discoveries
+  --seed N                 integer seed for --random (default: auto-generated and printed)
   --run-dir DIR            use DIR instead of gen-out/eest-run (enables parallel invocations)
   -h, --help               show this help
 USAGE
@@ -194,6 +203,8 @@ while [[ $# -gt 0 ]]; do
     --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
     --no-verdict-debug) VERDICT_DEBUG=0; shift ;;
+    --random) RANDOM_ORDER=1; shift ;;
+    --seed) require_arg "$1" "${2:-}"; RANDOM_SEED="$2"; shift 2 ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -246,10 +257,6 @@ if [[ -n "$BSR_BAL_CAP" ]] && ! [[ "$BSR_BAL_CAP" =~ ^[0-9]+$ ]]; then
   echo "--bsr-bal-cap must be a nonnegative integer when set (got: $BSR_BAL_CAP)" >&2
   exit 1
 fi
-if ! [[ "$BSR_MAX_BLOCK_GAS_LIMIT" =~ ^[0-9]+$ ]] || [[ "$BSR_MAX_BLOCK_GAS_LIMIT" -lt 1 ]]; then
-  echo "EEST_BSR_MAX_BLOCK_GAS_LIMIT must be a positive integer (got: $BSR_MAX_BLOCK_GAS_LIMIT)" >&2
-  exit 1
-fi
 if ! [[ "$QUIET_PASSES" =~ ^(0|1|true|false|yes|no)$ ]]; then
   echo "EEST_QUIET_PASSES must be 0/1/true/false/yes/no (got: $QUIET_PASSES)" >&2
   exit 1
@@ -260,6 +267,18 @@ case "$QUIET_PASSES" in
 esac
 if ! [[ "$MEM_RESERVE_MIB" =~ ^[0-9]+$ ]]; then
   echo "EEST_MEM_RESERVE_MIB must be a nonnegative integer (got: $MEM_RESERVE_MIB)" >&2
+  exit 1
+fi
+if [[ "$RANDOM_ORDER" != "0" && "$RANDOM_ORDER" != "1" ]]; then
+  echo "EEST_RANDOM_ORDER must be 0 or 1 (got: $RANDOM_ORDER)" >&2
+  exit 1
+fi
+if [[ -n "$RANDOM_SEED" ]] && ! [[ "$RANDOM_SEED" =~ ^[0-9]+$ ]]; then
+  echo "--seed must be a nonnegative integer (got: $RANDOM_SEED)" >&2
+  exit 1
+fi
+if [[ -n "$RANDOM_SEED" && "$RANDOM_ORDER" -eq 0 ]]; then
+  echo "--seed requires --random" >&2
   exit 1
 fi
 
@@ -404,8 +423,8 @@ patch_bsr_caps_asm() {
   local asm="$1"
   local old_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 262144; bgtu a2, t1, .Lbsr_cons_change_cap"
   local new_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, $BSR_WITNESS_CAP; bgtu a2, t1, .Lbsr_cons_change_cap"
-  local old_bal=$'  li t0, 1000000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500002; bgtu t0, t1, .Lbsr_cons_change_cap'
-  local new_bal=$'  li t0, 1000000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; li t1, '"$BSR_BAL_CAP"$'; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500002; bgtu t0, t1, .Lbsr_cons_change_cap'
+  local old_bal=$'  li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500018; bgtu t0, t1, .Lbsr_cons_change_cap'
+  local new_bal=$'  li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; li t1, '"$BSR_BAL_CAP"$'; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500018; bgtu t0, t1, .Lbsr_cons_change_cap'
   local as_tool ld_tool
 
   python3 - "$asm" "$BSR_WITNESS_CAP" "$old_witness" "$new_witness" "$BSR_BAL_CAP" "$old_bal" "$new_bal" <<'PYPATCH'
@@ -566,6 +585,23 @@ fi
 MANIFEST="$RUN_DIR/manifest.tsv"
 [[ -s "$MANIFEST" ]] || { echo "no stateless blocks selected" >&2; exit 1; }
 mapfile -t manifestLines < "$MANIFEST"
+
+if [[ "$RANDOM_ORDER" -eq 1 ]]; then
+  if [[ -z "$RANDOM_SEED" ]]; then
+    RANDOM_SEED="$(python3 -c 'import random; print(random.randint(0, 2**31-1))')"
+  fi
+  echo "==> random order: seed=$RANDOM_SEED (pass --seed $RANDOM_SEED to reproduce this run)"
+  mapfile -t manifestLines < <(
+    printf '%s\n' "${manifestLines[@]}" | python3 -c "
+import sys, random
+lines = sys.stdin.read().splitlines()
+random.Random(int(sys.argv[1])).shuffle(lines)
+print('\n'.join(lines))
+" "$RANDOM_SEED"
+  )
+  selection="$selection, random(seed=$RANDOM_SEED)"
+fi
+
 selectedCount="${#manifestLines[@]}"
 
 run_case() {
@@ -578,11 +614,6 @@ run_case() {
   local tmp_result="$result.tmp.$$"
   local actual_hex
 
-  if [[ "$gas_limit" -gt "$BSR_MAX_BLOCK_GAS_LIMIT" ]]; then
-    printf 'ERROR\tstatic_layout_gas_limit:%s>%s\n' "$gas_limit" "$BSR_MAX_BLOCK_GAS_LIMIT" > "$tmp_result"
-    mv "$tmp_result" "$result"
-    return 0
-  fi
   if ! "$ZISKEMU" -e "$GUEST_ELF" -i "$input" -o "$out" \
         -n "$STEPS" >"$log" 2>&1 </dev/null; then
     # Distinguish a --steps budget exhaustion (sha256-heavy merkleization,
@@ -664,7 +695,6 @@ classify_case_result() {
     case "$actual_hex" in
       exit) echo "  ERROR(exit)   $relpath" ;;
       short:*) echo "  ERROR(short)  $relpath (${actual_hex#short:} hex chars)" ;;
-      static_layout_gas_limit:*) echo "  ERROR(layout) $relpath (gas_limit ${actual_hex#static_layout_gas_limit:})" ;;
       *) echo "  ERROR($actual_hex) $relpath" ;;
     esac
     return 0

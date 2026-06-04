@@ -23,6 +23,7 @@ import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
+import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.StateCompose
 
 namespace EvmAsm.Codegen
@@ -42,6 +43,42 @@ def evmStackScratchBytes : Nat := evmStackWordCapacity * evmStackWordBytes
 /-- Guard bytes around the EVM stack arena for opcode bodies that still use
     nearby stack-relative offsets as internal scratch. -/
 def evmStackGuardBytes : Nat := 512
+
+/-- Shared CALL/STATICCALL precompile-frame status word offset. -/
+def precompileFrameStatusOff : Nat := 0
+
+/-- Shared CALL/STATICCALL precompile-frame returndata-length offset. -/
+def precompileFrameReturndataLenOff : Nat := 8
+
+/-- Shared CALL/STATICCALL precompile-frame returndata byte window offset. -/
+def precompileFrameReturndataOff : Nat := 16
+
+/-- G1-class compact input lane, also reused as G2 ADD's first operand lane. -/
+def precompileFrameBls12G1Input0Off : Nat := 144
+
+/-- G1 ADD compact second operand lane. -/
+def precompileFrameBls12G1Input1Off : Nat := 240
+
+/-- G1-class compact result lane, also reused by map-Fp-to-G1 and pairing bool. -/
+def precompileFrameBls12G1OutputOff : Nat := 336
+
+/-- G2 ADD compact first operand lane. -/
+def precompileFrameBls12G2AddInput0Off : Nat := precompileFrameBls12G1Input0Off
+
+/-- G2 ADD compact second operand lane. -/
+def precompileFrameBls12G2AddInput1Off : Nat := 336
+
+/-- G2 ADD compact result lane. -/
+def precompileFrameBls12G2AddOutputOff : Nat := 528
+
+/-- G2-class compact input lane for MSM and map-Fp2-to-G2. -/
+def precompileFrameBls12G2InputOff : Nat := 720
+
+/-- G2-class compact result lane for MSM and map-Fp2-to-G2. -/
+def precompileFrameBls12G2OutputOff : Nat := 944
+
+/-- ECRECOVER staged input words: hash, v, r, s after buffer_read padding. -/
+def precompileFrameEcrecoverInputOff : Nat := 1152
 
 /-- Raw dispatcher guard for handlers that read `wordCount` EVM stack
     words before their body runs. The EVM stack grows downward from
@@ -222,16 +259,26 @@ def emitGasCostTable : String :=
 /-- Shared scratch for the CALL/STATICCALL precompile frame surface.
     Follow-up precompile bodies can write returndata bytes here before
     copying them into caller memory. Layout:
-      +0  status / success word
-      +8  returndata length
-      +16 first 128 bytes of returndata scratch
-      +144 BLS12 G1 ADD compact p1 scratch
-      +240 BLS12 G1 ADD compact p2 scratch
-      +336 BLS12 G1 ADD compact result scratch. -/
+      +precompileFrameStatusOff             status / success word
+      +precompileFrameReturndataLenOff      returndata length
+      +precompileFrameReturndataOff         first 256 bytes of returndata scratch
+      +precompileFrameBls12G1Input0Off      G1-class compact input scratch
+      +precompileFrameBls12G1Input1Off      G1 ADD compact p2 scratch
+      +precompileFrameBls12G1OutputOff      G1-class compact result / pairing bool
+      +precompileFrameBls12G2AddInput0Off   G2 ADD compact p1 scratch
+      +precompileFrameBls12G2AddInput1Off   G2 ADD compact p2 scratch
+      +precompileFrameBls12G2AddOutputOff   G2 ADD compact result scratch
+      +precompileFrameBls12G2InputOff       G2-class compact input scratch
+      +precompileFrameBls12G2OutputOff      G2-class compact result scratch
+      +precompileFrameEcrecoverInputOff     ECRECOVER hash/v/r/s words.
+
+    The lanes are handler-local scratch, so G1/G2 ADD may still reuse the
+    older offsets internally. Map-Fp2-to-G2 uses the G2-class lane to avoid
+    colliding with map-Fp-to-G1 stacked PR edits around +144/+336. -/
 def emitPrecompileFrameData : String :=
   ".balign 8\n" ++
   "evm_precompile_frame:\n" ++
-  "  .zero 432\n"
+  "  .zero 1280\n"
 
 /-- Scratch buffers used by `zkvm_sha256`. The wrapper expects these
     labels to exist in the dispatcher's data section. -/
@@ -413,6 +460,12 @@ def emitRuntimeAccountWitnessData : String :=
   "  .zero 32\n" ++
   ".balign 32\n" ++
   "create_address_be:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "create_value_be:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "create_balance_be:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "ac_buffer:\n" ++
@@ -614,6 +667,13 @@ def emitDispatcherEpilogue
   hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
+  zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
+  zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
+  bls12SafeFailWrapper "zkvm_bls12_g2_add" "0x10d" ++ "\n" ++
+  bls12SafeFailWrapper "zkvm_bls12_g2_msm" "0x10e" ++ "\n" ++
+  bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
+  bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
+  bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n" ++
   "h_invalid:\n" ++
   "  j .exit_label\n" ++
   -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
