@@ -242,6 +242,70 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       can't be validated without a working ziskemu (unavailable this
       session). Concrete build plan captured in
       `docs/dual-path-differential-design.md` for a session with ziskemu.
+  - **Phase 4 (this work) — review throughput & merge safety (P3):** rations the
+    single maintainer's attention with objective triage and enforces the trust
+    boundary at the merge gate. Stacked on the Phase 3 branch (Phases 2–4 still
+    unmerged at hand-off).
+    - **D1 (R-C5) — enforced trust boundary.** Net-new `.github/CODEOWNERS`
+      maps the verified core (`Progress.lean`, `Progress/`, `Rv64/`,
+      `**/Spec.lean`, `EL/Conformance/`, verifier-config scripts, `lakefile.toml`/
+      `lean-toolchain`, `.github/workflows/`) to `@pirapira`; codegen is
+      deliberately left unowned (lighter bar — unverified by design, fenced by
+      conformance/fuzz/dual-path). CODEOWNERS is advisory until paired with a
+      branch ruleset (a repo *setting*); the proposed ruleset + the approval-
+      count question are in the PR body (open question #1).
+    - **D2 (step 14) — merge-queue design doc FIRST.**
+      `docs/merge-queue-design.md` documents the GitHub native merge queue with
+      *batching* + TAP test-and-bisect eviction (on batch failure, bisect to
+      eject the offending PR — `O(log N)` runs — rather than re-running the
+      ~516-script ziskemu suite per PR). `build.yml` already triggers on
+      `merge_group`; the doc gates *activation* (a repo setting), it does not
+      flip the queue on. Heavy-vs-light check placement table included.
+    - **D3 (R-B1) — deterministic risk scorecard.** Extended
+      `scripts/progress-delta.sh` (still pure git+awk, no LLM, the existing
+      `summary.yml` payload path — not new plumbing) with a 5-column scorecard
+      `{new top-level triples, Δtier counts, net Δsorries+axioms, Δconformance,
+      touches-trusted-core, statement-edit, changed-lines}` + a HIGH/MEDIUM/LOW
+      risk label. HIGH = touches `Progress.lean`/`Rv64/Basic.lean`/`*Spec.lean`,
+      XL diff (>1000 lines excl. `codegen-*.sh`), or codegen changed with no
+      round-trip/conformance script change; MEDIUM = other trusted-core /
+      statement / sorry-axiom-increase signals. Trusted-core path set mirrors
+      `check-statement-tamper.sh`. Risk is **triage ordering only — not
+      auto-merge authority for the verified core**. Also fixed a latent
+      `conformance_count` regex bug (required a space before the backtick-wrapped
+      `allConformanceVectors_length`, so conformance delta always read `?`).
+    - **D4 (R-B2) — path + size auto-labeling.** `.github/labeler.yml` +
+      `.github/workflows/labeler.yml` (`actions/labeler@v5`) tag
+      `area:verified-core` / `area:codegen` / `area:docs`; a size labeler buckets
+      `size/XS..XL` from per-file API line counts **excluding `scripts/codegen-*.sh`**
+      so a bulk script regen isn't mislabeled XL (XL boundary 1000 = scorecard
+      threshold).
+    - **D5 (R-B3) — statement-strength rubric.** `docs/pr-summary-progress-prompt.md`
+      gains a spec-quality sign-off (`Statement-strength: OK|REVIEW — …`) layered
+      **only** on the un-kernel-checkable question (vacuous/over-restricted
+      precondition? postcondition covers stack+memory+gas+halting?) — explicitly
+      **never on proof correctness** (the kernel is the perfect oracle there).
+    - **D6 (G2.6) — long-running-branch visibility.** `BEADS.md` claim ledger
+      (coordination overlay on the `bd` tracker — collision detection for
+      double-claimed beads) + `.github/workflows/stale-pr-nudge.yml`
+      (`actions/stale@v9`, 21-day nudge, **never auto-closes**, `long-running`
+      label exempts deliberately long-lived stacks).
+    - **D7 (Phase-2 deferral / R-A5) — PR-time velocity gate.**
+      `.github/workflows/progress-velocity-check.yml` snapshots PR **base** (via
+      new `progress-snapshot.sh --ref <commit>`, pure `git show`, no checkout)
+      vs PR **head** and runs `progress-velocity.sh --check` on the 2-record log
+      — catching a monotonic proven/conformance/obligation downgrade *before* it
+      lands. Base→head (not head-vs-latest-main) avoids false positives on
+      stale branches. Cheap (no `lake build`). **Blocking by default** — a
+      monotonic downgrade fails the PR; set the `VELOCITY_GATE` repo var to
+      `warn` to relax to advisory for a known generalization, then restore to
+      `block` (open question #4).
+    - **Open questions surfaced in the PR:** (1) ruleset approval counts for a
+      single-maintainer repo; (2) merge-queue batch size + eviction; (3) risk
+      XL threshold + exact trusted-core path set; (4) velocity gate warn-vs-block.
+    - **Opportunistic carry-overs still deferred:** Phase-1 `cycleBound`-binding
+      (R-C4) + `coverRef` cover lemmas (R-A3); Phase-3 D3 dual-path (needs
+      ziskemu) + per-opcode EEST localization.
 - **Proof-ergonomics infra distilled from the purge** (see `GRIND.md` §7):
   - **`signExtend` simprocs + `signext` tactic** (`Rv64/SignExtendSimproc.lean`):
     `reduceSignExtend12/13/21` are `dsimproc_decl`s (definitional, kernel-checkable,
