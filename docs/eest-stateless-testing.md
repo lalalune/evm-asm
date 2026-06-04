@@ -124,6 +124,17 @@ separately under bead `evm-asm-fhsxz.2.4.2.60.2.6`. Override
 `EEST_EXP_POWER256_JOBS` or `EEST_EXP_POWER256_STEPS` for this wrapper without
 changing the broader harness defaults.
 
+Run the EIP-8037 state-dominated block-gas accounting frontier:
+
+```bash
+scripts/codegen-eest-eip8037-state-dominates-check.sh
+```
+
+This filter-driven wrapper discovers all `block_gas_used_state_dominates` cases
+for the active fixture tag and requires all selected cases to full-match. It
+keeps the conservative transaction inclusion gate from rejecting valid
+multi-transaction blocks before exact execution gas accounting is available.
+
 Run a fast EIP-2929 precompile-warming frontier:
 
 ```bash
