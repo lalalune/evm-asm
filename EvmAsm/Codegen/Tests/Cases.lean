@@ -908,6 +908,20 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "call_identity_precompile_stub_success"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- The same zero-length IDENTITY CALL has seven PUSH1 opcodes
+    -- (21 gas), CALL's warm static base (100), and the new inner
+    -- precompile base charge (15). At gasLimit=136 it exactly fits.
+    { name           := "call_identity_precompile_base_gas_exact"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "136" }
+  , -- One less unit reaches the IDENTITY body after CALL's static
+    -- charge, then fails in the shared precompile inner-gas helper.
+    { name             := "call_identity_precompile_base_gas_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "135" }
   , -- STATICCALL to basic precompile address 0x04 reaches the same
     -- frame surface. Args: out_size, out_off, in_size, in_off, to,
     -- gas.
