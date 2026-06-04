@@ -100,7 +100,12 @@ def baapDeleteSingleLeafStorageFunction : String :=
 
     A missing BAL nonce/balance change list leaves that account field unchanged.
     A zero post-value is represented by length 0 from `bal_account_post_fields`
-    and is spliced as the canonical RLP integer zero. -/
+    and is spliced as the canonical RLP integer zero.
+
+    If `baap_force_storage_clear` is nonzero, storage replay starts from
+    `EMPTY_TRIE_ROOT` even when the pre-account carries a non-empty storage
+    root. This mirrors execution-specs `storage_clears`: pre-existing storage is
+    dropped before post-wipe storage writes are applied. -/
 def balAccountApplyPostFieldsFunction : String :=
   "bal_account_apply_post_fields:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -161,7 +166,8 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la t1, baap_sc_len; ld a1, 0(t1); mv a0, t0; la a2, baap_sc_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_sc_count; ld t0, 0(t0); beqz t0, .Lbaap_nonce\n" ++
+  "  la t0, baap_sc_count; ld t0, 0(t0); beqz t0, .Lbaap_maybe_clear_only\n" ++
+  "  la t1, baap_force_storage_clear; ld t1, 0(t1); bnez t1, .Lbaap_multi_storage\n" ++
   "  li t1, 1; bne t0, t1, .Lbaap_multi_storage\n" ++
   ".Lbaap_one_storage:\n" ++
   "  la t1, baap_sc_ptr; ld a0, 0(t1); la t1, baap_sc_len; ld a1, 0(t1); li a2, 0\n" ++
@@ -229,12 +235,16 @@ def balAccountApplyPostFieldsFunction : String :=
   "  bnez a0, .Lbaap_fail\n" ++
   "  la t0, aps_len; ld t1, 0(t0); li t2, 32; bne t1, t2, .Lbaap_fail\n" ++
   "  la t0, aps_off; ld t1, 0(t0); add t1, s6, t1; la t0, baap_storage_root_ptr; sd t1, 0(t0)\n" ++
+  "  la t0, baap_force_storage_clear; ld t0, 0(t0); bnez t0, .Lbaap_force_empty_ok\n" ++
   "  la t2, aps_empty_root; li t3, 32\n" ++
   ".Lbaap_empty_cmp:\n" ++
   "  beqz t3, .Lbaap_empty_ok\n" ++
   "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lbaap_nonempty_ok\n" ++
   "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbaap_empty_cmp\n" ++
   ".Lbaap_empty_ok:\n" ++
+  "  li t0, 1; la t1, baap_storage_empty_flag; sd t0, 0(t1)\n" ++
+  "  j .Lbaap_multi_init\n" ++
+  ".Lbaap_force_empty_ok:\n" ++
   "  li t0, 1; la t1, baap_storage_empty_flag; sd t0, 0(t1)\n" ++
   "  j .Lbaap_multi_init\n" ++
   ".Lbaap_nonempty_ok:\n" ++
@@ -376,7 +386,7 @@ def balAccountApplyPostFieldsFunction : String :=
   "  # Apply nonce first if present.\n" ++
   "  j .Lbaap_nonce\n" ++
   ".Lbaap_multi_no_nonzero:\n" ++
-  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_nonce\n" ++
+  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_maybe_clear_only\n" ++
   "  la t0, baap_storage_delete_count; ld t0, 0(t0); beqz t0, .Lbaap_nonce\n" ++
   "  la t0, baap_storage_root_ptr; ld t0, 0(t0); la t1, aps_newsroot; li t2, 32\n" ++
   ".Lbaap_copy_root_loop:\n" ++
@@ -397,6 +407,12 @@ def balAccountApplyPostFieldsFunction : String :=
   ".Lbaap_multi_delete_only_ok:\n" ++
   "  la t0, baap_storage_delete_index; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  j .Lbaap_multi_delete_only_loop\n" ++
+  ".Lbaap_maybe_clear_only:\n" ++
+  "  la t0, baap_force_storage_clear; ld t0, 0(t0); beqz t0, .Lbaap_nonce\n" ++
+  "  mv a0, s6; mv a1, s7; la a2, aps_empty_root; la a3, baap_tmp2; la a4, baap_tmp2_len\n" ++
+  "  jal ra, account_set_storage_root\n" ++
+  "  bnez a0, .Lbaap_fail_storage_root\n" ++
+  "  la s6, baap_tmp2; la t0, baap_tmp2_len; ld s7, 0(t0)\n" ++
   ".Lbaap_nonce:\n" ++
   "  la t0, baap_nonce_len; ld t0, 0(t0); li t1, -1; beq t0, t1, .Lbaap_balance\n" ++
   "  mv a0, s6; mv a1, s7; li a2, 0\n" ++
@@ -562,6 +578,7 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_sc_index:\n  .zero 8\n" ++
   "baap_sc_out_count:\n  .zero 8\n" ++
   "baap_storage_empty_flag:\n  .zero 8\n" ++
+  "baap_force_storage_clear:\n  .zero 8\n" ++
   "baap_storage_delete_flag:\n  .zero 8\n" ++
   "baap_storage_delete_count:\n  .zero 8\n" ++
   "baap_storage_delete_index:\n  .zero 8\n" ++
