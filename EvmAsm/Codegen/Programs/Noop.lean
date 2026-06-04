@@ -260,6 +260,19 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
 private def precompileFrameAddi (dst : String) (off : Nat) : String :=
   "  addi " ++ dst ++ ", x15, " ++ toString off ++ "\n"
 
+private def precompileGasRemainingOff : Nat := 568
+
+private def chargePrecompileGasAsm (costReg remainingReg : String) : String :=
+  "  ld " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  bltu " ++ remainingReg ++ ", " ++ costReg ++ ", .exit_outofgas\n" ++
+  "  sub " ++ remainingReg ++ ", " ++ remainingReg ++ ", " ++ costReg ++ "\n" ++
+  "  sd " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n"
+
+private def chargePrecompileGasConstAsm (cost : Nat)
+    (costReg remainingReg : String) : String :=
+  "  li " ++ costReg ++ ", " ++ toString cost ++ "\n" ++
+  chargePrecompileGasAsm costReg remainingReg
+
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
     CREATE2, STATICCALL). CALL-family non-precompile paths still ship as
     **pop-N + push-zero** no-ops. CREATE-family paths decode operands and
@@ -287,8 +300,11 @@ private def precompileFrameAddi (dst : String) (off : Nat) : String :=
     addresses 0x01..0x04 as the basic precompile frame surface.
     SHA256 (0x02) hashes input bytes through `zkvm_sha256`,
     IDENTITY (0x04) copies input bytes to caller output memory, and
-    both push success = 1. ECRECOVER / RIPEMD160 remain success
-    stubs in this slice; follow-up PRs wire their output semantics.
+    both push success = 1. IDENTITY also uses the shared inner
+    precompile-gas helper for its fixed base cost; follow-up PRs wire
+    exact payload-dependent costs across the precompile family.
+    ECRECOVER / RIPEMD160 remain success stubs in this slice;
+    follow-up PRs wire their output semantics.
 
     **M27.2 update**: CALL / STATICCALL also recognize BLS12-381 G1
     active precompile addresses 0x0b (G1 ADD) and 0x0c (G1 MSM).
@@ -582,6 +598,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beq x14, x16, 8f\n" ++
     "  li x16, 4\n" ++
     "  bne x14, x16, 7f\n" ++
+    chargePrecompileGasConstAsm 15 "x16" "x17" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  sd x17, 8(x15)\n" ++       -- returndata length = full input size
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
