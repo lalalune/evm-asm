@@ -124,6 +124,17 @@ separately under bead `evm-asm-fhsxz.2.4.2.60.2.6`. Override
 `EEST_EXP_POWER256_JOBS` or `EEST_EXP_POWER256_STEPS` for this wrapper without
 changing the broader harness defaults.
 
+Run the EIP-8037 state-dominated block-gas accounting frontier:
+
+```bash
+scripts/codegen-eest-eip8037-state-dominates-check.sh
+```
+
+This filter-driven wrapper discovers all `block_gas_used_state_dominates` cases
+for the active fixture tag and requires all selected cases to full-match. It
+keeps the conservative transaction inclusion gate from rejecting valid
+multi-transaction blocks before exact execution gas accounting is available.
+
 Run a fast EIP-2929 precompile-warming frontier:
 
 ```bash
@@ -204,7 +215,10 @@ static layout sized for the execution-specs default 120,000,000 block gas limit.
 The harness reads the block gas limit from the converted SSZ input manifest and
 errors before launching `ziskemu` when a fixture needs a larger layout/ELF.
 Larger gas-valid BALs need a streaming/chunked replay path or a separately built
-larger static layout.
+larger static layout. The current 1G block-gas sizing plan is
+[`docs/eest-1g-block-gas-layout-plan.md`](eest-1g-block-gas-layout-plan.md);
+that plan supersedes tests that expect high-gas EIP-8037 fixtures to stop at
+`ERROR(layout)`.
 
 To run a focused harness experiment with different guest-side replay caps, pass
 `--bsr-witness-cap N` for the block-state-root witness-byte cap or
