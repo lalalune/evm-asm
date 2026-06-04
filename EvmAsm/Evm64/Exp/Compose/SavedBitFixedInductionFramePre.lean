@@ -163,4 +163,57 @@ theorem expTwoMulFixedIterPreNWithInductionFrame_step_cases_of_control
           hOrd hNotPre,
         hMod⟩)
 
+theorem expTwoMulFixedIterPreNWithInductionFrame_succ_no_reload_cases_of_control
+    {k : Nat} {baseWord exponentWord : EvmWord} {controlC6 : Word}
+    {e machineC6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word}
+    (hControl :
+      expTwoMulFixedControlInvariant exponentWord k controlC6 ptr
+        nextLimb evmSp)
+    (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
+    (expTwoMulFixedControlInvariant exponentWord (k + 1)
+        (controlC6 + signExtend12 (-1 : BitVec 12)) ptr nextLimb evmSp ∧
+      expTwoMulFixedIterPreNWithInductionFrame (k + 1) baseWord exponentWord
+        (controlC6 + signExtend12 (-1 : BitVec 12)) e machineC6 iterCount
+        v10 v18 ptr nextLimb sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+        e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 =
+        expTwoMulFixedIterPreNWithStateFrame (k + 1) baseWord exponentWord
+          (controlC6 + signExtend12 (-1 : BitVec 12)) e machineC6 iterCount
+          v10 v18 ptr nextLimb sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+          e0 e1 e2 e3 a0 a1 a2 a3 v7 v11
+          (expTwoMulFixedReloadTailFrameN exponentWord (k + 1) ptr)) ∨
+      (expTwoMulFixedControlInvariant exponentWord (k + 1)
+          (controlC6 + signExtend12 (-1 : BitVec 12)) ptr nextLimb evmSp ∧
+        expTwoMulFixedIterPreNWithInductionFrame (k + 1) baseWord exponentWord
+          (controlC6 + signExtend12 (-1 : BitVec 12)) e machineC6 iterCount
+          v10 v18 ptr nextLimb sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+          e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 =
+          expTwoMulFixedIterPreNWithStateFrame (k + 1) baseWord exponentWord
+            (controlC6 + signExtend12 (-1 : BitVec 12)) e machineC6 iterCount
+            v10 v18 ptr nextLimb sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+            e0 e1 e2 e3 a0 a1 a2 a3 v7 v11
+            (expTwoMulFixedPreReloadFrameN exponentWord (k + 1) ptr)) ∨
+      (expTwoMulFixedControlInvariant exponentWord (k + 1)
+          (controlC6 + signExtend12 (-1 : BitVec 12)) ptr nextLimb evmSp ∧
+        expTwoMulFixedIterPreNWithInductionFrame (k + 1) baseWord exponentWord
+          (controlC6 + signExtend12 (-1 : BitVec 12)) e machineC6 iterCount
+          v10 v18 ptr nextLimb sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+          e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 =
+          expTwoMulFixedIterPreNWithStateFrame (k + 1) baseWord exponentWord
+            (controlC6 + signExtend12 (-1 : BitVec 12)) e machineC6 iterCount
+            v10 v18 ptr nextLimb sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+            e0 e1 e2 e3 a0 a1 a2 a3 v7 v11
+            (expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1) ptr) ∧
+        (k + 1) % 64 < 62) := by
+  rcases expTwoMulFixedControlInvariant_succ_no_reload_induction_frame_cases
+      hControl hC6 with hReload | hPre | hOrd
+  · exact Or.inl ⟨hReload.1, by
+      rw [expTwoMulFixedIterPreNWithInductionFrame_unfold, hReload.2]⟩
+  · exact Or.inr (Or.inl ⟨hPre.1, by
+      rw [expTwoMulFixedIterPreNWithInductionFrame_unfold, hPre.2]⟩)
+  · exact Or.inr (Or.inr ⟨hOrd.1, by
+      rw [expTwoMulFixedIterPreNWithInductionFrame_unfold, hOrd.2.1],
+      hOrd.2.2⟩)
+
 end EvmAsm.Evm64.Exp.Compose
