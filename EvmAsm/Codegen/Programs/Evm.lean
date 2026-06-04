@@ -50,6 +50,7 @@ import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmMcopyGas
+import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.EvmBalance
 import EvmAsm.Codegen.Programs.Noop
@@ -484,31 +485,10 @@ def swapHandlers : List OpcodeHandlerSpec :=
 private def x10RestoreAdvance1 : HandlerTail :=
   .custom "  mv x10, x9\n  addi x10, x10, 1\n  ret"
 
-/-- Dispatcher env offset used by the concrete runtime handlers for
-    active memory size in bytes. The env data block is 512 bytes, and
-    offsets 472 / 480 are already used by event-log metadata. -/
-private def activeMemorySizeOff : Nat := 488
-
-/-- Inline asm that updates the runtime `MSIZE` high-water mark from
-    one memory access `(offset, length)`, using low u64 limbs. If
-    `length = 0`, the EVM does not expand memory even for large
-    offsets. -/
-private def updateActiveMemorySizeAsm
-    (tag offsetReg lengthReg roundedReg currentReg maskReg : String) : String :=
-  "  beqz " ++ lengthReg ++ ", .Lmemsize_" ++ tag ++ "_done\n" ++
-  "  add " ++ roundedReg ++ ", " ++ offsetReg ++ ", " ++ lengthReg ++ "\n" ++
-  "  addi " ++ roundedReg ++ ", " ++ roundedReg ++ ", 31\n" ++
-  "  li " ++ maskReg ++ ", -32\n" ++
-  "  and " ++ roundedReg ++ ", " ++ roundedReg ++ ", " ++ maskReg ++ "\n" ++
-  "  ld " ++ currentReg ++ ", " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
-  "  bgeu " ++ currentReg ++ ", " ++ roundedReg ++ ", .Lmemsize_" ++ tag ++ "_done\n" ++
-  "  sd " ++ roundedReg ++ ", " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
-  ".Lmemsize_" ++ tag ++ "_done:\n"
-
-private def updateActiveMemorySizeConstAsm
-    (tag offsetReg tmpLengthReg roundedReg currentReg maskReg : String) (length : Nat) : String :=
-  "  li " ++ tmpLengthReg ++ ", " ++ toString length ++ "\n" ++
-  updateActiveMemorySizeAsm tag offsetReg tmpLengthReg roundedReg currentReg maskReg
+-- M31: `activeMemorySizeOff`, `updateActiveMemorySizeAsm`, and
+-- `updateActiveMemorySizeConstAsm` (active-memory high-water tracking +
+-- memory-expansion gas) live in `Programs/EvmMemoryGas.lean` (file-size
+-- guardrail; imported above).
 
 /-- Fixed-shape singleton opcodes: parameter-free verified `Program`s
     that fit the standard `<body>` + `addi x10, x10, 1` + `ret` ABI.
@@ -559,7 +539,7 @@ def memoryHandlers : List OpcodeHandlerSpec :=
       opcodes := [0x51]
       preBody := stackUnderflowGuardAsm 1 ++ "\n" ++
                  "  ld x15, 0(x12)\n" ++
-                 updateActiveMemorySizeConstAsm "mload" "x15" "x16" "x17" "x18" "x19" 32
+                 updateActiveMemorySizeConstAsm "mload" "x15" "x16" "x17" "x18" "x19" "x6" true 32
       body    := EvmAsm.Evm64.evm_mload .x15 .x16 .x17 .x18 .x13
       tail    := .advanceAndRet 1 }
   , -- MSTORE: pop offset + value, write 32 bytes BE to memory.
@@ -568,7 +548,7 @@ def memoryHandlers : List OpcodeHandlerSpec :=
       opcodes := [0x52]
       preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
                  "  ld x15, 0(x12)\n" ++
-                 updateActiveMemorySizeConstAsm "mstore" "x15" "x16" "x17" "x18" "x19" 32
+                 updateActiveMemorySizeConstAsm "mstore" "x15" "x16" "x17" "x18" "x19" "x6" true 32
       body    := EvmAsm.Evm64.evm_mstore .x15 .x14 .x16 .x17 .x18 .x13
       tail    := .advanceAndRet 1 }
   , -- MSTORE8: pop offset + value, write 1 byte to memory.
@@ -576,7 +556,7 @@ def memoryHandlers : List OpcodeHandlerSpec :=
       opcodes := [0x53]
       preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
                  "  ld x15, 0(x12)\n" ++
-                 updateActiveMemorySizeConstAsm "mstore8" "x15" "x16" "x17" "x18" "x19" 1
+                 updateActiveMemorySizeConstAsm "mstore8" "x15" "x16" "x17" "x18" "x19" "x6" true 1
       body    := EvmAsm.Evm64.evm_mstore8 .x15 .x14 .x18 .x13
       tail    := .advanceAndRet 1 } ]
 
@@ -650,7 +630,7 @@ def codeHandlers : List OpcodeHandlerSpec :=
       preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
                  "  ld x14, 0(x12)\n" ++        -- destOffset low limb (MSIZE range)
                  "  ld x15, 64(x12)\n" ++       -- size low limb (MSIZE range)
-                 updateActiveMemorySizeAsm "codecopy" "x14" "x15" "x16" "x17" "x18"
+                 updateActiveMemorySizeAsm "codecopy" "x14" "x15" "x16" "x17" "x18" "x6" true
       body    := EvmAsm.Evm64.Code.evm_codecopy
                    .x20 .x13 .x21 .x14 .x15 .x16 .x17 .x18
       tail    := .advanceAndRet 1 } ]
@@ -890,7 +870,7 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
                  "  ld x14, 0(x12)\n" ++
                  "  ld x15, 64(x12)\n" ++
-                 updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18"
+                 updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18" "x6" true
     , body    := EvmAsm.Evm64.Calldata.evm_calldatacopy
                    .x20 .x13 .x14 .x15 .x16 .x17 .x18 .x19
     , tail    := .advanceAndRet 1 } ]
@@ -913,8 +893,8 @@ def mcopyHandlers : List OpcodeHandlerSpec :=
         mcopyDynamicGasAsm ++
         "  addi x12, x12, 96\n" ++
         "  beqz x16, .Lmcopy_done\n" ++
-        updateActiveMemorySizeAsm "mcopy_src" "x15" "x16" "x17" "x18" "x19" ++
-        updateActiveMemorySizeAsm "mcopy_dst" "x14" "x16" "x17" "x18" "x19" ++
+        updateActiveMemorySizeAsm "mcopy_src" "x15" "x16" "x17" "x18" "x19" "x6" false ++
+        updateActiveMemorySizeAsm "mcopy_dst" "x14" "x16" "x17" "x18" "x19" "x6" false ++
         "  add x17, x13, x14\n" ++       -- destination pointer
         "  add x18, x13, x15\n" ++       -- source pointer
         "  add x19, x15, x16\n" ++       -- source end offset

@@ -1419,7 +1419,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/Evm.lean",
     "EvmAsm/Codegen/Programs/EvmAccountWitness.lean",
     "EvmAsm/Codegen/Programs/EvmBalance.lean",
-    "EvmAsm/Codegen/Programs/EvmExtcodecopy.lean",
+    "EvmAsm/Codegen/Programs/EvmExtcodecopy.lean", "EvmAsm/Codegen/Programs/EvmMemoryGas.lean",
     "EvmAsm/Codegen/Programs/EvmArithUnits.lean",
     "EvmAsm/Codegen/Programs/EvmDispatchUnits.lean",
     "EvmAsm/Codegen/Programs/ExpProperty.lean",
