@@ -31,7 +31,8 @@ open EvmAsm.Rv64.Program
       +48 : encoded receipt length, filled by the later receipt-list encoder
       +56 : reserved for future flags
 
-    The helper surface is deliberately small: init, append, and nth-copy. -/
+    The helper surface is deliberately small: init, append, append from a
+    runtime execution result, and nth-copy. -/
 
 def receiptRecordsFunction : String :=
   "receipt_records_init:\n" ++
@@ -66,6 +67,17 @@ def receiptRecordsFunction : String :=
   ".Lrrec_full:\n" ++
   "  li a0, 1\n" ++
   "  ret\n" ++
+  "receipt_records_append_runtime_result:\n" ++
+  "  beqz a2, .Lrrec_runtime_no_logs\n" ++
+  "  bltu a5, a4, .Lrrec_runtime_no_logs\n" ++
+  "  sub a5, a5, a4              # committed log count = final - checkpoint\n" ++
+  "  j .Lrrec_runtime_call\n" ++
+  ".Lrrec_runtime_no_logs:\n" ++
+  "  li a5, 0                    # reverted/failing txs have no receipt logs\n" ++
+  ".Lrrec_runtime_call:\n" ++
+  "  li a6, 0                    # encoded receipt ptr (later encoder)\n" ++
+  "  li a7, 0                    # encoded receipt len (later encoder)\n" ++
+  "  j receipt_records_append\n" ++
   "receipt_record_nth:\n" ++
   "  ld t0, 0(a0)                # count\n" ++
   "  bgeu a1, t0, .Lrrnth_oob\n" ++
@@ -91,6 +103,11 @@ def receiptRecordsFunction : String :=
       bytes  0.. 8 : host length prefix, ignored by the guest
       bytes  8..16 : arena capacity
       bytes 16..24 : number of synthetic append attempts
+      bytes 24..32 : runtime-result case:
+        0 = none
+        1 = successful tx with one committed LOG descriptor from 0..1
+        2 = successful tx with one committed LOG descriptor from 2..3
+        3 = reverted tx after two captured descriptors from 4..6
 
     Synthetic record `i` has:
       tx_type=0, status=1, cumulative_gas=21000+100*i,
@@ -120,6 +137,7 @@ def ziskReceiptRecordsProbePrologue : String :=
   ".Lrrp_zero_done:\n" ++
   "  ld s2, 8(s0)                # capacity\n" ++
   "  ld s3, 16(s0)               # append attempts\n" ++
+  "  ld s7, 24(s0)               # runtime-result case\n" ++
   "  la a0, rr_control\n" ++
   "  mv a1, s2\n" ++
   "  la a2, rr_records\n" ++
@@ -146,6 +164,27 @@ def ziskReceiptRecordsProbePrologue : String :=
   "  addi s4, s4, 1\n" ++
   "  j .Lrrp_append_loop\n" ++
   ".Lrrp_append_done:\n" ++
+  "  beqz s7, .Lrrp_output\n" ++
+  "  li t0, 1\n" ++
+  "  beq s7, t0, .Lrrp_runtime_log0_success\n" ++
+  "  li t0, 2\n" ++
+  "  beq s7, t0, .Lrrp_runtime_log2_success\n" ++
+  "  li t0, 3\n" ++
+  "  beq s7, t0, .Lrrp_runtime_revert\n" ++
+  "  j .Lrrp_output\n" ++
+  ".Lrrp_runtime_log0_success:\n" ++
+  "  li a1, 0; li a2, 1; li a3, 21111; li a4, 0; li a5, 1\n" ++
+  "  j .Lrrp_runtime_append\n" ++
+  ".Lrrp_runtime_log2_success:\n" ++
+  "  li a1, 0; li a2, 1; li a3, 22222; li a4, 2; li a5, 3\n" ++
+  "  j .Lrrp_runtime_append\n" ++
+  ".Lrrp_runtime_revert:\n" ++
+  "  li a1, 0; li a2, 0; li a3, 33333; li a4, 4; li a5, 6\n" ++
+  ".Lrrp_runtime_append:\n" ++
+  "  la a0, rr_control\n" ++
+  "  jal ra, receipt_records_append_runtime_result\n" ++
+  "  mv s5, a0\n" ++
+  ".Lrrp_output:\n" ++
   "  sd s5, 0(s1)\n" ++
   "  la t0, rr_control\n" ++
   "  ld s6, 0(t0)                # count\n" ++

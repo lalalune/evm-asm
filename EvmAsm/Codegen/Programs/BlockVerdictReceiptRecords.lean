@@ -61,11 +61,9 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  la a0, brr_control\n" ++
   "  li a1, 0                    # legacy tx type\n" ++
   "  li a2, 1                    # successful execution\n" ++
-  "  li a4, 0                    # log start\n" ++
-  "  li a5, 0                    # log count\n" ++
-  "  li a6, 0                    # encoded receipt ptr (later encoder)\n" ++
-  "  li a7, 0                    # encoded receipt len (later encoder)\n" ++
-  "  jal ra, receipt_records_append\n" ++
+  "  li a4, 0                    # pre-tx event log checkpoint\n" ++
+  "  li a5, 0                    # final event log count\n" ++
+  "  jal ra, receipt_records_append_runtime_result\n" ++
   "  la t0, brr_append_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lbrr_append_fail\n" ++
   "  j .Lbrr_ok\n" ++
