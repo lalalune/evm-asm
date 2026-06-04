@@ -331,8 +331,9 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
       execution.
     - ECRECOVER / RIPEMD160 CALL / STATICCALL targets currently
       return success without producing returndata.
-    - CREATE / CREATE2 derive and push the would-be target address, but
-      the would-be deployed code is not executed or deposited yet.
+    - CREATE / CREATE2 derive the would-be target address and reject
+      code-or-nonce collisions when account-witness context is attached,
+      but the would-be deployed code is not executed or deposited yet.
     - No frame stack / recursion. The dispatcher doesn't push a
       sub-frame, run called code, and resume. Real frame-stack
       design is deferred (likely tied to STF integration). -/
@@ -358,6 +359,10 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  ld x14, 0(x12)\n" ++    -- value low limb
     "  ld x15, 32(x12)\n" ++   -- offset low limb
     "  ld x16, 64(x12)\n" ++   -- size low limb
+    "  la x18, create_init_offset\n" ++
+    "  sd x15, 0(x18)\n" ++
+    "  la x18, create_init_size\n" ++
+    "  sd x16, 0(x18)\n" ++
     (if hasSalt then
       "  ld x17, 96(x12)\n"   -- salt low limb; full salt is converted below
      else
@@ -408,10 +413,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  ld a4, 600(x20)\n" ++
     "  la a5, create_nonce\n" ++
     "  jal x1, nonce_at_header_state_root\n" ++
+    "  mv t0, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  beqz a0, 3f\n" ++
+    "  beqz t0, 3f\n" ++
     "  la x18, create_nonce\n" ++
     "  sd x0, 0(x18)\n" ++
     "3:\n" ++
@@ -432,8 +438,9 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
       "  mv s11, x12\n" ++
       "  la a0, create_sender_be\n" ++
       "  la a1, create_salt_be\n" ++
-      "  add a2, x13, x15\n" ++
-      "  mv a3, x16\n" ++
+      "  ld a2, create_init_offset\n" ++
+      "  add a2, x13, a2\n" ++
+      "  ld a3, create_init_size\n" ++
       "  la a4, create_address_be\n" ++
       "  jal x1, address_compute_create2\n" ++
       "  mv x13, s9\n" ++
@@ -450,6 +457,27 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
       "  mv x13, s9\n" ++
       "  mv x10, s10\n" ++
       "  mv x12, s11\n") ++
+    -- If an account-witness context is attached, apply the EIP-684
+    -- code-or-nonce collision check to the derived target address.
+    "  ld a1, 584(x20)\n" ++
+    "  beqz a1, 6f\n" ++
+    "  mv s9, x13\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld a0, 576(x20)\n" ++
+    "  la a2, create_address_be\n" ++
+    "  ld a3, 592(x20)\n" ++
+    "  ld a4, 600(x20)\n" ++
+    "  jal x1, has_code_or_nonce_at_header_state_root\n" ++
+    "  mv t0, a0\n" ++
+    "  mv x13, s9\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  bnez t0, 7f\n" ++
+    "  la x18, hcon_predicate\n" ++
+    "  ld x18, 0(x18)\n" ++
+    "  bnez x18, 7f\n" ++
+    "6:\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     -- Push the derived 160-bit address as an EVM stack word: low 160 bits in
     -- stack byte order, high 96 bits zero.
@@ -468,6 +496,14 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x22, x22, 1\n" ++
     "  addi x23, x23, -1\n" ++
     "  bnez x23, 5b\n" ++
+    "  j 8f\n" ++
+    "7:\n" ++
+    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+    "  sd x0, 0(x12)\n" ++
+    "  sd x0, 8(x12)\n" ++
+    "  sd x0, 16(x12)\n" ++
+    "  sd x0, 24(x12)\n" ++
+    "8:\n" ++
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop"
   let basicPrecompileCallTail
