@@ -28,13 +28,17 @@ def acceleratorFieldLength : Nat := 96
 def payloadByte (payload : List Byte) (i : Nat) : Byte :=
   payload.getD i 0
 
+/-- Offset of a compact 96-byte Fp2 payload inside a 128-byte EVM Fp2 field. -/
+def compactFp2Offset (i : Nat) : Nat :=
+  if i < 48 then 16 + i else 32 + i
+
 /-- Execution-specs length check: `if len(data) != 128`. -/
 def validInputLength (payload : List Byte) : Bool :=
   payload.length == inputLength
 
 /-- Fp2 element bytes passed to the accelerator boundary. -/
 def fp2Bytes (payload : List Byte) : Bls12MapFp2ToG2InputBridge.Fp2Bytes :=
-  fun i => payloadByte payload i.val
+  fun i => payloadByte payload (compactFp2Offset i.val)
 
 /-- Accelerator input extracted from EVM call data. -/
 def acceleratorInput (payload : List Byte) : AcceleratorInput :=
@@ -81,7 +85,7 @@ theorem validInputLength_iff (payload : List Byte) :
   simp [validInputLength]
 
 theorem fp2Bytes_apply (payload : List Byte) (i : Fin 96) :
-    fp2Bytes payload i = payload.getD i.val 0 := by
+    fp2Bytes payload i = payload.getD (compactFp2Offset i.val) 0 := by
   simp [fp2Bytes, payloadByte]
 
 theorem acceleratorInput_fp2 (payload : List Byte) :
