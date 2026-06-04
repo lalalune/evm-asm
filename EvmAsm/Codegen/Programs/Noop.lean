@@ -10,10 +10,11 @@
 
   Four builders are exported:
   - `haltHandlers` — RETURN, REVERT, INVALID, SELFDESTRUCT
-  - `pushZeroHandlers` — CODESIZE, RETURNDATASIZE (MSIZE and GAS have real implementations in Programs/Evm.lean)
-  - `popPushZeroHandlers` — BALANCE and EXTCODESIZE
+  - `pushZeroHandlers` — CODESIZE (MSIZE/GAS and RETURNDATASIZE have real implementations)
+  - `popPushZeroHandlers` — (BALANCE and EXTCODESIZE both have witness-backed implementations)
     (EXTCODEHASH, BLOBHASH, and BLOCKHASH have real implementations in Programs/Evm.lean)
-  - `copyNoopHandlers` — CODECOPY and RETURNDATACOPY
+  - `copyNoopHandlers` — CODECOPY
+  - `returnDataHandlers` — RETURNDATASIZE and RETURNDATACOPY
 
   These opcodes ship with at least one spec-incompliance (returns
   zero / drops side effects) because the dispatcher has no model
@@ -115,11 +116,13 @@ def haltHandlers : List OpcodeHandlerSpec :=
     -- also records up to 176 bytes plus length metadata at OUTPUT+64/+248.
     { label   := "h_RETURN"
     , opcodes := [0xf3]
+    , preBody := stackUnderflowGuardAsm 2
     , body    := []
     , tail    := .custom (returnRevertTail 1) }
   , -- REVERT. Identical data path to RETURN; halt_kind = 2 and state logs roll back.
     { label   := "h_REVERT"
     , opcodes := [0xfd]
+    , preBody := stackUnderflowGuardAsm 2
     , body    := []
     , tail    := .custom <|
         returnRevertTail 2 <|
@@ -144,11 +147,12 @@ def haltHandlers : List OpcodeHandlerSpec :=
     -- halt with no return data — zero result + halt_kind = 5 via the
     -- dispatcher's .exit_selfdestruct block.
     { label := "h_SELFDESTRUCT", opcodes := [0xff]
+    , preBody := stackUnderflowGuardAsm 1
     , body := []
     , tail := .custom "  addi x12, x12, 32\n  j .exit_selfdestruct" } ]
 
-/-- M18 push-zero handlers (CODESIZE, RETURNDATASIZE).
-    Each opcode pushes a single 32-byte zero value onto
+/-- M18 push-zero handler for CODESIZE.
+    The opcode pushes a single 32-byte zero value onto
     the EVM stack — no input, no output content.
     (MSIZE and GAS graduated to real env-cell-reading handlers in
     Programs/Evm.lean.)
@@ -157,10 +161,7 @@ def haltHandlers : List OpcodeHandlerSpec :=
     four 8-byte zero limbs via `SD .x12 .x0 …`.
 
     **Known limitations** (documented in CODEGEN.md M18 narrative):
-    - CODESIZE pushes 0 instead of the running code's length.
-    - RETURNDATASIZE pushes 0 (no caller return-data buffer).
-    - MSIZE pushes 0 (memory-expansion bookkeeping deferred to
-      issue #99). -/
+    - CODESIZE pushes 0 instead of the running code's length. -/
 def pushZeroHandlers : List OpcodeHandlerSpec :=
   let pushZeroBody : Program :=
     ADDI .x12 .x12 (-32) ;;
@@ -171,21 +172,18 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
   -- GAS (0x5a) graduated to a real handler in Programs/Evm.lean (M30) —
   -- it pushes env.gasRemaining maintained by the dispatch-loop gas charge.
   [ { label := "h_CODESIZE", opcodes := [0x38]
-    , body := pushZeroBody, tail := .advanceAndRet 1 }
-  , { label := "h_RETURNDATASIZE", opcodes := [0x3d]
     , body := pushZeroBody, tail := .advanceAndRet 1 } ]
 
-/-- M18 pop-and-push-zero handlers (BALANCE, EXTCODESIZE).
-    Each opcode pops one 32-byte input (e.g., an address) and pushes a
-    32-byte zero value. Net EVM stack delta = 0.
+/-- M18 pop-and-push-zero handlers (BALANCE and EXTCODESIZE).
+    This opcode pops one 32-byte input (an address) and pushes a 32-byte zero
+    value. Net EVM stack delta = 0.
 
     Body (4 instructions): overwrite the popped slot with 32 zero
     bytes — same shape as M17's `SLOAD`/`TLOAD`. No `x12` movement
     needed.
 
     **Known limitations**:
-    - BALANCE always returns 0 (no account state model).
-    - EXTCODESIZE always returns 0 (no external code-byte model yet).
+    - BALANCE and EXTCODESIZE both have witness-backed implementations.
 
     **M21 update**: CALLDATALOAD (0x35) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
@@ -196,24 +194,18 @@ def pushZeroHandlers : List OpcodeHandlerSpec :=
     in `Programs/Evm.lean` with a real blob-hash-list implementation.
 
     **M29 update**: BLOCKHASH (0x40) was moved to `blockHashHandlers`
-    in `Programs/Evm.lean` with a real block-history implementation. -/
+    in `Programs/Evm.lean` with a real block-history implementation.
+
+    **M32 update**: EXTCODESIZE (0x3b) and BALANCE (0x31) moved to
+    witness-backed implementations (`EvmAccountWitness.lean` / `EvmBalance.lean`). -/
 def popPushZeroHandlers : List OpcodeHandlerSpec :=
-  let body : Program :=
-    SD .x12 .x0 0 ;;
-    SD .x12 .x0 8 ;;
-    SD .x12 .x0 16 ;;
-    SD .x12 .x0 24
-  [ { label := "h_BALANCE", opcodes := [0x31]
-    , body := body, tail := .advanceAndRet 1 }
-  , { label := "h_EXTCODESIZE", opcodes := [0x3b]
-    , body := body, tail := .advanceAndRet 1 } ]
+  []
 
-/-- M18 copy-no-op handlers (CODECOPY, RETURNDATACOPY).
-    Each opcode pops stack values and would copy bytes into EVM memory.
-    As no-ops we just drop the stack args.
+/-- M18 copy-no-op handler for CODECOPY.
+    CODECOPY pops 3 stack words and would copy bytes into EVM memory.
+    As a no-op we just drop the stack args.
 
-    Body: a single `ADDI .x12 .x12 (popBytes)`. CODECOPY and
-    RETURNDATACOPY pop 3 words = 96 bytes.
+    Body: a single `ADDI .x12 .x12 96`.
 
     **Known limitations**: the copies are dropped on the floor.
     Programs that copy into EVM memory and then MLOAD see whatever
@@ -223,16 +215,68 @@ def popPushZeroHandlers : List OpcodeHandlerSpec :=
 
     **M21 update**: CALLDATACOPY (0x37) was removed from this group
     and now has a real implementation in `calldataHandlers` (see
-    `Programs/Evm.lean`). It actually copies calldata bytes into EVM
-    memory from the `ziskemu -i` input region, with zero-fill for
-    source bytes outside the calldata window. -/
+    `Programs/Evm.lean`).
+
+    **M32 update**: RETURNDATACOPY (0x3e) moved to `returnDataHandlers`
+    below and reads the dispatcher-maintained precompile return-data frame. -/
 def copyNoopHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_CODECOPY", opcodes := [0x39]
-    , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
-    , tail := .advanceAndRet 1 }
-  , { label := "h_RETURNDATACOPY", opcodes := [0x3e]
+    , preBody := stackUnderflowGuardAsm 3
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
     , tail := .advanceAndRet 1 } ]
+
+/-- Runtime RETURNDATASIZE / RETURNDATACOPY handlers backed by
+    `evm_precompile_frame`. CALL/STATICCALL precompile paths store
+    their return-data length at `+8` and up to 64 bytes at `+16`.
+    Non-precompile, absent-account, CREATE, and CREATE2 paths clear
+    the length to model an empty return-data buffer.
+
+    RETURNDATACOPY follows execution-specs EIP-211 behavior for bounds:
+    copying past the current buffer is an exceptional halt, not zero-fill.
+    This first runtime slice retains a 64-byte prefix of child returndata, so
+    copies beyond that retained prefix are also exceptional until a wider
+    return-data arena lands. -/
+def returnDataHandlers : List OpcodeHandlerSpec :=
+  [ { label := "h_RETURNDATASIZE", opcodes := [0x3d]
+    , body := []
+    , tail := .custom <|
+        "  la x14, evm_precompile_frame\n" ++
+        "  ld x15, 8(x14)\n" ++
+        "  addi x12, x12, -32\n" ++
+        "  sd x15, 0(x12)\n" ++
+        "  sd x0, 8(x12)\n" ++
+        "  sd x0, 16(x12)\n" ++
+        "  sd x0, 24(x12)\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret" }
+  , { label := "h_RETURNDATACOPY", opcodes := [0x3e]
+    , body := []
+    , tail := .custom <|
+        "  ld x14, 0(x12)\n" ++      -- memory_start_index
+        "  ld x15, 32(x12)\n" ++     -- return_data_start_position
+        "  ld x16, 64(x12)\n" ++     -- size
+        "  la x17, evm_precompile_frame\n" ++
+        "  ld x18, 8(x17)\n" ++      -- return-data length
+        "  add x19, x15, x16\n" ++
+        "  bltu x19, x15, .exit_invalid\n" ++
+        "  bltu x18, x19, .exit_invalid\n" ++
+        "  li x18, 64\n" ++
+        "  bltu x18, x19, .exit_invalid\n" ++
+        "  addi x12, x12, 96\n" ++
+        "  beqz x16, 2f\n" ++
+        "  addi x17, x17, 16\n" ++
+        "  add x17, x17, x15\n" ++
+        "  add x18, x13, x14\n" ++
+        "1:\n" ++
+        "  lbu x19, 0(x17)\n" ++
+        "  sb x19, 0(x18)\n" ++
+        "  addi x17, x17, 1\n" ++
+        "  addi x18, x18, 1\n" ++
+        "  addi x16, x16, -1\n" ++
+        "  bnez x16, 1b\n" ++
+        "2:\n" ++
+        "  addi x10, x10, 1\n" ++
+        "  ret" } ]
 
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
     CREATE2, STATICCALL). All ship as **pop-N + push-zero** no-ops:
@@ -264,6 +308,12 @@ def copyNoopHandlers : List OpcodeHandlerSpec :=
     both push success = 1. ECRECOVER / RIPEMD160 remain success
     stubs in this slice; follow-up PRs wire their output semantics.
 
+    **M27.2 update**: CALL / STATICCALL also recognize BLS12-381 G1
+    active precompile addresses 0x0b (G1 ADD) and 0x0c (G1 MSM).
+    This first runtime slice implements the execution-specs input-length
+    gates before the future accelerator body: G1 ADD requires exactly
+    256 bytes; G1 MSM requires a nonzero multiple of 160 bytes.
+
     **M27.1 update**: inactive near-zero addresses 0x12 and 0x101
     are not precompiles in the Amsterdam active set. Route them as
     absent-account calls with success = 1 and empty returndata so the
@@ -284,6 +334,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
   let mkHandler (lbl : String) (op : Nat) (netPopBytes : Nat) : OpcodeHandlerSpec :=
     { label := lbl
     , opcodes := [op]
+    , preBody := stackUnderflowGuardAsm (netPopBytes / evmStackWordBytes + 1) ++
+               "\n  la x15, evm_precompile_frame\n  sd x0, 8(x15)"
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 netPopBytes) ;;
               SD .x12 .x0 0 ;;
               SD .x12 .x0 8 ;;
@@ -308,6 +360,10 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bltu x14, x15, 1f\n" ++
     "  li x15, 4\n" ++
     "  bgeu x15, x14, 11f\n" ++
+    "  li x15, 0x0b\n" ++
+    "  beq x14, x15, 13f\n" ++
+    "  li x15, 0x0c\n" ++
+    "  beq x14, x15, 14f\n" ++
     "  li x15, 0x12\n" ++
     "  beq x14, x15, 12f\n" ++
     "  li x15, 0x101\n" ++
@@ -407,6 +463,31 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
     "  j 7b\n" ++
+    -- BLS12-381 G1 ADD: execution-specs rejects unless calldata length is 256.
+    -- Valid-length output is wired in a later accelerator-body slice; for now
+    -- it reaches the active-precompile success surface with empty returndata.
+    "13:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x16, 256\n" ++
+    "  bne x17, x16, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  j 7b\n" ++
+    -- BLS12-381 G1 MSM: execution-specs rejects empty input and non-160
+    -- multiples before charging gas or invoking curve arithmetic.
+    "14:\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  beqz x17, 1f\n" ++
+    "  li x16, 160\n" ++
+    "  remu x17, x17, x16\n" ++
+    "  bnez x17, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  j 7b\n" ++
     "1:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  sd x0, 0(x15)\n" ++
@@ -418,16 +499,22 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  sd x0, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop"
-  [ mkHandler "h_CREATE"        0xf0 64
+  [ { mkHandler "h_CREATE" 0xf0 64 with
+      preBody := stackUnderflowGuardAsm 3 ++ "\n" }
   , { label := "h_CALL"
     , opcodes := [0xf1]
+    , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
     , tail := .custom (basicPrecompileCallTail 192 96 128 160 192) }
-  , mkHandler "h_CALLCODE"      0xf2 192
-  , mkHandler "h_DELEGATECALL"  0xf4 160
-  , mkHandler "h_CREATE2"       0xf5 96
+  , { mkHandler "h_CALLCODE" 0xf2 192 with
+      preBody := stackUnderflowGuardAsm 7 ++ "\n" }
+  , { mkHandler "h_DELEGATECALL" 0xf4 160 with
+      preBody := stackUnderflowGuardAsm 6 ++ "\n" }
+  , { mkHandler "h_CREATE2" 0xf5 96 with
+      preBody := stackUnderflowGuardAsm 4 ++ "\n" }
   , { label := "h_STATICCALL"
     , opcodes := [0xfa]
+    , preBody := stackUnderflowGuardAsm 6 ++ "\n"
     , body := []
     , tail := .custom (basicPrecompileCallTail 160 64 96 128 160) } ]
 

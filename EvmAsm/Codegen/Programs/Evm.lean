@@ -49,7 +49,9 @@ import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.Clz
+import EvmAsm.Codegen.Programs.EvmBalance
 import EvmAsm.Codegen.Programs.Noop
+import EvmAsm.Codegen.Programs.EvmAccountWitness
 import EvmAsm.Codegen.Programs.EvmExtcodecopy
 import EvmAsm.Codegen.Programs.Storage
 
@@ -437,16 +439,6 @@ def evmSmodV5Patched : Program :=
     by `emitDispatcherEpilogue`), which takes the same exit path as
     STOP. -/
 
-/-- Raw dispatcher guard for handlers that read `wordCount` EVM stack
-    words before their verified body runs. The EVM stack grows downward
-    from `evm_stack_top`; a handler needing `n` words requires
-    `x12 <= evm_stack_top - 32*n`. If not, route to the exceptional
-    stack-underflow exit before any body performs unchecked loads. -/
-private def stackUnderflowGuardAsm (wordCount : Nat) : String :=
-  "  la x14, evm_stack_top\n" ++
-  s!"  addi x14, x14, -{wordCount * 32}\n" ++
-  "  bltu x14, x12, .exit_stack_underflow"
-
 private def stackUnderflowGuardSaveX10Asm (wordCount : Nat) : String :=
   stackUnderflowGuardAsm wordCount ++ "\n  mv x9, x10"
 
@@ -562,7 +554,8 @@ def memoryHandlers : List OpcodeHandlerSpec :=
     -- scratch: offReg=x15, byteReg=x16, accReg=x17, addrReg=x18.
     { label   := "h_MLOAD"
       opcodes := [0x51]
-      preBody := "  ld x15, 0(x12)\n" ++
+      preBody := stackUnderflowGuardAsm 1 ++ "\n" ++
+                 "  ld x15, 0(x12)\n" ++
                  updateActiveMemorySizeConstAsm "mload" "x15" "x16" "x17" "x18" "x19" 32
       body    := EvmAsm.Evm64.evm_mload .x15 .x16 .x17 .x18 .x13
       tail    := .advanceAndRet 1 }
@@ -570,14 +563,16 @@ def memoryHandlers : List OpcodeHandlerSpec :=
     -- valReg=x14 (scratch; placeholder per evm_mstore docstring).
     { label   := "h_MSTORE"
       opcodes := [0x52]
-      preBody := "  ld x15, 0(x12)\n" ++
+      preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
+                 "  ld x15, 0(x12)\n" ++
                  updateActiveMemorySizeConstAsm "mstore" "x15" "x16" "x17" "x18" "x19" 32
       body    := EvmAsm.Evm64.evm_mstore .x15 .x14 .x16 .x17 .x18 .x13
       tail    := .advanceAndRet 1 }
   , -- MSTORE8: pop offset + value, write 1 byte to memory.
     { label   := "h_MSTORE8"
       opcodes := [0x53]
-      preBody := "  ld x15, 0(x12)\n" ++
+      preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
+                 "  ld x15, 0(x12)\n" ++
                  updateActiveMemorySizeConstAsm "mstore8" "x15" "x16" "x17" "x18" "x19" 1
       body    := EvmAsm.Evm64.evm_mstore8 .x15 .x14 .x18 .x13
       tail    := .advanceAndRet 1 } ]
@@ -686,6 +681,7 @@ def blobContextHandlers : List OpcodeHandlerSpec :=
   ++
   [ { label := "h_BLOBHASH"
     , opcodes := [0x49]
+    , preBody := stackUnderflowGuardAsm 1
     , body := []
     , tail := .custom <|
         "  ld x14, 8(x12)\n" ++          -- high limbs must be zero
@@ -737,6 +733,7 @@ def blobContextHandlers : List OpcodeHandlerSpec :=
 def blockHashHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_BLOCKHASH"
     , opcodes := [0x40]
+    , preBody := stackUnderflowGuardAsm 1
     , body := []
     , tail := .custom <|
         "  ld x14, 8(x12)\n" ++
@@ -815,7 +812,7 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     -- trusted test programs that respect bounds, this is correct. -/
     { label   := "h_CALLDATALOAD"
     , opcodes := [0x35]
-    , preBody := "  ld x14, 416(x20)\n"
+    , preBody := stackUnderflowGuardAsm 1 ++ "\n  ld x14, 416(x20)\n"
     , body    := EvmAsm.Evm64.Calldata.evm_calldataload_window
                    .x15 .x16 .x17 .x18 .x14
     , tail    := .advanceAndRet 1 }
@@ -829,7 +826,8 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     -- (M7); the remaining 6 args are caller-saved scratch.
     { label   := "h_CALLDATACOPY"
     , opcodes := [0x37]
-    , preBody := "  ld x14, 0(x12)\n" ++
+    , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
+                 "  ld x14, 0(x12)\n" ++
                  "  ld x15, 64(x12)\n" ++
                  updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18"
     , body    := EvmAsm.Evm64.Calldata.evm_calldatacopy
@@ -844,6 +842,7 @@ def calldataHandlers : List OpcodeHandlerSpec :=
 def mcopyHandlers : List OpcodeHandlerSpec :=
   [ { label   := "h_MCOPY"
       opcodes := [0x5e]
+      preBody := stackUnderflowGuardAsm 3
       body    := []
       tail    := .custom <|
         "  ld x14, 0(x12)\n" ++          -- destination offset
@@ -880,15 +879,17 @@ def mcopyHandlers : List OpcodeHandlerSpec :=
         "  addi x10, x10, 1\n" ++
         "  ret" } ]
 
-/-- Shared tail for JUMP / JUMPI: the verified body left `code[dest]`
-    (or the `0x5b` sentinel for a not-taken JUMPI) in `x17`. If it
-    isn't a JUMPDEST byte, route to `.exit_invalid` (M15.5 exceptional
-    halt); otherwise `ret` to the dispatch loop, which re-reads the
-    (now-validated) target byte. `x18` is a free scratch temp. -/
+/-- Scanner shared by JUMP / taken-JUMPI validation: require `code[dest]`
+    to be JUMPDEST, then scan from `x21` to `x10`, skipping PUSH data. -/
+private def jumpPushdataAwareScanAsm : String :=
+  "  li x18, 0x5b\n  bne x17, x18, .exit_invalid\n  mv x18, x21\n1:\n  beq x18, x10, 3f\n  bltu x10, x18, .exit_invalid\n  lbu x19, 0(x18)\n  li x5, 0x60\n  bltu x19, x5, 2f\n  li x5, 0x80\n  bgeu x19, x5, 2f\n  addi x19, x19, -94\n  add x18, x18, x19\n  j 1b\n2:\n  addi x18, x18, 1\n  j 1b\n3:\n  ret"
+
 private def jumpValidityTail : HandlerTail :=
-  .custom ("  li x18, 0x5b\n" ++
-           "  bne x17, x18, .exit_invalid\n" ++
-           "  ret")
+  .custom jumpPushdataAwareScanAsm
+
+private def jumpiValidityTail : HandlerTail :=
+  .custom <| "  beqz x15, .Ljumpi_not_taken_valid\n" ++
+    jumpPushdataAwareScanAsm ++ "\n.Ljumpi_not_taken_valid:\n  ret"
 
 /-- M14 / M15 control-flow opcodes.
 
@@ -910,13 +911,11 @@ private def jumpValidityTail : HandlerTail :=
     registers `x14`/`x15`/`x16` are caller-saved per the existing
     convention.
 
-    **M15.5 JUMPDEST-validity (Level 1)**: JUMP / JUMPI now load
-    `code[dest]` into `x17` (the verified bodies do this; JUMPI's
-    not-taken path writes the sentinel `0x5b`). `jumpValidityTail`
-    compares `x17` to `0x5b` and routes a mismatch to the
-    dispatcher's `.exit_invalid` (exceptional halt, `halt_kind = 4`).
-    Level 2 (pushdata-aware bitmap) is still future work — see the
-    `ControlFlow/Program.lean` docstring. -/
+    **M15.5 JUMPDEST-validity**: JUMP / taken-JUMPI now scan from the
+    bytecode base to the target while skipping PUSH1..PUSH32 immediates.
+    A literal `0x5b` inside PUSH data is rejected even though the target byte
+    equals JUMPDEST. Not-taken JUMPI still skips validation, matching
+    execution-specs. -/
 def controlFlowHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_JUMPDEST"
     , opcodes := [0x5b]
@@ -924,12 +923,14 @@ def controlFlowHandlers : List OpcodeHandlerSpec :=
     , tail    := .advanceAndRet 1 }
   , { label := "h_JUMP"
     , opcodes := [0x56]
+    , preBody := stackUnderflowGuardAsm 1
     , body    := EvmAsm.Evm64.ControlFlow.evm_jump .x21 .x14 .x17
     , tail    := jumpValidityTail }
   , { label := "h_JUMPI"
     , opcodes := [0x57]
+    , preBody := stackUnderflowGuardAsm 2
     , body    := EvmAsm.Evm64.ControlFlow.evm_jumpi .x21 .x14 .x15 .x16 .x17
-    , tail    := jumpValidityTail }
+    , tail    := jumpiValidityTail }
   , { label := "h_PC"
     , opcodes := [0x58]
     , body    := EvmAsm.Evm64.ControlFlow.evm_pc .x21 .x14
@@ -969,6 +970,7 @@ def controlFlowHandlers : List OpcodeHandlerSpec :=
 def hashHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_KECCAK256"
     , opcodes := [0x20]
+    , preBody := stackUnderflowGuardAsm 2
     , body    := []
     , tail    := .custom (
         "  mv s10, x10\n" ++           -- save EVM code ptr
@@ -1084,87 +1086,29 @@ def logCapturePreBody (topicCount : Nat) : String :=
     byte, and returns to the dispatcher. -/
 def logHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_LOG0", opcodes := [0xa0]
-    , preBody := logCapturePreBody 0
+    , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++ logCapturePreBody 0
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG1", opcodes := [0xa1]
-    , preBody := logCapturePreBody 1
+    , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++ logCapturePreBody 1
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG2", opcodes := [0xa2]
-    , preBody := logCapturePreBody 2
+    , preBody := stackUnderflowGuardAsm 4 ++ "\n" ++ logCapturePreBody 2
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 128)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG3", opcodes := [0xa3]
-    , preBody := logCapturePreBody 3
+    , preBody := stackUnderflowGuardAsm 5 ++ "\n" ++ logCapturePreBody 3
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 160)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG4", opcodes := [0xa4]
-    , preBody := logCapturePreBody 4
+    , preBody := stackUnderflowGuardAsm 6 ++ "\n" ++ logCapturePreBody 4
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
     , tail := .advanceAndRet 1 } ]
 
 
-/-! ## Runtime account-witness opcodes
-
-    EXTCODEHASH (0x3f) now reads the account trie through the optional
-    runtime account-witness context populated by `pack-bytecode.py` and
-    `emitRuntimeDispatcherSetup`. If no witness context is present, it keeps
-    the old deterministic zero behavior. -/
-
-/-- Copy an EVM stack address word into natural 20-byte address order.
-
-    Stack bytes 0..19 hold the low 160-bit address little-endian; trie lookup
-    helpers expect the big-endian byte string whose keccak selects the account
-    path. `x12` is the EVM stack pointer and `t1` points at
-    `eahsr_address_scratch`. -/
-private def extcodehashWitnessAddressCopy : String :=
-  String.intercalate "" <|
-    (List.range 20).map fun i =>
-      s!"  lbu t2, {19 - i}(x12)\n  sb t2, {i}(t1)\n"
-
-/-- Raw dispatcher handler for EXTCODEHASH backed by
-    `extcodehash_at_header_state_root`.
-
-    The EVM stack word stores the low 160-bit address little-endian; the
-    helper expects the natural 20-byte address order used for
-    `keccak(address)`, so the handler first reverses bytes 0..19 into
-    `eahsr_address_scratch`. Net stack delta is zero: the address word is
-    overwritten with the 32-byte EIP-1052 result. -/
-private def extcodehashWitnessTail : HandlerTail :=
-  .custom <|
-    "  ld t0, 584(x20)\n" ++          -- header length; zero means no witness context
-    "  beqz t0, .Lextcodehash_no_context\n" ++
-    "  la t1, eahsr_address_scratch\n" ++
-    extcodehashWitnessAddressCopy ++
-    "  addi sp, sp, -32\n" ++
-    "  sd x10, 0(sp)\n" ++
-    "  sd x12, 8(sp)\n" ++
-    "  ld a0, 576(x20)\n" ++         -- header ptr
-    "  ld a1, 584(x20)\n" ++         -- header len
-    "  la a2, eahsr_address_scratch\n" ++
-    "  ld a3, 592(x20)\n" ++         -- witness.state ptr
-    "  ld a4, 600(x20)\n" ++         -- witness.state len
-    "  ld a5, 8(sp)\n" ++            -- saved EVM stack ptr; a2 aliases x12
-    "  jal ra, extcodehash_at_header_state_root\n" ++
-    "  ld x10, 0(sp)\n" ++
-    "  ld x12, 8(sp)\n" ++
-    "  addi sp, sp, 32\n" ++
-    "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop\n" ++
-    ".Lextcodehash_no_context:\n" ++
-    "  sd zero, 0(x12)\n" ++
-    "  sd zero, 8(x12)\n" ++
-    "  sd zero, 16(x12)\n" ++
-    "  sd zero, 24(x12)\n" ++
-    "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop"
-
-def accountWitnessHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_EXTCODEHASH"
-    , opcodes := [0x3f]
-    , body := []
-    , tail := extcodehashWitnessTail } ]
+-- Runtime account-witness handlers (EXTCODESIZE, EXTCODEHASH) live in
+-- `EvmAsm/Codegen/Programs/EvmAccountWitness.lean`.
 
 -- M17 / M22 storage handlers (SLOAD, SSTORE, TLOAD, TSTORE) live in
 -- `EvmAsm/Codegen/Programs/Storage.lean` — extracted at M22 (when
@@ -1217,7 +1161,7 @@ private def mulmodTail : HandlerTail :=
 def mulmodHandlers : List OpcodeHandlerSpec :=
   [ { label   := "h_MULMOD"
       opcodes := [0x09]
-      preBody := "  mv x23, x10\n  mv x21, x13\n  mv x22, x20"
+      preBody := stackUnderflowGuardAsm 3 ++ "\n  mv x23, x10\n  mv x21, x13\n  mv x22, x20"
       body    := EvmAsm.Evm64.evm_mulmod
       tail    := mulmodTail } ]
 
@@ -1227,12 +1171,12 @@ private def divModTail : HandlerTail :=
 def divModHandlers : List OpcodeHandlerSpec :=
   [ { label   := "h_DIV"
       opcodes := [0x04]
-      preBody := "  mv x14, x10"
+      preBody := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10"
       body    := evmDivPatched
       tail    := divModTail }
   , { label   := "h_MOD"
       opcodes := [0x06]
-      preBody := "  mv x14, x10"
+      preBody := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10"
       body    := evmModPatched
       tail    := divModTail } ]
 
@@ -1280,13 +1224,13 @@ private def signedDivModTail : HandlerTail :=
 def signedDivModHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_SDIV"
       opcodes       := [0x05]
-      preBody       := "  mv x14, x10\n  la x18, h_SDIV_done"
+      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x18, h_SDIV_done"
       body          := evmSdivPatched
       postBodyLabel := some "h_SDIV_done"
       tail          := signedDivModTail }
   , { label         := "h_SMOD"
       opcodes       := [0x07]
-      preBody       := "  mv x14, x10\n  la x18, h_SMOD_done"
+      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x18, h_SMOD_done"
       body          := evmSmodPatched
       postBodyLabel := some "h_SMOD_done"
       tail          := signedDivModTail } ]
@@ -1416,12 +1360,12 @@ private def expTail : HandlerTail :=
 def selfCallingHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_ADDMOD"
       opcodes       := [0x08]
-      preBody       := "  mv x14, x10"
+      preBody       := stackUnderflowGuardAsm 3 ++ "\n  mv x14, x10"
       body          := []
       tail          := evmAddmodRuntimeTail }
   , { label         := "h_EXP"
       opcodes       := [0x0a]
-      preBody       := "  mv x14, x10\n  la x2, exp_scratch"
+      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x2, exp_scratch"
       body          := evmExpComposed
       tail          := expTail } ]
 
@@ -1442,8 +1386,8 @@ def tinyInterpRegistry : List OpcodeHandlerSpec :=
   memoryHandlers ++ memoryMetadataHandlers ++ gasHandlers ++ envHandlers ++
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
-  accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
-  mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++
+  balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
+  mcopyHandlers ++ haltHandlers ++ pushZeroHandlers ++ returnDataHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++ childFrameHandlers ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandler]

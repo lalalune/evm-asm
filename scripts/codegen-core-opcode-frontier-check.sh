@@ -77,6 +77,14 @@ REQUIRED_CASES=(
   "MUL:mul_basic"
   "DIV:div_basic"
   "MOD:mod_basic"
+  "ADDMOD:addmod_basic"
+  "ADDMOD:addmod_div_zero"
+  "ADDMOD:addmod_carry_pow256_mod_7"
+  "ADDMOD:addmod_carry_pow256_mod_2_128_plus_1"
+  "ADDMOD:addmod_carry_reduced_sum_subtracts_n"
+  "MULMOD:mulmod_zero_modulus"
+  "MULMOD:mulmod_small_nonzero"
+  "MULMOD:mulmod_high_product_nonzero"
   "SDIV:sdiv_basic"
   "SMOD:smod_negative"
   "SIGNEXTEND:signextend_basic"
@@ -109,9 +117,12 @@ REQUIRED_CASES=(
 )
 
 PARTIAL_MEMBERS=(
-  "ADDMOD:carry-out path tracked separately until 257-bit reduction is enforced"
-  "MULMOD:nonzero-modulus path tracked separately until full product reduction exists"
   "EXP:software implementation remains tracked separately"
+)
+
+RUNTIME_FEATURE_SCRIPTS=(
+  "BALANCE:scripts/codegen-zisk-runtime-balance-check.sh"
+  "EXTCODESIZE:scripts/codegen-zisk-runtime-extcodesize-check.sh"
 )
 
 echo "==> checking representative runtime coverage"
@@ -144,6 +155,14 @@ fi
 if [[ "$RUN_RUNTIME" -eq 1 ]]; then
   echo "==> running opcode runtime registry"
   scripts/codegen-opcodes-runtime-check.sh
+
+  echo "==> running standalone runtime feature checks"
+  for entry in "${RUNTIME_FEATURE_SCRIPTS[@]}"; do
+    feature="${entry%%:*}"
+    script="${entry#*:}"
+    printf "  %-10s %s\n" "$feature" "$script"
+    "$script"
+  done
 fi
 
 if [[ "$RUN_EEST" -eq 1 ]]; then
