@@ -1024,10 +1024,11 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x21, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Valid-length BLS12 G2 MSM reaches the active precompile surface.
-    { name             := "staticcall_bls12_g2_msm_valid_length_success"
+  , -- Valid-length BLS12 G2 MSM now invokes the backend wrapper. Current
+    -- ziskemu returns deterministic EFAIL, so EVM observes precompile failure.
+    { name             := "staticcall_bls12_g2_msm_valid_length_backend_failure"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x20, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
-      expectedOutHex   := "0100000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
   , -- CALL to IDENTITY records the full precompile returndata buffer,
     -- so RETURNDATASIZE reports the input size even when out_size is short.
