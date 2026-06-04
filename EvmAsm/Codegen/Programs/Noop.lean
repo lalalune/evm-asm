@@ -28,6 +28,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -241,8 +242,11 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
         "  bltu x18, x19, .exit_invalid\n" ++
         "  li x18, 256\n" ++
         "  bltu x18, x19, .exit_invalid\n" ++
+        copyWordGasAsm "returndatacopy" "x16" "x17" "x18" "x19" ++
+        updateActiveMemorySizeAsm "returndatacopy" "x14" "x16" "x17" "x18" "x19" "x6" true ++
         "  addi x12, x12, 96\n" ++
         "  beqz x16, 2f\n" ++
+        "  la x17, evm_precompile_frame\n" ++
         "  addi x17, x17, 16\n" ++
         "  add x17, x17, x15\n" ++
         "  add x18, x13, x14\n" ++
