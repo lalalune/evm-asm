@@ -129,4 +129,46 @@ def logDynamicGasAsm (topicCount : Nat) : String :=
   "  sub x5, x5, x18\n" ++
   "  sd x5, 568(x20)\n"
 
+/-- Range guard for KECCAK256/SHA3 before dynamic gas or hashing. The runtime
+    memory arena is u64-addressed; a non-zero high limb in `size` represents an
+    astronomically large non-zero hash range, so it is reported as OOG. Per
+    execution-specs, zero-size KECCAK does not expand memory, so high offset
+    limbs are accepted when the low size limb is zero. Low-limb
+    `offset + size` wraparound also routes to OOG. -/
+def keccakRangeGuardAsm : String :=
+  -- Any non-zero high size limb means size is non-zero but not representable.
+  "  ld x5, 40(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, 48(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, 56(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x15, 32(x12)\n" ++
+  "  beqz x15, .Lkeccak_range_ok\n" ++
+  -- Non-zero size expands/hashes the input range, so offset must be u64.
+  "  ld x5, 8(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, 16(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, 24(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x14, 0(x12)\n" ++
+  "  add x5, x14, x15\n" ++
+  "  bltu x5, x14, .exit_outofgas\n" ++
+  ".Lkeccak_range_ok:\n"
+
+/-- KECCAK256/SHA3 word gas. The dispatch loop already charges the fixed
+    opcode base cost (30), so this charges only `6 * ceil(size / 32)` against
+    `env.gasRemaining`. `sizeReg` is preserved; x5/x6 are clobbered. -/
+def keccakWordGasAsm (sizeReg : String) : String :=
+  "  addi x5, " ++ sizeReg ++ ", 31\n" ++
+  "  srli x5, x5, 5\n" ++
+  "  slli x6, x5, 2\n" ++
+  "  add x6, x6, x5\n" ++
+  "  add x6, x6, x5\n" ++
+  "  ld x5, 568(x20)\n" ++
+  "  bltu x5, x6, .exit_outofgas\n" ++
+  "  sub x5, x5, x6\n" ++
+  "  sd x5, 568(x20)\n"
+
 end EvmAsm.Codegen

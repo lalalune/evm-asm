@@ -4,7 +4,6 @@
   Registry of programs the codegen tool knows how to emit, each as a
   `BuildUnit` (verified body + optional wrapping).
 -/
-
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
 import EvmAsm.Evm64.AddMod.Program
@@ -572,6 +571,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_zkvm_keccak256"       => some ziskZkvmKeccak256ProbeUnit
   | "zisk_sha256_probe_le"      => some ziskSha256ProbeLeUnit
   | "zisk_zkvm_sha256"          => some ziskZkvmSha256ProbeUnit
+  | "zisk_secp256k1_ecrecover_backend_probe" => some ziskSecp256k1EcrecoverBackendProbeUnit
   | "zisk_bls12_g1_add_backend_probe" => some ziskBls12G1AddBackendProbeUnit
   | "zisk_bls12_g1_msm_backend_probe" => some ziskBls12G1MsmBackendProbeUnit
   | "zisk_bls12_g2_add_backend_probe" => some ziskBls12G2AddBackendProbeUnit
@@ -879,7 +879,7 @@ def knownProgramNames : List String :=
    "zisk_keccak256_abc",
    "zisk_zkvm_keccak256",
    "zisk_sha256_probe_le",
-   "zisk_zkvm_sha256",
+   "zisk_zkvm_sha256", "zisk_secp256k1_ecrecover_backend_probe",
    "zisk_bls12_g1_add_backend_probe",
    "zisk_bls12_g1_msm_backend_probe",
    "zisk_bls12_g2_add_backend_probe",

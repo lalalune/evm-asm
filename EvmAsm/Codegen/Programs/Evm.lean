@@ -1013,7 +1013,12 @@ def controlFlowHandlers : List OpcodeHandlerSpec :=
 def hashHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_KECCAK256"
     , opcodes := [0x20]
-    , preBody := stackUnderflowGuardAsm 2
+    , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
+                 keccakRangeGuardAsm ++
+                 "  ld x14, 0(x12)\n" ++
+                 "  ld x15, 32(x12)\n" ++
+                 keccakWordGasAsm "x15" ++
+                 updateActiveMemorySizeAsm "keccak" "x14" "x15" "x16" "x17" "x18" "x6" true
     , body    := []
     , tail    := .custom (
         "  mv s10, x10\n" ++           -- save EVM code ptr
