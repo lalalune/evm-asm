@@ -41,6 +41,12 @@ private def callPrecompileBytecode
     (["0x60", "0x00", "0x60", "0x00", "0x60", inSize, "0x60", "0x00",
       "0x60", "0x00", "0x60", target, "0x60", "0xff", "0xf1"] ++ suffix)
 
+private def callPrecompileBytecodeWithPrefix
+    (prelude : List String) (target inSize : String) (suffix : List String) : String :=
+  byteCsv
+    (prelude ++ ["0x60", "0x00", "0x60", "0x00", "0x60", inSize, "0x60", "0x00",
+      "0x60", "0x00", "0x60", target, "0x60", "0xff", "0xf1"] ++ suffix)
+
 private def staticcallPrecompileBytecode
     (target inSize : String) (suffix : List String) : String :=
   byteCsv
@@ -1439,6 +1445,80 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := staticcallPrecompileBytecode "0x07" "0x00" ["0x5a", "0x00"]
       expectedOutHex := "5000000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "6200" }
+  , -- BN254 pairing charges 45000 for zero complete pairs. Seven PUSH1s (21),
+    -- CALL warm static base (100), pairing gas (45000), and GAS (2) leave 77.
+    { name           := "call_bn254_pairing_zero_pairs_gas_after_call"
+      bytecode       := callPrecompileBytecode "0x08" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "45200" }
+  , -- One complete 192-byte pair costs 45000 + 34000. The current backend
+    -- safe-fails, but gas after CALL proves the one-pair charge.
+    { name           := "call_bn254_pairing_one_pair_gas_after_call"
+      bytecode       := callPrecompileBytecode "0x08" "0xc0" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "79200" }
+  , -- Non-multiple length is rejected after the base gas is consumed, leaving
+    -- empty returndata and normal halt after POP + RETURNDATASIZE.
+    { name             := "call_bn254_pairing_nonmultiple_length_after_charge"
+      bytecode         := callPrecompileBytecode "0x08" "0x01" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "50000" }
+  , -- One gas short reaches the BN254 pairing gas helper and exits OOG.
+    { name             := "call_bn254_pairing_base_gas_out_of_gas"
+      bytecode         := callPrecompileBytecode "0x08" "0x00" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "45120" }
+  , -- Valid-length input reaches the deterministic backend EFAIL wrapper, so
+    -- CALL success is 0 and RETURNDATASIZE remains zero.
+    { name             := "call_bn254_pairing_backend_failure_empty_returndata"
+      bytecode         := callPrecompileBytecode "0x08" "0x00" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "100000" }
+  , -- BLAKE2F invalid length fails before reading rounds, so only CALL static
+    -- gas is consumed. With gasLimit=200: seven PUSH1s (21) + CALL warm
+    -- static base (100) + GAS (2) leaves 77.
+    { name           := "call_blake2f_invalid_length_no_rounds_charge"
+      bytecode       := callPrecompileBytecode "0x09" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "200" }
+  , -- Exact 213-byte BLAKE2F input with all-zero payload has rounds=0. The
+    -- current backend safe-fails, but gas after CALL proves no rounds charge.
+    { name           := "call_blake2f_rounds_zero_fixed_gas_after_call"
+      bytecode       := callPrecompileBytecode "0x09" "0xd5" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "200" }
+  , -- Store rounds byte data[3]=1. Prefix cost is two PUSH1s, MSTORE8, and
+    -- one-word memory expansion; with rounds=1, gasLimit=200 leaves 64 after GAS.
+    { name           := "call_blake2f_rounds_one_fixed_gas_after_call"
+      bytecode       := callPrecompileBytecodeWithPrefix
+        ["0x60", "0x01", "0x60", "0x03", "0x53"] "0x09" "0xd5" ["0x5a", "0x00"]
+      expectedOutHex := "4000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "200" }
+  , -- One gas short reaches the BLAKE2F rounds charge and exits OOG.
+    { name             := "call_blake2f_rounds_one_out_of_gas"
+      bytecode         := callPrecompileBytecodeWithPrefix
+        ["0x60", "0x01", "0x60", "0x03", "0x53"] "0x09" "0xd5" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "133" }
+  , -- Final flag data[212]=2 is invalid after the rounds-gas phase and surfaces
+    -- as normal precompile failure with empty returndata.
+    { name             := "call_blake2f_invalid_final_flag_empty_returndata"
+      bytecode         := callPrecompileBytecodeWithPrefix
+        ["0x60", "0x02", "0x60", "0xd4", "0x53"] "0x09" "0xd5" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "10000" }
+  , -- Valid-length input reaches the deterministic backend EFAIL wrapper, so
+    -- CALL success is 0 and RETURNDATASIZE remains zero.
+    { name             := "call_blake2f_backend_failure_empty_returndata"
+      bytecode         := callPrecompileBytecode "0x09" "0xd5" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "10000" }
   , -- BLS12 G1 ADD rejects invalid input length before any accelerator body.
     { name             := "call_bls12_g1_add_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
