@@ -53,6 +53,15 @@ def zkvmBn254G1MulSafeFailWrapper : String :=
   "  ret"
 
 /-- Linkable bare-RV64 wrapper for
+    `zkvm_bn254_pairing(pairs, num_pairs, verified)`. Current runtime tests use
+    deterministic EFAIL while still exercising dispatch, gas, and framing. -/
+def zkvmBn254PairingSafeFailWrapper : String :=
+  ".globl zkvm_bn254_pairing\n" ++
+  "zkvm_bn254_pairing:\n" ++
+  "  li a0, -1\n" ++
+  "  ret"
+
+/-- Linkable bare-RV64 wrapper for
     `zkvm_blake2f(rounds, h, m, t, f)`. Current runtime tests use
     deterministic EFAIL until the BLAKE2F accelerator path is available from
     bare codegen ELFs. -/
