@@ -507,7 +507,13 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  beqz t0, 3f\n" ++
+    "  bnez t0, 12f\n" ++
+    "  la x18, create_nonce\n" ++
+    "  ld x19, 0(x18)\n" ++
+    "  li x23, -1\n" ++
+    "  beq x19, x23, 7f\n" ++
+    "  j 3f\n" ++
+    "12:\n" ++
     "  la x18, create_nonce\n" ++
     "  sd x0, 0(x18)\n" ++
     "3:\n" ++
