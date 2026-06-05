@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_BLS12_G2_JOBS:-${EEST_JOBS:-3}}"
-STEPS="${EEST_BLS12_G2_STEPS:-${EEST_STEPS:-200000000}}"
+STEPS="${EEST_BLS12_G2_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_BLS12_G2_RUN_DIR:-gen-out/eest-bls12-g2-frontier}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 SKIP="${EEST_BLS12_G2_SKIP:-0}"
