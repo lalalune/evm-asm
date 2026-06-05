@@ -767,6 +767,9 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
+    callMemoryExpansionGasAsm
+      ("precompile_" ++ toString netPopBytes)
+      inOffsetOff inSizeOff outOffsetOff outSizeOff ++
     "  ld x14, 32(x12)\n" ++
     "  ld x15, 40(x12)\n" ++
     "  bnez x15, 1f\n" ++
