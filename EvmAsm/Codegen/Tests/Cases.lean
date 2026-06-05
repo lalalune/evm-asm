@@ -1412,6 +1412,36 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "618" }
+  , -- MODEXP header with modulus_len=1 charges the decoded 500 minimum
+    -- gas, then currently reports precompile failure until the nonzero
+    -- zkvm_modexp output path lands.
+    { name           := "staticcall_modexp_modlen1_gas_exact"
+      bytecode       := "0x60, 0x60, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
+      calldata       := "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "648" }
+  , -- One gas short proves the nonzero decoded-header path charges before
+    -- falling through to the deferred backend failure.
+    { name             := "staticcall_modexp_modlen1_out_of_gas"
+      bytecode         := "0x60, 0x60, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
+      calldata         := "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "647" }
+  , -- modulus_len=129 makes max_len=129, words=17, complexity=2*17^2=578,
+    -- iterations=1, so MODEXP gas is 578 rather than the 500 minimum.
+    { name           := "staticcall_modexp_modlen129_gas_exact"
+      bytecode       := "0x60, 0x60, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
+      calldata       := "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000081"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "726" }
+  , -- Component lengths above 1024 fail before the inner MODEXP gas charge:
+    -- gas=148 covers CALLDATACOPY plus STATICCALL setup but is below 500.
+    { name           := "staticcall_modexp_modlen1025_fails_before_gas"
+      bytecode       := "0x60, 0x60, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
+      calldata       := "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000401"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "148" }
   , -- CALL to inactive near-zero address 0x12 routes as an absent
     -- account, not as a precompile body: success = 1, empty returndata.
     { name             := "call_inactive_precompile_0x12_absent_success"
