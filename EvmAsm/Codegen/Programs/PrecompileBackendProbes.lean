@@ -71,6 +71,16 @@ def zkvmBlake2fSafeFailWrapper : String :=
   "  li a0, -1\n" ++
   "  ret"
 
+/-- Linkable bare-RV64 wrapper for
+    `zkvm_kzg_point_eval(commitment, z, y, proof, verified)`. Current runtime
+    tests use deterministic EFAIL while still exercising dispatch, length,
+    gas, and framing. -/
+def zkvmKzgPointEvalSafeFailWrapper : String :=
+  ".globl zkvm_kzg_point_eval\n" ++
+  "zkvm_kzg_point_eval:\n" ++
+  "  li a0, -1\n" ++
+  "  ret"
+
 /-- Probe driver for the BLS12 G1 ADD wrapper. It initializes two 96-byte
     zero point buffers and a 96-byte result buffer, calls the wrapper, then
     writes a compact record at OUTPUT_ADDR:
