@@ -24,8 +24,8 @@ Usage:
 Options:
   --runtime / --no-runtime       run or skip opcode runtime cases (default: run)
   --eest / --no-eest             run or skip representative EEST filters (default: run)
-  --filter SUBSTR                add an EEST fixture substring filter
-                                 (default: signextend)
+  --filter SUBSTR                add an EEST fixture/test-label substring filter
+                                 (default: frontier/opcodes/all_opcodes)
   --limit N                      per-filter EEST fixture cap (default: 5)
   --jobs N|auto                  ziskemu jobs for EEST runner (default: $EEST_JOBS or auto)
   --max-failures N               stop each EEST filter after N failures (default: 1)
@@ -59,7 +59,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "${#EEST_FILTERS[@]}" -eq 0 ]]; then
-  EEST_FILTERS=(signextend)
+  EEST_FILTERS=(frontier/opcodes/all_opcodes)
 fi
 
 mkdir -p gen-out
