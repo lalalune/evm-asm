@@ -58,7 +58,7 @@ scripts/codegen-eest-stateless-check.sh \
   --filter bal_7002_partial_sweep \
   --limit 2 \
   --jobs 32 \
-  --steps 200000000
+  --steps 1000000000
 ```
 
 Run the complete `random_statetest` regression class for `zkevm@v0.4.0`:
@@ -460,7 +460,7 @@ Run a large batch:
 scripts/codegen-eest-stateless-check.sh \
   --limit 1000 \
   --jobs 32 \
-  --steps 200000000
+  --steps 1000000000
 ```
 
 Resume from a later offset by skipping the first selected cases:
@@ -470,7 +470,7 @@ scripts/codegen-eest-stateless-check.sh \
   --skip 1000 \
   --limit 1000 \
   --jobs 32 \
-  --steps 200000000
+  --steps 1000000000
 ```
 
 Collect only the first few failures from a large or highly parallel run:
@@ -481,7 +481,7 @@ scripts/codegen-eest-stateless-check.sh \
   --jobs 32 \
   --quiet-passes \
   --max-failures 20 \
-  --steps 200000000
+  --steps 1000000000
 ```
 
 Run every selected stateless block:
@@ -490,7 +490,7 @@ Run every selected stateless block:
 scripts/codegen-eest-stateless-check.sh \
   --all \
   --jobs 32 \
-  --steps 200000000
+  --steps 1000000000
 ```
 
 `--filter` is applied first, `--skip N` skips the first N stateless blocks in
@@ -517,7 +517,7 @@ scripts/codegen-zisk-stateless-verdict-check.sh \
   --filter validation_codes_missing \
   --limit 100 \
   --max-failures 5 \
-  --steps 200000000
+  --steps 1000000000
 ```
 
 In this probe, `--max-failures N` stops after N `ERROR`, false-positive, or
