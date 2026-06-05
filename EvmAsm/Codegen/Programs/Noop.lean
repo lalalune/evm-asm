@@ -388,6 +388,36 @@ private def chargePrecompileWordGasAsm
   "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
   chargePrecompileGasAsm costReg scratchReg
 
+private def chargeBls12G1MsmGasAsm
+    (inputLenReg pairCountReg costReg discountReg scratchReg : String) : String :=
+  "  li " ++ scratchReg ++ ", 160\n" ++
+  "  divu " ++ pairCountReg ++ ", " ++ inputLenReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  li " ++ costReg ++ ", 12000\n" ++
+  "  mul " ++ costReg ++ ", " ++ pairCountReg ++ ", " ++ costReg ++ "\n" ++
+  "  li " ++ scratchReg ++ ", 12000\n" ++
+  "  divu " ++ discountReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  bne " ++ discountReg ++ ", " ++ pairCountReg ++ ", .exit_outofgas\n" ++
+  "  li " ++ scratchReg ++ ", 128\n" ++
+  "  bltu " ++ scratchReg ++ ", " ++ pairCountReg ++ ", 40f\n" ++
+  "  addi " ++ discountReg ++ ", " ++ pairCountReg ++ ", -1\n" ++
+  "  slli " ++ discountReg ++ ", " ++ discountReg ++ ", 3\n" ++
+  "  la " ++ scratchReg ++ ", bls12_g1_msm_discount_table\n" ++
+  "  add " ++ discountReg ++ ", " ++ scratchReg ++ ", " ++ discountReg ++ "\n" ++
+  "  ld " ++ discountReg ++ ", 0(" ++ discountReg ++ ")\n" ++
+  "  j 41f\n" ++
+  "40:\n" ++
+  "  li " ++ discountReg ++ ", 519\n" ++
+  "41:\n" ++
+  "  mv " ++ scratchReg ++ ", " ++ costReg ++ "\n" ++
+  "  mul " ++ costReg ++ ", " ++ costReg ++ ", " ++ discountReg ++ "\n" ++
+  "  divu " ++ scratchReg ++ ", " ++ costReg ++ ", " ++ discountReg ++ "\n" ++
+  "  li " ++ discountReg ++ ", 12000\n" ++
+  "  mul " ++ discountReg ++ ", " ++ pairCountReg ++ ", " ++ discountReg ++ "\n" ++
+  "  bne " ++ scratchReg ++ ", " ++ discountReg ++ ", .exit_outofgas\n" ++
+  "  li " ++ discountReg ++ ", 1000\n" ++
+  "  divu " ++ costReg ++ ", " ++ costReg ++ ", " ++ discountReg ++ "\n" ++
+  chargePrecompileGasAsm costReg scratchReg
+
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
     CREATE2, STATICCALL). CALL-family non-precompile paths still ship as
     **pop-N + push-zero** no-ops. CREATE-family paths decode operands and
@@ -422,9 +452,8 @@ private def chargePrecompileWordGasAsm
 
     **M27.2 update**: CALL / STATICCALL also recognize BLS12-381 G1
     active precompile addresses 0x0b (G1 ADD) and 0x0c (G1 MSM).
-    This first runtime slice implements the execution-specs input-length
-    gates before the future accelerator body: G1 ADD requires exactly
-    256 bytes; G1 MSM requires a nonzero multiple of 160 bytes.
+    The runtime path enforces execution-specs input-length gates and
+    charges G1 ADD's fixed 375 gas plus G1 MSM's discounted per-pair gas.
 
     **M27.3 update**: CALL / STATICCALL also recognize BLS12-381 G2
     active precompile addresses 0x0d (G2 ADD) and 0x0e (G2 MSM).
@@ -819,6 +848,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  li x16, 256\n" ++
     "  bne x17, x16, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    chargePrecompileGasConstAsm 375 "x16" "x22" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
@@ -881,10 +911,10 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  remu x17, x18, x16\n" ++
     "  bnez x17, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    chargeBls12G1MsmGasAsm "x18" "a1" "x22" "x23" "x24" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
-    "  divu a1, x18, x16\n" ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_g1_msm\n" ++
     "  mv x10, s10\n" ++
