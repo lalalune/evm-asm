@@ -515,6 +515,14 @@ format_verdict_debug() {
     value="${words[$i]:-?}"
     dbg="${dbg:+$dbg }${labels[$i]}=$value"
   done
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 232 ]]; then
+    local recomputed_state_root payload_state_root
+    recomputed_state_root="$(xxd -p -s 168 -l 32 "$out" 2>/dev/null | tr -d '\n' || true)"
+    payload_state_root="$(xxd -p -s 200 -l 32 "$out" 2>/dev/null | tr -d '\n' || true)"
+    if [[ -n "$recomputed_state_root" && -n "$payload_state_root" ]]; then
+      dbg="$dbg recomputed_state_root=$recomputed_state_root payload_state_root=$payload_state_root"
+    fi
+  fi
   echo "$dbg"
 }
 
