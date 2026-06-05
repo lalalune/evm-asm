@@ -136,6 +136,11 @@ structure OpcodeTestCase where
       `OUTPUT_ADDR + 72` (M31). Hex string of arbitrary length;
       runner reads exactly `len/2` bytes and compares. -/
   expectedReturnDataHex : String := ""
+  /-- Optional expected SELFDESTRUCT staged beneficiary at
+      `OUTPUT_ADDR + 56`. Hex string, normally 20 canonical big-endian address
+      bytes. This shares the test-only storage/log diagnostic window, so cases
+      should assert only one of those surfaces. -/
+  expectedSelfdestructBeneficiary : String := ""
 
 /-- Registry of test cases. M5a/M5b's two original bytecodes are
     migrated as `add_basic` / `add_chain`; M6b adds ~20 more — one
@@ -682,6 +687,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0xff, 0xff"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0500000000000000" }
+  , -- SELFDESTRUCT still routes through the shared one-word stack-underflow
+    -- guard before touching the beneficiary staging scratch.
+    { name             := "selfdestruct_empty_stack_underflow"
+      bytecode         := "0xff"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , -- SELFDESTRUCT stages the low-160 beneficiary address for later
+    -- EIP-6780 gas/state children. The diagnostic exposes canonical
+    -- big-endian address bytes.
+    { name                            := "selfdestruct_stage_beneficiary"
+      bytecode                        := "0x73, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11, 0x22, 0x33, 0xff"
+      expectedOutHex                  := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind                := "0500000000000000"
+      expectedSelfdestructBeneficiary := "11223344556677889900aabbccddeeff00112233" }
   , -- ## M30 gas metering (first slice)
     -- GAS; STOP with an explicit 1000-gas limit. The dispatch loop
     -- charges GAS's own static cost (BASE = 2) BEFORE h_GAS runs, so

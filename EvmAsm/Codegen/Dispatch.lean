@@ -280,6 +280,21 @@ def emitPrecompileFrameData : String :=
   "evm_precompile_frame:\n" ++
   "  .zero 1280\n"
 
+/-- SELFDESTRUCT runtime staging scratch.
+
+    `evm_selfdestruct_beneficiary` stores the popped beneficiary address as
+    20 canonical big-endian bytes (the low 160 bits of the EVM stack word,
+    with higher bits ignored). `evm_selfdestruct_staged` is a u64 flag used by
+    the test/diagnostic surface until later account-access/state children
+    consume this staged beneficiary directly. -/
+def emitSelfdestructData : String :=
+  ".balign 32\n" ++
+  "evm_selfdestruct_beneficiary:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "evm_selfdestruct_staged:\n" ++
+  "  .zero 8\n"
+
 /-- Scratch buffers used by `zkvm_sha256`. The wrapper expects these
     labels to exist in the dispatcher's data section. -/
 def emitSha256Data : String :=
@@ -801,7 +816,26 @@ def emitDispatcherEpilogue
   "  addi x19, x19, 1\n" ++
   "  addi x21, x21, -1\n" ++
   "  bnez x21, 7b\n" ++
-  "8:\n"                            -- done — fall through to halt stub
+  "8:\n" ++                         -- done — fall through to halt stub
+  -- SELFDESTRUCT staging diagnostic. The current concrete handler only
+  -- stages the beneficiary for later gas/state children, so surface the
+  -- staged canonical 20-byte address in the otherwise-empty storage/log
+  -- diagnostic window. Future SELFDESTRUCT state/log integration can replace
+  -- this probe once the staged address has a state consumer.
+  "  la x18, evm_selfdestruct_staged\n" ++
+  "  ld x17, 0(x18)\n" ++
+  "  beqz x17, .L_selfdestruct_diag_done\n" ++
+  "  la x18, evm_selfdestruct_beneficiary\n" ++
+  "  addi x19, x16, 56\n" ++
+  "  li x21, 20\n" ++
+  "9:\n" ++
+  "  lbu x22, 0(x18)\n" ++
+  "  sb x22, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x21, x21, -1\n" ++
+  "  bnez x21, 9b\n" ++
+  ".L_selfdestruct_diag_done:\n"
 
 /-- `.data` section layout (starts at `0xa0000000` per
     `Driver.lean`'s `-Tdata=...`):
@@ -857,6 +891,7 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  emitSelfdestructData ++
   emitPrecompileFrameData ++
   emitSha256Data ++
   ".balign 8\n" ++
@@ -1171,6 +1206,7 @@ def emitRuntimeDispatcherDataSection
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
+  emitSelfdestructData ++
   emitPrecompileFrameData ++
   emitSha256Data ++
   ".balign 8\n" ++

@@ -115,6 +115,38 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "") : String 
   rollbackAsm ++
   "  j .exit_no_epilogue"
 
+/-- Stage the popped SELFDESTRUCT beneficiary for later EIP-6780 state work.
+
+    The dispatcher stack word is little-endian-limb encoded. SELFDESTRUCT
+    addresses mask to the low 160 bits, so this copies bytes `stack[19..0]`
+    into `evm_selfdestruct_beneficiary[0..19]` as canonical big-endian address
+    bytes and ignores `stack[20..31]`. The current runtime env has no static
+    context flag yet; the follow-up frame/runtime-env slice must reject
+    SELFDESTRUCT before this state staging when static mode is exposed. -/
+private def selfdestructTailAsm : String :=
+  "  la x14, evm_selfdestruct_beneficiary\n" ++
+  "  mv x15, x14\n" ++
+  "  li x16, 4\n" ++
+  ".L_selfdestruct_zero_scratch:\n" ++
+  "  sd x0, 0(x15)\n" ++
+  "  addi x15, x15, 8\n" ++
+  "  addi x16, x16, -1\n" ++
+  "  bnez x16, .L_selfdestruct_zero_scratch\n" ++
+  "  addi x15, x12, 19\n" ++
+  "  li x16, 20\n" ++
+  ".L_selfdestruct_copy_beneficiary:\n" ++
+  "  lbu x17, 0(x15)\n" ++
+  "  sb x17, 0(x14)\n" ++
+  "  addi x15, x15, -1\n" ++
+  "  addi x14, x14, 1\n" ++
+  "  addi x16, x16, -1\n" ++
+  "  bnez x16, .L_selfdestruct_copy_beneficiary\n" ++
+  "  la x14, evm_selfdestruct_staged\n" ++
+  "  li x15, 1\n" ++
+  "  sd x15, 0(x14)\n" ++
+  "  addi x12, x12, 32\n" ++
+  "  j .exit_selfdestruct"
+
 def haltHandlers : List OpcodeHandlerSpec :=
   [ -- RETURN. Pops (offset, size); keeps the legacy 32-byte prefix and
     -- also records up to 176 bytes plus length metadata at OUTPUT+64/+248.
@@ -153,7 +185,7 @@ def haltHandlers : List OpcodeHandlerSpec :=
     { label := "h_SELFDESTRUCT", opcodes := [0xff]
     , preBody := stackUnderflowGuardAsm 1
     , body := []
-    , tail := .custom "  addi x12, x12, 32\n  j .exit_selfdestruct" } ]
+    , tail := .custom selfdestructTailAsm } ]
 
 /-- M18 push-zero handlers — now empty.
 

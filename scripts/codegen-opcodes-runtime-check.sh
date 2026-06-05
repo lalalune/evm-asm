@@ -70,7 +70,7 @@ while IFS= read -r line; do
   # (tab is treated as IFS-whitespace), which silently shifts the
   # storage column into the calldata slot when calldata is empty.
   # `cut -f` preserves empty fields, so we slice each column
-  # explicitly. Order matches `--list-test-cases` 20-column TSV
+  # explicitly. Order matches `--list-test-cases` 21-column TSV
   # (M23 added halt-kind; M24 added log lengths; M25 added post-state
   # slot dumps; M26 added receipt event-log capture; M31 added the
   # extended RETURN/REVERT returndata surface).
@@ -94,6 +94,7 @@ while IFS= read -r line; do
   expected_return_data_copied=$(printf '%s' "$line" | cut -f18)
   expected_return_data_length=$(printf '%s' "$line" | cut -f19)
   expected_return_data_hex=$(printf '%s' "$line" | cut -f20)
+  expected_selfdestruct_beneficiary=$(printf '%s' "$line" | cut -f21)
 
   if [[ -z "$name" || -z "$expected" || -z "$bytecode_csv" ]]; then
     echo
@@ -266,6 +267,21 @@ while IFS= read -r line; do
     echo "  $actual_return_data_hex"
     if [[ "$actual_return_data_hex" != "$expected_return_data_hex" ]]; then
       case_failed="${case_failed:+$case_failed,}return_data_hex"
+    fi
+  fi
+
+  # SELFDESTRUCT staged-beneficiary diagnostic at OUTPUT+56. This shares the
+  # storage/event diagnostic window, so only SELFDESTRUCT staging cases should
+  # set this field.
+  if [[ -n "${expected_selfdestruct_beneficiary:-}" ]]; then
+    selfdestruct_beneficiary_len_bytes=$(( ${#expected_selfdestruct_beneficiary} / 2 ))
+    actual_selfdestruct_beneficiary="$(xxd -p -c 64 -s 56 -l "$selfdestruct_beneficiary_len_bytes" "gen-out/$name.output" | tr -d '\n')"
+    echo "expected selfdestruct_beneficiary:"
+    echo "  $expected_selfdestruct_beneficiary"
+    echo "actual selfdestruct_beneficiary:"
+    echo "  $actual_selfdestruct_beneficiary"
+    if [[ "$actual_selfdestruct_beneficiary" != "$expected_selfdestruct_beneficiary" ]]; then
+      case_failed="${case_failed:+$case_failed,}selfdestruct_beneficiary"
     fi
   fi
 
