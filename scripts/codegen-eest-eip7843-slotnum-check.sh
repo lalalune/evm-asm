@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_EIP7843_SLOTNUM_JOBS:-${EEST_JOBS:-1}}"
-STEPS="${EEST_EIP7843_SLOTNUM_STEPS:-${EEST_STEPS:-200000000}}"
+STEPS="${EEST_EIP7843_SLOTNUM_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP7843_SLOTNUM_RUN_DIR:-gen-out/eest-eip7843-slotnum}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 FILTER="${EEST_EIP7843_SLOTNUM_FILTER:-eip7843_slotnum/slotnum}"

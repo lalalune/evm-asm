@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_EIP8037_BLOCK_REGULAR_JOBS:-${EEST_JOBS:-1}}"
-STEPS="${EEST_EIP8037_BLOCK_REGULAR_STEPS:-${EEST_STEPS:-200000000}}"
+STEPS="${EEST_EIP8037_BLOCK_REGULAR_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP8037_BLOCK_REGULAR_RUN_DIR:-gen-out/eest-eip8037-block-regular}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 FILTER="${EEST_EIP8037_BLOCK_REGULAR_FILTER:-state_gas_reservoir/block_regular_gas_limit.json}"

@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_EIP8037_LAYOUT_JOBS:-${EEST_JOBS:-1}}"
-STEPS="${EEST_EIP8037_LAYOUT_STEPS:-${EEST_STEPS:-200000000}}"
+STEPS="${EEST_EIP8037_LAYOUT_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP8037_LAYOUT_RUN_DIR:-gen-out/eest-eip8037-layout}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 FILTER="${EEST_EIP8037_LAYOUT_FILTER:-pricing_at_various_gas_limits}"

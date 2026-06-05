@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_EIP7939_CLZ_JUMP_JOBS:-${EEST_JOBS:-1}}"
-STEPS="${EEST_EIP7939_CLZ_JUMP_STEPS:-${EEST_STEPS:-200000000}}"
+STEPS="${EEST_EIP7939_CLZ_JUMP_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP7939_CLZ_JUMP_RUN_DIR:-gen-out/eest-eip7939-clz-jump}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 FILTER="${EEST_EIP7939_CLZ_JUMP_FILTER:-eip7939_count_leading_zeros/count_leading_zeros/clz_jump_operation.json}"

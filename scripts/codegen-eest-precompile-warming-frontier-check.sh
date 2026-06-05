@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_PRECOMPILE_WARMING_JOBS:-${EEST_JOBS:-auto}}"
-STEPS="${EEST_PRECOMPILE_WARMING_STEPS:-${EEST_STEPS:-200000000}}"
+STEPS="${EEST_PRECOMPILE_WARMING_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_PRECOMPILE_WARMING_RUN_DIR:-gen-out/eest-precompile-warming}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 FILTER="${EEST_PRECOMPILE_WARMING_FILTER:-precompile_warming}"

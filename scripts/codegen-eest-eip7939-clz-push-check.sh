@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_EIP7939_CLZ_PUSH_JOBS:-${EEST_JOBS:-1}}"
-STEPS="${EEST_EIP7939_CLZ_PUSH_STEPS:-${EEST_STEPS:-200000000}}"
+STEPS="${EEST_EIP7939_CLZ_PUSH_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP7939_CLZ_PUSH_RUN_DIR:-gen-out/eest-eip7939-clz-push}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 FILTER="${EEST_EIP7939_CLZ_PUSH_FILTER:-clz_push_operation_same_value.json}"
