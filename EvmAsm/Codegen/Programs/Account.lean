@@ -1062,6 +1062,126 @@ def ziskAccountRefundGasPostExecProbeUnit : BuildUnit := {
   dataAsm     := ziskAccountRefundGasPostExecDataSection
 }
 
+/-! ## tx_post_exec_gas_settlement
+
+    Transaction-level post-execution gas settlement wrapper. The lower-level
+    `account_refund_gas_post_exec` helper takes `gas_used` and
+    `remaining_gas`; callers that bracket one transaction naturally have
+    `tx.gas_limit` from pre-charge plus the interpreter's final
+    `remaining_gas`. This wrapper computes:
+
+      gas_used = tx_gas_limit - remaining_gas
+
+    rejects the impossible underflow shape, then applies the sender refund and
+    coinbase priority-fee credit through `account_refund_gas_post_exec`.
+
+    Calling convention:
+      a0 (input)  : sender.balance ptr (32 B u256 BE; modified in place)
+      a1 (input)  : coinbase.balance ptr (32 B u256 BE; modified in place)
+      a2 (input)  : effective_gas_price ptr (32 B u256 BE)
+      a3 (input)  : priority_fee_per_gas ptr (32 B u256 BE)
+      a4 (input)  : tx_gas_limit (u64)
+      a5 (input)  : remaining_gas after execution (u64)
+      ra (input)  : return
+      a0 (output) :
+        0  : success — both balances updated
+        1  : mul overflow on refund or credit
+        2  : add overflow on either balance
+        3  : remaining_gas > tx_gas_limit
+
+    On success, `txpost_gas_used` is populated for receipt/cumulative-gas
+    materialization. -/
+def txPostExecGasSettlementFunction : String :=
+  "tx_post_exec_gas_settlement:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # sender ptr\n" ++
+  "  mv s1, a1                   # coinbase ptr\n" ++
+  "  mv s2, a2                   # effective gas price ptr\n" ++
+  "  mv s3, a3                   # priority fee ptr\n" ++
+  "  mv s4, a4                   # tx gas limit\n" ++
+  "  mv s5, a5                   # remaining gas\n" ++
+  "  la t0, txpost_gas_used; sd zero, 0(t0)\n" ++
+  "  bgtu s5, s4, .Ltxpost_bad_remaining\n" ++
+  "  sub a4, s4, s5              # gas_used\n" ++
+  "  la t0, txpost_gas_used; sd a4, 0(t0)\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a5, s5\n" ++
+  "  jal ra, account_refund_gas_post_exec\n" ++
+  "  j .Ltxpost_ret\n" ++
+  ".Ltxpost_bad_remaining:\n" ++
+  "  li a0, 3\n" ++
+  ".Ltxpost_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_tx_post_exec_gas_settlement`: probe BuildUnit. Reads
+    (32B sender_bal, 32B coinbase_bal, 32B egp, 32B priority_fee,
+    8B tx_gas_limit, 8B remaining_gas) from host input. Copies the
+    two balances to OUTPUT-resident scratch buffers, calls the
+    wrapper, then writes:
+
+      OUTPUT+0   : status
+      OUTPUT+8   : sender balance (32 B BE)
+      OUTPUT+40  : coinbase balance (32 B BE)
+      OUTPUT+72  : gas_used (u64 LE) -/
+def ziskTxPostExecGasSettlementPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a6, 0x40000000\n" ++
+  "  # Copy sender balance to OUTPUT + 8\n" ++
+  "  li a0, 0xa0010008\n" ++
+  "  addi t1, a6, 8\n" ++
+  "  ld t2,  0(t1); sd t2,  0(a0)\n" ++
+  "  ld t2,  8(t1); sd t2,  8(a0)\n" ++
+  "  ld t2, 16(t1); sd t2, 16(a0)\n" ++
+  "  ld t2, 24(t1); sd t2, 24(a0)\n" ++
+  "  # Copy coinbase balance to OUTPUT + 40\n" ++
+  "  li a1, 0xa0010028\n" ++
+  "  addi t1, a6, 40\n" ++
+  "  ld t2,  0(t1); sd t2,  0(a1)\n" ++
+  "  ld t2,  8(t1); sd t2,  8(a1)\n" ++
+  "  ld t2, 16(t1); sd t2, 16(a1)\n" ++
+  "  ld t2, 24(t1); sd t2, 24(a1)\n" ++
+  "  addi a2, a6, 72             # egp ptr\n" ++
+  "  addi a3, a6, 104            # priority_fee ptr\n" ++
+  "  ld a4, 136(a6)              # tx_gas_limit\n" ++
+  "  ld a5, 144(a6)              # remaining_gas\n" ++
+  "  jal ra, tx_post_exec_gas_settlement\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  la t1, txpost_gas_used; ld t2, 0(t1); sd t2, 72(t0)\n" ++
+  "  j .Ltxpost_pdone\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  accountRefundGasPostExecFunction ++ "\n" ++
+  txPostExecGasSettlementFunction ++ "\n" ++
+  ".Ltxpost_pdone:"
+
+def ziskTxPostExecGasSettlementDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40\n" ++
+  ".balign 32\n" ++
+  "arg_sender_refund:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "arg_coinbase_credit:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "txpost_gas_used:\n" ++
+  "  .zero 8"
+
+def ziskTxPostExecGasSettlementProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxPostExecGasSettlementPrologue
+  dataAsm     := ziskTxPostExecGasSettlementDataSection
+}
+
 /-! ## account_validate_balance_zero -- PR-K259
 
     Predicate: `account.balance == 0`. RLP canonical zero is the
