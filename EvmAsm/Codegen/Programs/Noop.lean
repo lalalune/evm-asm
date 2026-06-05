@@ -412,12 +412,14 @@ private def chargePrecompileWordGasAsm
     we drop everything.
 
     **M27 update**: CALL / STATICCALL now recognize target
-    addresses 0x01..0x04 as the basic precompile frame surface.
+    addresses 0x01..0x05 as the basic precompile frame surface.
     SHA256 (0x02) hashes input bytes through `zkvm_sha256`,
     IDENTITY (0x04) copies input bytes to caller output memory, and
     both push success = 1. SHA256 and IDENTITY charge their exact
     word-linear inner precompile gas through the shared helper.
-    ECRECOVER / RIPEMD160 remain success stubs in this slice;
+    MODEXP (0x05) handles the zero-length-header shortcut and charges
+    its 500 minimum gas before returning empty output. ECRECOVER /
+    RIPEMD160 remain success stubs in this slice;
     follow-up PRs wire their output semantics.
 
     **M27.2 update**: CALL / STATICCALL also recognize BLS12-381 G1
@@ -684,6 +686,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bltu x14, x15, 1f\n" ++
     "  li x15, 4\n" ++
     "  bgeu x15, x14, 11f\n" ++
+    "  li x15, 5\n" ++
+    "  beq x14, x15, .Lmodexp_zero_header_" ++ toString netPopBytes ++ "\n" ++
     "  li x15, 0x0b\n" ++
     "  beq x14, x15, 13f\n" ++
     "  li x15, 0x0c\n" ++
@@ -803,6 +807,33 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     ecrecoverVGateAsm ++
     ecrecoverNonzeroRSGateAsm ++
     ecrecoverScalarOrderGateAsm ++
+    "  j 7b\n" ++
+    -- MODEXP zero-header shortcut. execution-specs decodes missing bytes as
+    -- zero, so an empty input or all-zero 96-byte length header means
+    -- baseLen = expLen = modulusLen = 0. That path charges the minimum 500
+    -- gas and succeeds with empty returndata. Nonzero headers remain deferred
+    -- to the full zkvm_modexp marshalling/backend slice.
+    ".Lmodexp_zero_header_" ++ toString netPopBytes ++ ":\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add x18, x13, x18\n" ++
+    "  li x19, 96\n" ++
+    "  bgeu x19, x17, .Lmodexp_scan_capped_" ++ toString netPopBytes ++ "\n" ++
+    "  mv x17, x19\n" ++
+    ".Lmodexp_scan_capped_" ++ toString netPopBytes ++ ":\n" ++
+    "  beqz x17, .Lmodexp_zero_lengths_" ++ toString netPopBytes ++ "\n" ++
+    ".Lmodexp_scan_loop_" ++ toString netPopBytes ++ ":\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  bnez x16, 1f\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x17, x17, -1\n" ++
+    "  bnez x17, .Lmodexp_scan_loop_" ++ toString netPopBytes ++ "\n" ++
+    ".Lmodexp_zero_lengths_" ++ toString netPopBytes ++ ":\n" ++
+    chargePrecompileGasConstAsm 500 "x16" "x17" ++
     "  j 7b\n" ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
