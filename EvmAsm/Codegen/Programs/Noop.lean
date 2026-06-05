@@ -32,6 +32,7 @@ import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.PrecompileRuntime
+import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -155,6 +156,7 @@ private def selfdestructTailAsm : String :=
   "  ld x10, 0(sp)\n" ++
   "  ld x12, 8(sp)\n" ++
   "  addi sp, sp, 32\n" ++
+  selfdestructNewAccountSurchargeAsm ++
   "  la x14, evm_selfdestruct_staged\n" ++
   "  li x15, 1\n" ++
   "  sd x15, 0(x14)\n" ++
