@@ -592,8 +592,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beq x14, x15, .L" ++ tag ++ "_bn254_add\n" ++
     "  li x15, 0x07\n" ++
     "  beq x14, x15, .L" ++ tag ++ "_bn254_mul\n" ++
+    "  li x15, 0x08\n" ++
+    "  beq x14, x15, .L" ++ tag ++ "_bn254_pairing\n" ++
     "  li x15, 0x09\n" ++
     "  beq x14, x15, .L" ++ tag ++ "_blake2f\n" ++
+    "  li x15, 0x0a\n" ++
+    "  beq x14, x15, .L" ++ tag ++ "_kzg_point_eval\n" ++
     "  li x15, 0x0b\n" ++
     "  beq x14, x15, 13f\n" ++
     "  li x15, 0x0c\n" ++
@@ -787,6 +791,39 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez a0, 1f\n" ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_mul_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
+    -- BN254 pairing: charge 45000 + 34000 * floor(input_size / 192), then
+    -- reject non-multiple lengths as precompile failure with gas consumed.
+    ".L" ++ tag ++ "_bn254_pairing:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x16, 192\n" ++
+    "  divu x22, x18, x16\n" ++
+    "  li x16, 34000\n" ++
+    "  mulhu x23, x22, x16\n" ++
+    "  bnez x23, .exit_outofgas\n" ++
+    "  mul x16, x22, x16\n" ++
+    "  li x23, 45000\n" ++
+    "  add x16, x16, x23\n" ++
+    "  bltu x16, x23, .exit_outofgas\n" ++
+    chargePrecompileGasAsm "x16" "x17" ++
+    "  li x16, 192\n" ++
+    "  remu x17, x18, x16\n" ++
+    "  bnez x17, 1f\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x17\n" ++
+    "  mv a1, x22\n" ++
+    precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
+    "  jal x1, zkvm_bn254_pairing\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  bnez a0, 1f\n" ++
+    precompileSuccessBoolFromFrameAsm
+      (tag ++ "_bn254_pairing_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
     -- BLAKE2F: exact 213-byte payload, then charge gas equal to the BE
     -- rounds field, then validate the final flag. The current runtime wrapper
     -- deterministic-fails, but the path is ready to expose the updated 64-byte
@@ -829,6 +866,36 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez a0, 1f\n" ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_blake2f_success") outOffsetOff outSizeOff (precompileFrameBls12G2InputOff + 4) ++
+    -- KZG point evaluation: execution-specs rejects non-192-byte input before
+    -- gas, then charges fixed 50000 gas before hash/proof validation.
+    ".L" ++ tag ++ "_kzg_point_eval:\n" ++
+    "  ld x16, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x17, 192\n" ++
+    "  bne x16, x17, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    chargePrecompileGasConstAsm 50000 "x16" "x17" ++
+    stagePrecompileInputWindowAsm
+      (tag ++ "_kzg_payload") inOffsetOff inSizeOff precompileFrameBls12G2InputOff 0 192 ++
+    "  sb x0, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    precompileFrameAddi "a0" (precompileFrameBls12G2InputOff + 96) ++
+    precompileFrameAddi "a1" (precompileFrameBls12G2InputOff + 32) ++
+    precompileFrameAddi "a2" (precompileFrameBls12G2InputOff + 64) ++
+    precompileFrameAddi "a3" (precompileFrameBls12G2InputOff + 144) ++
+    precompileFrameAddi "a4" precompileFrameBls12G2OutputOff ++
+    "  jal x1, zkvm_kzg_point_eval\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  bnez a0, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  lbu x16, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
+    "  beqz x16, 1f\n" ++
+    precompileSuccessKzgPointEvalAsm
+      (tag ++ "_kzg_point_eval_success") outOffsetOff outSizeOff ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
