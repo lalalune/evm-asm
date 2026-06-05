@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_EIP8037_STATE_PRICING_HIGH_GAS_JOBS:-${EEST_JOBS:-3}}"
-STEPS="${EEST_EIP8037_STATE_PRICING_HIGH_GAS_STEPS:-${EEST_STEPS:-200000000}}"
+STEPS="${EEST_EIP8037_STATE_PRICING_HIGH_GAS_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP8037_STATE_PRICING_HIGH_GAS_RUN_DIR:-gen-out/eest-eip8037-state-pricing-high-gas}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 FILTER="${EEST_EIP8037_STATE_PRICING_HIGH_GAS_FILTER:-eip8037_state_creation_gas_cost_increase/state_gas_pricing}"

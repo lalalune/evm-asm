@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_EIP8037_STATE_DOMINATES_JOBS:-${EEST_JOBS:-3}}"
-STEPS="${EEST_EIP8037_STATE_DOMINATES_STEPS:-${EEST_STEPS:-200000000}}"
+STEPS="${EEST_EIP8037_STATE_DOMINATES_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP8037_STATE_DOMINATES_RUN_DIR:-gen-out/eest-eip8037-state-dominates}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 [[ -d "$FX" ]] || { echo "fixtures not found at $FX (run scripts/eest-fetch-fixtures.sh )" >&2; exit 1; }
