@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 
@@ -93,6 +94,13 @@ def runtimeAccountWitnessExtcodehashPrologue : String :=
 " ++
   extcodehashAtHeaderStateRootFunction ++ "
 " ++
+  runtimeAccessAccountSeedFunction ++ "
+" ++
+  runtimeAccessSeedInitialAccountsFunction ++ "
+" ++
+  ".exit_outofgas:
+  j .Lraw_ech_done
+" ++
   ".Lraw_ech_done:"
 
 
@@ -127,6 +135,14 @@ def runtimeAccountWitnessProbeDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200\n" ++
   emitRuntimeAccountWitnessData ++
+  ".balign 8\n" ++
+  runtimeAccessAccountCountLabel ++ ":\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  runtimeAccessAccountTableLabel ++ ":\n" ++
+  "  .zero " ++ toString (runtimeAccessAccountCapacity * runtimeAccessAccountRecordSize) ++ "\n" ++
+  runtimeAccessSeedScratchLabel ++ ":\n" ++
+  "  .zero 32\n" ++
   ".balign 16\n" ++
   "lp64_stack:\n" ++
   "  .zero 262144\n" ++
@@ -245,6 +261,13 @@ def runtimeAccountWitnessExtcodecopyPrologue : String :=
   headerExtractStateRootFunction ++ "
 " ++
   extcodecopyAtHeaderStateRootFunction ++ "
+" ++
+  runtimeAccessAccountSeedFunction ++ "
+" ++
+  runtimeAccessSeedInitialAccountsFunction ++ "
+" ++
+  ".exit_outofgas:
+  j .Lraw_ecc_done
 " ++
   ".Lraw_ecc_done:"
 
