@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.StateCompose
 
@@ -38,10 +39,21 @@ private def extcodehashWitnessAddressCopy : String :=
     overwritten with the 32-byte EIP-1052 result. -/
 private def extcodehashWitnessTail : HandlerTail :=
   .custom <|
-    "  ld t0, 584(x20)\n" ++          -- header length; zero means no witness context
-    "  beqz t0, .Lextcodehash_no_context\n" ++
     "  la t1, eahsr_address_scratch\n" ++
     extcodehashWitnessAddressCopy ++
+    "  addi sp, sp, -32\n" ++
+    "  sd x10, 0(sp)\n" ++
+    "  sd x12, 8(sp)\n" ++
+    "  la a0, eahsr_address_scratch\n" ++
+    "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+    "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+    "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+    "  jal ra, runtime_access_account_charge\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  ld t0, 584(x20)\n" ++          -- header length; zero means no witness context
+    "  beqz t0, .Lextcodehash_no_context\n" ++
     "  addi sp, sp, -32\n" ++
     "  sd x10, 0(sp)\n" ++
     "  sd x12, 8(sp)\n" ++
@@ -72,10 +84,21 @@ private def extcodehashWitnessTail : HandlerTail :=
     u64 code length, zero-extended across the 256-bit EVM stack word. -/
 private def extcodesizeWitnessTail : HandlerTail :=
   .custom <|
-    "  ld t0, 584(x20)\n" ++
-    "  beqz t0, .Lextcodesize_no_context\n" ++
     "  la t1, eahsr_address_scratch\n" ++
     extcodehashWitnessAddressCopy ++
+    "  addi sp, sp, -32\n" ++
+    "  sd x10, 0(sp)\n" ++
+    "  sd x12, 8(sp)\n" ++
+    "  la a0, eahsr_address_scratch\n" ++
+    "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+    "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+    "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+    "  jal ra, runtime_access_account_charge\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  ld t0, 584(x20)\n" ++
+    "  beqz t0, .Lextcodesize_no_context\n" ++
     "  addi sp, sp, -32\n" ++
     "  sd x10, 0(sp)\n" ++
     "  sd x12, 8(sp)\n" ++

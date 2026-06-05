@@ -103,13 +103,16 @@ is_verifier_config() {
     lakefile.toml|lean-toolchain) return 0 ;;
     scripts/check-*.sh) return 0 ;;
     scripts/axiom-allow.txt|scripts/conformance-baseline.txt) return 0 ;;
+    scripts/approved-heartbeat-overrides.txt) return 0 ;;
+    scripts/duplication-baseline.txt|scripts/jscpd.json) return 0 ;;
+    scripts/churn-report.sh|scripts/cycles-append.sh) return 0 ;;
     scripts/eest-fixture-tag.txt) return 0 ;;
     scripts/codegen-eest-stateless-check.sh|scripts/eest-*.sh|scripts/eest-*.py) return 0 ;;
     scripts/progress-report.sh|scripts/check-progress.sh) return 0 ;;
     scripts/progress-snapshot.sh|scripts/progress-velocity.sh|scripts/progress-delta.sh) return 0 ;;
     EvmAsm/Progress.lean) return 0 ;;
     EvmAsm/EL/Conformance/*) return 0 ;;
-    .github/workflows/*) return 0 ;;
+    .github/workflows/*|.github/labeler.yml) return 0 ;;
     *) return 1 ;;
   esac
 }
