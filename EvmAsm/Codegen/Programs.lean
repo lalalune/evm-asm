@@ -822,6 +822,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_max"             => some ziskU256MaxProbeUnit
   | "zisk_u256_div_u64_be"      => some ziskU256DivU64BeProbeUnit
   | "zisk_runtime_access_account_gas" => some ziskRuntimeAccessAccountGasProbeUnit
+  | "zisk_runtime_access_seed_initial" => some ziskRuntimeAccessSeedInitialProbeUnit
   | "zisk_priority_fee_per_gas_eip1559" => some ziskPriorityFeePerGasEip1559ProbeUnit
   | "zisk_effective_gas_price_eip1559" => some ziskEffectiveGasPriceEip1559ProbeUnit
   | "zisk_tx_cost_compute"      => some ziskTxCostComputeProbeUnit
@@ -1138,12 +1139,11 @@ def knownProgramNames : List String :=
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero", "zisk_u256_min",
    "zisk_u256_max", "zisk_u256_div_u64_be",
-   "zisk_runtime_access_account_gas",
+   "zisk_runtime_access_account_gas", "zisk_runtime_access_seed_initial",
    "zisk_priority_fee_per_gas_eip1559",
    "zisk_effective_gas_price_eip1559",
    "zisk_tx_cost_compute",
-   "zisk_validate_transaction_balance",
-   "zisk_tx_type_dispatch",
+   "zisk_validate_transaction_balance", "zisk_tx_type_dispatch",
    "zisk_tx_extract_nonce_and_gas", "zisk_tx_extract_to_address",
    "zisk_tx_extract_value",
    "zisk_tx_extract_data_section",
