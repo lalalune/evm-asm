@@ -27,9 +27,12 @@ open EvmAsm.Rv64
     bound below, not as a transaction-validity rule. Malformed tx lists, unknown
     tx types. The gate also mirrors the execution-spec pre-execution block-gas
     availability check when it can prove rejection from the intrinsic/floor gas
-    lower bound of prior transactions. When this parser-supported gate proves
-    regular-reservoir overflow, the block is invalid under the executable-spec
-    pre-execution availability check, so reject it instead of failing open. -/
+    lower bound of prior transactions. Single-transaction overflow is always
+    invalid. Multi-transaction regular overflow is rejected only when the
+    accumulated worst-regular gas before the overflowing transaction agrees with
+    the block header's final `gas_used`; otherwise this conservative bound may
+    be above execution-spec `block_gas_used` because prior transactions returned
+    unused gas, so the gate fails open. -/
 def eip8037TxGasGateFunction : String :=
   "eip8037_state_used_before_tx:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -127,6 +130,8 @@ def eip8037TxGasGateFunction : String :=
   "  mv s3, a3                   # gas_limit\n" ++
   "  li s4, 0                    # accumulated worst regular gas\n" ++
   "  la t0, bsg_min_block_gas; sd zero, 0(t0)\n" ++
+  "  addi a0, s0, 420; jal ra, bgv_u64le       # header gas_used\n" ++
+  "  la t0, bsg_header_gas_used; sd a0, 0(t0)\n" ++
   "  addi a0, s0, 504; jal ra, bgv_u32le\n" ++
   "  add s5, s0, a0              # tx list ptr\n" ++
   "  addi a0, s0, 508; jal ra, bgv_u32le\n" ++
@@ -284,6 +289,10 @@ def eip8037TxGasGateFunction : String :=
   "  bgtu t2, t4, .Letg_state_fail\n" ++
   "  addi s8, s8, 1; j .Letg_tx_loop\n" ++
   ".Letg_regular_fail:\n" ++
+  "  li t0, 1; beq s7, t0, .Letg_regular_reject\n" ++
+  "  la t0, bsg_header_gas_used; ld t0, 0(t0)\n" ++
+  "  beq s4, t0, .Letg_regular_reject\n" ++
+  "  j .Letg_ok\n" ++
   ".Letg_regular_reject:\n" ++
   "  li a0, 1; j .Letg_ret\n" ++
   ".Letg_state_fail:\n" ++
