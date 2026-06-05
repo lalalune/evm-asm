@@ -1538,6 +1538,32 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
       gasLimit         := "10000" }
+  , -- KZG point evaluation rejects non-192-byte input before fixed gas. With
+    -- gasLimit=200: seven PUSH1s (21) + CALL warm static base (100) + GAS (2)
+    -- leaves 77.
+    { name           := "call_kzg_point_eval_invalid_length_no_fixed_gas"
+      bytecode       := callPrecompileBytecode "0x0a" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "200" }
+  , -- Exact 192-byte KZG input charges fixed 50000 gas before backend/hash
+    -- failure. The deterministic backend safe-fails after the charge.
+    { name           := "call_kzg_point_eval_fixed_gas_after_call"
+      bytecode       := callPrecompileBytecode "0x0a" "0xc0" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "50200" }
+  , -- One gas short reaches the fixed KZG gas helper and exits OOG.
+    { name             := "call_kzg_point_eval_fixed_gas_out_of_gas"
+      bytecode         := callPrecompileBytecode "0x0a" "0xc0" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "50120" }
+  , -- Valid-length input reaches the deterministic backend EFAIL wrapper, so
+    -- CALL success is 0 and RETURNDATASIZE remains zero.
+    { name             := "call_kzg_point_eval_backend_failure_empty_returndata"
+      bytecode         := callPrecompileBytecode "0x0a" "0xc0" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "100000" }
   , -- BLS12 G1 ADD rejects invalid input length before any accelerator body.
     { name             := "call_bls12_g1_add_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
