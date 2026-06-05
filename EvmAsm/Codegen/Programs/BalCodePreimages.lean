@@ -34,7 +34,10 @@ open EvmAsm.Rv64
     reads only the account leaf's balance. A pure account-touch row is also accepted when a
     witness bytecode or a legacy transaction data payload contains
     `PUSH20 <address>; SELFDESTRUCT`: the executable spec touches the
-    beneficiary account there without reading its bytecode. A pure
+    beneficiary account there without reading its bytecode. The same exception
+    covers dynamic self-beneficiary bytecode that materializes `ADDRESS` and
+    later reaches `SELFDESTRUCT`, as in EIP-6780 create/selfdestruct-same-tx
+    fixtures. A pure
     account-touch row is also accepted when it is the
     `CREATE(to, 0)` address for a legacy transaction target and witness bytecode
     contains a CREATE opcode, when it is the top-level CREATE(sender, nonce)
@@ -188,6 +191,9 @@ def balCodePreimagesValidFunction : String :=
   "  la t0, bbcv_addr_off; ld t1, 0(t0); add a2, s10, t1\n" ++
   "  mv a0, s6; mv a1, s7\n" ++
   "  jal ra, bal_codes_contains_push20_selfdestruct\n" ++
+  "  bnez a0, .Lbbcv_next\n" ++
+  "  mv a0, s6; mv a1, s7\n" ++
+  "  jal ra, bal_codes_contains_address_selfdestruct\n" ++
   "  bnez a0, .Lbbcv_next\n" ++
   "  la t0, bbcv_addr_off; ld t1, 0(t0); add a0, s10, t1\n" ++
   "  jal ra, bal_txs_contains_push20_selfdestruct\n" ++
@@ -504,6 +510,74 @@ def balCodePreimagesValidFunction : String :=
   ".Lbcsd_no:\n" ++
   "  li a0, 0\n" ++
   ".Lbcsd_ret:\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp)\n" ++
+  "  ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff any witness code contains ADDRESS followed shortly by SELFDESTRUCT.\n" ++
+  "# This recognizes dynamic self-beneficiary SELFDESTRUCT bytecode, where the\n" ++
+  "# beneficiary is computed from ADDRESS/MLOAD rather than a PUSH20 literal.\n" ++
+  "bal_codes_contains_address_selfdestruct:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp)\n" ++
+  "  sd s3, 24(sp); sd s4, 32(sp); sd s5, 40(sp)\n" ++
+  "  mv s0, a0                  # witness.codes section ptr\n" ++
+  "  mv s1, a1                  # witness.codes section len\n" ++
+  "  beqz s1, .Lbcasd_no\n" ++
+  "  lwu t0, 0(s0)              # first element offset = 4*N\n" ++
+  "  srli s3, t0, 2             # s3 = N\n" ++
+  "  li s4, 0\n" ++
+  ".Lbcasd_elem_loop:\n" ++
+  "  beq s4, s3, .Lbcasd_no\n" ++
+  "  slli t0, s4, 2\n" ++
+  "  add t1, s0, t0\n" ++
+  "  lwu t2, 0(t1)              # element offset\n" ++
+  "  add s5, s0, t2             # element start\n" ++
+  "  addi t3, s4, 1\n" ++
+  "  beq t3, s3, .Lbcasd_elem_end_section\n" ++
+  "  slli t3, t3, 2\n" ++
+  "  add t3, s0, t3\n" ++
+  "  lwu t4, 0(t3)\n" ++
+  "  add t4, s0, t4             # element end\n" ++
+  "  j .Lbcasd_have_elem_end\n" ++
+  ".Lbcasd_elem_end_section:\n" ++
+  "  add t4, s0, s1\n" ++
+  ".Lbcasd_have_elem_end:\n" ++
+  "  sub t4, t4, s5             # element len\n" ++
+  "  li t5, 2\n" ++
+  "  bltu t4, t5, .Lbcasd_next_elem\n" ++
+  "  addi t6, t4, -1            # max ADDRESS scan offset\n" ++
+  "  li t0, 0                   # scan offset\n" ++
+  ".Lbcasd_scan_loop:\n" ++
+  "  bgtu t0, t6, .Lbcasd_next_elem\n" ++
+  "  add t1, s5, t0\n" ++
+  "  lbu t2, 0(t1)\n" ++
+  "  li t3, 0x30                # ADDRESS\n" ++
+  "  bne t2, t3, .Lbcasd_advance_scan\n" ++
+  "  addi t2, t0, 1             # lookahead offset\n" ++
+  "  addi t3, t0, 96            # bounded dynamic-beneficiary window\n" ++
+  "  bltu t3, t4, .Lbcasd_have_limit\n" ++
+  "  mv t3, t4\n" ++
+  ".Lbcasd_have_limit:\n" ++
+  "  beq t2, t3, .Lbcasd_advance_scan\n" ++
+  "  add t5, s5, t2\n" ++
+  "  lbu t5, 0(t5)\n" ++
+  "  li t1, 0xff                # SELFDESTRUCT\n" ++
+  "  beq t5, t1, .Lbcasd_yes\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  j .Lbcasd_have_limit\n" ++
+  ".Lbcasd_advance_scan:\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lbcasd_scan_loop\n" ++
+  ".Lbcasd_next_elem:\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lbcasd_elem_loop\n" ++
+  ".Lbcasd_yes:\n" ++
+  "  li a0, 1; j .Lbcasd_ret\n" ++
+  ".Lbcasd_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbcasd_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp)\n" ++
   "  ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp)\n" ++
   "  addi sp, sp, 56\n" ++
