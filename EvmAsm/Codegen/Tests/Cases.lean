@@ -736,6 +736,31 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex                  := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind                := "0500000000000000"
       expectedSelfdestructBeneficiary := "11223344556677889900aabbccddeeff00112233" }
+  , -- SELFDESTRUCT now charges the EIP-2929 cold account-access delta for
+    -- a non-precompile beneficiary before staging the state effect.
+    -- PUSH1 costs 3, SELFDESTRUCT base is 5000, and the cold delta is 2500,
+    -- so 7503 exactly fits.
+    { name                            := "selfdestruct_cold_beneficiary_gas"
+      bytecode                        := "0x60, 0xff, 0xff"
+      expectedOutHex                  := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind                := "0500000000000000"
+      gasLimit                        := "7503"
+      expectedSelfdestructBeneficiary := "00000000000000000000000000000000000000ff" }
+  , -- With one gas less, the dynamic cold beneficiary charge OOGs before
+    -- the staged SELFDESTRUCT flag is set.
+    { name             := "selfdestruct_cold_beneficiary_oog"
+      bytecode         := "0x60, 0xff, 0xff"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "7502" }
+  , -- Active precompile beneficiaries are initially warm, so only the PUSH1
+    -- and SELFDESTRUCT static costs are needed in the current handler.
+    { name                            := "selfdestruct_precompile_beneficiary_warm"
+      bytecode                        := "0x60, 0x01, 0xff"
+      expectedOutHex                  := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind                := "0500000000000000"
+      gasLimit                        := "5003"
+      expectedSelfdestructBeneficiary := "0000000000000000000000000000000000000001" }
   , -- ## M30 gas metering (first slice)
     -- GAS; STOP with an explicit 1000-gas limit. The dispatch loop
     -- charges GAS's own static cost (BASE = 2) BEFORE h_GAS runs, so

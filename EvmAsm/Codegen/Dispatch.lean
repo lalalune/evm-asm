@@ -243,8 +243,9 @@ def staticGasCost (op : Nat) : Nat :=
     -- child frames (base; dynamic call/create costs dropped)
     | 0xf0 => 32000 | 0xf5 => 32000                          -- CREATE, CREATE2
     | 0xf1 | 0xf2 | 0xf4 | 0xfa => 100                       -- CALL,CALLCODE,DELEGATECALL,STATICCALL
+    | 0xff => 5000                                           -- SELFDESTRUCT (base)
     -- STOP (0x00), RETURN (0xf3), REVERT (0xfd), INVALID (0xfe),
-    -- SELFDESTRUCT (0xff), and all unwired bytes → 0.
+    -- and all unwired bytes → 0.
     | _ => 0
 
 /-- Render the 256-entry static gas-cost table (`opcode_gas_costs:`,
