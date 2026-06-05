@@ -146,6 +146,19 @@ for the active fixture tag and requires all selected cases to full-match. It
 keeps the conservative transaction inclusion gate from rejecting valid
 multi-transaction blocks before exact execution gas accounting is available.
 
+Run the EIP-8037 nested-reservoir reset frontier:
+
+```bash
+scripts/codegen-eest-eip8037-nested-reservoir-check.sh
+```
+
+This filter-driven wrapper discovers all
+`nested_failure_resets_to_tx_reservoir` rows for the active fixture tag and
+requires the selected rows to full-match. Use
+`EEST_EIP8037_NESTED_RESERVOIR_SKIP`, `LIMIT`, and `MIN_FULL` to target a
+specific row group while keeping the default script complete for future fixture
+additions.
+
 Run the EIP-8037 high-block-gas layout launch regression:
 
 ```bash
