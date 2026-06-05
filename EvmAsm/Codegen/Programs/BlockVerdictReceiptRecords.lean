@@ -19,17 +19,19 @@ open EvmAsm.Rv64.Program
 /-! ## block_receipt_records_materialize -- first receipt-record integration.
     a0 = execution payload ptr.
 
-    This deliberately handles only the smallest useful materialization surface
-    before full transaction execution exists: zero transactions leaves the arena
-    empty, and one legacy transaction in an otherwise successful block appends a
-    success record with cumulative_gas_used = payload.gas_used and no logs. Other
-    transaction shapes leave a debug status but do not affect the block verdict. -/
+    This deliberately handles only a small materialization surface before full
+    transaction execution exists: zero transactions leaves the arena empty, and
+    legacy transactions append success records with cumulative_gas_used equal to
+    the running sum of their gas-limit fields. Exact post-refund gas and failure
+    status are filled by later gas-metered execution slices. Other transaction
+    shapes leave a debug status but do not affect the block verdict. -/
 def blockReceiptRecordsMaterializeFunction : String :=
   "block_receipt_records_materialize:\n" ++
-  "  addi sp, sp, -80\n" ++
+  "  addi sp, sp, -120\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
   "  mv s0, a0                   # execution payload\n" ++
   "  la t0, brr_status; sd zero, 0(t0)\n" ++
   "  la t0, brr_append_status; sd zero, 0(t0)\n" ++
@@ -47,26 +49,55 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  andi t0, a0, 3; bnez t0, .Lbrr_unsupported\n" ++
   "  srli s5, a0, 2              # tx_count\n" ++
   "  beqz s5, .Lbrr_ok\n" ++
-  "  li t0, 1; bne s5, t0, .Lbrr_unsupported\n" ++
   "  bgtu a0, s4, .Lbrr_unsupported\n" ++
-  "  mv s6, a0                   # first tx offset\n" ++
-  "  sub s7, s4, s6              # tx len\n" ++
-  "  add s6, s3, s6              # tx ptr\n" ++
-  "  mv a0, s6; mv a1, s7; la a2, brr_tx_type; la a3, brr_tx_inner\n" ++
+  "  mv s6, zero                 # tx index\n" ++
+  "  mv s7, zero                 # cumulative gas\n" ++
+  ".Lbrr_tx_loop:\n" ++
+  "  beq s6, s5, .Lbrr_ok\n" ++
+  "  slli t0, s6, 2\n" ++
+  "  add a0, s3, t0\n" ++
+  "  jal ra, bgv_u32le\n" ++
+  "  mv s8, a0                   # current tx offset\n" ++
+  "  bltu s8, s5, .Lbrr_unsupported\n" ++
+  "  slli t0, s5, 2\n" ++
+  "  bltu s8, t0, .Lbrr_unsupported\n" ++
+  "  bgtu s8, s4, .Lbrr_unsupported\n" ++
+  "  addi t0, s6, 1\n" ++
+  "  beq t0, s5, .Lbrr_last_tx\n" ++
+  "  slli t1, t0, 2\n" ++
+  "  add a0, s3, t1\n" ++
+  "  jal ra, bgv_u32le\n" ++
+  "  mv s9, a0                   # next tx offset\n" ++
+  "  j .Lbrr_have_next\n" ++
+  ".Lbrr_last_tx:\n" ++
+  "  mv s9, s4                   # final tx ends at list end\n" ++
+  ".Lbrr_have_next:\n" ++
+  "  bltu s9, s8, .Lbrr_unsupported\n" ++
+  "  bgtu s9, s4, .Lbrr_unsupported\n" ++
+  "  add s10, s3, s8             # tx ptr\n" ++
+  "  sub s11, s9, s8             # tx len\n" ++
+  "  mv a0, s10; mv a1, s11; la a2, brr_tx_type; la a3, brr_tx_inner\n" ++
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lbrr_unsupported\n" ++
   "  la t0, brr_tx_type; ld t1, 0(t0); bnez t1, .Lbrr_unsupported\n" ++
-  "  addi a0, s0, 420; jal ra, bgv_u64le        # payload.gas_used\n" ++
-  "  mv a3, a0                                  # cumulative gas\n" ++
+  "  mv a0, s10; mv a1, s11; li a2, 2; la a3, brr_tx_gas\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lbrr_unsupported\n" ++
+  "  la t0, brr_tx_gas; ld t1, 0(t0)\n" ++
+  "  add t2, s7, t1\n" ++
+  "  bltu t2, s7, .Lbrr_unsupported\n" ++
+  "  mv s7, t2\n" ++
   "  la a0, brr_control\n" ++
   "  li a1, 0                    # legacy tx type\n" ++
   "  li a2, 1                    # successful execution\n" ++
+  "  mv a3, s7                   # cumulative gas\n" ++
   "  li a4, 0                    # pre-tx event log checkpoint\n" ++
   "  li a5, 0                    # final event log count\n" ++
   "  jal ra, receipt_records_append_runtime_result\n" ++
   "  la t0, brr_append_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lbrr_append_fail\n" ++
-  "  j .Lbrr_ok\n" ++
+  "  addi s6, s6, 1\n" ++
+  "  j .Lbrr_tx_loop\n" ++
   ".Lbrr_unsupported:\n" ++
   "  li t0, 1; la t1, brr_status; sd t0, 0(t1); j .Lbrr_ret\n" ++
   ".Lbrr_append_fail:\n" ++
@@ -77,7 +108,8 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 120\n" ++
   "  ret"
 
 /-- `zisk_block_receipt_records_materialize`: focused probe for the first
@@ -89,7 +121,9 @@ def blockReceiptRecordsMaterializeFunction : String :=
       +8  receipt count
       +16 append status
       +24 first-record nth status
-      +32 first 64-byte record copy, zero if absent. -/
+      +32 first 64-byte record copy, zero if absent
+      +96 last-record nth status
+      +104 last 64-byte record copy, zero if absent. -/
 def ziskBlockReceiptRecordsMaterializePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0xa0010000\n" ++
@@ -110,10 +144,16 @@ def ziskBlockReceiptRecordsMaterializePrologue : String :=
   "  la a0, brr_control; li a1, 0; addi a2, s0, 32\n" ++
   "  jal ra, receipt_record_nth\n" ++
   "  sd a0, 24(s0)\n" ++
+  "  la t1, brr_control; ld t2, 0(t1); addi a1, t2, -1\n" ++
+  "  la a0, brr_control; addi a2, s0, 104\n" ++
+  "  jal ra, receipt_record_nth\n" ++
+  "  sd a0, 96(s0)\n" ++
   "  j .Lbrrp_done\n" ++
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
   receiptRecordsFunction ++ "\n" ++
   blockReceiptRecordsMaterializeFunction ++ "\n" ++
   ".Lbrrp_done:"
@@ -123,8 +163,11 @@ def ziskBlockReceiptRecordsMaterializeDataSection : String :=
   ".balign 8\n" ++
   "brr_status:\n  .zero 8\n" ++
   "brr_append_status:\n  .zero 8\n" ++
+  "rfu_offset:\n  .zero 8\n" ++
+  "rfu_length:\n  .zero 8\n" ++
   "brr_tx_type:\n  .zero 8\n" ++
   "brr_tx_inner:\n  .zero 8\n" ++
+  "brr_tx_gas:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024"
