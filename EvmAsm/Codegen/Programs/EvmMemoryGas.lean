@@ -139,6 +139,57 @@ def returnRevertMemoryGasAsm (tag : String) : String :=
   updateActiveMemorySizeAsm tag "x14" "x15" "x16" "x17" "x18" "x6" true ++
   ".Lreturn_revert_mem_" ++ tag ++ "_ok:\n"
 
+/-- CALL-family memory expansion gas for the input and output windows.
+
+    The dispatch loop and precompile bodies charge the static CALL base and
+    precompile-specific inner gas separately; this helper charges only generic
+    EVM memory expansion for `(in_offset, in_size)` and
+    `(out_offset, out_size)`. Zero-size ranges do not expand memory, so high
+    offset limbs are tolerated when the corresponding low size limb is zero.
+    Non-zero high size limbs, high offsets for non-zero sizes, and low-limb
+    offset+size wraparound route to `.exit_outofgas`. -/
+def callMemoryExpansionGasAsm
+    (tag : String)
+    (inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
+  "  ld x15, " ++ toString inSizeOff ++ "(x12)\n" ++
+  "  beqz x15, .Lcallmem_" ++ tag ++ "_out\n" ++
+  "  ld x5, " ++ toString (inSizeOff + 8) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (inSizeOff + 16) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (inSizeOff + 24) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (inOffsetOff + 8) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (inOffsetOff + 16) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (inOffsetOff + 24) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x14, " ++ toString inOffsetOff ++ "(x12)\n" ++
+  "  add x5, x14, x15\n" ++
+  "  bltu x5, x14, .exit_outofgas\n" ++
+  updateActiveMemorySizeAsm ("call_" ++ tag ++ "_in") "x14" "x15" "x16" "x17" "x5" "x6" true ++
+  ".Lcallmem_" ++ tag ++ "_out:\n" ++
+  "  ld x15, " ++ toString outSizeOff ++ "(x12)\n" ++
+  "  beqz x15, .Lcallmem_" ++ tag ++ "_done\n" ++
+  "  ld x5, " ++ toString (outSizeOff + 8) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (outSizeOff + 16) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (outSizeOff + 24) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (outOffsetOff + 8) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (outOffsetOff + 16) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (outOffsetOff + 24) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x14, " ++ toString outOffsetOff ++ "(x12)\n" ++
+  "  add x5, x14, x15\n" ++
+  "  bltu x5, x14, .exit_outofgas\n" ++
+  updateActiveMemorySizeAsm ("call_" ++ tag ++ "_out") "x14" "x15" "x16" "x17" "x5" "x6" true ++
+  ".Lcallmem_" ++ tag ++ "_done:\n"
+
 /-- CREATE-family initcode dynamic gas. The dispatch loop already charges
     `OPCODE_CREATE_BASE = 32000`; this charges the EIP-3860 initcode word
     cost `2 * ceil32(size) / 32`, and for CREATE2 also the EIP-1014 hashcost
