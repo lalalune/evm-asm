@@ -47,6 +47,12 @@ private def callPrecompileBytecodeWithPrefix
     (prelude ++ ["0x60", "0x00", "0x60", "0x00", "0x60", inSize, "0x60", "0x00",
       "0x60", "0x00", "0x60", target, "0x60", "0xff", "0xf1"] ++ suffix)
 
+private def callPrecompileBytecodeWithTargetBytes
+    (targetBytes : List String) (inSize : String) (suffix : List String) : String :=
+  byteCsv
+    (["0x60", "0x00", "0x60", "0x00", "0x60", inSize, "0x60", "0x00",
+      "0x60", "0x00"] ++ targetBytes ++ ["0x60", "0xff", "0xf1"] ++ suffix)
+
 private def staticcallPrecompileBytecode
     (target inSize : String) (suffix : List String) : String :=
   byteCsv
@@ -1526,8 +1532,9 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := callPrecompileBytecode "0x0a" "0x00" ["0x5a", "0x00"]
       expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "200" }
-  , -- Exact 192-byte KZG input charges fixed 50000 gas before backend/hash
-    -- failure. The deterministic backend safe-fails after the charge.
+  , -- Exact 192-byte KZG input charges fixed 50000 gas before versioned-hash
+    -- validation. The all-zero payload has version byte 0, so it fails after
+    -- the charge with the same gasRemaining as the Python execution-spec path.
     { name           := "call_kzg_point_eval_fixed_gas_after_call"
       bytecode       := callPrecompileBytecode "0x0a" "0xc0" ["0x5a", "0x00"]
       expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
@@ -1541,10 +1548,46 @@ def opcodeTestCases : List OpcodeTestCase :=
   , -- Valid-length input reaches the deterministic backend EFAIL wrapper, so
     -- CALL success is 0 and RETURNDATASIZE remains zero.
     { name             := "call_kzg_point_eval_backend_failure_empty_returndata"
-      bytecode         := callPrecompileBytecode "0x0a" "0xc0" ["0x50", "0x3d", "0x00"]
+      bytecode         := callPrecompileBytecodeWithPrefix
+        ["0x7f",
+         "0x01", "0x80", "0xe5", "0x91", "0x63", "0xce", "0x24", "0x4b",
+         "0xb4", "0xbb", "0x62", "0x11", "0xf4", "0x8c", "0x7b", "0x46",
+         "0xf8", "0x8a", "0x4f", "0x40", "0x94", "0x3e", "0x84", "0xeb",
+         "0x99", "0xbd", "0xc4", "0x1e", "0x12", "0x9b", "0xd2", "0x93",
+         "0x60", "0x00", "0x52"] "0x0a" "0xc0" ["0x50", "0x3d", "0x00"]
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
       gasLimit         := "100000" }
+  , -- Version byte 1 with a zero hash suffix still fails the execution-spec
+    -- versioned-hash gate before the backend proof verifier.
+    { name             := "call_kzg_point_eval_invalid_versioned_hash_empty_returndata"
+      bytecode         := callPrecompileBytecodeWithPrefix
+        ["0x60", "0x01", "0x60", "0x00", "0x53"] "0x0a" "0xc0" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "100000" }
+  , -- P256VERIFY is active at address 0x100. Invalid length is checked after
+    -- the fixed 6900 gas charge and returns successful empty returndata.
+    { name           := "call_p256verify_invalid_length_after_charge"
+      bytecode       := callPrecompileBytecodeWithTargetBytes
+        ["0x61", "0x01", "0x00"] "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "7100" }
+  , -- One gas short reaches the fixed P256VERIFY gas helper and exits OOG.
+    { name             := "call_p256verify_fixed_gas_out_of_gas"
+      bytecode         := callPrecompileBytecodeWithTargetBytes
+        ["0x61", "0x01", "0x00"] "0xa0" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "7020" }
+  , -- Valid-length input reaches the deterministic backend EFAIL wrapper, so
+    -- CALL success is 0 and RETURNDATASIZE remains zero.
+    { name             := "call_p256verify_backend_failure_empty_returndata"
+      bytecode         := callPrecompileBytecodeWithTargetBytes
+        ["0x61", "0x01", "0x00"] "0xa0" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "10000" }
   , -- BLS12 G1 ADD rejects invalid input length before any accelerator body.
     { name             := "call_bls12_g1_add_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
