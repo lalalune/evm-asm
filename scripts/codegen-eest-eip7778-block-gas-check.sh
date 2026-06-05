@@ -14,7 +14,7 @@ cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_EIP7778_JOBS:-${EEST_JOBS:-auto}}"
-STEPS="${EEST_EIP7778_STEPS:-${EEST_STEPS:-200000000}}"
+STEPS="${EEST_EIP7778_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP7778_RUN_DIR:-gen-out/eest-eip7778-block-gas}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 FILTER="${EEST_EIP7778_FILTER:-eip7778_block_gas_accounting_without_refunds}"
