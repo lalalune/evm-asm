@@ -276,6 +276,20 @@ def chargeBls12G2MsmGasAsm
   "  divu " ++ costReg ++ ", " ++ costReg ++ ", " ++ discountReg ++ "\n" ++
   chargePrecompileGasAsm costReg scratchReg
 
+private def chargeBls12PairingGasAsm
+    (inputLenReg pairCountReg costReg scratchReg : String) : String :=
+  "  li " ++ scratchReg ++ ", 384\n" ++
+  "  divu " ++ pairCountReg ++ ", " ++ inputLenReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  li " ++ costReg ++ ", 32600\n" ++
+  "  mul " ++ costReg ++ ", " ++ pairCountReg ++ ", " ++ costReg ++ "\n" ++
+  "  li " ++ scratchReg ++ ", 32600\n" ++
+  "  divu " ++ scratchReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  bne " ++ scratchReg ++ ", " ++ pairCountReg ++ ", .exit_outofgas\n" ++
+  "  li " ++ scratchReg ++ ", 37700\n" ++
+  "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  bltu " ++ costReg ++ ", " ++ scratchReg ++ ", .exit_outofgas\n" ++
+  chargePrecompileGasAsm costReg scratchReg
+
 def kzgVersionedHashCompareBytesAsm : String :=
   String.intercalate "" <| (List.range 31).map fun i =>
     let idx := i + 1
