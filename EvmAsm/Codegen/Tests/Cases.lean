@@ -1676,20 +1676,21 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- G1 ADD charges fixed inner gas 375 after the valid-length gate:
-    -- seven PUSHes (21) + CALL warm static base (100) + 375 = 496.
+  , -- G1 ADD charges fixed inner gas 375 after the valid-length gate.
+    -- Seven PUSHes (21) + CALL warm static base (100) + 256-byte input
+    -- memory expansion (24) + 375 = 520.
     { name             := "call_bls12_g1_add_fixed_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "496" }
+      gasLimit         := "520" }
   , -- One less gas reaches the valid G1 ADD path, then fails before
     -- invoking the backend wrapper.
     { name             := "call_bls12_g1_add_fixed_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "495" }
+      gasLimit         := "519" }
   , -- BLS12 G1 MSM rejects empty input.
     { name             := "staticcall_bls12_g1_msm_zero_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
@@ -1706,19 +1707,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- One G1 MSM pair charges 1 * 12000 * discount(1) / 1000 = 12000:
-    -- six PUSHes (18) + STATICCALL warm static base (100) + 12000 = 12118.
+  , -- One G1 MSM pair charges 1 * 12000 * discount(1) / 1000 = 12000.
+    -- Six PUSHes (18) + STATICCALL warm static base (100) + 160-byte input
+    -- memory expansion (15) + 12000 = 12133.
     { name             := "staticcall_bls12_g1_msm_one_pair_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "12118" }
+      gasLimit         := "12133" }
   , -- One less gas fails in the G1 MSM dynamic precompile charge.
     { name             := "staticcall_bls12_g1_msm_one_pair_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "12117" }
+      gasLimit         := "12132" }
   , -- BLS12 G2 ADD rejects invalid input length before any accelerator body.
     { name             := "call_bls12_g2_add_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0d, 0x60, 0xff, 0xf1, 0x00"
@@ -1730,18 +1732,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x02, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0d, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Exact gas reaches the G2 ADD backend and observes deterministic failure.
+  , -- Exact gas reaches the G2 ADD backend and observes deterministic failure:
+    -- seven PUSHes (21) + CALL warm static base (100) + 512-byte input memory
+    -- expansion (48) + fixed G2 ADD gas (600) = 769.
     { name             := "call_bls12_g2_add_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x02, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0d, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "721" }
+      gasLimit         := "769" }
   , -- One less gas fails in the G2 ADD fixed precompile charge.
     { name             := "call_bls12_g2_add_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x02, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0d, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "720" }
+      gasLimit         := "768" }
   , -- BLS12 G2 MSM rejects empty input.
     { name             := "staticcall_bls12_g2_msm_zero_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
@@ -1758,18 +1762,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x20, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Exact gas reaches the one-pair G2 MSM backend and observes failure.
+  , -- Exact gas reaches the one-pair G2 MSM backend and observes failure:
+    -- six PUSHes (18) + STATICCALL warm static base (100) + 288-byte input
+    -- memory expansion (27) + one-pair G2 MSM gas (22500) = 22645.
     { name             := "staticcall_bls12_g2_msm_one_pair_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x20, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "22618" }
+      gasLimit         := "22645" }
   , -- One less gas fails in the G2 MSM dynamic precompile charge.
     { name             := "staticcall_bls12_g2_msm_one_pair_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x20, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "22617" }
+      gasLimit         := "22644" }
   , -- BLS12 pairing rejects empty input before invoking the backend.
     { name             := "call_bls12_pairing_zero_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0f, 0x60, 0xff, 0xf1, 0x00"
@@ -1781,18 +1787,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0f, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Exact gas reaches one-pair BLS12 pairing and observes backend failure.
+  , -- Exact gas reaches one-pair BLS12 pairing and observes backend failure:
+    -- seven PUSHes (21) + CALL warm static base (100) + 384-byte input memory
+    -- expansion (36) + one-pair pairing gas (70300) = 70457.
     { name             := "call_bls12_pairing_one_pair_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0f, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "70421" }
+      gasLimit         := "70457" }
   , -- One less gas fails in the BLS12 pairing dynamic precompile charge.
     { name             := "call_bls12_pairing_one_pair_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0f, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "70420" }
+      gasLimit         := "70456" }
   , -- BLS12 map-Fp-to-G1 rejects non-64-byte input.
     { name             := "staticcall_bls12_map_fp_to_g1_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x41, 0x60, 0x00, 0x60, 0x10, 0x60, 0xff, 0xfa, 0x00"
@@ -1803,18 +1811,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x40, 0x60, 0x00, 0x60, 0x10, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Exact gas reaches map-Fp-to-G1 and observes backend failure.
+  , -- Exact gas reaches map-Fp-to-G1 and observes backend failure:
+    -- six PUSHes (18) + STATICCALL warm static base (100) + 64-byte input
+    -- memory expansion (6) + fixed map gas (5500) = 5624.
     { name             := "staticcall_bls12_map_fp_to_g1_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x40, 0x60, 0x00, 0x60, 0x10, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "5618" }
+      gasLimit         := "5624" }
   , -- One less gas fails in the map-Fp-to-G1 fixed precompile charge.
     { name             := "staticcall_bls12_map_fp_to_g1_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x40, 0x60, 0x00, 0x60, 0x10, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "5617" }
+      gasLimit         := "5623" }
   , -- BLS12 map-Fp2-to-G2 rejects non-128-byte input.
     { name             := "call_bls12_map_fp2_to_g2_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x81, 0x60, 0x00, 0x60, 0x00, 0x60, 0x11, 0x60, 0xff, 0xf1, 0x00"
@@ -1825,18 +1835,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x11, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Exact gas reaches map-Fp2-to-G2 and observes backend failure.
+  , -- Exact gas reaches map-Fp2-to-G2 and observes backend failure:
+    -- seven PUSHes (21) + CALL warm static base (100) + 128-byte input memory
+    -- expansion (12) + fixed map gas (23800) = 23933.
     { name             := "call_bls12_map_fp2_to_g2_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x11, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "23921" }
+      gasLimit         := "23933" }
   , -- One less gas fails in the map-Fp2-to-G2 fixed precompile charge.
     { name             := "call_bls12_map_fp2_to_g2_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x11, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "23920" }
+      gasLimit         := "23932" }
   , -- CALL to IDENTITY records the full precompile returndata buffer,
     -- so RETURNDATASIZE reports the input size even when out_size is short.
     { name             := "call_identity_returndatasize_three"
