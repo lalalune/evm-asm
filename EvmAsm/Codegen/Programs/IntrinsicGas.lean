@@ -260,5 +260,128 @@ def ziskInitCodeCostProbeUnit : BuildUnit := {
   dataAsm     := ziskInitCodeCostDataSection
 }
 
+/-! ## intrinsic_gas_amsterdam_counts -- EEST transaction intrinsic gas
+
+    Compute Amsterdam `calculate_intrinsic_cost(tx)` over already-decoded
+    transaction shape:
+
+      tokens    = zero_data_bytes + 4 * non_zero_data_bytes
+      intrinsic = 21000
+                + 4 * tokens
+                + creation ? (32000 + 2 * ceil(data_len / 32)) : 0
+                + 2400 * access_list_address_count
+                + 1900 * access_list_storage_key_count
+                + 25000 * authorization_count
+      floor     = 21000 + 10 * tokens
+
+    The current Amsterdam execution-specs leaves access-list floor tokens at
+    zero, so access-list entries affect the standard intrinsic cost but not the
+    calldata floor. -/
+def intrinsicGasAmsterdamCountsFunction : String :=
+  "intrinsic_gas_amsterdam_counts:\n" ++
+  "  # a0=data ptr, a1=data len, a2=is_creation, a3=access addrs,\n" ++
+  "  # a4=access slots, a5=authorization count, a6=intrinsic out, a7=floor out\n" ++
+  "  li t0, 0                    # zero_count\n" ++
+  "  li t1, 0                    # non_zero_count\n" ++
+  "  mv t2, a0                   # cursor\n" ++
+  "  mv t3, a1                   # remaining\n" ++
+  ".Ligac_loop:\n" ++
+  "  beqz t3, .Ligac_count_done\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  bnez t4, .Ligac_nz\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Ligac_step\n" ++
+  ".Ligac_nz:\n" ++
+  "  addi t1, t1, 1\n" ++
+  ".Ligac_step:\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Ligac_loop\n" ++
+  ".Ligac_count_done:\n" ++
+  "  slli t5, t1, 2              # non_zero_count * 4\n" ++
+  "  add t5, t5, t0              # tokens\n" ++
+  "  slli t6, t5, 2              # data cost = tokens * 4\n" ++
+  "  li t4, 21000\n" ++
+  "  add t6, t6, t4              # intrinsic = base + data\n" ++
+  "  beqz a2, .Ligac_after_creation\n" ++
+  "  li t4, 32000\n" ++
+  "  add t6, t6, t4\n" ++
+  "  addi t4, a1, 31\n" ++
+  "  srli t4, t4, 5\n" ++
+  "  slli t4, t4, 1              # init code cost = 2 * ceil(len / 32)\n" ++
+  "  add t6, t6, t4\n" ++
+  ".Ligac_after_creation:\n" ++
+  "  li t4, 2400\n" ++
+  "  mul t4, a3, t4\n" ++
+  "  add t6, t6, t4\n" ++
+  "  li t4, 1900\n" ++
+  "  mul t4, a4, t4\n" ++
+  "  add t6, t6, t4\n" ++
+  "  li t4, 25000\n" ++
+  "  mul t4, a5, t4\n" ++
+  "  add t6, t6, t4\n" ++
+  "  sd t6, 0(a6)\n" ++
+  "  li t4, 10\n" ++
+  "  mul t5, t5, t4\n" ++
+  "  li t4, 21000\n" ++
+  "  add t5, t5, t4\n" ++
+  "  sd t5, 0(a7)\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_intrinsic_gas_amsterdam_counts`: focused probe.
+    Input layout:
+      bytes  0.. 8 : data length
+      bytes  8..16 : is_creation
+      bytes 16..24 : tx gas limit
+      bytes 24..32 : access-list address count
+      bytes 32..40 : access-list storage-key count
+      bytes 40..48 : authorization count
+      bytes 48..   : data bytes
+    Output layout:
+      bytes  0.. 8 : status, 0 iff max(intrinsic, floor) <= gas_limit
+      bytes  8..16 : intrinsic gas
+      bytes 16..24 : calldata floor gas -/
+def ziskIntrinsicGasAmsterdamCountsPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld a1, 8(t0)                # data length\n" ++
+  "  ld a2, 16(t0)               # is_creation\n" ++
+  "  ld s0, 24(t0)               # gas_limit, kept across helper call\n" ++
+  "  ld a3, 32(t0)               # access-list address count\n" ++
+  "  ld a4, 40(t0)               # access-list storage-key count\n" ++
+  "  ld a5, 48(t0)               # authorization count\n" ++
+  "  addi a0, t0, 56             # data ptr\n" ++
+  "  li a6, 0xa0010008           # intrinsic out\n" ++
+  "  li a7, 0xa0010010           # floor out\n" ++
+  "  jal ra, intrinsic_gas_amsterdam_counts\n" ++
+  "  li t0, 0xa0010008\n" ++
+  "  ld t2, 0(t0)                # intrinsic\n" ++
+  "  li t0, 0xa0010010\n" ++
+  "  ld t3, 0(t0)                # floor\n" ++
+  "  bgeu t2, t3, .Ligac_have_required\n" ++
+  "  mv t2, t3\n" ++
+  ".Ligac_have_required:\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  li t3, 1\n" ++
+  "  bltu s0, t2, .Ligac_write_status\n" ++
+  "  li t3, 0\n" ++
+  ".Ligac_write_status:\n" ++
+  "  sd t3, 0(t0)\n" ++
+  "  j .Ligac_pdone\n" ++
+  intrinsicGasAmsterdamCountsFunction ++ "\n" ++
+  ".Ligac_pdone:"
+
+def ziskIntrinsicGasAmsterdamCountsDataSection : String :=
+  ".section .data\n" ++
+  "igac_scratch:\n" ++
+  "  .zero 8"
+
+def ziskIntrinsicGasAmsterdamCountsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskIntrinsicGasAmsterdamCountsPrologue
+  dataAsm     := ziskIntrinsicGasAmsterdamCountsDataSection
+}
+
 
 end EvmAsm.Codegen
