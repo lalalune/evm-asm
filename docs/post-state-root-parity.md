@@ -49,7 +49,7 @@ scripts/codegen-zisk-bal-account-apply-post-fields-check.sh
 scripts/codegen-zisk-mpt-state-root-ins-check.sh
 scripts/codegen-zisk-stateless-verdict-check.sh \
   --filter bal_create_storage_op_then_selfdestruct_same_tx \
-  --limit 10 --steps 200000000
+  --limit 10 --steps 1000000000
 ```
 
 Focused EEST frontiers that exercise the current block-verdict post-state path:

@@ -41,7 +41,7 @@ Options:
   --limit N                    per-filter row cap after skip (default: 1)
   --skip N                     per-filter rows to skip (default: 0)
   --jobs N|auto                ziskemu jobs (default: $EEST_GAS_PARITY_JOBS, $EEST_JOBS, or 3)
-  --steps N                    ziskemu max steps (default: 200000000)
+  --steps N                    ziskemu max steps (default: 1000000000)
   --max-failures N             per-filter FAIL/ERROR stop cap (default: 1)
   --run-dir DIR                output directory (default: gen-out/eest-gas-parity)
   --tag TAG                    EEST fixture tag (default: zkevm@v0.4.0)

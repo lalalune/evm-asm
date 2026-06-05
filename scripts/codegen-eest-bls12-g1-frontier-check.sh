@@ -34,7 +34,7 @@ Options:
   --limit N                    per-filter row cap after skip (default: all selected)
   --jobs N|auto                ziskemu jobs (default: $EEST_BLS12_G1_JOBS,
                                $EEST_JOBS, or 3)
-  --steps N                    ziskemu max steps (default: 200000000)
+  --steps N                    ziskemu max steps (default: 1000000000)
   --max-failures N             stop each filter after N FAIL/ERROR rows (default: 1)
   --stop-after-failures N      alias for --max-failures
   --require-full               require every selected row to full-match

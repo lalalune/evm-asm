@@ -37,6 +37,7 @@ import EvmAsm.Evm64.Swap.Program
 import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 import EvmAsm.Codegen.Programs.Evm
@@ -91,10 +92,10 @@ import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.StorageWrite
+import EvmAsm.Codegen.Programs.StorageEffectRecords
 import EvmAsm.Codegen.Programs.SstoreGasRefund
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
-import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
@@ -346,7 +347,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
-  | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
+  | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
@@ -365,7 +366,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_storage_root_single_slot" => some ziskStorageRootSingleSlotProbeUnit
   | "zisk_account_set_storage_root" => some ziskAccountSetStorageRootProbeUnit
   | "zisk_block_access_list_hash" => some ziskBlockAccessListHashProbeUnit
-  | "zisk_account_apply_storage_slot" => some ziskAccountApplyStorageSlotProbeUnit | "zisk_sstore_gas_refund_outcome" => some ziskSstoreGasRefundOutcomeProbeUnit
+  | "zisk_account_apply_storage_slot" => some ziskAccountApplyStorageSlotProbeUnit | "zisk_storage_effect_records_probe" => some ziskStorageEffectRecordsProbeUnit | "zisk_sstore_gas_refund_outcome" => some ziskSstoreGasRefundOutcomeProbeUnit
   | "zisk_mpt_leaf_node_encode" => some ziskMptLeafNodeEncodeProbeUnit
   | "zisk_mpt_node_slot_encode" => some ziskMptNodeSlotEncodeProbeUnit
   | "zisk_mpt_extension_node_encode" => some ziskMptExtensionNodeEncodeProbeUnit
@@ -1202,7 +1203,7 @@ def knownProgramNames : List String :=
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
    "zisk_block_access_list_hash",
-   "zisk_account_apply_storage_slot", "zisk_sstore_gas_refund_outcome",
+   "zisk_account_apply_storage_slot", "zisk_storage_effect_records_probe", "zisk_sstore_gas_refund_outcome",
    "zisk_mpt_leaf_node_encode",
    "zisk_mpt_node_slot_encode",
    "zisk_mpt_extension_node_encode",
@@ -1370,16 +1371,13 @@ def knownProgramNames : List String :=
    "zisk_ssz_hash_tree_root_execution_witness"]
 
 end EvmAsm.Codegen
-
 /-! ## File-size guard
-
     Hard cap of 1500 lines on `Programs.lean` and every sibling under
     `EvmAsm/Codegen/Programs/`, to keep the registry hub and the
     extracted submodules from spiralling. When this guard trips, split
     a cluster of `*Function` / `zisk*` defs into a new (or existing)
     submodule, add it to the `paths` list below and to `Programs.lean`'s
     imports.
-
     Established splits so far:
       * PR-#5870 carved `Evm.lean` / `HashBridge.lean` / `Ssz.lean`.
       * PR-#5900 carved `RlpRead.lean` / `Mpt.lean`.
@@ -1453,6 +1451,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BalGasValid.lean",
     "EvmAsm/Codegen/Programs/BalCodePreimages.lean",
     "EvmAsm/Codegen/Programs/StorageWrite.lean", "EvmAsm/Codegen/Programs/SstoreGasRefund.lean",
+    "EvmAsm/Codegen/Programs/StorageEffectRecords.lean",
     "EvmAsm/Codegen/Programs/BlockAccessListHash.lean",
     "EvmAsm/Codegen/Programs/AccountApplyStorage.lean",
     "EvmAsm/Codegen/Programs/Noop.lean", "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
