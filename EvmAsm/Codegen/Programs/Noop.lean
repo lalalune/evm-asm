@@ -902,6 +902,9 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     -- address operands are masked to the low 160 bits: limb 1 and
     -- the low 32 bits of limb 2 participate in precompile dispatch,
     -- while bits 160..255 are ignored.
+    callMemoryExpansionGasAsm
+      ("precompile_" ++ toString netPopBytes)
+      inOffsetOff inSizeOff outOffsetOff outSizeOff ++
     "  ld x14, 32(x12)\n" ++
     "  ld x15, 40(x12)\n" ++
     "  bnez x15, 1f\n" ++
