@@ -1,5 +1,4 @@
 /- EvmAsm.Codegen.Programs
-
   Registry of programs the codegen tool knows how to emit, each as a
   `BuildUnit` (verified body + optional wrapping).
 -/
@@ -56,6 +55,7 @@ import EvmAsm.Codegen.Programs.HashProbes
 import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.PrecompileRuntime
+import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
