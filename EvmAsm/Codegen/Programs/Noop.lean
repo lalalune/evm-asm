@@ -30,11 +30,8 @@
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
-<<<<<<< HEAD
 import EvmAsm.Codegen.Programs.Modexp
-=======
 import EvmAsm.Codegen.Programs.PrecompileRuntime
->>>>>>> origin/feat/modexp-header-gas
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
