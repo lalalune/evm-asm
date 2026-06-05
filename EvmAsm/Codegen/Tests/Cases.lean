@@ -27,6 +27,14 @@ private def repeatedPush1Bytecode (n : Nat) (value : String) : String :=
 private def push20RepeatedBytecode (value : String) (suffix : List String) : String :=
   byteCsv (["0x73"] ++ List.replicate 20 value ++ suffix)
 
+private def callToRepeatedTargetBytecode (value : String) (suffix : List String) : String :=
+  byteCsv ((List.range 5).flatMap (fun _ => ["0x60", "0x00"]) ++
+    ["0x73"] ++ List.replicate 20 value ++ ["0x60", "0xff", "0xf1"] ++ suffix)
+
+private def staticcallToRepeatedTargetBytecode (value : String) (suffix : List String) : String :=
+  byteCsv ((List.range 4).flatMap (fun _ => ["0x60", "0x00"]) ++
+    ["0x73"] ++ List.replicate 20 value ++ ["0x60", "0xff", "0xfa"] ++ suffix)
+
 private def callPrecompileBytecode
     (target inSize : String) (suffix : List String) : String :=
   byteCsv
@@ -1095,6 +1103,43 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "staticcall_pop6_push_zero"
       bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0xfa, 0x60, 0xab, 0x00"
       expectedOutHex := "ab00000000000000000000000000000000000000000000000000000000000000" }
+  , -- CALL-family account access: dispatcher static gas already charges
+    -- the 100-gas warm floor, so a cold non-precompile target pays only the
+    -- 2500 dynamic delta here. With gasLimit=3000, CALL leaves
+    -- 3000 - 21(pushes) - 100 - 2500 - 2(GAS) = 377.
+    { name           := "call_cold_access_gas_no_context"
+      bytecode       := callToRepeatedTargetBytecode "0xaa" ["0x5a", "0x00"]
+      expectedOutHex := "7901000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3000" }
+  , -- The current ADDRESS is seeded warm before runtime execution, so the
+    -- same target charges only CALL's 100-gas warm floor.
+    { name           := "call_seeded_address_warm_access_gas_no_context"
+      bytecode       := callToRepeatedTargetBytecode "0xaa" ["0x5a", "0x00"]
+      expectedOutHex := "3d0b000000000000000000000000000000000000000000000000000000000000"
+      env            := "address=0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      gasLimit       := "3000" }
+  , -- One gas short for the cold delta after the pushes and CALL warm floor.
+    { name             := "call_cold_access_oog_no_context"
+      bytecode         := callToRepeatedTargetBytecode "0xaa" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "2620" }
+  , -- STATICCALL has one fewer stack argument: 18 push gas, 100 warm floor,
+    -- 2500 cold delta, then GAS leaves 380.
+    { name           := "staticcall_cold_access_gas_no_context"
+      bytecode       := staticcallToRepeatedTargetBytecode "0xbb" ["0x5a", "0x00"]
+      expectedOutHex := "7c01000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3000" }
+  , { name           := "staticcall_seeded_address_warm_access_gas_no_context"
+      bytecode       := staticcallToRepeatedTargetBytecode "0xbb" ["0x5a", "0x00"]
+      expectedOutHex := "400b000000000000000000000000000000000000000000000000000000000000"
+      env            := "address=0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      gasLimit       := "3000" }
+  , { name             := "staticcall_cold_access_oog_no_context"
+      bytecode         := staticcallToRepeatedTargetBytecode "0xbb" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "2617" }
   , -- ECRECOVER currently remains an empty-returndata success stub,
     -- but now charges its fixed inner precompile gas of 3000. CALL
     -- total here is seven PUSH1s (21) + CALL warm static base (100)
