@@ -258,6 +258,46 @@ def emitGasCostTable : String :=
   "opcode_gas_costs:\n" ++
   String.intercalate "\n" entries
 
+private def emitBls12G1MsmDiscountTable : String :=
+  ".balign 8\n" ++
+  "bls12_g1_msm_discount_table:\n" ++
+  "  .quad 1000, 949, 848, 797, 764, 750, 738, 728\n" ++
+  "  .quad 719, 712, 705, 698, 692, 687, 682, 677\n" ++
+  "  .quad 673, 669, 665, 661, 658, 654, 651, 648\n" ++
+  "  .quad 645, 642, 640, 637, 635, 632, 630, 627\n" ++
+  "  .quad 625, 623, 621, 619, 617, 615, 613, 611\n" ++
+  "  .quad 609, 608, 606, 604, 603, 601, 599, 598\n" ++
+  "  .quad 596, 595, 593, 592, 591, 589, 588, 586\n" ++
+  "  .quad 585, 584, 582, 581, 580, 579, 577, 576\n" ++
+  "  .quad 575, 574, 573, 572, 570, 569, 568, 567\n" ++
+  "  .quad 566, 565, 564, 563, 562, 561, 560, 559\n" ++
+  "  .quad 558, 557, 556, 555, 554, 553, 552, 551\n" ++
+  "  .quad 550, 549, 548, 547, 547, 546, 545, 544\n" ++
+  "  .quad 543, 542, 541, 540, 540, 539, 538, 537\n" ++
+  "  .quad 536, 536, 535, 534, 533, 532, 532, 531\n" ++
+  "  .quad 530, 529, 528, 528, 527, 526, 525, 525\n" ++
+  "  .quad 524, 523, 522, 522, 521, 520, 520, 519\n"
+
+private def emitBls12G2MsmDiscountTable : String :=
+  ".balign 8\n" ++
+  "bls12_g2_msm_discount_table:\n" ++
+  "  .quad 1000, 1000, 923, 884, 855, 832, 812, 796\n" ++
+  "  .quad 782, 770, 759, 749, 740, 732, 724, 717\n" ++
+  "  .quad 711, 704, 699, 693, 688, 683, 679, 674\n" ++
+  "  .quad 670, 666, 663, 659, 655, 652, 649, 646\n" ++
+  "  .quad 643, 640, 637, 634, 632, 629, 627, 624\n" ++
+  "  .quad 622, 620, 618, 615, 613, 611, 609, 607\n" ++
+  "  .quad 606, 604, 602, 600, 598, 597, 595, 593\n" ++
+  "  .quad 592, 590, 589, 587, 586, 584, 583, 582\n" ++
+  "  .quad 580, 579, 578, 576, 575, 574, 573, 571\n" ++
+  "  .quad 570, 569, 568, 567, 566, 565, 563, 562\n" ++
+  "  .quad 561, 560, 559, 558, 557, 556, 555, 554\n" ++
+  "  .quad 553, 552, 552, 551, 550, 549, 548, 547\n" ++
+  "  .quad 546, 545, 545, 544, 543, 542, 541, 541\n" ++
+  "  .quad 540, 539, 538, 537, 537, 536, 535, 535\n" ++
+  "  .quad 534, 533, 532, 532, 531, 530, 530, 529\n" ++
+  "  .quad 528, 528, 527, 526, 526, 525, 524, 524\n"
+
 /-- Shared scratch for the CALL/STATICCALL precompile frame surface.
     Follow-up precompile bodies can write returndata bytes here before
     copying them into caller memory. Layout:
@@ -938,6 +978,8 @@ def emitDispatcherDataSection
   "addmod_saved_stack_ptr:\n" ++
   "  .zero 8\n" ++        -- Original EVM stack pointer across inner MOD calls.
                           -- restores `sp = lp64_sp_top`.
+  emitBls12G1MsmDiscountTable ++
+  emitBls12G2MsmDiscountTable ++
   emitGasCostTable ++ "\n" ++
   emitJumpTable registry
 
@@ -1266,6 +1308,8 @@ def emitRuntimeDispatcherDataSection
   "addmod_saved_stack_ptr:\n" ++
   "  .zero 8\n" ++        -- Original EVM stack pointer across inner MOD calls.
                           -- restores `sp = lp64_sp_top`.
+  emitBls12G1MsmDiscountTable ++
+  emitBls12G2MsmDiscountTable ++
   emitGasCostTable ++ "\n" ++
   emitJumpTable registry
 
