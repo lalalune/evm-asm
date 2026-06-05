@@ -23,6 +23,7 @@ import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
+import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.EvmAccessGas
@@ -683,6 +684,7 @@ def emitDispatcherEpilogue
   hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
+  storageAccessGasFunction ++ "\n" ++
   runtimeAccessAccountSeedFunction ++ "\n" ++
   runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
   runtimeAccessAccountChargeFunction ++ "\n" ++
@@ -898,6 +900,7 @@ def emitDispatcherDataSection
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
   emitSelfdestructData ++
+  storageAccessGasData ++
   emitPrecompileFrameData ++
   emitSha256Data ++
   ".balign 8\n" ++
@@ -1217,6 +1220,7 @@ def emitRuntimeDispatcherDataSection
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
   emitSelfdestructData ++
+  storageAccessGasData ++
   emitPrecompileFrameData ++
   emitSha256Data ++
   ".balign 8\n" ++
