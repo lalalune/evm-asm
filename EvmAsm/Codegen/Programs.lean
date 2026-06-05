@@ -285,7 +285,6 @@ open EvmAsm.Rv64
     - K64 blob_gas_used_from_versioned_hashes -> Programs/Tx.lean
     - K138/K139 signature extractors -> Programs/TxSignature.lean -/
 
-
 /-! More misc programs moved to submodules — see commit history and
     the per-PR header comments inside the destination files for details. -/
 
@@ -1425,6 +1424,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/ExpProperty.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
     "EvmAsm/Codegen/Programs/HashProbes.lean",
+    "EvmAsm/Codegen/Programs/Modexp.lean",
     "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderBaseFee.lean",

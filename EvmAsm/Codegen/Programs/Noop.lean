@@ -753,10 +753,13 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  j 7b\n" ++
     -- MODEXP header/gas path. execution-specs decodes missing length/header
     -- bytes as zero, rejects component lengths above 1024 before charging gas,
-    -- and otherwise charges the EIP-2565/Osaka gas formula. Nonzero inputs
-    -- are charged and fail until the zkvm_modexp output slice lands.
+    -- and otherwise charges the EIP-2565/Osaka gas formula. Small nonzero
+    -- components use a bounded software path; larger inputs still wait for
+    -- the full zkvm_modexp output slice.
     ".Lmodexp_zero_header_" ++ toString netPopBytes ++ ":\n" ++
-    modexpPrecompileGasAsm (toString netPopBytes) inOffsetOff inSizeOff ++
+    modexpPrecompileGasAsm
+      chargePrecompileGasAsm (toString netPopBytes)
+      inOffsetOff inSizeOff outOffsetOff outSizeOff ++
     -- BN254 G1 ADD: fixed 150 gas, two 64-byte zero-padded G1 inputs.
     -- The current runtime wrapper deterministic-fails until the host backend
     -- path is available, so valid calls surface precompile failure after gas.
