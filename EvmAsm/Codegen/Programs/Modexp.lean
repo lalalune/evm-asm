@@ -1,15 +1,13 @@
 /-
   EvmAsm.Codegen.Programs.Modexp
 
-  EIP-2565 / Osaka MODEXP gas helpers extracted from Noop.lean to keep
-  that file under the 1500-line hard cap.
+  MODEXP precompile assembly helpers split out of `Programs.Noop` to keep the
+  child-frame handler module under the file-size guardrail.
 -/
-
-import EvmAsm.Codegen.Programs.PrecompileRuntime
 
 namespace EvmAsm.Codegen
 
-def modexpReadLengthAsm (suffix : String) (fieldOff : Nat) (dstReg : String) : String :=
+private def modexpReadLengthAsm (suffix : String) (fieldOff : Nat) (dstReg : String) : String :=
   "  li " ++ dstReg ++ ", 0\n" ++
   "  li x29, 0\n" ++
   ".Lmodexp_len_loop_" ++ suffix ++ "_" ++ toString fieldOff ++ ":\n" ++
@@ -37,7 +35,7 @@ def modexpReadLengthAsm (suffix : String) (fieldOff : Nat) (dstReg : String) : S
   "  li x31, 1024\n" ++
   "  bltu x31, " ++ dstReg ++ ", 1f\n"
 
-def modexpByteLog2Asm (suffix : String) : String :=
+private def modexpByteLog2Asm (suffix : String) : String :=
   "  li x31, 128\n" ++
   "  bgeu x16, x31, .Lmodexp_log2_7_" ++ suffix ++ "\n" ++
   "  li x31, 64\n" ++
@@ -75,8 +73,30 @@ def modexpByteLog2Asm (suffix : String) : String :=
   "  addi x27, x27, 1\n" ++
   "  j .Lmodexp_log_done_" ++ suffix ++ "\n"
 
+private def modexpReadSmallComponentAsm
+    (suffix name startReg lenReg dstReg : String) : String :=
+  "  li " ++ dstReg ++ ", 0\n" ++
+  "  li x29, 0\n" ++
+  ".Lmodexp_read_" ++ name ++ "_loop_" ++ suffix ++ ":\n" ++
+  "  beq x29, " ++ lenReg ++ ", .Lmodexp_read_" ++ name ++ "_done_" ++ suffix ++ "\n" ++
+  "  add x31, " ++ startReg ++ ", x29\n" ++
+  "  bgeu x31, x17, .Lmodexp_read_" ++ name ++ "_missing_" ++ suffix ++ "\n" ++
+  "  add x31, x18, x31\n" ++
+  "  lbu x16, 0(x31)\n" ++
+  "  j .Lmodexp_read_" ++ name ++ "_have_" ++ suffix ++ "\n" ++
+  ".Lmodexp_read_" ++ name ++ "_missing_" ++ suffix ++ ":\n" ++
+  "  li x16, 0\n" ++
+  ".Lmodexp_read_" ++ name ++ "_have_" ++ suffix ++ ":\n" ++
+  "  slli " ++ dstReg ++ ", " ++ dstReg ++ ", 8\n" ++
+  "  or " ++ dstReg ++ ", " ++ dstReg ++ ", x16\n" ++
+  "  addi x29, x29, 1\n" ++
+  "  j .Lmodexp_read_" ++ name ++ "_loop_" ++ suffix ++ "\n" ++
+  ".Lmodexp_read_" ++ name ++ "_done_" ++ suffix ++ ":\n"
+
 def modexpPrecompileGasAsm
-    (suffix : String) (inOffsetOff inSizeOff : Nat) : String :=
+    (chargePrecompileGasAsm : String → String → String)
+    (suffix : String)
+    (inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
   "  la x15, evm_precompile_frame\n" ++
   "  li x16, 1\n" ++
   "  sd x16, 0(x15)\n" ++
@@ -155,7 +175,67 @@ def modexpPrecompileGasAsm
   chargePrecompileGasAsm "x16" "x31" ++
   "  or x24, x21, x23\n" ++
   "  beqz x24, 7b\n" ++
-  "  j 1f\n"
-
+  "  beqz x23, 7b\n" ++
+  "  li x31, 4\n" ++
+  "  bltu x31, x21, 1f\n" ++
+  "  bltu x31, x22, 1f\n" ++
+  "  bltu x31, x23, 1f\n" ++
+  "  li x30, 96\n" ++
+  modexpReadSmallComponentAsm suffix "base" "x30" "x21" "x24" ++
+  "  add x30, x30, x21\n" ++
+  modexpReadSmallComponentAsm suffix "exp" "x30" "x22" "x25" ++
+  "  add x30, x30, x22\n" ++
+  modexpReadSmallComponentAsm suffix "mod" "x30" "x23" "x26" ++
+  "  li x27, 0\n" ++
+  "  beqz x26, .Lmodexp_result_ready_" ++ suffix ++ "\n" ++
+  "  remu x24, x24, x26\n" ++
+  "  li x27, 1\n" ++
+  "  remu x27, x27, x26\n" ++
+  "  mv x28, x25\n" ++
+  ".Lmodexp_pow_loop_" ++ suffix ++ ":\n" ++
+  "  beqz x28, .Lmodexp_result_ready_" ++ suffix ++ "\n" ++
+  "  andi x31, x28, 1\n" ++
+  "  beqz x31, .Lmodexp_pow_skip_mul_" ++ suffix ++ "\n" ++
+  "  mul x27, x27, x24\n" ++
+  "  remu x27, x27, x26\n" ++
+  ".Lmodexp_pow_skip_mul_" ++ suffix ++ ":\n" ++
+  "  srli x28, x28, 1\n" ++
+  "  beqz x28, .Lmodexp_pow_loop_" ++ suffix ++ "\n" ++
+  "  mul x24, x24, x24\n" ++
+  "  remu x24, x24, x26\n" ++
+  "  j .Lmodexp_pow_loop_" ++ suffix ++ "\n" ++
+  ".Lmodexp_result_ready_" ++ suffix ++ ":\n" ++
+  "  sd x23, 8(x15)\n" ++
+  "  addi x28, x15, 16\n" ++
+  "  li x29, 0\n" ++
+  ".Lmodexp_result_store_loop_" ++ suffix ++ ":\n" ++
+  "  beq x29, x23, .Lmodexp_result_store_done_" ++ suffix ++ "\n" ++
+  "  sub x31, x23, x29\n" ++
+  "  addi x31, x31, -1\n" ++
+  "  slli x31, x31, 3\n" ++
+  "  srl x16, x27, x31\n" ++
+  "  andi x16, x16, 255\n" ++
+  "  sb x16, 0(x28)\n" ++
+  "  addi x28, x28, 1\n" ++
+  "  addi x29, x29, 1\n" ++
+  "  j .Lmodexp_result_store_loop_" ++ suffix ++ "\n" ++
+  ".Lmodexp_result_store_done_" ++ suffix ++ ":\n" ++
+  "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+  "  mv x24, x23\n" ++
+  "  bgeu x22, x24, .Lmodexp_copy_len_done_" ++ suffix ++ "\n" ++
+  "  mv x24, x22\n" ++
+  ".Lmodexp_copy_len_done_" ++ suffix ++ ":\n" ++
+  "  beqz x24, 7b\n" ++
+  "  addi x28, x15, 16\n" ++
+  "  ld x29, " ++ toString outOffsetOff ++ "(x12)\n" ++
+  "  add x29, x13, x29\n" ++
+  ".Lmodexp_copy_loop_" ++ suffix ++ ":\n" ++
+  "  lbu x16, 0(x28)\n" ++
+  "  sb x16, 0(x29)\n" ++
+  "  addi x28, x28, 1\n" ++
+  "  addi x29, x29, 1\n" ++
+  "  addi x24, x24, -1\n" ++
+  "  bnez x24, .Lmodexp_copy_loop_" ++ suffix ++ "\n" ++
+  "  j 7b\n"
 
 end EvmAsm.Codegen
