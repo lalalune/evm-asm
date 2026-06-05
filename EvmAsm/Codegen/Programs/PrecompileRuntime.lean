@@ -216,4 +216,36 @@ def precompileSuccess64FromFrameAsm
   "  bnez x23, .L" ++ tag ++ "_outcopy\n" ++
   "  j 7b\n"
 
+def precompileSuccessBoolFromFrameAsm
+    (tag : String) (outOffsetOff outSizeOff resultFrameOff : Nat) : String :=
+  "  la x15, evm_precompile_frame\n" ++
+  "  sd x0, 16(x15)\n" ++
+  "  sd x0, 24(x15)\n" ++
+  "  sd x0, 32(x15)\n" ++
+  "  sd x0, 40(x15)\n" ++
+  "  lbu x16, " ++ toString resultFrameOff ++ "(x15)\n" ++
+  "  sb x16, 47(x15)\n" ++
+  "  li x16, 1\n" ++
+  "  sd x16, 0(x15)\n" ++
+  "  li x16, 32\n" ++
+  "  sd x16, 8(x15)\n" ++
+  "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+  "  li x23, 32\n" ++
+  "  bgeu x22, x23, .L" ++ tag ++ "_out_len_ok\n" ++
+  "  mv x23, x22\n" ++
+  ".L" ++ tag ++ "_out_len_ok:\n" ++
+  "  beqz x23, 7b\n" ++
+  "  addi x18, x15, 16\n" ++
+  "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+  "  add x19, x13, x19\n" ++
+  ".L" ++ tag ++ "_outcopy:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  sb x16, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x23, x23, -1\n" ++
+  "  bnez x23, .L" ++ tag ++ "_outcopy\n" ++
+  "  j 7b\n"
+
+
 end EvmAsm.Codegen
