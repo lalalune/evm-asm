@@ -614,6 +614,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beq x14, x15, 19f\n" ++
     "  li x15, 0x12\n" ++
     "  beq x14, x15, 12f\n" ++
+    "  li x15, 0x100\n" ++
+    "  beq x14, x15, .L" ++ tag ++ "_p256verify\n" ++
     "  li x15, 0x101\n" ++
     "  beq x14, x15, 12f\n" ++
     "  j 1f\n" ++
@@ -897,6 +899,36 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beqz x16, 1f\n" ++
     precompileSuccessKzgPointEvalAsm
       (tag ++ "_kzg_point_eval_success") outOffsetOff outSizeOff ++
+    -- P256VERIFY: execution-specs charges fixed gas before the exact length
+    -- check. Invalid length and invalid signatures are successful precompile
+    -- calls with empty returndata; backend EFAIL is precompile failure.
+    ".L" ++ tag ++ "_p256verify:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    chargePrecompileGasConstAsm 6900 "x16" "x17" ++
+    "  ld x16, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x17, 160\n" ++
+    "  bne x16, x17, 12f\n" ++
+    stagePrecompileInputWindowAsm
+      (tag ++ "_p256verify_payload") inOffsetOff inSizeOff precompileFrameBls12G2InputOff 0 160 ++
+    "  sb x0, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G2InputOff ++
+    precompileFrameAddi "a1" (precompileFrameBls12G2InputOff + 32) ++
+    precompileFrameAddi "a2" (precompileFrameBls12G2InputOff + 96) ++
+    precompileFrameAddi "a3" precompileFrameBls12G2OutputOff ++
+    "  jal x1, zkvm_secp256r1_verify\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  bnez a0, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  lbu x16, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
+    "  beqz x16, 12f\n" ++
+    precompileSuccessBoolFromFrameAsm
+      (tag ++ "_p256verify_success") outOffsetOff outSizeOff precompileFrameBls12G2OutputOff ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
