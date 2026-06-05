@@ -27,11 +27,9 @@ open EvmAsm.Rv64
     bound below, not as a transaction-validity rule. Malformed tx lists, unknown
     tx types. The gate also mirrors the execution-spec pre-execution block-gas
     availability check when it can prove rejection from the intrinsic/floor gas
-    lower bound of prior transactions. Other multi-transaction regular-reservoir
-    overflow still fails open so the state-root verdict does not reject valid
-    state-dominated EIP-8037 blocks before exact execution gas accounting is
-    available. Single-transaction overflow cannot be rescued by state-dominance,
-    so it remains rejected. -/
+    lower bound of prior transactions. When this parser-supported gate proves
+    regular-reservoir overflow, the block is invalid under the executable-spec
+    pre-execution availability check, so reject it instead of failing open. -/
 def eip8037TxGasGateFunction : String :=
   "eip8037_state_used_before_tx:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -286,8 +284,6 @@ def eip8037TxGasGateFunction : String :=
   "  bgtu t2, t4, .Letg_state_fail\n" ++
   "  addi s8, s8, 1; j .Letg_tx_loop\n" ++
   ".Letg_regular_fail:\n" ++
-  "  li t0, 1; beq s7, t0, .Letg_regular_reject\n" ++
-  "  j .Letg_ok\n" ++
   ".Letg_regular_reject:\n" ++
   "  li a0, 1; j .Letg_ret\n" ++
   ".Letg_state_fail:\n" ++
