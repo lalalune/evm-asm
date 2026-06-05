@@ -2103,6 +2103,24 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0xff, 0x54, 0x00"
       storage        := "(0x00, 0xdead)"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; SLOAD; STOP. PUSH1 costs 3, SLOAD pays 100 static
+    -- plus the 2000 cold storage-key delta, STOP costs 0.
+    { name           := "sload_cold_gas_exact"
+      bytecode       := "0x60, 0x00, 0x54, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "2103" }
+  , -- One gas short of the first cold SLOAD must halt out-of-gas.
+    { name             := "sload_cold_gas_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x54, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "2102" }
+  , -- Repeating the same storage key is warm: PUSH1/SLOAD/POP/PUSH1/SLOAD
+    -- costs 3 + 2100 + 2 + 3 + 100 = 2208, not another cold 2000 delta.
+    { name           := "sload_repeat_same_key_warm_gas_exact"
+      bytecode       := "0x60, 0x00, 0x54, 0x50, 0x60, 0x00, 0x54, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "2208" }
   , -- PUSH2 0xbeef; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP with
     -- preload [(0x00, 0xdead)]. SSTORE finds a matching key and
     -- overwrites the value in place (does NOT append). SLOAD reads
