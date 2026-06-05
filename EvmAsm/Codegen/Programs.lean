@@ -1,5 +1,4 @@
-/-
-  EvmAsm.Codegen.Programs
+/- EvmAsm.Codegen.Programs
 
   Registry of programs the codegen tool knows how to emit, each as a
   `BuildUnit` (verified body + optional wrapping).
@@ -92,6 +91,7 @@ import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
+import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.AccountApplyStorage
@@ -1385,7 +1385,6 @@ end EvmAsm.Codegen
       * PR-#5948 carved `Tx.lean`.
       * PR-#7176 carved `EvmOpcodesStorageRoot.lean` /
         `EvmOpcodesExtcodecopy.lean`.
-
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
@@ -1399,6 +1398,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BlockBody.lean",
     "EvmAsm/Codegen/Programs/BlockEmpty.lean",
     "EvmAsm/Codegen/Programs/BlockRoots.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean",
     "EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean",
     "EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean",
     "EvmAsm/Codegen/Programs/BlockVerdictTransactions.lean",
