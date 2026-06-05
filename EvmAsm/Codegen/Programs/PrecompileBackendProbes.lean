@@ -34,6 +34,24 @@ def zkvmBls12G1MsmSafeFailWrapper : String :=
   "  li a0, -1\n" ++
   "  ret"
 
+/-- Linkable bare-RV64 wrapper for `zkvm_bn254_g1_add(p1, p2, result)`.
+    Current runtime tests use deterministic EFAIL until the success-producing
+    BN254 accelerator path is available from bare codegen ELFs. -/
+def zkvmBn254G1AddSafeFailWrapper : String :=
+  ".globl zkvm_bn254_g1_add\n" ++
+  "zkvm_bn254_g1_add:\n" ++
+  "  li a0, -1\n" ++
+  "  ret"
+
+/-- Linkable bare-RV64 wrapper for `zkvm_bn254_g1_mul(point, scalar, result)`.
+    See `zkvmBn254G1AddSafeFailWrapper`: runtime callers need deterministic
+    EFAIL while still exercising dispatch, gas, and framing. -/
+def zkvmBn254G1MulSafeFailWrapper : String :=
+  ".globl zkvm_bn254_g1_mul\n" ++
+  "zkvm_bn254_g1_mul:\n" ++
+  "  li a0, -1\n" ++
+  "  ret"
+
 /-- Probe driver for the BLS12 G1 ADD wrapper. It initializes two 96-byte
     zero point buffers and a 96-byte result buffer, calls the wrapper, then
     writes a compact record at OUTPUT_ADDR:

@@ -23,6 +23,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen
 
@@ -856,6 +857,134 @@ def ziskTxExtractGasPricingProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskTxExtractGasPricingPrologue
   dataAsm     := ziskTxExtractGasPricingDataSection
+}
+
+/-! ## tx_effective_gas_pricing -- EEST reusable fee pricing
+
+    Compose `tx_extract_gas_pricing` with the u256 fee-pricing helpers to
+    produce the values needed by general transaction settlement:
+
+      priority_fee_per_gas = min(max_priority_fee, max_fee - base_fee)
+      effective_gas_price  = base_fee + priority_fee_per_gas
+
+    `tx_extract_gas_pricing` normalizes legacy and EIP-2930 `gas_price` by
+    writing it to both max-priority and max-fee outputs, so the same formula
+    gives `effective_gas_price = gas_price` and
+    `priority_fee_per_gas = gas_price - base_fee`.
+
+    Calling convention:
+      a0 (input)  : tx bytes ptr
+      a1 (input)  : tx byte length
+      a2 (input)  : base_fee_per_gas ptr (32 B BE)
+      a3 (input)  : effective_gas_price out ptr (32 B BE)
+      a4 (input)  : priority_fee_per_gas out ptr (32 B BE)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : tx pricing extraction failed
+        2 : max_fee_per_gas < max_priority_fee_per_gas
+        3 : max_fee_per_gas < base_fee_per_gas
+        4 : effective_gas_price addition overflowed -/
+def txEffectiveGasPricingFunction : String :=
+  "tx_effective_gas_pricing:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a2                   # base_fee ptr\n" ++
+  "  mv s1, a3                   # effective_gas_price out\n" ++
+  "  mv s2, a4                   # priority_fee out\n" ++
+  "  sd zero,  0(s1); sd zero,  8(s1); sd zero, 16(s1); sd zero, 24(s1)\n" ++
+  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
+  "  la a2, tefgp_max_priority\n" ++
+  "  la a3, tefgp_max_fee\n" ++
+  "  jal ra, tx_extract_gas_pricing\n" ++
+  "  beqz a0, .Ltefgp_have_fields\n" ++
+  "  li a0, 1; j .Ltefgp_ret\n" ++
+  ".Ltefgp_have_fields:\n" ++
+  "  # Typed EIP-1559-family transactions require max_fee >= max_priority;\n" ++
+  "  # legacy/EIP-2930 have equal normalized values, so this is harmless there.\n" ++
+  "  la a0, tefgp_max_fee\n" ++
+  "  la a1, tefgp_max_priority\n" ++
+  "  la a2, tefgp_tmp\n" ++
+  "  jal ra, u256_sub_be\n" ++
+  "  beqz a0, .Ltefgp_fee_order_ok\n" ++
+  "  li a0, 2; j .Ltefgp_ret\n" ++
+  ".Ltefgp_fee_order_ok:\n" ++
+  "  # priority_fee = min(max_priority, max_fee - base_fee), rejects max_fee < base_fee.\n" ++
+  "  la a0, tefgp_max_priority\n" ++
+  "  la a1, tefgp_max_fee\n" ++
+  "  mv a2, s0\n" ++
+  "  mv a3, s2\n" ++
+  "  jal ra, priority_fee_per_gas_eip1559\n" ++
+  "  beqz a0, .Ltefgp_have_priority\n" ++
+  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
+  "  li a0, 3; j .Ltefgp_ret\n" ++
+  ".Ltefgp_have_priority:\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s2\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  beqz a0, .Ltefgp_ok\n" ++
+  "  sd zero,  0(s1); sd zero,  8(s1); sd zero, 16(s1); sd zero, 24(s1)\n" ++
+  "  li a0, 4; j .Ltefgp_ret\n" ++
+  ".Ltefgp_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Ltefgp_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+/-- `zisk_tx_effective_gas_pricing`: probe BuildUnit. Reads
+    (32B base_fee, tx_len, tx_bytes), writes
+    (status, effective_gas_price BE, priority_fee_per_gas BE). -/
+def ziskTxEffectiveGasPricingPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  addi a2, a5, 8              # base_fee ptr\n" ++
+  "  ld a1, 40(a5)               # tx_len\n" ++
+  "  addi a0, a5, 48             # tx ptr\n" ++
+  "  li a3, 0xa0010008           # effective_gas_price out\n" ++
+  "  li a4, 0xa0010028           # priority_fee out\n" ++
+  "  jal ra, tx_effective_gas_pricing\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Ltefgp_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txExtractGasPricingFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256MinFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  priorityFeePerGasEip1559Function ++ "\n" ++
+  txEffectiveGasPricingFunction ++ "\n" ++
+  ".Ltefgp_pdone:"
+
+def ziskTxEffectiveGasPricingDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tegp_type:\n" ++
+  "  .zero 8\n" ++
+  "tegp_inner_off:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "tefgp_max_priority:\n" ++
+  "  .zero 32\n" ++
+  "tefgp_max_fee:\n" ++
+  "  .zero 32\n" ++
+  "tefgp_tmp:\n" ++
+  "  .zero 32"
+
+def ziskTxEffectiveGasPricingProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxEffectiveGasPricingPrologue
+  dataAsm     := ziskTxEffectiveGasPricingDataSection
 }
 
 
