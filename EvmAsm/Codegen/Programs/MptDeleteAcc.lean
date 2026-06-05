@@ -125,16 +125,17 @@ def mptDeleteAccFunction : String :=
   "  bnez a0, .Lmdacc_need_collapse\n" ++
   "  la t0, mdacc_child_ptr; ld a0, 0(t0)\n" ++
   "  la t0, mdacc_child_len; ld a1, 0(t0)\n" ++
-  "  la a2, mdacc_leaf_path; la a3, mdacc_leaf_path_len; la a4, mdacc_leaf_value_ptr; la a5, mdacc_leaf_value_len\n" ++
-  "  jal ra, mpt_leaf_extract\n" ++
-  "  beqz a0, .Lmdacc_collapse_leaf_child\n" ++
-  "  li t0, 2; beq a0, t0, .Lmdacc_collapse_extension_child\n" ++
-  "  la t0, mdacc_child_ptr; ld a0, 0(t0)\n" ++
-  "  la t0, mdacc_child_len; ld a1, 0(t0)\n" ++
   "  jal ra, mpt_node_kind\n" ++
+  "  li t0, 2; beq a0, t0, .Lmdacc_collapse_leaf_child\n" ++
+  "  li t0, 1; beq a0, t0, .Lmdacc_collapse_extension_child\n" ++
   "  beqz a0, .Lmdacc_collapse_branch_child\n" ++
   "  j .Lmdacc_need_collapse\n" ++
   ".Lmdacc_collapse_leaf_child:\n" ++
+  "  la t0, mdacc_child_ptr; ld a0, 0(t0)\n" ++
+  "  la t0, mdacc_child_len; ld a1, 0(t0)\n" ++
+  "  la a2, mdacc_leaf_path; la a3, mdacc_leaf_path_len; la a4, mdacc_leaf_value_ptr; la a5, mdacc_leaf_value_len\n" ++
+  "  jal ra, mpt_leaf_extract\n" ++
+  "  bnez a0, .Lmdacc_need_collapse\n" ++
   "  la t0, mdacc_survivor_nibble; ld t1, 0(t0); la t2, mdacc_collapsed_path; sb t1, 0(t2)\n" ++
   "  la t3, mdacc_leaf_path; addi t2, t2, 1; la t0, mdacc_leaf_path_len; ld t4, 0(t0)\n" ++
   ".Lmdacc_cpath_cp:\n" ++
