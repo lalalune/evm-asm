@@ -1413,10 +1413,11 @@ def opcodeTestCases : List OpcodeTestCase :=
       gasLimit         := "617" }
   , -- A present but all-zero 96-byte MODEXP header has the same decoded
     -- lengths as empty input and also returns success with empty returndata.
+    -- The nonempty input window still pays STATICCALL memory expansion gas.
     { name           := "staticcall_modexp_zero_header_success"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "618" }
+      gasLimit       := "627" }
   , -- MODEXP header with modulus_len=1 charges the decoded 500 minimum.
     -- Missing modulus bytes decode as zero, so the one-byte output is 0 and
     -- the precompile succeeds.
