@@ -19,6 +19,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen
@@ -729,6 +730,194 @@ def ziskAccountChargeGasPreExecProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskAccountChargeGasPreExecPrologue
   dataAsm     := ziskAccountChargeGasPreExecDataSection
+}
+
+/-! ## tx_upfront_precharge -- compose transaction gas pricing + pre-charge
+
+    Standalone pre-execution gas mutation for one encoded transaction:
+
+      1. parse tx.nonce and tx.gas_limit,
+      2. compute effective_gas_price and priority_fee_per_gas from the tx and
+         block base_fee_per_gas,
+      3. call `account_charge_gas_pre_exec` to deduct
+         effective_gas_price * tx.gas_limit and increment the sender nonce.
+
+    This helper intentionally works on caller-supplied balance and nonce
+    buffers. BAL/state lookup and stateless-verdict wiring are separate slices.
+
+    Calling convention:
+      a0 (input)  : tx bytes ptr
+      a1 (input)  : tx byte length
+      a2 (input)  : base_fee_per_gas ptr (32 B BE)
+      a3 (input)  : sender balance ptr (32 B BE; modified in place)
+      a4 (input)  : sender nonce ptr (u64; modified in place on success)
+      ra (input)  : return
+      a0 (output) :
+        0  : success
+        10 : tx nonce/gas extraction failed
+        20 : effective gas pricing failed
+        31 : gas_fee multiplication overflowed u256
+        32 : balance < gas_fee
+
+    On success and pricing success, `txup_effective_gas_price`,
+    `txup_priority_fee`, and `txup_gas_limit` are populated for callers that
+    need post-execution settlement. -/
+def txUpfrontPrechargeFunction : String :=
+  "tx_upfront_precharge:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                   # tx ptr\n" ++
+  "  mv s1, a1                   # tx len\n" ++
+  "  mv s2, a2                   # base_fee ptr\n" ++
+  "  mv s3, a3                   # sender balance ptr\n" ++
+  "  mv s4, a4                   # sender nonce ptr\n" ++
+  "  la t0, txup_nonce; sd zero, 0(t0)\n" ++
+  "  la t0, txup_gas_limit; sd zero, 0(t0)\n" ++
+  "  la t0, txup_effective_gas_price\n" ++
+  "  sd zero,  0(t0); sd zero,  8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t0, txup_priority_fee\n" ++
+  "  sd zero,  0(t0); sd zero,  8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  # Step 1: parse nonce and gas_limit.\n" ++
+  "  mv a0, s0; mv a1, s1; la a2, txup_nonce; la a3, txup_gas_limit\n" ++
+  "  jal ra, tx_extract_nonce_and_gas\n" ++
+  "  beqz a0, .Ltxup_have_gas\n" ++
+  "  li a0, 10\n" ++
+  "  j .Ltxup_ret\n" ++
+  ".Ltxup_have_gas:\n" ++
+  "  # Step 2: compute effective gas price and priority fee.\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
+  "  la a3, txup_effective_gas_price; la a4, txup_priority_fee\n" ++
+  "  jal ra, tx_effective_gas_pricing\n" ++
+  "  beqz a0, .Ltxup_have_pricing\n" ++
+  "  li a0, 20\n" ++
+  "  j .Ltxup_ret\n" ++
+  ".Ltxup_have_pricing:\n" ++
+  "  # Step 3: deduct effective_gas_price * gas_limit and increment nonce.\n" ++
+  "  mv a0, s3; la a1, txup_effective_gas_price\n" ++
+  "  la t0, txup_gas_limit; ld a2, 0(t0)\n" ++
+  "  mv a3, s4\n" ++
+  "  jal ra, account_charge_gas_pre_exec\n" ++
+  "  beqz a0, .Ltxup_ok\n" ++
+  "  li t0, 1; beq a0, t0, .Ltxup_fail_mul\n" ++
+  "  li a0, 32\n" ++
+  "  j .Ltxup_ret\n" ++
+  ".Ltxup_fail_mul:\n" ++
+  "  li a0, 31\n" ++
+  "  j .Ltxup_ret\n" ++
+  ".Ltxup_ok:\n" ++
+  "  li a0, 0\n" ++
+  ".Ltxup_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- `zisk_tx_upfront_precharge`: probe BuildUnit. Reads
+    (32B base_fee, 32B balance, 8B nonce, 8B tx_len, tx_bytes), copies balance
+    and nonce to OUTPUT-resident mutable buffers, calls `tx_upfront_precharge`,
+    then writes:
+
+      OUTPUT+0   : status
+      OUTPUT+8   : sender balance (32 B BE)
+      OUTPUT+40  : sender nonce (u64 LE)
+      OUTPUT+48  : tx gas_limit (u64 LE)
+      OUTPUT+56  : effective_gas_price (32 B BE)
+      OUTPUT+88  : priority_fee_per_gas (32 B BE) -/
+def ziskTxUpfrontPrechargePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a5, 0x40000000\n" ++
+  "  # Copy sender balance to OUTPUT + 8 (in-place mutation target).\n" ++
+  "  li a3, 0xa0010008\n" ++
+  "  addi t1, a5, 40\n" ++
+  "  ld t2,  0(t1); sd t2,  0(a3)\n" ++
+  "  ld t2,  8(t1); sd t2,  8(a3)\n" ++
+  "  ld t2, 16(t1); sd t2, 16(a3)\n" ++
+  "  ld t2, 24(t1); sd t2, 24(a3)\n" ++
+  "  # Copy sender nonce to OUTPUT + 40 (in-out scratch).\n" ++
+  "  li a4, 0xa0010028\n" ++
+  "  ld t2, 72(a5)\n" ++
+  "  sd t2, 0(a4)\n" ++
+  "  addi a2, a5, 8              # base_fee ptr\n" ++
+  "  ld a1, 80(a5)               # tx_len\n" ++
+  "  addi a0, a5, 88             # tx ptr\n" ++
+  "  jal ra, tx_upfront_precharge\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  la t1, txup_gas_limit; ld t2, 0(t1); sd t2, 48(t0)\n" ++
+  "  la t1, txup_effective_gas_price\n" ++
+  "  ld t2,  0(t1); sd t2,  56(t0)\n" ++
+  "  ld t2,  8(t1); sd t2,  64(t0)\n" ++
+  "  ld t2, 16(t1); sd t2,  72(t0)\n" ++
+  "  ld t2, 24(t1); sd t2,  80(t0)\n" ++
+  "  la t1, txup_priority_fee\n" ++
+  "  ld t2,  0(t1); sd t2,  88(t0)\n" ++
+  "  ld t2,  8(t1); sd t2,  96(t0)\n" ++
+  "  ld t2, 16(t1); sd t2, 104(t0)\n" ++
+  "  ld t2, 24(t1); sd t2, 112(t0)\n" ++
+  "  j .Ltxup_pdone\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  txExtractNonceAndGasFunction ++ "\n" ++
+  txExtractGasPricingFunction ++ "\n" ++
+  u256SubBeFunction ++ "\n" ++
+  u256MinFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  priorityFeePerGasEip1559Function ++ "\n" ++
+  txEffectiveGasPricingFunction ++ "\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  accountChargeGasPreExecFunction ++ "\n" ++
+  txUpfrontPrechargeFunction ++ "\n" ++
+  ".Ltxup_pdone:"
+
+def ziskTxUpfrontPrechargeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "teng_type:\n" ++
+  "  .zero 8\n" ++
+  "teng_inner_off:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "tegp_type:\n" ++
+  "  .zero 8\n" ++
+  "tegp_inner_off:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "tefgp_max_priority:\n" ++
+  "  .zero 32\n" ++
+  "tefgp_max_fee:\n" ++
+  "  .zero 32\n" ++
+  "tefgp_tmp:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "txup_nonce:\n" ++
+  "  .zero 8\n" ++
+  "txup_gas_limit:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "txup_effective_gas_price:\n" ++
+  "  .zero 32\n" ++
+  "txup_priority_fee:\n" ++
+  "  .zero 32\n" ++
+  "u256m_acc:\n" ++
+  "  .zero 40\n" ++
+  ".balign 32\n" ++
+  "acpg_gas_fee:\n" ++
+  "  .zero 32"
+
+def ziskTxUpfrontPrechargeProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxUpfrontPrechargePrologue
+  dataAsm     := ziskTxUpfrontPrechargeDataSection
 }
 
 /-! ## account_refund_gas_post_exec -- PR-K82
