@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.EvmAccessGas
 
 namespace EvmAsm.Codegen
 
@@ -36,13 +37,35 @@ private def balanceWitnessOutputCopy : String :=
     account balance, or zero for missing accounts / missing witness context. -/
 private def balanceWitnessTail : HandlerTail :=
   .custom <|
+    "  la t1, eahsr_address_scratch
+" ++
+    balanceWitnessAddressCopy ++
+    "  addi sp, sp, -32
+" ++
+    "  sd x10, 0(sp)
+" ++
+    "  sd x12, 8(sp)
+" ++
+    "  la a0, eahsr_address_scratch
+" ++
+    "  la a1, " ++ runtimeAccessAccountTableLabel ++ "
+" ++
+    "  la a2, " ++ runtimeAccessAccountCountLabel ++ "
+" ++
+    "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "
+" ++
+    "  jal ra, runtime_access_account_charge
+" ++
+    "  ld x10, 0(sp)
+" ++
+    "  ld x12, 8(sp)
+" ++
+    "  addi sp, sp, 32
+" ++
     "  ld t0, 584(x20)
 " ++
     "  beqz t0, .Lbalance_no_context
 " ++
-    "  la t1, eahsr_address_scratch
-" ++
-    balanceWitnessAddressCopy ++
     "  addi sp, sp, -32
 " ++
     "  sd x10, 0(sp)
