@@ -306,6 +306,117 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     - **Opportunistic carry-overs still deferred:** Phase-1 `cycleBound`-binding
       (R-C4) + `coverRef` cover lemmas (R-A3); Phase-3 D3 dual-path (needs
       ziskemu) + per-opcode EEST localization.
+  - **Phase 5 (this work) — conventions-as-gates + cost trend (P1/P3): the
+    FINAL phase. ROLLOUT COMPLETE (Phases 0–5 done).** Grows the `check-*.sh`
+    suite so prose conventions become executable architecture fitness functions
+    (Ford/Parsons), retires the one dead gate, and stands up advisory cost/churn
+    trend infra — without tripping the build-budget / noisy-gate non-goals. No
+    Lean source touched (pure scripts/config/workflows/docs), so `lake build` is
+    unaffected. Branched off fresh `upstream/main` (Phases 0–4 all merged).
+    - **D1 (R-D1) — opcode-structure gate.** `scripts/check-opcode-structure.sh`
+      hard-fails (block) on a broken `AddrNorm.lean`↔`AddrNormAttr.lean` pairing
+      (Lean forbids `register_simp_attr` in its declaring file — a real
+      structural bug, holds tree-wide today). The four `OPCODE_TEMPLATE.md`
+      essentials can't be blanket-required (only `DivMod` has all four; FullPath
+      is the end-state composition), so the rest is an **advisory checklist**
+      diff-scoped to *newly-added complex* opcode dirs (those adding `Compose/`
+      or `LimbSpec/`): nudges for FullPath, `@[irreducible]` Post, `Offsets.lean`.
+    - **D2 (R-D1) — naming scan (advisory).** `scripts/check-naming.sh` flags
+      camelCase hypotheses (`hLt`) *newly added in the PR diff*, the PR #1497
+      regression class. Diff-scoped + advisory because the tree already has
+      thousands of legacy camelCase hypotheses — a full-tree gate would be pure
+      noise. Never blocks.
+    - **D3 (R-D1) — heartbeat allowlist (block).** `check-heartbeats-approved.sh`
+      + `scripts/approved-heartbeat-overrides.txt` make heartbeats off-limits:
+      a **dumb case-insensitive `grep heartbeats`** over ALL repo `.lean`
+      (excluding `.lake/` dependency sources) + the lakefiles flags EVERY
+      mention (overrides AND prose), each adjacent value of which must be
+      sanctioned in the allowlist at its exact value (`-` for a non-numeric
+      docstring mention). No Lean lexer — nothing to bypass (three review rounds
+      each found a fresh hole in an earlier comment/string-aware scanner; the
+      policy is simply "nobody touches heartbeats," so the gate matches it).
+      Seeded green with the two grandfathered numeric overrides
+      (`Swap/Spec.lean` 800000, `ALUProofs.lean` 4000000; each carries a
+      relitigation bead, open question #3) + three sanctioned prose mentions.
+    - **D4 (R-D1, REFRAMED) — layering gate (block).** `scripts/check-layering.sh`.
+      The bootstrap's "EL must not import Rv64" is **false against the tree**
+      (RLP spans both directions: `EL/RLP/*`→`Rv64` *and* `Rv64/RLP/Phase*`→`EL`),
+      so it was reframed to the true, currently-clean invariants: **L1** the
+      verified core never imports the unverified `Codegen` layer (fences the
+      report §6 "codegen unverified by design" boundary) — scoped
+      *core-by-default*, i.e. every `EvmAsm/` dir except `Codegen`/`Tests`/
+      `Examples`, so a future new dir can't become an unscanned laundering hop —
+      **L2** nothing imports the `Progress` registry, **L3** core never imports
+      the `Tests`/`Examples` escape hatches (which may import Codegen), closing
+      the last `core→Tests→Codegen` hop. Advisory
+      rider: `Rv64`↛`Evm64` with the one grandfathered tactic-bridge edge
+      (`Rv64/Tactics/LiftSpec.lean`) allowlisted.
+    - **D5 (R-D1) — fitness-function reframing + dead-gate retirement.** AGENTS.md
+      now documents the `check-*.sh` suite as architecture fitness functions
+      (blocking vs advisory tiers tabulated). Retired the orphaned
+      `scripts/check-unbounded-cps.sh` (unwired since `6e7ce6dec`; it matched
+      only prose `cpsTriple` mentions and would red-line if wired — it policed
+      nothing).
+    - **D6 (R-C6) — churn report (advisory).** `scripts/churn-report.sh` (pure
+      `git log`, no deps): top-churn `.lean`/`scripts` per window + short-lived
+      churn. Runs on the weekly `quality-trends.yml` cadence (needs full history,
+      off the per-PR path). Never gates.
+    - **D7 (R-C6) — duplication watch (advisory).** `scripts/check-duplication.sh`
+      + `scripts/jscpd.json` + `scripts/duplication-baseline.txt` (budget seeded
+      2.93% over the default `scripts/` scope). Rule of Three: `codegen-*.sh` and
+      concrete `Program(s).lean` excluded. Per-PR scope is `scripts/` only (a full
+      ~2000-file `.lean` sweep exceeds 300s); the full sweep runs weekly in
+      `quality-trends.yml`. Advisory now; `--gate` promotes after calibration
+      (open question #2).
+    - **D8 (R-F1) — ziskemu cycle instrumentation (schema + appender; live parse
+      DEFERRED).** `scripts/cycles-append.sh` + the `cycles-history.jsonl` schema
+      (git-derived commit/date, pinned EEST tag, nullable `steps`/`cycles`). The
+      only path to validating the founding "better zkVM performance" claim. No
+      working ziskemu this session → the log live-parse is guarded/deferred; the
+      schema + appender land now so codegen scripts can start emitting (open
+      question #4).
+    - **D9 (R-F2) — proof-size + build-time trend.** `benchmark.yml`'s `lakeprof`
+      job already records per-module build *time*; added the deterministic proof-
+      *size* dimension (`.github/workflows/scripts/oleansize_collect.sh` merges
+      top-N `.olean` byte sizes into the appended record). Size is noise-free
+      where CI time is noisy, so a ballooning n=4 division proof surfaces as a
+      monotone trend. Deliberate no-hard-threshold stance preserved — **never a
+      heartbeat bump to force a proof green**.
+    - **D10 (R-F3) — external export scaffold.** `.github/workflows/export-metrics.yml`
+      (monthly) bundles `benchmark-history` + `cycles-history.jsonl` and uploads
+      an artifact; pushes toward `eth-act/zkevm-benchmark-workload` only when
+      `vars.METRICS_EXPORT_REPO` + `secrets.METRICS_EXPORT_TOKEN` are configured
+      (no-op otherwise). Performance ≠ conformance — "proves X% of blocks" is
+      never a verification signal.
+    - **Block vs advisory (open question #1, decided):** BLOCK = opcode-structure
+      pairing + heartbeat allowlist + layering. ADVISORY = naming + opcode
+      checklist + churn + duplication + all cost/trend infra (D8–D10).
+    - **Verifier-config hardening:** the new allowlists/configs
+      (`approved-heartbeat-overrides.txt`, `duplication-baseline.txt`,
+      `jscpd.json`) + `churn-report.sh`/`cycles-append.sh` + `.github/labeler.yml`
+      were added to all four trusted-core path sets (CODEOWNERS,
+      `is_trusted_core`, `is_verifier_config`, `labeler.yml`) so they can't be
+      self-weakened without maintainer review.
+    - **Open question (R-C2 enforcement strength, surfaced by review):** a
+      gate-neutering edit — adding `continue-on-error`, deleting a blocking step,
+      or editing a `check-*.sh` to `exit 0` — currently fails NO CI check:
+      `check-statement-tamper.sh` runs **advisory** in `build.yml` (no `--strict`),
+      so verifier-config edits are only *printed*, and enforcement rests on
+      CODEOWNERS + the (repo-setting) Code-Owner ruleset + human review — the
+      report's intended approve-by-exception model. Defense-in-depth option for
+      the maintainer: run the tamper scan `--strict` over the
+      `scripts/check-*.sh` + `.github/workflows/**` subset (the
+      `[allow-verifier-change]` commit token is the escape hatch) so a
+      self-neutering edit at least *fails a check*. Deliberately NOT changed here
+      (it reverses a Phase-0 design choice and would gate every verifier-config
+      PR); flagged for a maintainer decision.
+    - **Rollout-wide still-deferred beads:** R-C4 `cycleBound`-binding, R-A3
+      `coverRef` cover lemmas, R-E2 dual-path (needs ziskemu), D8 ziskemu cycle
+      live-parse **+ its persistence/caller wiring** (`cycles-history.jsonl` is
+      gitignored and not yet persisted to an orphan branch, so the cycles half
+      of the export bundle is empty until ziskemu lands — mirror
+      `benchmark-history` then), and the two grandfathered heartbeat-override
+      relitigations.
 - **Proof-ergonomics infra distilled from the purge** (see `GRIND.md` §7):
   - **`signExtend` simprocs + `signext` tactic** (`Rv64/SignExtendSimproc.lean`):
     `reduceSignExtend12/13/21` are `dsimproc_decl`s (definitional, kernel-checkable,
