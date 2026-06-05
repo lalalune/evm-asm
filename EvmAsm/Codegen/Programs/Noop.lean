@@ -379,6 +379,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  li x19, 0x8000\n" ++
     "  bltu x19, x18, .exit_outofgas\n" ++
     "1:\n" ++
+    createInitcodeGasAsm
+      (if hasSalt then "create2" else "create")
+      "x16" "x18" "x19" "x23" hasSalt ++
+    updateActiveMemorySizeAsm
+      (if hasSalt then "create2_init" else "create_init")
+      "x15" "x16" "x18" "x19" "x23" "x6" true ++
     -- Convert env.ADDRESS from stack-word representation to the canonical
     -- 20-byte big-endian input expected by address_compute_create*.
     "  la x18, create_sender_be\n" ++
