@@ -24,6 +24,18 @@ private def byteCsv (bytes : List String) : String :=
 private def repeatedPush1Bytecode (n : Nat) (value : String) : String :=
   byteCsv ((List.range n).flatMap (fun _ => ["0x60", value]) ++ ["0x00"])
 
+private def callPrecompileBytecode
+    (target inSize : String) (suffix : List String) : String :=
+  byteCsv
+    (["0x60", "0x00", "0x60", "0x00", "0x60", inSize, "0x60", "0x00",
+      "0x60", "0x00", "0x60", target, "0x60", "0xff", "0xf1"] ++ suffix)
+
+private def staticcallPrecompileBytecode
+    (target inSize : String) (suffix : List String) : String :=
+  byteCsv
+    (["0x60", "0x00", "0x60", "0x00", "0x60", inSize, "0x60", "0x00",
+      "0x60", target, "0x60", "0xff", "0xfa"] ++ suffix)
+
 /-- One per-opcode regression test wrapped around the M5b dispatcher
     (`tinyInterpRegistry`). The bytecode bakes into `.data`; the
     expected output is the first 32 bytes of `OUTPUT_ADDR` (i.e. the
@@ -1004,13 +1016,13 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x68, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000" }
-  , -- PUSH1 0x01..0x07; CALL; PUSH1 0xff; STOP
+  , -- CALL to inactive address 0x12; PUSH1 0xff; STOP
     -- CALL pops 7 (gas, to, value, in_off, in_size, out_off,
     -- out_size), pushes 1 (success = 0). Net pop = 6 = +192 bytes.
     -- Then PUSH1 0xff lands on the 1-deep stack and replaces the
     -- success slot. Expected: 0xff.
     { name           := "call_pop7_push_zero"
-      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x06, 0x60, 0x07, 0xf1, 0x60, 0xff, 0x00"
+      bytecode       := "0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x60, 0x04, 0x60, 0x05, 0x60, 0x12, 0x60, 0x07, 0xf1, 0x60, 0xff, 0x00"
       expectedOutHex := "ff00000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x01..0x06; STATICCALL; PUSH1 0xab; STOP
     -- STATICCALL pops 6 (gas, to, in_off, in_size, out_off,
@@ -1254,6 +1266,47 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x50, 0x3d, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
+  , -- BN254 ADD is an Amsterdam active precompile at 0x06. The current
+    -- backend wrapper safe-fails, but the runtime still charges the fixed
+    -- 150 inner gas. With gasLimit=300: seven PUSH1s (21) + CALL warm
+    -- static base (100) + BN254 ADD (150) + GAS (2) leaves 27.
+    { name           := "call_bn254_add_fixed_gas_after_call"
+      bytecode       := callPrecompileBytecode "0x06" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "1b00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "300" }
+  , -- One gas short for CALL + BN254 ADD reaches the fixed-gas helper and OOGs.
+    { name             := "call_bn254_add_fixed_gas_out_of_gas"
+      bytecode         := callPrecompileBytecode "0x06" "0x00" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "270" }
+  , -- Short input is accepted using execution-specs buffer_read zero padding;
+    -- the current backend safe-fail surfaces CALL success word 0 and empty
+    -- returndata, not an invalid-length dispatcher failure.
+    { name             := "call_bn254_add_short_input_backend_failure"
+      bytecode         := callPrecompileBytecode "0x06" "0x01" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "10000" }
+  , -- BN254 MUL at 0x07 charges fixed 6000 gas. With gasLimit=6200:
+    -- seven PUSH1s (21) + CALL warm static base (100) + MUL (6000) +
+    -- GAS (2) leaves 77.
+    { name           := "call_bn254_mul_fixed_gas_after_call"
+      bytecode       := callPrecompileBytecode "0x07" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "6200" }
+  , { name             := "call_bn254_mul_fixed_gas_out_of_gas"
+      bytecode         := callPrecompileBytecode "0x07" "0x00" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "6120" }
+  , -- STATICCALL follows the same 0x07 active-precompile dispatch. Six PUSH1s
+    -- (18) + STATICCALL warm static base (100) + MUL (6000) + GAS (2) leaves
+    -- 80 from gasLimit=6200.
+    { name           := "staticcall_bn254_mul_fixed_gas_after_call"
+      bytecode       := staticcallPrecompileBytecode "0x07" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "5000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "6200" }
   , -- BLS12 G1 ADD rejects invalid input length before any accelerator body.
     { name             := "call_bls12_g1_add_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
