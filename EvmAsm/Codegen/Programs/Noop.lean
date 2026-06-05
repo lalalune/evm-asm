@@ -345,7 +345,8 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
     **M27.4 update**: CALL / STATICCALL also recognize BLS12-381 pairing
     and map precompile addresses 0x0f (pairing), 0x10 (map-Fp-to-G1), and
     0x11 (map-Fp2-to-G2). Valid-length inputs invoke the linkable backend
-    wrappers; current ziskemu safe-fails those wrappers, so EVM observes
+    wrappers after charging pairing's per-pair gas and each map precompile's
+    fixed gas. Current ziskemu safe-fails those wrappers, so EVM observes
     precompile failure until success-output slices land.
 
     **M27.1 update**: inactive near-zero addresses 0x12 and 0x101
@@ -1197,11 +1198,11 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  remu x17, x18, x16\n" ++
     "  bnez x17, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    chargeBls12PairingGasAsm "x18" "a1" "x22" "x23" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add a0, x13, x17\n" ++
-    "  divu a1, x18, x16\n" ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_pairing\n" ++
     "  mv x10, s10\n" ++
@@ -1245,6 +1246,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  li x16, 64\n" ++
     "  bne x17, x16, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    chargePrecompileGasConstAsm 5500 "x16" "x22" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
@@ -1311,6 +1313,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  li x16, 128\n" ++
     "  bne x17, x16, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    chargePrecompileGasConstAsm 23800 "x16" "x22" ++
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add x18, x13, x18\n" ++
     "  addi x19, x18, 16\n" ++
