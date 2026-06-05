@@ -159,6 +159,18 @@ requires the selected rows to full-match. Use
 specific row group while keeping the default script complete for future fixture
 additions.
 
+Run the EIP-7939 CLZ/JUMP frontier:
+
+```bash
+scripts/codegen-eest-eip7939-clz-jump-check.sh
+```
+
+This filter-driven wrapper discovers all `clz_jump_operation` rows for the
+active fixture tag and requires the selected rows to full-match. It defaults to
+one `ziskemu` worker because these rows can be memory-heavy on this host; set
+`EEST_EIP7939_CLZ_JUMP_LIMIT` and `EEST_EIP7939_CLZ_JUMP_MIN_FULL` for a quick
+prefix check.
+
 Run the EIP-8037 high-block-gas layout launch regression:
 
 ```bash
