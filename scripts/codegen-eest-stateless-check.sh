@@ -45,7 +45,7 @@
 #     --skip N           skip first N selected stateless blocks after filtering
 #     --limit N          cap to N guest invocations (default 50)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
-#     --steps N          ziskemu max steps (default $EEST_STEPS or 200000000)
+#     --steps N          ziskemu max steps (default $EEST_STEPS or 1000000000)
 #     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto)
 #     --max-failures N   stop after N FAIL/ERROR results (default: disabled)
 #     --stop-after-failures N
@@ -100,16 +100,16 @@ SKIP=0
 LIMIT=50
 FILTER=""
 # Default step cap. ziskemu stops at the guest's halt, so this only bounds
-# runaway/very-large runs. Keep the base harness at the known working EEST
-# cap used by the focused wrapper scripts; normal blocks halt long before
-# this and are not slowed.
-STEPS="${EEST_STEPS:-200000000}"
+# runaway/very-large runs. Keep the base harness high enough for current large
+# EIP-7934 block-RLP-limit fixtures; normal blocks halt long before this and
+# are not slowed.
+STEPS="${EEST_STEPS:-1000000000}"
 # Case-insensitive ERE matched against the ziskemu log when a run does NOT
 # produce a valid 105-byte output, to tell "exhausted the --steps budget"
 # (BUDGET, not a correctness failure) apart from a genuine ERROR. Override
 # EEST_STEP_LIMIT_RE if your ziskemu build phrases step exhaustion
 # differently; a non-match safely falls through to ERROR.
-STEP_LIMIT_RE="${EEST_STEP_LIMIT_RE:-(step[s]? limit|maximum steps|max[_ ]*steps|exceeded.*step|step.*exceeded|out of steps|reached.*steps|step budget)}"
+STEP_LIMIT_RE="${EEST_STEP_LIMIT_RE:-(step[s]? limit|maximum steps|max[_ ]*steps|exceeded.*step|step.*exceeded|out of steps|reached.*steps|step budget|EmulationNoCompleted)}"
 JOBS="${EEST_JOBS:-auto}"
 JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
 JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
@@ -142,7 +142,7 @@ Options:
   --skip N                 skip first N selected stateless blocks after filtering
   --limit N                cap to N guest invocations (default 50)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
-  --steps N                ziskemu max steps (default $EEST_STEPS or 200000000)
+  --steps N                ziskemu max steps (default $EEST_STEPS or 1000000000)
   --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto)
   --max-failures N         stop after N FAIL/ERROR results
   --stop-after-failures N  alias for --max-failures
