@@ -1279,6 +1279,25 @@ def opcodeTestCases : List OpcodeTestCase :=
       calldata         := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       expectedOutHex   := "605ed279d0a1af786c79054f9424d196ed6a1f0331100a923d711885d42099bb"
       expectedHaltKind := "0100000000000000" }
+  , -- MODEXP with an empty input decodes all three length fields as zero.
+    -- execution-specs charges the 500 minimum gas and returns empty output.
+    { name           := "staticcall_modexp_empty_gas_exact"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "618" }
+  , -- One gas short reaches the MODEXP runtime body and fails on the
+    -- precompile minimum-gas charge before reporting success.
+    { name             := "staticcall_modexp_empty_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "617" }
+  , -- A present but all-zero 96-byte MODEXP header has the same decoded
+    -- lengths as empty input and also returns success with empty returndata.
+    { name           := "staticcall_modexp_zero_header_success"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "618" }
   , -- CALL to inactive near-zero address 0x12 routes as an absent
     -- account, not as a precompile body: success = 1, empty returndata.
     { name             := "call_inactive_precompile_0x12_absent_success"
