@@ -30,7 +30,11 @@
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
+<<<<<<< HEAD
 import EvmAsm.Codegen.Programs.Modexp
+=======
+import EvmAsm.Codegen.Programs.PrecompileRuntime
+>>>>>>> origin/feat/modexp-header-gas
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -264,354 +268,6 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
         "2:\n" ++
         "  addi x10, x10, 1\n" ++
         "  ret" } ]
-
-private def precompileFrameAddi (dst : String) (off : Nat) : String :=
-  "  addi " ++ dst ++ ", x15, " ++ toString off ++ "\n"
-
-private def precompileGasRemainingOff : Nat := 568
-
-private def chargePrecompileGasAsm (costReg remainingReg : String) : String :=
-  "  ld " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
-  "  bltu " ++ remainingReg ++ ", " ++ costReg ++ ", .exit_outofgas\n" ++
-  "  sub " ++ remainingReg ++ ", " ++ remainingReg ++ ", " ++ costReg ++ "\n" ++
-  "  sd " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n"
-
-private def chargePrecompileGasConstAsm (cost : Nat)
-    (costReg remainingReg : String) : String :=
-  "  li " ++ costReg ++ ", " ++ toString cost ++ "\n" ++
-  chargePrecompileGasAsm costReg remainingReg
-
-private def stageEcrecoverInputAsm
-    (inOffsetOff inSizeOff : Nat) : String :=
-  "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
-  "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
-  "  add x18, x13, x18\n" ++
-  precompileFrameAddi "x19" precompileFrameEcrecoverInputOff ++
-  "  mv x22, x17\n" ++
-  "  li x23, 128\n" ++
-  "  bgeu x23, x22, 30f\n" ++
-  "  mv x22, x23\n" ++
-  "30:\n" ++
-  "  mv x24, x22\n" ++
-  "  beqz x24, 32f\n" ++
-  "31:\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  sb x16, 0(x19)\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x24, x24, -1\n" ++
-  "  bnez x24, 31b\n" ++
-  "32:\n" ++
-  "  sub x24, x23, x22\n" ++
-  "  beqz x24, 34f\n" ++
-  "33:\n" ++
-  "  sb x0, 0(x19)\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x24, x24, -1\n" ++
-  "  bnez x24, 33b\n" ++
-  "34:\n"
-
-private def ecrecoverVGateAsm : String :=
-  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 32) ++
-  "  li x19, 31\n" ++
-  "40:\n" ++
-  "  beqz x19, 41f\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  bnez x16, 43f\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x19, x19, -1\n" ++
-  "  j 40b\n" ++
-  "41:\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  li x19, 27\n" ++
-  "  beq x16, x19, 42f\n" ++
-  "  li x19, 28\n" ++
-  "  beq x16, x19, 42f\n" ++
-  "43:\n" ++
-  "  j 7b\n" ++
-  "42:\n"
-
-private def ecrecoverNonzeroRSGateAsm : String :=
-  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 64) ++
-  "  ld x16, 0(x18)\n" ++
-  "  ld x17, 8(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  ld x17, 16(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  ld x17, 24(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  beqz x16, 7b\n" ++
-  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 96) ++
-  "  ld x16, 0(x18)\n" ++
-  "  ld x17, 8(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  ld x17, 16(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  ld x17, 24(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  beqz x16, 7b\n"
-
-private def secp256k1OrderBytes : List Nat :=
-  [ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
-  , 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe
-  , 0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b
-  , 0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41
-  ]
-
-private def ecrecoverScalarBelowOrderCompareAsm
-    (bytes : List Nat) (idx belowLabel : Nat) : String :=
-  match bytes with
-  | [] => ""
-  | byte :: rest =>
-      "  lbu x16, " ++ toString idx ++ "(x18)\n" ++
-      "  li x17, " ++ toString byte ++ "\n" ++
-      "  bltu x17, x16, 7b\n" ++
-      "  bltu x16, x17, " ++ toString belowLabel ++ "f\n" ++
-      ecrecoverScalarBelowOrderCompareAsm rest (idx + 1) belowLabel
-
-private def ecrecoverScalarBelowOrderGateAsm
-    (wordOff : Nat) (belowLabel : Nat) : String :=
-  precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + wordOff) ++
-  ecrecoverScalarBelowOrderCompareAsm secp256k1OrderBytes 0 belowLabel ++
-  "  j 7b\n" ++
-  toString belowLabel ++ ":\n"
-
-private def ecrecoverScalarOrderGateAsm : String :=
-  ecrecoverScalarBelowOrderGateAsm 64 44 ++
-  ecrecoverScalarBelowOrderGateAsm 96 45
-
-private def chargePrecompileWordGasAsm
-    (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
-  "  li " ++ scratchReg ++ ", 31\n" ++
-  "  add " ++ costReg ++ ", " ++ sizeReg ++ ", " ++ scratchReg ++ "\n" ++
-  "  bltu " ++ costReg ++ ", " ++ sizeReg ++ ", .exit_outofgas\n" ++
-  "  srli " ++ costReg ++ ", " ++ costReg ++ ", 5\n" ++
-  "  li " ++ scratchReg ++ ", " ++ toString perWordGas ++ "\n" ++
-  "  mul " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
-  "  li " ++ scratchReg ++ ", " ++ toString baseGas ++ "\n" ++
-  "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
-  chargePrecompileGasAsm costReg scratchReg
-
-private def modexpReadLengthAsm (suffix : String) (fieldOff : Nat) (dstReg : String) : String :=
-  "  li " ++ dstReg ++ ", 0\n" ++
-  "  li x29, 0\n" ++
-  ".Lmodexp_len_loop_" ++ suffix ++ "_" ++ toString fieldOff ++ ":\n" ++
-  "  li x31, 32\n" ++
-  "  beq x29, x31, .Lmodexp_len_done_" ++ suffix ++ "_" ++ toString fieldOff ++ "\n" ++
-  "  addi x31, x29, " ++ toString fieldOff ++ "\n" ++
-  "  bgeu x31, x17, .Lmodexp_len_missing_" ++ suffix ++ "_" ++ toString fieldOff ++ "\n" ++
-  "  add x31, x18, x31\n" ++
-  "  lbu x16, 0(x31)\n" ++
-  "  j .Lmodexp_len_have_byte_" ++ suffix ++ "_" ++ toString fieldOff ++ "\n" ++
-  ".Lmodexp_len_missing_" ++ suffix ++ "_" ++ toString fieldOff ++ ":\n" ++
-  "  li x16, 0\n" ++
-  ".Lmodexp_len_have_byte_" ++ suffix ++ "_" ++ toString fieldOff ++ ":\n" ++
-  "  li x31, 30\n" ++
-  "  bltu x29, x31, .Lmodexp_len_high_" ++ suffix ++ "_" ++ toString fieldOff ++ "\n" ++
-  "  slli " ++ dstReg ++ ", " ++ dstReg ++ ", 8\n" ++
-  "  or " ++ dstReg ++ ", " ++ dstReg ++ ", x16\n" ++
-  "  j .Lmodexp_len_next_" ++ suffix ++ "_" ++ toString fieldOff ++ "\n" ++
-  ".Lmodexp_len_high_" ++ suffix ++ "_" ++ toString fieldOff ++ ":\n" ++
-  "  bnez x16, 1f\n" ++
-  ".Lmodexp_len_next_" ++ suffix ++ "_" ++ toString fieldOff ++ ":\n" ++
-  "  addi x29, x29, 1\n" ++
-  "  j .Lmodexp_len_loop_" ++ suffix ++ "_" ++ toString fieldOff ++ "\n" ++
-  ".Lmodexp_len_done_" ++ suffix ++ "_" ++ toString fieldOff ++ ":\n" ++
-  "  li x31, 1024\n" ++
-  "  bltu x31, " ++ dstReg ++ ", 1f\n"
-
-private def modexpByteLog2Asm (suffix : String) : String :=
-  "  li x31, 128\n" ++
-  "  bgeu x16, x31, .Lmodexp_log2_7_" ++ suffix ++ "\n" ++
-  "  li x31, 64\n" ++
-  "  bgeu x16, x31, .Lmodexp_log2_6_" ++ suffix ++ "\n" ++
-  "  li x31, 32\n" ++
-  "  bgeu x16, x31, .Lmodexp_log2_5_" ++ suffix ++ "\n" ++
-  "  li x31, 16\n" ++
-  "  bgeu x16, x31, .Lmodexp_log2_4_" ++ suffix ++ "\n" ++
-  "  li x31, 8\n" ++
-  "  bgeu x16, x31, .Lmodexp_log2_3_" ++ suffix ++ "\n" ++
-  "  li x31, 4\n" ++
-  "  bgeu x16, x31, .Lmodexp_log2_2_" ++ suffix ++ "\n" ++
-  "  li x31, 2\n" ++
-  "  bgeu x16, x31, .Lmodexp_log2_1_" ++ suffix ++ "\n" ++
-  "  j .Lmodexp_log_done_" ++ suffix ++ "\n" ++
-  ".Lmodexp_log2_7_" ++ suffix ++ ":\n" ++
-  "  addi x27, x27, 7\n" ++
-  "  j .Lmodexp_log_done_" ++ suffix ++ "\n" ++
-  ".Lmodexp_log2_6_" ++ suffix ++ ":\n" ++
-  "  addi x27, x27, 6\n" ++
-  "  j .Lmodexp_log_done_" ++ suffix ++ "\n" ++
-  ".Lmodexp_log2_5_" ++ suffix ++ ":\n" ++
-  "  addi x27, x27, 5\n" ++
-  "  j .Lmodexp_log_done_" ++ suffix ++ "\n" ++
-  ".Lmodexp_log2_4_" ++ suffix ++ ":\n" ++
-  "  addi x27, x27, 4\n" ++
-  "  j .Lmodexp_log_done_" ++ suffix ++ "\n" ++
-  ".Lmodexp_log2_3_" ++ suffix ++ ":\n" ++
-  "  addi x27, x27, 3\n" ++
-  "  j .Lmodexp_log_done_" ++ suffix ++ "\n" ++
-  ".Lmodexp_log2_2_" ++ suffix ++ ":\n" ++
-  "  addi x27, x27, 2\n" ++
-  "  j .Lmodexp_log_done_" ++ suffix ++ "\n" ++
-  ".Lmodexp_log2_1_" ++ suffix ++ ":\n" ++
-  "  addi x27, x27, 1\n" ++
-  "  j .Lmodexp_log_done_" ++ suffix ++ "\n"
-
-private def modexpPrecompileGasAsm
-    (suffix : String) (inOffsetOff inSizeOff : Nat) : String :=
-  "  la x15, evm_precompile_frame\n" ++
-  "  li x16, 1\n" ++
-  "  sd x16, 0(x15)\n" ++
-  "  sd x0, 8(x15)\n" ++
-  "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
-  "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
-  "  add x18, x13, x18\n" ++
-  modexpReadLengthAsm suffix 0 "x21" ++
-  modexpReadLengthAsm suffix 32 "x22" ++
-  modexpReadLengthAsm suffix 64 "x23" ++
-  "  mv x24, x21\n" ++
-  "  bgeu x24, x23, .Lmodexp_max_done_" ++ suffix ++ "\n" ++
-  "  mv x24, x23\n" ++
-  ".Lmodexp_max_done_" ++ suffix ++ ":\n" ++
-  "  addi x25, x24, 7\n" ++
-  "  srli x25, x25, 3\n" ++
-  "  li x31, 32\n" ++
-  "  bltu x31, x24, .Lmodexp_complex_large_" ++ suffix ++ "\n" ++
-  "  li x26, 16\n" ++
-  "  j .Lmodexp_complex_done_" ++ suffix ++ "\n" ++
-  ".Lmodexp_complex_large_" ++ suffix ++ ":\n" ++
-  "  mul x26, x25, x25\n" ++
-  "  slli x26, x26, 1\n" ++
-  ".Lmodexp_complex_done_" ++ suffix ++ ":\n" ++
-  "  li x27, 0\n" ++
-  "  li x30, 0\n" ++
-  "  mv x28, x22\n" ++
-  "  li x31, 32\n" ++
-  "  bgeu x31, x28, .Lmodexp_head_len_done_" ++ suffix ++ "\n" ++
-  "  mv x28, x31\n" ++
-  ".Lmodexp_head_len_done_" ++ suffix ++ ":\n" ++
-  "  li x29, 0\n" ++
-  ".Lmodexp_head_loop_" ++ suffix ++ ":\n" ++
-  "  beq x29, x28, .Lmodexp_head_done_zero_" ++ suffix ++ "\n" ++
-  "  addi x31, x21, 96\n" ++
-  "  add x31, x31, x29\n" ++
-  "  bgeu x31, x17, .Lmodexp_head_missing_" ++ suffix ++ "\n" ++
-  "  add x31, x18, x31\n" ++
-  "  lbu x16, 0(x31)\n" ++
-  "  j .Lmodexp_head_have_byte_" ++ suffix ++ "\n" ++
-  ".Lmodexp_head_missing_" ++ suffix ++ ":\n" ++
-  "  li x16, 0\n" ++
-  ".Lmodexp_head_have_byte_" ++ suffix ++ ":\n" ++
-  "  bnez x16, .Lmodexp_head_nonzero_" ++ suffix ++ "\n" ++
-  "  addi x29, x29, 1\n" ++
-  "  j .Lmodexp_head_loop_" ++ suffix ++ "\n" ++
-  ".Lmodexp_head_nonzero_" ++ suffix ++ ":\n" ++
-  "  li x30, 1\n" ++
-  "  sub x27, x28, x29\n" ++
-  "  addi x27, x27, -1\n" ++
-  "  slli x27, x27, 3\n" ++
-  modexpByteLog2Asm suffix ++
-  ".Lmodexp_head_done_zero_" ++ suffix ++ ":\n" ++
-  ".Lmodexp_log_done_" ++ suffix ++ ":\n" ++
-  "  li x31, 32\n" ++
-  "  bltu x31, x22, .Lmodexp_iter_large_exp_" ++ suffix ++ "\n" ++
-  "  beqz x30, .Lmodexp_iter_zero_head_" ++ suffix ++ "\n" ++
-  "  mv x28, x27\n" ++
-  "  j .Lmodexp_iter_max_" ++ suffix ++ "\n" ++
-  ".Lmodexp_iter_large_exp_" ++ suffix ++ ":\n" ++
-  "  addi x28, x22, -32\n" ++
-  "  slli x28, x28, 4\n" ++
-  "  add x28, x28, x27\n" ++
-  "  j .Lmodexp_iter_max_" ++ suffix ++ "\n" ++
-  ".Lmodexp_iter_zero_head_" ++ suffix ++ ":\n" ++
-  "  li x28, 0\n" ++
-  ".Lmodexp_iter_max_" ++ suffix ++ ":\n" ++
-  "  bnez x28, .Lmodexp_iter_done_" ++ suffix ++ "\n" ++
-  "  li x28, 1\n" ++
-  ".Lmodexp_iter_done_" ++ suffix ++ ":\n" ++
-  "  mul x16, x26, x28\n" ++
-  "  li x31, 500\n" ++
-  "  bgeu x16, x31, .Lmodexp_cost_done_" ++ suffix ++ "\n" ++
-  "  mv x16, x31\n" ++
-  ".Lmodexp_cost_done_" ++ suffix ++ ":\n" ++
-  chargePrecompileGasAsm "x16" "x31" ++
-  "  or x24, x21, x23\n" ++
-  "  beqz x24, 7b\n" ++
-  "  j 1f\n"
-
-private def stagePrecompileInputWindowAsm
-    (tag : String) (inOffsetOff inSizeOff frameOff sourceOff byteLen : Nat) : String :=
-  -- Zero-fill the fixed accelerator window, then copy the available suffix of
-  -- EVM call data. This mirrors execution-specs `buffer_read` padding.
-  precompileFrameAddi "x18" frameOff ++
-  "  li x19, " ++ toString byteLen ++ "\n" ++
-  ".L" ++ tag ++ "_zero:\n" ++
-  "  beqz x19, .L" ++ tag ++ "_zero_done\n" ++
-  "  sb x0, 0(x18)\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x19, x19, -1\n" ++
-  "  j .L" ++ tag ++ "_zero\n" ++
-  ".L" ++ tag ++ "_zero_done:\n" ++
-  "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
-  "  li x19, " ++ toString sourceOff ++ "\n" ++
-  "  bgeu x19, x18, .L" ++ tag ++ "_done\n" ++
-  "  sub x18, x18, x19\n" ++
-  "  li x22, " ++ toString byteLen ++ "\n" ++
-  "  bgeu x22, x18, .L" ++ tag ++ "_copy_len_ok\n" ++
-  "  mv x18, x22\n" ++
-  ".L" ++ tag ++ "_copy_len_ok:\n" ++
-  "  ld x19, " ++ toString inOffsetOff ++ "(x12)\n" ++
-  "  add x19, x19, x13\n" ++
-  "  li x22, " ++ toString sourceOff ++ "\n" ++
-  "  add x19, x19, x22\n" ++
-  precompileFrameAddi "x21" frameOff ++
-  ".L" ++ tag ++ "_copy:\n" ++
-  "  beqz x18, .L" ++ tag ++ "_done\n" ++
-  "  lbu x23, 0(x19)\n" ++
-  "  sb x23, 0(x21)\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x21, x21, 1\n" ++
-  "  addi x18, x18, -1\n" ++
-  "  j .L" ++ tag ++ "_copy\n" ++
-  ".L" ++ tag ++ "_done:\n"
-
-private def precompileSuccess64FromFrameAsm
-    (tag : String) (outOffsetOff outSizeOff resultFrameOff : Nat) : String :=
-  "  la x15, evm_precompile_frame\n" ++
-  "  addi x18, x15, 16\n" ++
-  precompileFrameAddi "x19" resultFrameOff ++
-  "  li x22, 64\n" ++
-  ".L" ++ tag ++ "_retcopy:\n" ++
-  "  beqz x22, .L" ++ tag ++ "_retcopy_done\n" ++
-  "  lbu x16, 0(x19)\n" ++
-  "  sb x16, 0(x18)\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x22, x22, -1\n" ++
-  "  j .L" ++ tag ++ "_retcopy\n" ++
-  ".L" ++ tag ++ "_retcopy_done:\n" ++
-  "  li x16, 1\n" ++
-  "  sd x16, 0(x15)\n" ++
-  "  li x16, 64\n" ++
-  "  sd x16, 8(x15)\n" ++
-  "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
-  "  li x23, 64\n" ++
-  "  bgeu x22, x23, .L" ++ tag ++ "_out_len_ok\n" ++
-  "  mv x23, x22\n" ++
-  ".L" ++ tag ++ "_out_len_ok:\n" ++
-  "  beqz x23, 7b\n" ++
-  "  addi x18, x15, 16\n" ++
-  "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
-  "  add x19, x13, x19\n" ++
-  ".L" ++ tag ++ "_outcopy:\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  sb x16, 0(x19)\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x23, x23, -1\n" ++
-  "  bnez x23, .L" ++ tag ++ "_outcopy\n" ++
-  "  j 7b\n"
 
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
     CREATE2, STATICCALL). CALL-family non-precompile paths still ship as
@@ -940,6 +596,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  beq x14, x15, .L" ++ tag ++ "_bn254_add\n" ++
     "  li x15, 0x07\n" ++
     "  beq x14, x15, .L" ++ tag ++ "_bn254_mul\n" ++
+    "  li x15, 0x09\n" ++
+    "  beq x14, x15, .L" ++ tag ++ "_blake2f\n" ++
     "  li x15, 0x0b\n" ++
     "  beq x14, x15, 13f\n" ++
     "  li x15, 0x0c\n" ++
@@ -1115,6 +773,48 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bnez a0, 1f\n" ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_mul_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
+    -- BLAKE2F: exact 213-byte payload, then charge gas equal to the BE
+    -- rounds field, then validate the final flag. The current runtime wrapper
+    -- deterministic-fails, but the path is ready to expose the updated 64-byte
+    -- state from h once a success-producing backend is available.
+    ".L" ++ tag ++ "_blake2f:\n" ++
+    "  ld x16, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x17, 213\n" ++
+    "  bne x16, x17, 1f\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    stagePrecompileInputWindowAsm
+      (tag ++ "_blake2f_payload") inOffsetOff inSizeOff precompileFrameBls12G2InputOff 0 213 ++
+    precompileFrameAddi "x18" precompileFrameBls12G2InputOff ++
+    "  lbu x16, 0(x18)\n" ++
+    "  slli x16, x16, 24\n" ++
+    "  lbu x17, 1(x18)\n" ++
+    "  slli x17, x17, 16\n" ++
+    "  or x16, x16, x17\n" ++
+    "  lbu x17, 2(x18)\n" ++
+    "  slli x17, x17, 8\n" ++
+    "  or x16, x16, x17\n" ++
+    "  lbu x17, 3(x18)\n" ++
+    "  or x16, x16, x17\n" ++
+    chargePrecompileGasAsm "x16" "x17" ++
+    "  lbu x17, 212(x18)\n" ++
+    "  li x22, 1\n" ++
+    "  bltu x22, x17, 1f\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  mv a0, x16\n" ++
+    precompileFrameAddi "a1" (precompileFrameBls12G2InputOff + 4) ++
+    precompileFrameAddi "a2" (precompileFrameBls12G2InputOff + 68) ++
+    precompileFrameAddi "a3" (precompileFrameBls12G2InputOff + 196) ++
+    "  mv a4, x17\n" ++
+    "  jal x1, zkvm_blake2f\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  bnez a0, 1f\n" ++
+    precompileSuccess64FromFrameAsm
+      (tag ++ "_blake2f_success") outOffsetOff outSizeOff (precompileFrameBls12G2InputOff + 4) ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++

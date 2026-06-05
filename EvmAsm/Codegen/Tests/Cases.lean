@@ -41,6 +41,12 @@ private def callPrecompileBytecode
     (["0x60", "0x00", "0x60", "0x00", "0x60", inSize, "0x60", "0x00",
       "0x60", "0x00", "0x60", target, "0x60", "0xff", "0xf1"] ++ suffix)
 
+private def callPrecompileBytecodeWithPrefix
+    (prelude : List String) (target inSize : String) (suffix : List String) : String :=
+  byteCsv
+    (prelude ++ ["0x60", "0x00", "0x60", "0x00", "0x60", inSize, "0x60", "0x00",
+      "0x60", "0x00", "0x60", target, "0x60", "0xff", "0xf1"] ++ suffix)
+
 private def staticcallPrecompileBytecode
     (target inSize : String) (suffix : List String) : String :=
   byteCsv
@@ -1492,6 +1498,48 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := staticcallPrecompileBytecode "0x07" "0x00" ["0x5a", "0x00"]
       expectedOutHex := "5000000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "6200" }
+  , -- BLAKE2F invalid length fails before reading rounds, so only CALL static
+    -- gas is consumed. With gasLimit=200: seven PUSH1s (21) + CALL warm
+    -- static base (100) + GAS (2) leaves 77.
+    { name           := "call_blake2f_invalid_length_no_rounds_charge"
+      bytecode       := callPrecompileBytecode "0x09" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "200" }
+  , -- Exact 213-byte BLAKE2F input with all-zero payload has rounds=0. The
+    -- current backend safe-fails, but gas after CALL proves no rounds charge.
+    { name           := "call_blake2f_rounds_zero_fixed_gas_after_call"
+      bytecode       := callPrecompileBytecode "0x09" "0xd5" ["0x5a", "0x00"]
+      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "200" }
+  , -- Store rounds byte data[3]=1. Prefix cost is two PUSH1s, MSTORE8, and
+    -- one-word memory expansion; with rounds=1, gasLimit=200 leaves 64 after GAS.
+    { name           := "call_blake2f_rounds_one_fixed_gas_after_call"
+      bytecode       := callPrecompileBytecodeWithPrefix
+        ["0x60", "0x01", "0x60", "0x03", "0x53"] "0x09" "0xd5" ["0x5a", "0x00"]
+      expectedOutHex := "4000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "200" }
+  , -- One gas short reaches the BLAKE2F rounds charge and exits OOG.
+    { name             := "call_blake2f_rounds_one_out_of_gas"
+      bytecode         := callPrecompileBytecodeWithPrefix
+        ["0x60", "0x01", "0x60", "0x03", "0x53"] "0x09" "0xd5" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "133" }
+  , -- Final flag data[212]=2 is invalid after the rounds-gas phase and surfaces
+    -- as normal precompile failure with empty returndata.
+    { name             := "call_blake2f_invalid_final_flag_empty_returndata"
+      bytecode         := callPrecompileBytecodeWithPrefix
+        ["0x60", "0x02", "0x60", "0xd4", "0x53"] "0x09" "0xd5" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "10000" }
+  , -- Valid-length input reaches the deterministic backend EFAIL wrapper, so
+    -- CALL success is 0 and RETURNDATASIZE remains zero.
+    { name             := "call_blake2f_backend_failure_empty_returndata"
+      bytecode         := callPrecompileBytecode "0x09" "0xd5" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "10000" }
   , -- BLS12 G1 ADD rejects invalid input length before any accelerator body.
     { name             := "call_bls12_g1_add_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
