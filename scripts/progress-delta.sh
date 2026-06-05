@@ -263,11 +263,14 @@ is_trusted_core() {
     lakefile.toml|lean-toolchain)                                 return 0 ;;
     scripts/check-*.sh)                                           return 0 ;;
     scripts/axiom-allow.txt|scripts/conformance-baseline.txt)     return 0 ;;
+    scripts/approved-heartbeat-overrides.txt)                     return 0 ;;
+    scripts/duplication-baseline.txt|scripts/jscpd.json)          return 0 ;;
+    scripts/churn-report.sh|scripts/cycles-append.sh)             return 0 ;;
     scripts/eest-fixture-tag.txt)                                 return 0 ;;
     scripts/codegen-eest-stateless-check.sh)                      return 0 ;;
     scripts/progress-report.sh|scripts/progress-snapshot.sh)      return 0 ;;
     scripts/progress-velocity.sh|scripts/progress-delta.sh)       return 0 ;;
-    .github/workflows/*|.github/CODEOWNERS)                       return 0 ;;
+    .github/workflows/*|.github/CODEOWNERS|.github/labeler.yml)   return 0 ;;
     *)                                                            return 1 ;;
   esac
 }
