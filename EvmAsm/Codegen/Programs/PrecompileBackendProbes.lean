@@ -129,6 +129,17 @@ def zkvmSecp256k1EcrecoverSafeFailWrapper : String :=
   "  li a0, -1\n" ++
   "  ret"
 
+/-- Linkable bare-RV64 wrapper for
+    `zkvm_modexp(base, base_len, exp, exp_len, modulus, mod_len, output)`.
+    The current runtime harness does not expose a success-producing MODEXP
+    backend, so this deterministic shim reports EFAIL while preserving the ABI
+    call surface for the dispatcher path. -/
+def zkvmModexpSafeFailWrapper : String :=
+  ".globl zkvm_modexp\n" ++
+  "zkvm_modexp:\n" ++
+  "  li a0, -1\n" ++
+  "  ret"
+
 /-- Probe driver for the ECRECOVER backend ABI. It passes valid_signature_1
     from docs/eest-precompile-frontier.md to the linkable wrapper and writes:
 
@@ -175,6 +186,44 @@ def ziskSecp256k1EcrecoverBackendProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskSecp256k1EcrecoverBackendProbePrologue
   dataAsm     := ziskSecp256k1EcrecoverBackendProbeDataSection
+}
+
+/-- Probe driver for the MODEXP backend ABI. It passes 2^5 mod 13 with
+    one-byte components and records the returned status plus the first two
+    output words. The safe-fail shim leaves the poison output unchanged. -/
+def ziskModexpBackendProbePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  fillPatternAsm "Lmodexp_backend" "modexp_backend_output" 16 ++
+  "  la a0, modexp_backend_base\n" ++
+  "  li a1, 1\n" ++
+  "  la a2, modexp_backend_exp\n" ++
+  "  li a3, 1\n" ++
+  "  la a4, modexp_backend_modulus\n" ++
+  "  li a5, 1\n" ++
+  "  la a6, modexp_backend_output\n" ++
+  "  jal ra, zkvm_modexp\n" ++
+  copyProbeOutputAsm "modexp_backend_output" ++
+  "  j .Lmodexp_backend_done\n" ++
+  zkvmModexpSafeFailWrapper ++ "\n" ++
+  ".Lmodexp_backend_done:"
+
+def ziskModexpBackendProbeDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "modexp_backend_base:\n" ++
+  "  .byte 0x02\n" ++
+  "modexp_backend_exp:\n" ++
+  "  .byte 0x05\n" ++
+  "modexp_backend_modulus:\n" ++
+  "  .byte 0x0d\n" ++
+  ".balign 8\n" ++
+  "modexp_backend_output:\n" ++
+  "  .zero 16"
+
+def ziskModexpBackendProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskModexpBackendProbePrologue
+  dataAsm     := ziskModexpBackendProbeDataSection
 }
 
 private def bls12BackendProbePrologue

@@ -272,6 +272,9 @@ def emitGasCostTable : String :=
       +precompileFrameBls12G2OutputOff      G2-class compact result scratch
       +precompileFrameEcrecoverInputOff     ECRECOVER hash/v/r/s words.
 
+    MODEXP uses separate `modexp_*_scratch` labels because it needs up to
+    4 KiB of zero-padded base/exponent/modulus/output buffers.
+
     The lanes are handler-local scratch, so G1/G2 ADD may still reuse the
     older offsets internally. Map-Fp2-to-G2 uses the G2-class lane to avoid
     colliding with map-Fp-to-G1 stacked PR edits around +144/+336. -/
@@ -279,6 +282,19 @@ def emitPrecompileFrameData : String :=
   ".balign 8\n" ++
   "evm_precompile_frame:\n" ++
   "  .zero 1280\n"
+
+/-- Zero-padded component and output buffers for the runtime MODEXP backend
+    path. EIP-7823 caps each component at 1024 bytes before the backend call. -/
+def emitModexpScratchData : String :=
+  ".balign 8\n" ++
+  "modexp_base_scratch:\n" ++
+  "  .zero 1024\n" ++
+  "modexp_exp_scratch:\n" ++
+  "  .zero 1024\n" ++
+  "modexp_modulus_scratch:\n" ++
+  "  .zero 1024\n" ++
+  "modexp_output_scratch:\n" ++
+  "  .zero 1024\n"
 
 /-- Scratch buffers used by `zkvm_sha256`. The wrapper expects these
     labels to exist in the dispatcher's data section. -/
@@ -667,6 +683,7 @@ def emitDispatcherEpilogue
   hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
+  zkvmModexpSafeFailWrapper ++ "\n" ++
   zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
   zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_g2_add" "0x10d" ++ "\n" ++
@@ -858,6 +875,7 @@ def emitDispatcherDataSection
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
   emitPrecompileFrameData ++
+  emitModexpScratchData ++
   emitSha256Data ++
   ".balign 8\n" ++
   "zk3_state:\n" ++
@@ -1172,6 +1190,7 @@ def emitRuntimeDispatcherDataSection
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
   emitPrecompileFrameData ++
+  emitModexpScratchData ++
   emitSha256Data ++
   ".balign 8\n" ++
   "zk3_state:\n" ++
