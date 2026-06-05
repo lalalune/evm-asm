@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 JOBS="${EEST_BAL_REPLAY_JOBS:-${EEST_JOBS:-auto}}"
-STEPS="${EEST_BAL_REPLAY_STEPS:-${EEST_STEPS:-400000000}}"
+STEPS="${EEST_BAL_REPLAY_STEPS:-${EEST_STEPS:-1000000000}}"
 CAP_ARGS=()
 CAP_NOTE="default"
 if [[ -n "${EEST_BSR_WITNESS_CAP:-}" ]]; then
