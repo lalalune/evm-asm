@@ -346,7 +346,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
-  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit
+  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
   | "zisk_bal_section_info"      => some ziskBalSectionInfoProbeUnit
   | "zisk_bal_account_path"      => some ziskBalAccountPathProbeUnit
   | "zisk_bal_account_post_fields" => some ziskBalAccountPostFieldsProbeUnit
