@@ -1078,18 +1078,18 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "call_ecrecover_stage_len1_success"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "3121" }
+      gasLimit       := "3124" }
   , -- 40 bytes reaches into the v word; bytes 40..128 are zero-filled.
     { name           := "call_ecrecover_stage_partial_v_success"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x28, 0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "3121" }
+      gasLimit       := "3127" }
   , -- 127 bytes copies through the s word and zero-fills exactly the
     -- final byte of the staged 128-byte ECRECOVER input.
     { name           := "staticcall_ecrecover_stage_partial_s_success"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x7f, 0x60, 0x00, 0x60, 0x01, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "3118" }
+      gasLimit       := "3130" }
   , -- The v gate accepts only the 32-byte integer 27 or 28. These
     -- cases write the low v byte at memory[63], stage 64 input bytes,
     -- and keep the current empty-returndata placeholder behavior.
@@ -1166,32 +1166,43 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "135" }
-  , -- IDENTITY charges 15 + 3 * ceil(input_size / 32). A one-byte
-    -- payload therefore costs 18 inner gas; total = 21 PUSH gas +
-    -- 100 CALL gas + 18.
+  , -- IDENTITY charges 15 + 3 * ceil(input_size / 32). CALL also
+    -- charges memory expansion for the one-word input range, so total =
+    -- 21 PUSH gas + 100 CALL gas + 3 memory gas + 18 inner gas.
     { name           := "call_identity_precompile_gas_len1_exact"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "139" }
+      gasLimit       := "142" }
   , -- 32 bytes is still one charged word, so the exact threshold
     -- matches the one-byte case.
     { name           := "call_identity_precompile_gas_len32_exact"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x20, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "139" }
-  , -- 33 bytes rounds up to two words, increasing the exact threshold
-    -- by 3.
+      gasLimit       := "142" }
+  , -- 33 bytes rounds up to two words for both CALL memory expansion and
+    -- IDENTITY word gas.
     { name           := "call_identity_precompile_gas_len33_exact"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "142" }
+      gasLimit       := "148" }
   , -- One less unit fails in the word-linear helper for the 33-byte
     -- IDENTITY case.
     { name             := "call_identity_precompile_gas_len33_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "141" }
+      gasLimit         := "147" }
+  , -- A non-zero output window is charged as CALL memory expansion even
+    -- when the IDENTITY returndata is empty.
+    { name           := "call_identity_precompile_output_memory_gas_exact"
+      bytecode       := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "139" }
+  , { name             := "call_identity_precompile_output_memory_gas_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x04, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "138" }
   , -- STATICCALL to basic precompile address 0x04 reaches the same
     -- frame surface. Args: out_size, out_off, in_size, in_off, to,
     -- gas.
@@ -1224,26 +1235,26 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "178" }
-  , -- One byte and 32 bytes both charge one SHA256 word:
-    -- 60 + 12 inner gas, total = 190.
+  , -- One byte and 32 bytes both charge one SHA256 word plus one
+    -- CALL memory-expansion word: total = 193.
     { name           := "staticcall_sha256_precompile_gas_len1_exact"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "190" }
+      gasLimit       := "193" }
   , { name           := "staticcall_sha256_precompile_gas_len32_exact"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x20, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "190" }
-  , -- 33 bytes charges two SHA256 words: total = 202.
+      gasLimit       := "193" }
+  , -- 33 bytes charges two SHA256 words and two memory-expansion words.
     { name           := "staticcall_sha256_precompile_gas_len33_exact"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x21, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "202" }
+      gasLimit       := "208" }
   , { name             := "staticcall_sha256_precompile_gas_len33_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x21, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "201" }
+      gasLimit         := "207" }
   , -- CALL to SHA256 over memory[0..3) = "abc".
     { name             := "call_sha256_precompile_abc"
       bytecode         := "0x60, 0x61, 0x60, 0x00, 0x53, 0x60, 0x62, 0x60, 0x01, 0x53, 0x60, 0x63, 0x60, 0x02, 0x53, 0x60, 0x20, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
