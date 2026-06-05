@@ -24,6 +24,9 @@ private def byteCsv (bytes : List String) : String :=
 private def repeatedPush1Bytecode (n : Nat) (value : String) : String :=
   byteCsv ((List.range n).flatMap (fun _ => ["0x60", value]) ++ ["0x00"])
 
+private def push20RepeatedBytecode (value : String) (suffix : List String) : String :=
+  byteCsv (["0x73"] ++ List.replicate 20 value ++ suffix)
+
 private def callPrecompileBytecode
     (target inSize : String) (suffix : List String) : String :=
   byteCsv
@@ -817,6 +820,60 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "extcodesize_no_context_zero"
       bytecode       := "0x60, 0xab, 0x3b, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- Account-access gas: no witness context still charges the cold
+    -- BALANCE delta before zero-fallback. PUSH20(3)+BALANCE warm floor(100)
+    -- + cold delta(2500)+GAS(2) leaves 395 from a 3000-gas limit.
+    { name           := "balance_cold_access_gas_no_context"
+      bytecode       := push20RepeatedBytecode "0xaa" ["0x31", "0x5a", "0x00"]
+      expectedOutHex := "8b01000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3000" }
+  , -- The current ADDRESS is seeded warm by runtime setup, so BALANCE
+    -- charges only the 100-gas warm floor before GAS. With gasLimit=3000:
+    -- PUSH20(3)+BALANCE(100)+GAS(2) leaves 2895.
+    { name           := "balance_seeded_address_warm_gas_no_context"
+      bytecode       := push20RepeatedBytecode "0xaa" ["0x31", "0x5a", "0x00"]
+      expectedOutHex := "4f0b000000000000000000000000000000000000000000000000000000000000"
+      env            := "address=0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      gasLimit       := "3000" }
+  , -- One gas short for the cold delta after PUSH20 and the static warm
+    -- floor: 2602 - 3 - 100 = 2499 < 2500, so the helper exits OOG.
+    { name             := "balance_cold_access_oog_no_context"
+      bytecode         := push20RepeatedBytecode "0xaa" ["0x31", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "2602" }
+  , -- EXTCODESIZE uses the same account-access table and cold delta as
+    -- BALANCE, even when the witness-context fallback returns zero.
+    { name           := "extcodesize_cold_access_gas_no_context"
+      bytecode       := push20RepeatedBytecode "0xbb" ["0x3b", "0x5a", "0x00"]
+      expectedOutHex := "8b01000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3000" }
+  , { name           := "extcodesize_seeded_address_warm_gas_no_context"
+      bytecode       := push20RepeatedBytecode "0xbb" ["0x3b", "0x5a", "0x00"]
+      expectedOutHex := "4f0b000000000000000000000000000000000000000000000000000000000000"
+      env            := "address=0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      gasLimit       := "3000" }
+  , { name             := "extcodesize_cold_access_oog_no_context"
+      bytecode         := push20RepeatedBytecode "0xbb" ["0x3b", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "2602" }
+  , -- EXTCODEHASH shares the EXTCODESIZE account-witness path but must
+    -- still charge account access before zero-fallback.
+    { name           := "extcodehash_cold_access_gas_no_context"
+      bytecode       := push20RepeatedBytecode "0xcc" ["0x3f", "0x5a", "0x00"]
+      expectedOutHex := "8b01000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3000" }
+  , { name           := "extcodehash_seeded_address_warm_gas_no_context"
+      bytecode       := push20RepeatedBytecode "0xcc" ["0x3f", "0x5a", "0x00"]
+      expectedOutHex := "4f0b000000000000000000000000000000000000000000000000000000000000"
+      env            := "address=0xcccccccccccccccccccccccccccccccccccccccc"
+      gasLimit       := "3000" }
+  , { name             := "extcodehash_cold_access_oog_no_context"
+      bytecode         := push20RepeatedBytecode "0xcc" ["0x3f", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "2602" }
   , -- PUSH1 0x01; PUSH1 0x02; PUSH1 0x03; MCOPY; PUSH1 0x42; STOP
     -- MCOPY pops 3 args; PUSH1 0x42 lands on the empty stack.
     { name           := "mcopy_pop3"
