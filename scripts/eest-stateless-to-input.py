@@ -32,9 +32,10 @@ Usage:
                              [--verify-execution-spec-input]
                              [--verify-run-stateless-guest]
 
-``--filter`` keeps only fixtures whose relative path contains the given
-substring.  ``--skip`` drops the first N selected stateless blocks after
-filtering, then ``--limit`` caps the number of guest invocations emitted.
+``--filter`` keeps only stateless blocks whose fixture relative path or
+per-block EEST test label contains the given substring.  ``--skip`` drops the
+first N selected stateless blocks after filtering, then ``--limit`` caps the
+number of guest invocations emitted.
 ``--verify-input-parity`` unpacks each emitted ziskemu input and checks that
 the guest-visible blob is byte-for-byte the fixture's ``statelessInputBytes``.
 ``--verify-execution-spec-input`` additionally decodes that same blob through
@@ -164,7 +165,11 @@ def main() -> int:
     ap.add_argument("--manifest", type=Path, default=None)
     ap.add_argument("--skip", type=int, default=0, help="skip first N selected invocations")
     ap.add_argument("--limit", type=int, default=0, help="cap invocations (0 = no cap)")
-    ap.add_argument("--filter", default="", help="keep fixtures whose relpath contains this")
+    ap.add_argument(
+        "--filter",
+        default="",
+        help="keep blocks whose fixture relpath or test label contains this",
+    )
     ap.add_argument(
         "--verify-input-parity",
         action="store_true",
@@ -213,9 +218,9 @@ def main() -> int:
     with manifest_path.open("w") as mf:
         for fp in json_files:
             relpath = str(fp.relative_to(fixtures_dir))
-            if args.filter and args.filter not in relpath:
-                continue
             for label, ib, ob, gas_limit in iter_blocks(fp):
+                if args.filter and args.filter not in relpath and args.filter not in label:
+                    continue
                 if selected < args.skip:
                     selected += 1
                     continue

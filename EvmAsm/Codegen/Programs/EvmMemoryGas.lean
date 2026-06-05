@@ -105,6 +105,117 @@ def copyWordGasAsm (tag lengthReg roundedReg wordsReg gasReg : String) : String 
   "  sd " ++ roundedReg ++ ", 568(x20)\n" ++
   ".Lcopygas_" ++ tag ++ "_done:\n"
 
+/-- RETURN/REVERT memory expansion gas. The opcode static cost is zero, so
+    this charges only memory expansion over `(offset, size)` before the
+    terminating data copy. Zero-size ranges do not expand memory, matching
+    execution-specs. Nonzero ranges with high offset/size limbs, low-limb
+    wraparound, or an end past the current 32 KiB runtime memory arena route
+    to `.exit_outofgas` before any return/revert output is emitted.
+
+    Stack layout before RETURN/REVERT body: `offset` at `0(x12)`, `size` at
+    `32(x12)`. Scratch registers x14/x15/x16/x17/x18/x19/x6 are clobbered. -/
+def returnRevertMemoryGasAsm (tag : String) : String :=
+  -- Any non-zero high size limb means size is non-zero but not representable.
+  "  ld x18, 40(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x18, 48(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x18, 56(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x15, 32(x12)\n" ++
+  "  beqz x15, .Lreturn_revert_mem_" ++ tag ++ "_ok\n" ++
+  -- Non-zero size expands/copies the range, so offset must be u64.
+  "  ld x18, 8(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x18, 16(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x18, 24(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x14, 0(x12)\n" ++
+  "  add x18, x14, x15\n" ++
+  "  bltu x18, x14, .exit_outofgas\n" ++
+  "  li x19, 0x8000\n" ++
+  "  bltu x19, x18, .exit_outofgas\n" ++
+  updateActiveMemorySizeAsm tag "x14" "x15" "x16" "x17" "x18" "x6" true ++
+  ".Lreturn_revert_mem_" ++ tag ++ "_ok:\n"
+
+/-- CALL-family memory expansion gas for the input and output windows.
+
+    The dispatch loop and precompile bodies charge the static CALL base and
+    precompile-specific inner gas separately; this helper charges only generic
+    EVM memory expansion for `(in_offset, in_size)` and
+    `(out_offset, out_size)`. Zero-size ranges do not expand memory, so high
+    offset limbs are tolerated when the corresponding low size limb is zero.
+    Non-zero high size limbs, high offsets for non-zero sizes, and low-limb
+    offset+size wraparound route to `.exit_outofgas`. -/
+def callMemoryExpansionGasAsm
+    (tag : String)
+    (inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
+  "  ld x15, " ++ toString inSizeOff ++ "(x12)\n" ++
+  "  beqz x15, .Lcallmem_" ++ tag ++ "_out\n" ++
+  "  ld x5, " ++ toString (inSizeOff + 8) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (inSizeOff + 16) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (inSizeOff + 24) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (inOffsetOff + 8) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (inOffsetOff + 16) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (inOffsetOff + 24) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x14, " ++ toString inOffsetOff ++ "(x12)\n" ++
+  "  add x5, x14, x15\n" ++
+  "  bltu x5, x14, .exit_outofgas\n" ++
+  updateActiveMemorySizeAsm ("call_" ++ tag ++ "_in") "x14" "x15" "x16" "x17" "x5" "x6" true ++
+  ".Lcallmem_" ++ tag ++ "_out:\n" ++
+  "  ld x15, " ++ toString outSizeOff ++ "(x12)\n" ++
+  "  beqz x15, .Lcallmem_" ++ tag ++ "_done\n" ++
+  "  ld x5, " ++ toString (outSizeOff + 8) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (outSizeOff + 16) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (outSizeOff + 24) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (outOffsetOff + 8) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (outOffsetOff + 16) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x5, " ++ toString (outOffsetOff + 24) ++ "(x12)\n" ++
+  "  bnez x5, .exit_outofgas\n" ++
+  "  ld x14, " ++ toString outOffsetOff ++ "(x12)\n" ++
+  "  add x5, x14, x15\n" ++
+  "  bltu x5, x14, .exit_outofgas\n" ++
+  updateActiveMemorySizeAsm ("call_" ++ tag ++ "_out") "x14" "x15" "x16" "x17" "x5" "x6" true ++
+  ".Lcallmem_" ++ tag ++ "_done:\n"
+
+/-- CREATE-family initcode dynamic gas. The dispatch loop already charges
+    `OPCODE_CREATE_BASE = 32000`; this charges the EIP-3860 initcode word
+    cost `2 * ceil32(size) / 32`, and for CREATE2 also the EIP-1014 hashcost
+    `6 * ceil32(size) / 32`. Memory expansion is handled separately by
+    `updateActiveMemorySizeAsm` over the same initcode range.
+
+    The caller must have already checked high size limbs and, for nonzero
+    size, that high offset limbs and `offset + size` fit the runtime memory
+    arena. `sizeReg` is preserved; `roundedReg`, `wordsReg`, and `gasReg` are
+    clobbered. -/
+def createInitcodeGasAsm
+    (tag sizeReg roundedReg wordsReg gasReg : String) (hasSalt : Bool) :
+    String :=
+  let perWordCost := if hasSalt then 8 else 2
+  "  beqz " ++ sizeReg ++ ", .Lcreate_initgas_" ++ tag ++ "_done\n" ++
+  "  addi " ++ roundedReg ++ ", " ++ sizeReg ++ ", 31\n" ++
+  "  bltu " ++ roundedReg ++ ", " ++ sizeReg ++ ", .exit_outofgas\n" ++
+  "  srli " ++ wordsReg ++ ", " ++ roundedReg ++ ", 5\n" ++
+  "  li " ++ gasReg ++ ", " ++ toString perWordCost ++ "\n" ++
+  "  mul " ++ gasReg ++ ", " ++ wordsReg ++ ", " ++ gasReg ++ "\n" ++
+  "  ld " ++ roundedReg ++ ", 568(x20)\n" ++
+  "  bltu " ++ roundedReg ++ ", " ++ gasReg ++ ", .exit_outofgas\n" ++
+  "  sub " ++ roundedReg ++ ", " ++ roundedReg ++ ", " ++ gasReg ++ "\n" ++
+  "  sd " ++ roundedReg ++ ", 568(x20)\n" ++
+  ".Lcreate_initgas_" ++ tag ++ "_done:\n"
+
 /-- EXP dynamic gas add-on before exponentiation. The dispatch loop already
     charges the fixed EXP base cost (10), so this charges only
     `50 * exponentByteLength(exponent)`.
