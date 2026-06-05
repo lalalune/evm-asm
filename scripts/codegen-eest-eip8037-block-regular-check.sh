@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # codegen-eest-eip8037-block-regular-check.sh -- focused EIP-8037 diagnostic.
 #
-# Current main accepts one block_regular_gas_limit row that execution-specs
-# rejects. Keep this frontier executable and the mismatch shape precise until
-# state-gas reservoir accounting is repaired.
+# Regression for the block_regular_gas_limit rows. The guest must reject the
+# row whose parsed transactions exceed the execution-spec block gas reservoir.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
-JOBS="${EEST_EIP8037_BLOCK_REGULAR_JOBS:-${EEST_JOBS:-1}}"
+JOBS="${EEST_EIP8037_BLOCK_REGULAR_JOBS:-${EEST_JOBS:-3}}"
 STEPS="${EEST_EIP8037_BLOCK_REGULAR_STEPS:-${EEST_STEPS:-1000000000}}"
 RUN_DIR="${EEST_EIP8037_BLOCK_REGULAR_RUN_DIR:-gen-out/eest-eip8037-block-regular}"
 FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
@@ -72,10 +71,10 @@ fail="$(baseline_value "fail")"
 [[ "$errored" == "0" ]] || { echo "expected errored=0, got $errored" >&2; exit 1; }
 [[ "$budget" == "0" ]] || { echo "expected budget=0, got $budget" >&2; exit 1; }
 [[ "$ran" == "2" ]] || { echo "expected ran=2, got $ran" >&2; exit 1; }
-[[ "$full" == "1" ]] || { echo "expected current full-match frontier full=1, got $full" >&2; exit 1; }
+[[ "$full" == "2" ]] || { echo "expected full=2, got $full" >&2; exit 1; }
 [[ "$root" == "2" ]] || { echo "expected root=2, got $root" >&2; exit 1; }
-[[ "$succ" == "1" ]] || { echo "expected current success-bit frontier succ=1, got $succ" >&2; exit 1; }
+[[ "$succ" == "2" ]] || { echo "expected succ=2, got $succ" >&2; exit 1; }
 [[ "$tail" == "2" ]] || { echo "expected tail=2, got $tail" >&2; exit 1; }
-[[ "$fail" == "1" ]] || { echo "expected current mismatch count fail=1, got $fail" >&2; exit 1; }
+[[ "$fail" == "0" ]] || { echo "expected fail=0, got $fail" >&2; exit 1; }
 
-echo "==> PASS: EIP-8037 block-regular-gas-limit diagnostic matched current frontier"
+echo "==> PASS: EIP-8037 block-regular-gas-limit rows full-matched"

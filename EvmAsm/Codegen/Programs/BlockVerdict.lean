@@ -1010,8 +1010,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_blockhash_required_headers:\n  .zero 8\n" ++
   "brr_status:\n  .zero 8\n" ++
   "brr_append_status:\n  .zero 8\n" ++
-  "rfu_offset:\n  .zero 8\n" ++
-  "rfu_length:\n  .zero 8\n" ++
   "brr_tx_type:\n  .zero 8\n" ++
   "brr_tx_inner:\n  .zero 8\n" ++
   "brr_tx_gas:\n  .zero 8\n" ++
@@ -1157,6 +1155,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_auth_off:\n  .zero 8\n" ++
   "bsg_auth_len:\n  .zero 8\n" ++
   "bsg_auth_count:\n  .zero 8\n" ++
+  "bsg_header_gas_used:\n  .zero 8\n" ++
   "bsg_min_block_gas:\n  .zero 8\n" ++
   "alc_scratch:\n  .zero 8\n" ++
   "alc_entry_offset:\n  .zero 8\n" ++

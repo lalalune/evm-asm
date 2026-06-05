@@ -35,6 +35,11 @@ private def staticcallToRepeatedTargetBytecode (value : String) (suffix : List S
   byteCsv ((List.range 4).flatMap (fun _ => ["0x60", "0x00"]) ++
     ["0x73"] ++ List.replicate 20 value ++ ["0x60", "0xff", "0xfa"] ++ suffix)
 
+private def extcodecopyRepeatedTargetBytecode (value size : String) (suffix : List String) : String :=
+  byteCsv
+    (["0x60", size, "0x60", "0x00", "0x60", "0x00"] ++
+      ["0x73"] ++ List.replicate 20 value ++ ["0x3c"] ++ suffix)
+
 private def callPrecompileBytecode
     (target inSize : String) (suffix : List String) : String :=
   byteCsv
@@ -736,6 +741,31 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex                  := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind                := "0500000000000000"
       expectedSelfdestructBeneficiary := "11223344556677889900aabbccddeeff00112233" }
+  , -- SELFDESTRUCT now charges the EIP-2929 cold account-access delta for
+    -- a non-precompile beneficiary before staging the state effect.
+    -- PUSH1 costs 3, SELFDESTRUCT base is 5000, and the cold delta is 2500,
+    -- so 7503 exactly fits.
+    { name                            := "selfdestruct_cold_beneficiary_gas"
+      bytecode                        := "0x60, 0xff, 0xff"
+      expectedOutHex                  := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind                := "0500000000000000"
+      gasLimit                        := "7503"
+      expectedSelfdestructBeneficiary := "00000000000000000000000000000000000000ff" }
+  , -- With one gas less, the dynamic cold beneficiary charge OOGs before
+    -- the staged SELFDESTRUCT flag is set.
+    { name             := "selfdestruct_cold_beneficiary_oog"
+      bytecode         := "0x60, 0xff, 0xff"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "7502" }
+  , -- Active precompile beneficiaries are initially warm, so only the PUSH1
+    -- and SELFDESTRUCT static costs are needed in the current handler.
+    { name                            := "selfdestruct_precompile_beneficiary_warm"
+      bytecode                        := "0x60, 0x01, 0xff"
+      expectedOutHex                  := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind                := "0500000000000000"
+      gasLimit                        := "5003"
+      expectedSelfdestructBeneficiary := "0000000000000000000000000000000000000001" }
   , -- ## M30 gas metering (first slice)
     -- GAS; STOP with an explicit 1000-gas limit. The dispatch loop
     -- charges GAS's own static cost (BASE = 2) BEFORE h_GAS runs, so
@@ -2163,25 +2193,53 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- ## Runtime EXTCODECOPY gas
     -- No witness context is present in these codegen probes, so EXTCODECOPY
     -- takes its deterministic zero-fill path after charging static warm-floor,
-    -- copy-word gas, and destination memory expansion.
+    -- warm/cold account access, copy-word gas, and destination memory expansion.
   , -- EXTCODECOPY one byte exact gas: PUSH1*4 (12) + static (100) +
-    -- copy one word (3) + memory expansion to one word (3) + final PUSH1 (3) = 121.
+    -- cold access (2500) + copy one word (3) + memory expansion to one word
+    -- (3) + final PUSH1 (3) = 2621.
     { name           := "extcodecopy_gas_len1_exact"
       bytecode       := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x3c, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "121" }
+      gasLimit       := "2621" }
   , -- EXTCODECOPY 33 bytes exact gas: PUSH1*4 (12) + static (100) +
-    -- copy two words (6) + memory expansion to two words (6) + final PUSH1 (3) = 127.
+    -- cold access (2500) + copy two words (6) + memory expansion to two
+    -- words (6) + final PUSH1 (3) = 2627.
     { name           := "extcodecopy_gas_len33_exact"
       bytecode       := "0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x3c, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "127" }
+      gasLimit       := "2627" }
   , -- One gas short of the one-word copy charge exits before memory/body mutation.
     { name             := "extcodecopy_copy_gas_oog"
       bytecode         := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x3c, 0x60, 0x42, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "114" }
+  , -- len=0 isolates account access gas. Cold non-precompile address:
+    -- PUSH1*3 + PUSH20 = 12, EXTCODECOPY static = 100, cold delta = 2500,
+    -- GAS = 2, so gasLimit 3000 leaves 386 = 0x182.
+    { name           := "extcodecopy_cold_access_gas_no_context"
+      bytecode       := extcodecopyRepeatedTargetBytecode "0xcc" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "8201000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3000" }
+  , -- The dispatcher seeds ADDRESS as warm, so the same target skips the
+    -- 2500 cold delta: 3000 - 12 - 100 - 2 = 2886 = 0xb46.
+    { name           := "extcodecopy_seeded_address_warm_gas_no_context"
+      bytecode       := extcodecopyRepeatedTargetBytecode "0xcc" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "460b000000000000000000000000000000000000000000000000000000000000"
+      env            := "address=0xcccccccccccccccccccccccccccccccccccccccc"
+      gasLimit       := "3000" }
+  , -- Active precompile addresses are treated as warm without table insertion.
+    { name           := "extcodecopy_precompile_warm_gas_no_context"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x3c, 0x5a, 0x00"
+      expectedOutHex := "460b000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3000" }
+  , -- One gas short of the cold account-access delta exits before zero-fill
+    -- or witness mutation.
+    { name             := "extcodecopy_cold_access_oog_no_context"
+      bytecode         := extcodecopyRepeatedTargetBytecode "0xcc" "0x00" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "2611" }
     -- ## M22 real storage (SLOAD / SSTORE via pre-loaded slot table)
     -- The dispatcher prologue copies the input file's storage segment
     -- into a writable `evm_slot_table` (16 KiB, 256 slots × 64 B) and
