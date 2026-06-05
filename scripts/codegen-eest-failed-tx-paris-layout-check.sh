@@ -13,6 +13,7 @@ FX="${EEST_FIXTURES_DIR:-$(pwd)/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
 [[ -d "$FX" ]] || { echo "fixtures not found at $FX (run scripts/eest-fetch-fixtures.sh '$TAG')" >&2; exit 1; }
 
 RUN_DIR="${RUN_DIR:-gen-out/eest-failed-tx-paris-layout}"
+JOBS="${EEST_FAILED_TX_PARIS_JOBS:-${EEST_JOBS:-3}}"
 case "$RUN_DIR" in
   /*) ;;
   *) RUN_DIR="$PWD/$RUN_DIR" ;;
@@ -31,7 +32,7 @@ echo "==> run failed_tx Paris high-gas launch check"
 scripts/codegen-eest-stateless-check.sh \
   --filter failed_tx_xcf416c53_paris \
   --limit 10 \
-  --jobs 1 \
+  --jobs "$JOBS" \
   --max-failures 1 \
   --quiet-passes \
   --steps "${EEST_FAILED_TX_PARIS_STEPS:-200000000}" \
