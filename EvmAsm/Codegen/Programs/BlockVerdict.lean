@@ -1010,8 +1010,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_blockhash_required_headers:\n  .zero 8\n" ++
   "brr_status:\n  .zero 8\n" ++
   "brr_append_status:\n  .zero 8\n" ++
-  "rfu_offset:\n  .zero 8\n" ++
-  "rfu_length:\n  .zero 8\n" ++
   "brr_tx_type:\n  .zero 8\n" ++
   "brr_tx_inner:\n  .zero 8\n" ++
   "brr_tx_gas:\n  .zero 8\n" ++
