@@ -669,6 +669,8 @@ def emitDispatcherEpilogue
   addressComputeCreate2Function ++ "\n" ++
   zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
   zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
+  zkvmBn254G1AddSafeFailWrapper ++ "\n" ++
+  zkvmBn254G1MulSafeFailWrapper ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_g2_add" "0x10d" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_g2_msm" "0x10e" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
