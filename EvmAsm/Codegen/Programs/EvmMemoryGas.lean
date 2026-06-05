@@ -105,6 +105,40 @@ def copyWordGasAsm (tag lengthReg roundedReg wordsReg gasReg : String) : String 
   "  sd " ++ roundedReg ++ ", 568(x20)\n" ++
   ".Lcopygas_" ++ tag ++ "_done:\n"
 
+/-- RETURN/REVERT memory expansion gas. The opcode static cost is zero, so
+    this charges only memory expansion over `(offset, size)` before the
+    terminating data copy. Zero-size ranges do not expand memory, matching
+    execution-specs. Nonzero ranges with high offset/size limbs, low-limb
+    wraparound, or an end past the current 32 KiB runtime memory arena route
+    to `.exit_outofgas` before any return/revert output is emitted.
+
+    Stack layout before RETURN/REVERT body: `offset` at `0(x12)`, `size` at
+    `32(x12)`. Scratch registers x14/x15/x16/x17/x18/x19/x6 are clobbered. -/
+def returnRevertMemoryGasAsm (tag : String) : String :=
+  -- Any non-zero high size limb means size is non-zero but not representable.
+  "  ld x18, 40(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x18, 48(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x18, 56(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x15, 32(x12)\n" ++
+  "  beqz x15, .Lreturn_revert_mem_" ++ tag ++ "_ok\n" ++
+  -- Non-zero size expands/copies the range, so offset must be u64.
+  "  ld x18, 8(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x18, 16(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x18, 24(x12)\n" ++
+  "  bnez x18, .exit_outofgas\n" ++
+  "  ld x14, 0(x12)\n" ++
+  "  add x18, x14, x15\n" ++
+  "  bltu x18, x14, .exit_outofgas\n" ++
+  "  li x19, 0x8000\n" ++
+  "  bltu x19, x18, .exit_outofgas\n" ++
+  updateActiveMemorySizeAsm tag "x14" "x15" "x16" "x17" "x18" "x6" true ++
+  ".Lreturn_revert_mem_" ++ tag ++ "_ok:\n"
+
 /-- EXP dynamic gas add-on before exponentiation. The dispatch loop already
     charges the fixed EXP base cost (10), so this charges only
     `50 * exponentByteLength(exponent)`.
