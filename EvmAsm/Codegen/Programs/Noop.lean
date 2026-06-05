@@ -32,6 +32,7 @@ import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.PrecompileRuntime
+import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -144,6 +145,18 @@ private def selfdestructTailAsm : String :=
   "  addi x14, x14, 1\n" ++
   "  addi x16, x16, -1\n" ++
   "  bnez x16, .L_selfdestruct_copy_beneficiary\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd x10, 0(sp)\n" ++
+  "  sd x12, 8(sp)\n" ++
+  "  la a0, evm_selfdestruct_beneficiary\n" ++
+  "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_charge\n" ++
+  "  ld x10, 0(sp)\n" ++
+  "  ld x12, 8(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  selfdestructNewAccountSurchargeAsm ++
   "  la x14, evm_selfdestruct_staged\n" ++
   "  li x15, 1\n" ++
   "  sd x15, 0(x14)\n" ++

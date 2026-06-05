@@ -35,6 +35,11 @@ private def staticcallToRepeatedTargetBytecode (value : String) (suffix : List S
   byteCsv ((List.range 4).flatMap (fun _ => ["0x60", "0x00"]) ++
     ["0x73"] ++ List.replicate 20 value ++ ["0x60", "0xff", "0xfa"] ++ suffix)
 
+private def extcodecopyRepeatedTargetBytecode (value size : String) (suffix : List String) : String :=
+  byteCsv
+    (["0x60", size, "0x60", "0x00", "0x60", "0x00"] ++
+      ["0x73"] ++ List.replicate 20 value ++ ["0x3c"] ++ suffix)
+
 private def callPrecompileBytecode
     (target inSize : String) (suffix : List String) : String :=
   byteCsv
@@ -736,6 +741,31 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex                  := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind                := "0500000000000000"
       expectedSelfdestructBeneficiary := "11223344556677889900aabbccddeeff00112233" }
+  , -- SELFDESTRUCT now charges the EIP-2929 cold account-access delta for
+    -- a non-precompile beneficiary before staging the state effect.
+    -- PUSH1 costs 3, SELFDESTRUCT base is 5000, and the cold delta is 2500,
+    -- so 7503 exactly fits.
+    { name                            := "selfdestruct_cold_beneficiary_gas"
+      bytecode                        := "0x60, 0xff, 0xff"
+      expectedOutHex                  := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind                := "0500000000000000"
+      gasLimit                        := "7503"
+      expectedSelfdestructBeneficiary := "00000000000000000000000000000000000000ff" }
+  , -- With one gas less, the dynamic cold beneficiary charge OOGs before
+    -- the staged SELFDESTRUCT flag is set.
+    { name             := "selfdestruct_cold_beneficiary_oog"
+      bytecode         := "0x60, 0xff, 0xff"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "7502" }
+  , -- Active precompile beneficiaries are initially warm, so only the PUSH1
+    -- and SELFDESTRUCT static costs are needed in the current handler.
+    { name                            := "selfdestruct_precompile_beneficiary_warm"
+      bytecode                        := "0x60, 0x01, 0xff"
+      expectedOutHex                  := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind                := "0500000000000000"
+      gasLimit                        := "5003"
+      expectedSelfdestructBeneficiary := "0000000000000000000000000000000000000001" }
   , -- ## M30 gas metering (first slice)
     -- GAS; STOP with an explicit 1000-gas limit. The dispatch loop
     -- charges GAS's own static cost (BASE = 2) BEFORE h_GAS runs, so
@@ -1408,10 +1438,11 @@ def opcodeTestCases : List OpcodeTestCase :=
       gasLimit         := "617" }
   , -- A present but all-zero 96-byte MODEXP header has the same decoded
     -- lengths as empty input and also returns success with empty returndata.
+    -- The nonempty input window still pays STATICCALL memory expansion gas.
     { name           := "staticcall_modexp_zero_header_success"
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "618" }
+      gasLimit       := "627" }
   , -- MODEXP header with modulus_len=1 charges the decoded 500 minimum.
     -- Missing modulus bytes decode as zero, so the one-byte output is 0 and
     -- the precompile succeeds.
@@ -1529,11 +1560,12 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := callPrecompileBytecode "0x08" "0x00" ["0x5a", "0x00"]
       expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "45200" }
-  , -- One complete 192-byte pair costs 45000 + 34000. The current backend
-    -- safe-fails, but gas after CALL proves the one-pair charge.
+  , -- One complete 192-byte pair costs 45000 + 34000, plus 18 gas for the
+    -- 192-byte CALL input memory expansion. The current backend safe-fails,
+    -- but gas after CALL proves the one-pair charge.
     { name           := "call_bn254_pairing_one_pair_gas_after_call"
       bytecode       := callPrecompileBytecode "0x08" "0xc0" ["0x5a", "0x00"]
-      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "3b00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "79200" }
   , -- Non-multiple length is rejected after the base gas is consumed, leaving
     -- empty returndata and normal halt after POP + RETURNDATASIZE.
@@ -1563,17 +1595,19 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "200" }
   , -- Exact 213-byte BLAKE2F input with all-zero payload has rounds=0. The
+    -- nonempty input window still pays 21 gas for memory expansion; the
     -- current backend safe-fails, but gas after CALL proves no rounds charge.
     { name           := "call_blake2f_rounds_zero_fixed_gas_after_call"
       bytecode       := callPrecompileBytecode "0x09" "0xd5" ["0x5a", "0x00"]
-      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "3800000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "200" }
   , -- Store rounds byte data[3]=1. Prefix cost is two PUSH1s, MSTORE8, and
-    -- one-word memory expansion; with rounds=1, gasLimit=200 leaves 64 after GAS.
+    -- one-word memory expansion; CALL then expands the 213-byte input window
+    -- from 32 to 224 bytes. With rounds=1, gasLimit=200 leaves 46 after GAS.
     { name           := "call_blake2f_rounds_one_fixed_gas_after_call"
       bytecode       := callPrecompileBytecodeWithPrefix
         ["0x60", "0x01", "0x60", "0x03", "0x53"] "0x09" "0xd5" ["0x5a", "0x00"]
-      expectedOutHex := "4000000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "2e00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "200" }
   , -- One gas short reaches the BLAKE2F rounds charge and exits OOG.
     { name             := "call_blake2f_rounds_one_out_of_gas"
@@ -1605,11 +1639,12 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "200" }
   , -- Exact 192-byte KZG input charges fixed 50000 gas before versioned-hash
-    -- validation. The all-zero payload has version byte 0, so it fails after
-    -- the charge with the same gasRemaining as the Python execution-spec path.
+    -- validation, plus 18 gas for CALL input memory expansion. The all-zero
+    -- payload has version byte 0, so it fails after the charge with the same
+    -- gasRemaining as the Python execution-spec path.
     { name           := "call_kzg_point_eval_fixed_gas_after_call"
       bytecode       := callPrecompileBytecode "0x0a" "0xc0" ["0x5a", "0x00"]
-      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "3b00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "50200" }
   , -- One gas short reaches the fixed KZG gas helper and exits OOG.
     { name             := "call_kzg_point_eval_fixed_gas_out_of_gas"
@@ -1672,20 +1707,21 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- G1 ADD charges fixed inner gas 375 after the valid-length gate:
-    -- seven PUSHes (21) + CALL warm static base (100) + 375 = 496.
+  , -- G1 ADD charges fixed inner gas 375 after the valid-length gate.
+    -- Seven PUSHes (21) + CALL warm static base (100) + 256-byte input
+    -- memory expansion (24) + 375 = 520.
     { name             := "call_bls12_g1_add_fixed_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "496" }
+      gasLimit         := "520" }
   , -- One less gas reaches the valid G1 ADD path, then fails before
     -- invoking the backend wrapper.
     { name             := "call_bls12_g1_add_fixed_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "495" }
+      gasLimit         := "519" }
   , -- BLS12 G1 MSM rejects empty input.
     { name             := "staticcall_bls12_g1_msm_zero_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
@@ -1702,19 +1738,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- One G1 MSM pair charges 1 * 12000 * discount(1) / 1000 = 12000:
-    -- six PUSHes (18) + STATICCALL warm static base (100) + 12000 = 12118.
+  , -- One G1 MSM pair charges 1 * 12000 * discount(1) / 1000 = 12000.
+    -- Six PUSHes (18) + STATICCALL warm static base (100) + 160-byte input
+    -- memory expansion (15) + 12000 = 12133.
     { name             := "staticcall_bls12_g1_msm_one_pair_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "12118" }
+      gasLimit         := "12133" }
   , -- One less gas fails in the G1 MSM dynamic precompile charge.
     { name             := "staticcall_bls12_g1_msm_one_pair_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "12117" }
+      gasLimit         := "12132" }
   , -- BLS12 G2 ADD rejects invalid input length before any accelerator body.
     { name             := "call_bls12_g2_add_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0d, 0x60, 0xff, 0xf1, 0x00"
@@ -1726,18 +1763,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x02, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0d, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Exact gas reaches the G2 ADD backend and observes deterministic failure.
+  , -- Exact gas reaches the G2 ADD backend and observes deterministic failure:
+    -- seven PUSHes (21) + CALL warm static base (100) + 512-byte input memory
+    -- expansion (48) + fixed G2 ADD gas (600) = 769.
     { name             := "call_bls12_g2_add_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x02, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0d, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "721" }
+      gasLimit         := "769" }
   , -- One less gas fails in the G2 ADD fixed precompile charge.
     { name             := "call_bls12_g2_add_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x02, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0d, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "720" }
+      gasLimit         := "768" }
   , -- BLS12 G2 MSM rejects empty input.
     { name             := "staticcall_bls12_g2_msm_zero_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
@@ -1754,18 +1793,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x20, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Exact gas reaches the one-pair G2 MSM backend and observes failure.
+  , -- Exact gas reaches the one-pair G2 MSM backend and observes failure:
+    -- six PUSHes (18) + STATICCALL warm static base (100) + 288-byte input
+    -- memory expansion (27) + one-pair G2 MSM gas (22500) = 22645.
     { name             := "staticcall_bls12_g2_msm_one_pair_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x20, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "22618" }
+      gasLimit         := "22645" }
   , -- One less gas fails in the G2 MSM dynamic precompile charge.
     { name             := "staticcall_bls12_g2_msm_one_pair_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x20, 0x60, 0x00, 0x60, 0x0e, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "22617" }
+      gasLimit         := "22644" }
   , -- BLS12 pairing rejects empty input before invoking the backend.
     { name             := "call_bls12_pairing_zero_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0f, 0x60, 0xff, 0xf1, 0x00"
@@ -1777,18 +1818,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0f, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Exact gas reaches one-pair BLS12 pairing and observes backend failure.
+  , -- Exact gas reaches one-pair BLS12 pairing and observes backend failure:
+    -- seven PUSHes (21) + CALL warm static base (100) + 384-byte input memory
+    -- expansion (36) + one-pair pairing gas (70300) = 70457.
     { name             := "call_bls12_pairing_one_pair_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0f, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "70421" }
+      gasLimit         := "70457" }
   , -- One less gas fails in the BLS12 pairing dynamic precompile charge.
     { name             := "call_bls12_pairing_one_pair_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0f, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "70420" }
+      gasLimit         := "70456" }
   , -- BLS12 map-Fp-to-G1 rejects non-64-byte input.
     { name             := "staticcall_bls12_map_fp_to_g1_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x41, 0x60, 0x00, 0x60, 0x10, 0x60, 0xff, 0xfa, 0x00"
@@ -1799,18 +1842,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x40, 0x60, 0x00, 0x60, 0x10, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Exact gas reaches map-Fp-to-G1 and observes backend failure.
+  , -- Exact gas reaches map-Fp-to-G1 and observes backend failure:
+    -- six PUSHes (18) + STATICCALL warm static base (100) + 64-byte input
+    -- memory expansion (6) + fixed map gas (5500) = 5624.
     { name             := "staticcall_bls12_map_fp_to_g1_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x40, 0x60, 0x00, 0x60, 0x10, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "5618" }
+      gasLimit         := "5624" }
   , -- One less gas fails in the map-Fp-to-G1 fixed precompile charge.
     { name             := "staticcall_bls12_map_fp_to_g1_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x40, 0x60, 0x00, 0x60, 0x10, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "5617" }
+      gasLimit         := "5623" }
   , -- BLS12 map-Fp2-to-G2 rejects non-128-byte input.
     { name             := "call_bls12_map_fp2_to_g2_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x81, 0x60, 0x00, 0x60, 0x00, 0x60, 0x11, 0x60, 0xff, 0xf1, 0x00"
@@ -1821,18 +1866,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x11, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- Exact gas reaches map-Fp2-to-G2 and observes backend failure.
+  , -- Exact gas reaches map-Fp2-to-G2 and observes backend failure:
+    -- seven PUSHes (21) + CALL warm static base (100) + 128-byte input memory
+    -- expansion (12) + fixed map gas (23800) = 23933.
     { name             := "call_bls12_map_fp2_to_g2_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x11, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "23921" }
+      gasLimit         := "23933" }
   , -- One less gas fails in the map-Fp2-to-G2 fixed precompile charge.
     { name             := "call_bls12_map_fp2_to_g2_gas_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x80, 0x60, 0x00, 0x60, 0x00, 0x60, 0x11, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "23920" }
+      gasLimit         := "23932" }
   , -- CALL to IDENTITY records the full precompile returndata buffer,
     -- so RETURNDATASIZE reports the input size even when out_size is short.
     { name             := "call_identity_returndatasize_three"
@@ -2146,25 +2193,53 @@ def opcodeTestCases : List OpcodeTestCase :=
     -- ## Runtime EXTCODECOPY gas
     -- No witness context is present in these codegen probes, so EXTCODECOPY
     -- takes its deterministic zero-fill path after charging static warm-floor,
-    -- copy-word gas, and destination memory expansion.
+    -- warm/cold account access, copy-word gas, and destination memory expansion.
   , -- EXTCODECOPY one byte exact gas: PUSH1*4 (12) + static (100) +
-    -- copy one word (3) + memory expansion to one word (3) + final PUSH1 (3) = 121.
+    -- cold access (2500) + copy one word (3) + memory expansion to one word
+    -- (3) + final PUSH1 (3) = 2621.
     { name           := "extcodecopy_gas_len1_exact"
       bytecode       := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x3c, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "121" }
+      gasLimit       := "2621" }
   , -- EXTCODECOPY 33 bytes exact gas: PUSH1*4 (12) + static (100) +
-    -- copy two words (6) + memory expansion to two words (6) + final PUSH1 (3) = 127.
+    -- cold access (2500) + copy two words (6) + memory expansion to two
+    -- words (6) + final PUSH1 (3) = 2627.
     { name           := "extcodecopy_gas_len33_exact"
       bytecode       := "0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x3c, 0x60, 0x42, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000"
-      gasLimit       := "127" }
+      gasLimit       := "2627" }
   , -- One gas short of the one-word copy charge exits before memory/body mutation.
     { name             := "extcodecopy_copy_gas_oog"
       bytecode         := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x3c, 0x60, 0x42, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "114" }
+  , -- len=0 isolates account access gas. Cold non-precompile address:
+    -- PUSH1*3 + PUSH20 = 12, EXTCODECOPY static = 100, cold delta = 2500,
+    -- GAS = 2, so gasLimit 3000 leaves 386 = 0x182.
+    { name           := "extcodecopy_cold_access_gas_no_context"
+      bytecode       := extcodecopyRepeatedTargetBytecode "0xcc" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "8201000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3000" }
+  , -- The dispatcher seeds ADDRESS as warm, so the same target skips the
+    -- 2500 cold delta: 3000 - 12 - 100 - 2 = 2886 = 0xb46.
+    { name           := "extcodecopy_seeded_address_warm_gas_no_context"
+      bytecode       := extcodecopyRepeatedTargetBytecode "0xcc" "0x00" ["0x5a", "0x00"]
+      expectedOutHex := "460b000000000000000000000000000000000000000000000000000000000000"
+      env            := "address=0xcccccccccccccccccccccccccccccccccccccccc"
+      gasLimit       := "3000" }
+  , -- Active precompile addresses are treated as warm without table insertion.
+    { name           := "extcodecopy_precompile_warm_gas_no_context"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x3c, 0x5a, 0x00"
+      expectedOutHex := "460b000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "3000" }
+  , -- One gas short of the cold account-access delta exits before zero-fill
+    -- or witness mutation.
+    { name             := "extcodecopy_cold_access_oog_no_context"
+      bytecode         := extcodecopyRepeatedTargetBytecode "0xcc" "0x00" ["0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "2611" }
     -- ## M22 real storage (SLOAD / SSTORE via pre-loaded slot table)
     -- The dispatcher prologue copies the input file's storage segment
     -- into a writable `evm_slot_table` (16 KiB, 256 slots × 64 B) and

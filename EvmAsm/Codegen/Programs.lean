@@ -1,5 +1,4 @@
 /- EvmAsm.Codegen.Programs
-
   Registry of programs the codegen tool knows how to emit, each as a
   `BuildUnit` (verified body + optional wrapping).
 -/
@@ -56,6 +55,7 @@ import EvmAsm.Codegen.Programs.HashProbes
 import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.PrecompileRuntime
+import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
@@ -106,6 +106,8 @@ import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxExtract
+import EvmAsm.Codegen.Programs.TxGasBalPostVerify
+import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.Block
 import EvmAsm.Codegen.Programs.BlockBody
@@ -274,7 +276,6 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
-
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -359,7 +360,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bal_account_final_descriptor_array" => some ziskBalAccountFinalDescriptorArrayProbeUnit
   | "zisk_bal_account_state_root" => some ziskBalAccountStateRootProbeUnit
   | "zisk_bal_account_state_root_auto" => some ziskBalAccountStateRootAutoProbeUnit
-  | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit
+  | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit | "zisk_tx_gas_sender_bal_lookup" => some ziskTxGasSenderBalLookupProbeUnit | "zisk_tx_gas_bal_post_verify" => some ziskTxGasBalPostVerifyProbeUnit
   | "zisk_storage_root_single_slot" => some ziskStorageRootSingleSlotProbeUnit
   | "zisk_account_set_storage_root" => some ziskAccountSetStorageRootProbeUnit
   | "zisk_block_access_list_hash" => some ziskBlockAccessListHashProbeUnit
@@ -806,7 +807,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
   | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit | "zisk_account_charge_gas_pre_exec" => some ziskAccountChargeGasPreExecProbeUnit
   | "zisk_tx_upfront_precharge" => some ziskTxUpfrontPrechargeProbeUnit
-  | "zisk_account_refund_gas_post_exec" => some ziskAccountRefundGasPostExecProbeUnit
+  | "zisk_account_refund_gas_post_exec" => some ziskAccountRefundGasPostExecProbeUnit | "zisk_tx_post_exec_gas_settlement" => some ziskTxPostExecGasSettlementProbeUnit
   | "zisk_eip1559_calc_base_fee_per_gas" => some ziskEip1559CalcBaseFeePerGasProbeUnit
   | "zisk_header_validate_base_fee" => some ziskHeaderValidateBaseFeeProbeUnit
   | "zisk_validate_header_full" => some ziskValidateHeaderFullProbeUnit
@@ -1126,7 +1127,7 @@ def knownProgramNames : List String :=
    "zisk_u256_eq",
    "zisk_u256_mul_u64_be", "zisk_account_charge_gas_pre_exec",
    "zisk_tx_upfront_precharge",
-   "zisk_account_refund_gas_post_exec",
+   "zisk_account_refund_gas_post_exec", "zisk_tx_post_exec_gas_settlement",
    "zisk_eip1559_calc_base_fee_per_gas",
    "zisk_header_validate_base_fee",
    "zisk_validate_header_full",
@@ -1195,9 +1196,8 @@ def knownProgramNames : List String :=
    "zisk_bal_account_nth_descriptor",
    "zisk_bal_account_descriptor_array",
    "zisk_bal_account_final_descriptor_array",
-   "zisk_bal_account_state_root",
-   "zisk_bal_account_state_root_auto",
-   "zisk_bal_account_record_array",
+   "zisk_bal_account_state_root", "zisk_bal_account_state_root_auto",
+   "zisk_bal_account_record_array", "zisk_tx_gas_sender_bal_lookup", "zisk_tx_gas_bal_post_verify",
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
    "zisk_block_access_list_hash",
