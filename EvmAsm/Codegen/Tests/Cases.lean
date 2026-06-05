@@ -1003,6 +1003,32 @@ def opcodeTestCases : List OpcodeTestCase :=
       env              := "address=0x1234567890abcdef1234567890abcdef12345678"
       expectedOutHex   := "42f1db83cc7370b997a96db7b9ffe7c59c967087000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
+  , -- CREATE size=1 charges static CREATE base plus EIP-3860 initcode
+    -- word gas and memory expansion: 3 PUSH1s (9) + 32000 + 2 + 3.
+    { name             := "create_initcode_len1_gas_exact"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0xf0, 0x00"
+      expectedOutHex   := "b18ea46f574a80cb7645b3e4915f34a3160477bd000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "32014" }
+  , -- One less gas reaches CREATE after the PUSH1s and static base, then
+    -- fails while charging the new initcode/memory dynamic component.
+    { name             := "create_initcode_len1_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0xf0, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "32013" }
+  , -- At 33 bytes CREATE rounds initcode and memory expansion to two
+    -- words: 3 PUSH1s (9) + 32000 + initcode word gas 4 + memory gas 6.
+    { name             := "create_initcode_len33_gas_exact"
+      bytecode         := "0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0xf0, 0x00"
+      expectedOutHex   := "b18ea46f574a80cb7645b3e4915f34a3160477bd000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "32019" }
+  , { name             := "create_initcode_len33_out_of_gas"
+      bytecode         := "0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0xf0, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "32018" }
   , -- CREATE offset is the second decoded word. For nonempty initcode,
     -- high offset limbs are outside the current runtime memory envelope.
     { name             := "create_high_offset_limb_out_of_gas"
@@ -1022,6 +1048,33 @@ def opcodeTestCases : List OpcodeTestCase :=
       env              := "address=0x1234567890abcdef1234567890abcdef12345678"
       expectedOutHex   := "178d3687bd025a14373c429091ba42d0e82d853d000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
+  , -- CREATE2 size=1 charges static CREATE base, EIP-3860 initcode word
+    -- gas, EIP-1014 hashcost, and memory expansion: 4 PUSH1s (12) +
+    -- 32000 + 8 + 3.
+    { name             := "create2_initcode_len1_gas_exact"
+      bytecode         := "0x60, 0x00, 0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
+      expectedOutHex   := "38bf260bb3b098f0ff6ff250028ff8b42b2e1a4d000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "32023" }
+  , -- One less gas fails in CREATE2's dynamic initcode charge before
+    -- address derivation or later unsupported deployment slices.
+    { name             := "create2_initcode_len1_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "32022" }
+  , -- At 33 bytes CREATE2 rounds to two words for both EIP-3860 and
+    -- EIP-1014 hashcost: 4 PUSH1s (12) + 32000 + 16 + memory gas 6.
+    { name             := "create2_initcode_len33_gas_exact"
+      bytecode         := "0x60, 0x00, 0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
+      expectedOutHex   := "05539a1fc4f022d6cdeb61c98ff5d21bf5d5d9b9000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "32034" }
+  , { name             := "create2_initcode_len33_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "32033" }
   , -- CREATE2 size is the third decoded word. High size limbs are rejected
     -- before later address/precheck/deployment slices consume initcode.
     { name             := "create2_high_size_limb_out_of_gas"
