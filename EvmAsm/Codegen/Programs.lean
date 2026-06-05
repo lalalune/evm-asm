@@ -344,7 +344,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
-  | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
+  | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit | "zisk_eip7778_remaining_block_gas_from_results" => some ziskEip7778RemainingBlockGasFromResultsProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
@@ -1174,7 +1174,7 @@ def knownProgramNames : List String :=
    "zisk_bal_account_record_array", "zisk_tx_gas_sender_bal_lookup", "zisk_tx_gas_bal_post_verify",
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
-   "zisk_block_access_list_hash", "zisk_eip7778_remaining_block_gas_check",
+   "zisk_block_access_list_hash", "zisk_eip7778_remaining_block_gas_check", "zisk_eip7778_remaining_block_gas_from_results",
    "zisk_account_apply_storage_slot", "zisk_storage_effect_records_probe", "zisk_sstore_gas_refund_outcome",
    "zisk_mpt_leaf_node_encode",
    "zisk_mpt_node_slot_encode",
