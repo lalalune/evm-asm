@@ -28,7 +28,9 @@ lake exe codegen --program zisk_block_receipt_records_materialize --halt linux93
 REPO_ROOT="$(pwd)"
 
 # run_case <name> <mode>
-# mode=empty: no transactions. mode=legacy_stop: one legacy tx whose data field is STOP (0x00).
+# mode=empty: no transactions.
+# mode=legacy_stop: one legacy tx whose data field is STOP (0x00).
+# mode=two_legacy_stop: two legacy STOP txs, testing the SSZ offset-table loop.
 run_case() {
   local name="$1" mode="$2"
   local in_file="$REPO_ROOT/gen-out/zisk_block_receipt_records_${name}.input"
@@ -70,30 +72,47 @@ def rlp_list(items) -> bytes:
     l = len(payload).to_bytes((len(payload).bit_length() + 7) // 8, 'big')
     return bytes([0xf7 + len(l)]) + l + payload
 
-legacy_stop_tx = rlp_list([
+def legacy_stop_tx(gas_limit: int) -> bytes:
+    return rlp_list([
     rlp_int(0),                  # nonce
     rlp_int(1),                  # gas_price
-    rlp_int(21000),              # gas_limit
+    rlp_int(gas_limit),          # gas_limit
     rlp_bytes(bytes(20)),        # to
     rlp_int(0),                  # value
     rlp_bytes(b'\x00'),          # data: STOP
     rlp_int(27),                 # v
     rlp_int(1),                  # r
     rlp_int(1),                  # s
-])
+    ])
 
 if mode == 'empty':
     wd_off = TX_OFF
     expected_count = 0
     expected_first_status = 1
+    expected_last_status = 1
     first_record = (0, 0, 0, 0, 0, 0, 0, 0)
+    last_record = (0, 0, 0, 0, 0, 0, 0, 0)
 elif mode == 'legacy_stop':
-    tx_list = struct.pack('<I', 4) + legacy_stop_tx
+    tx = legacy_stop_tx(21000)
+    tx_list = struct.pack('<I', 4) + tx
     payload[TX_OFF:TX_OFF + len(tx_list)] = tx_list
     wd_off = TX_OFF + len(tx_list)
     expected_count = 1
     expected_first_status = 0
+    expected_last_status = 0
     first_record = (0, 1, GAS_USED, 0, 0, 0, 0, 0)
+    last_record = first_record
+elif mode == 'two_legacy_stop':
+    tx1 = legacy_stop_tx(21000)
+    tx2 = legacy_stop_tx(22000)
+    tx_list = struct.pack('<II', 8, 8 + len(tx1)) + tx1 + tx2
+    payload[TX_OFF:TX_OFF + len(tx_list)] = tx_list
+    wd_off = TX_OFF + len(tx_list)
+    expected_count = 2
+    expected_first_status = 0
+    expected_last_status = 0
+    first_record = (0, 1, 21000, 0, 0, 0, 0, 0)
+    last_record = (0, 1, 43000, 0, 0, 0, 0, 0)
 else:
     raise ValueError(mode)
 
@@ -101,12 +120,14 @@ payload[508:512] = struct.pack('<I', wd_off)
 with open(in_file, 'wb') as f:
     f.write(payload)
 
-out = bytearray(96)
+out = bytearray(168)
 out[0:8] = struct.pack('<Q', 0)                    # brr_status
 out[8:16] = struct.pack('<Q', expected_count)       # count
 out[16:24] = struct.pack('<Q', 0)                   # append status
 out[24:32] = struct.pack('<Q', expected_first_status)
 out[32:96] = struct.pack('<QQQQQQQQ', *first_record)
+out[96:104] = struct.pack('<Q', expected_last_status)
+out[104:168] = struct.pack('<QQQQQQQQ', *last_record)
 with open(expected_file, 'w') as f:
     f.write(out.hex())
 EOF_PY
@@ -116,7 +137,7 @@ EOF_PY
     >"$REPO_ROOT/gen-out/zisk_block_receipt_records_${name}.emu.log" 2>&1 || true
 
   local actual expected
-  actual="$(dd if="$out_file" bs=1 count=96 2>/dev/null | xxd -p | tr -d '\n')"
+  actual="$(dd if="$out_file" bs=1 count=168 2>/dev/null | xxd -p | tr -d '\n')"
   expected="$(cat "$expected_file")"
   if [[ "$actual" == "$expected" ]]; then
     printf "  %-18s OK\n" "$name"
@@ -131,6 +152,7 @@ EOF_PY
 FAILED=0
 run_case "empty" empty || FAILED=1
 run_case "legacy_stop" legacy_stop || FAILED=1
+run_case "two_legacy_stop" two_legacy_stop || FAILED=1
 
 if [[ $FAILED -eq 0 ]]; then
   echo "==> PASS: block receipt-record materializer probe"
