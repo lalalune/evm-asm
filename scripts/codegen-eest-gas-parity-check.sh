@@ -24,6 +24,7 @@ FILTERS=()
 DEFAULT_FILTERS=(
   "eip7778_block_gas_accounting_without_refunds/gas_accounting/multi_transaction_gas_accounting.json"
   "eip8037_state_creation_gas_cost_increase/block_2d_gas_accounting/tx_inclusion_at_regular_gas_block_limit_small.json"
+  "eip7825_transaction_gas_limit_cap/tx_gas_limit/maximum_gas_refund.json"
   "stEIP150singleCodeGasPrices/eip2929/eip2929.json"
   "eip7976_increase_calldata_floor_cost/transaction_validity/transaction_validity_type_0.json"
   "ported_static/stCreate2/create2_oo_gafter_init_code.json"
