@@ -203,6 +203,52 @@ covering every `Instr` constructor → GNU-as line; failures abort
 `lake build`. Treat this as the build-time correctness gate for
 `emitInstr` drift.
 
+## Architecture fitness functions (`scripts/check-*.sh`)
+
+The `scripts/check-*.sh` suite **is** a set of *architecture fitness
+functions* in the Ford/Parsons sense (*Building Evolutionary Architectures*):
+each script is an automated, objective test of a structural property the
+kernel cannot see, run in CI so that drift fails the build instead of
+accumulating silently. The kernel proves each theorem; these gates protect
+the *shape* of the codebase around the proofs. When a prose convention starts
+to matter, the move is to **promote it to a check here** rather than restate it
+in docs an agent can ignore.
+
+Two tiers, by design (see `docs/agent-progress-steering-review.md` §6 — do not
+hard-gate noisy heuristics):
+
+**Blocking gates** (fail the build; wired in `.github/workflows/build.yml`):
+
+| Gate | Invariant enforced |
+|------|--------------------|
+| `check-forbidden-tactics.sh` | no `native_decide`/`bv_decide` (TCB-expanding) |
+| `check-axioms.sh` | witnessed proofs use only the 3 classical axioms |
+| `check-progress.sh` / `check-drift.sh` | `PROGRESS.md`/`DRIFT.md` regenerate identically from the kernel registry |
+| `check-conformance-floor.sh` | conformance-vector count never silently drops |
+| `check-roundtrip-coverage.sh` | every `Instr` constructor has a round-trip `#guard` |
+| `check-file-size.sh` | per-file line caps (1200/1500) |
+| `check-unimported.sh` | zero-orphan module graph |
+| `check-no-warnings.sh` | clean build log |
+| **`check-heartbeats-approved.sh`** | EVERY mention of `heartbeats` (overrides *and* prose) in `.lean`/lakefiles is sanctioned in `scripts/approved-heartbeat-overrides.txt` at its exact value — a dumb substring scan (no lexer to bypass); a ceiling + audit log, never a license to inflate |
+| **`check-layering.sh`** | the verified core (core-by-default: all `EvmAsm/` except Codegen/Tests/Examples) never imports the unverified `Codegen` layer (L1), the progress registry (L2), or the Tests/Examples escape hatches (L3) |
+| **`check-opcode-structure.sh`** | `AddrNorm.lean`/`AddrNormAttr.lean` co-occur per opcode dir (Lean forbids `register_simp_attr` in its declaring file) |
+
+**Advisory gates** (CI output / review nudges; always exit 0 — promoted to
+blocking only after thresholds calibrate, never prematurely):
+
+| Gate | Signal surfaced |
+|------|-----------------|
+| `check-statement-tamper.sh` | weakened theorem statements / verifier-config edits (advisory in `build.yml`; blocks only with `--strict`, which CI does not pass) |
+| **`check-naming.sh`** | camelCase proof hypotheses newly added in a PR (prefer `h_snake_case`; the PR #1497 regression class) |
+| **`check-opcode-structure.sh`** (checklist part) | new *complex* opcode dirs missing template essentials (FullPath, `@[irreducible]` Post, `Offsets.lean`) |
+| **`churn-report.sh`** | top-churn files + short-lived churn (AI copy-paste sprawl) |
+| **`jscpd`** (`scripts/jscpd.json`) | duplication % reported weekly (advisory); `check-duplication.sh --gate` *would* fail on new sprawl past the calibrated budget once promoted, `codegen-*.sh` excluded (Rule of Three) |
+
+When you add a `.lean` file or a new convention, ask whether a fitness function
+should fence it — and whether it belongs in the blocking or advisory tier. Seed
+new advisory gates green on the current tree; a gate that red-lights day one is
+the false-positive friction the steering review warns against.
+
 ## Import Hygiene (`lake exe shake`)
 
 We use Mathlib's `shake` tool to flag unused imports. Configuration lives in
