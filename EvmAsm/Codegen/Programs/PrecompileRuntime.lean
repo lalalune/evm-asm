@@ -276,7 +276,7 @@ def chargeBls12G2MsmGasAsm
   "  divu " ++ costReg ++ ", " ++ costReg ++ ", " ++ discountReg ++ "\n" ++
   chargePrecompileGasAsm costReg scratchReg
 
-private def chargeBls12PairingGasAsm
+def chargeBls12PairingGasAsm
     (inputLenReg pairCountReg costReg scratchReg : String) : String :=
   "  li " ++ scratchReg ++ ", 384\n" ++
   "  divu " ++ pairCountReg ++ ", " ++ inputLenReg ++ ", " ++ scratchReg ++ "\n" ++
