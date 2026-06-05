@@ -23,6 +23,7 @@ import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
+import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.EvmAccessGas
@@ -683,6 +684,7 @@ def emitDispatcherEpilogue
   hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
+  storageAccessGasFunction ++ "\n" ++
   runtimeAccessAccountSeedFunction ++ "\n" ++
   runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
   runtimeAccessAccountChargeFunction ++ "\n" ++
@@ -690,6 +692,9 @@ def emitDispatcherEpilogue
   zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
   zkvmBn254G1AddSafeFailWrapper ++ "\n" ++
   zkvmBn254G1MulSafeFailWrapper ++ "\n" ++
+  zkvmBn254PairingSafeFailWrapper ++ "\n" ++
+  zkvmBlake2fSafeFailWrapper ++ "\n" ++
+  zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_g2_add" "0x10d" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_g2_msm" "0x10e" ++ "\n" ++
   bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
@@ -898,6 +903,7 @@ def emitDispatcherDataSection
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
   emitSelfdestructData ++
+  storageAccessGasData ++
   emitPrecompileFrameData ++
   emitSha256Data ++
   ".balign 8\n" ++
@@ -1217,6 +1223,7 @@ def emitRuntimeDispatcherDataSection
   "evm_event_logs:\n" ++
   "  .zero 4096\n" ++     -- M26: 16 × 256-byte bounded LOG event descriptors
   emitSelfdestructData ++
+  storageAccessGasData ++
   emitPrecompileFrameData ++
   emitSha256Data ++
   ".balign 8\n" ++

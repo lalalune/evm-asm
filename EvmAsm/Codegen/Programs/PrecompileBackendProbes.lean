@@ -52,6 +52,35 @@ def zkvmBn254G1MulSafeFailWrapper : String :=
   "  li a0, -1\n" ++
   "  ret"
 
+/-- Linkable bare-RV64 wrapper for
+    `zkvm_bn254_pairing(pairs, num_pairs, verified)`. Current runtime tests use
+    deterministic EFAIL while still exercising dispatch, gas, and framing. -/
+def zkvmBn254PairingSafeFailWrapper : String :=
+  ".globl zkvm_bn254_pairing\n" ++
+  "zkvm_bn254_pairing:\n" ++
+  "  li a0, -1\n" ++
+  "  ret"
+
+/-- Linkable bare-RV64 wrapper for
+    `zkvm_blake2f(rounds, h, m, t, f)`. Current runtime tests use
+    deterministic EFAIL until the BLAKE2F accelerator path is available from
+    bare codegen ELFs. -/
+def zkvmBlake2fSafeFailWrapper : String :=
+  ".globl zkvm_blake2f\n" ++
+  "zkvm_blake2f:\n" ++
+  "  li a0, -1\n" ++
+  "  ret"
+
+/-- Linkable bare-RV64 wrapper for
+    `zkvm_kzg_point_eval(commitment, z, y, proof, verified)`. Current runtime
+    tests use deterministic EFAIL while still exercising dispatch, length,
+    gas, and framing. -/
+def zkvmKzgPointEvalSafeFailWrapper : String :=
+  ".globl zkvm_kzg_point_eval\n" ++
+  "zkvm_kzg_point_eval:\n" ++
+  "  li a0, -1\n" ++
+  "  ret"
+
 /-- Probe driver for the BLS12 G1 ADD wrapper. It initializes two 96-byte
     zero point buffers and a 96-byte result buffer, calls the wrapper, then
     writes a compact record at OUTPUT_ADDR:
