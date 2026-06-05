@@ -808,7 +808,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_eq"              => some ziskU256EqProbeUnit
   | "zisk_u256_mul_u64_be"      => some ziskU256MulU64BeProbeUnit | "zisk_account_charge_gas_pre_exec" => some ziskAccountChargeGasPreExecProbeUnit
   | "zisk_tx_upfront_precharge" => some ziskTxUpfrontPrechargeProbeUnit
-  | "zisk_account_refund_gas_post_exec" => some ziskAccountRefundGasPostExecProbeUnit
+  | "zisk_account_refund_gas_post_exec" => some ziskAccountRefundGasPostExecProbeUnit | "zisk_tx_post_exec_gas_settlement" => some ziskTxPostExecGasSettlementProbeUnit
   | "zisk_eip1559_calc_base_fee_per_gas" => some ziskEip1559CalcBaseFeePerGasProbeUnit
   | "zisk_header_validate_base_fee" => some ziskHeaderValidateBaseFeeProbeUnit
   | "zisk_validate_header_full" => some ziskValidateHeaderFullProbeUnit
@@ -1128,7 +1128,7 @@ def knownProgramNames : List String :=
    "zisk_u256_eq",
    "zisk_u256_mul_u64_be", "zisk_account_charge_gas_pre_exec",
    "zisk_tx_upfront_precharge",
-   "zisk_account_refund_gas_post_exec",
+   "zisk_account_refund_gas_post_exec", "zisk_tx_post_exec_gas_settlement",
    "zisk_eip1559_calc_base_fee_per_gas",
    "zisk_header_validate_base_fee",
    "zisk_validate_header_full",
