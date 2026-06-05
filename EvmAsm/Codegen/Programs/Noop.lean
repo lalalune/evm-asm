@@ -1402,11 +1402,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0xf1]
     , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
-<<<<<<< HEAD
     , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192) }
-=======
-    , tail := .custom (basicPrecompileCallTail "call" 192 96 128 160 192) }
->>>>>>> origin/feat/runtime-access-account-opcodes
   , { mkHandler "h_CALLCODE" 0xf2 192 with
       preBody := stackUnderflowGuardAsm 7 ++ "\n" }
   , { mkHandler "h_DELEGATECALL" 0xf4 160 with
@@ -1420,11 +1416,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0xfa]
     , preBody := stackUnderflowGuardAsm 6 ++ "\n"
     , body := []
-<<<<<<< HEAD
     , tail := .custom (basicPrecompileCallTail "staticcall_target" 160 64 96 128 160) } ]
-=======
-    , tail := .custom (basicPrecompileCallTail "staticcall" 160 64 96 128 160) } ]
->>>>>>> origin/feat/runtime-access-account-opcodes
 
 /-- M20 arithmetic no-op handlers.
 

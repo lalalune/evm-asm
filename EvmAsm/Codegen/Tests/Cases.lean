@@ -27,7 +27,6 @@ private def repeatedPush1Bytecode (n : Nat) (value : String) : String :=
 private def push20RepeatedBytecode (value : String) (suffix : List String) : String :=
   byteCsv (["0x73"] ++ List.replicate 20 value ++ suffix)
 
-<<<<<<< HEAD
 private def callToRepeatedTargetBytecode (value : String) (suffix : List String) : String :=
   byteCsv ((List.range 5).flatMap (fun _ => ["0x60", "0x00"]) ++
     ["0x73"] ++ List.replicate 20 value ++ ["0x60", "0xff", "0xf1"] ++ suffix)
@@ -35,7 +34,7 @@ private def callToRepeatedTargetBytecode (value : String) (suffix : List String)
 private def staticcallToRepeatedTargetBytecode (value : String) (suffix : List String) : String :=
   byteCsv ((List.range 4).flatMap (fun _ => ["0x60", "0x00"]) ++
     ["0x73"] ++ List.replicate 20 value ++ ["0x60", "0xff", "0xfa"] ++ suffix)
-=======
+
 private def callPrecompileBytecode
     (target inSize : String) (suffix : List String) : String :=
   byteCsv
@@ -47,7 +46,6 @@ private def staticcallPrecompileBytecode
   byteCsv
     (["0x60", "0x00", "0x60", "0x00", "0x60", inSize, "0x60", "0x00",
       "0x60", target, "0x60", "0xff", "0xfa"] ++ suffix)
->>>>>>> origin/feat/runtime-access-account-opcodes
 
 /-- One per-opcode regression test wrapped around the M5b dispatcher
     (`tinyInterpRegistry`). The bytecode bakes into `.data`; the
