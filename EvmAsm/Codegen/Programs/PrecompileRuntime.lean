@@ -305,6 +305,29 @@ def precompileSuccessKzgPointEvalAsm
   "  bnez x23, .L" ++ tag ++ "_outcopy\n" ++
   "  j 7b\n"
 
+def kzgVersionedHashCompareBytesAsm : String :=
+  String.intercalate "" <| (List.range 31).map fun i =>
+    let idx := i + 1
+    "  lbu x16, " ++ toString (precompileFrameBls12G2InputOff + idx) ++ "(x15)\n" ++
+    "  lbu x17, " ++ toString (precompileFrameBls12G2OutputOff + idx) ++ "(x15)\n" ++
+    "  bne x16, x17, 1f\n"
+
+def kzgVersionedHashGateAsm : String :=
+  "  mv s10, x10\n" ++
+  "  mv s11, x12\n" ++
+  precompileFrameAddi "a0" (precompileFrameBls12G2InputOff + 96) ++
+  "  li a1, 48\n" ++
+  precompileFrameAddi "a2" precompileFrameBls12G2OutputOff ++
+  "  jal x1, zkvm_keccak256\n" ++
+  "  mv x10, s10\n" ++
+  "  mv x12, s11\n" ++
+  "  bnez a0, 1f\n" ++
+  "  la x15, evm_precompile_frame\n" ++
+  "  lbu x16, " ++ toString precompileFrameBls12G2InputOff ++ "(x15)\n" ++
+  "  li x17, 1\n" ++
+  "  bne x16, x17, 1f\n" ++
+  kzgVersionedHashCompareBytesAsm
+
 def precompileSuccessBoolFromFrameAsm
     (tag : String) (outOffsetOff outSizeOff resultFrameOff : Nat) : String :=
   "  la x15, evm_precompile_frame\n" ++

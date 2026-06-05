@@ -822,6 +822,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     chargePrecompileGasConstAsm 50000 "x16" "x17" ++
     stagePrecompileInputWindowAsm
       (tag ++ "_kzg_payload") inOffsetOff inSizeOff precompileFrameBls12G2InputOff 0 192 ++
+    kzgVersionedHashGateAsm ++
     "  sb x0, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++

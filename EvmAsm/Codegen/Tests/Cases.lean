@@ -1341,8 +1341,9 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := callPrecompileBytecode "0x0a" "0x00" ["0x5a", "0x00"]
       expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "200" }
-  , -- Exact 192-byte KZG input charges fixed 50000 gas before backend/hash
-    -- failure. The deterministic backend safe-fails after the charge.
+  , -- Exact 192-byte KZG input charges fixed 50000 gas before versioned-hash
+    -- validation. The all-zero payload has version byte 0, so it fails after
+    -- the charge with the same gasRemaining as the Python execution-spec path.
     { name           := "call_kzg_point_eval_fixed_gas_after_call"
       bytecode       := callPrecompileBytecode "0x0a" "0xc0" ["0x5a", "0x00"]
       expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
@@ -1356,7 +1357,21 @@ def opcodeTestCases : List OpcodeTestCase :=
   , -- Valid-length input reaches the deterministic backend EFAIL wrapper, so
     -- CALL success is 0 and RETURNDATASIZE remains zero.
     { name             := "call_kzg_point_eval_backend_failure_empty_returndata"
-      bytecode         := callPrecompileBytecode "0x0a" "0xc0" ["0x50", "0x3d", "0x00"]
+      bytecode         := callPrecompileBytecodeWithPrefix
+        ["0x7f",
+         "0x01", "0x80", "0xe5", "0x91", "0x63", "0xce", "0x24", "0x4b",
+         "0xb4", "0xbb", "0x62", "0x11", "0xf4", "0x8c", "0x7b", "0x46",
+         "0xf8", "0x8a", "0x4f", "0x40", "0x94", "0x3e", "0x84", "0xeb",
+         "0x99", "0xbd", "0xc4", "0x1e", "0x12", "0x9b", "0xd2", "0x93",
+         "0x60", "0x00", "0x52"] "0x0a" "0xc0" ["0x50", "0x3d", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "100000" }
+  , -- Version byte 1 with a zero hash suffix still fails the execution-spec
+    -- versioned-hash gate before the backend proof verifier.
+    { name             := "call_kzg_point_eval_invalid_versioned_hash_empty_returndata"
+      bytecode         := callPrecompileBytecodeWithPrefix
+        ["0x60", "0x01", "0x60", "0x00", "0x53"] "0x0a" "0xc0" ["0x50", "0x3d", "0x00"]
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
       gasLimit         := "100000" }
