@@ -248,4 +248,99 @@ def precompileSuccessBoolFromFrameAsm
   "  j 7b\n"
 
 
+def precompileSuccessKzgPointEvalAsm
+    (tag : String) (outOffsetOff outSizeOff : Nat) : String :=
+  "  la x15, evm_precompile_frame\n" ++
+  "  addi x18, x15, 16\n" ++
+  "  li x22, 30\n" ++
+  ".L" ++ tag ++ "_field_zero:\n" ++
+  "  beqz x22, .L" ++ tag ++ "_field_tail\n" ++
+  "  sb x0, 0(x18)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x22, x22, -1\n" ++
+  "  j .L" ++ tag ++ "_field_zero\n" ++
+  ".L" ++ tag ++ "_field_tail:\n" ++
+  "  li x16, 0x10\n" ++
+  "  sb x16, 0(x18)\n" ++
+  "  sb x0, 1(x18)\n" ++
+  "  addi x18, x18, 2\n" ++
+  "  li x16, 0x73\n" ++
+  "  sb x16, 0(x18)\n" ++
+  "  li x16, 0xed\n" ++
+  "  sb x16, 1(x18)\n" ++
+  "  li x16, 0xa7\n" ++
+  "  sb x16, 2(x18)\n" ++
+  "  li x16, 0x53\n" ++
+  "  sb x16, 3(x18)\n" ++
+  "  li x16, 0x29\n" ++
+  "  sb x16, 4(x18)\n" ++
+  "  li x16, 0x9d\n" ++
+  "  sb x16, 5(x18)\n" ++
+  "  li x16, 0x7d\n" ++
+  "  sb x16, 6(x18)\n" ++
+  "  li x16, 0x48\n" ++
+  "  sb x16, 7(x18)\n" ++
+  "  li x16, 0x33\n" ++
+  "  sb x16, 8(x18)\n" ++
+  "  sb x16, 9(x18)\n" ++
+  "  li x16, 0xd8\n" ++
+  "  sb x16, 10(x18)\n" ++
+  "  li x16, 0x08\n" ++
+  "  sb x16, 11(x18)\n" ++
+  "  li x16, 0x09\n" ++
+  "  sb x16, 12(x18)\n" ++
+  "  li x16, 0xa1\n" ++
+  "  sb x16, 13(x18)\n" ++
+  "  li x16, 0xd8\n" ++
+  "  sb x16, 14(x18)\n" ++
+  "  li x16, 0x05\n" ++
+  "  sb x16, 15(x18)\n" ++
+  "  li x16, 0x53\n" ++
+  "  sb x16, 16(x18)\n" ++
+  "  li x16, 0xbd\n" ++
+  "  sb x16, 17(x18)\n" ++
+  "  li x16, 0xa4\n" ++
+  "  sb x16, 18(x18)\n" ++
+  "  li x16, 0x02\n" ++
+  "  sb x16, 19(x18)\n" ++
+  "  li x16, 0xff\n" ++
+  "  sb x16, 20(x18)\n" ++
+  "  li x16, 0xfe\n" ++
+  "  sb x16, 21(x18)\n" ++
+  "  li x16, 0x5b\n" ++
+  "  sb x16, 22(x18)\n" ++
+  "  li x16, 0xfe\n" ++
+  "  sb x16, 23(x18)\n" ++
+  "  li x16, 0xff\n" ++
+  "  sb x16, 24(x18)\n" ++
+  "  sb x16, 25(x18)\n" ++
+  "  sb x16, 26(x18)\n" ++
+  "  sb x16, 27(x18)\n" ++
+  "  sb x0, 28(x18)\n" ++
+  "  sb x0, 29(x18)\n" ++
+  "  sb x0, 30(x18)\n" ++
+  "  li x16, 0x01\n" ++
+  "  sb x16, 31(x18)\n" ++
+  "  li x16, 1\n" ++
+  "  sd x16, 0(x15)\n" ++
+  "  li x16, 64\n" ++
+  "  sd x16, 8(x15)\n" ++
+  "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+  "  li x23, 64\n" ++
+  "  bgeu x22, x23, .L" ++ tag ++ "_out_len_ok\n" ++
+  "  mv x23, x22\n" ++
+  ".L" ++ tag ++ "_out_len_ok:\n" ++
+  "  beqz x23, 7b\n" ++
+  "  addi x18, x15, 16\n" ++
+  "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+  "  add x19, x13, x19\n" ++
+  ".L" ++ tag ++ "_outcopy:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  sb x16, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x23, x23, -1\n" ++
+  "  bnez x23, .L" ++ tag ++ "_outcopy\n" ++
+  "  j 7b\n"
+
 end EvmAsm.Codegen
