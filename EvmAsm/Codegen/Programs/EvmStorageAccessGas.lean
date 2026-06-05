@@ -18,6 +18,9 @@ open EvmAsm.Rv64
     opcode harness. Each entry is 64 bytes: 32-byte address token followed
     by the 32-byte storage slot in EVM stack order. -/
 def storageAccessGasMaxKeys : Nat := 64
+def storageAccessOutcomeMaxRecords : Nat := 64
+def storageAccessOutcomeRecordSize : Nat := 96
+def storageAccessColdDeltaGas : Nat := 2000
 
 /-- Data labels consumed by `evm_storage_access_charge_key`. -/
 def storageAccessGasData : String :=
@@ -29,7 +32,13 @@ def storageAccessGasData : String :=
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "evm_storage_access_keys:\n" ++
-  s!"  .zero {storageAccessGasMaxKeys * 64}\n"
+  s!"  .zero {storageAccessGasMaxKeys * 64}\n" ++
+  ".balign 8\n" ++
+  "evm_storage_access_outcome_count:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "evm_storage_access_outcomes:\n" ++
+  s!"  .zero {storageAccessOutcomeMaxRecords * storageAccessOutcomeRecordSize}\n"
 
 /-! ## evm_storage_access_charge_key
 
@@ -85,7 +94,8 @@ def storageAccessGasFunction : String :=
   "  ld t5, 24(a1)\n" ++
   "  bne t4, t5, .Lsag_next\n" ++
   "  li a0, 0\n" ++
-  "  ret\n" ++
+  "  li a3, 0\n" ++
+  "  j .Lsag_record_and_ret\n" ++
   ".Lsag_next:\n" ++
   "  addi t3, t3, 64\n" ++
   "  addi t2, t2, -1\n" ++
@@ -95,7 +105,7 @@ def storageAccessGasFunction : String :=
   s!"  li t4, {storageAccessGasMaxKeys}\n" ++
   "  bgeu t2, t4, .Lsag_full\n" ++
   "  ld t5, 0(a2)\n" ++
-  "  li t4, 2000\n" ++
+  s!"  li t4, {storageAccessColdDeltaGas}\n" ++
   "  bltu t5, t4, .Lsag_oog\n" ++
   "  sub t5, t5, t4\n" ++
   "  sd t5, 0(a2)\n" ++
@@ -120,12 +130,41 @@ def storageAccessGasFunction : String :=
   "  addi t2, t2, 1\n" ++
   "  sd t2, 0(t1)\n" ++
   "  li a0, 1\n" ++
-  "  ret\n" ++
+  s!"  li a3, {storageAccessColdDeltaGas}\n" ++
+  "  j .Lsag_record_and_ret\n" ++
   ".Lsag_oog:\n" ++
   "  li a0, 2\n" ++
-  "  ret\n" ++
+  "  li a3, 0\n" ++
+  "  j .Lsag_record_and_ret\n" ++
   ".Lsag_full:\n" ++
   "  li a0, 3\n" ++
+  "  li a3, 0\n" ++
+  "  j .Lsag_record_and_ret\n" ++
+  ".Lsag_record_and_ret:\n" ++
+  "  la t0, evm_storage_access_outcome_count\n" ++
+  "  ld t1, 0(t0)\n" ++
+  s!"  li t2, {storageAccessOutcomeMaxRecords}\n" ++
+  "  bgeu t1, t2, .Lsag_record_skip\n" ++
+  "  addi t2, t1, 1\n" ++
+  "  sd t2, 0(t0)\n" ++
+  "  slli t3, t1, 6              # i * 64\n" ++
+  "  slli t4, t1, 5              # i * 32\n" ++
+  "  add t3, t3, t4              # i * 96\n" ++
+  "  la t4, evm_storage_access_outcomes\n" ++
+  "  add t3, t4, t3\n" ++
+  "  ld t4, 0(t6);  sd t4, 0(t3)\n" ++
+  "  ld t4, 8(t6);  sd t4, 8(t3)\n" ++
+  "  ld t4, 16(t6); sd t4, 16(t3)\n" ++
+  "  ld t4, 24(t6); sd t4, 24(t3)\n" ++
+  "  ld t4, 0(a1);  sd t4, 32(t3)\n" ++
+  "  ld t4, 8(a1);  sd t4, 40(t3)\n" ++
+  "  ld t4, 16(a1); sd t4, 48(t3)\n" ++
+  "  ld t4, 24(a1); sd t4, 56(t3)\n" ++
+  "  sd a0, 64(t3)               # status/outcome\n" ++
+  "  sd a3, 72(t3)               # gas delta charged\n" ++
+  "  sd zero, 80(t3)\n" ++
+  "  sd zero, 88(t3)\n" ++
+  ".Lsag_record_skip:\n" ++
   "  ret"
 
 /-- Probe for `evm_storage_access_charge_key`.
@@ -189,6 +228,61 @@ def ziskStorageAccessGasDataSection : String :=
 def ziskStorageAccessGasProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskStorageAccessGasProbePrologue
+  dataAsm     := ziskStorageAccessGasDataSection
+}
+
+/-- Probe for storage-access outcome records.
+
+    Output layout:
+      +0  outcome count
+      +8  warmth table count
+      +16 final gas
+      +24 first record status
+      +32 first record gas delta
+      +40 second record status
+      +48 second record gas delta
+      +56 third record status
+      +64 third record gas delta -/
+def ziskStorageAccessOutcomeRecordsProbePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  ld t1, 8(t0)\n" ++
+  "  la a2, sag_probe_gas\n" ++
+  "  sd t1, 0(a2)\n" ++
+  "  addi a1, t0, 16\n" ++
+  "  li a0, 0\n" ++
+  "  jal ra, evm_storage_access_charge_key\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  addi a1, t0, 16\n" ++
+  "  li a0, 0\n" ++
+  "  jal ra, evm_storage_access_charge_key\n" ++
+  "  li t0, 0x40000000\n" ++
+  "  addi a1, t0, 48\n" ++
+  "  li a0, 0\n" ++
+  "  jal ra, evm_storage_access_charge_key\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  la t0, evm_storage_access_outcome_count\n" ++
+  "  ld t1, 0(t0); sd t1, 0(s0)\n" ++
+  "  la t0, evm_storage_access_count\n" ++
+  "  ld t1, 0(t0); sd t1, 8(s0)\n" ++
+  "  la t0, sag_probe_gas\n" ++
+  "  ld t1, 0(t0); sd t1, 16(s0)\n" ++
+  "  la t0, evm_storage_access_outcomes\n" ++
+  "  ld t1, 64(t0); sd t1, 24(s0)\n" ++
+  "  ld t1, 72(t0); sd t1, 32(s0)\n" ++
+  "  addi t0, t0, 96\n" ++
+  "  ld t1, 64(t0); sd t1, 40(s0)\n" ++
+  "  ld t1, 72(t0); sd t1, 48(s0)\n" ++
+  "  addi t0, t0, 96\n" ++
+  "  ld t1, 64(t0); sd t1, 56(s0)\n" ++
+  "  ld t1, 72(t0); sd t1, 64(s0)\n" ++
+  "  j .Lsag_outcome_probe_done\n" ++
+  storageAccessGasFunction ++ "\n" ++
+  ".Lsag_outcome_probe_done:"
+
+def ziskStorageAccessOutcomeRecordsProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskStorageAccessOutcomeRecordsProbePrologue
   dataAsm     := ziskStorageAccessGasDataSection
 }
 
