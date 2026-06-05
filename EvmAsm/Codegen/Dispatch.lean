@@ -25,6 +25,7 @@ import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.StateCompose
+import EvmAsm.Codegen.Programs.EvmAccessGas
 
 namespace EvmAsm.Codegen
 
@@ -682,6 +683,9 @@ def emitDispatcherEpilogue
   hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
+  runtimeAccessAccountSeedFunction ++ "\n" ++
+  runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
+  runtimeAccessAccountChargeFunction ++ "\n" ++
   zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
   zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
   zkvmBn254G1AddSafeFailWrapper ++ "\n" ++
@@ -1153,7 +1157,11 @@ def emitRuntimeDispatcherSetup : String :=
   "  add x5, x5, x6\n" ++          -- x5 = witness.state ptr
   "  sd x5, 592(x20)\n" ++
   "  add x5, x5, x7\n" ++          -- x5 = witness.codes ptr
-  "  sd x5, 608(x20)"
+  "  sd x5, 608(x20)\n" ++
+  "  jal ra, runtime_access_seed_initial_accounts\n" ++
+  "  mv x10, x21\n" ++
+  "  la x12, evm_stack_top\n" ++
+  "  la x13, evm_memory"
 
 /-- Runtime dispatcher prologue: setup plus fetch/decode/dispatch loop. -/
 def emitRuntimeDispatcherPrologue : String :=
@@ -1215,6 +1223,14 @@ def emitRuntimeDispatcherDataSection
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
   emitRuntimeAccountWitnessData ++
+  ".balign 8\n" ++
+  runtimeAccessAccountCountLabel ++ ":\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  runtimeAccessAccountTableLabel ++ ":\n" ++
+  "  .zero " ++ toString (runtimeAccessAccountCapacity * runtimeAccessAccountRecordSize) ++ "\n" ++
+  runtimeAccessSeedScratchLabel ++ ":\n" ++
+  "  .zero 32\n" ++
   ".balign 16\n" ++
   "lp64_stack:\n" ++
   "  .zero 262144\n" ++   -- LP64 stack for nested KECCAK/RLP/MPT/account helpers
