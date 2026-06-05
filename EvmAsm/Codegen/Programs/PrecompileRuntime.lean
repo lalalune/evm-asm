@@ -216,6 +216,66 @@ def precompileSuccess64FromFrameAsm
   "  bnez x23, .L" ++ tag ++ "_outcopy\n" ++
   "  j 7b\n"
 
+def chargeBls12G1MsmGasAsm
+    (inputLenReg pairCountReg costReg discountReg scratchReg : String) : String :=
+  "  li " ++ scratchReg ++ ", 160\n" ++
+  "  divu " ++ pairCountReg ++ ", " ++ inputLenReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  li " ++ costReg ++ ", 12000\n" ++
+  "  mul " ++ costReg ++ ", " ++ pairCountReg ++ ", " ++ costReg ++ "\n" ++
+  "  li " ++ scratchReg ++ ", 12000\n" ++
+  "  divu " ++ discountReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  bne " ++ discountReg ++ ", " ++ pairCountReg ++ ", .exit_outofgas\n" ++
+  "  li " ++ scratchReg ++ ", 128\n" ++
+  "  bltu " ++ scratchReg ++ ", " ++ pairCountReg ++ ", 40f\n" ++
+  "  addi " ++ discountReg ++ ", " ++ pairCountReg ++ ", -1\n" ++
+  "  slli " ++ discountReg ++ ", " ++ discountReg ++ ", 3\n" ++
+  "  la " ++ scratchReg ++ ", bls12_g1_msm_discount_table\n" ++
+  "  add " ++ discountReg ++ ", " ++ scratchReg ++ ", " ++ discountReg ++ "\n" ++
+  "  ld " ++ discountReg ++ ", 0(" ++ discountReg ++ ")\n" ++
+  "  j 41f\n" ++
+  "40:\n" ++
+  "  li " ++ discountReg ++ ", 519\n" ++
+  "41:\n" ++
+  "  mv " ++ scratchReg ++ ", " ++ costReg ++ "\n" ++
+  "  mul " ++ costReg ++ ", " ++ costReg ++ ", " ++ discountReg ++ "\n" ++
+  "  divu " ++ scratchReg ++ ", " ++ costReg ++ ", " ++ discountReg ++ "\n" ++
+  "  li " ++ discountReg ++ ", 12000\n" ++
+  "  mul " ++ discountReg ++ ", " ++ pairCountReg ++ ", " ++ discountReg ++ "\n" ++
+  "  bne " ++ scratchReg ++ ", " ++ discountReg ++ ", .exit_outofgas\n" ++
+  "  li " ++ discountReg ++ ", 1000\n" ++
+  "  divu " ++ costReg ++ ", " ++ costReg ++ ", " ++ discountReg ++ "\n" ++
+  chargePrecompileGasAsm costReg scratchReg
+
+def chargeBls12G2MsmGasAsm
+    (inputLenReg pairCountReg costReg discountReg scratchReg : String) : String :=
+  "  li " ++ scratchReg ++ ", 288\n" ++
+  "  divu " ++ pairCountReg ++ ", " ++ inputLenReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  li " ++ costReg ++ ", 22500\n" ++
+  "  mul " ++ costReg ++ ", " ++ pairCountReg ++ ", " ++ costReg ++ "\n" ++
+  "  li " ++ scratchReg ++ ", 22500\n" ++
+  "  divu " ++ discountReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  bne " ++ discountReg ++ ", " ++ pairCountReg ++ ", .exit_outofgas\n" ++
+  "  li " ++ scratchReg ++ ", 128\n" ++
+  "  bltu " ++ scratchReg ++ ", " ++ pairCountReg ++ ", 42f\n" ++
+  "  addi " ++ discountReg ++ ", " ++ pairCountReg ++ ", -1\n" ++
+  "  slli " ++ discountReg ++ ", " ++ discountReg ++ ", 3\n" ++
+  "  la " ++ scratchReg ++ ", bls12_g2_msm_discount_table\n" ++
+  "  add " ++ discountReg ++ ", " ++ scratchReg ++ ", " ++ discountReg ++ "\n" ++
+  "  ld " ++ discountReg ++ ", 0(" ++ discountReg ++ ")\n" ++
+  "  j 43f\n" ++
+  "42:\n" ++
+  "  li " ++ discountReg ++ ", 524\n" ++
+  "43:\n" ++
+  "  mv " ++ scratchReg ++ ", " ++ costReg ++ "\n" ++
+  "  mul " ++ costReg ++ ", " ++ costReg ++ ", " ++ discountReg ++ "\n" ++
+  "  divu " ++ scratchReg ++ ", " ++ costReg ++ ", " ++ discountReg ++ "\n" ++
+  "  li " ++ discountReg ++ ", 22500\n" ++
+  "  mul " ++ discountReg ++ ", " ++ pairCountReg ++ ", " ++ discountReg ++ "\n" ++
+  "  bne " ++ scratchReg ++ ", " ++ discountReg ++ ", .exit_outofgas\n" ++
+  "  li " ++ discountReg ++ ", 1000\n" ++
+  "  divu " ++ costReg ++ ", " ++ costReg ++ ", " ++ discountReg ++ "\n" ++
+  chargePrecompileGasAsm costReg scratchReg
+
 def kzgVersionedHashCompareBytesAsm : String :=
   String.intercalate "" <| (List.range 31).map fun i =>
     let idx := i + 1
