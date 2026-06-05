@@ -139,6 +139,23 @@ root6 = branch_node(slots6)
 collapsed_branch = extension_node([2], node_ref(child_branch))
 write_case("branch_collapse_branch", trie_root(root6), [1, 0xa, 0xb], [root6, la, child_branch], trie_root(collapsed_branch))
 
+# The survivor branch has a non-empty slot 0 whose hash begins with a high
+# nibble that looks like a compact leaf prefix. Delete collapse must classify
+# the survivor as a branch before trying leaf/extension extractors.
+leaf_like_hash_child = leaf_node([0xa, 0xb], (1).to_bytes(2, "big") + b"X" * 30)
+assert k256(leaf_like_hash_child)[0] >> 4 in (2, 3)
+survivor_slots = [b"\x80"] * 16
+survivor_slots[0] = node_ref(leaf_like_hash_child)
+survivor_slots[4] = node_ref(lc)
+survivor_branch = branch_node(survivor_slots)
+slots6b = [b"\x80"] * 16
+slots6b[1] = node_ref(la); slots6b[2] = node_ref(survivor_branch)
+root6b = branch_node(slots6b)
+collapsed_branch6b = extension_node([2], node_ref(survivor_branch))
+write_case("branch_collapse_branch_leaflike_slot0", trie_root(root6b), [1, 0xa, 0xb],
+           [root6b, la, survivor_branch, leaf_like_hash_child, lc],
+           trie_root(collapsed_branch6b))
+
 slots7 = [b"\x80"] * 16
 slots7[1] = node_ref(la); slots7[2] = node_ref(lb); slots7[3] = node_ref(lc)
 branch7 = branch_node(slots7)
@@ -174,7 +191,7 @@ lake exe codegen --program zisk_mpt_delete_acc --halt linux93 \
 read_u64() { od -An -tu8 -j "$2" -N 8 "$1" | tr -d ' \n'; }
 
 fail=0
-for name in leaf_to_empty branch_no_collapse branch_collapse_leaf branch_value_collapse branch_collapse_extension branch_collapse_branch extension_bubble_branch_no_collapse extension_merge_leaf extension_merge_extension; do
+for name in leaf_to_empty branch_no_collapse branch_collapse_leaf branch_value_collapse branch_collapse_extension branch_collapse_branch branch_collapse_branch_leaflike_slot0 extension_bubble_branch_no_collapse extension_merge_leaf extension_merge_extension; do
   out="$VDIR/$name.output"
   if ! "$ZISKEMU" -e "$REPO_ROOT/gen-out/zisk_mpt_delete_acc.elf" \
         -i "$VDIR/$name.input" -o "$out" -n 10000000 >/dev/null 2>&1 </dev/null; then
