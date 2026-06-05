@@ -28,7 +28,7 @@ scripts/codegen-eest-stateless-check.sh \
   --jobs 1 \
   --quiet-passes \
   --max-failures 1 \
-  --steps 200000000
+  --steps 1000000000
 ```
 
 When triaging failures, first identify the test-program id in the fixture name
