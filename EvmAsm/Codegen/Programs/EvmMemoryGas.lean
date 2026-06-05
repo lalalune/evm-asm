@@ -156,6 +156,32 @@ def callMemoryExpansionGasAsm
   updateActiveMemorySizeAsm ("call_" ++ tag ++ "_out") "x14" "x15" "x16" "x17" "x5" "x6" true ++
   ".Lcallmem_" ++ tag ++ "_done:\n"
 
+/-- CREATE-family initcode dynamic gas. The dispatch loop already charges
+    `OPCODE_CREATE_BASE = 32000`; this charges the EIP-3860 initcode word
+    cost `2 * ceil32(size) / 32`, and for CREATE2 also the EIP-1014 hashcost
+    `6 * ceil32(size) / 32`. Memory expansion is handled separately by
+    `updateActiveMemorySizeAsm` over the same initcode range.
+
+    The caller must have already checked high size limbs and, for nonzero
+    size, that high offset limbs and `offset + size` fit the runtime memory
+    arena. `sizeReg` is preserved; `roundedReg`, `wordsReg`, and `gasReg` are
+    clobbered. -/
+def createInitcodeGasAsm
+    (tag sizeReg roundedReg wordsReg gasReg : String) (hasSalt : Bool) :
+    String :=
+  let perWordCost := if hasSalt then 8 else 2
+  "  beqz " ++ sizeReg ++ ", .Lcreate_initgas_" ++ tag ++ "_done\n" ++
+  "  addi " ++ roundedReg ++ ", " ++ sizeReg ++ ", 31\n" ++
+  "  bltu " ++ roundedReg ++ ", " ++ sizeReg ++ ", .exit_outofgas\n" ++
+  "  srli " ++ wordsReg ++ ", " ++ roundedReg ++ ", 5\n" ++
+  "  li " ++ gasReg ++ ", " ++ toString perWordCost ++ "\n" ++
+  "  mul " ++ gasReg ++ ", " ++ wordsReg ++ ", " ++ gasReg ++ "\n" ++
+  "  ld " ++ roundedReg ++ ", 568(x20)\n" ++
+  "  bltu " ++ roundedReg ++ ", " ++ gasReg ++ ", .exit_outofgas\n" ++
+  "  sub " ++ roundedReg ++ ", " ++ roundedReg ++ ", " ++ gasReg ++ "\n" ++
+  "  sd " ++ roundedReg ++ ", 568(x20)\n" ++
+  ".Lcreate_initgas_" ++ tag ++ "_done:\n"
+
 /-- EXP dynamic gas add-on before exponentiation. The dispatch loop already
     charges the fixed EXP base cost (10), so this charges only
     `50 * exponentByteLength(exponent)`.
