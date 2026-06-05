@@ -25,10 +25,13 @@ open EvmAsm.Rv64
     parse cheaply: `max(intrinsic_gas, calldata_floor_gas_cost) <= tx.gas`.
     The EIP-8037 `TX_MAX_GAS_LIMIT` cap is applied only to the worst-regular-gas
     bound below, not as a transaction-validity rule. Malformed tx lists, unknown
-    tx types, and multi-transaction regular-reservoir overflow still fail open so
-    the state-root verdict does not reject valid state-dominated EIP-8037 blocks
-    before exact execution gas accounting is available. Single-transaction
-    overflow cannot be rescued by state-dominance, so it remains rejected. -/
+    tx types. The gate also mirrors the execution-spec pre-execution block-gas
+    availability check when it can prove rejection from the intrinsic/floor gas
+    lower bound of prior transactions. Other multi-transaction regular-reservoir
+    overflow still fails open so the state-root verdict does not reject valid
+    state-dominated EIP-8037 blocks before exact execution gas accounting is
+    available. Single-transaction overflow cannot be rescued by state-dominance,
+    so it remains rejected. -/
 def eip8037TxGasGateFunction : String :=
   "eip8037_state_used_before_tx:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -125,6 +128,7 @@ def eip8037TxGasGateFunction : String :=
   "  mv s2, a2                   # BAL len\n" ++
   "  mv s3, a3                   # gas_limit\n" ++
   "  li s4, 0                    # accumulated worst regular gas\n" ++
+  "  la t0, bsg_min_block_gas; sd zero, 0(t0)\n" ++
   "  addi a0, s0, 504; jal ra, bgv_u32le\n" ++
   "  add s5, s0, a0              # tx list ptr\n" ++
   "  addi a0, s0, 508; jal ra, bgv_u32le\n" ++
@@ -247,6 +251,11 @@ def eip8037TxGasGateFunction : String :=
   "  mv t0, t6\n" ++
   ".Letg_required_have:\n" ++
   "  bltu t1, t0, .Letg_validate_fail\n" ++
+  "  la t5, bsg_min_block_gas; ld t2, 0(t5)\n" ++
+  "  bltu s3, t2, .Letg_regular_reject\n" ++
+  "  sub t3, s3, t2\n" ++
+  "  bgtu t1, t3, .Letg_regular_reject\n" ++
+  "  add t2, t2, t0; sd t2, 0(t5)\n" ++
   "  # EIP-8037 state reservoir split is currently modeled only for creation.\n" ++
   "  # Non-creation txs have zero intrinsic state here.\n" ++
   "  li t6, 0\n" ++
