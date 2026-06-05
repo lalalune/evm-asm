@@ -1,5 +1,4 @@
-/-
-  EvmAsm.Codegen.Programs
+/- EvmAsm.Codegen.Programs
 
   Registry of programs the codegen tool knows how to emit, each as a
   `BuildUnit` (verified body + optional wrapping).
@@ -43,6 +42,7 @@ import EvmAsm.Codegen.Dispatch
 import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 import EvmAsm.Codegen.Programs.Evm
+import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmAccountWitness
 import EvmAsm.Codegen.Programs.EIP7708Logs
 import EvmAsm.Codegen.Programs.EvmBalance
@@ -54,6 +54,7 @@ import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
+import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
@@ -92,6 +93,7 @@ import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
+import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.AccountApplyStorage
@@ -276,7 +278,6 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-
 /-! Misc programs moved to submodules:
     - K21..K26 MPT helpers -> Programs/Mpt.lean
     - K34/K35/K36/K37 + K121/K120/K123 rlp/account extractors + legacy decoders -> Programs/Tx.lean
@@ -286,7 +287,6 @@ open EvmAsm.Rv64
 
 /-! More misc programs moved to submodules — see commit history and
     the per-PR header comments inside the destination files for details. -/
-
 
 /-! ## MPT branch helpers K117 / K118 — moved to `Programs/Mpt.lean` (file-size hard cap). -/
 
@@ -347,7 +347,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
-  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit
+  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
   | "zisk_bal_section_info"      => some ziskBalSectionInfoProbeUnit
   | "zisk_bal_account_path"      => some ziskBalAccountPathProbeUnit
   | "zisk_bal_account_post_fields" => some ziskBalAccountPostFieldsProbeUnit
@@ -820,6 +820,8 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_min"             => some ziskU256MinProbeUnit
   | "zisk_u256_max"             => some ziskU256MaxProbeUnit
   | "zisk_u256_div_u64_be"      => some ziskU256DivU64BeProbeUnit
+  | "zisk_runtime_access_account_gas" => some ziskRuntimeAccessAccountGasProbeUnit
+  | "zisk_runtime_access_seed_initial" => some ziskRuntimeAccessSeedInitialProbeUnit
   | "zisk_priority_fee_per_gas_eip1559" => some ziskPriorityFeePerGasEip1559ProbeUnit
   | "zisk_effective_gas_price_eip1559" => some ziskEffectiveGasPriceEip1559ProbeUnit
   | "zisk_tx_cost_compute"      => some ziskTxCostComputeProbeUnit
@@ -830,6 +832,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_extract_value"     => some ziskTxExtractValueProbeUnit
   | "zisk_tx_extract_data_section" => some ziskTxExtractDataSectionProbeUnit
   | "zisk_tx_extract_gas_pricing"  => some ziskTxExtractGasPricingProbeUnit
+  | "zisk_tx_effective_gas_pricing" => some ziskTxEffectiveGasPricingProbeUnit
   | "zisk_tx_eip2930_decode"    => some ziskTxEip2930DecodeProbeUnit
   | "zisk_tx_eip7702_decode"    => some ziskTxEip7702DecodeProbeUnit
   | "zisk_tx_eip4844_decode"    => some ziskTxEip4844DecodeProbeUnit
@@ -1133,24 +1136,20 @@ def knownProgramNames : List String :=
    "zisk_stateless_verdict_v2",
    "zisk_u256_from_u64_be",
    "zisk_u256_to_u64_be",
-   "zisk_u256_is_zero",
-   "zisk_u256_min",
-   "zisk_u256_max",
-   "zisk_u256_div_u64_be",
+   "zisk_u256_is_zero", "zisk_u256_min",
+   "zisk_u256_max", "zisk_u256_div_u64_be",
+   "zisk_runtime_access_account_gas", "zisk_runtime_access_seed_initial",
    "zisk_priority_fee_per_gas_eip1559",
    "zisk_effective_gas_price_eip1559",
    "zisk_tx_cost_compute",
-   "zisk_validate_transaction_balance",
-   "zisk_tx_type_dispatch",
-   "zisk_tx_extract_nonce_and_gas",
-   "zisk_tx_extract_to_address",
+   "zisk_validate_transaction_balance", "zisk_tx_type_dispatch",
+   "zisk_tx_extract_nonce_and_gas", "zisk_tx_extract_to_address",
    "zisk_tx_extract_value",
    "zisk_tx_extract_data_section",
    "zisk_tx_extract_gas_pricing",
-   "zisk_tx_eip2930_decode",
-   "zisk_tx_eip7702_decode",
-   "zisk_tx_eip4844_decode",
-   "zisk_tx_eip4844_compute_blob_gas",
+   "zisk_tx_effective_gas_pricing",
+   "zisk_tx_eip2930_decode", "zisk_tx_eip7702_decode",
+   "zisk_tx_eip4844_decode", "zisk_tx_eip4844_compute_blob_gas",
    "zisk_tx_calculate_total_blob_gas",
    "zisk_block_body_blob_gas_total",
    "zisk_block_validate_blob_gas_consistency",
@@ -1385,7 +1384,6 @@ end EvmAsm.Codegen
       * PR-#5948 carved `Tx.lean`.
       * PR-#7176 carved `EvmOpcodesStorageRoot.lean` /
         `EvmOpcodesExtcodecopy.lean`.
-
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
 
 #eval show IO Unit from do
@@ -1399,6 +1397,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BlockBody.lean",
     "EvmAsm/Codegen/Programs/BlockEmpty.lean",
     "EvmAsm/Codegen/Programs/BlockRoots.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean",
     "EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean",
     "EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean",
     "EvmAsm/Codegen/Programs/BlockVerdictTransactions.lean",
@@ -1454,7 +1453,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/StorageWrite.lean",
     "EvmAsm/Codegen/Programs/BlockAccessListHash.lean",
     "EvmAsm/Codegen/Programs/AccountApplyStorage.lean",
-    "EvmAsm/Codegen/Programs/Noop.lean",
+    "EvmAsm/Codegen/Programs/Noop.lean", "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
     "EvmAsm/Codegen/Programs/Storage.lean",
     "EvmAsm/Codegen/Programs/MptInternal.lean",
     "EvmAsm/Codegen/Programs/MptNibbles.lean",
