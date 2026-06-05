@@ -20,13 +20,14 @@ open EvmAsm.Rv64
     a0 (output) = 0 ok/unsupported, 1 regular overflow, 2 state overflow,
                   3 validate_transaction gas failure.
 
-    This mirrors the gas portion of Amsterdam `validate_transaction` for
-    legacy, EIP-2930, EIP-1559, EIP-4844, and EIP-7702 transactions that this
-    gate can parse cheaply: `max(intrinsic_gas, calldata_floor_gas_cost) <=
-    tx.gas` and `tx.gas <= TX_MAX_GAS_LIMIT`. Malformed tx lists, unknown tx
-    types, or ambiguous multi-transaction regular-gas overflow still fail open
-    so the state-root verdict does not reject blocks for unsupported gas model
-    parts. -/
+    This mirrors the gas portion of Prague `validate_transaction` for legacy,
+    EIP-2930, EIP-1559, EIP-4844, and EIP-7702 transactions that this gate can
+    parse cheaply: `max(intrinsic_gas, calldata_floor_gas_cost) <= tx.gas`.
+    The EIP-8037 `TX_MAX_GAS_LIMIT` cap is applied only to the worst-regular-gas
+    bound below, not as a transaction-validity rule. Malformed tx lists, unknown
+    tx types, or ambiguous multi-transaction regular-gas overflow still fail
+    open so the state-root verdict does not reject blocks for unsupported gas
+    model parts. -/
 def eip8037TxGasGateFunction : String :=
   "eip8037_state_used_before_tx:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -196,7 +197,6 @@ def eip8037TxGasGateFunction : String :=
   "  la t0, bsg_gas_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_tx_gas\n" ++
   "  jal ra, rlp_field_to_u64\n" ++
   "  bnez a0, .Letg_ok\n" ++
-  "  la t0, bsg_tx_gas; ld t1, 0(t0); li t2, 16777216; bgtu t1, t2, .Letg_validate_fail\n" ++
   "  la t0, bsg_data_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_data_off; la a4, bsg_data_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Letg_ok\n" ++
