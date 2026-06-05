@@ -54,6 +54,7 @@ import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
+import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
@@ -277,7 +278,6 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-
 /-! Misc programs moved to submodules:
     - K21..K26 MPT helpers -> Programs/Mpt.lean
     - K34/K35/K36/K37 + K121/K120/K123 rlp/account extractors + legacy decoders -> Programs/Tx.lean
@@ -287,7 +287,6 @@ open EvmAsm.Rv64
 
 /-! More misc programs moved to submodules — see commit history and
     the per-PR header comments inside the destination files for details. -/
-
 
 /-! ## MPT branch helpers K117 / K118 — moved to `Programs/Mpt.lean` (file-size hard cap). -/
 
@@ -348,7 +347,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
-  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit
+  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
   | "zisk_bal_section_info"      => some ziskBalSectionInfoProbeUnit
   | "zisk_bal_account_path"      => some ziskBalAccountPathProbeUnit
   | "zisk_bal_account_post_fields" => some ziskBalAccountPostFieldsProbeUnit
@@ -1454,7 +1453,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/StorageWrite.lean",
     "EvmAsm/Codegen/Programs/BlockAccessListHash.lean",
     "EvmAsm/Codegen/Programs/AccountApplyStorage.lean",
-    "EvmAsm/Codegen/Programs/Noop.lean",
+    "EvmAsm/Codegen/Programs/Noop.lean", "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
     "EvmAsm/Codegen/Programs/Storage.lean",
     "EvmAsm/Codegen/Programs/MptInternal.lean",
     "EvmAsm/Codegen/Programs/MptNibbles.lean",
