@@ -1856,6 +1856,30 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedHaltKind         := "0100000000000000"
       expectedReturnDataCopied := "0000000000000000"
       expectedReturnDataLength := "0000000000000000" }
+  , -- RETURN over one fresh memory byte charges memory expansion:
+    -- two PUSH1s (6) + RETURN static (0) + one memory word (3).
+    { name                     := "return_memory_gas_len1_exact"
+      bytecode                 := "0x60, 0x01, 0x60, 0x00, 0xf3"
+      expectedOutHex           := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind         := "0100000000000000"
+      expectedReturnDataCopied := "0100000000000000"
+      expectedReturnDataLength := "0100000000000000"
+      expectedReturnDataHex    := "00"
+      gasLimit                 := "9" }
+  , -- One less gas reaches RETURN, then fails before emitting returndata.
+    { name             := "return_memory_gas_len1_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0xf3"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "8" }
+  , -- At 33 bytes, RETURN rounds memory expansion to two words.
+    { name                     := "return_memory_gas_len33_exact"
+      bytecode                 := "0x60, 0x21, 0x60, 0x00, 0xf3"
+      expectedOutHex           := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind         := "0100000000000000"
+      expectedReturnDataCopied := "2100000000000000"
+      expectedReturnDataLength := "2100000000000000"
+      gasLimit                 := "12" }
   , -- MSTORE8 writes marker bytes at memory[0] and memory[40]; RETURN(size=41)
     -- keeps the old first-32-byte prefix while exposing the full 41-byte payload.
     { name                     := "return_long_data_window"
@@ -1873,6 +1897,22 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedReturnDataCopied := "0100000000000000"
       expectedReturnDataLength := "0100000000000000"
       expectedReturnDataHex    := "ee" }
+  , -- REVERT charges the same memory expansion as RETURN before producing
+    -- revert data.
+    { name                     := "revert_memory_gas_len1_exact"
+      bytecode                 := "0x60, 0x01, 0x60, 0x00, 0xfd"
+      expectedOutHex           := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind         := "0200000000000000"
+      expectedReturnDataCopied := "0100000000000000"
+      expectedReturnDataLength := "0100000000000000"
+      expectedReturnDataHex    := "00"
+      gasLimit                 := "9" }
+  , -- One less gas must OOG before REVERT rollback/output semantics run.
+    { name             := "revert_memory_gas_len1_out_of_gas"
+      bytecode         := "0x60, 0x01, 0x60, 0x00, 0xfd"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "8" }
   , -- REVERT(size=41) uses the same extended data path as RETURN while
     -- preserving revert status and rollback behavior.
     { name                     := "revert_long_data_window"
