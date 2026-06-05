@@ -314,6 +314,9 @@ private def emitBls12G2MsmDiscountTable : String :=
       +precompileFrameBls12G2OutputOff      G2-class compact result scratch
       +precompileFrameEcrecoverInputOff     ECRECOVER hash/v/r/s words.
 
+    MODEXP uses separate `modexp_*_scratch` labels because it needs up to
+    4 KiB of zero-padded base/exponent/modulus/output buffers.
+
     The lanes are handler-local scratch, so G1/G2 ADD may still reuse the
     older offsets internally. Map-Fp2-to-G2 uses the G2-class lane to avoid
     colliding with map-Fp-to-G1 stacked PR edits around +144/+336. -/
@@ -336,6 +339,19 @@ def emitSelfdestructData : String :=
   ".balign 8\n" ++
   "evm_selfdestruct_staged:\n" ++
   "  .zero 8\n"
+
+/-- Zero-padded component and output buffers for the runtime MODEXP backend
+    path. EIP-7823 caps each component at 1024 bytes before the backend call. -/
+def emitModexpScratchData : String :=
+  ".balign 8\n" ++
+  "modexp_base_scratch:\n" ++
+  "  .zero 1024\n" ++
+  "modexp_exp_scratch:\n" ++
+  "  .zero 1024\n" ++
+  "modexp_modulus_scratch:\n" ++
+  "  .zero 1024\n" ++
+  "modexp_output_scratch:\n" ++
+  "  .zero 1024\n"
 
 /-- Scratch buffers used by `zkvm_sha256`. The wrapper expects these
     labels to exist in the dispatcher's data section. -/
@@ -724,6 +740,7 @@ def emitDispatcherEpilogue
   hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
+  zkvmModexpSafeFailWrapper ++ "\n" ++
   storageAccessGasFunction ++ "\n" ++
   runtimeAccessAccountSeedFunction ++ "\n" ++
   runtimeAccessSeedInitialAccountsFunction ++ "\n" ++
@@ -946,6 +963,7 @@ def emitDispatcherDataSection
   emitSelfdestructData ++
   storageAccessGasData ++
   emitPrecompileFrameData ++
+  emitModexpScratchData ++
   emitSha256Data ++
   ".balign 8\n" ++
   "zk3_state:\n" ++
@@ -1268,6 +1286,7 @@ def emitRuntimeDispatcherDataSection
   emitSelfdestructData ++
   storageAccessGasData ++
   emitPrecompileFrameData ++
+  emitModexpScratchData ++
   emitSha256Data ++
   ".balign 8\n" ++
   "zk3_state:\n" ++

@@ -93,6 +93,26 @@ private def modexpReadSmallComponentAsm
   "  j .Lmodexp_read_" ++ name ++ "_loop_" ++ suffix ++ "\n" ++
   ".Lmodexp_read_" ++ name ++ "_done_" ++ suffix ++ ":\n"
 
+private def modexpStageComponentAsm
+    (suffix name startReg lenReg dstLabel : String) : String :=
+  "  la x28, " ++ dstLabel ++ "\n" ++
+  "  li x29, 0\n" ++
+  ".Lmodexp_stage_" ++ name ++ "_loop_" ++ suffix ++ ":\n" ++
+  "  beq x29, " ++ lenReg ++ ", .Lmodexp_stage_" ++ name ++ "_done_" ++ suffix ++ "\n" ++
+  "  add x31, " ++ startReg ++ ", x29\n" ++
+  "  bgeu x31, x17, .Lmodexp_stage_" ++ name ++ "_missing_" ++ suffix ++ "\n" ++
+  "  add x31, x18, x31\n" ++
+  "  lbu x16, 0(x31)\n" ++
+  "  j .Lmodexp_stage_" ++ name ++ "_have_" ++ suffix ++ "\n" ++
+  ".Lmodexp_stage_" ++ name ++ "_missing_" ++ suffix ++ ":\n" ++
+  "  li x16, 0\n" ++
+  ".Lmodexp_stage_" ++ name ++ "_have_" ++ suffix ++ ":\n" ++
+  "  sb x16, 0(x28)\n" ++
+  "  addi x28, x28, 1\n" ++
+  "  addi x29, x29, 1\n" ++
+  "  j .Lmodexp_stage_" ++ name ++ "_loop_" ++ suffix ++ "\n" ++
+  ".Lmodexp_stage_" ++ name ++ "_done_" ++ suffix ++ ":\n"
+
 def modexpPrecompileGasAsm
     (chargePrecompileGasAsm : String → String → String)
     (suffix : String)
@@ -177,9 +197,9 @@ def modexpPrecompileGasAsm
   "  beqz x24, 7b\n" ++
   "  beqz x23, 7b\n" ++
   "  li x31, 4\n" ++
-  "  bltu x31, x21, 1f\n" ++
-  "  bltu x31, x22, 1f\n" ++
-  "  bltu x31, x23, 1f\n" ++
+  "  bltu x31, x21, .Lmodexp_backend_" ++ suffix ++ "\n" ++
+  "  bltu x31, x22, .Lmodexp_backend_" ++ suffix ++ "\n" ++
+  "  bltu x31, x23, .Lmodexp_backend_" ++ suffix ++ "\n" ++
   "  li x30, 96\n" ++
   modexpReadSmallComponentAsm suffix "base" "x30" "x21" "x24" ++
   "  add x30, x30, x21\n" ++
@@ -236,6 +256,45 @@ def modexpPrecompileGasAsm
   "  addi x29, x29, 1\n" ++
   "  addi x24, x24, -1\n" ++
   "  bnez x24, .Lmodexp_copy_loop_" ++ suffix ++ "\n" ++
+  "  j 7b\n" ++
+  ".Lmodexp_backend_" ++ suffix ++ ":\n" ++
+  "  li x30, 96\n" ++
+  modexpStageComponentAsm suffix "base" "x30" "x21" "modexp_base_scratch" ++
+  "  add x30, x30, x21\n" ++
+  modexpStageComponentAsm suffix "exp" "x30" "x22" "modexp_exp_scratch" ++
+  "  add x30, x30, x22\n" ++
+  modexpStageComponentAsm suffix "modulus" "x30" "x23" "modexp_modulus_scratch" ++
+  "  mv s10, x10\n" ++
+  "  mv s11, x12\n" ++
+  "  la a0, modexp_base_scratch\n" ++
+  "  mv a1, x21\n" ++
+  "  la a2, modexp_exp_scratch\n" ++
+  "  mv a3, x22\n" ++
+  "  la a4, modexp_modulus_scratch\n" ++
+  "  mv a5, x23\n" ++
+  "  la a6, modexp_output_scratch\n" ++
+  "  jal x1, zkvm_modexp\n" ++
+  "  mv x10, s10\n" ++
+  "  mv x12, s11\n" ++
+  "  la x15, evm_precompile_frame\n" ++
+  "  bnez a0, 1f\n" ++
+  "  sd x23, 8(x15)\n" ++
+  "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+  "  mv x24, x23\n" ++
+  "  bgeu x22, x24, .Lmodexp_backend_copy_len_done_" ++ suffix ++ "\n" ++
+  "  mv x24, x22\n" ++
+  ".Lmodexp_backend_copy_len_done_" ++ suffix ++ ":\n" ++
+  "  beqz x24, 7b\n" ++
+  "  la x28, modexp_output_scratch\n" ++
+  "  ld x29, " ++ toString outOffsetOff ++ "(x12)\n" ++
+  "  add x29, x13, x29\n" ++
+  ".Lmodexp_backend_copy_loop_" ++ suffix ++ ":\n" ++
+  "  lbu x16, 0(x28)\n" ++
+  "  sb x16, 0(x29)\n" ++
+  "  addi x28, x28, 1\n" ++
+  "  addi x29, x29, 1\n" ++
+  "  addi x24, x24, -1\n" ++
+  "  bnez x24, .Lmodexp_backend_copy_loop_" ++ suffix ++ "\n" ++
   "  j 7b\n"
 
 end EvmAsm.Codegen
