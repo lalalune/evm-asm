@@ -325,20 +325,6 @@ def emitPrecompileFrameData : String :=
   "evm_precompile_frame:\n" ++
   "  .zero 1280\n"
 
-<<<<<<< HEAD
-/-- Zero-padded component and output buffers for the runtime MODEXP backend
-    path. EIP-7823 caps each component at 1024 bytes before the backend call. -/
-def emitModexpScratchData : String :=
-  ".balign 8\n" ++
-  "modexp_base_scratch:\n" ++
-  "  .zero 1024\n" ++
-  "modexp_exp_scratch:\n" ++
-  "  .zero 1024\n" ++
-  "modexp_modulus_scratch:\n" ++
-  "  .zero 1024\n" ++
-  "modexp_output_scratch:\n" ++
-  "  .zero 1024\n"
-=======
 /-- SELFDESTRUCT runtime staging scratch.
 
     `evm_selfdestruct_beneficiary` stores the popped beneficiary address as
@@ -353,7 +339,19 @@ def emitSelfdestructData : String :=
   ".balign 8\n" ++
   "evm_selfdestruct_staged:\n" ++
   "  .zero 8\n"
->>>>>>> origin/feat/modexp-small-output
+
+/-- Zero-padded component and output buffers for the runtime MODEXP backend
+    path. EIP-7823 caps each component at 1024 bytes before the backend call. -/
+def emitModexpScratchData : String :=
+  ".balign 8\n" ++
+  "modexp_base_scratch:\n" ++
+  "  .zero 1024\n" ++
+  "modexp_exp_scratch:\n" ++
+  "  .zero 1024\n" ++
+  "modexp_modulus_scratch:\n" ++
+  "  .zero 1024\n" ++
+  "modexp_output_scratch:\n" ++
+  "  .zero 1024\n"
 
 /-- Scratch buffers used by `zkvm_sha256`. The wrapper expects these
     labels to exist in the dispatcher's data section. -/
