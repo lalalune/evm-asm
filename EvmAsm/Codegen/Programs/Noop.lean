@@ -388,6 +388,79 @@ private def chargePrecompileWordGasAsm
   "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
   chargePrecompileGasAsm costReg scratchReg
 
+private def stagePrecompileInputWindowAsm
+    (tag : String) (inOffsetOff inSizeOff frameOff sourceOff byteLen : Nat) : String :=
+  -- Zero-fill the fixed accelerator window, then copy the available suffix of
+  -- EVM call data. This mirrors execution-specs `buffer_read` padding.
+  precompileFrameAddi "x18" frameOff ++
+  "  li x19, " ++ toString byteLen ++ "\n" ++
+  ".L" ++ tag ++ "_zero:\n" ++
+  "  beqz x19, .L" ++ tag ++ "_zero_done\n" ++
+  "  sb x0, 0(x18)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, -1\n" ++
+  "  j .L" ++ tag ++ "_zero\n" ++
+  ".L" ++ tag ++ "_zero_done:\n" ++
+  "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
+  "  li x19, " ++ toString sourceOff ++ "\n" ++
+  "  bgeu x19, x18, .L" ++ tag ++ "_done\n" ++
+  "  sub x18, x18, x19\n" ++
+  "  li x22, " ++ toString byteLen ++ "\n" ++
+  "  bgeu x22, x18, .L" ++ tag ++ "_copy_len_ok\n" ++
+  "  mv x18, x22\n" ++
+  ".L" ++ tag ++ "_copy_len_ok:\n" ++
+  "  ld x19, " ++ toString inOffsetOff ++ "(x12)\n" ++
+  "  add x19, x19, x13\n" ++
+  "  li x22, " ++ toString sourceOff ++ "\n" ++
+  "  add x19, x19, x22\n" ++
+  precompileFrameAddi "x21" frameOff ++
+  ".L" ++ tag ++ "_copy:\n" ++
+  "  beqz x18, .L" ++ tag ++ "_done\n" ++
+  "  lbu x23, 0(x19)\n" ++
+  "  sb x23, 0(x21)\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x21, x21, 1\n" ++
+  "  addi x18, x18, -1\n" ++
+  "  j .L" ++ tag ++ "_copy\n" ++
+  ".L" ++ tag ++ "_done:\n"
+
+private def precompileSuccess64FromFrameAsm
+    (tag : String) (outOffsetOff outSizeOff resultFrameOff : Nat) : String :=
+  "  la x15, evm_precompile_frame\n" ++
+  "  addi x18, x15, 16\n" ++
+  precompileFrameAddi "x19" resultFrameOff ++
+  "  li x22, 64\n" ++
+  ".L" ++ tag ++ "_retcopy:\n" ++
+  "  beqz x22, .L" ++ tag ++ "_retcopy_done\n" ++
+  "  lbu x16, 0(x19)\n" ++
+  "  sb x16, 0(x18)\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x22, x22, -1\n" ++
+  "  j .L" ++ tag ++ "_retcopy\n" ++
+  ".L" ++ tag ++ "_retcopy_done:\n" ++
+  "  li x16, 1\n" ++
+  "  sd x16, 0(x15)\n" ++
+  "  li x16, 64\n" ++
+  "  sd x16, 8(x15)\n" ++
+  "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+  "  li x23, 64\n" ++
+  "  bgeu x22, x23, .L" ++ tag ++ "_out_len_ok\n" ++
+  "  mv x23, x22\n" ++
+  ".L" ++ tag ++ "_out_len_ok:\n" ++
+  "  beqz x23, 7b\n" ++
+  "  addi x18, x15, 16\n" ++
+  "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+  "  add x19, x13, x19\n" ++
+  ".L" ++ tag ++ "_outcopy:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  sb x16, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x23, x23, -1\n" ++
+  "  bnez x23, .L" ++ tag ++ "_outcopy\n" ++
+  "  j 7b\n"
+
 /-- M19 child-frame opcodes (CREATE, CALL, CALLCODE, DELEGATECALL,
     CREATE2, STATICCALL). CALL-family non-precompile paths still ship as
     **pop-N + push-zero** no-ops. CREATE-family paths decode operands and
@@ -667,7 +740,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop"
   let basicPrecompileCallTail
-      (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
+      (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
     -- Stack top at entry is the call gas word. The destination
     -- address is the next word for both CALL and STATICCALL. EVM
     -- address operands are masked to the low 160 bits: limb 1 and
@@ -687,6 +760,10 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  bltu x14, x15, 1f\n" ++
     "  li x15, 4\n" ++
     "  bgeu x15, x14, 11f\n" ++
+    "  li x15, 0x06\n" ++
+    "  beq x14, x15, .L" ++ tag ++ "_bn254_add\n" ++
+    "  li x15, 0x07\n" ++
+    "  beq x14, x15, .L" ++ tag ++ "_bn254_mul\n" ++
     "  li x15, 0x0b\n" ++
     "  beq x14, x15, 13f\n" ++
     "  li x15, 0x0c\n" ++
@@ -807,6 +884,52 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     ecrecoverNonzeroRSGateAsm ++
     ecrecoverScalarOrderGateAsm ++
     "  j 7b\n" ++
+    -- BN254 G1 ADD: fixed 150 gas, two 64-byte zero-padded G1 inputs.
+    -- The current runtime wrapper deterministic-fails until the host backend
+    -- path is available, so valid calls surface precompile failure after gas.
+    ".L" ++ tag ++ "_bn254_add:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    chargePrecompileGasConstAsm 150 "x16" "x17" ++
+    stagePrecompileInputWindowAsm
+      (tag ++ "_bn254_add_p1") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
+    stagePrecompileInputWindowAsm
+      (tag ++ "_bn254_add_p2") inOffsetOff inSizeOff precompileFrameBls12G1Input1Off 64 64 ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
+    precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
+    precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
+    "  jal x1, zkvm_bn254_g1_add\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  bnez a0, 1f\n" ++
+    precompileSuccess64FromFrameAsm
+      (tag ++ "_bn254_add_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
+    -- BN254 G1 MUL: fixed 6000 gas, one 64-byte point plus one 32-byte scalar.
+    ".L" ++ tag ++ "_bn254_mul:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
+    chargePrecompileGasConstAsm 6000 "x16" "x17" ++
+    stagePrecompileInputWindowAsm
+      (tag ++ "_bn254_mul_point") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
+    stagePrecompileInputWindowAsm
+      (tag ++ "_bn254_mul_scalar") inOffsetOff inSizeOff precompileFrameBls12G1Input1Off 64 32 ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
+    precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
+    precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
+    "  jal x1, zkvm_bn254_g1_mul\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  bnez a0, 1f\n" ++
+    precompileSuccess64FromFrameAsm
+      (tag ++ "_bn254_mul_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
     "12:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
@@ -1267,7 +1390,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0xf1]
     , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail 192 96 128 160 192) }
+    , tail := .custom (basicPrecompileCallTail "call" 192 96 128 160 192) }
   , { mkHandler "h_CALLCODE" 0xf2 192 with
       preBody := stackUnderflowGuardAsm 7 ++ "\n" }
   , { mkHandler "h_DELEGATECALL" 0xf4 160 with
@@ -1281,7 +1404,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0xfa]
     , preBody := stackUnderflowGuardAsm 6 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail 160 64 96 128 160) } ]
+    , tail := .custom (basicPrecompileCallTail "staticcall" 160 64 96 128 160) } ]
 
 /-- M20 arithmetic no-op handlers.
 
