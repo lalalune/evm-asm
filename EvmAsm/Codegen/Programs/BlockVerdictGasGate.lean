@@ -25,11 +25,10 @@ open EvmAsm.Rv64
     parse cheaply: `max(intrinsic_gas, calldata_floor_gas_cost) <= tx.gas`.
     The EIP-8037 `TX_MAX_GAS_LIMIT` cap is applied only to the worst-regular-gas
     bound below, not as a transaction-validity rule. Malformed tx lists, unknown
-    tx types still fail open so the state-root verdict does not reject blocks for
-    unsupported gas model parts. Multi-transaction regular-gas overflow is
-    rejected when the payload gas-used field shows the block stopped before the
-    gas limit: EIP-7778 invalid blocks can otherwise match the conservative
-    state-root replay after an overflowing second transaction is rejected. -/
+    tx types, and multi-transaction regular-reservoir overflow still fail open so
+    the state-root verdict does not reject valid state-dominated EIP-8037 blocks
+    before exact execution gas accounting is available. Single-transaction
+    overflow cannot be rescued by state-dominance, so it remains rejected. -/
 def eip8037TxGasGateFunction : String :=
   "eip8037_state_used_before_tx:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -279,8 +278,6 @@ def eip8037TxGasGateFunction : String :=
   "  addi s8, s8, 1; j .Letg_tx_loop\n" ++
   ".Letg_regular_fail:\n" ++
   "  li t0, 1; beq s7, t0, .Letg_regular_reject\n" ++
-  "  addi a0, s0, 420; jal ra, bgv_u64le       # payload.gas_used\n" ++
-  "  bltu a0, s3, .Letg_regular_reject\n" ++
   "  j .Letg_ok\n" ++
   ".Letg_regular_reject:\n" ++
   "  li a0, 1; j .Letg_ret\n" ++
