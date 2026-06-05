@@ -1529,11 +1529,12 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := callPrecompileBytecode "0x08" "0x00" ["0x5a", "0x00"]
       expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "45200" }
-  , -- One complete 192-byte pair costs 45000 + 34000. The current backend
-    -- safe-fails, but gas after CALL proves the one-pair charge.
+  , -- One complete 192-byte pair costs 45000 + 34000, plus 18 gas for the
+    -- 192-byte CALL input memory expansion. The current backend safe-fails,
+    -- but gas after CALL proves the one-pair charge.
     { name           := "call_bn254_pairing_one_pair_gas_after_call"
       bytecode       := callPrecompileBytecode "0x08" "0xc0" ["0x5a", "0x00"]
-      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "3b00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "79200" }
   , -- Non-multiple length is rejected after the base gas is consumed, leaving
     -- empty returndata and normal halt after POP + RETURNDATASIZE.
@@ -1563,17 +1564,19 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "200" }
   , -- Exact 213-byte BLAKE2F input with all-zero payload has rounds=0. The
+    -- nonempty input window still pays 21 gas for memory expansion; the
     -- current backend safe-fails, but gas after CALL proves no rounds charge.
     { name           := "call_blake2f_rounds_zero_fixed_gas_after_call"
       bytecode       := callPrecompileBytecode "0x09" "0xd5" ["0x5a", "0x00"]
-      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "3800000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "200" }
   , -- Store rounds byte data[3]=1. Prefix cost is two PUSH1s, MSTORE8, and
-    -- one-word memory expansion; with rounds=1, gasLimit=200 leaves 64 after GAS.
+    -- one-word memory expansion; CALL then expands the 213-byte input window
+    -- from 32 to 224 bytes. With rounds=1, gasLimit=200 leaves 46 after GAS.
     { name           := "call_blake2f_rounds_one_fixed_gas_after_call"
       bytecode       := callPrecompileBytecodeWithPrefix
         ["0x60", "0x01", "0x60", "0x03", "0x53"] "0x09" "0xd5" ["0x5a", "0x00"]
-      expectedOutHex := "4000000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "2e00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "200" }
   , -- One gas short reaches the BLAKE2F rounds charge and exits OOG.
     { name             := "call_blake2f_rounds_one_out_of_gas"
@@ -1605,11 +1608,12 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "200" }
   , -- Exact 192-byte KZG input charges fixed 50000 gas before versioned-hash
-    -- validation. The all-zero payload has version byte 0, so it fails after
-    -- the charge with the same gasRemaining as the Python execution-spec path.
+    -- validation, plus 18 gas for CALL input memory expansion. The all-zero
+    -- payload has version byte 0, so it fails after the charge with the same
+    -- gasRemaining as the Python execution-spec path.
     { name           := "call_kzg_point_eval_fixed_gas_after_call"
       bytecode       := callPrecompileBytecode "0x0a" "0xc0" ["0x5a", "0x00"]
-      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "3b00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "50200" }
   , -- One gas short reaches the fixed KZG gas helper and exits OOG.
     { name             := "call_kzg_point_eval_fixed_gas_out_of_gas"
