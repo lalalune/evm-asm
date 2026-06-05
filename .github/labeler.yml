@@ -24,6 +24,11 @@ area:verified-core:
           - 'scripts/axiom-allow.txt'
           - 'scripts/conformance-baseline.txt'
           - 'scripts/eest-fixture-tag.txt'
+          - 'scripts/approved-heartbeat-overrides.txt'
+          - 'scripts/duplication-baseline.txt'
+          - 'scripts/jscpd.json'
+          - 'scripts/churn-report.sh'
+          - 'scripts/cycles-append.sh'
           - 'scripts/codegen-eest-stateless-check.sh'
           - 'scripts/progress-report.sh'
           - 'scripts/progress-snapshot.sh'
@@ -31,6 +36,7 @@ area:verified-core:
           - 'scripts/progress-delta.sh'
           - '.github/workflows/**'
           - '.github/CODEOWNERS'
+          - '.github/labeler.yml'
 
 area:codegen:
   - changed-files:
