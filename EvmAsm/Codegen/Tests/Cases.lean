@@ -2151,6 +2151,27 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x00, 0x54, 0x50, 0x60, 0x00, 0x54, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "2208" }
+  , -- PUSH1 value; PUSH1 key; SSTORE; STOP. The current SSTORE slice
+    -- charges the 100 warm floor plus the 2000 cold storage-key delta.
+    { name                        := "sstore_cold_gas_exact"
+      bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x00"
+      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedPersistentLogLength := "0100000000000000"
+      gasLimit                    := "2106" }
+  , -- One gas short of the first cold SSTORE must halt out-of-gas before append.
+    { name                        := "sstore_cold_gas_out_of_gas"
+      bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x00"
+      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind            := "0600000000000000"
+      expectedPersistentLogLength := "0000000000000000"
+      gasLimit                    := "2105" }
+  , -- The second SSTORE to the same key is warm: first write costs
+    -- 3 + 3 + 2100, second write costs 3 + 3 + 100, STOP costs 0.
+    { name                        := "sstore_repeat_same_key_warm_gas_exact"
+      bytecode                    := "0x60, 0x11, 0x60, 0x00, 0x55, 0x60, 0x22, 0x60, 0x00, 0x55, 0x00"
+      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedPersistentLogLength := "0200000000000000"
+      gasLimit                    := "2212" }
   , -- PUSH2 0xbeef; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP with
     -- preload [(0x00, 0xdead)]. SSTORE finds a matching key and
     -- overwrites the value in place (does NOT append). SLOAD reads
