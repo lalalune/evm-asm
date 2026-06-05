@@ -765,6 +765,15 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, brr_records; ld t2, 0(t1); sd t2, 144(t0)\n" ++
   "  la t1, brr_records; ld t2, 8(t1); sd t2, 152(t0)\n" ++
   "  la t1, brr_records; ld t2, 16(t1); sd t2, 160(t0)\n" ++
+  "  la t1, sv_recomputed; ld t2, 0(t1); sd t2, 168(t0)\n" ++
+  "  la t1, sv_recomputed; ld t2, 8(t1); sd t2, 176(t0)\n" ++
+  "  la t1, sv_recomputed; ld t2, 16(t1); sd t2, 184(t0)\n" ++
+  "  la t1, sv_recomputed; ld t2, 24(t1); sd t2, 192(t0)\n" ++
+  "  la t1, sv_params; ld t1, 0(t1); addi t1, t1, 52\n" ++
+  "  ld t2, 0(t1); sd t2, 200(t0)\n" ++
+  "  ld t2, 8(t1); sd t2, 208(t0)\n" ++
+  "  ld t2, 16(t1); sd t2, 216(t0)\n" ++
+  "  ld t2, 24(t1); sd t2, 224(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
@@ -1145,6 +1154,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_auth_off:\n  .zero 8\n" ++
   "bsg_auth_len:\n  .zero 8\n" ++
   "bsg_auth_count:\n  .zero 8\n" ++
+  "bsg_min_block_gas:\n  .zero 8\n" ++
   "alc_scratch:\n  .zero 8\n" ++
   "alc_entry_offset:\n  .zero 8\n" ++
   "alc_entry_length:\n  .zero 8\n" ++
