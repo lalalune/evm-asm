@@ -68,6 +68,11 @@
 /scripts/axiom-allow.txt           @pirapira
 /scripts/conformance-baseline.txt  @pirapira
 /scripts/eest-fixture-tag.txt      @pirapira
+/scripts/approved-heartbeat-overrides.txt @pirapira
+/scripts/duplication-baseline.txt  @pirapira
+/scripts/jscpd.json                @pirapira
+/scripts/churn-report.sh           @pirapira
+/scripts/cycles-append.sh          @pirapira
 /scripts/codegen-eest-stateless-check.sh @pirapira
 /scripts/progress-report.sh        @pirapira
 /scripts/progress-snapshot.sh      @pirapira
@@ -79,3 +84,4 @@
 # ----------------------------------------------------------------------------
 /.github/workflows/                @pirapira
 /.github/CODEOWNERS                @pirapira
+/.github/labeler.yml               @pirapira
