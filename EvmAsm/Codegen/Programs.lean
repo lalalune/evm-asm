@@ -12,8 +12,9 @@ import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
 import EvmAsm.Evm64.Eq.Program
--- EXP wrapper is parametric over caller-saved registers (x6, x16) that
--- mul_callable clobbers; import re-added when a callee-saved variant lands.
+-- EXP wrapper is parametric over caller-saved registers (x6, x16)
+-- that mul_callable clobbers; deferred until upstream lands a
+-- fully callee-saved variant. import re-added when wiring lands.
 -- import EvmAsm.Evm64.Exp.Program
 import EvmAsm.Evm64.Gt.Program
 import EvmAsm.Evm64.IsZero.Program
@@ -52,8 +53,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
-import EvmAsm.Codegen.Programs.PrecompileBackendProbes
-import EvmAsm.Codegen.Programs.PrecompileRuntime
+import EvmAsm.Codegen.Programs.PrecompileBackendProbes; import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
@@ -1454,9 +1454,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/StorageWrite.lean",
     "EvmAsm/Codegen/Programs/BlockAccessListHash.lean",
     "EvmAsm/Codegen/Programs/AccountApplyStorage.lean",
-    "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
-    "EvmAsm/Codegen/Programs/Noop.lean",
-    "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
+    "EvmAsm/Codegen/Programs/Noop.lean", "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
     "EvmAsm/Codegen/Programs/Storage.lean",
     "EvmAsm/Codegen/Programs/MptInternal.lean",
     "EvmAsm/Codegen/Programs/MptNibbles.lean",
