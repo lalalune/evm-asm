@@ -473,6 +473,41 @@ def vec_account_set_uint_field():
     return [dict(name=name, account=acct, field_index=field, value=value, expected=expected)
             for name, acct, field, value, expected in cases]
 
+
+def build_selfdestruct_balance_input(origin: bytes, beneficiary: bytes,
+                                     same_address: int, created_in_tx: int) -> bytes:
+    """ziskemu `-i` body for zisk_selfdestruct_balance_transfer:
+      +8 origin_len | +16 beneficiary_len | +24 same flag | +32 created flag
+      +40 origin account RLP fixed 512-byte slot | +552 beneficiary account RLP."""
+    if len(origin) > 512 or len(beneficiary) > 512:
+        raise ValueError("account fixture exceeds fixed probe slot")
+    body = (struct.pack("<Q", len(origin)) + struct.pack("<Q", len(beneficiary)) +
+            struct.pack("<Q", same_address) + struct.pack("<Q", created_in_tx) +
+            origin + b"\x00" * (512 - len(origin)) + beneficiary)
+    while len(body) % 8 != 0:
+        body += b"\x00"
+    return body
+
+
+def vec_selfdestruct_balance_transfer():
+    sroot, chash = b"\x11" * 32, b"\x22" * 32
+    origin = account_encode(3, 123456789, sroot, chash)
+    beneficiary = account_encode(4, 9, b"\x33" * 32, b"\x44" * 32)
+    same = account_encode(5, 777, sroot, chash)
+    cases = [
+        ("sdbt_diff", origin, beneficiary, 0, 0,
+         account_encode(3, 0, sroot, chash),
+         account_encode(4, 123456798, b"\x33" * 32, b"\x44" * 32)),
+        ("sdbt_same_keep", same, same, 1, 0, same, same),
+        ("sdbt_same_burn", same, same, 1, 1,
+         account_encode(5, 0, sroot, chash),
+         account_encode(5, 0, sroot, chash)),
+    ]
+    return [dict(name=name, origin=src, beneficiary=dst,
+                 same_address=same_flag, created_in_tx=created_flag,
+                 expected_origin=expected_src, expected_beneficiary=expected_dst)
+            for name, src, dst, same_flag, created_flag, expected_src, expected_dst in cases]
+
 # ---- withdrawal -> (path, wei delta) preprocessing (.2.2.1) ---------------
 def withdrawal_rlp(index: int, vindex: int, address: bytes, amount: int) -> bytes:
     """Shanghai+ withdrawal RLP: rlp([index, validator_index, address, amount])."""
@@ -1109,6 +1144,18 @@ if __name__ == "__main__":
             f.write(v["expected"].hex())
         print(f"{v['name']:12} field={v['field_index']} value={v['value']} "
               f"new_account={v['expected'].hex()}")
+    for v in vec_selfdestruct_balance_transfer():
+        with open(f"{outdir}/{v['name']}.input", "wb") as f:
+            f.write(build_selfdestruct_balance_input(v["origin"], v["beneficiary"],
+                                                     v["same_address"],
+                                                     v["created_in_tx"]))
+        with open(f"{outdir}/{v['name']}.origin.expected", "w") as f:
+            f.write(v["expected_origin"].hex())
+        with open(f"{outdir}/{v['name']}.beneficiary.expected", "w") as f:
+            f.write(v["expected_beneficiary"].hex())
+        print(f"{v['name']:12} same={v['same_address']} created={v['created_in_tx']} "
+              f"origin={v['expected_origin'].hex()} "
+              f"beneficiary={v['expected_beneficiary'].hex()}")
     for v in vec_bal_account_path():
         with open(f"{outdir}/{v['name']}.input", "wb") as f:
             f.write(build_bacp_input(v["account_change"]))
