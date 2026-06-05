@@ -118,7 +118,7 @@ def main (args : List String) : IO UInt32 := do
           -- as long as it uses `read -r name expected` (extra fields
           -- just get dropped).
           for tc in Tests.opcodeTestCases do
-            -- M21..M31: 20-column TSV. Columns:
+            -- M21..M31/selfdestruct-staging: 21-column TSV. Columns:
             --   1 name, 2 expectedOutHex, 3 bytecode, 4 calldata,
             --   5 storage, 6 blobBaseFee (M28), 7 blobHashes (M28),
             --   8 blockNumber (M29), 9 blockHashes (M29),
@@ -132,11 +132,12 @@ def main (args : List String) : IO UInt32 := do
             --   17 gasLimit (M30 — pack-bytecode.py --gas),
             --   18 expectedReturnDataCopied (M31 — OUTPUT+248),
             --   19 expectedReturnDataLength (M31 — OUTPUT+64),
-            --   20 expectedReturnDataHex (M31 — bytes at OUTPUT+72).
+            --   20 expectedReturnDataHex (M31 — bytes at OUTPUT+72),
+            --   21 expectedSelfdestructBeneficiary (OUTPUT+56).
             -- All cols beyond 3 are optional; the bash runner asserts
             -- only the ones with non-empty values.
             IO.println
-              s!"{tc.name}\t{tc.expectedOutHex}\t{tc.bytecode}\t{tc.calldata}\t{tc.storage}\t{tc.blobBaseFee}\t{tc.blobHashes}\t{tc.blockNumber}\t{tc.blockHashes}\t{tc.env}\t{tc.expectedHaltKind}\t{tc.expectedPersistentLogLength}\t{tc.expectedTransientLogLength}\t{tc.expectedPostStorage}\t{tc.expectedEventLogCount}\t{tc.expectedEventLogFirst}\t{tc.gasLimit}\t{tc.expectedReturnDataCopied}\t{tc.expectedReturnDataLength}\t{tc.expectedReturnDataHex}"
+              s!"{tc.name}\t{tc.expectedOutHex}\t{tc.bytecode}\t{tc.calldata}\t{tc.storage}\t{tc.blobBaseFee}\t{tc.blobHashes}\t{tc.blockNumber}\t{tc.blockHashes}\t{tc.env}\t{tc.expectedHaltKind}\t{tc.expectedPersistentLogLength}\t{tc.expectedTransientLogLength}\t{tc.expectedPostStorage}\t{tc.expectedEventLogCount}\t{tc.expectedEventLogFirst}\t{tc.gasLimit}\t{tc.expectedReturnDataCopied}\t{tc.expectedReturnDataLength}\t{tc.expectedReturnDataHex}\t{tc.expectedSelfdestructBeneficiary}"
           return 0
       | .program => do
           match lookupProgram opts.target with

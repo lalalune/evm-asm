@@ -53,6 +53,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
+import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.StatelessGuestData
@@ -283,7 +284,6 @@ open EvmAsm.Rv64
     - K34/K35/K36/K37 + K121/K120/K123 rlp/account extractors + legacy decoders -> Programs/Tx.lean
     - K64 blob_gas_used_from_versioned_hashes -> Programs/Tx.lean
     - K138/K139 signature extractors -> Programs/TxSignature.lean -/
-
 
 /-! More misc programs moved to submodules — see commit history and
     the per-PR header comments inside the destination files for details. -/
@@ -573,6 +573,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_sha256_probe_le"      => some ziskSha256ProbeLeUnit
   | "zisk_zkvm_sha256"          => some ziskZkvmSha256ProbeUnit
   | "zisk_secp256k1_ecrecover_backend_probe" => some ziskSecp256k1EcrecoverBackendProbeUnit
+  | "zisk_modexp_backend_probe" => some ziskModexpBackendProbeUnit
   | "zisk_bls12_g1_add_backend_probe" => some ziskBls12G1AddBackendProbeUnit
   | "zisk_bls12_g1_msm_backend_probe" => some ziskBls12G1MsmBackendProbeUnit
   | "zisk_bls12_g2_add_backend_probe" => some ziskBls12G2AddBackendProbeUnit
@@ -1385,7 +1386,6 @@ end EvmAsm.Codegen
       * PR-#7176 carved `EvmOpcodesStorageRoot.lean` /
         `EvmOpcodesExtcodecopy.lean`.
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
-
 #eval show IO Unit from do
   let hardCap := 1500
   let paths := [
@@ -1424,6 +1424,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/ExpProperty.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
     "EvmAsm/Codegen/Programs/HashProbes.lean",
+    "EvmAsm/Codegen/Programs/Modexp.lean",
     "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderBaseFee.lean",
@@ -1453,7 +1454,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/StorageWrite.lean",
     "EvmAsm/Codegen/Programs/BlockAccessListHash.lean",
     "EvmAsm/Codegen/Programs/AccountApplyStorage.lean",
-    "EvmAsm/Codegen/Programs/Noop.lean", "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
+    "EvmAsm/Codegen/Programs/Modexp.lean", "EvmAsm/Codegen/Programs/Noop.lean", "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
     "EvmAsm/Codegen/Programs/Storage.lean",
     "EvmAsm/Codegen/Programs/MptInternal.lean",
     "EvmAsm/Codegen/Programs/MptNibbles.lean",

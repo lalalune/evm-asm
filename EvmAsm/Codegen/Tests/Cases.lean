@@ -171,6 +171,11 @@ structure OpcodeTestCase where
       `OUTPUT_ADDR + 72` (M31). Hex string of arbitrary length;
       runner reads exactly `len/2` bytes and compares. -/
   expectedReturnDataHex : String := ""
+  /-- Optional expected SELFDESTRUCT staged beneficiary at
+      `OUTPUT_ADDR + 56`. Hex string, normally 20 canonical big-endian address
+      bytes. This shares the test-only storage/log diagnostic window, so cases
+      should assert only one of those surfaces. -/
+  expectedSelfdestructBeneficiary : String := ""
 
 /-- Registry of test cases. M5a/M5b's two original bytecodes are
     migrated as `add_basic` / `add_chain`; M6b adds ~20 more — one
@@ -717,6 +722,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0xff, 0xff"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0500000000000000" }
+  , -- SELFDESTRUCT still routes through the shared one-word stack-underflow
+    -- guard before touching the beneficiary staging scratch.
+    { name             := "selfdestruct_empty_stack_underflow"
+      bytecode         := "0xff"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0700000000000000" }
+  , -- SELFDESTRUCT stages the low-160 beneficiary address for later
+    -- EIP-6780 gas/state children. The diagnostic exposes canonical
+    -- big-endian address bytes.
+    { name                            := "selfdestruct_stage_beneficiary"
+      bytecode                        := "0x73, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11, 0x22, 0x33, 0xff"
+      expectedOutHex                  := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind                := "0500000000000000"
+      expectedSelfdestructBeneficiary := "11223344556677889900aabbccddeeff00112233" }
   , -- ## M30 gas metering (first slice)
     -- GAS; STOP with an explicit 1000-gas limit. The dispatch loop
     -- charges GAS's own static cost (BASE = 2) BEFORE h_GAS runs, so
@@ -1393,6 +1412,59 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "618" }
+  , -- MODEXP header with modulus_len=1 charges the decoded 500 minimum.
+    -- Missing modulus bytes decode as zero, so the one-byte output is 0 and
+    -- the precompile succeeds.
+    { name           := "staticcall_modexp_modlen1_gas_exact"
+      bytecode       := "0x60, 0x60, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
+      calldata       := "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "648" }
+  , -- One gas short proves the nonzero decoded-header path charges before
+    -- the output path runs.
+    { name             := "staticcall_modexp_modlen1_out_of_gas"
+      bytecode         := "0x60, 0x60, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
+      calldata         := "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "647" }
+  , -- Small nonzero MODEXP succeeds through the bounded software path:
+    -- 2^5 mod 13 = 6, returned as exactly modulus_len=1 byte.
+    { name             := "staticcall_modexp_small_success_output"
+      bytecode         := "0x60, 0x63, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x01, 0x60, 0x80, 0x60, 0x63, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x01, 0x60, 0x80, 0xf3"
+      calldata         := "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000102050d"
+      expectedOutHex   := "0600000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000"
+      expectedReturnDataCopied := "0100000000000000"
+      expectedReturnDataLength := "0100000000000000"
+      expectedReturnDataHex    := "06" }
+  , -- out_size=0 truncates the call-memory copy, but RETURNDATASIZE still
+    -- reports the full MODEXP returndata length.
+    { name           := "staticcall_modexp_small_returndatasize"
+      bytecode       := "0x60, 0x63, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x60, 0x80, 0x60, 0x63, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x50, 0x3d, 0x00"
+      calldata       := "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000102050d"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000" }
+  , -- RETURNDATACOPY reads the retained MODEXP byte even when the call's
+    -- direct output copy was truncated to zero bytes.
+    { name             := "staticcall_modexp_small_returndatacopy"
+      bytecode         := "0x60, 0x63, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x60, 0x80, 0x60, 0x63, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x01, 0x60, 0x00, 0x60, 0x80, 0x3e, 0x60, 0x01, 0x60, 0x80, 0xf3"
+      calldata         := "0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000102050d"
+      expectedOutHex   := "0600000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0100000000000000" }
+  , -- modulus_len=129 makes max_len=129, words=17, complexity=2*17^2=578,
+    -- iterations=1, so MODEXP gas is 578 rather than the 500 minimum.
+    { name           := "staticcall_modexp_modlen129_gas_exact"
+      bytecode       := "0x60, 0x60, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
+      calldata       := "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000081"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "726" }
+  , -- Component lengths above 1024 fail before the inner MODEXP gas charge:
+    -- gas=148 covers CALLDATACOPY plus STATICCALL setup but is below 500.
+    { name           := "staticcall_modexp_modlen1025_fails_before_gas"
+      bytecode       := "0x60, 0x60, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x00, 0x60, 0x00, 0x60, 0x60, 0x60, 0x00, 0x60, 0x05, 0x60, 0xff, 0xfa, 0x00"
+      calldata       := "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000401"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "148" }
   , -- CALL to inactive near-zero address 0x12 routes as an absent
     -- account, not as a precompile body: success = 1, empty returndata.
     { name             := "call_inactive_precompile_0x12_absent_success"
@@ -2120,6 +2192,45 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0xff, 0x54, 0x00"
       storage        := "(0x00, 0xdead)"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- PUSH1 0x00; SLOAD; STOP. PUSH1 costs 3, SLOAD pays 100 static
+    -- plus the 2000 cold storage-key delta, STOP costs 0.
+    { name           := "sload_cold_gas_exact"
+      bytecode       := "0x60, 0x00, 0x54, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "2103" }
+  , -- One gas short of the first cold SLOAD must halt out-of-gas.
+    { name             := "sload_cold_gas_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x54, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "2102" }
+  , -- Repeating the same storage key is warm: PUSH1/SLOAD/POP/PUSH1/SLOAD
+    -- costs 3 + 2100 + 2 + 3 + 100 = 2208, not another cold 2000 delta.
+    { name           := "sload_repeat_same_key_warm_gas_exact"
+      bytecode       := "0x60, 0x00, 0x54, 0x50, 0x60, 0x00, 0x54, 0x00"
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "2208" }
+  , -- PUSH1 value; PUSH1 key; SSTORE; STOP. The current SSTORE slice
+    -- charges the 100 warm floor plus the 2000 cold storage-key delta.
+    { name                        := "sstore_cold_gas_exact"
+      bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x00"
+      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedPersistentLogLength := "0100000000000000"
+      gasLimit                    := "2106" }
+  , -- One gas short of the first cold SSTORE must halt out-of-gas before append.
+    { name                        := "sstore_cold_gas_out_of_gas"
+      bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x00"
+      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind            := "0600000000000000"
+      expectedPersistentLogLength := "0000000000000000"
+      gasLimit                    := "2105" }
+  , -- The second SSTORE to the same key is warm: first write costs
+    -- 3 + 3 + 2100, second write costs 3 + 3 + 100, STOP costs 0.
+    { name                        := "sstore_repeat_same_key_warm_gas_exact"
+      bytecode                    := "0x60, 0x11, 0x60, 0x00, 0x55, 0x60, 0x22, 0x60, 0x00, 0x55, 0x00"
+      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedPersistentLogLength := "0200000000000000"
+      gasLimit                    := "2212" }
   , -- PUSH2 0xbeef; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP with
     -- preload [(0x00, 0xdead)]. SSTORE finds a matching key and
     -- overwrites the value in place (does NOT append). SLOAD reads

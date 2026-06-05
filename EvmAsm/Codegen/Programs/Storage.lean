@@ -70,6 +70,25 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x54]
     , preBody :=
         stackUnderflowGuardAsm 1 ++ "\n" ++
+        -- EIP-2929 storage-key access gas. The dispatch table already
+        -- charged SLOAD's 100 warm floor, so the helper only charges the
+        -- 2000 cold delta on first touch. Preserve handler return address
+        -- plus dispatcher PC / stack registers across the ABI a0/a1/a2 call.
+        "  mv x17, x1\n" ++
+        "  mv x18, x10\n" ++
+        "  mv x19, x12\n" ++
+        "  li a0, 0\n" ++
+        "  mv a1, x12\n" ++
+        "  addi a2, x20, 568\n" ++
+        "  jal ra, evm_storage_access_charge_key\n" ++
+        "  mv x14, a0\n" ++
+        "  mv x1, x17\n" ++
+        "  mv x10, x18\n" ++
+        "  mv x12, x19\n" ++
+        "  li x15, 2\n" ++
+        "  beq x14, x15, .exit_outofgas\n" ++
+        "  li x15, 3\n" ++
+        "  beq x14, x15, .exit_outofgas\n" ++
         "  ld x15, 448(x20)\n" ++         -- x15 = persistent log_length
         "  beqz x15, 4f\n" ++             -- empty log → return 0
         "  li x14, 0xa0630000\n" ++       -- x14 = log base
@@ -124,6 +143,25 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x55]
     , preBody :=
         stackUnderflowGuardAsm 2 ++ "\n" ++
+        -- EIP-2929 storage-key access gas. The dispatch table already
+        -- charged SSTORE's 100 warm floor, so this helper only charges
+        -- the 2000 cold delta on first key touch. Run before the scan /
+        -- append path so out-of-gas cannot mutate the storage log.
+        "  mv x17, x1\n" ++
+        "  mv x18, x10\n" ++
+        "  mv x19, x12\n" ++
+        "  li a0, 0\n" ++
+        "  mv a1, x12\n" ++
+        "  addi a2, x20, 568\n" ++
+        "  jal ra, evm_storage_access_charge_key\n" ++
+        "  mv x14, a0\n" ++
+        "  mv x1, x17\n" ++
+        "  mv x10, x18\n" ++
+        "  mv x12, x19\n" ++
+        "  li x15, 2\n" ++
+        "  beq x14, x15, .exit_outofgas\n" ++
+        "  li x15, 3\n" ++
+        "  beq x14, x15, .exit_outofgas\n" ++
         "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
         "  ld x15, 448(x20)\n" ++         -- x15 = log_length
         "  beqz x15, 2f\n" ++             -- empty log → skip scan, append with original=0
