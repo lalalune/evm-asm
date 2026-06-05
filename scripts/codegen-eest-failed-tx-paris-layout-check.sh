@@ -36,7 +36,7 @@ scripts/codegen-eest-stateless-check.sh \
   --jobs "$JOBS" \
   --max-failures 1 \
   --quiet-passes \
-  --steps "${EEST_FAILED_TX_PARIS_STEPS:-200000000}" \
+  --steps "${EEST_FAILED_TX_PARIS_STEPS:-${EEST_STEPS:-1000000000}}" \
   --run-dir "$RUN_DIR" \
   >"$LOG" 2>&1
 

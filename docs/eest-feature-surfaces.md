@@ -56,7 +56,7 @@ scripts/codegen-eest-stateless-check.sh \
   --jobs 1 \
   --quiet-passes \
   --max-failures 1 \
-  --steps 200000000
+  --steps 1000000000
 ```
 
 The generated reports are the source of truth for current fixture counts. Update

@@ -28,7 +28,7 @@ Options:
   --skip N                     skip first N selected fixtures per filter (default: 0)
   --limit N                    per-filter fixture cap (default: 1)
   --jobs N|auto                ziskemu jobs (default: $EEST_SIMPLE_TRANSFER_JOBS, $EEST_JOBS, or 3)
-  --steps N                    ziskemu max steps (default: $EEST_SIMPLE_TRANSFER_STEPS or 200000000)
+  --steps N                    ziskemu max steps (default: $EEST_SIMPLE_TRANSFER_STEPS, $EEST_STEPS, or 1000000000)
   --max-failures N             stop each filter after N failures (default: 1)
   --stop-after-failures N      alias for --max-failures
   -h, --help                   show this help
