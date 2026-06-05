@@ -152,13 +152,15 @@ def haltHandlers : List OpcodeHandlerSpec :=
     -- also records up to 176 bytes plus length metadata at OUTPUT+64/+248.
     { label   := "h_RETURN"
     , opcodes := [0xf3]
-    , preBody := stackUnderflowGuardAsm 2
+    , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
+                 returnRevertMemoryGasAsm "return"
     , body    := []
     , tail    := .custom (returnRevertTail 1) }
   , -- REVERT. Identical data path to RETURN; halt_kind = 2 and state logs roll back.
     { label   := "h_REVERT"
     , opcodes := [0xfd]
-    , preBody := stackUnderflowGuardAsm 2
+    , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
+                 returnRevertMemoryGasAsm "revert"
     , body    := []
     , tail    := .custom <|
         returnRevertTail 2 <|
