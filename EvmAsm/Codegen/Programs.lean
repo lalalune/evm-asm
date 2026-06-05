@@ -1386,7 +1386,6 @@ end EvmAsm.Codegen
       * PR-#7176 carved `EvmOpcodesStorageRoot.lean` /
         `EvmOpcodesExtcodecopy.lean`.
     Runs at elaboration time via `#eval`; adds zero runtime cost. -/
-
 #eval show IO Unit from do
   let hardCap := 1500
   let paths := [
