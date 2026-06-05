@@ -131,6 +131,9 @@ def balCodePreimagesValidFunction : String :=
   "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lbbcv_touch_skip_flags\n" ++
   "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbbcv_fee_recipient_cmp\n" ++
   ".Lbbcv_touch_skip_flags:\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a0, s10, t1\n" ++
+  "  jal ra, bbcv_addr_is_system_contract\n" ++
+  "  bnez a0, .Lbbcv_next\n" ++
   "  la t0, bbcv_addr_off; ld t1, 0(t0); add a2, s10, t1\n" ++
   "  mv a0, s6; mv a1, s7\n" ++
   "  jal ra, bal_codes_contains_push20_call_target\n" ++
@@ -216,6 +219,42 @@ def balCodePreimagesValidFunction : String :=
   "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
   "  addi sp, sp, 112\n" ++
   "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff a 20-byte address is one of execution-specs' fork-level\n" ++
+  "# system contracts. Pure BAL touches of these accounts do not require\n" ++
+  "# ordinary witness.codes bytecode preimages.\n" ++
+  "bbcv_addr_is_system_contract:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv a0, s0; la a1, bbcv_sys_2935; jal ra, bbcv_addr_eq20\n" ++
+  "  bnez a0, .Lbbcv_sys_yes\n" ++
+  "  mv a0, s0; la a1, bbcv_sys_4788; jal ra, bbcv_addr_eq20\n" ++
+  "  bnez a0, .Lbbcv_sys_yes\n" ++
+  "  mv a0, s0; la a1, bbcv_sys_7002; jal ra, bbcv_addr_eq20\n" ++
+  "  bnez a0, .Lbbcv_sys_yes\n" ++
+  "  mv a0, s0; la a1, bbcv_sys_7251; jal ra, bbcv_addr_eq20\n" ++
+  "  bnez a0, .Lbbcv_sys_yes\n" ++
+  "  mv a0, s0; la a1, bbcv_sys_6110; jal ra, bbcv_addr_eq20\n" ++
+  "  bnez a0, .Lbbcv_sys_yes\n" ++
+  "  li a0, 0; j .Lbbcv_sys_ret\n" ++
+  ".Lbbcv_sys_yes:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbbcv_sys_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
+  "  ret\n" ++
+  "bbcv_addr_eq20:\n" ++
+  "  mv t0, a0; mv t1, a1; li t2, 20\n" ++
+  ".Lbbcv_eq20_loop:\n" ++
+  "  beqz t2, .Lbbcv_eq20_yes\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbbcv_eq20_no\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1\n" ++
+  "  j .Lbbcv_eq20_loop\n" ++
+  ".Lbbcv_eq20_yes:\n" ++
+  "  li a0, 1; ret\n" ++
+  ".Lbbcv_eq20_no:\n" ++
+  "  li a0, 0; ret\n" ++
   "\n" ++
   "# Return 1 iff a 20-byte address equals any recovered transaction sender.\n" ++
   "# Sender validation reads an EIP-7702 delegation marker when the sender has\n" ++
