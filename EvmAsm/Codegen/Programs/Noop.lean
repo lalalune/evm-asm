@@ -307,9 +307,8 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
 
     **M27.3 update**: CALL / STATICCALL also recognize BLS12-381 G2
     active precompile addresses 0x0d (G2 ADD) and 0x0e (G2 MSM).
-    This first runtime slice applies the same execution-specs length
-    gates before the future accelerator body: G2 ADD requires exactly
-    512 bytes; G2 MSM requires a nonzero multiple of 288 bytes.
+    The runtime path enforces execution-specs input-length gates and
+    charges G2 ADD's fixed 600 gas plus G2 MSM's discounted per-pair gas.
 
     **M27.4 update**: CALL / STATICCALL also recognize BLS12-381 pairing
     and map precompile addresses 0x0f (pairing), 0x10 (map-Fp-to-G1), and
@@ -1036,6 +1035,7 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  li x16, 512\n" ++
     "  bne x17, x16, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    chargePrecompileGasConstAsm 600 "x16" "x22" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G2AddInput0Off ++
@@ -1100,10 +1100,10 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  remu x17, x18, x16\n" ++
     "  bnez x17, 1f\n" ++
     "  la x15, evm_precompile_frame\n" ++
+    chargeBls12G2MsmGasAsm "x18" "a1" "x22" "x23" "x24" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     precompileFrameAddi "a0" precompileFrameBls12G2InputOff ++
-    "  divu a1, x18, x16\n" ++
     precompileFrameAddi "a2" precompileFrameBls12G2OutputOff ++
     "  jal x1, zkvm_bls12_g2_msm\n" ++
     "  mv x10, s10\n" ++
