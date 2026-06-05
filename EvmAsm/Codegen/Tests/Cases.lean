@@ -1630,6 +1630,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
+  , -- G1 ADD charges fixed inner gas 375 after the valid-length gate:
+    -- seven PUSHes (21) + CALL warm static base (100) + 375 = 496.
+    { name             := "call_bls12_g1_add_fixed_gas_exact"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "496" }
+  , -- One less gas reaches the valid G1 ADD path, then fails before
+    -- invoking the backend wrapper.
+    { name             := "call_bls12_g1_add_fixed_gas_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x61, 0x01, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0b, 0x60, 0xff, 0xf1, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "495" }
   , -- BLS12 G1 MSM rejects empty input.
     { name             := "staticcall_bls12_g1_msm_zero_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
@@ -1646,6 +1660,19 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
+  , -- One G1 MSM pair charges 1 * 12000 * discount(1) / 1000 = 12000:
+    -- six PUSHes (18) + STATICCALL warm static base (100) + 12000 = 12118.
+    { name             := "staticcall_bls12_g1_msm_one_pair_gas_exact"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "12118" }
+  , -- One less gas fails in the G1 MSM dynamic precompile charge.
+    { name             := "staticcall_bls12_g1_msm_one_pair_gas_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0xa0, 0x60, 0x00, 0x60, 0x0c, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "12117" }
   , -- BLS12 G2 ADD rejects invalid input length before any accelerator body.
     { name             := "call_bls12_g2_add_invalid_length_fails"
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x0d, 0x60, 0xff, 0xf1, 0x00"
