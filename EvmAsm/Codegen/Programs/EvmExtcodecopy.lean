@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 
 namespace EvmAsm.Codegen
@@ -55,6 +56,32 @@ private def extcodecopyWitnessTail : HandlerTail :=
     "  la t1, ecc_address_scratch
 " ++
     extcodecopyWitnessAddressCopy ++
+    "  addi sp, sp, -32
+" ++
+    "  sd x10, 0(sp)
+" ++
+    "  sd x12, 8(sp)
+" ++
+    "  sd x13, 16(sp)
+" ++
+    "  la a0, ecc_address_scratch
+" ++
+    "  la a1, " ++ runtimeAccessAccountTableLabel ++ "
+" ++
+    "  la a2, " ++ runtimeAccessAccountCountLabel ++ "
+" ++
+    "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "
+" ++
+    "  jal ra, runtime_access_account_charge
+" ++
+    "  ld x10, 0(sp)
+" ++
+    "  ld x12, 8(sp)
+" ++
+    "  ld x13, 16(sp)
+" ++
+    "  addi sp, sp, 32
+" ++
     "  ld t0, 608(x20)
 " ++         -- witness.codes ptr
     "  la t1, eccp_codes_ptr
