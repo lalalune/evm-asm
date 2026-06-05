@@ -30,6 +30,7 @@
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
+import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Rv64.Program
 
@@ -718,33 +719,12 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     ecrecoverNonzeroRSGateAsm ++
     ecrecoverScalarOrderGateAsm ++
     "  j 7b\n" ++
-    -- MODEXP zero-header shortcut. execution-specs decodes missing bytes as
-    -- zero, so an empty input or all-zero 96-byte length header means
-    -- baseLen = expLen = modulusLen = 0. That path charges the minimum 500
-    -- gas and succeeds with empty returndata. Nonzero headers remain deferred
-    -- to the full zkvm_modexp marshalling/backend slice.
+    -- MODEXP header/gas path. execution-specs decodes missing length/header
+    -- bytes as zero, rejects component lengths above 1024 before charging gas,
+    -- and otherwise charges the EIP-2565/Osaka gas formula. Nonzero inputs
+    -- are charged and fail until the zkvm_modexp output slice lands.
     ".Lmodexp_zero_header_" ++ toString netPopBytes ++ ":\n" ++
-    "  la x15, evm_precompile_frame\n" ++
-    "  li x16, 1\n" ++
-    "  sd x16, 0(x15)\n" ++
-    "  sd x0, 8(x15)\n" ++
-    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
-    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
-    "  add x18, x13, x18\n" ++
-    "  li x19, 96\n" ++
-    "  bgeu x19, x17, .Lmodexp_scan_capped_" ++ toString netPopBytes ++ "\n" ++
-    "  mv x17, x19\n" ++
-    ".Lmodexp_scan_capped_" ++ toString netPopBytes ++ ":\n" ++
-    "  beqz x17, .Lmodexp_zero_lengths_" ++ toString netPopBytes ++ "\n" ++
-    ".Lmodexp_scan_loop_" ++ toString netPopBytes ++ ":\n" ++
-    "  lbu x16, 0(x18)\n" ++
-    "  bnez x16, 1f\n" ++
-    "  addi x18, x18, 1\n" ++
-    "  addi x17, x17, -1\n" ++
-    "  bnez x17, .Lmodexp_scan_loop_" ++ toString netPopBytes ++ "\n" ++
-    ".Lmodexp_zero_lengths_" ++ toString netPopBytes ++ ":\n" ++
-    chargePrecompileGasConstAsm 500 "x16" "x17" ++
-    "  j 7b\n" ++
+    modexpPrecompileGasAsm (toString netPopBytes) inOffsetOff inSizeOff ++
     -- BN254 G1 ADD: fixed 150 gas, two 64-byte zero-padded G1 inputs.
     -- The current runtime wrapper deterministic-fails until the host backend
     -- path is available, so valid calls surface precompile failure after gas.

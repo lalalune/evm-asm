@@ -53,6 +53,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
+import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.StatelessGuestData
@@ -1453,7 +1454,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/StorageWrite.lean",
     "EvmAsm/Codegen/Programs/BlockAccessListHash.lean",
     "EvmAsm/Codegen/Programs/AccountApplyStorage.lean",
-    "EvmAsm/Codegen/Programs/Noop.lean", "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
+    "EvmAsm/Codegen/Programs/Modexp.lean", "EvmAsm/Codegen/Programs/Noop.lean", "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
     "EvmAsm/Codegen/Programs/Storage.lean",
     "EvmAsm/Codegen/Programs/MptInternal.lean",
     "EvmAsm/Codegen/Programs/MptNibbles.lean",
