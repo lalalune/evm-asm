@@ -53,6 +53,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
+import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
@@ -276,17 +277,14 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-
 /-! Misc programs moved to submodules:
     - K21..K26 MPT helpers -> Programs/Mpt.lean
     - K34/K35/K36/K37 + K121/K120/K123 rlp/account extractors + legacy decoders -> Programs/Tx.lean
     - K64 blob_gas_used_from_versioned_hashes -> Programs/Tx.lean
     - K138/K139 signature extractors -> Programs/TxSignature.lean -/
 
-
 /-! More misc programs moved to submodules — see commit history and
     the per-PR header comments inside the destination files for details. -/
-
 
 /-! ## MPT branch helpers K117 / K118 — moved to `Programs/Mpt.lean` (file-size hard cap). -/
 
@@ -1425,6 +1423,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/ExpProperty.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
     "EvmAsm/Codegen/Programs/HashProbes.lean",
+    "EvmAsm/Codegen/Programs/Modexp.lean",
     "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderBaseFee.lean",
