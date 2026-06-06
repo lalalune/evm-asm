@@ -25,8 +25,11 @@ open EvmAsm.Rv64
     the caller for withdrawal-only blocks. A pure account-touch row whose
     pre-state code hash is exactly keccak(0x00) is also skipped: EIP-7708
     selfdestruct beneficiaries can have one-byte STOP code without requiring
-    the bytecode preimage. A pure account-touch row is also accepted when a
-    pure account-touch row for the block fee recipient is also skipped:
+    the bytecode preimage. Scalar rows with nonce changes still require the
+    pre-state code preimage: EIP-7702 sender validation reads a delegated
+    sender's marker code while incrementing the sender nonce. A pure
+    account-touch row is also accepted when a pure account-touch row for the
+    block fee recipient is also skipped:
     Amsterdam warms/touches coinbase without reading its bytecode. A
     literal `PUSH20 <address>; EXTCODEHASH` occurs in witness bytecode, since
     EXTCODEHASH reads the account leaf's code_hash and does not call
@@ -64,6 +67,18 @@ def balCodePreimagesValidFunction : String :=
   "  mv s5, a5                   # witness.state len\n" ++
   "  mv s6, a6                   # witness.codes ptr\n" ++
   "  mv s7, a7                   # witness.codes len\n" ++
+  "  # Some EEST fixture plumbing passes the parent block RLP here. Normalize\n" ++
+  "  # to the header RLP if item 0 is itself a header list rather than the\n" ++
+  "  # 32-byte parent_hash field of an already-normalized header.\n" ++
+  "  mv a0, s2; mv a1, s3; li a2, 0; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbbcv_parent_header_done\n" ++
+  "  la t0, bbcv_field_len; ld t1, 0(t0); li t2, 32; beq t1, t2, .Lbbcv_parent_header_done\n" ++
+  "  mv a0, s2; mv a1, s3; li a2, 0; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lbbcv_parent_header_done\n" ++
+  "  la t0, bbcv_field_off; ld t2, 0(t0); la t0, bbcv_field_len; ld t1, 0(t0); add s2, s2, t2; mv s3, t1\n" ++
+  ".Lbbcv_parent_header_done:\n" ++
   "  mv a0, s0; mv a1, s1; la a2, bbcv_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbbcv_parse_fail\n" ++
@@ -157,12 +172,20 @@ def balCodePreimagesValidFunction : String :=
   "  bnez t4, .Lbbcv_next\n" ++
   "  j .Lbbcv_check_code\n" ++
   ".Lbbcv_scalar_touch:\n" ++
-  "  # Balance/nonce rows normally do not prove bytecode was read, but an\n" ++
-  "  # EIP-7702 sender delegation marker is read during sender validation.\n" ++
+  "  # Balance-only rows normally do not prove bytecode was read, but nonce\n" ++
+  "  # changes do: EIP-7702 sender validation reads delegated sender markers.\n" ++
+  "  la t0, bbcv_nonce_count; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lbbcv_scalar_sender_fallback\n" ++
+  "  la t0, bbcv_touch_only; sd zero, 0(t0)\n" ++
+  "  j .Lbbcv_check_code\n" ++
+  ".Lbbcv_scalar_sender_fallback:\n" ++
+  "  # Keep the sender recovery fallback for older fixtures where the BAL row\n" ++
+  "  # shape does not expose a nonce-change count in the expected slot.\n" ++
   "  la t0, bbcv_addr_off; ld t1, 0(t0); add a0, s10, t1\n" ++
   "  jal ra, bal_addr_is_tx_sender\n" ++
-  "  bnez a0, .Lbbcv_check_code\n" ++
-  "  j .Lbbcv_next\n" ++
+  "  beqz a0, .Lbbcv_next\n" ++
+  "  la t0, bbcv_touch_only; sd zero, 0(t0)\n" ++
+  "  j .Lbbcv_check_code\n" ++
   ".Lbbcv_check_code_non_touch:\n" ++
   "  la t0, bbcv_touch_only; sd zero, 0(t0)\n" ++
   ".Lbbcv_check_code:\n" ++
