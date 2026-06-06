@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.EvmNonce
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
