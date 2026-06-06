@@ -233,6 +233,7 @@ import EvmAsm.Codegen.Programs.StateBalanceProof
 import EvmAsm.Codegen.Programs.WitnessStateKeccakAtIndex
 import EvmAsm.Codegen.Programs.ChainLinkParentKeccak
 import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.EvmNonce
 import EvmAsm.Codegen.Programs.RuntimeAccountWitness
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
