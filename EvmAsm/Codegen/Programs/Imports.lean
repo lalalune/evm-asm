@@ -151,6 +151,7 @@ import EvmAsm.Codegen.Programs.ChainWalkOneStepBack
 import EvmAsm.Codegen.Programs.ChainWalkNStepsBack
 import EvmAsm.Codegen.Programs.StateRootChainWalkBack
 import EvmAsm.Codegen.Programs.BlockNumberAtBlockHash
+import EvmAsm.Codegen.Programs.BlockHashWindow
 import EvmAsm.Codegen.Programs.StateSlotAtBlockNumber
 import EvmAsm.Codegen.Programs.StateAccountAtBlockNumber
 import EvmAsm.Codegen.Programs.BalanceAtBlockNumber
@@ -281,4 +282,7 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
+import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.ReceiptList
+import EvmAsm.Codegen.Programs.StatelessGuestUnit
 import EvmAsm.Codegen.Programs.RegistryNames
