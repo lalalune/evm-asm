@@ -53,6 +53,7 @@ import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
+import EvmAsm.Codegen.Programs.StatelessGuest
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -324,14 +325,6 @@ open EvmAsm.Rv64
 -- `EvmAsm/Codegen/Programs/StatelessGuestData.lean` (carved
 -- out here to satisfy the file-size hard cap; see PR #5870
 -- and PR #5900 for the established submodule pattern).
-
-def statelessGuestUnit : BuildUnit := {
-  body        := EvmAsm.Stateless.run_stateless_guest
-  epilogueAsm := statelessGuestEpilogue
-  -- guest scratch + the Step-2 verdict's data (zk3_state / rfu_* are dedup'd out
-  -- of the guest section since the appended verdict section provides them).
-  dataAsm     := statelessGuestDataSection ++ "\n" ++ statelessVerdictV2GuestData
-}
 
 /-! ## registry main -/
 

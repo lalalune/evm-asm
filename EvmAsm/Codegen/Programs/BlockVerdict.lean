@@ -36,6 +36,7 @@ import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 namespace EvmAsm.Codegen
 
@@ -652,13 +653,10 @@ def blockVerdictFunction : String :=
   "  # Upfront sender gas pre-charge gate for the currently parse-supported\n" ++
   "  # one-transaction path. Use the selected public key tail (x||y) and the\n" ++
   "  # pre-account record table materialized by block_state_root.\n" ++
-  "  la t2, bv_tx_count; ld t0, 0(t2); li t1, 1; bne t0, t1, .Lbv_after_tx_gas_precharge\n" ++
-  "  la t2, bv_public_keys_len; ld t0, 0(t2); li t1, 65; bne t0, t1, .Lbv_after_tx_gas_precharge\n" ++
-  "  la t2, bv_tx_list_ptr; ld t3, 0(t2); la t2, bv_tx_item_start; ld t4, 0(t2); add s1, t3, t4\n" ++
-  "  la t2, bv_tx_list_len; ld t5, 0(t2); sub s2, t5, t4\n" ++
-  "  la t2, bv_public_keys_ptr; ld a3, 0(t2); addi a3, a3, 1\n" ++
-  "  la t2, bv_exec_p; ld t1, 0(t2); addi a2, t1, 160\n" ++
-  "  mv a0, s1; mv a1, s2\n" ++
+  "  la a0, bv_simple_transfer_tx\n" ++
+  "  jal ra, simple_transfer_tx_context\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  ld a0, 8(t2); ld a1, 16(t2); ld a3, 24(t2); ld a2, 32(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a5, 0(t2)\n" ++
   "  la a6, basr_records; la a7, bv_tx_gas_precharge\n" ++
@@ -879,6 +877,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
+  txExtractToAddressFunction ++ "\n" ++
+  txExtractValueFunction ++ "\n" ++
+  txExtractDataSectionFunction ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   mptBranchChildFunction ++ "\n" ++
@@ -998,6 +999,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   accountExtractBalanceFunction ++ "\n" ++
   accountExtractNonceFunction ++ "\n" ++
   txGasSenderBalLookupFunction ++ "\n" ++
+  simpleTransferTxContextFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
@@ -1016,37 +1018,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip7702NonceReuseGuardFunction ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
   ".Lv2_pdone:"
-
-private def blockVerdictTxGasPrechargeDataSection : String :=
-  ".balign 8\n" ++
-  "tgsbl_tmp_off:\n  .zero 8\n" ++
-  "tgsbl_tmp_len:\n  .zero 8\n" ++
-  "tgsbl_count:\n  .zero 8\n" ++
-  "tgsbl_row_off:\n  .zero 8\n" ++
-  "tgsbl_row_len:\n  .zero 8\n" ++
-  "tgsbl_addr_off:\n  .zero 8\n" ++
-  "tgsbl_addr_len:\n  .zero 8\n" ++
-  "teng_type:\n  .zero 8\n" ++
-  "teng_inner_off:\n  .zero 8\n" ++
-  "tegp_type:\n  .zero 8\n" ++
-  "tegp_inner_off:\n  .zero 8\n" ++
-  ".balign 32\n" ++
-  "tefgp_max_priority:\n  .zero 32\n" ++
-  "tefgp_max_fee:\n  .zero 32\n" ++
-  "tefgp_tmp:\n  .zero 32\n" ++
-  ".balign 8\n" ++
-  "txup_nonce:\n  .zero 8\n" ++
-  "txup_gas_limit:\n  .zero 8\n" ++
-  ".balign 32\n" ++
-  "txup_effective_gas_price:\n  .zero 32\n" ++
-  "txup_priority_fee:\n  .zero 32\n" ++
-  "acpg_gas_fee:\n  .zero 32\n" ++
-  "tgbpv_balance:\n  .zero 32\n" ++
-  ".balign 8\n" ++
-  "tgbpv_nonce:\n  .zero 8\n" ++
-  "tgbpv_lookup:\n  .zero 168\n" ++
-  "tgbpv_records:\n  .zero 4096\n" ++
-  "bv_tx_gas_precharge:\n  .zero 128\n"
 
 def ziskStatelessVerdictV2DataSection : String :=
   ziskStatelessVerdictDataSection ++ "\n" ++
