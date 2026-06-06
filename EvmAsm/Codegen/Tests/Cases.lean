@@ -1090,6 +1090,14 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "32018" }
+  , -- Amsterdam/EIP-7954 allows MAX_INIT_CODE_SIZE = 0x10000. CREATE address
+    -- derivation does not hash initcode, so this probes the runtime memory
+    -- envelope and gas path without needing child execution/deposit.
+    { name             := "create_initcode_len65536_gas_exact"
+      bytecode         := "0x63, 0x00, 0x01, 0x00, 0x00, 0x60, 0x00, 0x60, 0x00, 0xf0, 0x00"
+      expectedOutHex   := "b18ea46f574a80cb7645b3e4915f34a3160477bd000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "50441" }
   , -- CREATE offset is the second decoded word. For nonempty initcode,
     -- high offset limbs are outside the current runtime memory envelope.
     { name             := "create_high_offset_limb_out_of_gas"
