@@ -318,8 +318,8 @@ open EvmAsm.Rv64
     non-trivial value to verify and the keccak bridge is wired
     into the encoder pipeline end-to-end. Once PR-S series lands,
     the SHA-256 hash_tree_root replaces this keccak. -/
--- `statelessGuestValidatorPipeline` and `statelessGuestEpilogue`
--- live in `EvmAsm/Codegen/Programs/StatelessGuestEpilogue.lean`
+-- `statelessGuestEpilogue` lives in
+-- `EvmAsm/Codegen/Programs/StatelessGuestEpilogue.lean`
 -- (carved out here to satisfy the file-size hard cap; see
 -- PR #5870 and PR #5900 for the established submodule pattern).
 
