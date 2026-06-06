@@ -24,6 +24,16 @@ private def byteCsv (bytes : List String) : String :=
 private def repeatedPush1Bytecode (n : Nat) (value : String) : String :=
   byteCsv ((List.range n).flatMap (fun _ => ["0x60", value]) ++ ["0x00"])
 
+private def highLimbDestPush32 (targetLowByte : String) : List String :=
+  ["0x7f", "0x01"] ++ List.replicate 30 "0x00" ++ [targetLowByte]
+
+private def highLimbJumpBytecode (targetLowByte : String) (suffix : List String) : String :=
+  byteCsv (highLimbDestPush32 targetLowByte ++ ["0x56"] ++ suffix)
+
+private def highLimbJumpiBytecode
+    (cond targetLowByte : String) (suffix : List String) : String :=
+  byteCsv (["0x60", cond] ++ highLimbDestPush32 targetLowByte ++ ["0x57"] ++ suffix)
+
 private def push20RepeatedBytecode (value : String) (suffix : List String) : String :=
   byteCsv (["0x73"] ++ List.replicate 20 value ++ suffix)
 
@@ -556,6 +566,27 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x01, 0x60, 0x00, 0x57"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0400000000000000" }
+  , -- PUSH32 0x01...0023; JUMP. Low 64 bits point at byte 35, a real
+    -- JUMPDEST, but the upper destination limbs are nonzero, so EVM
+    -- requires invalid-jump halt instead of following the truncated low limb.
+    { name             := "jump_high_limb_dest_invalid"
+      bytecode         := highLimbJumpBytecode "0x23" ["0xfe", "0x5b", "0x60", "0xff", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
+  , -- Taken JUMPI has the same 256-bit destination requirement. Low 64 bits
+    -- point at byte 37, a real JUMPDEST, but the nonzero upper limb makes the
+    -- taken jump invalid.
+    { name             := "jumpi_taken_high_limb_dest_invalid"
+      bytecode         := highLimbJumpiBytecode "0x01" "0x25" ["0xfe", "0x5b", "0x60", "0xff", "0x00"]
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
+  , -- Not-taken JUMPI ignores the destination entirely. This keeps the
+    -- nonzero-upper-limb destination regression from over-constraining the
+    -- cond == 0 path.
+    { name             := "jumpi_not_taken_high_limb_dest_ignored"
+      bytecode         := highLimbJumpiBytecode "0x00" "0x27" ["0x60", "0x42", "0x00", "0x5b", "0x60", "0xff", "0x00"]
+      expectedOutHex   := "4200000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000" }
   , -- PUSH1 0x04; JUMP; PUSH1 0x5b; STOP. Byte 4 is 0x5b,
     -- but it is the PUSH1 immediate, so it is not a valid JUMPDEST.
     { name             := "jump_pushdata_jumpdest_invalid"

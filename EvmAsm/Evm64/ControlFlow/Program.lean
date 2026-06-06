@@ -19,34 +19,23 @@
     bytecode. In the dispatcher's frame, that's `x10 - codeBaseReg`
     at handler entry (the dispatcher's `jalr` lands here with `x10`
     still pointing AT the PC byte).
-  - **JUMP** pops `dest` (low 64 bits of the 256-bit top word) and
-    sets `x10 := codeBaseReg + dest`. The dispatcher loop's next
-    `lbu x5, 0(x10)` reads the jump-target byte.
+  - **JUMP** pops `dest` and rejects it unless the upper 192 bits are
+    zero. For a canonical destination, it sets `x10 := codeBaseReg +
+    dest.low64`. The dispatcher loop's next `lbu x5, 0(x10)` reads
+    the jump-target byte.
   - **JUMPI** pops `dest` (top) and `cond` (next). If `cond` is
     nonzero (any bit in any of the 4 limbs set), behaves like JUMP.
     Otherwise advances `x10` by 1 (the JUMPI opcode is 1 byte).
 
-  ## JUMPDEST-validity (M15.5, Level 1)
+  ## JUMPDEST-validity (M15.5)
 
-  `JUMP` / `JUMPI` now load `code[dest]` into `validityReg` (the
-  conditional-jump *taken* path of `JUMPI` does the load; the
-  *not-taken* path writes the sentinel `0x5b` so the same downstream
-  check is a no-op). The codegen handler tail compares `validityReg`
-  to `0x5b` and routes a mismatch to the dispatcher's exceptional-halt
-  path (`.exit_invalid`). Keeping only the byte *load* here (not the
-  branch-to-halt, which needs a host-specific label) lets the stateless
-  guest VM reuse these bodies with its own halt routing.
-
-  ### Remaining gap (Level 2)
-
-  This is a byte check, not a full JUMPDEST-validity analysis: a `0x5b`
-  byte that sits inside PUSH immediate data is *not* a legal jump target
-  but passes this check. Full compliance needs a valid-jumpdest bitmap
-  built by scanning the bytecode (accounting for PUSH1–32 operands) at
-  dispatch entry — a separate, larger slice. Level 1 already eliminates
-  the dangerous "follow garbage past the bytecode into `.data`" cases.
-
-  Slice planned under M15.5 of `CODEGEN.md`.
+  `JUMP` / taken `JUMPI` load `code[dest.low64]` into `validityReg`
+  only after OR-reducing the upper destination limbs to zero. If the
+  destination is not canonical, the body writes a non-`0x5b` sentinel
+  into `validityReg`. The codegen handler tail then compares
+  `validityReg` to `0x5b`, scans from the bytecode base to the target
+  while skipping PUSH1..PUSH32 immediates, and routes any mismatch or
+  PUSH-data target to `.exit_invalid`.
 -/
 
 import EvmAsm.Rv64.Program
@@ -70,47 +59,64 @@ def evm_pc (codeBaseReg tmpReg : Reg) : Program :=
   SD .x12 .x0 24
 
 /-- Parameterized RISC-V program implementing `JUMP` (0x56).
-    Pops the destination from the EVM stack (low 64 bits of the top
-    256-bit word) and updates `x10 := codeBaseReg + dest`. The
-    dispatcher loop resumes at the new PC.
-    `destReg` / `validityReg` are caller-saved temporaries distinct from
-    `x0`, `x10`, `x12`, `codeBaseReg` (and each other). 4 instructions
-    = 16 bytes.
+    Pops the 256-bit destination from the EVM stack. If its upper three
+    limbs are zero, updates `x10 := codeBaseReg + dest.low64` and loads
+    `code[dest.low64]` into `validityReg` for the handler tail's
+    JUMPDEST-validity check. If any upper limb is nonzero, leaves `x10`
+    irrelevant and writes a non-`0x5b` sentinel to `validityReg`, which
+    the handler tail routes to `.exit_invalid`.
 
-    The trailing `LBU validityReg, 0(x10)` loads `code[dest]` for the
-    JUMPDEST-validity check; the handler tail compares it to `0x5b`.
-
-    Upper 3 limbs of the popped word are ignored (assumes `dest <
-    2^64`, which holds for any realistic EVM bytecode). -/
-def evm_jump (codeBaseReg destReg validityReg : Reg) : Program :=
+    `destReg` / `tmpReg` / `validityReg` are caller-saved temporaries
+    distinct from `x0`, `x10`, `x12`, `codeBaseReg` (and each other).
+    12 instructions = 48 bytes. -/
+def evm_jump (codeBaseReg destReg tmpReg validityReg : Reg) : Program :=
   LD destReg .x12 0 ;;
+  LD validityReg .x12 8 ;;
+  LD tmpReg .x12 16 ;;
+  OR' validityReg validityReg tmpReg ;;
+  LD tmpReg .x12 24 ;;
+  OR' validityReg validityReg tmpReg ;;
   ADDI .x12 .x12 32 ;;
+  BNE validityReg .x0 (BitVec.ofNat 13 16) ;;
   ADD .x10 codeBaseReg destReg ;;
-  LBU validityReg .x10 0
+  LBU validityReg .x10 0 ;;
+  JAL .x0 (BitVec.ofNat 21 8) ;;
+  ADDI validityReg .x0 (BitVec.ofNat 12 0)
 
 /-- Parameterized RISC-V program implementing `JUMPI` (0x57).
     Pops `dest` (top of stack) and `cond` (second). If `cond` is
-    nonzero (any limb has any bit set), updates
-    `x10 := codeBaseReg + dest`. Otherwise advances `x10` by 1
-    (fall-through).
+    nonzero (any limb has any bit set) and `dest` has zero upper limbs,
+    updates `x10 := codeBaseReg + dest.low64`. A taken jump with any
+    nonzero upper destination limb writes an invalid sentinel to
+    `validityReg`. If `cond` is zero, the destination is ignored and
+    `x10` advances by 1 (fall-through).
 
     `destReg`, `condReg`, `tmpReg`, `validityReg` are pairwise distinct
     caller-saved temporaries, also distinct from `x0`, `x10`, `x12`,
-    `codeBaseReg`. 15 instructions = 60 bytes.
+    `codeBaseReg`. 23 instructions = 92 bytes.
 
     JUMPDEST-validity: the *taken* path loads `code[dest]` into
     `validityReg`; the *not-taken* path writes the sentinel `0x5b` so
     the handler tail's `validityReg == 0x5b` check is a no-op for
     fall-through. The handler tail does the compare + halt routing.
 
-    Branch offsets (re-pinned for the two extra instructions):
-    - `BEQ condReg x0 16` skips ADD + LBU + JAL (3 instructions,
-      12 bytes) → lands at the fall-through `ADDI x10`.
-    - `JAL x0 12` skips the two not-taken instrs (`ADDI x10` +
-      `ADDI validityReg`, 8 bytes) → lands just past the body (the
-      handler's tail). -/
+    Branch offsets:
+    - `BEQ condReg x0 20` lands at the not-taken fall-through path.
+    - `BNE validityReg x0 28` rejects taken jumps with nonzero upper
+      destination limbs.
+    - `JAL x0 20` from the valid taken path skips not-taken + invalid.
+    - `JAL x0 8` from the not-taken path skips invalid. -/
 def evm_jumpi (codeBaseReg destReg condReg tmpReg validityReg : Reg) : Program :=
+  -- Stack top is `dest` at x12+0..31.  Load the low limb, then OR the
+  -- upper three limbs together so `validityReg = 0` iff dest < 2^64.
   LD destReg .x12 0 ;;
+  LD validityReg .x12 8 ;;
+  LD tmpReg .x12 16 ;;
+  OR' validityReg validityReg tmpReg ;;
+  LD tmpReg .x12 24 ;;
+  OR' validityReg validityReg tmpReg ;;
+  -- The next stack word is `cond` at x12+32..63.  OR all four limbs into
+  -- `condReg`; zero means fall through, nonzero means take the jump.
   LD condReg .x12 32 ;;
   LD tmpReg .x12 40 ;;
   OR' condReg condReg tmpReg ;;
@@ -119,12 +125,21 @@ def evm_jumpi (codeBaseReg destReg condReg tmpReg validityReg : Reg) : Program :
   LD tmpReg .x12 56 ;;
   OR' condReg condReg tmpReg ;;
   ADDI .x12 .x12 64 ;;
-  BEQ condReg .x0 (BitVec.ofNat 13 16) ;;
+  -- Not taken: advance past the JUMPI opcode and write a harmless sentinel.
+  -- Taken with nonzero upper dest limbs: jump to the invalid sentinel below.
+  BEQ condReg .x0 (BitVec.ofNat 13 20) ;;
+  BNE validityReg .x0 (BitVec.ofNat 13 28) ;;
+  -- Valid taken jump: point x10 at code[dest.low64] and load that byte for
+  -- the codegen tail's JUMPDEST / PUSH-data validation scan.
   ADD .x10 codeBaseReg destReg ;;
   LBU validityReg .x10 0 ;;
-  JAL .x0 (BitVec.ofNat 21 12) ;;
+  JAL .x0 (BitVec.ofNat 21 20) ;;
+  -- Not-taken fall-through path.
   ADDI .x10 .x10 1 ;;
-  ADDI validityReg .x0 (BitVec.ofNat 12 0x5b)
+  ADDI validityReg .x0 (BitVec.ofNat 12 0x5b) ;;
+  JAL .x0 (BitVec.ofNat 21 8) ;;
+  -- Invalid taken jump: make the downstream `validityReg == 0x5b` check fail.
+  ADDI validityReg .x0 (BitVec.ofNat 12 0)
 
 end ControlFlow
 end EvmAsm.Evm64
