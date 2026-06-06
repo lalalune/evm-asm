@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /-
   EvmAsm.Codegen.Programs.Imports
 
@@ -7,12 +6,6 @@
   registry module small enough to review.
 -/
 
-=======
-/- EvmAsm.Codegen.Programs.Imports
-  Umbrella imports for the codegen program registry.
-  Import hub for the codegen program registry.
--/
->>>>>>> origin/main
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
 import EvmAsm.Evm64.AddMod.Program
@@ -48,12 +41,9 @@ import EvmAsm.Evm64.Swap.Program
 import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
-<<<<<<< HEAD
-=======
 import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
->>>>>>> origin/main
 import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmAccountWitness
@@ -66,12 +56,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
-<<<<<<< HEAD
 import EvmAsm.Codegen.Programs.StatelessGuest
-=======
-import EvmAsm.Codegen.Programs.StatelessGuestData
-import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
->>>>>>> origin/main
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -105,11 +90,8 @@ import EvmAsm.Codegen.Programs.BalAccountNthDescriptor
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
-<<<<<<< HEAD
-=======
 import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
->>>>>>> origin/main
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.StorageEffectRecords
 import EvmAsm.Codegen.Programs.SstoreGasRefund
@@ -299,7 +281,4 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
-<<<<<<< HEAD
 import EvmAsm.Codegen.Programs.RegistryNames
-=======
->>>>>>> origin/main
