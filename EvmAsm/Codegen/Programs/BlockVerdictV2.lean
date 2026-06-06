@@ -129,6 +129,7 @@ def statelessVerdictV2GuestClosure : String :=
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
+  chainConfigValidFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
   receiptRecordsFunction ++ "\n" ++
   blockReceiptRecordsMaterializeFunction ++ "\n" ++
