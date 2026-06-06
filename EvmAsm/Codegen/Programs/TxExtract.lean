@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.U256GasPricing
 
 namespace EvmAsm.Codegen
 
