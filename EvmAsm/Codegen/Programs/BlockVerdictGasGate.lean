@@ -206,8 +206,6 @@ def eip8037TxGasGateFunction : String :=
   "  jal ra, rlp_field_to_u64\n" ++
   "  bnez a0, .Letg_ok\n" ++
   "  la t0, bsg_tx_gas; ld t1, 0(t0)\n" ++
-  "  li t2, 16777216\n" ++
-  "  bgtu t1, t2, .Letg_validate_fail\n" ++
   "  la t0, bsg_data_field; ld a2, 0(t0); mv a0, s9; mv a1, s10; la a3, bsg_data_off; la a4, bsg_data_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Letg_ok\n" ++
