@@ -84,8 +84,9 @@ def selfdestructDeleteDescriptorFunction : String :=
     The helper emits:
       * different beneficiary: 2 modify descriptors, origin then beneficiary;
       * same non-created account: 1 no-op descriptor, preserving path visibility;
-      * same created account: 1 modify descriptor for the burned balance, with a
-        later delete descriptor expected to win during final compaction.
+      * same created account: 1 modify descriptor for the burned balance followed
+        by 1 delete descriptor for the same account; final compaction should let
+        the delete descriptor win.
 
     a0 returns 0. -/
 def selfdestructTransferDescriptorsFunction : String :=
@@ -99,6 +100,7 @@ def selfdestructTransferDescriptorsFunction : String :=
   "  sd s4, 40(sp)\n" ++
   "  sd s5, 48(sp)\n" ++
   "  sd s6, 56(sp)\n" ++
+  "  sd s7, 64(sp)\n" ++
   "  mv s0, a2                   # transfer output base\n" ++
   "  mv s1, a3                   # same-address flag\n" ++
   "  mv s2, a4                   # created-in-tx flag\n" ++
@@ -106,6 +108,7 @@ def selfdestructTransferDescriptorsFunction : String :=
   "  mv s4, a6                   # path cursor\n" ++
   "  mv s5, a7                   # out_count ptr\n" ++
   "  mv s6, a1                   # beneficiary address ptr\n" ++
+  "  mv s7, a0                   # origin address ptr\n" ++
   "  mv a2, s4\n" ++
   "  li a1, 20\n" ++
   "  jal ra, mpt_account_path_nibbles\n" ++
@@ -124,7 +127,10 @@ def selfdestructTransferDescriptorsFunction : String :=
   "  sd t0, 32(s3)\n" ++
   "  li t0, 1\n" ++
   "  sd t0, 0(s5)\n" ++
-  "  bnez s1, .Lsdtd_ok\n" ++
+  "  beqz s1, .Lsdtd_beneficiary_desc\n" ++
+  "  bnez s2, .Lsdtd_delete_desc\n" ++
+  "  j .Lsdtd_ok\n" ++
+  ".Lsdtd_beneficiary_desc:\n" ++
   "  addi s3, s3, 40\n" ++
   "  addi s4, s4, 64\n" ++
   "  mv a0, s6                   # beneficiary address ptr\n" ++
@@ -141,6 +147,16 @@ def selfdestructTransferDescriptorsFunction : String :=
   "  sd zero, 32(s3)\n" ++
   "  li t0, 2\n" ++
   "  sd t0, 0(s5)\n" ++
+  "  j .Lsdtd_ok\n" ++
+  ".Lsdtd_delete_desc:\n" ++
+  "  addi s3, s3, 40\n" ++
+  "  addi s4, s4, 64\n" ++
+  "  mv a0, s7                   # same-tx-created origin address ptr\n" ++
+  "  mv a1, s3                   # delete descriptor out\n" ++
+  "  mv a2, s4                   # delete path out\n" ++
+  "  jal ra, selfdestruct_delete_descriptor\n" ++
+  "  li t0, 2\n" ++
+  "  sd t0, 0(s5)\n" ++
   ".Lsdtd_ok:\n" ++
   "  li a0, 0\n" ++
   "  ld ra, 0(sp)\n" ++
@@ -151,6 +167,7 @@ def selfdestructTransferDescriptorsFunction : String :=
   "  ld s4, 40(sp)\n" ++
   "  ld s5, 48(sp)\n" ++
   "  ld s6, 56(sp)\n" ++
+  "  ld s7, 64(sp)\n" ++
   "  addi sp, sp, 80\n" ++
   "  ret"
 
@@ -241,6 +258,7 @@ def ziskSelfdestructTransferDescriptorsPrologue : String :=
   "  j .Lsdtd_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   mptAccountPathNibblesFunction ++ "\n" ++
+  selfdestructDeleteDescriptorFunction ++ "\n" ++
   selfdestructTransferDescriptorsFunction ++ "\n" ++
   ".Lsdtd_pdone:"
 
