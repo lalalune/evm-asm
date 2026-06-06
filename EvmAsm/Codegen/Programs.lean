@@ -74,6 +74,7 @@ import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.MptEncode
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalCodePreimages
@@ -1417,6 +1418,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean",
     "EvmAsm/Codegen/Programs/AccountBalance.lean",
     "EvmAsm/Codegen/Programs/MptEncode.lean",
+    "EvmAsm/Codegen/Programs/MptEncodeLeafBranch.lean",
     "EvmAsm/Codegen/Programs/SystemWrites.lean",
     "EvmAsm/Codegen/Programs/BalGasValid.lean",
     "EvmAsm/Codegen/Programs/BalCodePreimages.lean",

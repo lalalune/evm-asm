@@ -34,6 +34,8 @@ import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64

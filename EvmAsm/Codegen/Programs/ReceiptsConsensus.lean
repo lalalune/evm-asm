@@ -9,6 +9,8 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
