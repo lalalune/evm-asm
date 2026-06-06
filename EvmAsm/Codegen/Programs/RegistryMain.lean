@@ -276,6 +276,7 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
+import EvmAsm.Codegen.Programs.WithdrawalBlockSummary
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
