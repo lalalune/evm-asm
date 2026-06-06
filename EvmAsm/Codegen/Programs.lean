@@ -55,6 +55,7 @@ import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
+import EvmAsm.Codegen.Programs.RlpListCountProbe
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
@@ -1395,6 +1396,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/CryptoRegistry.lean",
     "EvmAsm/Codegen/Programs/Modexp.lean",
     "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
+    "EvmAsm/Codegen/Programs/RlpListCountProbe.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderBaseFee.lean",
     "EvmAsm/Codegen/Programs/ValidateHeaderPair.lean",
