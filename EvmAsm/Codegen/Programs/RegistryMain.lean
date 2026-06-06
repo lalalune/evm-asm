@@ -51,6 +51,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
+import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.StatelessGuest
@@ -275,6 +276,7 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
+import EvmAsm.Codegen.Programs.WithdrawalBlockSummary
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -395,6 +397,8 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "zisk_mpt_state_root"       => some ziskMptStateRootProbeUnit
   | "zisk_withdrawals_state_root" => some ziskWithdrawalsStateRootProbeUnit
   | "zisk_account_add_balance"  => some ziskAccountAddBalanceProbeUnit | "zisk_selfdestruct_balance_transfer" => some ziskSelfdestructBalanceTransferProbeUnit
+  | "zisk_selfdestruct_delete_descriptor" => some ziskSelfdestructDeleteDescriptorProbeUnit
+  | "zisk_selfdestruct_transfer_descriptors" => some ziskSelfdestructTransferDescriptorsProbeUnit
   | "zisk_account_set_uint_field" => some ziskAccountSetUintFieldProbeUnit
   | "zisk_bytes_to_nibbles"     => some ziskBytesToNibblesProbeUnit
   | "zisk_mpt_lookup_by_key"    => some ziskMptLookupByKeyProbeUnit

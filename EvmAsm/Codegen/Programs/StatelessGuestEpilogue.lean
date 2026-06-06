@@ -422,16 +422,26 @@ def statelessGuestEpilogue : String :=
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_4_5_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_4_5 -> npr_node_4_5_scratch\n" ++
   "  # \n" ++
-  "  # Dynamic node_10_11 = sha256(leaf_10=extra_data_default ||\n" ++
+  "  # Dynamic node_10_11 = sha256(leaf_10=extra_data_root ||\n" ++
   "  #                            leaf_11=base_fee_per_gas):\n" ++
-  "  #   leaf_10 = SSZ default empty ByteList root = ssz_zero_hash[1]\n" ++
-  "  #             (= sha256(0||0) -- empty merkleized ByteList with\n" ++
-  "  #             length mix-in for the empty case).\n" ++
+  "  #   leaf_10 = hash_tree_root(extra_data: ByteList[32]) where\n" ++
+  "  #             extra_data is exec_payload@[extra_off .. tx_off].\n" ++
   "  #   leaf_11 = base_fee_per_gas (uint256, 32 bytes LE @\n" ++
   "  #             SSZ_BASE + 16 + 44 + 440 = +500)\n" ++
+  "  addi a0, s6, 496           # &extra_data_offset (exec_payload+436)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s7, a0                  # s7 = extra_data_offset\n" ++
+  "  addi a0, s6, 564           # &transactions_offset (exec_payload+504)\n" ++
+  "  jal ra, sg_load_u32le\n" ++
+  "  mv s8, a0                  # s8 = transactions_offset\n" ++
+  "  addi t0, s6, 60            # exec_payload_addr\n" ++
+  "  add a0, t0, s7             # extra_data_start\n" ++
+  "  sub a1, s8, s7             # extra_data_len\n" ++
+  "  li a2, 0                   # ByteList[32] => 2^0 chunks\n" ++
+  "  la a3, npr_leaf_10_extra_data_scratch\n" ++
+  "  jal ra, ssz_hash_tree_root_bytes\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  la t3, ssz_zero_hashes\n" ++
-  "  addi t3, t3, 32             # ssz_zero_hash[1]\n" ++
+  "  la t3, npr_leaf_10_extra_data_scratch\n" ++
   "  ld t2,  0(t3); sd t2,  0(t1)\n" ++
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
