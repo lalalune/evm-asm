@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
+import EvmAsm.Codegen.Programs.U256GasPricing
 
 namespace EvmAsm.Codegen
 

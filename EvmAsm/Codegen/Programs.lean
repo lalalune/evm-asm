@@ -102,6 +102,7 @@ import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptNibbles
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.U256GasPricing
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxExtract
@@ -1447,6 +1448,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/TxSignature.lean",
     "EvmAsm/Codegen/Programs/TxSigningHash.lean",
     "EvmAsm/Codegen/Programs/U256.lean",
+    "EvmAsm/Codegen/Programs/U256GasPricing.lean",
     "EvmAsm/Codegen/Programs/Withdrawal.lean",
     "EvmAsm/Codegen/Programs/WithdrawalPath.lean",
     "EvmAsm/Codegen/Programs/SszWithdrawal.lean",
