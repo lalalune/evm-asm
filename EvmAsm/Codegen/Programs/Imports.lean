@@ -1,5 +1,9 @@
 /- EvmAsm.Codegen.Programs.Imports
+<<<<<<< HEAD
   Umbrella imports for the codegen program registry.
+=======
+  Import hub for the codegen program registry.
+>>>>>>> origin/main
 -/
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
@@ -86,6 +90,11 @@ import EvmAsm.Codegen.Programs.BalAccountNthDescriptor
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
+<<<<<<< HEAD
+=======
+import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
+import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
+>>>>>>> origin/main
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.StorageEffectRecords
 import EvmAsm.Codegen.Programs.SstoreGasRefund
