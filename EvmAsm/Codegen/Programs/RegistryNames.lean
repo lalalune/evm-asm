@@ -68,6 +68,7 @@ def knownProgramNames : List String :=
    "zisk_mpt_state_root",
    "zisk_withdrawals_state_root",
    "zisk_account_add_balance", "zisk_selfdestruct_balance_transfer",
+   "zisk_selfdestruct_delete_descriptor", "zisk_selfdestruct_transfer_descriptors",
    "zisk_account_set_uint_field",
    "zisk_bytes_to_nibbles",
    "zisk_mpt_lookup_by_key",
