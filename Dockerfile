@@ -61,6 +61,7 @@ RUN lake exe codegen --program stateless_guest --halt linux93 \
 # Fetch and bake in EEST fixtures (~221 MB, no gh CLI needed; uses curl fallback)
 RUN bash scripts/eest-fetch-fixtures.sh "${EEST_TAG}"
 
+LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.source="https://github.com/Verified-zkEVM/evm-asm"
 LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
 LABEL org.opencontainers.image.ref.name="${GIT_REF}"
