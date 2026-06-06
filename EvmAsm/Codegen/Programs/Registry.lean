@@ -35,6 +35,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.EvmAccessGas
+import EvmAsm.Codegen.Programs.EvmMessageCallGas
 import EvmAsm.Codegen.Programs.EvmAccountWitness
 import EvmAsm.Codegen.Programs.EIP7708Logs
 import EvmAsm.Codegen.Programs.EvmBalance
