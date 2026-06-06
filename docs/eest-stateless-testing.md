@@ -61,6 +61,23 @@ scripts/codegen-eest-stateless-check.sh \
   --steps 1000000000
 ```
 
+Run a focused gas-parity comparison against the local Python execution-specs:
+
+```bash
+scripts/codegen-eest-gas-parity-report.sh \
+  --filter eip7778_block_gas_accounting_without_refunds/gas_accounting/multi_transaction_gas_accounting.json \
+  --limit 1 \
+  --jobs 1 \
+  --max-failures 1
+```
+
+This wrapper runs the selected inputs through the normal ziskemu stateless
+harness, decodes the exact same guest-visible bytes through
+`execution-specs/src/ethereum/forks/amsterdam/stateless_guest.py`, and prints
+fixture/Python/guest success bits plus payload `gas_used`, `gas_limit`,
+remaining block gas, transaction count, and verdict-debug fields when the
+guest emitted them. Add `--tsv` for machine-readable triage output.
+
 Run the complete `random_statetest` regression class for `zkevm@v0.4.0`:
 
 ```bash
