@@ -11,7 +11,7 @@
     * EIP-4788 (beacon-roots contract 0x000f3df6…beac02):
         slot  = timestamp % 8191        value = timestamp
         slot' = (timestamp % 8191)+8191 value' = parent_beacon_block_root
-        (the root slot is a no-op when the root is 0, e.g. genesis parent.)
+        (a zero root is a storage deletion; absent slots remain no-ops.)
 
   Reads (byte-wise, no-misaligned): exec_payload = SSZ_BASE + 60; parent_hash @
   payload+0 (32 B); block_number @ payload+404 (u64 LE); timestamp @ payload+428
