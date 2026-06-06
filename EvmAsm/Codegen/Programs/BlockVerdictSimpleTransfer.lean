@@ -43,6 +43,8 @@ open EvmAsm.Rv64
              61 non-empty calldata/initcode
              62 EIP-4844 blob transaction; this helper does not yet account
                 for blob-fee precharge
+             63 EIP-7702 set-code transaction; this helper does not yet
+                account for authorization-list gas/processing
       +8   tx ptr
       +16  tx len
       +24  selected pubkey ptr (64-byte x||y tail)
@@ -93,6 +95,9 @@ def simpleTransferTxContextFunction : String :=
   "  la t0, tea_type; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lsttc_not_blob_tx\n" ++
   "  li t0, 62; sd t0, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_not_blob_tx:\n" ++
+  "  li t2, 4; bne t1, t2, .Lsttc_not_set_code_tx\n" ++
+  "  li t0, 63; sd t0, 0(s0); j .Lsttc_ret\n" ++
+  ".Lsttc_not_set_code_tx:\n" ++
   "  mv a0, s1; mv a1, s2; la a2, sttc_nonce; addi a3, s0, 40\n" ++
   "  jal ra, tx_extract_nonce_and_gas\n" ++
   "  sd a0, 128(s0)\n" ++
