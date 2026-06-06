@@ -107,6 +107,7 @@ import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
+import EvmAsm.Codegen.Programs.TxRefund
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.Block
 import EvmAsm.Codegen.Programs.BlockBody
@@ -359,7 +360,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bal_account_final_descriptor_array" => some ziskBalAccountFinalDescriptorArrayProbeUnit
   | "zisk_bal_account_state_root" => some ziskBalAccountStateRootProbeUnit
   | "zisk_bal_account_state_root_auto" => some ziskBalAccountStateRootAutoProbeUnit
-  | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit | "zisk_tx_gas_sender_bal_lookup" => some ziskTxGasSenderBalLookupProbeUnit | "zisk_tx_gas_bal_post_verify" => some ziskTxGasBalPostVerifyProbeUnit
+  | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit | "zisk_tx_gas_sender_bal_lookup" => some ziskTxGasSenderBalLookupProbeUnit | "zisk_tx_gas_bal_post_verify" => some ziskTxGasBalPostVerifyProbeUnit | "zisk_tx_refund_cap" => some ziskTxRefundCapProbeUnit
   | "zisk_storage_root_single_slot" => some ziskStorageRootSingleSlotProbeUnit
   | "zisk_account_set_storage_root" => some ziskAccountSetStorageRootProbeUnit
   | "zisk_block_access_list_hash" => some ziskBlockAccessListHashProbeUnit
@@ -1170,7 +1171,7 @@ def knownProgramNames : List String :=
    "zisk_bal_account_descriptor_array",
    "zisk_bal_account_final_descriptor_array",
    "zisk_bal_account_state_root", "zisk_bal_account_state_root_auto",
-   "zisk_bal_account_record_array", "zisk_tx_gas_sender_bal_lookup", "zisk_tx_gas_bal_post_verify",
+   "zisk_bal_account_record_array", "zisk_tx_gas_sender_bal_lookup", "zisk_tx_gas_bal_post_verify", "zisk_tx_refund_cap",
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
    "zisk_block_access_list_hash", "zisk_eip7778_remaining_block_gas_check",
