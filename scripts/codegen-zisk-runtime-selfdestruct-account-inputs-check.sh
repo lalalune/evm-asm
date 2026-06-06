@@ -35,17 +35,23 @@ lake exe codegen --program runtime_selfdestruct_account_inputs \
   -o gen-out/runtime_selfdestruct_account_inputs
 
 make_case() {
-  local name="$1" address="$2" nonce="$3" balance="$4" code_hex="$5"
-  uv run --directory execution-specs --quiet python3 - "$RUN_DIR/$name" "$address" "$nonce" "$balance" "$code_hex" <<'INNERPY'
+  local name="$1" origin="$2" beneficiary="$3" origin_nonce="$4" origin_balance="$5" origin_code_hex="$6" beneficiary_nonce="$7" beneficiary_balance="$8" beneficiary_code_hex="$9"
+  uv run --directory execution-specs --quiet python3 - \
+    "$RUN_DIR/$name" "$origin" "$beneficiary" \
+    "$origin_nonce" "$origin_balance" "$origin_code_hex" \
+    "$beneficiary_nonce" "$beneficiary_balance" "$beneficiary_code_hex" <<'INNERPY'
 import struct, sys
 from pathlib import Path
 import rlp
 from Crypto.Hash import keccak
 
 out = Path(sys.argv[1])
-address = bytes.fromhex(sys.argv[2])
-nonce, balance = int(sys.argv[3]), int(sys.argv[4])
-code = bytes.fromhex(sys.argv[5])
+origin = bytes.fromhex(sys.argv[2])
+beneficiary = bytes.fromhex(sys.argv[3])
+origin_nonce, origin_balance = int(sys.argv[4]), int(sys.argv[5])
+origin_code = bytes.fromhex(sys.argv[6])
+beneficiary_nonce, beneficiary_balance = int(sys.argv[7]), int(sys.argv[8])
+beneficiary_code = bytes.fromhex(sys.argv[9])
 
 def k256(b):
     h = keccak.new(digest_bits=256); h.update(b); return h.digest()
@@ -71,6 +77,15 @@ def bytes_to_nibbles(b):
 def leaf_node(path_nibbles, value):
     return rlp.encode([hp_encode(path_nibbles, True), value])
 
+def extension_node(path_nibbles, child_ref):
+    return rlp.encode([hp_encode(path_nibbles, False), child_ref])
+
+def branch_node(slots, value=b''):
+    return rlp.encode(slots + [value])
+
+def node_ref(node):
+    return node if len(node) < 32 else k256(node)
+
 def build_ssz_section(elements):
     section = b''
     offset = 4 * len(elements)
@@ -89,39 +104,91 @@ def encode_header(state_root):
 
 EMPTY_TRIE = bytes.fromhex('56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421')
 
-account = rlp.encode([nonce, balance, EMPTY_TRIE, k256(code)])
-path = bytes_to_nibbles(k256(address))
-leaf = leaf_node(path, account)
-state_root = k256(leaf)
+def account(nonce, balance, code):
+    return rlp.encode([nonce, balance, EMPTY_TRIE, k256(code)])
+
+origin_account = account(origin_nonce, origin_balance, origin_code)
+beneficiary_account = account(beneficiary_nonce, beneficiary_balance, beneficiary_code)
+origin_path = bytes_to_nibbles(k256(origin))
+beneficiary_path = bytes_to_nibbles(k256(beneficiary))
+
+if origin == beneficiary:
+    leaf = leaf_node(origin_path, origin_account)
+    root_node = leaf
+    witness_nodes = [leaf]
+elif origin_path == beneficiary_path:
+    raise SystemExit("origin and beneficiary have colliding account trie paths")
+else:
+    common = 0
+    while (common < len(origin_path) and common < len(beneficiary_path) and
+           origin_path[common] == beneficiary_path[common]):
+        common += 1
+    origin_leaf = leaf_node(origin_path[common + 1:], origin_account)
+    beneficiary_leaf = leaf_node(beneficiary_path[common + 1:], beneficiary_account)
+    slots = [b''] * 16
+    slots[origin_path[common]] = node_ref(origin_leaf)
+    slots[beneficiary_path[common]] = node_ref(beneficiary_leaf)
+    branch = branch_node(slots)
+    if common == 0:
+        root_node = branch
+        witness_nodes = [branch, origin_leaf, beneficiary_leaf]
+    else:
+        root_node = extension_node(origin_path[:common], node_ref(branch))
+        witness_nodes = [root_node, branch, origin_leaf, beneficiary_leaf]
+
+state_root = k256(root_node)
 header = encode_header(state_root)
-witness_state = build_ssz_section([leaf])
+witness_state = build_ssz_section(witness_nodes)
+
+if origin == beneficiary:
+    origin_expected = origin_account
+    beneficiary_expected = origin_account
+elif origin_balance == 0:
+    origin_expected = origin_account
+    beneficiary_expected = beneficiary_account
+else:
+    origin_expected = account(origin_nonce, 0, origin_code)
+    beneficiary_expected = account(
+        beneficiary_nonce,
+        origin_balance + beneficiary_balance,
+        beneficiary_code,
+    )
 
 expected = (
     struct.pack('<Q', 0) +
-    struct.pack('<Q', len(account)) +
-    struct.pack('<Q', len(account)) +
+    struct.pack('<Q', len(origin_account)) +
+    struct.pack('<Q', len(beneficiary_account)) +
     struct.pack('<Q', 32) +
-    account.ljust(96, b'\0') +
-    account.ljust(96, b'\0')
+    struct.pack('<Q', 0) +
+    struct.pack('<Q', len(origin_expected)) +
+    struct.pack('<Q', len(beneficiary_expected)) +
+    b'\0' * 8 +
+    origin_expected.ljust(96, b'\0') +
+    beneficiary_expected.ljust(96, b'\0')
 )
 
 out.mkdir(parents=True, exist_ok=True)
 out.joinpath('header.bin').write_bytes(header)
 out.joinpath('state.bin').write_bytes(witness_state)
 out.joinpath('expected.bin').write_bytes(expected)
-out.joinpath('beneficiary.csv').write_text(', '.join(f'0x{x:02x}' for x in address))
+out.joinpath('origin.hex').write_text(origin.hex())
+out.joinpath('beneficiary.csv').write_text(', '.join(f'0x{x:02x}' for x in beneficiary))
 INNERPY
 }
 
 ALICE="$(printf 'aa%.0s' $(seq 1 20))"
+BOB="$(printf 'bb%.0s' $(seq 1 20))"
 FAILED=0
 
-make_case same_account "$ALICE" 7 11 "6001600201"
+make_case same_account "$ALICE" "$ALICE" 7 11 "6001600201" 7 11 "6001600201"
+make_case different_beneficiary "$ALICE" "$BOB" 7 11 "6001600201" 3 5 "6002600301"
+make_case zero_balance_different "$ALICE" "$BOB" 7 0 "6001600201" 3 5 "6002600301"
 
-for name in same_account; do
+for name in same_account different_beneficiary zero_balance_different; do
   echo "==> pack $name"
+  origin="$(cat "$RUN_DIR/$name/origin.hex")"
   scripts/pack-bytecode.py \
-    --env "address=0x$ALICE" \
+    --env "address=0x$origin" \
     --state-header-rlp "@$RUN_DIR/$name/header.bin" \
     --witness-state "@$RUN_DIR/$name/state.bin" \
     "$(cat "$RUN_DIR/$name/beneficiary.csv")" \
@@ -136,8 +203,8 @@ for name in same_account; do
     FAILED=1
   fi
 
-  actual="$(xxd -p -l 224 "$RUN_DIR/$name/output.bin" 2>/dev/null | tr -d '\n')"
-  expected="$(xxd -p -l 224 "$RUN_DIR/$name/expected.bin" | tr -d '\n')"
+  actual="$(xxd -p -l 256 "$RUN_DIR/$name/output.bin" 2>/dev/null | tr -d '\n')"
+  expected="$(xxd -p -l 256 "$RUN_DIR/$name/expected.bin" | tr -d '\n')"
   if [[ "$actual" == "$expected" ]]; then
     printf "  %-12s OK\n" "$name"
   else

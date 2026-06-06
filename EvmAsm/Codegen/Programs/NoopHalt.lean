@@ -110,6 +110,7 @@ private def selfdestructTailAsm : String :=
   "  addi sp, sp, 32\n" ++
   selfdestructNewAccountSurchargeAsm ++
   selfdestructLoadAccountInputsAsm ++
+  selfdestructBalanceTransferRuntimeAsm ++
   "  la x14, evm_selfdestruct_staged\n" ++
   "  li x15, 1\n" ++
   "  sd x15, 0(x14)\n" ++
