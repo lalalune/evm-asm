@@ -34,6 +34,7 @@ import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
+import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -584,6 +585,22 @@ def blockVerdictFunction : String :=
   "  la t2, svf_codes_len; ld a7, 0(t2)\n" ++
   "  jal ra, bal_code_preimages_valid\n" ++
   "  bnez a0, .Lbv_code_preimage_fail\n" ++
+  "  # Upfront sender gas pre-charge gate for the currently parse-supported\n" ++
+  "  # one-transaction path. Use the selected public key tail (x||y) and the\n" ++
+  "  # pre-account record table materialized by block_state_root.\n" ++
+  "  la t2, bv_tx_count; ld t0, 0(t2); li t1, 1; bne t0, t1, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t2, bv_public_keys_len; ld t0, 0(t2); li t1, 65; bne t0, t1, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t2, bv_tx_list_ptr; ld t3, 0(t2); la t2, bv_tx_item_start; ld t4, 0(t2); add s1, t3, t4\n" ++
+  "  la t2, bv_tx_list_len; ld t5, 0(t2); sub s2, t5, t4\n" ++
+  "  la t2, bv_public_keys_ptr; ld a3, 0(t2); addi a3, a3, 1\n" ++
+  "  la t2, bv_exec_p; ld t1, 0(t2); addi a2, t1, 160\n" ++
+  "  mv a0, s1; mv a1, s2\n" ++
+  "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
+  "  la t2, bv_bal_len; ld a5, 0(t2)\n" ++
+  "  la a6, basr_records; la a7, bv_tx_gas_precharge\n" ++
+  "  jal ra, tx_gas_bal_post_verify\n" ++
+  "  la t2, bv_tx_gas_precharge; ld t0, 0(t2); bnez t0, .Lbv_tx_gas_precharge_fail\n" ++
+  ".Lbv_after_tx_gas_precharge:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)             # exec_payload\n" ++
@@ -633,6 +650,8 @@ def blockVerdictFunction : String :=
   "  li t0, 15; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_empty_tx_fail:\n" ++
   "  li t0, 16; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_tx_gas_precharge_fail:\n" ++
+  "  li t0, 17; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -786,6 +805,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  ld t2, 8(t1); sd t2, 208(t0)\n" ++
   "  ld t2, 16(t1); sd t2, 216(t0)\n" ++
   "  ld t2, 24(t1); sd t2, 224(t0)\n" ++
+  "  la t1, bv_tx_gas_precharge; ld t2, 0(t1); sd t2, 232(t0)\n" ++
+  "  la t1, bv_tx_gas_precharge; ld t2, 8(t1); sd t2, 240(t0)\n" ++
+  "  la t1, bv_tx_gas_precharge; ld t2, 16(t1); sd t2, 248(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
@@ -907,6 +929,17 @@ def ziskStatelessVerdictV2Prologue : String :=
   balGasValidFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++
+  accountExtractBalanceFunction ++ "\n" ++
+  accountExtractNonceFunction ++ "\n" ++
+  txGasSenderBalLookupFunction ++ "\n" ++
+  txExtractNonceAndGasFunction ++ "\n" ++
+  txExtractGasPricingFunction ++ "\n" ++
+  u256MinFunction ++ "\n" ++
+  priorityFeePerGasEip1559Function ++ "\n" ++
+  txEffectiveGasPricingFunction ++ "\n" ++
+  accountChargeGasPreExecFunction ++ "\n" ++
+  txUpfrontPrechargeFunction ++ "\n" ++
+  txGasBalPostVerifyFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
@@ -917,6 +950,37 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip7702NonceReuseGuardFunction ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
   ".Lv2_pdone:"
+
+private def blockVerdictTxGasPrechargeDataSection : String :=
+  ".balign 8\n" ++
+  "tgsbl_tmp_off:\n  .zero 8\n" ++
+  "tgsbl_tmp_len:\n  .zero 8\n" ++
+  "tgsbl_count:\n  .zero 8\n" ++
+  "tgsbl_row_off:\n  .zero 8\n" ++
+  "tgsbl_row_len:\n  .zero 8\n" ++
+  "tgsbl_addr_off:\n  .zero 8\n" ++
+  "tgsbl_addr_len:\n  .zero 8\n" ++
+  "teng_type:\n  .zero 8\n" ++
+  "teng_inner_off:\n  .zero 8\n" ++
+  "tegp_type:\n  .zero 8\n" ++
+  "tegp_inner_off:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "tefgp_max_priority:\n  .zero 32\n" ++
+  "tefgp_max_fee:\n  .zero 32\n" ++
+  "tefgp_tmp:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "txup_nonce:\n  .zero 8\n" ++
+  "txup_gas_limit:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "txup_effective_gas_price:\n  .zero 32\n" ++
+  "txup_priority_fee:\n  .zero 32\n" ++
+  "acpg_gas_fee:\n  .zero 32\n" ++
+  "tgbpv_balance:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "tgbpv_nonce:\n  .zero 8\n" ++
+  "tgbpv_lookup:\n  .zero 168\n" ++
+  "tgbpv_records:\n  .zero 4096\n" ++
+  "bv_tx_gas_precharge:\n  .zero 128\n"
 
 def ziskStatelessVerdictV2DataSection : String :=
   ziskStatelessVerdictDataSection ++ "\n" ++
@@ -1030,6 +1094,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n" ++
+  blockVerdictTxGasPrechargeDataSection ++
   eip7702NonceReuseGuardDataSection ++
   "brl_item_start:\n  .zero 8\n" ++
   "brl_item_end:\n  .zero 8\n" ++
