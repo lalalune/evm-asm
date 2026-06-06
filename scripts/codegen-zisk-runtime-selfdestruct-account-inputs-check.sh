@@ -101,6 +101,10 @@ expected = (
     struct.pack('<Q', len(account)) +
     struct.pack('<Q', len(account)) +
     struct.pack('<Q', 32) +
+    struct.pack('<Q', 0) +
+    struct.pack('<Q', len(account)) +
+    struct.pack('<Q', len(account)) +
+    b'\0' * 8 +
     account.ljust(96, b'\0') +
     account.ljust(96, b'\0')
 )
@@ -136,8 +140,8 @@ for name in same_account; do
     FAILED=1
   fi
 
-  actual="$(xxd -p -l 224 "$RUN_DIR/$name/output.bin" 2>/dev/null | tr -d '\n')"
-  expected="$(xxd -p -l 224 "$RUN_DIR/$name/expected.bin" | tr -d '\n')"
+  actual="$(xxd -p -l 256 "$RUN_DIR/$name/output.bin" 2>/dev/null | tr -d '\n')"
+  expected="$(xxd -p -l 256 "$RUN_DIR/$name/expected.bin" | tr -d '\n')"
   if [[ "$actual" == "$expected" ]]; then
     printf "  %-12s OK\n" "$name"
   else
