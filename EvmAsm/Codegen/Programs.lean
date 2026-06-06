@@ -112,6 +112,7 @@ import EvmAsm.Codegen.Programs.Block
 import EvmAsm.Codegen.Programs.BlockBody
 import EvmAsm.Codegen.Programs.BlockEmpty
 import EvmAsm.Codegen.Programs.BlockValidate
+import EvmAsm.Codegen.Programs.BlockValidate1Tx
 import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.BlockRoots
@@ -1371,6 +1372,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BlockVerdictTransactions.lean",
     "EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean",
     "EvmAsm/Codegen/Programs/BlockValidate.lean",
+    "EvmAsm/Codegen/Programs/BlockValidate1Tx.lean",
     "EvmAsm/Codegen/Programs/Chain.lean",
     "EvmAsm/Codegen/Programs/ChainAggregator.lean",
     "EvmAsm/Codegen/Programs/ChainBasefee.lean",
