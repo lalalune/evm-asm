@@ -133,6 +133,7 @@ import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HeaderFields
+import EvmAsm.Codegen.Programs.HeaderSummaryStruct
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
@@ -1397,6 +1398,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
     "EvmAsm/Codegen/Programs/HeaderBaseFee.lean",
+    "EvmAsm/Codegen/Programs/HeaderSummaryStruct.lean",
     "EvmAsm/Codegen/Programs/ValidateHeaderPair.lean",
     "EvmAsm/Codegen/Programs/BlockHeaderSszToRlp.lean",
     "EvmAsm/Codegen/Programs/Step2Verdict.lean",
