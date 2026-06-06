@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgrpc++-dev libprotobuf-dev \
     libsecp256k1-dev libsodium-dev \
     libpqxx-dev \
+    gcc-riscv64-unknown-elf \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
