@@ -1,28 +1,3 @@
-/-
-  EvmAsm.Codegen.Programs.Registry
-
-  CLI program lookup table. `Programs.lean` imports this module as the
-  public registry surface; keeping the table here leaves the public module
-  small.
--/
-
-import EvmAsm.Codegen.Programs.RegistryTail
-
-namespace EvmAsm.Codegen
-
-open EvmAsm.Rv64
-
-/-! Misc programs moved to submodules:
-    - K21..K26 MPT helpers -> Programs/Mpt.lean
-    - K34/K35/K36/K37 + K121/K120/K123 rlp/account extractors + legacy decoders -> Programs/Tx.lean
-    - K64 blob_gas_used_from_versioned_hashes -> Programs/Tx.lean
-    - K138/K139 signature extractors -> Programs/TxSignature.lean -/
-
-/-! More misc programs moved to submodules — see commit history and
-    the per-PR header comments inside the destination files for details. -/
-
-/-! ## MPT branch helpers K117 / K118 — moved to `Programs/Mpt.lean` (file-size hard cap). -/
-
 /- EvmAsm.Codegen.Programs.Registry
   Program lookup registry for the codegen tool.
 -/
