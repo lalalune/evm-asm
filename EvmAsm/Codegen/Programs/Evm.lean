@@ -11,21 +11,18 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
-import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.And.Program
 import EvmAsm.Evm64.Byte.Program
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
 import EvmAsm.Evm64.Eq.Program
-import EvmAsm.Evm64.Exp.Program
 import EvmAsm.Evm64.Gt.Program
 import EvmAsm.Evm64.IsZero.Program
 import EvmAsm.Evm64.Lt.Program
 import EvmAsm.Evm64.MLoad.Program
 import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
-import EvmAsm.Evm64.Multiply.Callable
 import EvmAsm.Evm64.Multiply.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
@@ -47,6 +44,7 @@ import EvmAsm.Codegen.Programs.EvmTinyInterp
 import EvmAsm.Codegen.Programs.EvmDivModWrappers
 import EvmAsm.Codegen.Programs.EvmDivModHandlers
 import EvmAsm.Codegen.Programs.EvmSignedDivModHandlers
+import EvmAsm.Codegen.Programs.EvmSelfCallingHandlers
 import EvmAsm.Codegen.Programs.EvmStackHandlers
 import EvmAsm.Codegen.Programs.EvmSingletonHandlers
 import EvmAsm.Codegen.Programs.EvmMemoryHandlers
@@ -157,140 +155,6 @@ open EvmAsm.Rv64
     needs a trampoline-style wrapper (set `x18` to a per-handler
     "restore" stub before the body runs, splice off the body's
     initial save_ra_block). Tracked as the next codegen PR. -/
-/-! ## M10 self-calling opcode — ADDMOD (0x08)
-
-    `evm_addmod` is parametric over a JAL byte offset that targets
-    a callable variant of another handler (`evm_mod_callable_v4`).
-    The natural composition is `<wrapper>(<offset>) ++ <callable>`
-    — the callable is inlined in the same handler subroutine; the
-    offset is chosen so the wrapper's JAL lands on the callable's
-    first instruction.
-
-    Unlike SDIV/SMOD's M9 trampoline, ADDMOD doesn't have a
-    saved-ra-ret pattern. It DOES clobber `x1` (via the inner
-    `JAL .x1` into the callable), so the wrapper tail must use
-    `j .dispatch_loop` instead of `ret` — reusing M9's
-    `signedDivModTail` helper. It also clobbers `x10` via the
-    inline mod callable, so `preBody` saves `x10` to `x14`.
-
-    EXP (0x0a) now rides the same self-calling pattern via
-    `evmExpComposed` below, using the `_fixed_fixed` body variant.
-    The earlier deferral note was that `mul_callable` clobbers `x6`
-    (the EXP loop's per-limb counter) — the `_fixed` variant only
-    moved the `x19` cursor to a callee-saved register, leaving the
-    `x6` counter to be corrupted mid-iteration. `_fixed_fixed`
-    (`EvmAsm/Evm64/Exp/Program.lean`) moves the counter to `x22`
-    (s6, callee-saved, untouched by `evm_mul`/`cc_ret`), so EXP now
-    runs correctly through the dispatcher. (The limb pointer `x16`
-    was never the problem — `evm_mul` doesn't touch it.) -/
-
-/-- Runtime ADDMOD handler body for the dispatcher.
-
-    The proof-facing `evm_addmod` skeleton still only reduces the truncated
-    low 256-bit sum. The dispatcher needs total EVM behavior now, so this
-    raw handler uses assembler labels for the internal calls and handles the
-    carry-out path empirically:
-
-      * if `N = 0`, write zero and advance by one stack word;
-      * if the ADD carry is zero, reduce the truncated sum with MOD;
-      * if the ADD carry is one, compute `m = 2^256 mod N`, reduce the
-        truncated sum first, add `m`, then perform the single conditional
-        subtract required because both addends are already `< N`.
-
-    The carry helper uses `addmod_runtime_scratch` for the extra callable MOD
-    frames so temporary reduction state cannot alias deeper live EVM stack
-    words. This wrapper exists only to avoid brittle
-    hand-counted JAL offsets in the runtime dispatcher while the verified
-    top-level ADDMOD assembly catches up. -/
-private def evmAddmodRuntimeTail : HandlerTail :=
-  .custom <| String.intercalate "\n" [
-    emitProgram EvmAsm.Evm64.evm_addmod_prologue,
-    emitProgram EvmAsm.Evm64.evm_addmod_phase1_carry,
-    "  ld x6, 32(x12)\n  ld x5, 40(x12)\n  or x6, x6, x5\n  ld x5, 48(x12)\n  or x6, x6, x5\n  ld x5, 56(x12)\n  or x6, x6, x5\n  beq x6, x0, .Laddmod_zero\n  beq x7, x0, .Laddmod_no_carry\n  la x16, addmod_saved_stack_ptr\n  sd x12, 0(x16)\n  la x15, addmod_runtime_scratch\n  addi x5, x0, -1\n  sd x5, 0(x15)\n  sd x5, 8(x15)\n  sd x5, 16(x15)\n  sd x5, 24(x15)\n  ld x5, 32(x12)\n  sd x5, 32(x15)\n  ld x5, 40(x12)\n  sd x5, 40(x15)\n  ld x5, 48(x12)\n  sd x5, 48(x15)\n  ld x5, 56(x12)\n  sd x5, 56(x15)\n  mv x12, x15\n  jal x1, .Laddmod_mod_callable\n  la x16, addmod_saved_stack_ptr\n  ld x12, 0(x16)\n  la x15, addmod_runtime_scratch\n  ld x5, 32(x15)\n  addi x6, x5, 1\n  sltiu x7, x6, 1\n  sd x6, 64(x15)\n  ld x5, 40(x15)\n  add x6, x5, x7\n  sltu x7, x6, x7\n  sd x6, 72(x15)\n  ld x5, 48(x15)\n  add x6, x5, x7\n  sltu x7, x6, x7\n  sd x6, 80(x15)\n  ld x5, 56(x15)\n  add x6, x5, x7\n  sltu x7, x6, x7\n  sd x6, 88(x15)\n  ld x5, 32(x12)\n  sd x5, 96(x15)\n  ld x5, 40(x12)\n  sd x5, 104(x15)\n  ld x5, 48(x12)\n  sd x5, 112(x15)\n  ld x5, 56(x12)\n  sd x5, 120(x15)\n  addi x12, x15, 64\n  jal x1, .Laddmod_mod_callable\n  la x16, addmod_saved_stack_ptr\n  ld x12, 0(x16)\n  la x15, addmod_runtime_scratch\n  ld x5, 32(x12)\n  sd x5, 64(x12)\n  ld x5, 40(x12)\n  sd x5, 72(x12)\n  ld x5, 48(x12)\n  sd x5, 80(x12)\n  ld x5, 56(x12)\n  sd x5, 88(x12)\n  jal x1, .Laddmod_mod_callable\n  addi x12, x12, -32\n  ld x5, 32(x12)\n  sd x5, 0(x12)\n  ld x5, 40(x12)\n  sd x5, 8(x12)\n  ld x5, 48(x12)\n  sd x5, 16(x12)\n  ld x5, 56(x12)\n  sd x5, 24(x12)\n  la x15, addmod_runtime_scratch\n  ld x5, 96(x15)\n  sd x5, 32(x12)\n  ld x5, 104(x15)\n  sd x5, 40(x12)\n  ld x5, 112(x15)\n  sd x5, 48(x12)\n  ld x5, 120(x15)\n  sd x5, 56(x12)",
-    emitProgram EvmAsm.Evm64.evm_add,
-    "  bne x5, x0, .Laddmod_sub_n\n  ld x6, 24(x12)\n  ld x7, 56(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_done\n  ld x6, 16(x12)\n  ld x7, 48(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_done\n  ld x6, 8(x12)\n  ld x7, 40(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_done\n  ld x6, 0(x12)\n  ld x7, 32(x12)\n  bltu x6, x7, .Laddmod_done\n.Laddmod_sub_n:\n  ld x6, 0(x12)\n  ld x7, 32(x12)\n  sub x5, x6, x7\n  sltu x11, x6, x7\n  sd x5, 0(x12)\n  ld x6, 8(x12)\n  ld x7, 40(x12)\n  sub x5, x6, x7\n  sltu x10, x6, x7\n  sub x5, x5, x11\n  sltu x11, x5, x11\n  or x11, x10, x11\n  sd x5, 8(x12)\n  ld x6, 16(x12)\n  ld x7, 48(x12)\n  sub x5, x6, x7\n  sltu x10, x6, x7\n  sub x5, x5, x11\n  sltu x11, x5, x11\n  or x11, x10, x11\n  sd x5, 16(x12)\n  ld x6, 24(x12)\n  ld x7, 56(x12)\n  sub x5, x6, x7\n  sub x5, x5, x11\n  sd x5, 24(x12)\n  j .Laddmod_done\n.Laddmod_no_carry:\n  jal x1, .Laddmod_mod_callable\n  j .Laddmod_done\n.Laddmod_zero:",
-    emitProgram EvmAsm.Evm64.evm_addmod_phase2_zero_path,
-    emitProgram EvmAsm.Evm64.evm_addmod_epilogue,
-    ".Laddmod_done:\n  mv x10, x14\n  addi x10, x10, 1\n  j .dispatch_loop\n.Laddmod_mod_callable:",
-    emitProgram EvmAsm.Evm64.evm_mod_callable_v4]
-
-/-- Runtime ADDMOD handler assembly. Supports the no-carry lane by reusing
-    `evmAddmodComposed`'s snippets, but rejects carry-out sums explicitly.
-    The full ADDMOD semantics need 257-bit reduction `(c * 2^256 + r) mod N`;
-    until that lands, `x7 != 0` is an unsupported development halt
-    (`halt_kind = 3`) rather than a false successful low-256-bit result. -/
-private def addmodRuntimeAsm : String :=
-  "  mv x14, x10\n" ++
-  emitProgram EvmAsm.Evm64.evm_addmod_prologue ++ "\n" ++
-  emitProgram EvmAsm.Evm64.evm_addmod_phase1_carry ++ "\n" ++
-  "  bnez x7, .exit_invalid_op\n" ++
-  emitProgram (EvmAsm.Evm64.evm_addmod_phase2_reduce 8) ++ "\n" ++
-  emitProgram (single (Instr.JAL .x0 (1376 : BitVec 21))) ++ "\n" ++
-  emitProgram EvmAsm.Evm64.evm_mod_callable_v4 ++ "\n" ++
-  "  mv x10, x14\n" ++
-  "  addi x10, x10, 1\n" ++
-  "  j .dispatch_loop"
-
-/-- EXP (0x0a) handler body: the double-fixed verified EXP body inlined
-    with `mul_callable`, mirroring `evmAddmodComposed`.
-
-    Composition:
-      - `evm_exp_..._fixed_fixed_canonical 200 92`: 84 instr (336 B). The
-        two interior `JAL .x1` MUL-call sites target `mul_callable`.
-      - skip-JAL `JAL .x0 +260`: 1 instr (4 B) at byte 336 — jumps past
-        the inlined callable to the handler tail (260 = 4 + 256).
-      - `mul_callable`: 64 instr (256 B) at byte 340.
-
-    **MUL-call offsets shift +4 vs the standalone `evm_exp_from_input`.**
-    There, `mul_callable` sits immediately after the body (byte 336), so
-    the canonical offsets are 196 / 88. Here the 4-byte skip-JAL pushes
-    `mul_callable` to byte 340, so the squaring / cond-multiply JAL sites
-    (at body bytes 140 / 248) need offsets `340-140 = 200` and
-    `340-248 = 92`. The internal branch offsets (cond-mul skip BEQ,
-    loop-back BNE) are unaffected — they stay inside the 336-byte body
-    and use the canonical `_fixed` values.
-
-    The skip-JAL is required because EXP's loop exits by *falling through*
-    `exp_epilogue` (which has no trailing jump); without it, control would
-    run straight into `mul_callable`. ADDMOD doesn't need this shape
-    because its single MUL call is the last thing before the callable.
-
-    Net `x12` advance: `exp_epilogue` does one `ADDI x12, x12, 32` (pops 2,
-    pushes 1); the per-iteration call marshal/un-marshal nets zero. -/
-def evmExpComposed : Program :=
-  EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_fixed_canonical
-    (200 : BitVec 21) (92 : BitVec 21) ;;
-  single (Instr.JAL .x0 (260 : BitVec 21)) ;;
-  EvmAsm.Evm64.mul_callable
-
-/-- Tail for EXP (0x0a): like `signedDivModTail` (the inner `JAL .x1` into
-    `mul_callable` clobbers `x1`, so `ret` would jump to garbage → use
-    `j .dispatch_loop`), plus a `la sp, lp64_sp_top` to restore the LP64
-    stack pointer that h_EXP's `preBody` repointed at `exp_scratch` for the
-    EXP body's result accumulator. -/
-private def expTail : HandlerTail :=
-  .custom ("  mv x10, x14\n" ++
-           "  la sp, lp64_sp_top\n" ++
-           "  addi x10, x10, 1\n" ++
-           "  j .dispatch_loop")
-
-/-- M10 self-calling handlers. Currently just ADDMOD; EXP is
-    deferred (see the milestone-header comment). Reuses
-    `signedDivModTail` because the wrapper's inner `JAL .x1` into
-    the inline callable clobbers `x1`, so the standard `ret` (=
-    `jalr x0, x1, 0`) would jump to garbage. -/
-def selfCallingHandlers : List OpcodeHandlerSpec :=
-  [ { label         := "h_ADDMOD"
-      opcodes       := [0x08]
-      preBody       := stackUnderflowGuardAsm 3 ++ "\n  mv x14, x10"
-      body          := []
-      tail          := evmAddmodRuntimeTail }
-  , { label         := "h_EXP"
-      opcodes       := [0x0a]
-      preBody       := stackUnderflowGuardAsm 2 ++ "\n" ++ expDynamicGasAsm ++ "  mv x14, x10\n  la x2, exp_scratch"
-      body          := evmExpComposed
-      tail          := expTail } ]
-
 /-- STOP: transitions out of the dispatcher loop instead of returning
     to it. The body is empty; the dispatcher's `jalr` lands on
     `h_STOP:` which jumps to `.exit_label`. -/
