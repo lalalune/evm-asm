@@ -52,6 +52,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
+import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
@@ -360,6 +361,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bal_account_state_root" => some ziskBalAccountStateRootProbeUnit
   | "zisk_bal_account_state_root_auto" => some ziskBalAccountStateRootAutoProbeUnit
   | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit | "zisk_tx_gas_sender_bal_lookup" => some ziskTxGasSenderBalLookupProbeUnit | "zisk_tx_gas_bal_post_verify" => some ziskTxGasBalPostVerifyProbeUnit
+  | "zisk_selfdestruct_delete_descriptor" => some ziskSelfdestructDeleteDescriptorProbeUnit
   | "zisk_storage_root_single_slot" => some ziskStorageRootSingleSlotProbeUnit
   | "zisk_account_set_storage_root" => some ziskAccountSetStorageRootProbeUnit
   | "zisk_block_access_list_hash" => some ziskBlockAccessListHashProbeUnit
@@ -1171,6 +1173,7 @@ def knownProgramNames : List String :=
    "zisk_bal_account_final_descriptor_array",
    "zisk_bal_account_state_root", "zisk_bal_account_state_root_auto",
    "zisk_bal_account_record_array", "zisk_tx_gas_sender_bal_lookup", "zisk_tx_gas_bal_post_verify",
+   "zisk_selfdestruct_delete_descriptor",
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
    "zisk_block_access_list_hash", "zisk_eip7778_remaining_block_gas_check",
@@ -1388,6 +1391,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/EvmBalance.lean",
     "EvmAsm/Codegen/Programs/EvmExtcodecopy.lean", "EvmAsm/Codegen/Programs/EvmMemoryGas.lean",
     "EvmAsm/Codegen/Programs/EvmArithUnits.lean",
+    "EvmAsm/Codegen/Programs/SelfdestructDescriptors.lean",
     "EvmAsm/Codegen/Programs/EvmDispatchUnits.lean",
     "EvmAsm/Codegen/Programs/ExpProperty.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
