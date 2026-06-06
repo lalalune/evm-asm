@@ -1,5 +1,6 @@
 /- EvmAsm.Codegen.Programs.RegistryTail
   Tail sub-registry for codegen programs.
+  Tail half of the codegen program lookup registry.
 -/
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
@@ -49,6 +50,11 @@ import EvmAsm.Codegen.Programs.EvmDispatchUnits
 import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.CryptoRegistry
+import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.HashProbes
+import EvmAsm.Codegen.Programs.Modexp
+import EvmAsm.Codegen.Programs.PrecompileBackendProbes
+import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
@@ -65,6 +71,8 @@ import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
+import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.ReceiptList
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.ReceiptsConsensus
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
@@ -273,6 +281,8 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
+import EvmAsm.Codegen.Programs.StatelessGuestUnit
+
 
 namespace EvmAsm.Codegen
 
@@ -285,6 +295,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
+  | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_receipt_records_encode_no_logs" => some ziskReceiptRecordsEncodeNoLogsProbeUnit | "zisk_block_verdict_tx_gas_limits" => some ziskBlockVerdictTxGasLimitsProbeUnit | "zisk_block_verdict_gas_result_arena" => some ziskBlockVerdictGasResultArenaProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
@@ -300,6 +311,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bal_account_state_root" => some ziskBalAccountStateRootProbeUnit
   | "zisk_bal_account_state_root_auto" => some ziskBalAccountStateRootAutoProbeUnit
   | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit | "zisk_tx_gas_sender_bal_lookup" => some ziskTxGasSenderBalLookupProbeUnit | "zisk_tx_gas_bal_post_verify" => some ziskTxGasBalPostVerifyProbeUnit
+  | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit | "zisk_bal_account_access_outcome_descriptors" => some ziskBalAccountAccessOutcomeDescriptorsProbeUnit | "zisk_bal_storage_access_outcome_descriptors" => some ziskBalStorageAccessOutcomeDescriptorsProbeUnit | "zisk_tx_gas_sender_bal_lookup" => some ziskTxGasSenderBalLookupProbeUnit | "zisk_tx_gas_bal_post_verify" => some ziskTxGasBalPostVerifyProbeUnit
   | "zisk_storage_root_single_slot" => some ziskStorageRootSingleSlotProbeUnit
   | "zisk_account_set_storage_root" => some ziskAccountSetStorageRootProbeUnit
   | "zisk_block_access_list_hash" => some ziskBlockAccessListHashProbeUnit
@@ -464,6 +476,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_mpt_extension_extract" => some ziskMptExtensionExtractProbeUnit
   | "zisk_mpt_branch_used_count" => some ziskMptBranchUsedCountProbeUnit
   | "zisk_mpt_branch_first_used_index" => some ziskMptBranchFirstUsedIndexProbeUnit
+  | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
   | "zisk_ssz_merkleize_pow2"   => some ziskSszMerkleizePow2ProbeUnit
