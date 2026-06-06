@@ -50,11 +50,7 @@ import EvmAsm.Codegen.Programs.EvmArithUnits
 import EvmAsm.Codegen.Programs.EvmDispatchUnits
 import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.Programs.HashProbes
-import EvmAsm.Codegen.Programs.Modexp
-import EvmAsm.Codegen.Programs.PrecompileBackendProbes
-import EvmAsm.Codegen.Programs.PrecompileRuntime
+import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
@@ -351,7 +347,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
-  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
+  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit | "zisk_storage_access_outcome_records" => some ziskStorageAccessOutcomeRecordsProbeUnit
   | "zisk_bal_section_info"      => some ziskBalSectionInfoProbeUnit
   | "zisk_bal_account_path"      => some ziskBalAccountPathProbeUnit
   | "zisk_bal_account_post_fields" => some ziskBalAccountPostFieldsProbeUnit
@@ -528,7 +524,6 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_mpt_extension_extract" => some ziskMptExtensionExtractProbeUnit
   | "zisk_mpt_branch_used_count" => some ziskMptBranchUsedCountProbeUnit
   | "zisk_mpt_branch_first_used_index" => some ziskMptBranchFirstUsedIndexProbeUnit
-  | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
   | "zisk_ssz_merkleize_pow2"   => some ziskSszMerkleizePow2ProbeUnit
@@ -570,22 +565,6 @@ def lookupProgram : String → Option BuildUnit
   | "tiny_interp_dispatch_add2" => some tinyInterpDispatchAdd2Unit
   | "runtime_dispatcher"        => some runtimeDispatcherUnit
   | "stateless_guest"           => some statelessGuestUnit
-  | "zisk_keccak_probe"         => some ziskKeccakProbeUnit
-  | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit
-  | "zisk_keccak256_abc"        => some ziskKeccak256AbcProbeUnit
-  | "zisk_zkvm_keccak256"       => some ziskZkvmKeccak256ProbeUnit
-  | "zisk_sha256_probe_le"      => some ziskSha256ProbeLeUnit
-  | "zisk_zkvm_sha256"          => some ziskZkvmSha256ProbeUnit
-  | "zisk_secp256k1_ecrecover_backend_probe" => some ziskSecp256k1EcrecoverBackendProbeUnit
-  | "zisk_modexp_backend_probe" => some ziskModexpBackendProbeUnit
-  | "zisk_bls12_g1_add_backend_probe" => some ziskBls12G1AddBackendProbeUnit
-  | "zisk_bls12_g1_msm_backend_probe" => some ziskBls12G1MsmBackendProbeUnit
-  | "zisk_bls12_g2_add_backend_probe" => some ziskBls12G2AddBackendProbeUnit
-  | "zisk_bls12_g2_msm_backend_probe" => some ziskBls12G2MsmBackendProbeUnit
-  | "zisk_bls12_pairing_backend_probe" => some ziskBls12PairingBackendProbeUnit
-  | "zisk_bls12_map_fp_to_g1_backend_probe" => some ziskBls12MapFpToG1BackendProbeUnit
-  | "zisk_bls12_map_fp2_to_g2_backend_probe" => some ziskBls12MapFp2ToG2BackendProbeUnit
-  | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
   | "zisk_headers_parent_hash"  => some ziskHeadersParentHashProbeUnit
@@ -869,7 +848,10 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bloom_or_into" => some ziskBloomOrIntoProbeUnit
   | "zisk_receipt_extract_logs_bloom" => some ziskReceiptExtractLogsBloomProbeUnit
   | "zisk_header_extract_logs_bloom" => some ziskHeaderExtractLogsBloomProbeUnit
-  | s                           => lookupProgramTail s
+  | s                           =>
+      match lookupCryptoProgram s with
+      | some unit => some unit
+      | none => lookupProgramTail s
 
 /-- List of known program names, for use in CLI usage strings. -/
 def knownProgramNames : List String :=
@@ -882,21 +864,9 @@ def knownProgramNames : List String :=
    "tiny_interp_add", "tiny_interp_add2",
    "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2",
    "runtime_dispatcher",
-   "stateless_guest",
-   "zisk_keccak_probe",
-   "zisk_keccak256_empty",
-   "zisk_keccak256_abc",
-   "zisk_zkvm_keccak256",
-   "zisk_sha256_probe_le",
-   "zisk_zkvm_sha256", "zisk_secp256k1_ecrecover_backend_probe",
-   "zisk_bls12_g1_add_backend_probe",
-   "zisk_bls12_g1_msm_backend_probe",
-   "zisk_bls12_g2_add_backend_probe",
-   "zisk_bls12_g2_msm_backend_probe",
-   "zisk_bls12_pairing_backend_probe", "zisk_bls12_map_fp_to_g1_backend_probe",
-   "zisk_bls12_map_fp2_to_g2_backend_probe",
-   "zisk_keccak256_from_input",
-   "zisk_headers_keccak_chain",
+  "stateless_guest"] ++
+  knownCryptoProgramNames ++
+  ["zisk_headers_keccak_chain",
    "zisk_headers_keccak_array",
    "zisk_headers_parent_hash",
    "zisk_header_validate_parent_hash",
@@ -1189,7 +1159,7 @@ def knownProgramNames : List String :=
    "zisk_receipt_records_probe",
    "zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
-   "zisk_bal_gas_valid",
+   "zisk_bal_gas_valid", "zisk_storage_access_gas", "zisk_storage_access_outcome_records",
    "zisk_bal_section_info",
    "zisk_bal_account_path",
    "zisk_bal_account_post_fields",
@@ -1361,7 +1331,6 @@ def knownProgramNames : List String :=
    "zisk_mpt_extension_extract",
    "zisk_mpt_branch_used_count",
    "zisk_mpt_branch_first_used_index",
-   "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
    "zisk_ssz_merkleize_pow2",
@@ -1423,6 +1392,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/ExpProperty.lean",
     "EvmAsm/Codegen/Programs/HashBridge.lean",
     "EvmAsm/Codegen/Programs/HashProbes.lean",
+    "EvmAsm/Codegen/Programs/CryptoRegistry.lean",
     "EvmAsm/Codegen/Programs/Modexp.lean",
     "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
     "EvmAsm/Codegen/Programs/Header.lean",
