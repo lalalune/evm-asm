@@ -347,7 +347,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
-  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
+  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit | "zisk_storage_access_outcome_records" => some ziskStorageAccessOutcomeRecordsProbeUnit
   | "zisk_bal_section_info"      => some ziskBalSectionInfoProbeUnit
   | "zisk_bal_account_path"      => some ziskBalAccountPathProbeUnit
   | "zisk_bal_account_post_fields" => some ziskBalAccountPostFieldsProbeUnit
@@ -805,6 +805,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_u256_max"             => some ziskU256MaxProbeUnit
   | "zisk_u256_div_u64_be"      => some ziskU256DivU64BeProbeUnit
   | "zisk_runtime_access_account_gas" => some ziskRuntimeAccessAccountGasProbeUnit
+  | "zisk_runtime_access_account_outcome_records" => some ziskRuntimeAccessAccountOutcomeRecordsProbeUnit
   | "zisk_runtime_access_seed_initial" => some ziskRuntimeAccessSeedInitialProbeUnit
   | "zisk_priority_fee_per_gas_eip1559" => some ziskPriorityFeePerGasEip1559ProbeUnit
   | "zisk_effective_gas_price_eip1559" => some ziskEffectiveGasPriceEip1559ProbeUnit
@@ -1113,7 +1114,8 @@ def knownProgramNames : List String :=
    "zisk_u256_to_u64_be",
    "zisk_u256_is_zero", "zisk_u256_min",
    "zisk_u256_max", "zisk_u256_div_u64_be",
-   "zisk_runtime_access_account_gas", "zisk_runtime_access_seed_initial",
+   "zisk_runtime_access_account_gas", "zisk_runtime_access_account_outcome_records",
+   "zisk_runtime_access_seed_initial",
    "zisk_priority_fee_per_gas_eip1559",
    "zisk_effective_gas_price_eip1559",
    "zisk_tx_cost_compute",
@@ -1159,7 +1161,7 @@ def knownProgramNames : List String :=
    "zisk_receipt_records_probe",
    "zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
-   "zisk_bal_gas_valid",
+   "zisk_bal_gas_valid", "zisk_storage_access_gas", "zisk_storage_access_outcome_records",
    "zisk_bal_section_info",
    "zisk_bal_account_path",
    "zisk_bal_account_post_fields",
