@@ -35,9 +35,9 @@ lake exe codegen --program runtime_selfdestruct_account_inputs \
   -o gen-out/runtime_selfdestruct_account_inputs
 
 make_case() {
-  local name="$1" origin="$2" beneficiary="$3" origin_nonce="$4" origin_balance="$5" origin_code_hex="$6" beneficiary_nonce="$7" beneficiary_balance="$8" beneficiary_code_hex="$9"
+  local name="$1" origin="$2" beneficiary="$3" created_in_tx="$4" origin_nonce="$5" origin_balance="$6" origin_code_hex="$7" beneficiary_nonce="$8" beneficiary_balance="$9" beneficiary_code_hex="${10}"
   uv run --directory execution-specs --quiet python3 - \
-    "$RUN_DIR/$name" "$origin" "$beneficiary" \
+    "$RUN_DIR/$name" "$origin" "$beneficiary" "$created_in_tx" \
     "$origin_nonce" "$origin_balance" "$origin_code_hex" \
     "$beneficiary_nonce" "$beneficiary_balance" "$beneficiary_code_hex" <<'INNERPY'
 import struct, sys
@@ -48,10 +48,11 @@ from Crypto.Hash import keccak
 out = Path(sys.argv[1])
 origin = bytes.fromhex(sys.argv[2])
 beneficiary = bytes.fromhex(sys.argv[3])
-origin_nonce, origin_balance = int(sys.argv[4]), int(sys.argv[5])
-origin_code = bytes.fromhex(sys.argv[6])
-beneficiary_nonce, beneficiary_balance = int(sys.argv[7]), int(sys.argv[8])
-beneficiary_code = bytes.fromhex(sys.argv[9])
+created_in_tx = int(sys.argv[4])
+origin_nonce, origin_balance = int(sys.argv[5]), int(sys.argv[6])
+origin_code = bytes.fromhex(sys.argv[7])
+beneficiary_nonce, beneficiary_balance = int(sys.argv[8]), int(sys.argv[9])
+beneficiary_code = bytes.fromhex(sys.argv[10])
 
 def k256(b):
     h = keccak.new(digest_bits=256); h.update(b); return h.digest()
@@ -140,7 +141,10 @@ state_root = k256(root_node)
 header = encode_header(state_root)
 witness_state = build_ssz_section(witness_nodes)
 
-if origin == beneficiary:
+if origin == beneficiary and created_in_tx:
+    origin_expected = account(origin_nonce, 0, origin_code)
+    beneficiary_expected = origin_expected
+elif origin == beneficiary:
     origin_expected = origin_account
     beneficiary_expected = origin_account
 elif origin_balance == 0:
@@ -172,7 +176,9 @@ out.joinpath('header.bin').write_bytes(header)
 out.joinpath('state.bin').write_bytes(witness_state)
 out.joinpath('expected.bin').write_bytes(expected)
 out.joinpath('origin.hex').write_text(origin.hex())
-out.joinpath('beneficiary.csv').write_text(', '.join(f'0x{x:02x}' for x in beneficiary))
+out.joinpath('bytecode.csv').write_text(
+    ', '.join(f'0x{x:02x}' for x in beneficiary + bytes([created_in_tx]))
+)
 INNERPY
 }
 
@@ -180,18 +186,19 @@ ALICE="$(printf 'aa%.0s' $(seq 1 20))"
 BOB="$(printf 'bb%.0s' $(seq 1 20))"
 FAILED=0
 
-make_case same_account "$ALICE" "$ALICE" 7 11 "6001600201" 7 11 "6001600201"
-make_case different_beneficiary "$ALICE" "$BOB" 7 11 "6001600201" 3 5 "6002600301"
-make_case zero_balance_different "$ALICE" "$BOB" 7 0 "6001600201" 3 5 "6002600301"
+make_case same_account "$ALICE" "$ALICE" 0 7 11 "6001600201" 7 11 "6001600201"
+make_case same_created_burn "$ALICE" "$ALICE" 1 7 11 "6001600201" 7 11 "6001600201"
+make_case different_beneficiary "$ALICE" "$BOB" 0 7 11 "6001600201" 3 5 "6002600301"
+make_case zero_balance_different "$ALICE" "$BOB" 0 7 0 "6001600201" 3 5 "6002600301"
 
-for name in same_account different_beneficiary zero_balance_different; do
+for name in same_account same_created_burn different_beneficiary zero_balance_different; do
   echo "==> pack $name"
   origin="$(cat "$RUN_DIR/$name/origin.hex")"
   scripts/pack-bytecode.py \
     --env "address=0x$origin" \
     --state-header-rlp "@$RUN_DIR/$name/header.bin" \
     --witness-state "@$RUN_DIR/$name/state.bin" \
-    "$(cat "$RUN_DIR/$name/beneficiary.csv")" \
+    "$(cat "$RUN_DIR/$name/bytecode.csv")" \
     "$RUN_DIR/$name/input.bin"
 
   echo "==> ziskemu $name"
