@@ -26,6 +26,8 @@ import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
+import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
+import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.BlockRlpSize
@@ -34,6 +36,7 @@ import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
+import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -49,6 +52,9 @@ private def bsrMaxWithdrawalChanges : Nat := 16
 private def bsrMaxAuxChanges : Nat := bsrModeledSystemChanges + bsrMaxWithdrawalChanges
 private def bsrMaxStateChanges : Nat :=
   bsrMaxBalItems + bsrModeledSystemChanges + bsrMaxWithdrawalChanges
+private def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
+private def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
+private def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords
 
 private def bsrAccountRecordBytes : Nat := 24
 private def bsrPathBytes : Nat := 64
@@ -236,6 +242,7 @@ def blockStateRootFunction : String :=
   "  jal ra, bsr_beacon_change; bnez a0, .Lbsr_cons_sys4788\n" ++
   "  # BAL account changes are tx-execution account post-values.\n" ++
   "  li s1, 2                     # change counter (2 system changes already recorded)\n" ++
+  "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
@@ -274,14 +281,68 @@ def blockStateRootFunction : String :=
   "  slli t2, s1, 6; la t3, basr_paths; add a6, t3, t2\n" ++
   "  slli t2, s1, 8; la t3, basr_values; add a7, t3, t2\n" ++
   "  jal ra, bal_account_change_descriptor; bnez a0, .Lbsr_cons_bal_desc\n" ++
+  "  la t0, bsr_changed_account_count; ld t1, 0(t0); li t2, " ++ toString bsrMaxAccessAccounts ++ "; bgeu t1, t2, .Lbsr_changed_addr_record_skip\n" ++
+  "  slli t2, t1, 5; la t3, bsr_changed_accounts; add t3, t3, t2\n" ++
+  "  la t4, bsr_bal_item_ptr; ld a0, 0(t4); la t4, bsr_bal_item_len; ld a1, 0(t4); li a2, 0; la a3, baada_item_off; la a4, baada_item_len\n" ++
+  "  jal ra, rlp_list_nth_item; bnez a0, .Lbsr_cons_bal_desc\n" ++
+  "  la t4, baada_item_len; ld t4, 0(t4); li t5, 20; bne t4, t5, .Lbsr_cons_bal_desc\n" ++
+  "  la t4, bsr_bal_item_ptr; ld t4, 0(t4); la t5, baada_item_off; ld t5, 0(t5); add t4, t4, t5\n" ++
+  "  li t5, 0\n" ++
+  ".Lbsr_changed_addr_copy:\n" ++
+  "  li t6, 20; beq t5, t6, .Lbsr_changed_addr_pad\n" ++
+  "  add a0, t4, t5; lbu a1, 0(a0); add a0, t3, t5; sb a1, 0(a0)\n" ++
+  "  addi t5, t5, 1; j .Lbsr_changed_addr_copy\n" ++
+  ".Lbsr_changed_addr_pad:\n" ++
+  "  li t6, 32; beq t5, t6, .Lbsr_changed_addr_done\n" ++
+  "  add a0, t3, t5; sb zero, 0(a0); addi t5, t5, 1; j .Lbsr_changed_addr_pad\n" ++
+  ".Lbsr_changed_addr_done:\n" ++
+  "  addi t1, t1, 1; la t0, bsr_changed_account_count; sd t1, 0(t0)\n" ++
+  ".Lbsr_changed_addr_record_skip:\n" ++
   "  addi s1, s1, 1\n" ++
   ".Lbsr_bal_copy_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_bal_copy\n" ++
   ".Lbsr_bal_copy_system2935:\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); li a2, 0\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copy_system4788:\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); li a2, 1\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copied:\n" ++
-  "  la t6, bsr_bal_count; ld t6, 0(t6); bnez t6, .Lbsr_apply\n" ++
+  "  la t6, bsr_bal_count; ld t6, 0(t6); bnez t6, .Lbsr_access_descriptors\n" ++
   ".Lbsr_bal_done:\n" ++
+  ".Lbsr_access_descriptors:\n" ++
+  "  la t0, " ++ runtimeAccessAccountOutcomeCountLabel ++ "; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lbsr_storage_access\n" ++
+  "  add t2, s1, t1; li t3, " ++ toString bsrMaxStateChanges ++ "; bgtu t2, t3, .Lbsr_cons_change_cap\n" ++
+  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a4, t3, t2\n" ++
+  "  la a5, bsr_access_paths\n" ++
+  "  la a0, " ++ runtimeAccessAccountOutcomeTableLabel ++ "; mv a1, t1\n" ++
+  "  la a2, bsr_changed_accounts; la t0, bsr_changed_account_count; ld a3, 0(t0)\n" ++
+  "  la a6, bsr_access_count\n" ++
+  "  jal ra, bal_account_access_outcome_descriptors; bnez a0, .Lbsr_cons_account_access\n" ++
+  "  la t0, bsr_access_count; ld t0, 0(t0); add s1, s1, t0\n" ++
+  ".Lbsr_storage_access:\n" ++
+  "  la t0, evm_storage_access_outcome_count; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lbsr_withdrawals\n" ++
+  "  add t2, s1, t1; li t3, " ++ toString bsrMaxStateChanges ++ "; bgtu t2, t3, .Lbsr_cons_change_cap\n" ++
+  "  la t0, bsr_storage_access_window; li t2, 1; sd t2, 0(t0); sd zero, 8(t0); sd t1, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t0, bsr_storage_access_path_count; sd zero, 0(t0)\n" ++
+  "  li s0, 0\n" ++
+  ".Lbsr_storage_access_loop:\n" ++
+  "  la t0, bsr_changed_account_count; ld t6, 0(t0)\n" ++
+  "  beq s0, t6, .Lbsr_withdrawals\n" ++
+  "  slli t2, s0, 5; la t3, bsr_changed_accounts; add t4, t3, t2; la t3, bsr_storage_account_token; add t3, t3, t2\n" ++
+  "  sd zero, 0(t3); sw zero, 8(t3); li t5, 0\n" ++
+  ".Lbsr_storage_token_copy:\n" ++
+  "  li a0, 20; beq t5, a0, .Lbsr_storage_token_done\n" ++
+  "  add a0, t4, t5; lbu a1, 0(a0); addi a0, t5, 12; add a0, t3, a0; sb a1, 0(a0)\n" ++
+  "  addi t5, t5, 1; j .Lbsr_storage_token_copy\n" ++
+  ".Lbsr_storage_token_done:\n" ++
+  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a5, t3, t2\n" ++
+  "  la t0, bsr_storage_access_path_count; ld t2, 0(t0); slli t2, t2, 6; la t3, bsr_storage_access_paths; add a6, t3, t2\n" ++
+  "  la a0, evm_storage_access_outcomes; la t0, evm_storage_access_outcome_count; ld a1, 0(t0); la a2, bsr_storage_access_window; li a3, 1\n" ++
+  "  slli t2, s0, 5; la t3, bsr_storage_account_token; add a4, t3, t2; la a7, bsr_access_count\n" ++
+  "  jal ra, bal_storage_access_outcome_descriptors; bnez a0, .Lbsr_cons_storage_access\n" ++
+  "  la t0, bsr_access_count; ld t0, 0(t0); add t2, s1, t0; li t3, " ++ toString bsrMaxStateChanges ++ "; bgtu t2, t3, .Lbsr_cons_change_cap\n" ++
+  "  la t4, bsr_storage_access_path_count; ld t5, 0(t4); add t5, t5, t0; li t6, " ++ toString bsrMaxStorageAccessOutcomes ++ "; bgtu t5, t6, .Lbsr_cons_change_cap; sd t5, 0(t4)\n" ++
+  "  mv s1, t2; addi s0, s0, 1; j .Lbsr_storage_access_loop\n" ++
+  ".Lbsr_withdrawals:\n" ++
   "  # withdrawal changes: change counter s1 starts after system/BAL changes.\n" ++
   "  # Zero-amount withdrawals are no-ops and do not advance the change counter.\n" ++
   "  li s0, 0                     # withdrawal index\n" ++
@@ -365,6 +426,10 @@ def blockStateRootFunction : String :=
   "  li t0, 112; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_bal_desc:\n" ++
   "  li t0, 113; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
+  ".Lbsr_cons_account_access:\n" ++
+  "  li t0, 114; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
+  ".Lbsr_cons_storage_access:\n" ++
+  "  li t0, 115; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_wd_decode:\n" ++
   "  li t0, 120; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_dup_add:\n" ++
@@ -558,7 +623,17 @@ def blockVerdictFunction : String :=
   "  mv t3, a0\n" ++
   "  ld t4, 0(s0)\n" ++
   "  addi a0, t4, 508; jal ra, bgv_u32le        # withdrawals_offset\n" ++
-  "  bltu t3, a0, .Lbv_code_preimage_flag_done  # transactions present\n" ++
+  "  bleu a0, t3, .Lbv_code_preimage_no_txs\n" ++
+  "  sub t5, a0, t3                             # tx list byte length\n" ++
+  "  li t6, 4; bltu t5, t6, .Lbv_code_preimage_no_txs\n" ++
+  "  ld t4, 0(s0); add t4, t4, t3               # tx list ptr\n" ++
+  "  mv a0, t4; jal ra, bgv_u32le               # first offset = 4 * tx_count\n" ++
+  "  andi t6, a0, 3; bnez t6, .Lbv_code_preimage_no_txs\n" ++
+  "  srli t6, a0, 2\n" ++
+  "  beqz t6, .Lbv_code_preimage_no_txs\n" ++
+  "  bgtu a0, t5, .Lbv_code_preimage_no_txs\n" ++
+  "  j .Lbv_code_preimage_flag_done             # transactions present\n" ++
+  ".Lbv_code_preimage_no_txs:\n" ++
   "  ld t5, 72(s0)\n" ++
   "  beqz t5, .Lbv_code_preimage_flag_done\n" ++
   "  li t6, 1; la t2, bbcv_skip_touch_only; sd t6, 0(t2)\n" ++
@@ -574,6 +649,22 @@ def blockVerdictFunction : String :=
   "  la t2, svf_codes_len; ld a7, 0(t2)\n" ++
   "  jal ra, bal_code_preimages_valid\n" ++
   "  bnez a0, .Lbv_code_preimage_fail\n" ++
+  "  # Upfront sender gas pre-charge gate for the currently parse-supported\n" ++
+  "  # one-transaction path. Use the selected public key tail (x||y) and the\n" ++
+  "  # pre-account record table materialized by block_state_root.\n" ++
+  "  la t2, bv_tx_count; ld t0, 0(t2); li t1, 1; bne t0, t1, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t2, bv_public_keys_len; ld t0, 0(t2); li t1, 65; bne t0, t1, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t2, bv_tx_list_ptr; ld t3, 0(t2); la t2, bv_tx_item_start; ld t4, 0(t2); add s1, t3, t4\n" ++
+  "  la t2, bv_tx_list_len; ld t5, 0(t2); sub s2, t5, t4\n" ++
+  "  la t2, bv_public_keys_ptr; ld a3, 0(t2); addi a3, a3, 1\n" ++
+  "  la t2, bv_exec_p; ld t1, 0(t2); addi a2, t1, 160\n" ++
+  "  mv a0, s1; mv a1, s2\n" ++
+  "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
+  "  la t2, bv_bal_len; ld a5, 0(t2)\n" ++
+  "  la a6, basr_records; la a7, bv_tx_gas_precharge\n" ++
+  "  jal ra, tx_gas_bal_post_verify\n" ++
+  "  la t2, bv_tx_gas_precharge; ld t0, 0(t2); bnez t0, .Lbv_tx_gas_precharge_fail\n" ++
+  ".Lbv_after_tx_gas_precharge:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)             # exec_payload\n" ++
@@ -591,6 +682,8 @@ def blockVerdictFunction : String :=
   "  jal ra, eip7702_nonce_reuse_guard\n" ++
   "  bnez a0, .Lbv_eip7702_nonce_reuse_fail\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0\n" ++
   "  jal ra, block_receipt_records_materialize\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_cmp_mismatch:\n" ++
@@ -621,6 +714,8 @@ def blockVerdictFunction : String :=
   "  li t0, 15; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_empty_tx_fail:\n" ++
   "  li t0, 16; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_tx_gas_precharge_fail:\n" ++
+  "  li t0, 17; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -774,6 +869,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  ld t2, 8(t1); sd t2, 208(t0)\n" ++
   "  ld t2, 16(t1); sd t2, 216(t0)\n" ++
   "  ld t2, 24(t1); sd t2, 224(t0)\n" ++
+  "  la t1, bv_tx_gas_precharge; ld t2, 0(t1); sd t2, 232(t0)\n" ++
+  "  la t1, bv_tx_gas_precharge; ld t2, 8(t1); sd t2, 240(t0)\n" ++
+  "  la t1, bv_tx_gas_precharge; ld t2, 16(t1); sd t2, 248(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
@@ -875,6 +973,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
+  balAccountAccessOutcomeDescriptorsFunction ++ "\n" ++
+  balStorageAccessOutcomeDescriptorsFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
   balAccountIsModeledSystemFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
@@ -895,6 +995,17 @@ def ziskStatelessVerdictV2Prologue : String :=
   balGasValidFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++
+  accountExtractBalanceFunction ++ "\n" ++
+  accountExtractNonceFunction ++ "\n" ++
+  txGasSenderBalLookupFunction ++ "\n" ++
+  txExtractNonceAndGasFunction ++ "\n" ++
+  txExtractGasPricingFunction ++ "\n" ++
+  u256MinFunction ++ "\n" ++
+  priorityFeePerGasEip1559Function ++ "\n" ++
+  txEffectiveGasPricingFunction ++ "\n" ++
+  accountChargeGasPreExecFunction ++ "\n" ++
+  txUpfrontPrechargeFunction ++ "\n" ++
+  txGasBalPostVerifyFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
@@ -906,8 +1017,41 @@ def ziskStatelessVerdictV2Prologue : String :=
   statelessVerdictV2Function ++ "\n" ++
   ".Lv2_pdone:"
 
+private def blockVerdictTxGasPrechargeDataSection : String :=
+  ".balign 8\n" ++
+  "tgsbl_tmp_off:\n  .zero 8\n" ++
+  "tgsbl_tmp_len:\n  .zero 8\n" ++
+  "tgsbl_count:\n  .zero 8\n" ++
+  "tgsbl_row_off:\n  .zero 8\n" ++
+  "tgsbl_row_len:\n  .zero 8\n" ++
+  "tgsbl_addr_off:\n  .zero 8\n" ++
+  "tgsbl_addr_len:\n  .zero 8\n" ++
+  "teng_type:\n  .zero 8\n" ++
+  "teng_inner_off:\n  .zero 8\n" ++
+  "tegp_type:\n  .zero 8\n" ++
+  "tegp_inner_off:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "tefgp_max_priority:\n  .zero 32\n" ++
+  "tefgp_max_fee:\n  .zero 32\n" ++
+  "tefgp_tmp:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "txup_nonce:\n  .zero 8\n" ++
+  "txup_gas_limit:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "txup_effective_gas_price:\n  .zero 32\n" ++
+  "txup_priority_fee:\n  .zero 32\n" ++
+  "acpg_gas_fee:\n  .zero 32\n" ++
+  "tgbpv_balance:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "tgbpv_nonce:\n  .zero 8\n" ++
+  "tgbpv_lookup:\n  .zero 168\n" ++
+  "tgbpv_records:\n  .zero 4096\n" ++
+  "bv_tx_gas_precharge:\n  .zero 128\n"
+
 def ziskStatelessVerdictV2DataSection : String :=
   ziskStatelessVerdictDataSection ++ "\n" ++
+  runtimeAccessAccountOutcomeData ++ "\n" ++
+  storageAccessGasData ++ "\n" ++
   executionRequestsHashDataSection ++ "\n" ++
   ".balign 8\n" ++
   "sltr_field_len:\n  .zero 8\n" ++
@@ -980,6 +1124,30 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_paths:\n  .zero " ++ toString (bsrMaxAuxChanges * bsrPathBytes) ++
   "\nbsr_newaccts:\n  .zero " ++ toString (bsrMaxAuxChanges * bsrSystemAccountBytes) ++
   "\nbsr_changes:\n  .zero " ++ toString (bsrMaxStateChanges * bsrStateChangeBytes) ++ "\n" ++
+  "bsr_changed_account_count:\n  .zero 8\n" ++
+  "bsr_access_count:\n  .zero 8\n" ++
+  "bsr_storage_access_path_count:\n  .zero 8\n" ++
+  "bsr_storage_access_window:\n  .zero 32\n" ++
+  ".balign 32\n" ++
+  "bsr_changed_accounts:\n  .zero " ++ toString (bsrMaxAccessAccounts * 32) ++ "\n" ++
+  "bsr_access_paths:\n  .zero " ++ toString (bsrMaxAccountAccessOutcomes * bsrPathBytes) ++ "\n" ++
+  "bsr_storage_account_token:\n  .zero " ++ toString (bsrMaxAccessAccounts * 32) ++ "\n" ++
+  "bsr_storage_access_paths:\n  .zero " ++ toString (bsrMaxStorageAccessOutcomes * bsrPathBytes) ++ "\n" ++
+  "baaod_hash:\n  .zero 32\n" ++
+  "bsaod_hash:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bsaod_empty_value:\n  .zero 1\n" ++
+  "baaod_empty_account:\n" ++
+  "  .byte 0xf8,0x44,0x80,0x80,0xa0\n" ++
+  "  .byte 0x56,0xe8,0x1f,0x17,0x1b,0xcc,0x55,0xa6\n" ++
+  "  .byte 0xff,0x83,0x45,0xe6,0x92,0xc0,0xf8,0x6e\n" ++
+  "  .byte 0x5b,0x48,0xe0,0x1b,0x99,0x6c,0xad,0xc0\n" ++
+  "  .byte 0x01,0x62,0x2f,0xb5,0xe3,0x63,0xb4,0x21\n" ++
+  "  .byte 0xa0\n" ++
+  "  .byte 0xc5,0xd2,0x46,0x01,0x86,0xf7,0x23,0x3c\n" ++
+  "  .byte 0x92,0x7e,0x7d,0xb2,0xdc,0xc7,0x03,0xc0\n" ++
+  "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
+  "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
   ".balign 32\n" ++
   "bsr_addr_2935:\n" ++
   "  .byte 0x00, 0x00, 0xF9, 0x08, 0x27, 0xF1, 0xC5, 0x3a\n" ++
@@ -1013,9 +1181,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brr_tx_type:\n  .zero 8\n" ++
   "brr_tx_inner:\n  .zero 8\n" ++
   "brr_tx_gas:\n  .zero 8\n" ++
+  "brr_receipt_gas_ptr:\n  .zero 8\n" ++
+  "brr_receipt_gas_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n" ++
+  blockVerdictTxGasPrechargeDataSection ++
   eip7702NonceReuseGuardDataSection ++
   "brl_item_start:\n  .zero 8\n" ++
   "brl_item_end:\n  .zero 8\n" ++

@@ -485,6 +485,25 @@ def emitRuntimeAccountWitnessData : String :=
   "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
+  ".balign 8\n" ++
+  "sdai_status:\n" ++
+  "  .zero 8\n" ++
+  "sdai_origin_len:\n" ++
+  "  .zero 8\n" ++
+  "sdai_beneficiary_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "sdai_state_root:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sdai_origin_address:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sdai_origin_rlp:\n" ++
+  "  .zero 256\n" ++
+  ".balign 32\n" ++
+  "sdai_beneficiary_rlp:\n" ++
+  "  .zero 256\n" ++
   ".balign 32\n" ++
   "eahsr_state_root:\n" ++
   "  .zero 32\n" ++
@@ -940,7 +959,7 @@ def emitDispatcherEpilogue
     ```
     evm_code:         <bytecode> (~50 B)
     .balign 32
-    evm_memory:       .zero 0x8000          (32 KiB EVM memory, M7 onward)
+    evm_memory:       .zero 0x10000         (64 KiB EVM memory, M7 onward)
     .balign 8
     evm_env:          runtime environment and helper scratch follows
     lp64_stack:       helper-call stack
@@ -968,7 +987,7 @@ def emitDispatcherDataSection
   "evm_code_end:\n" ++   -- M33: exact end of baked bytecode (CODESIZE/CODECOPY length)
   ".balign 32\n" ++
   "evm_memory:\n" ++
-  "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
+  "  .zero 0x10000\n" ++  -- 64 KiB EVM memory, enough for Amsterdam MAX_INIT_CODE_SIZE
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 656\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
@@ -1335,7 +1354,7 @@ def emitRuntimeDispatcherDataSection
   ".section .data\n" ++
   ".balign 32\n" ++
   "evm_memory:\n" ++
-  "  .zero 0x8000\n" ++   -- 32 KiB EVM memory (M7 onward)
+  "  .zero 0x10000\n" ++  -- 64 KiB EVM memory, enough for Amsterdam MAX_INIT_CODE_SIZE
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 656\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
@@ -1370,6 +1389,7 @@ def emitRuntimeDispatcherDataSection
   ".balign 32\n" ++
   runtimeAccessAccountTableLabel ++ ":\n" ++
   "  .zero " ++ toString (runtimeAccessAccountCapacity * runtimeAccessAccountRecordSize) ++ "\n" ++
+  runtimeAccessAccountOutcomeData ++
   runtimeAccessSeedScratchLabel ++ ":\n" ++
   "  .zero 32\n" ++
   ".balign 16\n" ++
