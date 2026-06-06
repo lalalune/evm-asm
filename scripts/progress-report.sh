@@ -83,11 +83,8 @@ CONF_COUNT="$(grep -oE 'allConformanceVectorCount = [0-9]+' \
 # --------------------------------------------------------------------
 
 codegen_registry_count() {
-  # Programs.lean may be a thin import hub; count across all registry files.
-  local files="EvmAsm/Codegen/Programs.lean"
-  [ -f EvmAsm/Codegen/Programs/Registry.lean ] && files="$files EvmAsm/Codegen/Programs/Registry.lean"
-  [ -f EvmAsm/Codegen/Programs/CryptoRegistry.lean ] && files="$files EvmAsm/Codegen/Programs/CryptoRegistry.lean"
-  grep -h '=> some' $files 2>/dev/null | grep -c '=> some' || echo 0
+  # Programs.lean may be a thin import hub; count across all registry split files.
+  grep -rh '=> some' EvmAsm/Codegen/Programs.lean EvmAsm/Codegen/Programs/ 2>/dev/null | grep -c '=> some' || echo 0
 }
 
 codegen_milestones() {
