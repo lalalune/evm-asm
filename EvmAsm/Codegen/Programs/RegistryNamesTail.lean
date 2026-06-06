@@ -12,6 +12,7 @@ def knownProgramNamesTail : List String :=
    "zisk_receipt_encode",
    "zisk_typed_receipt_encode",
    "zisk_receipt_records_probe",
+   "zisk_block_verdict_tx_gas_limits",
    "zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
    "zisk_bal_gas_valid",
