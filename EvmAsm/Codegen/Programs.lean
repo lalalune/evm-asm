@@ -105,6 +105,7 @@ import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxExtract
+import EvmAsm.Codegen.Programs.TxTotalBlobGas
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.Bloom
