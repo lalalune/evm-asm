@@ -6,10 +6,6 @@
   registry module small enough to review.
 -/
 
-/- EvmAsm.Codegen.Programs.Imports
-  Umbrella imports for the codegen program registry.
-  Import hub for the codegen program registry.
--/
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.Add.Program
 import EvmAsm.Evm64.AddMod.Program
@@ -61,8 +57,6 @@ import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StatelessGuest
-import EvmAsm.Codegen.Programs.StatelessGuestData
-import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -288,7 +282,7 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
-import EvmAsm.Codegen.Programs.RegistryNames
 import EvmAsm.Codegen.Programs.BlockVerdictGasResults
 import EvmAsm.Codegen.Programs.ReceiptList
 import EvmAsm.Codegen.Programs.StatelessGuestUnit
+import EvmAsm.Codegen.Programs.RegistryNames
