@@ -407,14 +407,15 @@ def statelessGuestDataSection : String :=
   ".balign 8\n" ++
   "npr_node_2_3_scratch:\n" ++
   "  .zero 32\n" ++
-  -- `npr_node_10_11_scratch` holds dynamic
-  -- sha256(leaf_10=extra_data_default_root || leaf_11=base_fee_per_gas).
+  -- `npr_leaf_10_extra_data_scratch` holds dynamic
+  -- hash_tree_root(extra_data), and `npr_node_10_11_scratch` holds
+  -- dynamic sha256(leaf_10=extra_data_root || leaf_11=base_fee_per_gas).
   -- Replaces the previously-static `npr_node_10_11` constant when
-  -- combined with node_8_9 to form node_8_11. Opens up leaf_11
-  -- (base_fee_per_gas) for non-default values; leaf_10
-  -- (extra_data) still uses its empty-list default root
-  -- (= ssz_zero_hash[1]) loaded from the existing
-  -- ssz_zero_hashes table.
+  -- combined with node_8_9 to form node_8_11. Opens up leaf_10
+  -- (extra_data) and leaf_11 (base_fee_per_gas) for non-default values.
+  ".balign 8\n" ++
+  "npr_leaf_10_extra_data_scratch:\n" ++
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "npr_node_10_11_scratch:\n" ++
   "  .zero 32\n" ++
