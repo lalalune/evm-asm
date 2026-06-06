@@ -47,9 +47,9 @@ ENV PATH="/root/.elan/bin:$PATH"
 WORKDIR /evm-asm
 COPY . .
 
-# Install pinned Lean toolchain and build the codegen executable
-RUN elan toolchain install "$(cat lean-toolchain)" \
-    && lake build codegen
+# Install pinned Lean toolchain, fetch precompiled Mathlib oleans, then build
+RUN elan toolchain install "$(cat lean-toolchain)"
+RUN lake exe cache get && lake build codegen
 
 # Emit the stateless_guest RISC-V ELF (codegen appends .elf)
 RUN lake exe codegen --program stateless_guest --halt linux93 \
