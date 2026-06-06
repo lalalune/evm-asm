@@ -160,6 +160,11 @@ def statelessVerdictV2GuestClosure : String :=
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
+  txGasResultIncrementsFunction ++ "\n" ++
+  eip7778RemainingBlockGasCheckFunction ++ "\n" ++
+  eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
+  blockVerdictTxGasLimitsFunction ++ "\n" ++
+  blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
