@@ -18,10 +18,16 @@
 # checkable regions. The expected length is read from each fixture's
 # statelessOutputBytes so future chain_config encodings are not truncated:
 #   * root   -- bytes 0:32  == expected: new_payload_request_root
-#               (computed by the epilogue's SSZ merkle tree; currently
-#               mismatches when the block has non-empty transactions /
-#               withdrawals / requests / block_access_list, since those
-#               list field-roots are still static constants).
+#               (computed by the epilogue's SSZ merkle tree; the
+#               transactions / withdrawals / versioned-hashes /
+#               execution-requests / block_access_list field-roots are
+#               all computed dynamically from the input. The one
+#               remaining static leaf is extra_data -- leaf_10 is
+#               hard-coded to the empty-ByteList root and the offset
+#               slot at exec_payload+436 is never read -- so root
+#               currently mismatches exactly on blocks with non-empty
+#               extra_data. Confirmed by the 2026-06-06 guest-vs-spec
+#               audit.)
 #   * succ   -- byte 32     == expected: successful_validation bit.
 #   * tail   -- bytes 33:end == expected: u32 offset + chain_config
 #               (echoed from the input by the encoder).
