@@ -134,6 +134,7 @@ import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
+import EvmAsm.Codegen.Programs.BlockHashWindow
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.Receipt
@@ -1404,6 +1405,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/HeaderChain.lean",
     "EvmAsm/Codegen/Programs/HeaderFields.lean",
     "EvmAsm/Codegen/Programs/BlockHashPredicates.lean",
+    "EvmAsm/Codegen/Programs/BlockHashWindow.lean",
     "EvmAsm/Codegen/Programs/HeadersKeccak.lean",
     "EvmAsm/Codegen/Programs/HeaderU64.lean",
     "EvmAsm/Codegen/Programs/Mpt.lean",
