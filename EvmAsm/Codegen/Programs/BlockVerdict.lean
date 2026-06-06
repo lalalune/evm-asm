@@ -683,7 +683,7 @@ def blockVerdictFunction : String :=
   "  la t2, bvgr_runtime_count; ld a4, 0(t2)\n" ++
   "  li a5, 16\n" ++
   "  jal ra, block_verdict_gas_result_arena_prepare\n" ++
-  "  bnez a0, .Lbv_gas_result_arena_fail\n" ++
+  "  bnez a0, .Lbv_after_gas_result_gate\n" ++
   "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
   "  la a1, bvgr_tx_gas_limits\n" ++
   "  la a2, bvgr_gas_left\n" ++
@@ -696,17 +696,25 @@ def blockVerdictFunction : String :=
   "  la t2, bv_eip7778_index; sd a1, 0(t2)\n" ++
   "  la t2, bv_eip7778_used; sd a2, 0(t2)\n" ++
   "  bnez a0, .Lbv_eip7778_block_gas_fail\n" ++
+  ".Lbv_after_gas_result_gate:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  mv a1, s3\n" ++
   "  la t2, bv_bal_start; ld a2, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a3, 0(t2)\n" ++
   "  jal ra, eip7702_nonce_reuse_guard\n" ++
   "  bnez a0, .Lbv_eip7702_nonce_reuse_fail\n" ++
+  "  la t2, bvgr_arena_status; ld t2, 0(t2); bnez t2, .Lbv_receipts_no_runtime_gas\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
   "  jal ra, block_receipt_records_materialize\n" ++
   "  la t2, brr_status; ld t2, 0(t2); bnez t2, .Lbv_receipt_records_fail\n" ++
+  "  li a0, 1; j .Lbv_ret\n" ++
+  ".Lbv_receipts_no_runtime_gas:\n" ++
+  "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0\n" ++
+  "  jal ra, block_receipt_records_materialize\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_cmp_mismatch:\n" ++
   "  li t0, 1; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
@@ -738,8 +746,6 @@ def blockVerdictFunction : String :=
   "  li t0, 16; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_tx_gas_precharge_fail:\n" ++
   "  li t0, 17; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_gas_result_arena_fail:\n" ++
-  "  li t0, 18; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip7778_block_gas_fail:\n" ++
   "  li t0, 19; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_receipt_records_fail:\n" ++
@@ -897,9 +903,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  ld t2, 8(t1); sd t2, 208(t0)\n" ++
   "  ld t2, 16(t1); sd t2, 216(t0)\n" ++
   "  ld t2, 24(t1); sd t2, 224(t0)\n" ++
-  "  la t1, bv_tx_gas_precharge; ld t2, 0(t1); sd t2, 232(t0)\n" ++
-  "  la t1, bv_tx_gas_precharge; ld t2, 8(t1); sd t2, 240(t0)\n" ++
-  "  la t1, bv_tx_gas_precharge; ld t2, 16(t1); sd t2, 248(t0)\n" ++
+  "  la t1, bvgr_arena_status; ld t2, 0(t1); sd t2, 232(t0)\n" ++
+  "  la t1, bvgr_arena_tx_count; ld t2, 0(t1); sd t2, 240(t0)\n" ++
+  "  la t1, bvgr_arena_runtime_count; ld t2, 0(t1); sd t2, 248(t0)\n" ++
   "  la t1, bvgr_arena_status; ld t2, 0(t1); sd t2, 256(t0)\n" ++
   "  la t1, bvgr_arena_tx_count; ld t2, 0(t1); sd t2, 264(t0)\n" ++
   "  la t1, bvgr_arena_runtime_count; ld t2, 0(t1); sd t2, 272(t0)\n" ++
