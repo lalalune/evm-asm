@@ -35,6 +35,7 @@ import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
+import EvmAsm.Codegen.Programs.BlockVerdictGasResults
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 namespace EvmAsm.Codegen
@@ -676,11 +677,40 @@ def blockVerdictFunction : String :=
   "  jal ra, eip8037_tx_gas_gate\n" ++
   "  bnez a0, .Lbv_eip8037_gas_fail\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
+  "  la t2, bvgr_runtime_gas_left_ptr; ld a1, 0(t2)\n" ++
+  "  la t2, bvgr_runtime_refund_counter_ptr; ld a2, 0(t2)\n" ++
+  "  la t2, bvgr_runtime_calldata_floor_ptr; ld a3, 0(t2)\n" ++
+  "  la t2, bvgr_runtime_count; ld a4, 0(t2)\n" ++
+  "  li a5, 16\n" ++
+  "  jal ra, block_verdict_gas_result_arena_prepare\n" ++
+  "  bnez a0, .Lbv_after_gas_result_gate\n" ++
+  "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
+  "  la a1, bvgr_tx_gas_limits\n" ++
+  "  la a2, bvgr_gas_left\n" ++
+  "  la a3, bvgr_refund_counter\n" ++
+  "  la a4, bvgr_calldata_floor\n" ++
+  "  la t2, bvgr_arena_tx_count; ld a5, 0(t2)\n" ++
+  "  la a6, bvgr_block_gas_increments\n" ++
+  "  jal ra, eip7778_remaining_block_gas_from_results\n" ++
+  "  la t2, bv_eip7778_status; sd a0, 0(t2)\n" ++
+  "  la t2, bv_eip7778_index; sd a1, 0(t2)\n" ++
+  "  la t2, bv_eip7778_used; sd a2, 0(t2)\n" ++
+  "  bnez a0, .Lbv_eip7778_block_gas_fail\n" ++
+  ".Lbv_after_gas_result_gate:\n" ++
+  "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  mv a1, s3\n" ++
   "  la t2, bv_bal_start; ld a2, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a3, 0(t2)\n" ++
   "  jal ra, eip7702_nonce_reuse_guard\n" ++
   "  bnez a0, .Lbv_eip7702_nonce_reuse_fail\n" ++
+  "  la t2, bvgr_arena_status; ld t2, 0(t2); bnez t2, .Lbv_receipts_no_runtime_gas\n" ++
+  "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
+  "  la a1, bvgr_receipt_gas_increments\n" ++
+  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
+  "  jal ra, block_receipt_records_materialize\n" ++
+  "  la t2, brr_status; ld t2, 0(t2); bnez t2, .Lbv_receipt_records_fail\n" ++
+  "  li a0, 1; j .Lbv_ret\n" ++
+  ".Lbv_receipts_no_runtime_gas:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  li a1, 0\n" ++
   "  li a2, 0\n" ++
@@ -716,6 +746,10 @@ def blockVerdictFunction : String :=
   "  li t0, 16; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_tx_gas_precharge_fail:\n" ++
   "  li t0, 17; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_eip7778_block_gas_fail:\n" ++
+  "  li t0, 19; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_receipt_records_fail:\n" ++
+  "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -869,9 +903,20 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  ld t2, 8(t1); sd t2, 208(t0)\n" ++
   "  ld t2, 16(t1); sd t2, 216(t0)\n" ++
   "  ld t2, 24(t1); sd t2, 224(t0)\n" ++
-  "  la t1, bv_tx_gas_precharge; ld t2, 0(t1); sd t2, 232(t0)\n" ++
-  "  la t1, bv_tx_gas_precharge; ld t2, 8(t1); sd t2, 240(t0)\n" ++
-  "  la t1, bv_tx_gas_precharge; ld t2, 16(t1); sd t2, 248(t0)\n" ++
+  "  la t1, bvgr_arena_status; ld t2, 0(t1); sd t2, 232(t0)\n" ++
+  "  la t1, bvgr_arena_tx_count; ld t2, 0(t1); sd t2, 240(t0)\n" ++
+  "  la t1, bvgr_arena_runtime_count; ld t2, 0(t1); sd t2, 248(t0)\n" ++
+  "  la t1, bvgr_arena_status; ld t2, 0(t1); sd t2, 256(t0)\n" ++
+  "  la t1, bvgr_arena_tx_count; ld t2, 0(t1); sd t2, 264(t0)\n" ++
+  "  la t1, bvgr_arena_runtime_count; ld t2, 0(t1); sd t2, 272(t0)\n" ++
+  "  la t1, bvgr_arena_fail_index; ld t2, 0(t1); sd t2, 280(t0)\n" ++
+  "  la t1, bvgr_arena_substatus; ld t2, 0(t1); sd t2, 288(t0)\n" ++
+  "  la t1, bv_eip7778_status; ld t2, 0(t1); sd t2, 296(t0)\n" ++
+  "  la t1, bv_eip7778_index; ld t2, 0(t1); sd t2, 304(t0)\n" ++
+  "  la t1, bv_eip7778_used; ld t2, 0(t1); sd t2, 312(t0)\n" ++
+  "  la t1, bvgr_tx_gas_limits; ld t2, 0(t1); sd t2, 320(t0)\n" ++
+  "  la t1, bvgr_block_gas_increments; ld t2, 0(t1); sd t2, 328(t0)\n" ++
+  "  la t1, bvgr_receipt_gas_increments; ld t2, 0(t1); sd t2, 336(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
@@ -1009,6 +1054,11 @@ def ziskStatelessVerdictV2Prologue : String :=
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
+  txGasResultIncrementsFunction ++ "\n" ++
+  eip7778RemainingBlockGasCheckFunction ++ "\n" ++
+  eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
+  blockVerdictTxGasLimitsFunction ++ "\n" ++
+  blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
@@ -1186,6 +1236,33 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n" ++
+  "bvgr_runtime_gas_left_ptr:\n  .zero 8\n" ++
+  "bvgr_runtime_refund_counter_ptr:\n  .zero 8\n" ++
+  "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++
+  "bvgr_runtime_count:\n  .zero 8\n" ++
+  "bv_eip7778_status:\n  .zero 8\n" ++
+  "bv_eip7778_index:\n  .zero 8\n" ++
+  "bv_eip7778_used:\n  .zero 8\n" ++
+  "bvgr_status:\n  .zero 8\n" ++
+  "bvgr_count:\n  .zero 8\n" ++
+  "bvgr_fail_index:\n  .zero 8\n" ++
+  "bvgr_tx_type:\n  .zero 8\n" ++
+  "bvgr_tx_inner:\n  .zero 8\n" ++
+  "bvgr_nonce:\n  .zero 8\n" ++
+  "bvgr_gas:\n  .zero 8\n" ++
+  "bvgr_arena_status:\n  .zero 8\n" ++
+  "bvgr_arena_tx_count:\n  .zero 8\n" ++
+  "bvgr_arena_runtime_count:\n  .zero 8\n" ++
+  "bvgr_arena_fail_index:\n  .zero 8\n" ++
+  "bvgr_arena_substatus:\n  .zero 8\n" ++
+  "bvgr_tx_gas_limits:\n  .zero 128\n" ++
+  "bvgr_gas_left:\n  .zero 128\n" ++
+  "bvgr_refund_counter:\n  .zero 128\n" ++
+  "bvgr_calldata_floor:\n  .zero 128\n" ++
+  "bvgr_block_gas_increments:\n  .zero 128\n" ++
+  "bvgr_receipt_gas_increments:\n  .zero 128\n" ++
+  "bvgr_before_refund:\n  .zero 128\n" ++
+  "bvgr_applied_refund:\n  .zero 128\n" ++
   blockVerdictTxGasPrechargeDataSection ++
   eip7702NonceReuseGuardDataSection ++
   "brl_item_start:\n  .zero 8\n" ++
