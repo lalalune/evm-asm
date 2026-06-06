@@ -870,13 +870,14 @@ computation). Lifts wired opcode count **108 → 111** (74.5% of the
   with three parametric Programs:
   - `evm_pc codeBaseReg tmpReg` (6 instructions) — `pc = x10 -
     codeBaseReg`, pushed as a 256-bit word.
-  - `evm_jump codeBaseReg destReg tmpReg validityReg` — rejects nonzero upper
-    destination limbs, then uses `x10 := codeBaseReg + dest.low64` and feeds
-    the jump-validity tail. No advance.
-  - `evm_jumpi codeBaseReg destReg condReg tmpReg validityReg` — OR-combines
-    the 4 cond limbs to detect nonzero; taken jumps reject nonzero upper
-    destination limbs, while the cond-zero path falls through without
-    validating dest.
+  - `evm_jump codeBaseReg envBaseReg destReg tmpReg validityReg` — rejects
+    nonzero upper destination limbs and `dest.low64 >= env.codeSize`, then
+    uses `x10 := codeBaseReg + dest.low64` and feeds the jump-validity tail.
+    No advance.
+  - `evm_jumpi codeBaseReg envBaseReg destReg condReg tmpReg validityReg` —
+    OR-combines the 4 cond limbs to detect nonzero; taken jumps reject nonzero
+    upper destination limbs and `dest.low64 >= env.codeSize`, while the
+    cond-zero path falls through without validating dest.
 - **`EvmAsm/Codegen/Dispatch.lean`**: dispatcher prologue (both
   `.data`-baked and runtime-bytecode variants) gains
   `la x21, evm_code` / `li x21, 0x40000010` — the **preserved
@@ -903,12 +904,10 @@ in M15.5** — the inline `LBU` + `0x5b` check; see that section.
 - 256-bit `dest` was originally truncated to its low 64 bits. This was later
   fixed in M15.5 by rejecting taken jumps whose upper destination limbs are
   nonzero.
-- Out-of-bounds `dest` reads beyond the bytecode region into
-  `.data` (stack, memory, env, jump table). The dispatcher's next
-  iteration would read whatever byte is there. M15.5 mitigates this by
-  requiring a JUMPDEST target byte and a pushdata-aware scan before returning
-  to dispatch, but it still does not encode a separate `dest < code.length`
-  guard in the reusable body.
+- Out-of-bounds `dest` originally read beyond the bytecode region into
+  `.data` / runtime input trailer data. This was later fixed in M15.5 by
+  rejecting taken jumps with `dest.low64 >= env.codeSize` before loading
+  `code[dest]`.
 
 **Exit criteria (met).**
 `scripts/codegen-opcodes-runtime-check.sh` exits 0 with all 44
@@ -925,10 +924,10 @@ M15 section + the `ControlFlow/Program.lean` docstring both promised) to avoid
 colliding with the M26–M29 numbers reserved for the stateless-track roadmap.
 
 **Scope.** Rejects jumps to non-canonical 256-bit destinations (any nonzero
-upper destination limb), jumps to non-JUMPDEST bytes, and jumps to `0x5b` bytes
-inside PUSH1..PUSH32 immediate data. The handler tail performs the
-pushdata-aware scan from the bytecode base to the candidate target before
-returning to dispatch.
+upper destination limb), out-of-bounds destinations (`dest.low64 >= code.length`),
+jumps to non-JUMPDEST bytes, and jumps to `0x5b` bytes inside PUSH1..PUSH32
+immediate data. The handler tail performs the pushdata-aware scan from the
+bytecode base to the candidate target before returning to dispatch.
 
 **Dual-use.** The byte *load* lives in the verified `evm_jump`/`evm_jumpi`
 bodies, so the stateless guest's VM (which is designed to plug in these
@@ -937,16 +936,18 @@ handler tail.
 
 **Delivered:**
 - **`EvmAsm/Evm64/ControlFlow/Program.lean`** — `evm_jump` and `evm_jumpi`
-  gain a `validityReg` path. `evm_jump` OR-reduces the upper destination limbs,
-  rejects nonzero upper limbs with a non-`0x5b` sentinel, and otherwise loads
+  gain a `validityReg` path and an `envBaseReg` parameter. `evm_jump`
+  OR-reduces the upper destination limbs, rejects nonzero upper limbs or
+  `dest.low64 >= env.codeSize` with a non-`0x5b` sentinel, and otherwise loads
   `code[dest.low64]`. `evm_jumpi` applies the same destination check only on
   the *taken* path and writes the sentinel `0x5b` on the *not-taken* path, so
   fall-through skips validation. No specs to update — these bodies have no
   `cpsTriple` proofs yet.
-- **`EvmAsm/Codegen/Programs/Evm.lean`** — `controlFlowHandlers` passes `.x17`
-  as `validityReg` and swaps JUMP/JUMPI's `.custom "  ret"` tails for a
-  pushdata-aware validity tail. JUMP also passes `.x16` as the extra scratch
-  register needed to check upper destination limbs.
+- **`EvmAsm/Codegen/Programs/Evm.lean`** — `controlFlowHandlers` passes `.x20`
+  as `envBaseReg`, `.x17` as `validityReg`, and swaps JUMP/JUMPI's
+  `.custom "  ret"` tails for a pushdata-aware validity tail. JUMP also passes
+  `.x16` as the extra scratch register needed to check upper destination limbs
+  and code length.
 - **`EvmAsm/Codegen/Dispatch.lean`** — `emitDispatcherEpilogue` gains an
   `.exit_invalid:` label that zero-fills `OUTPUT[0..32]` and tags
   `halt_kind = 4` (distinct from 0=STOP / 1=RETURN / 2=REVERT, M23) then joins
@@ -954,19 +955,22 @@ handler tail.
   falls through into `exitBody`.
 - **`EvmAsm/Codegen/Tests/Cases.lean`** — `jump_invalid_dest` (`PUSH1 0x00;
   JUMP` → `code[0]=0x60≠0x5b`) and `jumpi_taken_invalid` (taken JUMPI to byte 0)
-  both assert `halt_kind = 4` + zero result; `jumpi_not_taken` gains a
-  `halt_kind = 0` assertion confirming the sentinel path doesn't spuriously
-  halt. Existing `jump_forward` / `jumpi_taken` (which jump to real JUMPDEST
-  bytes) still pass. Total cases 82 → 85.
+  both assert `halt_kind = 4` + zero result. The
+  `jump_out_of_bounds_into_calldata_jumpdest_invalid` and
+  `jumpi_taken_out_of_bounds_into_calldata_jumpdest_invalid` regressions point
+  outside code and at runtime calldata byte `0x5b`, proving the length guard
+  runs before the target-byte load. `jumpi_not_taken` gains a `halt_kind = 0`
+  assertion confirming the sentinel path doesn't spuriously halt. Existing
+  `jump_forward` / `jumpi_taken` (which jump to real JUMPDEST bytes) still pass.
 
-**Known limitations:** Level 2 (precomputed pushdata-aware validity bitmap)
-deferred. `RegistryInvariants` counts unchanged (149 — JUMP/JUMPI stay in
-`controlFlowHandlers`).
+**Known limitations:** validation uses a per-jump pushdata-aware scan instead
+of a precomputed valid-JUMPDEST bitmap. `RegistryInvariants` counts unchanged
+(149 — JUMP/JUMPI stay in `controlFlowHandlers`).
 
 **Exit criteria (met).**
-`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all **85 cases PASS**
-(82 prior + `jump_invalid_dest` + `jumpi_taken_invalid` + the `jumpi_not_taken`
-halt-kind assertion). `scripts/check-progress.sh` exits 0. `lake build
+`scripts/codegen-opcodes-runtime-check.sh` is the ziskemu-backed gate for the
+full opcode registry (355 cases at this update, including the out-of-bounds
+runtime-trailer regressions). `scripts/check-progress.sh` exits 0. `lake build
 EvmAsm.Codegen` clean.
 
 ### M16 — KECCAK256 via ECALL bridge (first precompile pattern) — **DONE (2026-05-27)**

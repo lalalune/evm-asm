@@ -566,6 +566,23 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x01, 0x60, 0x00, 0x57"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0400000000000000" }
+  , -- PUSH1 0x10; JUMP with code length 3. Runtime input layout places
+    -- calldata at offset 16 after bytecode padding and the calldata-length
+    -- word; calldata[0] is 0x5b. A byte-only validity check would accept
+    -- this trailer byte as JUMPDEST, but EVM requires dest < code.length.
+    { name             := "jump_out_of_bounds_into_calldata_jumpdest_invalid"
+      bytecode         := "0x60, 0x10, 0x56"
+      calldata         := "0x5b"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
+  , -- Taken JUMPI has the same code-length bound. With code length 5,
+    -- dest 16 points at calldata[0] = 0x5b in the runtime input trailer,
+    -- not at executable bytecode.
+    { name             := "jumpi_taken_out_of_bounds_into_calldata_jumpdest_invalid"
+      bytecode         := "0x60, 0x01, 0x60, 0x10, 0x57"
+      calldata         := "0x5b"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0400000000000000" }
   , -- PUSH32 0x01...0023; JUMP. Low 64 bits point at byte 35, a real
     -- JUMPDEST, but the upper destination limbs are nonzero, so EVM
     -- requires invalid-jump halt instead of following the truncated low limb.
