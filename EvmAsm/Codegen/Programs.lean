@@ -137,6 +137,7 @@ import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.Receipt
+import EvmAsm.Codegen.Programs.BloomBlock
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
@@ -1382,6 +1383,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/ChainValidateBlob.lean",
     "EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean",
     "EvmAsm/Codegen/Programs/Bloom.lean",
+    "EvmAsm/Codegen/Programs/BloomBlock.lean",
     "EvmAsm/Codegen/Programs/Clz.lean",
     "EvmAsm/Codegen/Programs/Evm.lean",
     "EvmAsm/Codegen/Programs/EvmAccountWitness.lean",
