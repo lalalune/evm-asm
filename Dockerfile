@@ -56,11 +56,11 @@ RUN lake exe codegen --program stateless_guest --halt linux93 \
     -o gen-out/stateless_guest
 
 # Fetch and bake in EEST fixtures (~221 MB, no gh CLI needed; uses curl fallback)
-RUN scripts/eest-fetch-fixtures.sh "${EEST_TAG}"
+RUN bash scripts/eest-fetch-fixtures.sh "${EEST_TAG}"
 
 LABEL org.opencontainers.image.source="https://github.com/Verified-zkEVM/evm-asm"
 LABEL eest.fixture.tag="${EEST_TAG}"
 
-ENTRYPOINT ["scripts/codegen-eest-stateless-check.sh"]
+ENTRYPOINT ["bash", "scripts/codegen-eest-stateless-check.sh"]
 # --jobs 2 keeps RSS under ~14 GB on a 32 GB host; bump to --jobs 4 on 64 GB+
 CMD ["--all", "--jobs", "2", "--quiet-passes", "--no-build"]
