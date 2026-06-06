@@ -308,12 +308,9 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
-<<<<<<< HEAD
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_receipt_records_encode_no_logs" => some ziskReceiptRecordsEncodeNoLogsProbeUnit | "zisk_block_verdict_tx_gas_limits" => some ziskBlockVerdictTxGasLimitsProbeUnit | "zisk_block_verdict_gas_result_arena" => some ziskBlockVerdictGasResultArenaProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
-=======
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit | "zisk_receipt_records_encode_no_logs" => some ziskReceiptRecordsEncodeNoLogsProbeUnit | "zisk_block_verdict_tx_gas_limits" => some ziskBlockVerdictTxGasLimitsProbeUnit | "zisk_block_verdict_gas_result_arena" => some ziskBlockVerdictGasResultArenaProbeUnit
->>>>>>> origin/main
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
@@ -328,12 +325,9 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bal_account_final_descriptor_array" => some ziskBalAccountFinalDescriptorArrayProbeUnit
   | "zisk_bal_account_state_root" => some ziskBalAccountStateRootProbeUnit
   | "zisk_bal_account_state_root_auto" => some ziskBalAccountStateRootAutoProbeUnit
-<<<<<<< HEAD
   | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit | "zisk_tx_gas_sender_bal_lookup" => some ziskTxGasSenderBalLookupProbeUnit | "zisk_tx_gas_bal_post_verify" => some ziskTxGasBalPostVerifyProbeUnit
   | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit | "zisk_bal_account_access_outcome_descriptors" => some ziskBalAccountAccessOutcomeDescriptorsProbeUnit | "zisk_bal_storage_access_outcome_descriptors" => some ziskBalStorageAccessOutcomeDescriptorsProbeUnit | "zisk_tx_gas_sender_bal_lookup" => some ziskTxGasSenderBalLookupProbeUnit | "zisk_tx_gas_bal_post_verify" => some ziskTxGasBalPostVerifyProbeUnit
-=======
   | "zisk_bal_account_record_array" => some ziskBalAccountRecordArrayProbeUnit | "zisk_tx_gas_sender_bal_lookup" => some ziskTxGasSenderBalLookupProbeUnit | "zisk_tx_gas_bal_post_verify" => some ziskTxGasBalPostVerifyProbeUnit | "zisk_bal_account_access_outcome_descriptors" => some ziskBalAccountAccessOutcomeDescriptorsProbeUnit | "zisk_bal_storage_access_outcome_descriptors" => some ziskBalStorageAccessOutcomeDescriptorsProbeUnit
->>>>>>> origin/main
   | "zisk_storage_root_single_slot" => some ziskStorageRootSingleSlotProbeUnit
   | "zisk_account_set_storage_root" => some ziskAccountSetStorageRootProbeUnit
   | "zisk_block_access_list_hash" => some ziskBlockAccessListHashProbeUnit
