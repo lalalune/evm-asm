@@ -17,12 +17,10 @@ import EvmAsm.Evm64.Byte.Program
 import EvmAsm.Evm64.Calldata.LoadProgram
 import EvmAsm.Evm64.Calldata.CopyProgram
 import EvmAsm.Evm64.Calldata.SizeProgram
-import EvmAsm.Evm64.Code.CopyProgram
 import EvmAsm.Evm64.ControlFlow.Program
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.Program
 import EvmAsm.Evm64.Dup.Program
-import EvmAsm.Evm64.Env.Program
 import EvmAsm.Evm64.Eq.Program
 import EvmAsm.Evm64.Exp.Program
 import EvmAsm.Evm64.Gt.Program
@@ -53,6 +51,11 @@ import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Codegen.Programs.EvmTinyInterp
 import EvmAsm.Codegen.Programs.EvmDivModWrappers
 import EvmAsm.Codegen.Programs.EvmStackHandlers
+import EvmAsm.Codegen.Programs.EvmSingletonHandlers
+import EvmAsm.Codegen.Programs.EvmMemoryHandlers
+import EvmAsm.Codegen.Programs.EvmGasHandlers
+import EvmAsm.Codegen.Programs.EvmCodeHandlers
+import EvmAsm.Codegen.Programs.EvmEnvHandlers
 import EvmAsm.Codegen.Programs.EvmMcopyGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Clz
@@ -106,204 +109,6 @@ open EvmAsm.Rv64
     All other opcode bytes fall to `h_invalid` (emitted automatically
     by `emitDispatcherEpilogue`), which takes the same exit path as
     STOP. -/
-
-private def stackUnderflowGuardSaveX10Asm (wordCount : Nat) : String :=
-  stackUnderflowGuardAsm wordCount ++ "\n  mv x9, x10"
-
-/-- Tail used by handlers whose verified body clobbers `x10` (the
-    EVM code pointer in our dispatcher convention). Restores `x10`
-    from `x9` (saved via `preBody`), then advances by 1 and returns. -/
-private def x10RestoreAdvance1 : HandlerTail :=
-  .custom "  mv x10, x9\n  addi x10, x10, 1\n  ret"
-
--- M31: `activeMemorySizeOff`, `updateActiveMemorySizeAsm`, and
--- `updateActiveMemorySizeConstAsm` (active-memory high-water tracking +
--- memory-expansion gas) live in `Programs/EvmMemoryGas.lean` (file-size
--- guardrail; imported above).
-
-/-- Fixed-shape singleton opcodes: parameter-free verified `Program`s
-    that fit the standard `<body>` + `addi x10, x10, 1` + `ret` ABI.
-
-    Four bodies (`evm_mul`, `evm_signextend`, `evm_byte`, `evm_shr`)
-    use `x10` as an internal scratch / accumulator register, which
-    clobbers our dispatcher's preserved EVM code pointer. They carry
-    `preBody := "  mv x9, x10"` to stash x10 in x9 (a register no
-    verified opcode body touches) and use `x10RestoreAdvance1` as
-    the tail to restore before advancing. -/
-def singletonHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_ADD"        , opcodes := [0x01], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_add       , tail := .advanceAndRet 1 }
-  , { label := "h_MUL"        , opcodes := [0x02], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_mul       , tail := x10RestoreAdvance1 }
-  , { label := "h_SUB"        , opcodes := [0x03], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_sub       , tail := .advanceAndRet 1 }
-  , { label := "h_SIGNEXTEND" , opcodes := [0x0b], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_signextend, tail := x10RestoreAdvance1 }
-  , { label := "h_LT"         , opcodes := [0x10], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_lt        , tail := .advanceAndRet 1 }
-  , { label := "h_GT"         , opcodes := [0x11], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_gt        , tail := .advanceAndRet 1 }
-  , { label := "h_SLT"        , opcodes := [0x12], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_slt       , tail := .advanceAndRet 1 }
-  , { label := "h_SGT"        , opcodes := [0x13], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_sgt       , tail := .advanceAndRet 1 }
-  , { label := "h_EQ"         , opcodes := [0x14], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_eq        , tail := .advanceAndRet 1 }
-  , { label := "h_ISZERO"     , opcodes := [0x15], preBody := stackUnderflowGuardAsm 1, body := EvmAsm.Evm64.evm_iszero    , tail := .advanceAndRet 1 }
-  , { label := "h_AND"        , opcodes := [0x16], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_and       , tail := .advanceAndRet 1 }
-  , { label := "h_OR"         , opcodes := [0x17], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_or        , tail := .advanceAndRet 1 }
-  , { label := "h_XOR"        , opcodes := [0x18], preBody := stackUnderflowGuardAsm 2, body := EvmAsm.Evm64.evm_xor       , tail := .advanceAndRet 1 }
-  , { label := "h_NOT"        , opcodes := [0x19], preBody := stackUnderflowGuardAsm 1, body := EvmAsm.Evm64.evm_not       , tail := .advanceAndRet 1 }
-  , { label := "h_BYTE"       , opcodes := [0x1a], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_byte      , tail := x10RestoreAdvance1 }
-  , { label := "h_SHL"        , opcodes := [0x1b], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_shl       , tail := x10RestoreAdvance1 }
-  , { label := "h_SHR"        , opcodes := [0x1c], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_shr       , tail := x10RestoreAdvance1 }
-  , { label := "h_SAR"        , opcodes := [0x1d], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_sar       , tail := x10RestoreAdvance1 }
-  , { label := "h_CLZ"        , opcodes := [0x1e], preBody := stackUnderflowGuardAsm 1, body := []                         , tail := clzTail }
-  , { label := "h_POP"        , opcodes := [0x50], preBody := stackUnderflowGuardAsm 1, body := EvmAsm.Evm64.evm_pop       , tail := .advanceAndRet 1 } ]
-
-/-- M7 memory opcodes. Register-parameterized; the dispatcher
-    prologue sets up `x13 = &evm_memory` (see
-    `EvmAsm/Codegen/Dispatch.lean`). The scratch registers `x14..x18`
-    are caller-saved across the `jalr` from the dispatcher loop;
-    nothing else in the registry preserves them.
-
-    Stack-pointer bookkeeping is internal to the verified bodies:
-    `evm_mload` is net stack-neutral, while `evm_mstore` and
-    `evm_mstore8` each end with `ADDI .x12 .x12 64` so the wrapper
-    uses the standard `.advanceAndRet 1` tail. None of the memory
-    opcodes touch `x10`, so no `preBody` is needed. -/
-def memoryHandlers : List OpcodeHandlerSpec :=
-  [ -- MLOAD: pop offset, push value. memBase=x13;
-    -- scratch: offReg=x15, byteReg=x16, accReg=x17, addrReg=x18.
-    { label   := "h_MLOAD"
-      opcodes := [0x51]
-      preBody := stackUnderflowGuardAsm 1 ++ "\n" ++
-                 "  ld x15, 0(x12)\n" ++
-                 updateActiveMemorySizeConstAsm "mload" "x15" "x16" "x17" "x18" "x19" "x6" true 32
-      body    := EvmAsm.Evm64.evm_mload .x15 .x16 .x17 .x18 .x13
-      tail    := .advanceAndRet 1 }
-  , -- MSTORE: pop offset + value, write 32 bytes BE to memory.
-    -- valReg=x14 (scratch; placeholder per evm_mstore docstring).
-    { label   := "h_MSTORE"
-      opcodes := [0x52]
-      preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
-                 "  ld x15, 0(x12)\n" ++
-                 updateActiveMemorySizeConstAsm "mstore" "x15" "x16" "x17" "x18" "x19" "x6" true 32
-      body    := EvmAsm.Evm64.evm_mstore .x15 .x14 .x16 .x17 .x18 .x13
-      tail    := .advanceAndRet 1 }
-  , -- MSTORE8: pop offset + value, write 1 byte to memory.
-    { label   := "h_MSTORE8"
-      opcodes := [0x53]
-      preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
-                 "  ld x15, 0(x12)\n" ++
-                 updateActiveMemorySizeConstAsm "mstore8" "x15" "x16" "x17" "x18" "x19" "x6" true 1
-      body    := EvmAsm.Evm64.evm_mstore8 .x15 .x14 .x18 .x13
-      tail    := .advanceAndRet 1 } ]
-
-/-- MSIZE pushes the dispatcher-maintained active memory size. It is
-    updated by the concrete memory handlers in this file using the
-    EVM's 32-byte rounding rule. -/
-def memoryMetadataHandlers : List OpcodeHandlerSpec :=
-  [ { label   := "h_MSIZE"
-      opcodes := [0x59]
-      body    := []
-      tail    := .custom <|
-        "  addi x12, x12, -32\n" ++
-        "  ld x14, " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
-        "  sd x14, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "  addi x10, x10, 1\n" ++
-        "  ret" } ]
-
-/-- M30: GAS (0x5a) pushes the dispatcher-maintained remaining gas
-    (env+568, charged per-opcode by the dispatch loop). Mirrors the
-    MSIZE handler — read the env cell, push it as a 256-bit word (low
-    limb = remaining gas, high limbs 0). The loop charges GAS's own
-    cost (BASE = 2) *before* this handler runs, so the pushed value
-    already reflects it, matching EVM semantics. -/
-def gasHandlers : List OpcodeHandlerSpec :=
-  [ { label   := "h_GAS"
-      opcodes := [0x5a]
-      body    := []
-      tail    := .custom <|
-        "  addi x12, x12, -32\n" ++
-        "  ld x14, 568(x20)\n" ++       -- env.gasRemaining (M30)
-        "  sd x14, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "  addi x10, x10, 1\n" ++
-        "  ret" } ]
-
-/-- M33: running-code opcodes CODESIZE (0x38) and CODECOPY (0x39).
-    Both operate on the *currently executing* bytecode, which the
-    dispatcher already holds in memory — code base in `x21` and exact
-    byte length in the `env+codeSizeOff` (= 496) cell, seeded by both
-    dispatcher prologues. No witness / external-account state is needed
-    (unlike BALANCE / EXTCODE*), so these are self-contained.
-
-    - **CODESIZE** — mirrors the MSIZE/GAS env-cell-push shape: push
-      `env.codeSize` as a 256-bit word (low limb = length, high limbs 0).
-    - **CODECOPY** — pops `(destOffset, dataOffset, size)` and runs the
-      verified `Code.evm_codecopy` byte loop (sibling of CALLDATACOPY),
-      copying `code[dataOffset..]` into `memory[destOffset..]` with
-      zero-fill past `len(code)`. The `preBody` charges memory expansion
-      (`updateActiveMemorySizeAsm`) over the destination range and guards
-      against stack underflow (3 operands). -/
-def codeHandlers : List OpcodeHandlerSpec :=
-  [ { label   := "h_CODESIZE"
-      opcodes := [0x38]
-      body    := []
-      tail    := .custom <|
-        "  addi x12, x12, -32\n" ++
-        "  ld x14, " ++ toString EvmAsm.Evm64.Code.codeSizeOff ++ "(x20)\n" ++
-        "  sd x14, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "  addi x10, x10, 1\n" ++
-        "  ret" }
-  , { label   := "h_CODECOPY"
-      opcodes := [0x39]
-      preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
-                 "  ld x14, 0(x12)\n" ++        -- destOffset low limb (MSIZE range)
-                 "  ld x15, 64(x12)\n" ++       -- size low limb (MSIZE range)
-                 copyWordGasAsm "codecopy" "x15" "x16" "x17" "x18" ++
-                 updateActiveMemorySizeAsm "codecopy" "x14" "x15" "x16" "x17" "x18" "x6" true
-      body    := EvmAsm.Evm64.Code.evm_codecopy
-                   .x20 .x13 .x21 .x14 .x15 .x16 .x17 .x18
-      tail    := .advanceAndRet 1 } ]
-
-/-- M12 simple environment opcodes (13 of them, one record each).
-
-    All 13 share the verified body
-    `EvmAsm.Evm64.Env.evm_env_load envBaseReg tmpReg field`
-    (9 instructions = 36 bytes per handler) parameterized over a
-    `SimpleEnvField`. The dispatcher prologue sets `x20 = &evm_env`
-    (a 416-byte = 13×32 region in `.data` initialised to zero), and
-    each handler passes `.x20` as `envBaseReg` plus `.x15` as
-    `tmpReg`. None of these bodies touch `x10`, so `preBody := ""`.
-
-    `x20` was chosen over `x14` (the M8/M9/M10 save register) because
-    DIV/MOD/SDIV/SMOD/ADDMOD all use `preBody := "mv x14, x10"` —
-    `x14` is explicitly "outside the dispatcher's preserved set" per
-    M8's docstring. `x20` is a callee-saved LP64 register with zero
-    references in any `EvmAsm/Evm64/*/Program.lean` and zero uses by
-    any existing handler's `preBody`/`tail`, making it the cleanest
-    long-term home for the env base.
-
-    The env region is zero-initialised; non-zero env values come
-    from a future host-preload PR. The wiring correctness (each
-    opcode byte routes to the right field offset, x12 advances, the
-    32 bytes land on the stack) is what M12 validates. -/
-def envHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_ADDRESS"    , opcodes := [0x30], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .address    , tail := .advanceAndRet 1 }
-  , { label := "h_ORIGIN"     , opcodes := [0x32], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .origin     , tail := .advanceAndRet 1 }
-  , { label := "h_CALLER"     , opcodes := [0x33], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .caller     , tail := .advanceAndRet 1 }
-  , { label := "h_CALLVALUE"  , opcodes := [0x34], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .callValue  , tail := .advanceAndRet 1 }
-  , { label := "h_GASPRICE"   , opcodes := [0x3a], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .gasPrice   , tail := .advanceAndRet 1 }
-  , { label := "h_COINBASE"   , opcodes := [0x41], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .coinbase   , tail := .advanceAndRet 1 }
-  , { label := "h_TIMESTAMP"  , opcodes := [0x42], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .timestamp  , tail := .advanceAndRet 1 }
-  , { label := "h_NUMBER"     , opcodes := [0x43], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .number     , tail := .advanceAndRet 1 }
-  , { label := "h_PREVRANDAO" , opcodes := [0x44], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .prevrandao , tail := .advanceAndRet 1 }
-  , { label := "h_GASLIMIT"   , opcodes := [0x45], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .gasLimit   , tail := .advanceAndRet 1 }
-  , { label := "h_CHAINID"    , opcodes := [0x46], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .chainId    , tail := .advanceAndRet 1 }
-  , { label := "h_SELFBALANCE", opcodes := [0x47], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .selfBalance, tail := .advanceAndRet 1 }
-  , { label := "h_BASEFEE"    , opcodes := [0x48], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .baseFee    , tail := .advanceAndRet 1 } ]
-
 
 /-- EIP-7843 SLOTNUM (0x4b). The runtime input trailer carries the current
     consensus slot number as a 256-bit stack word. The dispatcher prologue
