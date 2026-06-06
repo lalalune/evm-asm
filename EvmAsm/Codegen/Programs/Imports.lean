@@ -1,4 +1,5 @@
 /- EvmAsm.Codegen.Programs.Imports
+  Umbrella imports for the codegen program registry.
   Import hub for the codegen program registry.
 -/
 import EvmAsm.Rv64.Program
