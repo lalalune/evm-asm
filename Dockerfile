@@ -34,7 +34,7 @@ ARG EEST_TAG=zkevm@v0.4.0
 
 # gcc-riscv64-unknown-elf provides riscv64-unknown-elf-{as,ld,gcc}
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl ca-certificates python3 \
+    git curl ca-certificates python3 xxd \
     gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf \
     && rm -rf /var/lib/apt/lists/*
 
