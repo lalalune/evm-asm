@@ -112,15 +112,17 @@ def bsrBeaconChangeFunction : String :=
   "  add t3, t3, t4; addi t3, t3, 7; andi t3, t3, -8; sd t3, 0(t2)\n" ++
   "  la t0, baap_sc_out_count; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbbc_after_ts:\n" ++
-  "  # Descriptor 1: timestamp+8191 slot -> parent_beacon_block_root, unless zero.\n" ++
-  "  la t0, swd_4788_root_vlen; ld a1, 0(t0); beqz a1, .Lbbc_apply_storage\n" ++
+  "  # Descriptor 1: timestamp+8191 slot -> parent_beacon_block_root.\n" ++
+  "  la t0, swd_4788_root_vlen; ld a1, 0(t0); beqz a1, .Lbbc_root_zero\n" ++
   "  la a0, swd_4788_root_val; la t2, baap_storage_value_cursor; ld a2, 0(t2); la a3, srss_rlpval_len\n" ++
   "  jal ra, rlp_encode_bytes\n" ++
   "  la a0, swd_4788_root_slot; li a1, 32; la a2, srss_key; jal ra, zkvm_keccak256\n" ++
-  "  la a0, srss_key; li a1, 32; la a2, baap_storage_paths; addi a2, a2, 64; jal ra, bytes_to_nibbles\n" ++
+  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a2, t2, t1\n" ++
+  "  la a0, srss_key; li a1, 32; jal ra, bytes_to_nibbles\n" ++
   "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbbc_root_insert\n" ++
   "  la t0, baap_storage_root_ptr; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  la a3, baap_storage_paths; addi a3, a3, 64; li a4, 64; la a5, baap_walk_val; la a6, baap_walk_val_len; jal ra, mpt_walk\n" ++
+  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a3, t2, t1\n" ++
+  "  li a4, 64; la a5, baap_walk_val; la a6, baap_walk_val_len; jal ra, mpt_walk\n" ++
   "  beqz a0, .Lbbc_root_modify\n" ++
   "  li t0, 1; bne a0, t0, .Lbbc_fail\n" ++
   ".Lbbc_root_insert:\n" ++
@@ -132,6 +134,25 @@ def bsrBeaconChangeFunction : String :=
   "  slli t2, t0, 6; la t3, baap_storage_paths; add t2, t3, t2; sd t2, 0(t1); li t2, 64; sd t2, 8(t1)\n" ++
   "  la t2, baap_storage_value_cursor; ld t3, 0(t2); sd t3, 16(t1); la t4, srss_rlpval_len; ld t4, 0(t4); sd t4, 24(t1); sd t5, 32(t1)\n" ++
   "  add t3, t3, t4; addi t3, t3, 7; andi t3, t3, -8; sd t3, 0(t2)\n" ++
+  "  addi t0, t0, 1; la t1, baap_sc_out_count; sd t0, 0(t1)\n" ++
+  "  j .Lbbc_apply_storage\n" ++
+  ".Lbbc_root_zero:\n" ++
+  "  # EIP-4788 writes zero to the root slot as a storage deletion. If the\n" ++
+  "  # storage trie is empty or the key is absent, deleting is a no-op.\n" ++
+  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbbc_apply_storage\n" ++
+  "  la a0, swd_4788_root_slot; li a1, 32; la a2, srss_key; jal ra, zkvm_keccak256\n" ++
+  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a2, t2, t1\n" ++
+  "  la a0, srss_key; li a1, 32; jal ra, bytes_to_nibbles\n" ++
+  "  la t0, baap_storage_root_ptr; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
+  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a3, t2, t1\n" ++
+  "  li a4, 64; la a5, baap_walk_val; la a6, baap_walk_val_len; jal ra, mpt_walk\n" ++
+  "  beqz a0, .Lbbc_root_delete_desc\n" ++
+  "  li t0, 1; beq a0, t0, .Lbbc_apply_storage\n" ++
+  "  j .Lbbc_fail\n" ++
+  ".Lbbc_root_delete_desc:\n" ++
+  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; la t2, baap_storage_desc; add t1, t2, t1\n" ++
+  "  slli t2, t0, 6; la t3, baap_storage_paths; add t2, t3, t2; sd t2, 0(t1); li t2, 64; sd t2, 8(t1)\n" ++
+  "  sd zero, 16(t1); sd zero, 24(t1); li t5, 2; sd t5, 32(t1)\n" ++
   "  addi t0, t0, 1; la t1, baap_sc_out_count; sd t0, 0(t1)\n" ++
   ".Lbbc_apply_storage:\n" ++
   "  la t0, baap_sc_out_count; ld a4, 0(t0); beqz a4, .Lbbc_fail\n" ++
