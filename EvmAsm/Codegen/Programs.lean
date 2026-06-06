@@ -122,6 +122,7 @@ import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.Step2Verdict
 import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.HeaderChain
+import EvmAsm.Codegen.Programs.HeaderChainPostMerge
 import EvmAsm.Codegen.Programs.Chain
 import EvmAsm.Codegen.Programs.ChainAggregator
 import EvmAsm.Codegen.Programs.ChainBasefee
@@ -1402,6 +1403,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/Step2Verdict.lean",
     "EvmAsm/Codegen/Programs/HeaderDecode.lean",
     "EvmAsm/Codegen/Programs/HeaderChain.lean",
+    "EvmAsm/Codegen/Programs/HeaderChainPostMerge.lean",
     "EvmAsm/Codegen/Programs/HeaderFields.lean",
     "EvmAsm/Codegen/Programs/BlockHashPredicates.lean",
     "EvmAsm/Codegen/Programs/HeadersKeccak.lean",
