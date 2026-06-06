@@ -250,6 +250,7 @@ import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.Withdrawal
+import EvmAsm.Codegen.Programs.WithdrawalBlockSummary
 import EvmAsm.Codegen.Programs.WithdrawalPath
 import EvmAsm.Codegen.Programs.SszWithdrawal
 import EvmAsm.Codegen.Programs.SszWitnessState
@@ -1448,6 +1449,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/TxSigningHash.lean",
     "EvmAsm/Codegen/Programs/U256.lean",
     "EvmAsm/Codegen/Programs/Withdrawal.lean",
+    "EvmAsm/Codegen/Programs/WithdrawalBlockSummary.lean",
     "EvmAsm/Codegen/Programs/WithdrawalPath.lean",
     "EvmAsm/Codegen/Programs/SszWithdrawal.lean",
     "EvmAsm/Codegen/Programs/SszWitnessState.lean",
