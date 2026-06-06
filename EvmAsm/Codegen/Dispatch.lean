@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.EvmOpcodes
+import EvmAsm.Codegen.Programs.EvmNonce
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
@@ -1325,12 +1326,56 @@ def emitRuntimeDispatcherSetup : String :=
   "  ld x8, 24(x5)\n" ++
   "  sd x8, 648(x20)\n" ++
   "  addi x5, x5, 32\n" ++
-  -- M30/M31: gas limit trailer followed by optional account-witness
-  -- context. pack-bytecode.py always appends the three length cells;
-  -- zero header length means no state context is available.
+  -- M30/M35/M31: gas limit trailer, optional transaction intrinsic-gas
+  -- validation controls, then optional account-witness context. When the
+  -- tx-gas validation flag is zero, the gas trailer is treated as execution
+  -- gas for backwards-compatible opcode-runtime tests. When it is nonzero,
+  -- the trailer is transaction gas: compute Amsterdam call/create intrinsic
+  -- gas plus the EIP-7623 calldata floor, reject if gas < max(intrinsic,
+  -- floor), and start execution with gas - intrinsic.
   "  ld x6, 0(x5)\n" ++
-  "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = input gas limit
+  "  addi x5, x5, 8\n" ++          -- x5 = &(tx gas validation flag)
+  "  ld x7, 0(x5)\n" ++            -- x7 = validate_tx_gas flag
+  "  addi x5, x5, 8\n" ++          -- x5 = &(tx is_creation flag)
+  "  ld x8, 0(x5)\n" ++            -- x8 = is_creation
   "  addi x5, x5, 8\n" ++          -- x5 = &(account-witness header_len)
+  "  beqz x7, .runtime_tx_gas_done\n" ++
+  "  li x7, 21000\n" ++            -- x7 = intrinsic = TX_BASE
+  "  li x10, 21000\n" ++           -- x10 = data floor = TX_BASE
+  "  beqz x8, .runtime_tx_gas_no_create\n" ++
+  "  li x8, 32000\n" ++            -- TX_CREATE
+  "  add x7, x7, x8\n" ++
+  ".runtime_tx_gas_no_create:\n" ++
+  "  ld x8, 424(x20)\n" ++         -- x8 = calldata length
+  "  ld x9, 416(x20)\n" ++         -- x9 = calldata ptr
+  "  ld x12, 424(x20)\n" ++        -- x12 = calldata length for initcode words
+  ".runtime_tx_gas_data_loop:\n" ++
+  "  beqz x8, .runtime_tx_gas_create_words\n" ++
+  "  lbu x11, 0(x9)\n" ++
+  "  beqz x11, .runtime_tx_gas_zero_byte\n" ++
+  "  addi x7, x7, 16\n" ++
+  "  addi x10, x10, 40\n" ++
+  "  j .runtime_tx_gas_data_step\n" ++
+  ".runtime_tx_gas_zero_byte:\n" ++
+  "  addi x7, x7, 4\n" ++
+  "  addi x10, x10, 10\n" ++
+  ".runtime_tx_gas_data_step:\n" ++
+  "  addi x9, x9, 1\n" ++
+  "  addi x8, x8, -1\n" ++
+  "  j .runtime_tx_gas_data_loop\n" ++
+  ".runtime_tx_gas_create_words:\n" ++
+  "  ld x8, -8(x5)\n" ++           -- x8 = is_creation
+  "  beqz x8, .runtime_tx_gas_check\n" ++
+  "  addi x12, x12, 31\n" ++
+  "  srli x12, x12, 5\n" ++        -- ceil(calldata_len / 32)
+  "  slli x12, x12, 1\n" ++        -- CODE_INIT_PER_WORD = 2
+  "  add x7, x7, x12\n" ++
+  ".runtime_tx_gas_check:\n" ++
+  "  bltu x6, x7, .exit_outofgas\n" ++
+  "  bltu x6, x10, .exit_outofgas\n" ++
+  "  sub x6, x6, x7\n" ++
+  ".runtime_tx_gas_done:\n" ++
+  "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
   "  ld x6, 0(x5)\n" ++            -- x6 = header_len
   "  sd x6, 584(x20)\n" ++
   "  ld x7, 8(x5)\n" ++            -- x7 = witness_state_len

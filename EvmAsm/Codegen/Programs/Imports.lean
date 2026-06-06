@@ -1,4 +1,5 @@
 /- EvmAsm.Codegen.Programs.Imports
+  Umbrella imports for the codegen program registry.
   Import hub for the codegen program registry.
 -/
 import EvmAsm.Rv64.Program
@@ -86,6 +87,8 @@ import EvmAsm.Codegen.Programs.BalAccountNthDescriptor
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
+import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
+import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.StorageEffectRecords
 import EvmAsm.Codegen.Programs.SstoreGasRefund
@@ -93,6 +96,7 @@ import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.AccountApplyStorage
