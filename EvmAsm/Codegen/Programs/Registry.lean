@@ -82,6 +82,7 @@ import EvmAsm.Codegen.Programs.BalAccountChangeValue
 import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
 import EvmAsm.Codegen.Programs.BalAccountNthDescriptor
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
+import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
