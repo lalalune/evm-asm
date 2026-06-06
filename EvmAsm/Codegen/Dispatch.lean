@@ -333,13 +333,19 @@ def emitPrecompileFrameData : String :=
 
     `evm_selfdestruct_beneficiary` stores the popped beneficiary address as
     20 canonical big-endian bytes (the low 160 bits of the EVM stack word,
-    with higher bits ignored). `evm_selfdestruct_staged` is a u64 flag used by
-    the test/diagnostic surface until later account-access/state children
-    consume this staged beneficiary directly. -/
+    with higher bits ignored). `evm_selfdestruct_created_in_tx` is the
+    transaction-local EIP-6780 marker that CREATE/CREATE2 integration will set
+    before SELFDESTRUCT reaches balance/deletion handling. It defaults to zero.
+    `evm_selfdestruct_staged` is a u64 flag used by the test/diagnostic surface
+    until later account-access/state children consume this staged beneficiary
+    directly. -/
 def emitSelfdestructData : String :=
   ".balign 32\n" ++
   "evm_selfdestruct_beneficiary:\n" ++
   "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "evm_selfdestruct_created_in_tx:\n" ++
+  "  .zero 8\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_staged:\n" ++
   "  .zero 8\n"

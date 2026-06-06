@@ -230,7 +230,8 @@ def selfdestructBalanceTransferRuntimeAsm : String :=
   "  la a0, sdai_origin_rlp\n" ++
   "  la a2, sdai_beneficiary_rlp\n" ++
   "  mv a4, t3\n" ++
-  "  li a5, 0\n" ++
+  "  la t0, evm_selfdestruct_created_in_tx\n" ++
+  "  ld a5, 0(t0)\n" ++
   "  la a6, sdai_transfer_output\n" ++
   "  jal ra, selfdestruct_balance_transfer\n" ++
   "  mv t6, a0\n" ++
@@ -274,6 +275,8 @@ Output:
 -/
 def runtimeSelfdestructAccountInputsPrologue : String :=
   emitRuntimeDispatcherSetup ++ "\n" ++
+  "  la t0, evm_selfdestruct_created_in_tx\n" ++
+  "  sd x0, 0(t0)\n" ++
   "  la t0, evm_selfdestruct_beneficiary\n" ++
   "  li t1, 20\n" ++
   "  mv t2, x21\n" ++
@@ -284,6 +287,9 @@ def runtimeSelfdestructAccountInputsPrologue : String :=
   "  addi t0, t0, 1\n" ++
   "  addi t1, t1, -1\n" ++
   "  bnez t1, .L_rsda_copy_beneficiary\n" ++
+  "  lbu t3, 0(t2)\n" ++
+  "  la t0, evm_selfdestruct_created_in_tx\n" ++
+  "  sd t3, 0(t0)\n" ++
   selfdestructLoadAccountInputsAsm ++
   selfdestructBalanceTransferRuntimeAsm ++
   "  li t0, 0xa0010000\n" ++
@@ -405,6 +411,9 @@ def runtimeSelfdestructAccountInputsDataSection : String :=
   ".balign 32\n" ++
   "evm_selfdestruct_beneficiary:\n" ++
   "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "evm_selfdestruct_created_in_tx:\n" ++
+  "  .zero 8\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_staged:\n" ++
   "  .zero 8\n" ++

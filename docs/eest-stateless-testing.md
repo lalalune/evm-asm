@@ -241,6 +241,17 @@ transaction/opcode frontier distinct from the BAL large-witness non-completion.
 Override `EEST_PRECOMPILE_WARMING_JOBS` or `EEST_PRECOMPILE_WARMING_STEPS`
 for this wrapper without changing the broader harness defaults.
 
+Run the focused warm/cold BAL visibility frontier:
+
+```bash
+scripts/codegen-eest-warm-cold-bal-visibility-check.sh
+```
+
+This runs small `precompile_warming` and `stEIP150singleCodeGasPrices/eip2929`
+selections through the stateless guest and fails on harness ERROR/BUDGET rows.
+Use `EEST_WARM_COLD_BAL_MIN_FULL` or `--min-full` to turn the same frontier
+into a hard full-match gate once the remaining EIP-2929 gas semantics are ready.
+
 To see the broader precompile fixture frontier, including families not selected
 by the narrow warming probe, run:
 
