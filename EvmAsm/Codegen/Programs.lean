@@ -41,6 +41,8 @@ import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 import EvmAsm.Codegen.Programs.Evm
+import EvmAsm.Codegen.Programs.EvmMemoryGas
+import EvmAsm.Codegen.Programs.EvmMessageCallGas
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmAccountWitness
 import EvmAsm.Codegen.Programs.EIP7708Logs
@@ -514,6 +516,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
   | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
   | "zisk_intrinsic_gas_amsterdam_counts" => some ziskIntrinsicGasAmsterdamCountsProbeUnit
+  | "zisk_message_call_gas" => some ziskMessageCallGasProbeUnit
   | "zisk_mpt_nibbles_to_compact" => some ziskMptNibblesToCompactProbeUnit
   | "zisk_mpt_compact_to_nibbles" => some ziskMptCompactToNibblesProbeUnit
   | "zisk_mpt_node_classify"      => some ziskMptNodeClassifyProbeUnit
@@ -1321,6 +1324,7 @@ def knownProgramNames : List String :=
    "zisk_header_root_is_empty_trie",
    "zisk_calldata_byte_counts", "zisk_intrinsic_gas_calldata_floor_eip7623",
    "zisk_init_code_cost", "zisk_intrinsic_gas_amsterdam_counts",
+   "zisk_message_call_gas",
    "zisk_mpt_nibbles_to_compact",
    "zisk_mpt_compact_to_nibbles",
    "zisk_mpt_node_classify",
@@ -1387,6 +1391,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/EvmAccountWitness.lean",
     "EvmAsm/Codegen/Programs/EvmBalance.lean",
     "EvmAsm/Codegen/Programs/EvmExtcodecopy.lean", "EvmAsm/Codegen/Programs/EvmMemoryGas.lean",
+    "EvmAsm/Codegen/Programs/EvmMessageCallGas.lean",
     "EvmAsm/Codegen/Programs/EvmArithUnits.lean",
     "EvmAsm/Codegen/Programs/EvmDispatchUnits.lean",
     "EvmAsm/Codegen/Programs/ExpProperty.lean",
