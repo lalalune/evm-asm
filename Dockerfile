@@ -9,6 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libomp-dev libgmp-dev protobuf-compiler uuid-dev \
     nasm libclang-dev clang \
     libopenmpi-dev openmpi-bin \
+    nlohmann-json3-dev \
+    libgrpc++-dev libprotobuf-dev \
+    libsecp256k1-dev libsodium-dev \
+    libpqxx-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
