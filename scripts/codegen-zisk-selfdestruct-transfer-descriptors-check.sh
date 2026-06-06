@@ -76,7 +76,16 @@ desc0 = (
 )
 descs = desc0
 paths = path(origin)
-if count == 2:
+if count == 2 and same == 1 and created == 1:
+    descs += (
+        struct.pack("<Q", 0xA00100A0)
+        + struct.pack("<Q", 64)
+        + struct.pack("<Q", 0)
+        + struct.pack("<Q", 0)
+        + struct.pack("<Q", 2)
+    )
+    paths += path(origin)
+elif count == 2:
     descs += (
         struct.pack("<Q", 0xA00100A0)
         + struct.pack("<Q", 64)
@@ -130,7 +139,7 @@ run_case "different" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
 run_case "same_keep" "cccccccccccccccccccccccccccccccccccccccc" \
   "cccccccccccccccccccccccccccccccccccccccc" 1 0 3 1 || fail=1
 run_case "same_burn" "dddddddddddddddddddddddddddddddddddddddd" \
-  "dddddddddddddddddddddddddddddddddddddddd" 1 1 0 1 || fail=1
+  "dddddddddddddddddddddddddddddddddddddddd" 1 1 0 2 || fail=1
 
 [[ "$fail" -eq 0 ]] && echo "==> PASS: SELFDESTRUCT transfer descriptors match mpt_state_root_ins shape" \
   || { echo "==> FAIL"; exit 1; }
