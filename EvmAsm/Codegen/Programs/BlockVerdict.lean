@@ -1015,6 +1015,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brr_tx_type:\n  .zero 8\n" ++
   "brr_tx_inner:\n  .zero 8\n" ++
   "brr_tx_gas:\n  .zero 8\n" ++
+  "brr_receipt_gas_ptr:\n  .zero 8\n" ++
+  "brr_receipt_gas_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n" ++
