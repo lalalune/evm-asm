@@ -347,7 +347,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
-  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
+  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit | "zisk_storage_access_outcome_records" => some ziskStorageAccessOutcomeRecordsProbeUnit
   | "zisk_bal_section_info"      => some ziskBalSectionInfoProbeUnit
   | "zisk_bal_account_path"      => some ziskBalAccountPathProbeUnit
   | "zisk_bal_account_post_fields" => some ziskBalAccountPostFieldsProbeUnit
@@ -1161,7 +1161,7 @@ def knownProgramNames : List String :=
    "zisk_receipt_records_probe",
    "zisk_single_leaf_trie_root",
    "zisk_system_write_descriptors",
-   "zisk_bal_gas_valid",
+   "zisk_bal_gas_valid", "zisk_storage_access_gas", "zisk_storage_access_outcome_records",
    "zisk_bal_section_info",
    "zisk_bal_account_path",
    "zisk_bal_account_post_fields",
