@@ -56,6 +56,9 @@ import EvmAsm.Codegen.Programs.EvmMemoryHandlers
 import EvmAsm.Codegen.Programs.EvmGasHandlers
 import EvmAsm.Codegen.Programs.EvmCodeHandlers
 import EvmAsm.Codegen.Programs.EvmEnvHandlers
+import EvmAsm.Codegen.Programs.EvmSlotnumHandlers
+import EvmAsm.Codegen.Programs.EvmBlobContextHandlers
+import EvmAsm.Codegen.Programs.EvmBlockHashHandlers
 import EvmAsm.Codegen.Programs.EvmMcopyGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Clz
@@ -109,144 +112,6 @@ open EvmAsm.Rv64
     All other opcode bytes fall to `h_invalid` (emitted automatically
     by `emitDispatcherEpilogue`), which takes the same exit path as
     STOP. -/
-
-/-- EIP-7843 SLOTNUM (0x4b). The runtime input trailer carries the current
-    consensus slot number as a 256-bit stack word. The dispatcher prologue
-    copies that word to `evm_env + 624`; this handler pushes it unchanged. -/
-def slotnumContextHandlers : List OpcodeHandlerSpec :=
-  let slotnumBody : Program :=
-    ADDI .x12 .x12 (-32) ;;
-    LD .x15 .x20 (BitVec.ofNat 12 624) ;;
-    SD .x12 .x15 0 ;;
-    LD .x15 .x20 (BitVec.ofNat 12 632) ;;
-    SD .x12 .x15 8 ;;
-    LD .x15 .x20 (BitVec.ofNat 12 640) ;;
-    SD .x12 .x15 16 ;;
-    LD .x15 .x20 (BitVec.ofNat 12 648) ;;
-    SD .x12 .x15 24
-  [ { label := "h_SLOTNUM"
-    , opcodes := [0x4b]
-    , body := slotnumBody
-    , tail := .advanceAndRet 1 } ]
-
-/-! ## M28 blob-context opcodes
-
-  `BLOBBASEFEE` (0x4a) is an Amsterdam/Cancun context opcode. The
-  executable spec computes it as `calculate_blob_gas_price(block_env.excess_blob_gas)`;
-  this runtime dispatcher receives that already-computed 256-bit word in the
-  `pack-bytecode.py --blob-base-fee` input trailer and copies it to `evm_env+512`.
-
-  `BLOBHASH` (0x49) reads `tx_env.blob_versioned_hashes[index]` from the
-  bounded `evm_blob_hashes` table. The runtime prologue copies up to 16
-  entries from `pack-bytecode.py --blob-hashes` and stores the copied count at
-  `evm_env+544`; indexes outside that count, or indexes with nonzero high
-  limbs, push zero per execution-specs. -/
-def blobContextHandlers : List OpcodeHandlerSpec :=
-  let blobBaseFeeBody : Program :=
-    ADDI .x12 .x12 (-32) ;;
-    LD .x15 .x20 (BitVec.ofNat 12 512) ;;
-    SD .x12 .x15 0 ;;
-    LD .x15 .x20 (BitVec.ofNat 12 520) ;;
-    SD .x12 .x15 8 ;;
-    LD .x15 .x20 (BitVec.ofNat 12 528) ;;
-    SD .x12 .x15 16 ;;
-    LD .x15 .x20 (BitVec.ofNat 12 536) ;;
-    SD .x12 .x15 24
-  [ { label := "h_BLOBBASEFEE"
-    , opcodes := [0x4a]
-    , body := blobBaseFeeBody
-    , tail := .advanceAndRet 1 } ]
-  ++
-  [ { label := "h_BLOBHASH"
-    , opcodes := [0x49]
-    , preBody := stackUnderflowGuardAsm 1
-    , body := []
-    , tail := .custom <|
-        "  ld x14, 8(x12)\n" ++          -- high limbs must be zero
-        "  bnez x14, .Lblobhash_zero\n" ++
-        "  ld x14, 16(x12)\n" ++
-        "  bnez x14, .Lblobhash_zero\n" ++
-        "  ld x14, 24(x12)\n" ++
-        "  bnez x14, .Lblobhash_zero\n" ++
-        "  ld x14, 0(x12)\n" ++          -- x14 = low u64 index
-        "  ld x15, 544(x20)\n" ++        -- x15 = copied blob_hash_count
-        "  bgeu x14, x15, .Lblobhash_zero\n" ++
-        "  slli x14, x14, 5\n" ++        -- 32 bytes per versioned hash
-        "  la x15, evm_blob_hashes\n" ++
-        "  add x15, x15, x14\n" ++
-        "  ld x16, 0(x15)\n" ++
-        "  sd x16, 0(x12)\n" ++
-        "  ld x16, 8(x15)\n" ++
-        "  sd x16, 8(x12)\n" ++
-        "  ld x16, 16(x15)\n" ++
-        "  sd x16, 16(x12)\n" ++
-        "  ld x16, 24(x15)\n" ++
-        "  sd x16, 24(x12)\n" ++
-        "  addi x10, x10, 1\n" ++
-        "  ret\n" ++
-        ".Lblobhash_zero:\n" ++
-        "  sd x0, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "  addi x10, x10, 1\n" ++
-        "  ret" } ]
-
-/-- M29 BLOCKHASH handler backed by the runtime block-history trailer.
-
-    Runtime input supplies:
-      - `env + 552`: current block number (`cur`, u64)
-      - `env + 560`: number of loaded recent hashes (`count`, clamped to 256)
-      - `evm_block_hashes`: `count` 32-byte hashes in increasing block-number
-        order, matching execution-specs' `block_env.block_hashes`.
-
-    The handler implements Amsterdam `block_hash` behavior for u64 targets:
-      - nonzero high limbs in the target word -> zero
-      - target >= cur -> zero
-      - cur - target > count -> zero
-      - otherwise copy `block_hashes[count - (cur - target)]` into the
-        popped stack slot.
-
-    Note: env+512..+543 is occupied by BLOBBASEFEE (M28). -/
-def blockHashHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_BLOCKHASH"
-    , opcodes := [0x40]
-    , preBody := stackUnderflowGuardAsm 1
-    , body := []
-    , tail := .custom <|
-        "  ld x14, 8(x12)\n" ++
-        "  bnez x14, .Lblockhash_zero\n" ++
-        "  ld x14, 16(x12)\n" ++
-        "  bnez x14, .Lblockhash_zero\n" ++
-        "  ld x14, 24(x12)\n" ++
-        "  bnez x14, .Lblockhash_zero\n" ++
-        "  ld x14, 0(x12)\n" ++       -- x14 = target block number
-        "  ld x15, 552(x20)\n" ++     -- x15 = current block number (env+552)
-        "  bgeu x14, x15, .Lblockhash_zero\n" ++
-        "  sub x16, x15, x14\n" ++    -- x16 = cur - target, strictly positive
-        "  ld x17, 560(x20)\n" ++     -- x17 = loaded hash count (env+560)
-        "  bgtu x16, x17, .Lblockhash_zero\n" ++
-        "  sub x17, x17, x16\n" ++    -- index = count - age
-        "  slli x17, x17, 5\n" ++     -- index × 32
-        "  la x18, evm_block_hashes\n" ++
-        "  add x18, x18, x17\n" ++
-        "  ld x19, 0(x18)\n" ++
-        "  sd x19, 0(x12)\n" ++
-        "  ld x19, 8(x18)\n" ++
-        "  sd x19, 8(x12)\n" ++
-        "  ld x19, 16(x18)\n" ++
-        "  sd x19, 16(x12)\n" ++
-        "  ld x19, 24(x18)\n" ++
-        "  sd x19, 24(x12)\n" ++
-        "  addi x10, x10, 1\n" ++
-        "  ret\n" ++
-        ".Lblockhash_zero:\n" ++
-        "  sd x0, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "  addi x10, x10, 1\n" ++
-        "  ret" } ]
 
 /-- M13 calldata-context opcodes. Sibling to `envHandlers` — reads the
     `callDataLenOff = 424` cell from the same env block that M12
