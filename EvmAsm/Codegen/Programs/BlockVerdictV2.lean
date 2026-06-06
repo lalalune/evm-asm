@@ -140,6 +140,17 @@ def statelessVerdictV2GuestClosure : String :=
   accountAtHeaderStateRootFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++
+  accountExtractBalanceFunction ++ "\n" ++
+  accountExtractNonceFunction ++ "\n" ++
+  txGasSenderBalLookupFunction ++ "\n" ++
+  txExtractNonceAndGasFunction ++ "\n" ++
+  txExtractGasPricingFunction ++ "\n" ++
+  u256MinFunction ++ "\n" ++
+  priorityFeePerGasEip1559Function ++ "\n" ++
+  txEffectiveGasPricingFunction ++ "\n" ++
+  accountChargeGasPreExecFunction ++ "\n" ++
+  txUpfrontPrechargeFunction ++ "\n" ++
+  txGasBalPostVerifyFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
