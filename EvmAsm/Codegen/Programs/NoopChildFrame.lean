@@ -775,8 +775,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x18, x15, 32\n" ++
     "  li x19, 48\n" ++
     "20:\n" ++
-    "  lbu x20, 0(x17)\n" ++
-    "  sb x20, 0(x18)\n" ++
+    "  lbu x16, 0(x17)\n" ++
+    "  sb x16, 0(x18)\n" ++
     "  addi x17, x17, 1\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x19, x19, -1\n" ++
@@ -787,8 +787,8 @@ def childFrameHandlers : List OpcodeHandlerSpec :=
     "  addi x18, x15, 96\n" ++
     "  li x19, 48\n" ++
     "21:\n" ++
-    "  lbu x20, 0(x17)\n" ++
-    "  sb x20, 0(x18)\n" ++
+    "  lbu x16, 0(x17)\n" ++
+    "  sb x16, 0(x18)\n" ++
     "  addi x17, x17, 1\n" ++
     "  addi x18, x18, 1\n" ++
     "  addi x19, x19, -1\n" ++
