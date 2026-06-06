@@ -41,6 +41,8 @@ open EvmAsm.Rv64
              50 data-section extraction failed
              60 contract creation transaction
              61 non-empty calldata/initcode
+             62 EIP-4844 blob transaction; this helper does not yet account
+                for blob-fee precharge
       +8   tx ptr
       +16  tx len
       +24  selected pubkey ptr (64-byte x||y tail)
@@ -83,6 +85,14 @@ def simpleTransferTxContextFunction : String :=
   "  sd s1, 8(s0); sd s2, 16(s0)\n" ++
   "  la t0, bv_public_keys_ptr; ld t1, 0(t0); addi t1, t1, 1; sd t1, 24(s0)\n" ++
   "  la t0, bv_exec_p; ld t1, 0(t0); addi t1, t1, 160; sd t1, 32(s0)\n" ++
+  "  mv a0, s1; mv a1, s2; la a2, tea_type; la a3, tea_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  beqz a0, .Lsttc_type_ok\n" ++
+  "  li t0, 20; sd t0, 0(s0); j .Lsttc_ret\n" ++
+  ".Lsttc_type_ok:\n" ++
+  "  la t0, tea_type; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lsttc_not_blob_tx\n" ++
+  "  li t0, 62; sd t0, 0(s0); j .Lsttc_ret\n" ++
+  ".Lsttc_not_blob_tx:\n" ++
   "  mv a0, s1; mv a1, s2; la a2, sttc_nonce; addi a3, s0, 40\n" ++
   "  jal ra, tx_extract_nonce_and_gas\n" ++
   "  sd a0, 128(s0)\n" ++
