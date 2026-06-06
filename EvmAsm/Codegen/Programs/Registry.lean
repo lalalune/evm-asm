@@ -275,6 +275,7 @@ import EvmAsm.Codegen.Programs.GasPairAtBlockHash
 import EvmAsm.Codegen.Programs.StatelessGuestUnit
 import EvmAsm.Codegen.Programs.RegistryTail
 import EvmAsm.Codegen.Programs.Imports
+import EvmAsm.Codegen.Programs.RegistryNamesTail
 import EvmAsm.Codegen.Programs.CryptoRegistry
 
 namespace EvmAsm.Codegen
