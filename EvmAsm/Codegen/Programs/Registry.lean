@@ -173,6 +173,7 @@ import EvmAsm.Codegen.Programs.ChainWalkOneStepBack
 import EvmAsm.Codegen.Programs.ChainWalkNStepsBack
 import EvmAsm.Codegen.Programs.StateRootChainWalkBack
 import EvmAsm.Codegen.Programs.BlockNumberAtBlockHash
+import EvmAsm.Codegen.Programs.BlockHashWindow
 import EvmAsm.Codegen.Programs.StateSlotAtBlockNumber
 import EvmAsm.Codegen.Programs.StateAccountAtBlockNumber
 import EvmAsm.Codegen.Programs.BalanceAtBlockNumber
