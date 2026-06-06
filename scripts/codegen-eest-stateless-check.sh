@@ -18,10 +18,10 @@
 # checkable regions, each reported separately so we can see *where* the
 # guest is right, not just full-vs-not:
 #   * root   -- bytes 0:32  == expected: new_payload_request_root
-#               (computed by the epilogue's SSZ merkle tree; currently
-#               mismatches when the block has non-empty transactions /
-#               withdrawals / requests / block_access_list, since those
-#               list field-roots are still static constants).
+#               (computed by the epilogue's SSZ merkle tree from the
+#               guest-visible stateless input. Root mismatches now point to
+#               a concrete unsupported field/path rather than a blanket
+#               "static list roots" limitation.)
 #   * succ   -- byte 32     == expected: successful_validation bit.
 #   * tail   -- bytes 33:105 == expected: u32 offset (=37) + the 68-byte
 #               chain_config (echoed from the input by the encoder).

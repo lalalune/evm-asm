@@ -146,9 +146,9 @@ def statelessGuestValidatorPipeline : String :=
   "  # for the same input shape (spec catches the validator exception\n" ++
   "  # and returns valid=False with chain_config echo + empty NPR root).\n" ++
   "  # Falling through to .Lsg_hash matches the spec: the encoder's\n" ++
-  "  # x11=0 writes valid=False to OUTPUT[32], .Lsg_hash stamps the\n" ++
-  "  # empty_npr_root constant at OUTPUT[0..32), and the codegen halt\n" ++
-  "  # stub takes over.\n" ++
+  "  # x11=0 writes valid=False to OUTPUT[32], .Lsg_hash computes\n" ++
+  "  # the NPR root at OUTPUT[0..32), and the codegen halt stub takes\n" ++
+  "  # over.\n" ++
   "  j .Lsg_hash"
 
 def statelessGuestEpilogue : String :=
@@ -161,28 +161,24 @@ def statelessGuestEpilogue : String :=
   "  #   field_root[1] = hash_tree_root(versioned_hashes)\n" ++
   "  #   field_root[2] = parent_beacon_block_root      (Bytes32 inline)\n" ++
   "  #   field_root[3] = hash_tree_root(execution_requests)\n" ++
-  "  # For all current fixtures every NPR field except\n" ++
-  "  # parent_beacon_block_root is the SSZ default, so field_root[0],\n" ++
-  "  # field_root[1], and field_root[3] are static constants\n" ++
-  "  # (`npr_left_subtree` packages sha256(field_root[0] ||\n" ++
-  "  # field_root[1]); `npr_exec_requests_root` is field_root[3]).\n" ++
+  "  # field_root[0], field_root[1], and field_root[3] are derived\n" ++
+  "  # dynamically into `npr_exec_payload_root`,\n" ++
+  "  # `npr_versioned_hashes_dyn`, and `npr_exec_requests_dyn`.\n" ++
   "  # field_root[2] is read from input at NPR_addr + 8 (NPR_addr\n" ++
   "  # = SSZ_BASE + outer.offsets[0]; for this schema outer.offsets[0]\n" ++
   "  # is always 16).\n" ++
   "  # \n" ++
   "  # Computation:\n" ++
+  "  #   left_subtree  = sha256(npr_exec_payload_root ||\n" ++
+  "  #                          npr_versioned_hashes_dyn)\n" ++
   "  #   right_subtree = sha256(parent_beacon_block_root ||\n" ++
-  "  #                          npr_exec_requests_root)\n" ++
-  "  #   npr_root      = sha256(npr_left_subtree || right_subtree)\n" ++
+  "  #                          npr_exec_requests_dyn)\n" ++
+  "  #   npr_root      = sha256(left_subtree || right_subtree)\n" ++
   "  # \n" ++
   "  # For pbr=zero (every previously-shipped fixture) the\n" ++
   "  # computation reproduces the precomputed `empty_npr_root`\n" ++
   "  # constant. For non-empty pbr it produces the spec-matching\n" ++
   "  # root.\n" ++
-  "  # \n" ++
-  "  # Generalising to non-default execution_payload /\n" ++
-  "  # versioned_hashes / execution_requests requires recomputing\n" ++
-  "  # those field roots dynamically -- deferred to subsequent PRs.\n" ++
   "  # \n" ++
   "  # Re-derive SSZ_BASE in s6 (callee-saved -- survives zkvm_sha256\n" ++
   "  # calls). K-PR pipeline only saves s0-s5 in its validators, so\n" ++
