@@ -84,7 +84,7 @@ def blockStateRootFunction : String :=
   "  mv s4, a4                   # n_wds\n" ++
   "  mv s5, a5                   # out_root\n" ++
   "  # derive the system writes (SSZ_BASE in a6)\n" ++
-  "  mv a0, a6; jal ra, system_write_descriptors\n" ++
+  "  la t0, bsr_ssz_p; ld a0, 0(t0); jal ra, system_write_descriptors\n" ++
   "  # system change 0 = EIP-2935\n" ++
   "  la a0, bsr_addr_2935; la a1, swd_2935_slot; la a2, swd_2935_val\n" ++
   "  la t0, swd_2935_vlen; ld a3, 0(t0); li a4, 0\n" ++
@@ -195,6 +195,9 @@ def blockStateRootFunction : String :=
   "  la t4, bsr_storage_access_path_count; ld t5, 0(t4); add t5, t5, t0; li t6, " ++ toString bsrMaxStorageAccessOutcomes ++ "; bgtu t5, t6, .Lbsr_cons_change_cap; sd t5, 0(t4)\n" ++
   "  mv s1, t2; addi s0, s0, 1; j .Lbsr_storage_access_loop\n" ++
   ".Lbsr_withdrawals:\n" ++
+  "  # BAL rows already include withdrawal-induced balance changes, so avoid\n" ++
+  "  # applying the SSZ withdrawals a second time when BAL replay was present.\n" ++
+  "  la t0, bsr_bal_count; ld t0, 0(t0); bnez t0, .Lbsr_apply\n" ++
   "  # withdrawal changes: change counter s1 starts after system/BAL changes.\n" ++
   "  # Zero-amount withdrawals are no-ops and do not advance the change counter.\n" ++
   "  li s0, 0                     # withdrawal index\n" ++
