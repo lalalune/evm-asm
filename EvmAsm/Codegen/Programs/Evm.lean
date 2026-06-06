@@ -46,6 +46,7 @@ import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Codegen.Programs.EvmTinyInterp
 import EvmAsm.Codegen.Programs.EvmDivModWrappers
 import EvmAsm.Codegen.Programs.EvmDivModHandlers
+import EvmAsm.Codegen.Programs.EvmSignedDivModHandlers
 import EvmAsm.Codegen.Programs.EvmStackHandlers
 import EvmAsm.Codegen.Programs.EvmSingletonHandlers
 import EvmAsm.Codegen.Programs.EvmMemoryHandlers
@@ -156,61 +157,6 @@ open EvmAsm.Rv64
     needs a trampoline-style wrapper (set `x18` to a per-handler
     "restore" stub before the body runs, splice off the body's
     initial save_ra_block). Tracked as the next codegen PR. -/
-/-- Tail for SDIV/SMOD: restore `x10` from `x14`, advance the EVM
-    code pointer by 1, then jump directly to `.dispatch_loop`
-    rather than `ret`-ing. The standard `ret` (= `jalr x0, x1, 0`)
-    won't work for these handlers because the wrapper's inner
-    `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable_v4`
-    clobbers `x1` mid-body — `x1` no longer holds the dispatcher's
-    continuation by the time control reaches this tail. -/
-private def signedDivModTail : HandlerTail :=
-  .custom "  mv x10, x14\n  addi x10, x10, 1\n  j .dispatch_loop"
-
-/-- M9 signed division handlers: SDIV (0x05) and SMOD (0x07).
-
-    Different wrapping than M8's DIV/MOD because `evm_sdiv` /
-    `evm_smod` end with a "saved-ra-ret" pattern (`JALR x0, x18, 0`
-    after the wrapper copies `x1` into `x18` at entry) — this
-    bypasses the dispatcher's standard `.advanceAndRet` / `divModTail`
-    tail entirely.
-
-    **Trampoline pattern:**
-    1. `preBody` saves `x10` to `x14` (same register convention as
-       M8 DIV/MOD; `x14` is untouched by both the SDIV/SMOD
-       wrappers and the inner `evm_div_callable_v4` /
-       `evm_mod_callable_v4`) AND loads `x18` with the address of the
-       per-handler `postBodyLabel` stub via `la x18, h_<NAME>_done`.
-    2. The verified body is `evmSdivPatched` / `evmSmodPatched`,
-       which is the verified `evm_sdiv` / `evm_smod` with the
-       leading `ADDI .x18 .x1 0` save_ra_block dropped. Without
-       the splice, that instruction would overwrite the `x18` we
-       just set up in `preBody`.
-    3. When the body's `JALR x0, x18, 0` fires (mid-body, at the
-       wrapper's `evm_sdiv_saved_ra_ret_block`), control jumps to
-       our `postBodyLabel` stub (one of `h_SDIV_done` /
-       `h_SMOD_done`).
-    4. `signedDivModTail` restores `x10` from `x14`, advances the
-       EVM PC, then `j .dispatch_loop` — bypassing the standard
-       `ret` because the inner `JAL` into the divider clobbered
-       `x1` (so `ret` would jump to garbage).
-
-    Both canonical signed wrappers now route through the v4 callable
-    divider/modulo bodies; the trampoline shape is unchanged by that
-    migration because the saved-ra return convention is the same. -/
-def signedDivModHandlers : List OpcodeHandlerSpec :=
-  [ { label         := "h_SDIV"
-      opcodes       := [0x05]
-      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x18, h_SDIV_done"
-      body          := evmSdivPatched
-      postBodyLabel := some "h_SDIV_done"
-      tail          := signedDivModTail }
-  , { label         := "h_SMOD"
-      opcodes       := [0x07]
-      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x18, h_SMOD_done"
-      body          := evmSmodPatched
-      postBodyLabel := some "h_SMOD_done"
-      tail          := signedDivModTail } ]
-
 /-! ## M10 self-calling opcode — ADDMOD (0x08)
 
     `evm_addmod` is parametric over a JAL byte offset that targets
