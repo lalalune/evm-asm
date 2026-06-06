@@ -139,6 +139,10 @@ def balCodePreimagesValidFunction : String :=
   "  bnez a0, .Lbbcv_next\n" ++
   "  la t0, bbcv_addr_off; ld t1, 0(t0); add a2, s10, t1\n" ++
   "  mv a0, s6; mv a1, s7\n" ++
+  "  jal ra, bal_codes_contains_push20_code_read\n" ++
+  "  bnez a0, .Lbbcv_check_code_non_touch\n" ++
+  "  la t0, bbcv_addr_off; ld t1, 0(t0); add a2, s10, t1\n" ++
+  "  mv a0, s6; mv a1, s7\n" ++
   "  jal ra, bal_codes_contains_push20_call_target\n" ++
   "  beqz a0, .Lbbcv_touch_skip_flags_done\n" ++
   "  # Failed CALL prechecks still require the target account proof during\n" ++
@@ -383,6 +387,80 @@ def balCodePreimagesValidFunction : String :=
   ".Lbce_no:\n" ++
   "  li a0, 0\n" ++
   ".Lbce_ret:\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp)\n" ++
+  "  ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Return 1 iff any witness code contains PUSH20 <addr>; EXTCODESIZE or\n" ++
+  "# PUSH20 <addr>; EXTCODECOPY. These opcodes call WitnessState.get_code,\n" ++
+  "# so a non-empty target code_hash must have a witness.codes preimage.\n" ++
+  "bal_codes_contains_push20_code_read:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp)\n" ++
+  "  sd s3, 24(sp); sd s4, 32(sp); sd s5, 40(sp)\n" ++
+  "  mv s0, a0                  # witness.codes section ptr\n" ++
+  "  mv s1, a1                  # witness.codes section len\n" ++
+  "  mv s2, a2                  # 20-byte target address ptr\n" ++
+  "  beqz s1, .Lbccr_no\n" ++
+  "  lwu t0, 0(s0)              # first element offset = 4*N\n" ++
+  "  srli s3, t0, 2             # s3 = N\n" ++
+  "  li s4, 0\n" ++
+  ".Lbccr_elem_loop:\n" ++
+  "  beq s4, s3, .Lbccr_no\n" ++
+  "  slli t0, s4, 2\n" ++
+  "  add t1, s0, t0\n" ++
+  "  lwu t2, 0(t1)              # element offset\n" ++
+  "  add s5, s0, t2             # element start\n" ++
+  "  addi t3, s4, 1\n" ++
+  "  beq t3, s3, .Lbccr_elem_end_section\n" ++
+  "  slli t3, t3, 2\n" ++
+  "  add t3, s0, t3\n" ++
+  "  lwu t4, 0(t3)\n" ++
+  "  add t4, s0, t4             # element end\n" ++
+  "  j .Lbccr_have_elem_end\n" ++
+  ".Lbccr_elem_end_section:\n" ++
+  "  add t4, s0, s1\n" ++
+  ".Lbccr_have_elem_end:\n" ++
+  "  sub t4, t4, s5             # element len\n" ++
+  "  li t5, 22\n" ++
+  "  bltu t4, t5, .Lbccr_next_elem\n" ++
+  "  sub t6, t4, t5             # max start offset\n" ++
+  "  li t0, 0                   # scan offset\n" ++
+  ".Lbccr_scan_loop:\n" ++
+  "  bgtu t0, t6, .Lbccr_next_elem\n" ++
+  "  add t1, s5, t0\n" ++
+  "  lbu t2, 0(t1)\n" ++
+  "  li t3, 0x73                # PUSH20\n" ++
+  "  bne t2, t3, .Lbccr_advance_scan\n" ++
+  "  li t3, 0                   # address byte index\n" ++
+  ".Lbccr_addr_loop:\n" ++
+  "  li t2, 20\n" ++
+  "  beq t3, t2, .Lbccr_check_opcode\n" ++
+  "  add t4, t1, t3\n" ++
+  "  lbu t4, 1(t4)\n" ++
+  "  add t5, s2, t3\n" ++
+  "  lbu t5, 0(t5)\n" ++
+  "  bne t4, t5, .Lbccr_advance_scan\n" ++
+  "  addi t3, t3, 1\n" ++
+  "  j .Lbccr_addr_loop\n" ++
+  ".Lbccr_check_opcode:\n" ++
+  "  lbu t4, 21(t1)\n" ++
+  "  li t5, 0x3b                # EXTCODESIZE\n" ++
+  "  beq t4, t5, .Lbccr_yes\n" ++
+  "  li t5, 0x3c                # EXTCODECOPY\n" ++
+  "  beq t4, t5, .Lbccr_yes\n" ++
+  ".Lbccr_advance_scan:\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lbccr_scan_loop\n" ++
+  ".Lbccr_next_elem:\n" ++
+  "  addi s4, s4, 1\n" ++
+  "  j .Lbccr_elem_loop\n" ++
+  ".Lbccr_yes:\n" ++
+  "  li a0, 1; j .Lbccr_ret\n" ++
+  ".Lbccr_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbccr_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp)\n" ++
   "  ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp)\n" ++
   "  addi sp, sp, 56\n" ++
