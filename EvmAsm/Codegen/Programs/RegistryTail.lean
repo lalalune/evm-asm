@@ -273,6 +273,7 @@ import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
 import EvmAsm.Codegen.Programs.StatelessGuestUnit
+import EvmAsm.Codegen.Programs.RegistryReceipts
 
 
 namespace EvmAsm.Codegen
@@ -281,11 +282,6 @@ namespace EvmAsm.Codegen
     keep the C-emitted match below clang's default 256 bracket-nesting
     limit. New PRs append arms here, not to `lookupProgram`. -/
 def lookupProgramTail : String → Option BuildUnit
-  | "zisk_bloom_eq" => some ziskBloomEqProbeUnit
-  | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
-  | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
-  | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
-  | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
@@ -319,10 +315,6 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_validate_withdrawals_root_one_w" => some ziskBlockValidateWithdrawalsRootOneWProbeUnit
   | "zisk_block_validate_withdrawals_root_two_w" => some ziskBlockValidateWithdrawalsRootTwoWProbeUnit
   | "zisk_block_validate_withdrawals_root_indexed" => some ziskBlockValidateWithdrawalsRootIndexedProbeUnit
-  | "zisk_block_validate_receipts_root_indexed" => some ziskBlockValidateReceiptsRootIndexedProbeUnit
-  | "zisk_block_validate_receipts_consensus_list" => some ziskBlockValidateReceiptsConsensusListProbeUnit
-  | "zisk_block_validate_receipts_root_one_receipt" => some ziskBlockValidateReceiptsRootOneReceiptProbeUnit
-  | "zisk_block_validate_receipts_root_two_receipts" => some ziskBlockValidateReceiptsRootTwoReceiptsProbeUnit
   | "zisk_block_validate_transactions_root_two_tx" => some ziskBlockValidateTransactionsRootTwoTxProbeUnit
   | "zisk_block_hash_from_header" => some ziskBlockHashFromHeaderProbeUnit
   | "zisk_validate_parent_hash_link" => some ziskValidateParentHashLinkProbeUnit
@@ -338,7 +330,6 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_header_extract_state_root" => some ziskHeaderExtractStateRootProbeUnit
   | "zisk_validate_state_root_against_witness_node" => some ziskValidateStateRootAgainstWitnessNodeProbeUnit
   | "zisk_header_extract_parent_hash" => some ziskHeaderExtractParentHashProbeUnit
-  | "zisk_header_extract_receipts_root" => some ziskHeaderExtractReceiptsRootProbeUnit
   | "zisk_header_extract_transactions_root" => some ziskHeaderExtractTransactionsRootProbeUnit
   | "zisk_header_extract_withdrawals_root" => some ziskHeaderExtractWithdrawalsRootProbeUnit
   | "zisk_header_extract_ommers_hash" => some ziskHeaderExtractOmmersHashProbeUnit
@@ -422,7 +413,6 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_chain_compute_max_extra_data_length" => some ziskChainComputeMaxExtraDataLengthProbeUnit
   | "zisk_chain_extract_first_last_state_root" => some ziskChainExtractFirstLastStateRootProbeUnit
   | "zisk_chain_extract_first_last_block_hash" => some ziskChainExtractFirstLastBlockHashProbeUnit
-  | "zisk_chain_extract_first_last_receipts_root" => some ziskChainExtractFirstLastReceiptsRootProbeUnit
   | "zisk_chain_extract_first_last_transactions_root" => some ziskChainExtractFirstLastTransactionsRootProbeUnit
   | "zisk_chain_extract_first_last_withdrawals_root" => some ziskChainExtractFirstLastWithdrawalsRootProbeUnit
   | "zisk_chain_extract_first_last_prev_randao" => some ziskChainExtractFirstLastPrevRandaoProbeUnit
@@ -438,7 +428,6 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_body_extract_1tx" => some ziskBlockBodyExtract1txProbeUnit
   | "zisk_block_validate_1tx_full" => some ziskBlockValidate1txFullProbeUnit
   | "zisk_block_validate_1tx_full_with_body" => some ziskBlockValidate1txFullWithBodyProbeUnit
-  | "zisk_block_validate_empty_receipts_root" => some ziskBlockValidateEmptyReceiptsRootProbeUnit
   | "zisk_block_validate_empty_block" => some ziskBlockValidateEmptyBlockProbeUnit
   | "zisk_validate_empty_block_with_parent" => some ziskValidateEmptyBlockWithParentProbeUnit
   | "zisk_validate_empty_block_chain" => some ziskValidateEmptyBlockChainProbeUnit
@@ -448,8 +437,6 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_body_validate_empty" => some ziskBlockBodyValidateEmptyProbeUnit
   | "zisk_chain_body_total_tx_count" => some ziskChainBodyTotalTxCountProbeUnit
   | "zisk_chain_body_total_withdrawal_count" => some ziskChainBodyTotalWithdrawalCountProbeUnit
-  | "zisk_block_logs_bloom_from_receipts_list" => some ziskBlockLogsBloomFromReceiptsListProbeUnit
-  | "zisk_block_validate_logs_bloom" => some ziskBlockValidateLogsBloomProbeUnit
   | "zisk_header_root_is_empty_trie" => some ziskHeaderRootIsEmptyTrieProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
@@ -483,6 +470,6 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_block_roots_at_block_hash" => some ziskBlockRootsAtBlockHashProbeUnit
   | "zisk_number_timestamp_pair_at_block_hash" => some ziskNumberTimestampPairAtBlockHashProbeUnit
   | "zisk_gas_pair_at_block_hash" => some ziskGasPairAtBlockHashProbeUnit
-  | _                           => none
+  | name => lookupReceiptProgramTail name
 
 end EvmAsm.Codegen
