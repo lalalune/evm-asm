@@ -38,8 +38,6 @@ import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.FileSizeGuard
-import EvmAsm.Stateless.Entry
-import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmAccountWitness
@@ -52,8 +50,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
-import EvmAsm.Codegen.Programs.StatelessGuestData
-import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
+import EvmAsm.Codegen.Programs.StatelessGuest
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -290,50 +287,6 @@ open EvmAsm.Rv64
     the per-PR header comments inside the destination files for details. -/
 
 /-! ## MPT branch helpers K117 / K118 — moved to `Programs/Mpt.lean` (file-size hard cap). -/
-
-/-! ## stateless_guest body — PR-K5 keccak hash field
-
-    Replaces the zero-stub `new_payload_request_root` field in
-    `Stateless.Entry.run_stateless_guest`'s SSZ output with the
-    keccak256 of the entire SSZ-input byte string the host
-    streamed in via `ziskemu -i`. Concretely:
-
-    - Body: the unchanged `Stateless.Entry.run_stateless_guest`
-      Program. It writes:
-        bytes  0..32 : zero hash (placeholder)
-        byte      32 : successful_validation (PR4/PR5 derived)
-        bytes 33..41 : chain_id (PR3 from-decode)
-        bytes 41..48 : zero gap
-        bytes 48..56 : header_count diagnostic (PR6 from-decode)
-    - Epilogue (raw asm): set up sp, load (data ptr, len) from
-      INPUT_ADDR + (16, 8), set output = OUTPUT_ADDR + 0, and
-      `jal ra, zkvm_keccak256`. The function overwrites
-      OUTPUT[0..32] with keccak256(input bytes), clobbering the
-      zero stub.
-
-    The host-side `compute_new_payload_request_root` per the spec
-    is SSZ `hash_tree_root` (SHA-256), not Keccak. PR-K5 stamps a
-    *content-dependent* hash there so the test harness has a
-    non-trivial value to verify and the keccak bridge is wired
-    into the encoder pipeline end-to-end. Once PR-S series lands,
-    the SHA-256 hash_tree_root replaces this keccak. -/
--- `statelessGuestValidatorPipeline` and `statelessGuestEpilogue`
--- live in `EvmAsm/Codegen/Programs/StatelessGuestEpilogue.lean`
--- (carved out here to satisfy the file-size hard cap; see
--- PR #5870 and PR #5900 for the established submodule pattern).
-
--- `statelessGuestDataSection` lives in
--- `EvmAsm/Codegen/Programs/StatelessGuestData.lean` (carved
--- out here to satisfy the file-size hard cap; see PR #5870
--- and PR #5900 for the established submodule pattern).
-
-def statelessGuestUnit : BuildUnit := {
-  body        := EvmAsm.Stateless.run_stateless_guest
-  epilogueAsm := statelessGuestEpilogue
-  -- guest scratch + the Step-2 verdict's data (zk3_state / rfu_* are dedup'd out
-  -- of the guest section since the appended verdict section provides them).
-  dataAsm     := statelessGuestDataSection ++ "\n" ++ statelessVerdictV2GuestData
-}
 
 /-! ## registry -/
 
@@ -954,6 +907,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/EvmCodes.lean",
     "EvmAsm/Codegen/Programs/RlpRead.lean",
     "EvmAsm/Codegen/Programs/Ssz.lean",
+    "EvmAsm/Codegen/Programs/StatelessGuest.lean",
     "EvmAsm/Codegen/Programs/StatelessGuestData.lean",
     "EvmAsm/Codegen/Programs/StatelessGuestEpilogue.lean",
     "EvmAsm/Codegen/Programs/Tx.lean",
