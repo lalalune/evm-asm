@@ -167,11 +167,15 @@ def blockVerdictTxGasPrechargeDataSection : String :=
   "txup_priority_fee:\n  .zero 32\n" ++
   "acpg_gas_fee:\n  .zero 32\n" ++
   "tgbpv_balance:\n  .zero 32\n" ++
+  "tgbpv_refund:\n  .zero 32\n" ++
+  "tgbpv_expected_balance:\n  .zero 32\n" ++
+  "tgbpv_post_balance:\n  .zero 32\n" ++
+  "tgbpv_value:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpv_nonce:\n  .zero 8\n" ++
   "tgbpv_lookup:\n  .zero 168\n" ++
   "tgbpv_records:\n  .zero 4096\n" ++
-  "bv_tx_gas_precharge:\n  .zero 128\n"
+  "bv_tx_gas_precharge:\n  .zero 224\n"
 
 /- Probe input:
       +8   tx_list_len
