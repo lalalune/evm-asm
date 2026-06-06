@@ -118,6 +118,8 @@ def statelessVerdictV2GuestClosure : String :=
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
+  balAccountAccessOutcomeDescriptorsFunction ++ "\n" ++
+  balStorageAccessOutcomeDescriptorsFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
   balAccountIsModeledSystemFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
