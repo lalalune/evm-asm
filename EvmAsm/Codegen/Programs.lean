@@ -827,6 +827,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_runtime_access_account_gas" => some ziskRuntimeAccessAccountGasProbeUnit
   | "zisk_runtime_access_account_outcome_records" => some ziskRuntimeAccessAccountOutcomeRecordsProbeUnit
   | "zisk_runtime_access_seed_initial" => some ziskRuntimeAccessSeedInitialProbeUnit
+  | "zisk_runtime_access_seed_account_list" => some ziskRuntimeAccessSeedAccountListProbeUnit
   | "zisk_priority_fee_per_gas_eip1559" => some ziskPriorityFeePerGasEip1559ProbeUnit
   | "zisk_effective_gas_price_eip1559" => some ziskEffectiveGasPriceEip1559ProbeUnit
   | "zisk_tx_cost_compute"      => some ziskTxCostComputeProbeUnit
@@ -1144,7 +1145,7 @@ def knownProgramNames : List String :=
    "zisk_u256_is_zero", "zisk_u256_min",
    "zisk_u256_max", "zisk_u256_div_u64_be",
    "zisk_runtime_access_account_gas", "zisk_runtime_access_account_outcome_records",
-   "zisk_runtime_access_seed_initial",
+   "zisk_runtime_access_seed_initial", "zisk_runtime_access_seed_account_list",
    "zisk_priority_fee_per_gas_eip1559",
    "zisk_effective_gas_price_eip1559",
    "zisk_tx_cost_compute",
