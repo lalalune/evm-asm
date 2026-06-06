@@ -8,6 +8,8 @@
 import EvmAsm.Codegen.Programs.BlockVerdict
 import EvmAsm.Codegen.Programs.RequestsHash
 
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
