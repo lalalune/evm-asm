@@ -57,6 +57,7 @@ import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StatelessGuestData
+import EvmAsm.Codegen.Programs.StatelessGuestUnit
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
