@@ -274,6 +274,7 @@ import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
 import EvmAsm.Codegen.Programs.StatelessGuestUnit
 import EvmAsm.Codegen.Programs.RegistryTail
+import EvmAsm.Codegen.Programs.CryptoRegistry
 
 namespace EvmAsm.Codegen
 
@@ -600,7 +601,10 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bloom_or_into" => some ziskBloomOrIntoProbeUnit
   | "zisk_receipt_extract_logs_bloom" => some ziskReceiptExtractLogsBloomProbeUnit
   | "zisk_header_extract_logs_bloom" => some ziskHeaderExtractLogsBloomProbeUnit
-  | s                           => lookupProgramTail s
+  | s                           =>
+      match lookupCryptoProgram s with
+      | some unit => some unit
+      | none => lookupProgramTail s
 
 /-- List of known program names, for use in CLI usage strings. -/
 def knownProgramNames : List String :=
