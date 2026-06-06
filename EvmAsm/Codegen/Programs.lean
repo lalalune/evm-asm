@@ -103,6 +103,7 @@ import EvmAsm.Codegen.Programs.MptNibbles
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
@@ -1441,6 +1442,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/StatelessGuestData.lean",
     "EvmAsm/Codegen/Programs/StatelessGuestEpilogue.lean",
     "EvmAsm/Codegen/Programs/Tx.lean",
+    "EvmAsm/Codegen/Programs/TxBlobGas.lean",
     "EvmAsm/Codegen/Programs/TxDecode.lean",
     "EvmAsm/Codegen/Programs/TxExtract.lean",
     "EvmAsm/Codegen/Programs/TxRoot.lean",
