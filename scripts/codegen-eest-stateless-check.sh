@@ -60,7 +60,7 @@
 #     --job-mem-mib N|auto
 #                        memory budget per ziskemu job (default $EEST_JOB_MEM_MIB
 #                        or auto). Auto is derived from the ziskemu build:
-#                        stock builds budget ~7000 MiB/process; patched lowmem
+#                        stock builds budget ~40960 MiB/process; patched lowmem
 #                        builds advertising PATCHED-lowmem budget 1024 MiB/process
 #                        for this stateless guest workload.
 #                        CPU cap uses one core/job on patched builds and four
@@ -311,10 +311,11 @@ fi
 # independent of the program or step budget. A stock build keeps every ROM
 # instruction in one flat array indexed from the program base; because the
 # embedded float library is linked ~127 MB above the program, that array spans
-# the whole gap (~33M entries) and costs ~6.5 GB. A "PATCHED-lowmem" build moves
-# the float library into its own array; tiny ELFs measure around 30 MB RSS, while
-# the stateless guest measures around 700 MB RSS on real fixtures. We size this
-# harness for the stateless workload.
+# the whole gap (~33M entries). On real stateless-guest fixtures the peak RSS
+# reaches ~38 GB per process; budget to 40 GB to leave a margin. A "PATCHED-lowmem" build moves the float library
+# into its own array; tiny ELFs measure around 30 MB RSS, while the stateless
+# guest measures around 700 MB RSS on real fixtures. We size this harness for
+# the stateless workload.
 ZISKEMU_VERSION="$("$ZISKEMU" --version 2>/dev/null || echo unknown)"
 if [[ "$ZISKEMU_VERSION" == *PATCHED-lowmem* ]]; then
   ZISKEMU_FLAVOR="patched-lowmem"
@@ -322,7 +323,7 @@ if [[ "$ZISKEMU_VERSION" == *PATCHED-lowmem* ]]; then
   ZISKEMU_AUTO_JOB_CPU_THREADS=1
 else
   ZISKEMU_FLAVOR="stock"
-  ZISKEMU_AUTO_JOB_MEM_MIB=7000
+  ZISKEMU_AUTO_JOB_MEM_MIB=40960
   ZISKEMU_AUTO_JOB_CPU_THREADS=4
 fi
 if [[ "$JOB_MEM_MIB" == "auto" ]]; then
