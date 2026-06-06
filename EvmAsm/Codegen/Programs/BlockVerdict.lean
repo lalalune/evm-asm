@@ -558,7 +558,17 @@ def blockVerdictFunction : String :=
   "  mv t3, a0\n" ++
   "  ld t4, 0(s0)\n" ++
   "  addi a0, t4, 508; jal ra, bgv_u32le        # withdrawals_offset\n" ++
-  "  bltu t3, a0, .Lbv_code_preimage_flag_done  # transactions present\n" ++
+  "  bleu a0, t3, .Lbv_code_preimage_no_txs\n" ++
+  "  sub t5, a0, t3                             # tx list byte length\n" ++
+  "  li t6, 4; bltu t5, t6, .Lbv_code_preimage_no_txs\n" ++
+  "  ld t4, 0(s0); add t4, t4, t3               # tx list ptr\n" ++
+  "  mv a0, t4; jal ra, bgv_u32le               # first offset = 4 * tx_count\n" ++
+  "  andi t6, a0, 3; bnez t6, .Lbv_code_preimage_no_txs\n" ++
+  "  srli t6, a0, 2\n" ++
+  "  beqz t6, .Lbv_code_preimage_no_txs\n" ++
+  "  bgtu a0, t5, .Lbv_code_preimage_no_txs\n" ++
+  "  j .Lbv_code_preimage_flag_done             # transactions present\n" ++
+  ".Lbv_code_preimage_no_txs:\n" ++
   "  ld t5, 72(s0)\n" ++
   "  beqz t5, .Lbv_code_preimage_flag_done\n" ++
   "  li t6, 1; la t2, bbcv_skip_touch_only; sd t6, 0(t2)\n" ++
@@ -591,6 +601,8 @@ def blockVerdictFunction : String :=
   "  jal ra, eip7702_nonce_reuse_guard\n" ++
   "  bnez a0, .Lbv_eip7702_nonce_reuse_fail\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0\n" ++
   "  jal ra, block_receipt_records_materialize\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_cmp_mismatch:\n" ++
@@ -1013,6 +1025,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brr_tx_type:\n  .zero 8\n" ++
   "brr_tx_inner:\n  .zero 8\n" ++
   "brr_tx_gas:\n  .zero 8\n" ++
+  "brr_receipt_gas_ptr:\n  .zero 8\n" ++
+  "brr_receipt_gas_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n" ++
