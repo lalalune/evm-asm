@@ -55,6 +55,7 @@ import EvmAsm.Codegen.Programs.EvmDivModWrappers
 import EvmAsm.Codegen.Programs.EvmStackHandlers
 import EvmAsm.Codegen.Programs.EvmSingletonHandlers
 import EvmAsm.Codegen.Programs.EvmMemoryHandlers
+import EvmAsm.Codegen.Programs.EvmGasHandlers
 import EvmAsm.Codegen.Programs.EvmMcopyGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Clz
@@ -108,31 +109,6 @@ open EvmAsm.Rv64
     All other opcode bytes fall to `h_invalid` (emitted automatically
     by `emitDispatcherEpilogue`), which takes the same exit path as
     STOP. -/
-
--- M31: `activeMemorySizeOff`, `updateActiveMemorySizeAsm`, and
--- `updateActiveMemorySizeConstAsm` (active-memory high-water tracking +
--- memory-expansion gas) live in `Programs/EvmMemoryGas.lean` (file-size
--- guardrail; imported above).
-
-/-- M30: GAS (0x5a) pushes the dispatcher-maintained remaining gas
-    (env+568, charged per-opcode by the dispatch loop). Mirrors the
-    MSIZE handler — read the env cell, push it as a 256-bit word (low
-    limb = remaining gas, high limbs 0). The loop charges GAS's own
-    cost (BASE = 2) *before* this handler runs, so the pushed value
-    already reflects it, matching EVM semantics. -/
-def gasHandlers : List OpcodeHandlerSpec :=
-  [ { label   := "h_GAS"
-      opcodes := [0x5a]
-      body    := []
-      tail    := .custom <|
-        "  addi x12, x12, -32\n" ++
-        "  ld x14, 568(x20)\n" ++       -- env.gasRemaining (M30)
-        "  sd x14, 0(x12)\n" ++
-        "  sd x0, 8(x12)\n" ++
-        "  sd x0, 16(x12)\n" ++
-        "  sd x0, 24(x12)\n" ++
-        "  addi x10, x10, 1\n" ++
-        "  ret" } ]
 
 /-- M33: running-code opcodes CODESIZE (0x38) and CODECOPY (0x39).
     Both operate on the *currently executing* bytecode, which the
