@@ -45,6 +45,7 @@ import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Codegen.Programs.EvmTinyInterp
 import EvmAsm.Codegen.Programs.EvmDivModWrappers
+import EvmAsm.Codegen.Programs.EvmDivModHandlers
 import EvmAsm.Codegen.Programs.EvmStackHandlers
 import EvmAsm.Codegen.Programs.EvmSingletonHandlers
 import EvmAsm.Codegen.Programs.EvmMemoryHandlers
@@ -129,7 +130,7 @@ open EvmAsm.Rv64
 -- into scope here by the `import EvmAsm.Codegen.Programs.Noop`
 -- statement near the top of this file.
 
-/-- M8 unsigned division opcodes. Both `evm_div` and `evm_mod` carry
+/- M8 unsigned division opcodes. Both `evm_div` and `evm_mod` carry
     a 75-instruction `divK_div128_v4` subroutine appended after a
     NOP "exit PC" at body index 267; the `evmDivPatched` /
     `evmModPatched` helpers (above) replace that NOP with `JAL .x0
@@ -155,21 +156,6 @@ open EvmAsm.Rv64
     needs a trampoline-style wrapper (set `x18` to a per-handler
     "restore" stub before the body runs, splice off the body's
     initial save_ra_block). Tracked as the next codegen PR. -/
-private def divModTail : HandlerTail :=
-  .custom "  mv x10, x14\n  addi x10, x10, 1\n  ret"
-
-def divModHandlers : List OpcodeHandlerSpec :=
-  [ { label   := "h_DIV"
-      opcodes := [0x04]
-      preBody := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10"
-      body    := evmDivPatched
-      tail    := divModTail }
-  , { label   := "h_MOD"
-      opcodes := [0x06]
-      preBody := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10"
-      body    := evmModPatched
-      tail    := divModTail } ]
-
 /-- Tail for SDIV/SMOD: restore `x10` from `x14`, advance the EVM
     code pointer by 1, then jump directly to `.dispatch_loop`
     rather than `ret`-ing. The standard `ret` (= `jalr x0, x1, 0`)
