@@ -38,7 +38,6 @@ import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.FileSizeGuard
-import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.EvmAccessGas
@@ -52,8 +51,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
-import EvmAsm.Codegen.Programs.StatelessGuestData
-import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
+import EvmAsm.Codegen.Programs.StatelessGuest
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -289,50 +287,6 @@ open EvmAsm.Rv64
     the per-PR header comments inside the destination files for details. -/
 
 /-! ## MPT branch helpers K117 / K118 — moved to `Programs/Mpt.lean` (file-size hard cap). -/
-
-/-! ## stateless_guest body — PR-K5 keccak hash field
-
-    Replaces the zero-stub `new_payload_request_root` field in
-    `Stateless.Entry.run_stateless_guest`'s SSZ output with the
-    keccak256 of the entire SSZ-input byte string the host
-    streamed in via `ziskemu -i`. Concretely:
-
-    - Body: the unchanged `Stateless.Entry.run_stateless_guest`
-      Program. It writes:
-        bytes  0..32 : zero hash (placeholder)
-        byte      32 : successful_validation (PR4/PR5 derived)
-        bytes 33..41 : chain_id (PR3 from-decode)
-        bytes 41..48 : zero gap
-        bytes 48..56 : header_count diagnostic (PR6 from-decode)
-    - Epilogue (raw asm): set up sp, load (data ptr, len) from
-      INPUT_ADDR + (16, 8), set output = OUTPUT_ADDR + 0, and
-      `jal ra, zkvm_keccak256`. The function overwrites
-      OUTPUT[0..32] with keccak256(input bytes), clobbering the
-      zero stub.
-
-    The host-side `compute_new_payload_request_root` per the spec
-    is SSZ `hash_tree_root` (SHA-256), not Keccak. PR-K5 stamps a
-    *content-dependent* hash there so the test harness has a
-    non-trivial value to verify and the keccak bridge is wired
-    into the encoder pipeline end-to-end. Once PR-S series lands,
-    the SHA-256 hash_tree_root replaces this keccak. -/
--- `statelessGuestValidatorPipeline` and `statelessGuestEpilogue`
--- live in `EvmAsm/Codegen/Programs/StatelessGuestEpilogue.lean`
--- (carved out here to satisfy the file-size hard cap; see
--- PR #5870 and PR #5900 for the established submodule pattern).
-
--- `statelessGuestDataSection` lives in
--- `EvmAsm/Codegen/Programs/StatelessGuestData.lean` (carved
--- out here to satisfy the file-size hard cap; see PR #5870
--- and PR #5900 for the established submodule pattern).
-
-def statelessGuestUnit : BuildUnit := {
-  body        := EvmAsm.Stateless.run_stateless_guest
-  epilogueAsm := statelessGuestEpilogue
-  -- guest scratch + the Step-2 verdict's data (zk3_state / rfu_* are dedup'd out
-  -- of the guest section since the appended verdict section provides them).
-  dataAsm     := statelessGuestDataSection ++ "\n" ++ statelessVerdictV2GuestData
-}
 
 /-! ## registry -/
 
@@ -1340,130 +1294,3 @@ def knownProgramNames : List String :=
    "zisk_ssz_hash_tree_root_list_bytelist",
    "zisk_ssz_hash_tree_root_execution_witness"]
 end EvmAsm.Codegen
-/-! ## File-size guard
-    Hard cap of 1500 lines on `Programs.lean` and every sibling under
-    `EvmAsm/Codegen/Programs/`, to keep the registry hub and the
-    extracted submodules from spiralling. When this guard trips, split
-    a cluster of `*Function` / `zisk*` defs into a new (or existing)
-    submodule, add it to the `paths` list below and to `Programs.lean`'s
-    imports.
-    Established splits so far:
-      * PR-#5870 carved `Evm.lean` / `HashBridge.lean` / `Ssz.lean`.
-      * PR-#5900 carved `RlpRead.lean` / `Mpt.lean`.
-      * PR-#5948 carved `Tx.lean`.
-      * PR-#7176 carved `EvmOpcodesStorageRoot.lean` /
-        `EvmOpcodesExtcodecopy.lean`.
-    Runs at elaboration time via `#eval`; adds zero runtime cost. -/
-#eval show IO Unit from do
-  let hardCap := 1500
-  let paths := [
-    "EvmAsm/Codegen/Programs.lean",
-    "EvmAsm/Codegen/Programs/Account.lean",
-    "EvmAsm/Codegen/Programs/AccountFields.lean",
-    "EvmAsm/Codegen/Programs/Address.lean",
-    "EvmAsm/Codegen/Programs/Block.lean",
-    "EvmAsm/Codegen/Programs/BlockBody.lean",
-    "EvmAsm/Codegen/Programs/BlockEmpty.lean",
-    "EvmAsm/Codegen/Programs/BlockRoots.lean",
-    "EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean",
-    "EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean",
-    "EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean",
-    "EvmAsm/Codegen/Programs/BlockVerdictTransactions.lean",
-    "EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean",
-    "EvmAsm/Codegen/Programs/BlockValidate.lean",
-    "EvmAsm/Codegen/Programs/Chain.lean",
-    "EvmAsm/Codegen/Programs/ChainAggregator.lean",
-    "EvmAsm/Codegen/Programs/ChainBasefee.lean",
-    "EvmAsm/Codegen/Programs/ChainBlobCount.lean",
-    "EvmAsm/Codegen/Programs/ChainExcessBlobGas.lean",
-    "EvmAsm/Codegen/Programs/ChainTimestamp.lean",
-    "EvmAsm/Codegen/Programs/ChainEndpoints.lean",
-    "EvmAsm/Codegen/Programs/ChainValidate.lean",
-    "EvmAsm/Codegen/Programs/ChainValidateBlob.lean",
-    "EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean",
-    "EvmAsm/Codegen/Programs/Bloom.lean",
-    "EvmAsm/Codegen/Programs/Clz.lean",
-    "EvmAsm/Codegen/Programs/Evm.lean",
-    "EvmAsm/Codegen/Programs/EvmAccountWitness.lean",
-    "EvmAsm/Codegen/Programs/EvmBalance.lean",
-    "EvmAsm/Codegen/Programs/EvmExtcodecopy.lean", "EvmAsm/Codegen/Programs/EvmMemoryGas.lean",
-    "EvmAsm/Codegen/Programs/EvmArithUnits.lean",
-    "EvmAsm/Codegen/Programs/EvmDispatchUnits.lean",
-    "EvmAsm/Codegen/Programs/ExpProperty.lean",
-    "EvmAsm/Codegen/Programs/HashBridge.lean",
-    "EvmAsm/Codegen/Programs/HashProbes.lean",
-    "EvmAsm/Codegen/Programs/CryptoRegistry.lean",
-    "EvmAsm/Codegen/Programs/Modexp.lean",
-    "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
-    "EvmAsm/Codegen/Programs/Header.lean",
-    "EvmAsm/Codegen/Programs/HeaderBaseFee.lean",
-    "EvmAsm/Codegen/Programs/ValidateHeaderPair.lean",
-    "EvmAsm/Codegen/Programs/BlockHeaderSszToRlp.lean",
-    "EvmAsm/Codegen/Programs/Step2Verdict.lean",
-    "EvmAsm/Codegen/Programs/HeaderDecode.lean",
-    "EvmAsm/Codegen/Programs/HeaderChain.lean",
-    "EvmAsm/Codegen/Programs/HeaderFields.lean",
-    "EvmAsm/Codegen/Programs/BlockHashPredicates.lean",
-    "EvmAsm/Codegen/Programs/HeadersKeccak.lean",
-    "EvmAsm/Codegen/Programs/HeaderU64.lean",
-    "EvmAsm/Codegen/Programs/Mpt.lean",
-    "EvmAsm/Codegen/Programs/MptSet.lean",
-    "EvmAsm/Codegen/Programs/MptSetAcc.lean",
-    "EvmAsm/Codegen/Programs/MptInsertWalk.lean",
-    "EvmAsm/Codegen/Programs/MptInsert.lean",
-    "EvmAsm/Codegen/Programs/MptInsertWalkDb.lean",
-    "EvmAsm/Codegen/Programs/MptInsertAcc.lean",
-    "EvmAsm/Codegen/Programs/MptStateRootIns.lean",
-    "EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean",
-    "EvmAsm/Codegen/Programs/AccountBalance.lean",
-    "EvmAsm/Codegen/Programs/MptEncode.lean",
-    "EvmAsm/Codegen/Programs/SystemWrites.lean",
-    "EvmAsm/Codegen/Programs/BalGasValid.lean",
-    "EvmAsm/Codegen/Programs/BalCodePreimages.lean",
-    "EvmAsm/Codegen/Programs/StorageWrite.lean", "EvmAsm/Codegen/Programs/SstoreGasRefund.lean",
-    "EvmAsm/Codegen/Programs/StorageEffectRecords.lean",
-    "EvmAsm/Codegen/Programs/BlockAccessListHash.lean", "EvmAsm/Codegen/Programs/BlockGasRemaining.lean",
-    "EvmAsm/Codegen/Programs/AccountApplyStorage.lean",
-    "EvmAsm/Codegen/Programs/Noop.lean", "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
-    "EvmAsm/Codegen/Programs/Storage.lean",
-    "EvmAsm/Codegen/Programs/MptInternal.lean",
-    "EvmAsm/Codegen/Programs/MptNibbles.lean",
-    "EvmAsm/Codegen/Programs/Receipt.lean",
-    "EvmAsm/Codegen/Programs/State.lean",
-    "EvmAsm/Codegen/Programs/StateCompose.lean",
-    "EvmAsm/Codegen/Programs/EvmOpcodes.lean",
-    "EvmAsm/Codegen/Programs/EvmOpcodesStorageRoot.lean",
-    "EvmAsm/Codegen/Programs/EvmOpcodesExtcodecopy.lean",
-    "EvmAsm/Codegen/Programs/StorageCompose.lean",
-    "EvmAsm/Codegen/Programs/EvmCodes.lean",
-    "EvmAsm/Codegen/Programs/RlpRead.lean",
-    "EvmAsm/Codegen/Programs/Ssz.lean",
-    "EvmAsm/Codegen/Programs/StatelessGuestData.lean",
-    "EvmAsm/Codegen/Programs/StatelessGuestEpilogue.lean",
-    "EvmAsm/Codegen/Programs/Tx.lean",
-    "EvmAsm/Codegen/Programs/TxDecode.lean",
-    "EvmAsm/Codegen/Programs/TxExtract.lean",
-    "EvmAsm/Codegen/Programs/TxRoot.lean",
-    "EvmAsm/Codegen/Programs/TxSignature.lean",
-    "EvmAsm/Codegen/Programs/TxSigningHash.lean",
-    "EvmAsm/Codegen/Programs/U256.lean",
-    "EvmAsm/Codegen/Programs/Withdrawal.lean",
-    "EvmAsm/Codegen/Programs/WithdrawalPath.lean",
-    "EvmAsm/Codegen/Programs/SszWithdrawal.lean",
-    "EvmAsm/Codegen/Programs/SszWitnessState.lean",
-    "EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean",
-    "EvmAsm/Codegen/Programs/SszParentHeader.lean",
-    "EvmAsm/Codegen/Programs/StatelessVerdict.lean",
-    "EvmAsm/Codegen/Programs/BlockVerdict.lean",
-    "EvmAsm/Codegen/Programs/BlockVerdictV2.lean"
-  ]
-  for path in paths do
-    let contents ← IO.FS.readFile path
-    let lineCount := (contents.splitOn "\n").length
-    if lineCount > hardCap then
-      throw <| IO.userError <|
-        s!"{path} has {lineCount} lines; hard cap is {hardCap}. " ++
-        "Extract a helper cluster into a new submodule under " ++
-        "EvmAsm/Codegen/Programs/ (see PR #5870 and PR #5900 for the " ++
-        "established pattern). Add the new submodule to the `paths` list " ++
-        "and to `Programs.lean`'s imports."
