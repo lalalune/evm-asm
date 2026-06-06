@@ -11,10 +11,6 @@
     * SSZ merkleization scratch buffers (`ssz_merkleize_*`,
       `ssz_hb_*`, `ssz_ltb_*`, `ssz_ew_field_roots`).
     * `ssz_zero_hashes` lookup table (32 × 32 bytes).
-    * Header-validator pipeline scratch (`sg_header_lengths`,
-      `sg_kpr_valid`, `sg_kpr_bad_index`).
-    * Shared K-PR scratch (`zk3_state`, `rfu_offset`,
-      `rfu_length`) plus per-K-PR locals.
     * SSZ sub-tree constants used by the
       `compute_new_payload_request_root` computation at
       `.Lsg_hash`: `npr_node_0_15`, `npr_node_16_17`,
@@ -139,84 +135,6 @@ def statelessGuestDataSection : String :=
   "npr_exec_requests_dyn:\n" ++
   "  .zero 32\n" ++
   sszZeroHashesDataSection ++ "\n" ++
-  -- Header-validator pipeline scratch:
-  ".balign 8\n" ++
-  "sg_header_lengths:\n" ++
-  "  .zero 2048\n" ++          -- MAX_WITNESS_HEADERS (256) × 8 bytes
-  "sg_kpr_valid:\n" ++
-  "  .zero 8\n" ++
-  "sg_kpr_bad_index:\n" ++
-  "  .zero 8\n" ++
-  -- Shared K-PR scratch (zk3_state / rfu_offset / rfu_length: used by
-  -- rlp_list_nth_item + rlp_field_to_u64). Now provided by the appended Step-2
-  -- verdict data section (statelessGuestUnit.dataAsm), so NOT declared here to
-  -- avoid duplicate-symbol errors.
-  -- K290 chain_validate_post_merge_full scratch:
-  "cvpmf_field:\n" ++
-  "  .zero 8\n" ++
-  "cvpmf_offset:\n" ++
-  "  .zero 8\n" ++
-  "cvpmf_length:\n" ++
-  "  .zero 8\n" ++
-  "cvpmf_iter_ptr:\n" ++
-  "  .zero 8\n" ++
-  "cvpmf_iter_i:\n" ++
-  "  .zero 8\n" ++
-  "cvpmf_empty_hash:\n" ++
-  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
-  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
-  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
-  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
-  -- K291 chain_validate_extra_data_length scratch:
-  "cvedl_offset:\n" ++
-  "  .zero 8\n" ++
-  "cvedl_length:\n" ++
-  "  .zero 8\n" ++
-  "cvedl_iter_ptr:\n" ++
-  "  .zero 8\n" ++
-  "cvedl_iter_i:\n" ++
-  "  .zero 8\n" ++
-  -- K240 chain_validate_gas_used_under_limit scratch:
-  "cvgul_gas_used:\n" ++
-  "  .zero 8\n" ++
-  "cvgul_gas_limit:\n" ++
-  "  .zero 8\n" ++
-  "cvgul_iter_ptr:\n" ++
-  "  .zero 8\n" ++
-  "cvgul_iter_i:\n" ++
-  "  .zero 8\n" ++
-  -- K278 chain_validate_blob_gas_used_multiple scratch:
-  "cvbgm_field:\n" ++
-  "  .zero 8\n" ++
-  "cvbgm_iter_ptr:\n" ++
-  "  .zero 8\n" ++
-  "cvbgm_iter_i:\n" ++
-  "  .zero 8\n" ++
-  -- K277 chain_validate_blob_gas_used_under_max scratch:
-  "cvbgum_field:\n" ++
-  "  .zero 8\n" ++
-  "cvbgum_iter_ptr:\n" ++
-  "  .zero 8\n" ++
-  "cvbgum_iter_i:\n" ++
-  "  .zero 8\n" ++
-  -- K229 chain_validate_increasing_timestamps scratch:
-  "cvit_ts:\n" ++
-  "  .zero 8\n" ++
-  "cvit_iter_child:\n" ++
-  "  .zero 8\n" ++
-  "cvit_iter_i:\n" ++
-  "  .zero 8\n" ++
-  "cvit_iter_prev:\n" ++
-  "  .zero 8\n" ++
-  -- K230 chain_validate_consecutive_numbers scratch:
-  "cvcn_num:\n" ++
-  "  .zero 8\n" ++
-  "cvcn_iter_child:\n" ++
-  "  .zero 8\n" ++
-  "cvcn_iter_i:\n" ++
-  "  .zero 8\n" ++
-  "cvcn_iter_prev:\n" ++
-  "  .zero 8\n" ++
   -- compute_new_payload_request_root(empty_input) -- the spec
   -- hash for an empty `SszNewPayloadRequest`, independent of
   -- chain_id. Was previously stamped at OUTPUT[0..32) by the
@@ -407,14 +325,15 @@ def statelessGuestDataSection : String :=
   ".balign 8\n" ++
   "npr_node_2_3_scratch:\n" ++
   "  .zero 32\n" ++
-  -- `npr_node_10_11_scratch` holds dynamic
-  -- sha256(leaf_10=extra_data_default_root || leaf_11=base_fee_per_gas).
+  -- `npr_leaf_10_extra_data_scratch` holds dynamic
+  -- hash_tree_root(extra_data), and `npr_node_10_11_scratch` holds
+  -- dynamic sha256(leaf_10=extra_data_root || leaf_11=base_fee_per_gas).
   -- Replaces the previously-static `npr_node_10_11` constant when
-  -- combined with node_8_9 to form node_8_11. Opens up leaf_11
-  -- (base_fee_per_gas) for non-default values; leaf_10
-  -- (extra_data) still uses its empty-list default root
-  -- (= ssz_zero_hash[1]) loaded from the existing
-  -- ssz_zero_hashes table.
+  -- combined with node_8_9 to form node_8_11. Opens up leaf_10
+  -- (extra_data) and leaf_11 (base_fee_per_gas) for non-default values.
+  ".balign 8\n" ++
+  "npr_leaf_10_extra_data_scratch:\n" ++
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "npr_node_10_11_scratch:\n" ++
   "  .zero 32\n" ++
