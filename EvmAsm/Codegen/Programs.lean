@@ -1,7 +1,7 @@
 /- EvmAsm.Codegen.Programs
-  Registry of programs the codegen tool knows how to emit, each as a
-  `BuildUnit` (verified body + optional wrapping).
+  Umbrella module for codegen program registry and file-size guard.
 -/
+<<<<<<< HEAD
 import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.Imports
 import EvmAsm.Codegen.Programs.RegistryTail
@@ -334,3 +334,7 @@ def lookupProgram : String → Option BuildUnit
       | none => lookupProgramTail s
 
 end EvmAsm.Codegen
+=======
+import EvmAsm.Codegen.Programs.Registry
+import EvmAsm.Codegen.Programs.FileSizeGuard
+>>>>>>> origin/main
