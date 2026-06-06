@@ -27,7 +27,6 @@ import EvmAsm.Evm64.MStore.Program
 import EvmAsm.Evm64.MStore8.Program
 import EvmAsm.Evm64.Multiply.Callable
 import EvmAsm.Evm64.Multiply.Program
-import EvmAsm.Evm64.MulMod.Program
 import EvmAsm.Evm64.Not.Program
 import EvmAsm.Evm64.Or.Program
 import EvmAsm.Evm64.Pop.Program
@@ -60,6 +59,7 @@ import EvmAsm.Codegen.Programs.EvmMcopyHandlers
 import EvmAsm.Codegen.Programs.EvmControlFlowHandlers
 import EvmAsm.Codegen.Programs.EvmHashHandlers
 import EvmAsm.Codegen.Programs.EvmLogHandlers
+import EvmAsm.Codegen.Programs.EvmMulmodHandler
 import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.EvmBalance
 import EvmAsm.Codegen.Programs.Noop
@@ -155,21 +155,6 @@ open EvmAsm.Rv64
     needs a trampoline-style wrapper (set `x18` to a per-handler
     "restore" stub before the body runs, splice off the body's
     initial save_ra_block). Tracked as the next codegen PR. -/
-private def mulmodTail : HandlerTail :=
-  .custom <|
-    "  mv x10, x23\n" ++
-    "  mv x13, x21\n" ++
-    "  mv x20, x22\n" ++
-    "  addi x10, x10, 1\n" ++
-    "  ret"
-
-def mulmodHandlers : List OpcodeHandlerSpec :=
-  [ { label   := "h_MULMOD"
-      opcodes := [0x09]
-      preBody := stackUnderflowGuardAsm 3 ++ "\n  mv x23, x10\n  mv x21, x13\n  mv x22, x20"
-      body    := EvmAsm.Evm64.evm_mulmod
-      tail    := mulmodTail } ]
-
 private def divModTail : HandlerTail :=
   .custom "  mv x10, x14\n  addi x10, x10, 1\n  ret"
 
