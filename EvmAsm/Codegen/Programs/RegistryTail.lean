@@ -298,9 +298,9 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_receipt_records_encode_no_logs" => some ziskReceiptRecordsEncodeNoLogsProbeUnit | "zisk_block_verdict_tx_gas_limits" => some ziskBlockVerdictTxGasLimitsProbeUnit | "zisk_block_verdict_gas_result_arena" => some ziskBlockVerdictGasResultArenaProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
-  | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
-  | "zisk_bal_section_info"      => some ziskBalSectionInfoProbeUnit
-  | "zisk_bal_account_path"      => some ziskBalAccountPathProbeUnit
+  | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
+  
+  
   | "zisk_bal_account_post_fields" => some ziskBalAccountPostFieldsProbeUnit
   | "zisk_bal_account_apply_post_fields" => some ziskBalAccountApplyPostFieldsProbeUnit
   | "zisk_bal_account_change_value" => some ziskBalAccountChangeValueProbeUnit
@@ -464,24 +464,24 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_header_root_is_empty_trie" => some ziskHeaderRootIsEmptyTrieProbeUnit
   | "zisk_calldata_byte_counts" => some ziskCalldataByteCountsProbeUnit
   | "zisk_intrinsic_gas_calldata_floor_eip7623" => some ziskIntrinsicGasCalldataFloorEip7623ProbeUnit
-  | "zisk_init_code_cost"       => some ziskInitCodeCostProbeUnit
+  
   | "zisk_intrinsic_gas_amsterdam_counts" => some ziskIntrinsicGasAmsterdamCountsProbeUnit
   | "zisk_mpt_nibbles_to_compact" => some ziskMptNibblesToCompactProbeUnit
   | "zisk_mpt_compact_to_nibbles" => some ziskMptCompactToNibblesProbeUnit
-  | "zisk_mpt_node_classify"      => some ziskMptNodeClassifyProbeUnit
+  
   | "zisk_mpt_encode_internal_node" => some ziskMptEncodeInternalNodeProbeUnit
   | "zisk_mpt_branch_get_child" => some ziskMptBranchGetChildProbeUnit
   | "zisk_mpt_branch_get_value" => some ziskMptBranchGetValueProbeUnit
-  | "zisk_mpt_leaf_extract"     => some ziskMptLeafExtractProbeUnit
+  
   | "zisk_mpt_extension_extract" => some ziskMptExtensionExtractProbeUnit
   | "zisk_mpt_branch_used_count" => some ziskMptBranchUsedCountProbeUnit
   | "zisk_mpt_branch_first_used_index" => some ziskMptBranchFirstUsedIndexProbeUnit
-  | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
-  | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
-  | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
-  | "zisk_ssz_merkleize_pow2"   => some ziskSszMerkleizePow2ProbeUnit
-  | "zisk_ssz_merkleize"        => some ziskSszMerkleizeProbeUnit
-  | "zisk_ssz_pack_bytes"       => some ziskSszPackBytesProbeUnit
+  
+  
+  
+  
+  
+  
   | "zisk_ssz_hash_tree_root_bytes" => some ziskSszHashTreeRootBytesProbeUnit
   | "zisk_ssz_hash_tree_root_list_bytelist" => some ziskSszHashTreeRootListByteListProbeUnit
   | "zisk_ssz_hash_tree_root_execution_witness" => some ziskSszHashTreeRootExecutionWitnessProbeUnit
