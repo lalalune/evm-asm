@@ -40,6 +40,67 @@ def storageAccessGasData : String :=
   "evm_storage_access_outcomes:\n" ++
   s!"  .zero {storageAccessOutcomeMaxRecords * storageAccessOutcomeRecordSize}\n"
 
+
+def storageAccessKeyScanAsm (tag warmLabel coldLabel nextLabel : String) : String :=
+  "  la t0, evm_storage_access_keys\n" ++
+  "  la t1, evm_storage_access_count\n" ++
+  "  ld t2, 0(t1)\n" ++
+  "  mv t3, t0\n" ++
+  s!".L{tag}_scan:\n" ++
+  s!"  beqz t2, .L{coldLabel}\n" ++
+  "  ld t4, 0(t3)\n" ++
+  "  ld t5, 0(t6)\n" ++
+  s!"  bne t4, t5, .L{nextLabel}\n" ++
+  "  ld t4, 8(t3)\n" ++
+  "  ld t5, 8(t6)\n" ++
+  s!"  bne t4, t5, .L{nextLabel}\n" ++
+  "  ld t4, 16(t3)\n" ++
+  "  ld t5, 16(t6)\n" ++
+  s!"  bne t4, t5, .L{nextLabel}\n" ++
+  "  ld t4, 24(t3)\n" ++
+  "  ld t5, 24(t6)\n" ++
+  s!"  bne t4, t5, .L{nextLabel}\n" ++
+  "  ld t4, 32(t3)\n" ++
+  "  ld t5, 0(a1)\n" ++
+  s!"  bne t4, t5, .L{nextLabel}\n" ++
+  "  ld t4, 40(t3)\n" ++
+  "  ld t5, 8(a1)\n" ++
+  s!"  bne t4, t5, .L{nextLabel}\n" ++
+  "  ld t4, 48(t3)\n" ++
+  "  ld t5, 16(a1)\n" ++
+  s!"  bne t4, t5, .L{nextLabel}\n" ++
+  "  ld t4, 56(t3)\n" ++
+  "  ld t5, 24(a1)\n" ++
+  s!"  bne t4, t5, .L{nextLabel}\n" ++
+  s!"  j .L{warmLabel}\n" ++
+  s!".L{nextLabel}:\n" ++
+  "  addi t3, t3, 64\n" ++
+  "  addi t2, t2, -1\n" ++
+  s!"  j .L{tag}_scan\n"
+
+def storageAccessKeyInsertAsm (doneLabel : String) : String :=
+  "  slli t3, t2, 6\n" ++
+  "  add t3, t0, t3\n" ++
+  "  ld t4, 0(t6)\n" ++
+  "  sd t4, 0(t3)\n" ++
+  "  ld t4, 8(t6)\n" ++
+  "  sd t4, 8(t3)\n" ++
+  "  ld t4, 16(t6)\n" ++
+  "  sd t4, 16(t3)\n" ++
+  "  ld t4, 24(t6)\n" ++
+  "  sd t4, 24(t3)\n" ++
+  "  ld t4, 0(a1)\n" ++
+  "  sd t4, 32(t3)\n" ++
+  "  ld t4, 8(a1)\n" ++
+  "  sd t4, 40(t3)\n" ++
+  "  ld t4, 16(a1)\n" ++
+  "  sd t4, 48(t3)\n" ++
+  "  ld t4, 24(a1)\n" ++
+  "  sd t4, 56(t3)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  sd t2, 0(t1)\n" ++
+  s!"  j .L{doneLabel}\n"
+
 /-! ## evm_storage_access_charge_key
 
     Calling convention:
