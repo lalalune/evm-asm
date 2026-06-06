@@ -131,6 +131,9 @@ def statelessVerdictV2GuestClosure : String :=
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
+  txExtractToAddressFunction ++ "\n" ++
+  txExtractValueFunction ++ "\n" ++
+  txExtractDataSectionFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
   headersKeccakArrayFunction ++ "\n" ++
@@ -143,6 +146,7 @@ def statelessVerdictV2GuestClosure : String :=
   accountExtractBalanceFunction ++ "\n" ++
   accountExtractNonceFunction ++ "\n" ++
   txGasSenderBalLookupFunction ++ "\n" ++
+  simpleTransferTxContextFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
