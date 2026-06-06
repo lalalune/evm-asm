@@ -56,6 +56,7 @@ import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
+import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuest
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
