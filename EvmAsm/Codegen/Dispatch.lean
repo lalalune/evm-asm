@@ -28,6 +28,7 @@ import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmAccessGas
+import EvmAsm.Codegen.Programs.AccountBalance
 
 namespace EvmAsm.Codegen
 
@@ -504,6 +505,58 @@ def emitRuntimeAccountWitnessData : String :=
   ".balign 32\n" ++
   "sdai_beneficiary_rlp:\n" ++
   "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "sdai_transfer_status:\n" ++
+  "  .zero 8\n" ++
+  "sdai_transfer_origin_len:\n" ++
+  "  .zero 8\n" ++
+  "sdai_transfer_beneficiary_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "sdai_transfer_output:\n" ++
+  "  .zero 256\n" ++
+  ".balign 8\n" ++
+  "rfu_offset:\n" ++
+  "  .zero 8\n" ++
+  "rfu_length:\n" ++
+  "  .zero 8\n" ++
+  "t48_offset:\n" ++
+  "  .zero 8\n" ++
+  "t48_length:\n" ++
+  "  .zero 8\n" ++
+  "mset_span_start:\n" ++
+  "  .zero 8\n" ++
+  "mset_span_size:\n" ++
+  "  .zero 8\n" ++
+  "mset_payload_start:\n" ++
+  "  .zero 8\n" ++
+  "mset_head_len:\n" ++
+  "  .zero 8\n" ++
+  "mset_tail_start:\n" ++
+  "  .zero 8\n" ++
+  "mset_tail_len:\n" ++
+  "  .zero 8\n" ++
+  "mset_new_payload_len:\n" ++
+  "  .zero 8\n" ++
+  "mset_prefix_len:\n" ++
+  "  .zero 8\n" ++
+  "mset_cursor:\n" ++
+  "  .zero 8\n" ++
+  "aab_bal_off:\n" ++
+  "  .zero 8\n" ++
+  "aab_bal_len:\n" ++
+  "  .zero 8\n" ++
+  "aab_enc_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "aab_bal32:\n" ++
+  "  .zero 32\n" ++
+  ".balign 8\n" ++
+  "aab_enc:\n" ++
+  "  .zero 64\n" ++
+  ".balign 32\n" ++
+  "sdbt_delta32:\n" ++
+  "  .zero 32\n" ++
   ".balign 32\n" ++
   "eahsr_state_root:\n" ++
   "  .zero 32\n" ++
@@ -774,8 +827,20 @@ def emitDispatcherEpilogue
   bytesToNibblesFunction ++ "\n" ++
   mptWalkFunction ++ "\n" ++
   mptLookupByKeyFunction ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeUintBeFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
+  msetMemcpyFunction ++ "\n" ++
+  mptSpliceSlotFunction ++ "\n" ++
   accountDecodeFunction ++ "\n" ++
   accountAtAddressFunction ++ "\n" ++
+  accountExtractBalanceFunction ++ "\n" ++
+  accountAddBalanceFunction ++ "\n" ++
+  accountSetUintFieldFunction ++ "\n" ++
+  selfdestructBalanceTransferFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   balanceAtHeaderStateRootFunction ++ "\n" ++
   nonceAtHeaderStateRootFunction ++ "\n" ++
