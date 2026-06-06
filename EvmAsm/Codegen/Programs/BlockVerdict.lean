@@ -591,6 +591,8 @@ def blockVerdictFunction : String :=
   "  jal ra, eip7702_nonce_reuse_guard\n" ++
   "  bnez a0, .Lbv_eip7702_nonce_reuse_fail\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0\n" ++
   "  jal ra, block_receipt_records_materialize\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_cmp_mismatch:\n" ++
