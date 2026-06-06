@@ -212,6 +212,19 @@ high-gas pricing fixture files to be present and to full-match. Use this when
 checking that the largest EEST gas-limit cases are succeeding semantically, not
 only fitting in the static layout.
 
+Run the focused EIP-4844 excess-blob-gas regression:
+
+```bash
+scripts/codegen-eest-eip4844-excess-blob-gas-check.sh
+```
+
+This wrapper covers the observed `correct_excess_blob_gas_calculation.json`
+and `invalid_negative_excess_blob_gas.json` false-reject files. It counts rows
+from each JSON file before running, so future parameter rows inside those files
+are included by default. For a quick local smoke, set
+`EEST_EIP4844_EXCESS_BLOB_GAS_LIMIT=1`; leave it unset when checking the full
+per-file gate.
+
 Run a fast EIP-2929 precompile-warming frontier:
 
 ```bash
@@ -471,6 +484,19 @@ when only the canonical 105-byte stateless output comparison is wanted.
 `bal_count` classify the block-state-root replay path, while the `baacd`,
 `bacv`, `baap`, and `sri` fields expose the lower-level account, storage, and
 state-read helpers.
+
+Run the focused EIP-7934 all-typed block-RLP-limit step-budget guard:
+
+```bash
+scripts/codegen-eest-eip7934-all-typed-rlp-limit-check.sh
+```
+
+The wrapper selects
+`eip7934_block_rlp_limit/max_block_rlp_size/block_rlp_size_at_limit_with_all_typed_transactions.json`
+with a future-proof filter, uses a 1,000,000,000-step default
+(`EEST_EIP7934_ALL_TYPED_STEPS` / `EEST_STEPS` override it), and fails if the
+row reports `BUDGET(steps)` instead of reaching a semantic PASS/FAIL/ERROR
+outcome.
 
 For receipt/log-specific misses, generate a triage map that links likely
 blockers to focused beads:

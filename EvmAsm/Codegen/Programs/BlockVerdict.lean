@@ -662,6 +662,19 @@ def blockVerdictFunction : String :=
   "  ld t0, 112(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
   "  ld t0, 120(t2); beqz t0, .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_tx_gas_precharge_nonzero_value:\n" ++
+  "  # The post-balance verifier below models an EOA simple transfer: sender\n" ++
+  "  # final balance = precharge + unused intrinsic refund - value. For value\n" ++
+  "  # transfers into contracts, bytecode execution spends additional gas, so\n" ++
+  "  # leave the verdict to the state-root/BAL checks instead.\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
+  "  jal ra, code_hash_at_header_state_root\n" ++
+  "  bnez a0, .Lbv_tx_gas_precharge_fail\n" ++
+  "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t3,  0(t0); ld t4,  0(t1); bne t3, t4, .Lbv_after_tx_gas_precharge\n" ++
+  "  ld t3,  8(t0); ld t4,  8(t1); bne t3, t4, .Lbv_after_tx_gas_precharge\n" ++
+  "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_after_tx_gas_precharge\n" ++
+  "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
   "  ld a0, 8(t2); ld a1, 16(t2); ld a3, 24(t2); ld a2, 32(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a5, 0(t2)\n" ++
@@ -1291,6 +1304,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0x3d, 0x77, 0x05, 0xfa\n" ++
   ".balign 32\n" ++
   "bbcv_code_hash:\n  .zero 32\n" ++
+  "bv_tx_recipient_code_hash:\n  .zero 32\n" ++
   "bbcv_sender_addr:\n  .zero 32\n" ++
   "bbcv_create_addr:\n  .zero 32\n" ++
   "bbcv_create2_salt:\n  .zero 32\n" ++
