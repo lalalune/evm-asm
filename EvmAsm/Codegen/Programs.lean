@@ -56,6 +56,7 @@ import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.MptWitnessLookup
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptSetAcc
@@ -1406,6 +1407,7 @@ end EvmAsm.Codegen
     "EvmAsm/Codegen/Programs/BlockHashPredicates.lean",
     "EvmAsm/Codegen/Programs/HeadersKeccak.lean",
     "EvmAsm/Codegen/Programs/HeaderU64.lean",
+    "EvmAsm/Codegen/Programs/MptWitnessLookup.lean",
     "EvmAsm/Codegen/Programs/Mpt.lean",
     "EvmAsm/Codegen/Programs/MptSet.lean",
     "EvmAsm/Codegen/Programs/MptSetAcc.lean",
