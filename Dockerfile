@@ -31,6 +31,9 @@ FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG EEST_TAG=zkevm@v0.4.0
+ARG GIT_COMMIT=unknown
+ARG GIT_REF=unknown
+ARG BUILD_DATE=unknown
 
 # gcc-riscv64-unknown-elf provides riscv64-unknown-elf-{as,ld,gcc}
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -59,6 +62,9 @@ RUN lake exe codegen --program stateless_guest --halt linux93 \
 RUN bash scripts/eest-fetch-fixtures.sh "${EEST_TAG}"
 
 LABEL org.opencontainers.image.source="https://github.com/Verified-zkEVM/evm-asm"
+LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
+LABEL org.opencontainers.image.ref.name="${GIT_REF}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
 LABEL eest.fixture.tag="${EEST_TAG}"
 
 ENTRYPOINT ["bash", "scripts/codegen-eest-stateless-check.sh"]

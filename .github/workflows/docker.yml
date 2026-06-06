@@ -49,6 +49,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            GIT_REF=${{ github.ref_name }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
           # GHA layer cache: ziskemu Rust build and Lean build are both cached
           # after the first run, so subsequent pushes are fast.
           cache-from: type=gha
