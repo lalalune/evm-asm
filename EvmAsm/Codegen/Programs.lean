@@ -50,11 +50,7 @@ import EvmAsm.Codegen.Programs.EvmArithUnits
 import EvmAsm.Codegen.Programs.EvmDispatchUnits
 import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.Programs.HashProbes
-import EvmAsm.Codegen.Programs.Modexp
-import EvmAsm.Codegen.Programs.PrecompileBackendProbes
-import EvmAsm.Codegen.Programs.PrecompileRuntime
+import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
@@ -96,6 +92,7 @@ import EvmAsm.Codegen.Programs.StorageEffectRecords
 import EvmAsm.Codegen.Programs.SstoreGasRefund
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
+import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
@@ -347,7 +344,7 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
-  | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit
+  | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_bal_gas_valid"         => some ziskBalGasValidProbeUnit | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
@@ -527,7 +524,6 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_mpt_extension_extract" => some ziskMptExtensionExtractProbeUnit
   | "zisk_mpt_branch_used_count" => some ziskMptBranchUsedCountProbeUnit
   | "zisk_mpt_branch_first_used_index" => some ziskMptBranchFirstUsedIndexProbeUnit
-  | "zisk_sha256_from_input"    => some ziskSha256FromInputProbeUnit
   | "zisk_ssz_pair_hash"        => some ziskSszPairHashProbeUnit
   | "zisk_ssz_zero_hashes"      => some ziskSszZeroHashesProbeUnit
   | "zisk_ssz_merkleize_pow2"   => some ziskSszMerkleizePow2ProbeUnit
@@ -569,22 +565,6 @@ def lookupProgram : String → Option BuildUnit
   | "tiny_interp_dispatch_add2" => some tinyInterpDispatchAdd2Unit
   | "runtime_dispatcher"        => some runtimeDispatcherUnit
   | "stateless_guest"           => some statelessGuestUnit
-  | "zisk_keccak_probe"         => some ziskKeccakProbeUnit
-  | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit
-  | "zisk_keccak256_abc"        => some ziskKeccak256AbcProbeUnit
-  | "zisk_zkvm_keccak256"       => some ziskZkvmKeccak256ProbeUnit
-  | "zisk_sha256_probe_le"      => some ziskSha256ProbeLeUnit
-  | "zisk_zkvm_sha256"          => some ziskZkvmSha256ProbeUnit
-  | "zisk_secp256k1_ecrecover_backend_probe" => some ziskSecp256k1EcrecoverBackendProbeUnit
-  | "zisk_modexp_backend_probe" => some ziskModexpBackendProbeUnit
-  | "zisk_bls12_g1_add_backend_probe" => some ziskBls12G1AddBackendProbeUnit
-  | "zisk_bls12_g1_msm_backend_probe" => some ziskBls12G1MsmBackendProbeUnit
-  | "zisk_bls12_g2_add_backend_probe" => some ziskBls12G2AddBackendProbeUnit
-  | "zisk_bls12_g2_msm_backend_probe" => some ziskBls12G2MsmBackendProbeUnit
-  | "zisk_bls12_pairing_backend_probe" => some ziskBls12PairingBackendProbeUnit
-  | "zisk_bls12_map_fp_to_g1_backend_probe" => some ziskBls12MapFpToG1BackendProbeUnit
-  | "zisk_bls12_map_fp2_to_g2_backend_probe" => some ziskBls12MapFp2ToG2BackendProbeUnit
-  | "zisk_keccak256_from_input" => some ziskKeccak256FromInputProbeUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
   | "zisk_headers_parent_hash"  => some ziskHeadersParentHashProbeUnit
@@ -869,7 +849,10 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bloom_or_into" => some ziskBloomOrIntoProbeUnit
   | "zisk_receipt_extract_logs_bloom" => some ziskReceiptExtractLogsBloomProbeUnit
   | "zisk_header_extract_logs_bloom" => some ziskHeaderExtractLogsBloomProbeUnit
-  | s                           => lookupProgramTail s
+  | s                           =>
+      match lookupCryptoProgram s with
+      | some unit => some unit
+      | none => lookupProgramTail s
 
 /-- List of known program names, for use in CLI usage strings. -/
 def knownProgramNames : List String :=
@@ -882,21 +865,9 @@ def knownProgramNames : List String :=
    "tiny_interp_add", "tiny_interp_add2",
    "tiny_interp_dispatch_add", "tiny_interp_dispatch_add2",
    "runtime_dispatcher",
-   "stateless_guest",
-   "zisk_keccak_probe",
-   "zisk_keccak256_empty",
-   "zisk_keccak256_abc",
-   "zisk_zkvm_keccak256",
-   "zisk_sha256_probe_le",
-   "zisk_zkvm_sha256", "zisk_secp256k1_ecrecover_backend_probe",
-   "zisk_bls12_g1_add_backend_probe",
-   "zisk_bls12_g1_msm_backend_probe",
-   "zisk_bls12_g2_add_backend_probe",
-   "zisk_bls12_g2_msm_backend_probe",
-   "zisk_bls12_pairing_backend_probe", "zisk_bls12_map_fp_to_g1_backend_probe",
-   "zisk_bls12_map_fp2_to_g2_backend_probe",
-   "zisk_keccak256_from_input",
-   "zisk_headers_keccak_chain",
+  "stateless_guest"] ++
+  knownCryptoProgramNames ++
+  ["zisk_headers_keccak_chain",
    "zisk_headers_keccak_array",
    "zisk_headers_parent_hash",
    "zisk_header_validate_parent_hash",
@@ -1204,7 +1175,7 @@ def knownProgramNames : List String :=
    "zisk_bal_account_record_array", "zisk_tx_gas_sender_bal_lookup", "zisk_tx_gas_bal_post_verify",
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
-   "zisk_block_access_list_hash",
+   "zisk_block_access_list_hash", "zisk_eip7778_remaining_block_gas_check",
    "zisk_account_apply_storage_slot", "zisk_storage_effect_records_probe", "zisk_sstore_gas_refund_outcome",
    "zisk_mpt_leaf_node_encode",
    "zisk_mpt_node_slot_encode",
@@ -1362,7 +1333,6 @@ def knownProgramNames : List String :=
    "zisk_mpt_extension_extract",
    "zisk_mpt_branch_used_count",
    "zisk_mpt_branch_first_used_index",
-   "zisk_sha256_from_input",
    "zisk_ssz_pair_hash",
    "zisk_ssz_zero_hashes",
    "zisk_ssz_merkleize_pow2",
@@ -1371,5 +1341,131 @@ def knownProgramNames : List String :=
    "zisk_ssz_hash_tree_root_bytes",
    "zisk_ssz_hash_tree_root_list_bytelist",
    "zisk_ssz_hash_tree_root_execution_witness"]
-
 end EvmAsm.Codegen
+/-! ## File-size guard
+    Hard cap of 1500 lines on `Programs.lean` and every sibling under
+    `EvmAsm/Codegen/Programs/`, to keep the registry hub and the
+    extracted submodules from spiralling. When this guard trips, split
+    a cluster of `*Function` / `zisk*` defs into a new (or existing)
+    submodule, add it to the `paths` list below and to `Programs.lean`'s
+    imports.
+    Established splits so far:
+      * PR-#5870 carved `Evm.lean` / `HashBridge.lean` / `Ssz.lean`.
+      * PR-#5900 carved `RlpRead.lean` / `Mpt.lean`.
+      * PR-#5948 carved `Tx.lean`.
+      * PR-#7176 carved `EvmOpcodesStorageRoot.lean` /
+        `EvmOpcodesExtcodecopy.lean`.
+    Runs at elaboration time via `#eval`; adds zero runtime cost. -/
+#eval show IO Unit from do
+  let hardCap := 1500
+  let paths := [
+    "EvmAsm/Codegen/Programs.lean",
+    "EvmAsm/Codegen/Programs/Account.lean",
+    "EvmAsm/Codegen/Programs/AccountFields.lean",
+    "EvmAsm/Codegen/Programs/Address.lean",
+    "EvmAsm/Codegen/Programs/Block.lean",
+    "EvmAsm/Codegen/Programs/BlockBody.lean",
+    "EvmAsm/Codegen/Programs/BlockEmpty.lean",
+    "EvmAsm/Codegen/Programs/BlockRoots.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean",
+    "EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdictTransactions.lean",
+    "EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean",
+    "EvmAsm/Codegen/Programs/BlockValidate.lean",
+    "EvmAsm/Codegen/Programs/Chain.lean",
+    "EvmAsm/Codegen/Programs/ChainAggregator.lean",
+    "EvmAsm/Codegen/Programs/ChainBasefee.lean",
+    "EvmAsm/Codegen/Programs/ChainBlobCount.lean",
+    "EvmAsm/Codegen/Programs/ChainExcessBlobGas.lean",
+    "EvmAsm/Codegen/Programs/ChainTimestamp.lean",
+    "EvmAsm/Codegen/Programs/ChainEndpoints.lean",
+    "EvmAsm/Codegen/Programs/ChainValidate.lean",
+    "EvmAsm/Codegen/Programs/ChainValidateBlob.lean",
+    "EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean",
+    "EvmAsm/Codegen/Programs/Bloom.lean",
+    "EvmAsm/Codegen/Programs/Clz.lean",
+    "EvmAsm/Codegen/Programs/Evm.lean",
+    "EvmAsm/Codegen/Programs/EvmAccountWitness.lean",
+    "EvmAsm/Codegen/Programs/EvmBalance.lean",
+    "EvmAsm/Codegen/Programs/EvmExtcodecopy.lean", "EvmAsm/Codegen/Programs/EvmMemoryGas.lean",
+    "EvmAsm/Codegen/Programs/EvmArithUnits.lean",
+    "EvmAsm/Codegen/Programs/EvmDispatchUnits.lean",
+    "EvmAsm/Codegen/Programs/ExpProperty.lean",
+    "EvmAsm/Codegen/Programs/HashBridge.lean",
+    "EvmAsm/Codegen/Programs/HashProbes.lean",
+    "EvmAsm/Codegen/Programs/CryptoRegistry.lean",
+    "EvmAsm/Codegen/Programs/Modexp.lean",
+    "EvmAsm/Codegen/Programs/IntrinsicGas.lean",
+    "EvmAsm/Codegen/Programs/Header.lean",
+    "EvmAsm/Codegen/Programs/HeaderBaseFee.lean",
+    "EvmAsm/Codegen/Programs/ValidateHeaderPair.lean",
+    "EvmAsm/Codegen/Programs/BlockHeaderSszToRlp.lean",
+    "EvmAsm/Codegen/Programs/Step2Verdict.lean",
+    "EvmAsm/Codegen/Programs/HeaderDecode.lean",
+    "EvmAsm/Codegen/Programs/HeaderChain.lean",
+    "EvmAsm/Codegen/Programs/HeaderFields.lean",
+    "EvmAsm/Codegen/Programs/BlockHashPredicates.lean",
+    "EvmAsm/Codegen/Programs/HeadersKeccak.lean",
+    "EvmAsm/Codegen/Programs/HeaderU64.lean",
+    "EvmAsm/Codegen/Programs/Mpt.lean",
+    "EvmAsm/Codegen/Programs/MptSet.lean",
+    "EvmAsm/Codegen/Programs/MptSetAcc.lean",
+    "EvmAsm/Codegen/Programs/MptInsertWalk.lean",
+    "EvmAsm/Codegen/Programs/MptInsert.lean",
+    "EvmAsm/Codegen/Programs/MptInsertWalkDb.lean",
+    "EvmAsm/Codegen/Programs/MptInsertAcc.lean",
+    "EvmAsm/Codegen/Programs/MptStateRootIns.lean",
+    "EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean",
+    "EvmAsm/Codegen/Programs/AccountBalance.lean",
+    "EvmAsm/Codegen/Programs/MptEncode.lean",
+    "EvmAsm/Codegen/Programs/SystemWrites.lean",
+    "EvmAsm/Codegen/Programs/BalGasValid.lean",
+    "EvmAsm/Codegen/Programs/BalCodePreimages.lean",
+    "EvmAsm/Codegen/Programs/StorageWrite.lean", "EvmAsm/Codegen/Programs/SstoreGasRefund.lean",
+    "EvmAsm/Codegen/Programs/StorageEffectRecords.lean",
+    "EvmAsm/Codegen/Programs/BlockAccessListHash.lean", "EvmAsm/Codegen/Programs/BlockGasRemaining.lean",
+    "EvmAsm/Codegen/Programs/AccountApplyStorage.lean",
+    "EvmAsm/Codegen/Programs/Noop.lean", "EvmAsm/Codegen/Programs/PrecompileRuntime.lean",
+    "EvmAsm/Codegen/Programs/Storage.lean",
+    "EvmAsm/Codegen/Programs/MptInternal.lean",
+    "EvmAsm/Codegen/Programs/MptNibbles.lean",
+    "EvmAsm/Codegen/Programs/Receipt.lean",
+    "EvmAsm/Codegen/Programs/State.lean",
+    "EvmAsm/Codegen/Programs/StateCompose.lean",
+    "EvmAsm/Codegen/Programs/EvmOpcodes.lean",
+    "EvmAsm/Codegen/Programs/EvmOpcodesStorageRoot.lean",
+    "EvmAsm/Codegen/Programs/EvmOpcodesExtcodecopy.lean",
+    "EvmAsm/Codegen/Programs/StorageCompose.lean",
+    "EvmAsm/Codegen/Programs/EvmCodes.lean",
+    "EvmAsm/Codegen/Programs/RlpRead.lean",
+    "EvmAsm/Codegen/Programs/Ssz.lean",
+    "EvmAsm/Codegen/Programs/StatelessGuestData.lean",
+    "EvmAsm/Codegen/Programs/StatelessGuestEpilogue.lean",
+    "EvmAsm/Codegen/Programs/Tx.lean",
+    "EvmAsm/Codegen/Programs/TxDecode.lean",
+    "EvmAsm/Codegen/Programs/TxExtract.lean",
+    "EvmAsm/Codegen/Programs/TxRoot.lean",
+    "EvmAsm/Codegen/Programs/TxSignature.lean",
+    "EvmAsm/Codegen/Programs/TxSigningHash.lean",
+    "EvmAsm/Codegen/Programs/U256.lean",
+    "EvmAsm/Codegen/Programs/Withdrawal.lean",
+    "EvmAsm/Codegen/Programs/WithdrawalPath.lean",
+    "EvmAsm/Codegen/Programs/SszWithdrawal.lean",
+    "EvmAsm/Codegen/Programs/SszWitnessState.lean",
+    "EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean",
+    "EvmAsm/Codegen/Programs/SszParentHeader.lean",
+    "EvmAsm/Codegen/Programs/StatelessVerdict.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdict.lean",
+    "EvmAsm/Codegen/Programs/BlockVerdictV2.lean"
+  ]
+  for path in paths do
+    let contents ← IO.FS.readFile path
+    let lineCount := (contents.splitOn "\n").length
+    if lineCount > hardCap then
+      throw <| IO.userError <|
+        s!"{path} has {lineCount} lines; hard cap is {hardCap}. " ++
+        "Extract a helper cluster into a new submodule under " ++
+        "EvmAsm/Codegen/Programs/ (see PR #5870 and PR #5900 for the " ++
+        "established pattern). Add the new submodule to the `paths` list " ++
+        "and to `Programs.lean`'s imports."
