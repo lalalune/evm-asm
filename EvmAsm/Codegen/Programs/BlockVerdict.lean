@@ -379,6 +379,104 @@ def publicKeysValidFunction : String :=
   "  addi sp, sp, 96\n" ++
   "  ret"
 
+/-! ## chain_config_valid -- execution-specs validate_chain_config mirror.
+    a0 = SSZ_BASE   a1 = exec_payload ptr
+    a0 (output) = 0 ok, 1 unsupported/inactive/malformed chain_config.
+
+    This checks the Amsterdam stateless guest's semantic chain-config contract:
+    active_fork.fork is Amsterdam, activation sets block_number or timestamp and
+    is active for the target payload, and blob_schedule is exactly the Amsterdam
+    schedule compiled into execution-specs. -/
+def chainConfigValidFunction : String :=
+  "chain_config_valid:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s0, a0                   # SSZ_BASE\n" ++
+  "  mv s1, a1                   # exec_payload\n" ++
+  "  addi a0, s0, 8; jal ra, bgv_u32le\n" ++
+  "  add s2, s0, a0              # chain_config ptr\n" ++
+  "  addi a0, s0, 12; jal ra, bgv_u32le\n" ++
+  "  add s3, s0, a0              # public_keys ptr = chain_config end\n" ++
+  "  bltu s3, s2, .Lccv_fail\n" ++
+  "  sub t0, s3, s2; li t1, 12; bltu t0, t1, .Lccv_fail\n" ++
+  "  addi a0, s2, 8; jal ra, bgv_u32le\n" ++
+  "  li t0, 12; bne a0, t0, .Lccv_fail\n" ++
+  "  add s4, s2, a0              # active_fork ptr\n" ++
+  "  bltu s3, s4, .Lccv_fail\n" ++
+  "  sub s10, s3, s4             # active_fork len\n" ++
+  "  li t0, 40; bltu s10, t0, .Lccv_fail\n" ++
+  "  mv a0, s4; jal ra, bgv_u64le\n" ++
+  "  li t0, 24                   # ProtocolFork.Amsterdam enum index\n" ++
+  "  bne a0, t0, .Lccv_fail\n" ++
+  "  addi a0, s4, 8; jal ra, bgv_u32le\n" ++
+  "  li t0, 16; bne a0, t0, .Lccv_fail\n" ++
+  "  mv s11, a0                  # activation offset\n" ++
+  "  addi a0, s4, 12; jal ra, bgv_u32le\n" ++
+  "  mv s8, a0                   # blob_schedule offset\n" ++
+  "  bltu s8, s11, .Lccv_fail\n" ++
+  "  bgtu s8, s10, .Lccv_fail\n" ++
+  "  add s5, s4, s11             # activation ptr\n" ++
+  "  sub s6, s8, s11             # activation len\n" ++
+  "  li t0, 8; beq s6, t0, .Lccv_fail\n" ++
+  "  li t0, 16; beq s6, t0, .Lccv_activation_len16\n" ++
+  "  li t0, 24; beq s6, t0, .Lccv_activation_len24\n" ++
+  "  j .Lccv_fail\n" ++
+  ".Lccv_activation_len16:\n" ++
+  "  addi a0, s5, 0; jal ra, bgv_u32le\n" ++
+  "  li t0, 8; bne a0, t0, .Lccv_fail\n" ++
+  "  addi a0, s5, 4; jal ra, bgv_u32le\n" ++
+  "  li t0, 8; beq a0, t0, .Lccv_check_ts_at8\n" ++
+  "  li t0, 16; beq a0, t0, .Lccv_check_bn_at8\n" ++
+  "  j .Lccv_fail\n" ++
+  ".Lccv_activation_len24:\n" ++
+  "  addi a0, s5, 0; jal ra, bgv_u32le\n" ++
+  "  li t0, 8; bne a0, t0, .Lccv_fail\n" ++
+  "  addi a0, s5, 4; jal ra, bgv_u32le\n" ++
+  "  li t0, 16; bne a0, t0, .Lccv_fail\n" ++
+  "  addi a0, s5, 8; jal ra, bgv_u64le\n" ++
+  "  mv s9, a0\n" ++
+  "  addi a0, s1, 404; jal ra, bgv_u64le\n" ++
+  "  bltu a0, s9, .Lccv_fail\n" ++
+  "  addi a0, s5, 16; jal ra, bgv_u64le\n" ++
+  "  mv s9, a0\n" ++
+  "  addi a0, s1, 428; jal ra, bgv_u64le\n" ++
+  "  bltu a0, s9, .Lccv_fail\n" ++
+  "  j .Lccv_check_blob\n" ++
+  ".Lccv_check_bn_at8:\n" ++
+  "  addi a0, s5, 8; jal ra, bgv_u64le\n" ++
+  "  mv s9, a0\n" ++
+  "  addi a0, s1, 404; jal ra, bgv_u64le\n" ++
+  "  bltu a0, s9, .Lccv_fail\n" ++
+  "  j .Lccv_check_blob\n" ++
+  ".Lccv_check_ts_at8:\n" ++
+  "  addi a0, s5, 8; jal ra, bgv_u64le\n" ++
+  "  mv s9, a0\n" ++
+  "  addi a0, s1, 428; jal ra, bgv_u64le\n" ++
+  "  bltu a0, s9, .Lccv_fail\n" ++
+  ".Lccv_check_blob:\n" ++
+  "  sub s6, s10, s8             # blob_schedule len\n" ++
+  "  li t0, 24; bne s6, t0, .Lccv_fail\n" ++
+  "  add s5, s4, s8              # blob_schedule ptr\n" ++
+  "  mv a0, s5; jal ra, bgv_u64le\n" ++
+  "  li t0, 14; bne a0, t0, .Lccv_fail\n" ++
+  "  addi a0, s5, 8; jal ra, bgv_u64le\n" ++
+  "  li t0, 21; bne a0, t0, .Lccv_fail\n" ++
+  "  addi a0, s5, 16; jal ra, bgv_u64le\n" ++
+  "  li t0, 11684671; bne a0, t0, .Lccv_fail\n" ++
+  "  li a0, 0; j .Lccv_ret\n" ++
+  ".Lccv_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lccv_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
+  "  ret"
+
 /-! ## block_verdict -- step2_verdict with the FULL (system + withdrawal) recompute.
     a0 = params ptr (the step2_verdict struct)   a1 = SSZ_BASE
     a0 (output) = verdict bit. -/
@@ -639,6 +737,9 @@ def statelessVerdictV2Function : String :=
   "  addi s0, s0, 18\n" ++
   "  mv a0, s0; la a1, svf_payload; la a2, svf_wds_ptr; la a3, svf_wds_count\n" ++
   "  jal ra, extract_payload_and_withdrawals\n" ++
+  "  mv a0, s0; la t0, svf_payload; ld a1, 0(t0)\n" ++
+  "  jal ra, chain_config_valid\n" ++
+  "  bnez a0, .Lv2_chain_config_fail\n" ++
   "  mv a0, s0; la a1, svf_witness; la a2, svf_witness_len\n" ++
   "  jal ra, extract_witness_state_section\n" ++
   "  la t0, svf_witness; ld a0, 0(t0)\n" ++
@@ -729,6 +830,9 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_zero\n" ++
   ".Lv2_requests_hash_fail:\n" ++
   "  li t0, 24; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_chain_config_fail:\n" ++
+  "  li t0, 26; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_zero:\n" ++
   "  li a0, 0\n" ++
@@ -901,6 +1005,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
+  chainConfigValidFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
   receiptRecordsFunction ++ "\n" ++
   blockReceiptRecordsMaterializeFunction ++ "\n" ++
